@@ -1,0 +1,17 @@
+[project]
+name = "dev-lab"
+version = "0.1.0"
+description = "Svens AI Dev Lab"
+requires-python = ">=3.11"
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+pythonpath = ["."]
