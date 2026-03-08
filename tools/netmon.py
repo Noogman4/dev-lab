@@ -10,7 +10,6 @@ import re
 import shutil
 import ipaddress
 import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ---------- PATH Fix (wichtig bei Start über Desktop/Icon) ----------
 DEFAULT_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -116,37 +115,43 @@ def is_safe_trace_target(target: str) -> bool:
 
 
 def parse_traceroute_hops(output: str):
+    hops = []
+    for line in (output or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
 
-hops = []
-for line in (output or "").splitlines():
-    line = line.strip()
-    if not line:
-        continue
+        # traceroute output varies:
+        #  3  192.168.1.1  1.23 ms
+        #  3  router.local (192.168.1.1)  1.23 ms
+        #  3  *
+        #
+        # Parse: hop number, token, optional IP in parentheses, optional RTT.
+        m = re.match(
+            r"^(\d+)\s+(\*|[^\s]+)(?:\s+\(?([0-9A-Fa-f\.:]+)\)?)?\s*(?:(\d+(?:\.\d+)?)\s*ms)?",
+            line,
+        )
+        if m:
+            hop = int(m.group(1))
+            token = m.group(2)
+            ip_in_paren = m.group(3)
+            rtt = m.group(4)
 
-    # traceroute output varies:
-    #  3  192.168.1.1  1.23 ms
-    #  3  router.local (192.168.1.1)  1.23 ms
-    #  3  * 
-    #
-    # Parse: hop number, token, optional IP in parentheses, optional RTT.
-    m = re.match(r"^(\d+)\s+(\*|[^\s]+)(?:\s+\(?([0-9A-Fa-f\.:]+)\)?)?\s*(?:(\d+(?:\.\d+)?)\s*ms)?", line)
-    if m:
-        hop = int(m.group(1))
-        token = m.group(2)
-        ip_in_paren = m.group(3)
-        rtt = m.group(4)
+            ip = token
+            if ip_in_paren:
+                ip = ip_in_paren
 
-        ip = token
-        if ip_in_paren:
-            ip = ip_in_paren
+            hops.append(
+                {
+                    "hop": hop,
+                    "ip": ip,
+                    "rtt_ms": float(rtt) if rtt is not None else None,
+                    "raw": line,
+                }
+            )
+    return hops
 
-        hops.append({
-            "hop": hop,
-            "ip": ip,
-            "rtt_ms": float(rtt) if rtt is not None else None,
-            "raw": line,
-        })
-return hops
+
 def parse_cf_trace(output: str):
     info = {}
     for line in (output or "").splitlines():
@@ -529,30 +534,30 @@ class App(tk.Tk):
 
     # ---------- IPv6 ----------
     def ipv6_is_disabled(self) -> bool:
+        # Prefer /proc (per-interface flags) when available
+        try:
+            base = "/proc/sys/net/ipv6/conf"
+            if os.path.isdir(base):
+                all_p = os.path.join(base, "all", "disable_ipv6")
+                if os.path.exists(all_p):
+                    v = open(all_p, "r").read().strip()
+                    if v == "1":
+                        return True
 
-    # Prefer /proc (per-interface flags) when available
-    try:
-        base = "/proc/sys/net/ipv6/conf"
-        if os.path.isdir(base):
-            all_p = os.path.join(base, "all", "disable_ipv6")
-            if os.path.exists(all_p):
-                v = open(all_p, "r").read().strip()
-                if v == "1":
-                    return True
+                # Consider IPv6 enabled if any interface flag is 0
+                for entry in os.listdir(base):
+                    p = os.path.join(base, entry, "disable_ipv6")
+                    if os.path.exists(p) and open(p, "r").read().strip() == "0":
+                        return False
 
-            # Consider IPv6 enabled if any interface flag is 0
-            for entry in os.listdir(base):
-                p = os.path.join(base, entry, "disable_ipv6")
-                if os.path.exists(p) and open(p, "r").read().strip() == "0":
-                    return False
+                return True
+        except Exception:
+            pass
 
-            return True
-    except Exception:
-        pass
+        # Fallback via sysctl
+        _, out = run_cmd(["sysctl", "-n", "net.ipv6.conf.all.disable_ipv6"], timeout=3)
+        return out.strip() == "1"
 
-    # Fallback via sysctl
-    _, out = run_cmd(["sysctl", "-n", "net.ipv6.conf.all.disable_ipv6"], timeout=3)
-    return out.strip() == "1"
     def ipv6_disable(self):
         cmds = [
             ["sudo", "-n", "sysctl", "-w", "net.ipv6.conf.all.disable_ipv6=1"],
@@ -1094,50 +1099,53 @@ class App(tk.Tk):
 
     # ---------- Trace (Table of hops) ----------
     def hop_lookup(self, ip: str):
-
-    ip = (ip or "").strip()
-    if not ip or ip == "*" or ":" in ip:
-        return "", ""
-
-    # cache hit?
-    if ip in self.hop_cache:
-        return self.hop_cache[ip]
-
-    # privacy: only when enabled
-    if not self.hop_lookup_enabled.get():
-        self.hop_cache[ip] = ("", "")
-        return "", ""
-
-    # skip private/reserved/non-global IPs (no external lookup)
-    try:
-        ip_obj = ipaddress.ip_address(ip)
-        if not ip_obj.is_global:
-            self.hop_cache[ip] = ("", "")
+        ip = (ip or "").strip()
+        if not ip or ip == "*" or ":" in ip:
             return "", ""
-    except ValueError:
-        # if it's not an IP, we don't look it up here
-        self.hop_cache[ip] = ("", "")
-        return "", ""
 
-    # ipwho.is returns JSON with country_code + org
-    rc, out = run_cmd(["curl", "-s", "--fail", "--max-time", "3", f"https://ipwho.is/{ip}"], timeout=5)
-    if rc != 0 or not out:
-        self.hop_cache[ip] = ("", "")
-        return "", ""
+        # cache hit?
+        if ip in self.hop_cache:
+            return self.hop_cache[ip]
 
-    try:
-        data = json.loads(out)
-        if not data.get("success", True):
+        # privacy: only when enabled
+        if not self.hop_lookup_enabled.get():
             self.hop_cache[ip] = ("", "")
             return "", ""
 
-        cc = (data.get("country_code") or "").strip()
-        org = (data.get("org") or data.get("connection", {}).get("org") or "").strip()
-        self.hop_cache[ip] = (cc, org)
-        return cc, org
-    except Exception:
-        self.hop_cache[ip] = ("", "")
-        return "", ""
+        # skip private/reserved/non-global IPs (no external lookup)
+        try:
+            ip_obj = ipaddress.ip_address(ip)
+            if not ip_obj.is_global:
+                self.hop_cache[ip] = ("", "")
+                return "", ""
+        except ValueError:
+            # if it's not an IP, we don't look it up here
+            self.hop_cache[ip] = ("", "")
+            return "", ""
+
+        # ipwho.is returns JSON with country_code + org
+        rc, out = run_cmd(
+            ["curl", "-s", "--fail", "--max-time", "3", f"https://ipwho.is/{ip}"],
+            timeout=5,
+        )
+        if rc != 0 or not out:
+            self.hop_cache[ip] = ("", "")
+            return "", ""
+
+        try:
+            data = json.loads(out)
+            if not data.get("success", True):
+                self.hop_cache[ip] = ("", "")
+                return "", ""
+
+            cc = (data.get("country_code") or "").strip()
+            org = (data.get("org") or data.get("connection", {}).get("org") or "").strip()
+            self.hop_cache[ip] = (cc, org)
+            return cc, org
+        except Exception:
+            self.hop_cache[ip] = ("", "")
+            return "", ""
+
     def trace_table_async(self):
         target = (self.trace_target.get() or "").strip()
         if not target:
