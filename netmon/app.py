@@ -18,7 +18,6 @@ import shlex
 import ipaddress
 import json
 import tempfile
-import csv
 import signal
 import traceback
 import warnings
@@ -107,11 +106,47 @@ except ModuleNotFoundError:
         RollbackTransaction = None
 
 try:
+    import netmon.features.clamav_controller as clamav_controller
+    import netmon.features.dns_controller as dns_controller
+    import netmon.features.dot_controller as dot_controller
+    import netmon.features.chad_controller as chad_controller
+    import netmon.features.firewall_controller as firewall_controller
+    import netmon.features.hdd_controller as hdd_controller
+    import netmon.features.linux_help_controller as linux_help_controller
+    import netmon.features.packet_capture_controller as packet_capture_controller
+    import netmon.features.security_audit_controller as security_audit_controller
+    import netmon.features.security_monitoring_controller as security_monitoring_controller
+    import netmon.features.speedtest_controller as speedtest_controller
+    import netmon.features.vpn_controller as vpn_controller
     from netmon.services.network_service import NetmonNetworkService
 except ModuleNotFoundError:
     try:
+        import features.clamav_controller as clamav_controller
+        import features.dns_controller as dns_controller
+        import features.dot_controller as dot_controller
+        import features.chad_controller as chad_controller
+        import features.firewall_controller as firewall_controller
+        import features.hdd_controller as hdd_controller
+        import features.linux_help_controller as linux_help_controller
+        import features.packet_capture_controller as packet_capture_controller
+        import features.security_audit_controller as security_audit_controller
+        import features.security_monitoring_controller as security_monitoring_controller
+        import features.speedtest_controller as speedtest_controller
+        import features.vpn_controller as vpn_controller
         from services.network_service import NetmonNetworkService
     except ModuleNotFoundError:
+        clamav_controller = None
+        dns_controller = None
+        dot_controller = None
+        chad_controller = None
+        firewall_controller = None
+        hdd_controller = None
+        linux_help_controller = None
+        packet_capture_controller = None
+        security_audit_controller = None
+        security_monitoring_controller = None
+        speedtest_controller = None
+        vpn_controller = None
         NetmonNetworkService = None
 
 try:
@@ -163,10 +198,36 @@ except ModuleNotFoundError:
         LangService = None
 
 try:
+    from netmon.ui.tabs.connections_tab import build_connections_tab
+    from netmon.ui.tabs.chad_tab import build_chad_tab
+    from netmon.ui.tabs.dns_tab import build_dns_tab
+    from netmon.ui.tabs.hdd_tab import build_hdd_tab
+    from netmon.ui.tabs.linux_help_tab import build_linux_help_tab
+    from netmon.ui.tabs.links_tab import build_links_tab
+    from netmon.ui.tabs.log_tab import build_log_tab
+    from netmon.ui.tabs.security_tabs import build_security_tabs
+    from netmon.ui.tabs.settings_tab import build_settings_tab as build_settings_tab_ui
+    from netmon.ui.tabs.system_tab import build_system_tab
+    from netmon.ui.tabs.tools_tabs import build_basic_tools_tabs
+    from netmon.ui.tabs.trace_tab import build_trace_tab
+    from netmon.ui.tabs.vpn_slots_tab import build_vpn_slots_tab
     from netmon.ui.widgets.lights import make_light as build_light_widget
     from netmon.ui.widgets.lights import set_light as update_light_widget
     from netmon.ui.widgets.tooltip import SimpleTooltip
 except ModuleNotFoundError:
+    from ui.tabs.connections_tab import build_connections_tab
+    from ui.tabs.chad_tab import build_chad_tab
+    from ui.tabs.log_tab import build_log_tab
+    from ui.tabs.dns_tab import build_dns_tab
+    from ui.tabs.hdd_tab import build_hdd_tab
+    from ui.tabs.linux_help_tab import build_linux_help_tab
+    from ui.tabs.links_tab import build_links_tab
+    from ui.tabs.security_tabs import build_security_tabs
+    from ui.tabs.settings_tab import build_settings_tab as build_settings_tab_ui
+    from ui.tabs.system_tab import build_system_tab
+    from ui.tabs.tools_tabs import build_basic_tools_tabs
+    from ui.tabs.trace_tab import build_trace_tab
+    from ui.tabs.vpn_slots_tab import build_vpn_slots_tab
     from ui.widgets.lights import make_light as build_light_widget
     from ui.widgets.lights import set_light as update_light_widget
     from ui.widgets.tooltip import SimpleTooltip
@@ -188,17 +249,13 @@ try:
         DOT_DROPIN_PATH,
         DOT_PROFILES,
         HDD_SLOT_CONFIG_FILE,
-        HDD_SLOT_COUNT,
         LINK_SLOT_CONFIG_FILE,
         LINK_SLOT_COUNT,
         NETMON_APP_VERSION,
         PORT_REALITY_DISPLAY_MAP,
         PRIMARY_VPN_SLOT_CONFIG_FILE,
         PRIVACY_CONFIG_FILE,
-        PRIVACY_VPN_LABELS,
-        PRIVACY_VPN_PROFILES_TO_LABEL,
         SECURITY_BASELINE_FILE,
-        SPEEDTEST_WARN_DEFAULTS,
         TRACE_TARGETS,
         VPN_CH,
         VPN_DE,
@@ -216,17 +273,13 @@ except (ImportError, ModuleNotFoundError):
         DOT_DROPIN_PATH,
         DOT_PROFILES,
         HDD_SLOT_CONFIG_FILE,
-        HDD_SLOT_COUNT,
         LINK_SLOT_CONFIG_FILE,
         LINK_SLOT_COUNT,
         NETMON_APP_VERSION,
         PORT_REALITY_DISPLAY_MAP,
         PRIMARY_VPN_SLOT_CONFIG_FILE,
         PRIVACY_CONFIG_FILE,
-        PRIVACY_VPN_LABELS,
-        PRIVACY_VPN_PROFILES_TO_LABEL,
         SECURITY_BASELINE_FILE,
-        SPEEDTEST_WARN_DEFAULTS,
         TRACE_TARGETS,
         VPN_CH,
         VPN_DE,
@@ -241,14 +294,12 @@ try:
         check_sudo_nopasswd,
         renew_sudo_timestamp,
         run_cmd,
-        run_cmd_with_input,
     )
 except (ImportError, ModuleNotFoundError):
     from core.command import (
         check_sudo_nopasswd,
         renew_sudo_timestamp,
         run_cmd,
-        run_cmd_with_input,
     )
 
 try:
@@ -2250,2197 +2301,29 @@ class App(TkBase):
         self.security_nb = ttk.Notebook(self.tab_security_main)
         self.security_nb.pack(fill="both", expand=True)
 
-        # Tab: Log
-        self.tab_log = ttk.Frame(self.nb, padding=10)
-        self.nb.add(self.tab_log, text=self.tr("tab_log", "Log"))
+        build_log_tab(self)
+        build_trace_tab(self)
+        build_connections_tab(self)
 
-        log_bar = ttk.Frame(self.tab_log)
-        log_bar.pack(fill="x", pady=(0, 8))
-        ttk.Button(
-            log_bar,
-            text=self.tr("btn_clear_log", "Log leeren"),
-            command=self.clear_log,
-        ).pack(side="right")
-        btn_log_chad = ttk.Button(
-            log_bar,
-            text=self.tr("btn_analyze_with_chad", "Analyse mit Chad"),
-            command=self.prepare_log_selection_chad_analysis,
-        )
-        btn_log_chad.pack(side="left")
-        self.add_tooltip(
-            btn_log_chad,
-            "Bereitet nur den aktuell markierten Log-Text lokal für den Chad Analyse-Tab vor.",
-        )
-        btn_preflight_recheck = ttk.Button(
-            log_bar,
-            text=self.tr("btn_preflight_recheck", "Preflight neu prüfen"),
-            command=self.preflight_recheck,
-        )
-        btn_preflight_recheck.pack(side="right", padx=(0, 8))
-        self.add_tooltip(
-            btn_preflight_recheck,
-            "Führt die Tool-Erkennung erneut aus und aktualisiert aktivierte Buttons sofort.",
-        )
+        build_dns_tab(self)
 
-        self.log_view_frame = tk.Frame(self.tab_log, bg="#ffffff", highlightthickness=0)
-        self.log_view_frame.pack(fill="both", expand=True)
-
-        self.text = tk.Text(
-            self.log_view_frame,
-            wrap="none",
-            font=("Courier", 11),
-            foreground="#000000",
-            background="#ffffff",
-            insertbackground="#000000",
-        )
-        self.text.pack(fill="both", expand=True)
-        self.text.configure(cursor="xterm")
-        self.text.bind("<Key>", lambda _e: "break")
-        self.text.bind("<<Paste>>", lambda _e: "break")
-        self.text.bind("<<Cut>>", lambda _e: "break")
-        self.attach_chad_context_menu(self.text, "Log Analyse")
-
-        self.log_overlay_frame = tk.Frame(
-            self.log_view_frame, bg="#111111", highlightthickness=0
-        )
-        self.log_overlay_label = tk.Label(
-            self.log_overlay_frame,
-            bg="#111111",
-            anchor="center",
-            justify="center",
-        )
-        self.log_overlay_label.pack(fill="both", expand=True)
-
-        self.log_overlay_name_var = tk.StringVar(value="")
-        self.log_overlay_name_badge = tk.Label(
-            self.log_view_frame,
-            textvariable=self.log_overlay_name_var,
-            fg="#f5f5f5",
-            bg="#151515",
-            padx=10,
-            pady=3,
-            relief="flat",
-            highlightthickness=1,
-            highlightbackground="#333333",
-            font=("TkDefaultFont", 10, "bold"),
-        )
-
-        self.log_overlay_controls = tk.Frame(self.log_view_frame, bg="#000000", bd=0)
-        self.log_overlay_controls.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
-
-        self.btn_log_overlay_load = ttk.Button(
-            self.log_overlay_controls,
-            text="Bild auswählen",
-            command=self.choose_log_overlay_image,
-        )
-        self.btn_log_overlay_load.pack(side="left")
-        self.add_tooltip(
-            self.btn_log_overlay_load,
-            "Öffnet den Auswahlbereich für Overlay-Bilder und lässt ihn bis zum manuellen Schließen geöffnet.",
-        )
-
-        self.log_overlay_picker_frame = tk.Frame(
-            self.log_view_frame,
-            bg="#0f0f0f",
-            highlightthickness=1,
-            highlightbackground="#2a2a2a",
-        )
-        self.log_overlay_picker_title = tk.Label(
-            self.log_overlay_picker_frame,
-            text="Bild für Overlay auswählen",
-            fg="#e6e6e6",
-            bg="#0f0f0f",
-            anchor="w",
-        )
-        self.log_overlay_picker_title.pack(fill="x", padx=8, pady=(6, 4))
-
-        self.log_overlay_picker_list = tk.Listbox(
-            self.log_overlay_picker_frame,
-            height=8,
-            exportselection=False,
-            activestyle="none",
-            bg="#1a1a1a",
-            fg="#f0f0f0",
-            selectbackground="#2d4f7c",
-            selectforeground="#ffffff",
-            relief="flat",
-            highlightthickness=1,
-            highlightbackground="#3a3a3a",
-        )
-        self.log_overlay_picker_list.pack(fill="both", expand=True, padx=8)
-        self.log_overlay_picker_list.bind(
-            "<<ListboxSelect>>", self._on_log_overlay_picker_select
-        )
-
-        self.log_overlay_picker_actions = tk.Frame(
-            self.log_overlay_picker_frame,
-            bg="#0f0f0f",
-            bd=0,
-        )
-        self.log_overlay_picker_actions.pack(fill="x", padx=8, pady=(6, 8))
-
-        self.btn_log_overlay_picker_folder = ttk.Button(
-            self.log_overlay_picker_actions,
-            text="Ordner...",
-            command=self._choose_log_overlay_folder,
-        )
-        self.btn_log_overlay_picker_folder.pack(side="left")
-
-        self.btn_log_overlay_picker_prev = ttk.Button(
-            self.log_overlay_picker_actions,
-            text="◀",
-            width=3,
-            command=lambda: self._step_log_overlay_selection(-1),
-        )
-        self.btn_log_overlay_picker_prev.pack(side="left", padx=(6, 0))
-
-        self.btn_log_overlay_picker_next = ttk.Button(
-            self.log_overlay_picker_actions,
-            text="▶",
-            width=3,
-            command=lambda: self._step_log_overlay_selection(1),
-        )
-        self.btn_log_overlay_picker_next.pack(side="left", padx=(4, 0))
-
-        self.btn_log_overlay_picker_close = ttk.Button(
-            self.log_overlay_picker_actions,
-            text="Auswahl schließen",
-            command=self.close_log_overlay_picker,
-        )
-        self.btn_log_overlay_picker_close.pack(side="right")
-
-        self.log_overlay_toggle_text = tk.StringVar(value="Bild")
-        self.btn_log_overlay_toggle = ttk.Button(
-            self.log_overlay_controls,
-            textvariable=self.log_overlay_toggle_text,
-            command=self.toggle_log_overlay,
-        )
-        self.btn_log_overlay_toggle.pack(side="left", padx=(6, 0))
-        self.add_tooltip(
-            self.btn_log_overlay_toggle,
-            "Schaltet zwischen normalem Log und vollständiger Bild-Überlagerung um.",
-        )
-
-        self.log_view_frame.bind("<Configure>", self._on_log_overlay_resize)
-        self._restore_log_overlay_from_config()
-
-        # Tab: Trace (Hops)
-        self.tab_trace = ttk.Frame(self.nb, padding=10)
-        self.nb.add(self.tab_trace, text=self.tr("tab_trace", "Trace"))
-
-        self.trace_table = ttk.Treeview(
-            self.tab_trace,
-            columns=("hop", "ip", "rtt", "cc", "org"),
-            show="headings",
-            height=18,
-        )
-        self.trace_table.heading("hop", text="Hop")
-        self.trace_table.heading("ip", text="IP")
-        self.trace_table.heading("rtt", text="RTT (ms)")
-        self.trace_table.column("hop", width=60, anchor="center")
-        self.trace_table.column("ip", width=260, anchor="w")
-        self.trace_table.column("rtt", width=120, anchor="e")
-        self.trace_table.column("cc", width=70, anchor="center")
-        self.trace_table.column("org", width=220, anchor="w")
-        self.trace_table.pack(fill="both", expand=True)
-        self.trace_table.heading("cc", text="Land")
-        self.trace_table.heading("org", text="Provider")
-
-        # Tab: Connections (PID)
-        self.tab_conn = ttk.Frame(self.nb, padding=10)
-        # UI Cleanup inventory (Tabs):
-        # Haupttabs kurz halten, Untertabs konsistent benennen.
-        self.nb.add(self.tab_conn, text=self.tr("tab_connections", "Verbindungen"))
-
-        conn_top = ttk.Frame(self.tab_conn)
-        conn_top.pack(fill="x", pady=(0, 8))
-        ttk.Label(
-            conn_top,
-            text=self.tr("label_filter_optional", "Filter (optional):"),
-        ).pack(side="left")
-        self.conn_filter = tk.StringVar(value="")
-        self.conn_filter_entry = ttk.Entry(conn_top, textvariable=self.conn_filter)
-        self.conn_filter_entry.pack(side="left", fill="x", expand=True, padx=8)
-        ttk.Button(
-            conn_top,
-            text=self.tr("btn_apply_filter", "Filter anwenden"),
-            command=self.apply_conn_filter,
-        ).pack(side="left")
-        ttk.Button(
-            conn_top,
-            text=self.tr("btn_analyze_with_chad", "Analyse mit Chad"),
-            command=self.analyze_connections_with_chad,
-        ).pack(side="left", padx=(8, 0))
-
-        self.conn_table = ttk.Treeview(
-            self.tab_conn,
-            columns=("proto", "state", "local", "remote", "pid", "proc"),
-            show="headings",
-            height=18,
-        )
-        for col, title, w in [
-            ("proto", "Proto", 70),
-            ("state", "State", 90),
-            ("local", "Local", 220),
-            ("remote", "Remote", 220),
-            ("pid", "PID", 70),
-            ("proc", "Process", 160),
-        ]:
-            self.conn_table.heading(col, text=title)
-            self.conn_table.column(col, width=w, anchor="w")
-        self.conn_table.column("pid", anchor="center")
-        self.conn_table.pack(fill="both", expand=True)
-        self.attach_connections_context_menu()
-
-        self._conn_rows_cache = []
-
-        # Tab: DNS Status
-        self.tab_dns = ttk.Frame(self.nb, padding=10)
-        self.nb.add(self.tab_dns, text=self.tr("tab_dns", "DNS"))
-
-        # UI Cleanup inventory (DNS):
-        # Standard: DNS Status aktualisieren -> resolved_status_async
-        # Standard: DNS Leak Check -> run_dns_leak_check
-        # Standard: DNS Guard aktivieren -> save_privacy_config
-        # Expert: DNS reparieren -> apply_vpn_dns_policy_async
-        # Expert: DoT AN/AUS/Test/Status -> enable/disable/test/show_dot_status_async
-        # Expert: DNSSEC prüfen -> run_dnssec_check
-        # Expert: DNS Health Check -> run_dns_health_check
-        # Expert: DNS Repair Rollback -> dns_repair_rollback_async
-        # Expert: DoT Leak-Konflikt beheben -> fix_dot_leak_conflict_async
-        dns_standard_frame = ttk.LabelFrame(
-            self.tab_dns,
-            text=self.tr("dns_group_standard", "DNS Standard"),
-            padding=6,
-        )
-        dns_standard_frame.pack(fill="x", pady=(0, 8))
-        dns_standard_row1 = ttk.Frame(dns_standard_frame)
-        dns_standard_row1.pack(fill="x")
-        dns_standard_row2 = ttk.Frame(dns_standard_frame)
-        dns_standard_row2.pack(fill="x", pady=(6, 0))
-        ttk.Button(
-            dns_standard_row1,
-            text=self.tr("dns_btn_refresh_status", "DNS Status aktualisieren"),
-            command=self.resolved_status_async,
-        ).pack(side="left")
-        ttk.Button(
-            dns_standard_row1,
-            text=self.tr("dns_btn_leak_check", "DNS Leak Check"),
-            command=self.run_dns_leak_check,
-        ).pack(side="left", padx=(8, 0))
-        ttk.Button(
-            dns_standard_row1,
-            text=self.tr("dns_btn_clear_output", "DNS-Ausgabe leeren"),
-            command=self.clear_dns_output,
-        ).pack(side="right")
-        ttk.Checkbutton(
-            dns_standard_row2,
-            text=self.tr("dns_check_enable_guard", "DNS Guard aktivieren"),
-            variable=self.dns_guard_enabled_var,
-            command=self.save_privacy_config,
-        ).pack(side="left")
-        ttk.Button(
-            dns_standard_row2,
-            text=self.tr("btn_analyze_with_chad", "Analyse mit Chad"),
-            command=lambda: self.prepare_chad_analysis(
-                "DNS Analyse",
-                self.dns_text.get("1.0", "end").strip(),
-            ),
-        ).pack(side="left", padx=(8, 0))
-
-        dns_policy_frame = ttk.LabelFrame(
-            self.tab_dns,
-            text=self.tr("dns_group_control", "DNS Control"),
-            padding=6,
-        )
-        dns_policy_frame.pack(fill="x", pady=(0, 8))
-
-        dns_policy_top = ttk.Frame(dns_policy_frame)
-        dns_policy_top.pack(fill="x")
-        ttk.Label(
-            dns_policy_top,
-            text=self.tr("dns_label_mode", "DNS Modus:"),
-        ).pack(side="left")
-        self.dns_mode_combo = ttk.Combobox(
-            dns_policy_top,
-            textvariable=self.dns_mode_var,
-            values=list(DNS_MODE_LABELS.values()),
-            state="readonly",
-            width=24,
-        )
-        self.dns_mode_combo.pack(side="left", padx=(8, 8))
-        self.dns_mode_combo.bind(
-            "<<ComboboxSelected>>",
-            lambda _event: self.on_dns_mode_selected(),
-        )
-        ttk.Button(
-            dns_policy_top,
-            text=self.tr("dns_btn_evaluate_status", "DNS Status bewerten"),
-            command=self.fix_dns_conflicts_async,
-        ).pack(side="left")
-        btn_dns_repair = ttk.Button(
-            dns_policy_top,
-            text=self.tr("dns_btn_repair", "DNS reparieren"),
-            command=self.apply_vpn_dns_policy_async,
-        )
-        btn_dns_repair.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            btn_dns_repair,
-            "Behebt DNS-Konflikte und stellt sicher,\n"
-            "dass nur der korrekte DNS (z.B. VPN-DNS) aktiv ist.",
-        )
-
-        dns_guard_row = ttk.Frame(dns_policy_frame)
-        dns_guard_row.pack(fill="x", pady=(6, 0))
-        ttk.Label(
-            dns_guard_row,
-            text=self.tr("dns_label_guard_status", "Guard-Status:"),
-        ).pack(side="left")
-
-        ttk.Label(
-            dns_policy_frame,
-            textvariable=self.dns_mode_status_var,
-        ).pack(anchor="w", pady=(6, 0))
-        ttk.Label(
-            dns_policy_frame,
-            textvariable=self.dns_resolver_status_var,
-        ).pack(anchor="w")
-        ttk.Label(
-            dns_policy_frame,
-            textvariable=self.dns_conflict_status_var,
-        ).pack(anchor="w")
-        ttk.Label(
-            dns_policy_frame,
-            textvariable=self.dns_guard_status_var,
-        ).pack(anchor="w")
-        ttk.Label(
-            dns_policy_frame,
-            textvariable=self.dns_guard_last_action_var,
-        ).pack(anchor="w")
-
-        dns_expert_frame = ttk.LabelFrame(
-            self.tab_dns,
-            text=self.tr("dns_group_expert", "DNS Experten / Wartung"),
-            padding=6,
-        )
-        dns_expert_frame.pack(fill="x", pady=(0, 8))
-        dns_expert_row1 = ttk.Frame(dns_expert_frame)
-        dns_expert_row1.pack(fill="x")
-        dns_expert_row2 = ttk.Frame(dns_expert_frame)
-        dns_expert_row2.pack(fill="x", pady=(6, 0))
-
-        btn_dnssec = ttk.Button(
-            dns_expert_row1,
-            text=self.tr("dns_btn_dnssec_check", "DNSSEC prüfen"),
-            command=self.run_dnssec_check,
-        )
-        btn_dnssec.pack(side="left")
-        self.register_feature_button("dns_consistency", btn_dnssec)
-
-        ttk.Button(
-            dns_expert_row1,
-            text=self.tr("dns_btn_health_check", "DNS Health Check"),
-            command=self.run_dns_health_check,
-        ).pack(side="left", padx=(8, 0))
-
-        btn_dns_repair = ttk.Button(
-            dns_expert_row1,
-            text=self.tr("dns_btn_repair", "DNS reparieren"),
-            command=self.apply_vpn_dns_policy_async,
-        )
-        btn_dns_repair.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            btn_dns_repair,
-            "Behebt DNS-Konflikte und stellt sicher,\n"
-            "dass nur der korrekte DNS (z.B. VPN-DNS) aktiv ist.",
-        )
-
-        ttk.Button(
-            dns_expert_row1,
-            text=self.tr("dns_btn_repair_rollback", "DNS Repair Rollback"),
-            command=self.dns_repair_rollback_async,
-        ).pack(side="left", padx=(8, 0))
-
-        self.btn_dot_on = ttk.Button(
-            dns_expert_row2,
-            text=self.tr("dns_btn_dot_on", "DoT AN"),
-            command=self.enable_dot_async,
-        )
-        self.btn_dot_on.pack(side="left")
-        self.register_feature_button("dot", self.btn_dot_on)
-        self.add_tooltip(
-            self.btn_dot_on,
-            "Aktiviert DNS over TLS über eine NetMon-Drop-in-Datei für systemd-resolved. "
-            "Bei aktivem VPN ist diese Aktion gesperrt.",
-        )
-
-        self.btn_dot_off = ttk.Button(
-            dns_expert_row2,
-            text=self.tr("dns_btn_dot_off", "DoT AUS"),
-            command=self.disable_dot_async,
-        )
-        self.btn_dot_off.pack(side="left", padx=(8, 0))
-        self.register_feature_button("dot", self.btn_dot_off)
-        self.add_tooltip(
-            self.btn_dot_off,
-            "Entfernt die NetMon-DoT-Konfiguration wieder aus systemd-resolved.",
-        )
-
-        btn_dot_test = ttk.Button(
-            dns_expert_row2,
-            text=self.tr("dns_btn_dot_test", "DoT testen"),
-            command=self.test_dot_async,
-        )
-        btn_dot_test.pack(side="left", padx=(8, 0))
-        self.register_feature_button("dot", btn_dot_test)
-        self.add_tooltip(
-            btn_dot_test,
-            "Prüft Konfiguration, Resolver-Antwort und optional eine TLS-Verbindung auf Port 853.",
-        )
-
-        btn_dot_status = ttk.Button(
-            dns_expert_row2,
-            text=self.tr("dns_btn_dot_status", "DoT Status"),
-            command=self.show_dot_status_async,
-        )
-        btn_dot_status.pack(side="left", padx=(8, 0))
-        self.register_feature_button("dot", btn_dot_status)
-        self.add_tooltip(
-            btn_dot_status,
-            "Zeigt den aktuellen DoT-Status im DNS-Tab an.",
-        )
-
-        ttk.Button(
-            dns_expert_row2,
-            text=self.tr("dns_btn_fix_dot_leak", "DoT Leak-Konflikt beheben"),
-            command=self.fix_dot_leak_conflict_async,
-        ).pack(side="left", padx=(8, 0))
-
-        dot_status_frame = ttk.LabelFrame(
-            self.tab_dns,
-            text=self.tr("dns_group_dot", "DNS over TLS"),
-            padding=6,
-        )
-        dot_status_frame.pack(fill="x", pady=(0, 8))
-        ttk.Label(dot_status_frame, textvariable=self.dot_status_var).pack(anchor="w")
-        ttk.Label(dot_status_frame, textvariable=self.dot_profile_var).pack(anchor="w")
-        ttk.Label(dot_status_frame, textvariable=self.dot_server_var).pack(anchor="w")
-        ttk.Label(dot_status_frame, textvariable=self.dot_mode_var).pack(anchor="w")
-        ttk.Label(dot_status_frame, textvariable=self.dot_last_test_var).pack(
-            anchor="w"
-        )
-
-        self.dns_text = tk.Text(self.tab_dns, wrap="word")
-        self.dns_text.pack(fill="both", expand=True)
-        self.attach_chad_context_menu(self.dns_text, "DNS Analyse")
-
-        # Tab: Chad Analyse
-        self.tab_chad_analysis = ttk.Frame(self.nb, padding=10)
-        self.nb.add(self.tab_chad_analysis, text=self.tr("tab_chad", "Chad"))
-        self.build_chad_analysis_tab()
+        build_chad_tab(self)
 
         self.nb.add(self.tab_system_main, text=self.tr("tab_system", "System"))
         self.nb.add(self.tab_tools, text=self.tr("tab_tools", "Tools"))
         self.nb.add(self.tab_security_main, text=self.tr("tab_security", "Security"))
-        self.tab_settings = ttk.Frame(self.nb, padding=10)
-        self.nb.add(
-            self.tab_settings,
-            text=self.tr("tab_settings", "Einstellungen"),
-        )
-        self.build_settings_tab()
+        build_settings_tab_ui(self)
 
-        # Tab: MTR
-        self.tab_mtr = ttk.Frame(self.tools_nb, padding=10)
-        self.tools_nb.add(self.tab_mtr, text=self.tr("tools_tab_mtr", "MTR"))
-        mtr_bar = ttk.Frame(self.tab_mtr)
-        mtr_bar.pack(fill="x", pady=(0, 6))
-        ttk.Button(
-            mtr_bar,
-            text=self.tr("btn_analyze_with_chad", "Analyse mit Chad"),
-            command=lambda: self.prepare_chad_analysis(
-                "MTR Analyse",
-                self.mtr_text.get("1.0", "end").strip(),
-            ),
-        ).pack(side="right")
-        self.mtr_text = tk.Text(self.tab_mtr, wrap="word")
-        self.mtr_text.pack(fill="both", expand=True)
-        self.attach_chad_context_menu(self.mtr_text, "MTR Analyse")
+        build_basic_tools_tabs(self)
 
-        # Tab: Nmap
-        self.tab_nmap = ttk.Frame(self.tools_nb, padding=10)
-        self.tools_nb.add(self.tab_nmap, text=self.tr("tools_tab_nmap", "Nmap"))
-        nmap_bar = ttk.Frame(self.tab_nmap)
-        nmap_bar.pack(fill="x", pady=(0, 8))
-        ttk.Button(
-            nmap_bar,
-            text=self.tr("btn_clear", "Leeren"),
-            command=self.clear_nmap_output,
-        ).pack(side="left")
-        ttk.Label(
-            nmap_bar,
-            text=self.tr("label_status", "Status:"),
-        ).pack(side="left", padx=(12, 4))
-        ttk.Label(nmap_bar, textvariable=self.nmap_status_var).pack(side="left")
-        ttk.Label(
-            nmap_bar,
-            text=self.tr("label_error", "Fehler:"),
-        ).pack(side="left", padx=(12, 4))
-        ttk.Label(nmap_bar, textvariable=self.nmap_error_var).pack(side="left")
-        ttk.Button(
-            nmap_bar,
-            text=self.tr("btn_analyze_with_chad", "Analyse mit Chad"),
-            command=lambda: self.prepare_chad_analysis(
-                "Nmap Analyse",
-                self.nmap_text.get("1.0", "end").strip(),
-            ),
-        ).pack(side="right")
+        build_linux_help_tab(self)
 
-        self.nmap_text = tk.Text(self.tab_nmap, wrap="word")
-        self.nmap_text.pack(fill="both", expand=True)
-        self.attach_chad_context_menu(self.nmap_text, "Nmap Analyse")
+        build_system_tab(self)
+        build_hdd_tab(self)
+        build_links_tab(self)
+        build_vpn_slots_tab(self)
 
-        # Tab: iftop
-        self.tab_iftop = ttk.Frame(self.tools_nb, padding=10)
-        self.tools_nb.add(self.tab_iftop, text=self.tr("tools_tab_iftop", "iftop"))
-        iftop_bar = ttk.Frame(self.tab_iftop)
-        iftop_bar.pack(fill="x", pady=(0, 6))
-        ttk.Button(
-            iftop_bar,
-            text=self.tr("btn_analyze_with_chad", "Analyse mit Chad"),
-            command=lambda: self.prepare_chad_analysis(
-                "iftop Analyse",
-                self.iftop_text.get("1.0", "end").strip(),
-            ),
-        ).pack(side="right")
-        self.iftop_text = tk.Text(self.tab_iftop, wrap="word")
-        self.iftop_text.pack(fill="both", expand=True)
-        self.attach_chad_context_menu(self.iftop_text, "iftop Analyse")
-
-        # Tab: htop
-        self.tab_htop = ttk.Frame(self.tools_nb, padding=10)
-        self.tools_nb.add(self.tab_htop, text=self.tr("tools_tab_htop", "htop"))
-        htop_bar = ttk.Frame(self.tab_htop)
-        htop_bar.pack(fill="x", pady=(0, 6))
-        ttk.Button(
-            htop_bar,
-            text=self.tr("btn_analyze_with_chad", "Analyse mit Chad"),
-            command=lambda: self.prepare_chad_analysis(
-                "htop Analyse",
-                self.htop_text.get("1.0", "end").strip(),
-            ),
-        ).pack(side="right")
-        self.htop_text = tk.Text(self.tab_htop, wrap="word")
-        self.htop_text.pack(fill="both", expand=True)
-        self.attach_chad_context_menu(self.htop_text, "htop Analyse")
-
-        # Tab: Linux Hilfe
-        self.tab_linux_help = ttk.Frame(self.tools_nb, padding=10)
-        self.tools_nb.add(
-            self.tab_linux_help,
-            text=self.tr("tools_tab_linux", "Linux"),
-        )
-
-        top_info = ttk.LabelFrame(
-            self.tab_linux_help,
-            text=self.tr("linux_help_group_status", "Status"),
-            padding=8,
-        )
-        top_info.pack(fill="x", pady=(0, 8))
-        ttk.Label(
-            top_info,
-            textvariable=self.linux_help_status_var,
-            justify="left",
-        ).pack(anchor="w")
-
-        linux_help_main = ttk.Frame(self.tab_linux_help)
-        linux_help_main.pack(fill="both", expand=True)
-        linux_help_main.columnconfigure(0, weight=0, minsize=260)
-        linux_help_main.columnconfigure(1, weight=1)
-        linux_help_main.rowconfigure(0, weight=1)
-
-        linux_help_left = ttk.LabelFrame(
-            linux_help_main,
-            text=self.tr("linux_help_group_commands", "Befehle"),
-            padding=8,
-        )
-        linux_help_left.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
-        linux_help_left.columnconfigure(0, weight=1)
-        linux_help_left.rowconfigure(1, weight=1)
-
-        self.linux_help_category_combo = ttk.Combobox(
-            linux_help_left,
-            textvariable=self.linux_help_category_var,
-            values=[],
-            state="readonly",
-        )
-        self.linux_help_category_combo.grid(row=0, column=0, sticky="ew", pady=(0, 8))
-        self.linux_help_category_combo.bind(
-            "<<ComboboxSelected>>",
-            lambda _event: self.refresh_linux_help_list(),
-        )
-
-        self.linux_help_listbox = tk.Listbox(
-            linux_help_left,
-            exportselection=False,
-            height=16,
-        )
-        self.linux_help_listbox.grid(row=1, column=0, sticky="nsew")
-        self.linux_help_listbox.bind("<<ListboxSelect>>", self.on_linux_help_select)
-
-        linux_help_right = ttk.Frame(linux_help_main)
-        linux_help_right.grid(row=0, column=1, sticky="nsew")
-        linux_help_right.columnconfigure(0, weight=1)
-        linux_help_right.rowconfigure(4, weight=1)
-
-        info_frame = ttk.LabelFrame(
-            linux_help_right,
-            text=self.tr("linux_help_group_description", "Beschreibung"),
-            padding=8,
-        )
-        info_frame.grid(row=0, column=0, sticky="ew", pady=(0, 8))
-        ttk.Label(
-            info_frame,
-            textvariable=self.linux_help_desc_var,
-            justify="left",
-            wraplength=500,
-        ).pack(anchor="w")
-
-        risk_frame = ttk.LabelFrame(
-            linux_help_right,
-            text=self.tr("linux_help_group_risk", "Sicherheitsstufe"),
-            padding=8,
-        )
-        risk_frame.grid(row=1, column=0, sticky="ew", pady=(0, 8))
-        risk_row = ttk.Frame(risk_frame)
-        risk_row.pack(fill="x")
-        self.linux_help_risk_canvas = tk.Canvas(
-            risk_row, width=18, height=18, highlightthickness=0
-        )
-        self.linux_help_risk_canvas.pack(side="left")
-        self.linux_help_risk_dot = self.linux_help_risk_canvas.create_oval(
-            2, 2, 16, 16, fill="gray"
-        )
-        ttk.Label(risk_row, textvariable=self.linux_help_risk_var).pack(
-            side="left", padx=8
-        )
-
-        cmd_frame = ttk.LabelFrame(
-            linux_help_right,
-            text=self.tr("linux_help_group_command", "Befehl"),
-            padding=8,
-        )
-        cmd_frame.grid(row=2, column=0, sticky="ew", pady=(0, 8))
-        ttk.Label(
-            cmd_frame,
-            textvariable=self.linux_help_command_var,
-            justify="left",
-            wraplength=500,
-        ).pack(anchor="w")
-
-        edit_frame = ttk.LabelFrame(
-            linux_help_right,
-            text=self.tr("linux_help_group_edit", "Datenpflege vorbereiten"),
-            padding=8,
-        )
-        edit_frame.grid(row=3, column=0, sticky="ew", pady=(0, 8))
-        edit_frame.columnconfigure(1, weight=1)
-        edit_frame.columnconfigure(3, weight=1)
-        ttk.Label(
-            edit_frame,
-            text=self.tr("linux_help_label_category", "Kategorie"),
-        ).grid(row=0, column=0, sticky="w")
-        self.linux_help_form_category_combo = ttk.Combobox(
-            edit_frame,
-            textvariable=self.linux_help_form_category_var,
-            values=[],
-            state="normal",
-        )
-        self.linux_help_form_category_combo.grid(
-            row=0, column=1, sticky="ew", padx=(6, 12)
-        )
-        ttk.Label(
-            edit_frame,
-            text=self.tr("linux_help_label_name", "Name"),
-        ).grid(row=0, column=2, sticky="w")
-        ttk.Entry(edit_frame, textvariable=self.linux_help_form_name_var).grid(
-            row=0, column=3, sticky="ew", padx=(6, 0)
-        )
-        ttk.Label(
-            edit_frame, text=self.tr("linux_help_label_shortinfo", "Kurzinfo")
-        ).grid(row=1, column=0, sticky="w", pady=(6, 0))
-        ttk.Entry(edit_frame, textvariable=self.linux_help_form_info_var).grid(
-            row=1, column=1, sticky="ew", padx=(6, 12), pady=(6, 0)
-        )
-        ttk.Label(edit_frame, text=self.tr("linux_help_label_risk", "Risiko")).grid(
-            row=1, column=2, sticky="w", pady=(6, 0)
-        )
-        self.linux_help_form_risk_combo = ttk.Combobox(
-            edit_frame,
-            textvariable=self.linux_help_form_risk_var,
-            values=["safe", "caution", "danger"],
-            state="readonly",
-        )
-        self.linux_help_form_risk_combo.grid(
-            row=1, column=3, sticky="ew", padx=(6, 0), pady=(6, 0)
-        )
-        ttk.Label(edit_frame, text=self.tr("linux_help_label_command", "Befehl")).grid(
-            row=2, column=0, sticky="w", pady=(6, 0)
-        )
-        ttk.Entry(edit_frame, textvariable=self.linux_help_form_cmd_var).grid(
-            row=2, column=1, columnspan=3, sticky="ew", padx=(6, 0), pady=(6, 0)
-        )
-        ttk.Label(
-            edit_frame,
-            text=self.tr("linux_help_label_explanation", "Erklärung"),
-        ).grid(row=3, column=0, sticky="w", pady=(6, 0))
-        ttk.Entry(edit_frame, textvariable=self.linux_help_form_explanation_var).grid(
-            row=3, column=1, columnspan=3, sticky="ew", padx=(6, 0), pady=(6, 0)
-        )
-        ttk.Label(
-            edit_frame, text=self.tr("linux_help_label_warning", "Warntext")
-        ).grid(row=4, column=0, sticky="w", pady=(6, 0))
-        ttk.Entry(edit_frame, textvariable=self.linux_help_form_warning_var).grid(
-            row=4, column=1, columnspan=3, sticky="ew", padx=(6, 0), pady=(6, 0)
-        )
-        ttk.Checkbutton(
-            edit_frame,
-            text=self.tr("linux_help_check_enabled", "Aktiv"),
-            variable=self.linux_help_form_enabled_var,
-            onvalue=True,
-            offvalue=False,
-        ).grid(row=5, column=0, sticky="w", pady=(6, 0))
-
-        notes_frame = ttk.LabelFrame(
-            linux_help_right,
-            text=self.tr("linux_help_group_notes", "Hinweise"),
-            padding=8,
-        )
-        notes_frame.grid(row=4, column=0, sticky="nsew")
-        self.linux_help_text = tk.Text(notes_frame, wrap="word", height=12)
-        self.linux_help_text.pack(fill="both", expand=True)
-        self.attach_chad_context_menu(self.linux_help_text, "Linux Hilfe Analyse")
-        self.linux_help_text.insert(
-            "1.0",
-            "Hier erscheinen später ausführliche Erklärungen, Hinweise und "
-            "Sicherheitsinfos zu Linux-Befehlen.\n\n"
-            "Die vollständige Integration des separaten Linux-Befehle-Programms "
-            "erfolgt in einem späteren Schritt.",
-        )
-
-        btn_frame = ttk.Frame(linux_help_right)
-        btn_frame.grid(row=5, column=0, sticky="ew", pady=(8, 0))
-        btn_frame.columnconfigure(0, weight=3)
-        btn_frame.columnconfigure(1, weight=2)
-
-        manage_frame = ttk.LabelFrame(
-            btn_frame,
-            text=self.tr("linux_help_group_manage", "Verwaltung"),
-            padding=8,
-        )
-        manage_frame.grid(row=0, column=0, sticky="ew", padx=(0, 8))
-        for idx in range(3):
-            manage_frame.columnconfigure(idx, weight=1)
-
-        self.btn_linux_help_new = ttk.Button(
-            manage_frame,
-            text=self.tr("btn_new", "Neu"),
-            command=self.linux_help_new_entry,
-        )
-        self.btn_linux_help_new.grid(row=0, column=0, sticky="ew")
-        self.btn_linux_help_edit = ttk.Button(
-            manage_frame,
-            text=self.tr("btn_edit", "Bearbeiten"),
-            command=self.linux_help_edit_selected,
-        )
-        self.btn_linux_help_edit.grid(row=0, column=1, sticky="ew", padx=(8, 0))
-        self.btn_linux_help_delete = ttk.Button(
-            manage_frame,
-            text=self.tr("btn_delete", "Löschen"),
-            command=self.linux_help_delete_selected,
-        )
-        self.btn_linux_help_delete.grid(row=0, column=2, sticky="ew", padx=(8, 0))
-        self.btn_linux_help_save = ttk.Button(
-            manage_frame,
-            text=self.tr("btn_save", "Speichern"),
-            command=self.save_linux_help_data,
-        )
-        self.btn_linux_help_save.grid(
-            row=1, column=0, columnspan=3, sticky="ew", pady=(8, 0)
-        )
-        self.btn_linux_help_import = ttk.Button(
-            manage_frame,
-            text=self.tr("btn_import_csv", "CSV importieren"),
-            command=self.linux_help_import_csv_dialog,
-        )
-        self.btn_linux_help_import.grid(row=2, column=0, sticky="ew", pady=(8, 0))
-        self.btn_linux_help_export = ttk.Button(
-            manage_frame,
-            text=self.tr("btn_export_csv", "CSV exportieren"),
-            command=self.linux_help_export_csv_dialog,
-        )
-        self.btn_linux_help_export.grid(
-            row=2, column=1, columnspan=2, sticky="ew", padx=(8, 0), pady=(8, 0)
-        )
-
-        display_frame = ttk.LabelFrame(
-            btn_frame,
-            text=self.tr("linux_help_group_display", "Anzeige"),
-            padding=8,
-        )
-        display_frame.grid(row=0, column=1, sticky="ew")
-        display_frame.columnconfigure(0, weight=1)
-
-        self.btn_linux_help_send = ttk.Button(
-            display_frame,
-            text=self.tr("linux_help_btn_send_terminal", "Ins Terminal senden"),
-            command=self.send_linux_help_command_to_terminal,
-        )
-        self.btn_linux_help_send.grid(row=0, column=0, sticky="ew")
-        self.btn_linux_help_show = ttk.Button(
-            display_frame,
-            text=self.tr("linux_help_btn_show_only", "Nur anzeigen"),
-            command=self.linux_help_placeholder_action,
-        )
-        self.btn_linux_help_show.grid(row=1, column=0, sticky="ew", pady=(8, 0))
-        self.btn_linux_help_refresh = ttk.Button(
-            btn_frame,
-            text=self.tr("btn_reload", "Neu laden"),
-            command=self.reload_linux_help_data,
-        )
-        self.btn_linux_help_refresh.grid(
-            row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0)
-        )
-        self.reload_linux_help_data()
-
-        # Tab: System
-        self.tab_system = ttk.Frame(self.system_nb, padding=10)
-        self.system_nb.add(self.tab_system, text=self.tr("system_tab_system", "System"))
-        self._build_system_tab()
-
-        # Tab: HDD
-        self.tab_hdd = ttk.Frame(self.system_nb, padding=10)
-        self.system_nb.add(self.tab_hdd, text=self.tr("system_tab_hdd", "HDD"))
-
-        hdd_manage = ttk.LabelFrame(
-            self.tab_hdd,
-            text=self.tr("hdd_group_manage", "HDD Verwaltung"),
-            padding=8,
-        )
-        hdd_manage.pack(fill="x", pady=(0, 8))
-        top_line = ttk.Frame(hdd_manage)
-        top_line.pack(fill="x")
-        for col, w in [(0, 0), (1, 0), (2, 0), (3, 1), (4, 0)]:
-            top_line.columnconfigure(col, weight=w)
-        btn_hdd_scan = ttk.Button(
-            top_line,
-            text=self.tr("hdd_btn_scan", "Festplatten einlesen"),
-            command=self.scan_hdds_async,
-        )
-        btn_hdd_scan.grid(row=0, column=0, sticky="w")
-        self.add_tooltip(
-            btn_hdd_scan,
-            "Liest erkannte Festplatten neu ein und aktualisiert die Liste.",
-        )
-        self.hdd_slot_choice = tk.StringVar(value="1")
-        ttk.Label(top_line, text=self.tr("label_slot", "Slot:")).grid(
-            row=0, column=1, sticky="w", padx=(10, 4)
-        )
-        self.hdd_slot_combo = ttk.Combobox(
-            top_line,
-            textvariable=self.hdd_slot_choice,
-            values=[str(i) for i in range(1, HDD_SLOT_COUNT + 1)],
-            state="readonly",
-            width=4,
-        )
-        self.hdd_slot_combo.grid(row=0, column=2, sticky="w")
-        ttk.Label(
-            top_line,
-            text=self.tr("label_display_name", "Anzeigename:"),
-        ).grid(row=0, column=3, sticky="w", padx=(10, 4))
-        self.hdd_custom_name_var = tk.StringVar(value="")
-        self.hdd_name_entry = ttk.Entry(top_line, textvariable=self.hdd_custom_name_var)
-        self.hdd_name_entry.grid(row=0, column=4, sticky="ew")
-        self.hdd_name_entry.bind("<FocusIn>", self.on_hdd_name_focus_in)
-        self.hdd_name_entry.bind("<FocusOut>", self.on_hdd_name_focus_out)
-        self.hdd_custom_name_var.trace_add("write", self.on_hdd_name_changed)
-        assign_btn = ttk.Button(
-            top_line,
-            text=self.tr("btn_apply_assignment", "Zuordnung übernehmen"),
-            command=self.assign_selected_disk_to_slot,
-        )
-        assign_btn.grid(row=0, column=5, sticky="e", padx=(8, 0))
-        self.add_tooltip(
-            assign_btn,
-            "Ordnet die ausgewählte Festplatte dem gewählten Slot zu.",
-        )
-        btn_hdd_clear_assign = ttk.Button(
-            top_line,
-            text=self.tr("btn_clear_assignment", "Zuordnung aufheben"),
-            command=lambda: self.clear_slot_assignment(confirm=True),
-        )
-        btn_hdd_clear_assign.grid(row=1, column=5, sticky="e", padx=(8, 0), pady=(6, 0))
-        self.add_tooltip(
-            btn_hdd_clear_assign,
-            "Entfernt die Zuordnung des gewählten Slots.",
-        )
-
-        self.hdd_table = ttk.Treeview(
-            hdd_manage,
-            columns=(
-                "device",
-                "label",
-                "fstype",
-                "size",
-                "mounted",
-                "mountpoint",
-                "slot",
-            ),
-            show="headings",
-            height=7,
-        )
-        for col, title, width, anchor in [
-            ("device", "Device", 150, "w"),
-            ("label", "Label/Model", 180, "w"),
-            ("fstype", "FS", 70, "center"),
-            ("size", "Size", 90, "e"),
-            ("mounted", "Status", 100, "center"),
-            ("mountpoint", "Mountpoint", 180, "w"),
-            ("slot", "Slot", 60, "center"),
-        ]:
-            self.hdd_table.heading(col, text=title)
-            self.hdd_table.column(col, width=width, anchor=anchor)
-        self.hdd_table.pack(fill="x", pady=(8, 0))
-        self.hdd_table.bind("<<TreeviewSelect>>", self.on_hdd_table_select)
-
-        self.hdd_info_text = tk.Text(self.tab_hdd, wrap="word", height=12)
-        self.hdd_info_text.pack(fill="both", expand=True)
-        self.hdd_usage_canvas = tk.Canvas(
-            self.tab_hdd, height=34, highlightthickness=1, highlightbackground="#bbb"
-        )
-        self.hdd_usage_canvas.pack(fill="x", pady=(8, 0))
-
-        # Tab: Links
-        self.tab_links = ttk.Frame(self.system_nb, padding=10)
-        self.system_nb.add(self.tab_links, text=self.tr("system_tab_links", "Links"))
-
-        link_manage = ttk.LabelFrame(
-            self.tab_links,
-            text=self.tr("links_group_manage", "Link Verwaltung"),
-            padding=8,
-        )
-        link_manage.pack(fill="x", pady=(0, 8))
-        link_form = ttk.Frame(link_manage)
-        link_form.pack(fill="x")
-        for col, weight in [
-            (0, 0),
-            (1, 0),
-            (2, 0),
-            (3, 1),
-            (4, 0),
-            (5, 0),
-            (6, 0),
-            (7, 1),
-        ]:
-            link_form.columnconfigure(col, weight=weight)
-
-        self.link_slot_choice = tk.StringVar(value="1")
-        ttk.Label(link_form, text=self.tr("label_slot", "Slot:")).grid(
-            row=0, column=0, sticky="w"
-        )
-        self.link_slot_combo = ttk.Combobox(
-            link_form,
-            textvariable=self.link_slot_choice,
-            values=[str(i) for i in range(1, LINK_SLOT_COUNT + 1)],
-            state="readonly",
-            width=4,
-        )
-        self.link_slot_combo.grid(row=0, column=1, sticky="w", padx=(4, 10))
-        self.link_slot_combo.bind("<<ComboboxSelected>>", self.on_link_slot_select)
-
-        ttk.Label(
-            link_form,
-            text=self.tr("label_display_name", "Anzeigename:"),
-        ).grid(row=0, column=2, sticky="w")
-        self.link_custom_name_var = tk.StringVar(value="")
-        ttk.Entry(link_form, textvariable=self.link_custom_name_var).grid(
-            row=0, column=3, sticky="ew", padx=(4, 10)
-        )
-
-        ttk.Label(link_form, text=self.tr("label_type", "Typ:")).grid(
-            row=0, column=4, sticky="w"
-        )
-        self.link_type_var = tk.StringVar(value="Systemlink")
-        self.link_type_combo = ttk.Combobox(
-            link_form,
-            textvariable=self.link_type_var,
-            values=["Systemlink", "Externer Link"],
-            state="readonly",
-            width=14,
-        )
-        self.link_type_combo.grid(row=0, column=5, sticky="w", padx=(4, 10))
-        self.link_type_combo.bind("<<ComboboxSelected>>", self.on_link_type_change)
-
-        self.link_target_label = ttk.Label(
-            link_form,
-            text=self.tr("links_label_target", "Ziel / Pfad / URL:"),
-        )
-        self.link_target_label.grid(
-            row=1, column=0, columnspan=2, sticky="w", pady=(8, 0)
-        )
-        self.link_target_var = tk.StringVar(value="")
-        self.link_system_app_var = tk.StringVar(value="")
-
-        self.link_target_entry = ttk.Entry(link_form, textvariable=self.link_target_var)
-        self.link_target_entry.grid(
-            row=1, column=2, columnspan=6, sticky="ew", padx=(4, 0), pady=(8, 0)
-        )
-
-        self.link_system_frame = ttk.Frame(link_form)
-        self.link_system_frame.grid(
-            row=1, column=2, columnspan=6, sticky="ew", padx=(4, 0), pady=(8, 0)
-        )
-        self.link_system_frame.columnconfigure(0, weight=1)
-
-        self.link_system_combo = ttk.Combobox(
-            self.link_system_frame,
-            textvariable=self.link_system_app_var,
-            values=self.desktop_app_labels,
-            state="readonly",
-        )
-        self.link_system_combo.grid(row=0, column=0, sticky="ew")
-        self.link_system_combo.bind(
-            "<<ComboboxSelected>>", self.on_systemlink_app_select
-        )
-
-        btn_link_refresh_programs = ttk.Button(
-            self.link_system_frame,
-            text=self.tr("btn_refresh", "Aktualisieren"),
-            command=self.refresh_desktop_app_entries,
-        )
-        btn_link_refresh_programs.grid(row=0, column=1, sticky="w", padx=(8, 0))
-        self.add_tooltip(
-            btn_link_refresh_programs,
-            "Liest installierte Programme (.desktop) neu ein und aktualisiert die Auswahlliste.",
-        )
-
-        link_btns = ttk.Frame(link_manage)
-        link_btns.pack(fill="x", pady=(8, 0))
-        btn_link_apply = ttk.Button(
-            link_btns,
-            text=self.tr("btn_apply_assignment", "Zuordnung übernehmen"),
-            command=self.assign_link_slot,
-        )
-        btn_link_apply.pack(side="left")
-        self.add_tooltip(
-            btn_link_apply,
-            "Speichert die aktuelle Link-Zuordnung für den gewählten Slot.",
-        )
-        btn_link_clear = ttk.Button(
-            link_btns,
-            text=self.tr("btn_clear_assignment", "Zuordnung aufheben"),
-            command=lambda: self.clear_link_slot(confirm=True),
-        )
-        btn_link_clear.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            btn_link_clear,
-            "Entfernt die Konfiguration des gewählten Link-Slots.",
-        )
-        btn_link_test = ttk.Button(
-            link_btns,
-            text=self.tr("links_btn_test", "Link testen"),
-            command=self.test_link_slot,
-        )
-        btn_link_test.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            btn_link_test,
-            "Testet den aktuell eingestellten Link mit den Formulardaten.",
-        )
-
-        link_table_wrap = ttk.Frame(self.tab_links)
-        link_table_wrap.pack(fill="both", expand=True)
-        link_table_wrap.columnconfigure(0, weight=1)
-        link_table_wrap.rowconfigure(0, weight=1)
-
-        self.link_table = ttk.Treeview(
-            link_table_wrap,
-            columns=("slot", "name", "type", "target"),
-            show="headings",
-            height=15,
-        )
-        for col, title, width, anchor in [
-            ("slot", "Slot", 60, "center"),
-            ("name", "Anzeigename", 180, "w"),
-            ("type", "Typ", 120, "center"),
-            ("target", "Ziel", 420, "w"),
-        ]:
-            self.link_table.heading(col, text=title)
-            self.link_table.column(col, width=width, anchor=anchor)
-
-        link_table_scroll = ttk.Scrollbar(
-            link_table_wrap, orient="vertical", command=self.link_table.yview
-        )
-        self.link_table.configure(yscrollcommand=link_table_scroll.set)
-
-        self.link_table.grid(row=0, column=0, sticky="nsew")
-        link_table_scroll.grid(row=0, column=1, sticky="ns")
-        self.link_table.bind("<<TreeviewSelect>>", self.on_link_table_select)
-
-        self.load_link_slot_into_form(1)
-        self.sync_link_target_widgets()
-        self.refresh_link_table()
-        self.update_link_slot_buttons()
-
-        # Tab: VPN-Slots
-        self.tab_vpn_slots = ttk.Frame(self.system_nb, padding=10)
-        self.system_nb.add(
-            self.tab_vpn_slots,
-            text=self.tr("system_tab_vpn_slots", "VPN Slots"),
-        )
-
-        vpn_manage = ttk.LabelFrame(
-            self.tab_vpn_slots,
-            text=self.tr("vpn_slots_group_manage", "VPN-Slot Verwaltung"),
-            padding=8,
-        )
-        vpn_manage.pack(fill="x", pady=(0, 8))
-
-        vpn_form = ttk.Frame(vpn_manage)
-        vpn_form.pack(fill="x")
-        for col, weight in [
-            (0, 0),
-            (1, 0),
-            (2, 0),
-            (3, 1),
-            (4, 0),
-            (5, 1),
-            (6, 0),
-            (7, 0),
-            (8, 0),
-        ]:
-            vpn_form.columnconfigure(col, weight=weight)
-
-        self.vpn_slot_choice = tk.StringVar(value="1")
-        ttk.Label(vpn_form, text=self.tr("label_slot", "Slot:")).grid(
-            row=0, column=0, sticky="w"
-        )
-        self.vpn_slot_combo = ttk.Combobox(
-            vpn_form,
-            textvariable=self.vpn_slot_choice,
-            values=[str(i) for i in range(1, VPN_SLOT_COUNT + 1)],
-            state="readonly",
-            width=4,
-        )
-        self.vpn_slot_combo.grid(row=0, column=1, sticky="w", padx=(4, 10))
-        self.vpn_slot_combo.bind("<<ComboboxSelected>>", self.on_vpn_slot_select)
-
-        ttk.Label(
-            vpn_form,
-            text=self.tr("label_display_name", "Anzeigename:"),
-        ).grid(row=0, column=2, sticky="w")
-        self.vpn_custom_name_var = tk.StringVar(value="")
-        self.vpn_custom_name_entry = ttk.Entry(
-            vpn_form,
-            textvariable=self.vpn_custom_name_var,
-        )
-        self.vpn_custom_name_entry.grid(row=0, column=3, sticky="ew", padx=(4, 10))
-
-        ttk.Label(vpn_form, text=self.tr("label_profile", "Profil:")).grid(
-            row=0, column=4, sticky="w"
-        )
-        self.vpn_profile_var = tk.StringVar(value="")
-        self.vpn_profile_combo = ttk.Combobox(
-            vpn_form,
-            textvariable=self.vpn_profile_var,
-            values=self.wg_profiles,
-            state="normal",
-        )
-        self.vpn_profile_combo.grid(row=0, column=5, sticky="ew", padx=(4, 10))
-
-        btn_vpn_apply = ttk.Button(
-            vpn_form,
-            text=self.tr("btn_apply_assignment", "Zuordnung übernehmen"),
-            command=self.assign_vpn_slot,
-        )
-        btn_vpn_apply.grid(row=0, column=6, sticky="e")
-        self.register_feature_button("wg", btn_vpn_apply)
-        self.add_tooltip(
-            btn_vpn_apply,
-            "Speichert die VPN-Zuordnung fuer den gewaehlten Slot.",
-        )
-
-        btn_vpn_clear = ttk.Button(
-            vpn_form,
-            text=self.tr("btn_clear_assignment", "Zuordnung aufheben"),
-            command=lambda: self.clear_vpn_slot(confirm=True),
-        )
-        btn_vpn_clear.grid(row=0, column=7, sticky="e", padx=(8, 0))
-        self.register_feature_button("wg", btn_vpn_clear)
-        self.add_tooltip(
-            btn_vpn_clear,
-            "Entfernt Profil und Anzeigenamen des gewaehlten VPN-Slots.",
-        )
-
-        btn_vpn_test = ttk.Button(
-            vpn_form,
-            text=self.tr("btn_test", "Testen"),
-            command=self.test_vpn_slot,
-        )
-        btn_vpn_test.grid(row=0, column=8, sticky="e", padx=(8, 0))
-        self.register_feature_button("wg", btn_vpn_test)
-        self.add_tooltip(
-            btn_vpn_test,
-            "Startet testweise das aktuell im Formular gewaehlte Profil.",
-        )
-
-        btn_vpn_delete = ttk.Button(
-            vpn_form,
-            text=self.tr("btn_delete_profile", "Profil löschen"),
-            command=self.delete_selected_vpn_profile,
-        )
-        btn_vpn_delete.grid(row=0, column=9, sticky="e", padx=(8, 0))
-        self.register_feature_button("wg", btn_vpn_delete)
-        self.add_tooltip(
-            btn_vpn_delete,
-            "Loescht das aktuell im Formular gewaehlte WireGuard-Profil inklusive interner IPv4-Kopie.",
-        )
-
-        primary_frame = ttk.LabelFrame(
-            vpn_manage,
-            text=self.tr("vpn_slots_group_primary", "Standard-VPN links"),
-            padding=8,
-        )
-        primary_frame.pack(fill="x", pady=(10, 8))
-
-        self.primary_vpn_1_name_var = tk.StringVar(
-            value=self.primary_vpn_slots[0].get("custom_name", "Proton CH")
-        )
-        self.primary_vpn_1_profile_var = tk.StringVar(
-            value=self.primary_vpn_slots[0].get("profile", "proton")
-        )
-
-        ttk.Label(
-            primary_frame,
-            text=self.tr("vpn_slots_label_primary1_name", "Standard 1 Name:"),
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Entry(
-            primary_frame,
-            textvariable=self.primary_vpn_1_name_var,
-            width=20,
-        ).grid(row=0, column=1, sticky="w", padx=(4, 10))
-
-        ttk.Label(primary_frame, text=self.tr("label_profile", "Profil:")).grid(
-            row=0, column=2, sticky="w"
-        )
-        self.primary_vpn_1_profile_combo = ttk.Combobox(
-            primary_frame,
-            textvariable=self.primary_vpn_1_profile_var,
-            values=self.wg_profiles,
-            state="readonly",
-            width=18,
-        )
-        self.primary_vpn_1_profile_combo.grid(row=0, column=3, sticky="w", padx=(4, 10))
-
-        btn_primary_1_apply = ttk.Button(
-            primary_frame,
-            text=self.tr("btn_apply", "Übernehmen"),
-            command=lambda: self.save_primary_vpn_slot(1),
-        )
-        btn_primary_1_apply.grid(row=0, column=4, sticky="w")
-
-        self.primary_vpn_2_name_var = tk.StringVar(
-            value=self.primary_vpn_slots[1].get("custom_name", "Proton DE")
-        )
-        self.primary_vpn_2_profile_var = tk.StringVar(
-            value=self.primary_vpn_slots[1].get("profile", "proton-de")
-        )
-
-        ttk.Label(
-            primary_frame,
-            text=self.tr("vpn_slots_label_primary2_name", "Standard 2 Name:"),
-        ).grid(row=1, column=0, sticky="w", pady=(6, 0))
-        ttk.Entry(
-            primary_frame,
-            textvariable=self.primary_vpn_2_name_var,
-            width=20,
-        ).grid(row=1, column=1, sticky="w", padx=(4, 10), pady=(6, 0))
-
-        ttk.Label(primary_frame, text=self.tr("label_profile", "Profil:")).grid(
-            row=1, column=2, sticky="w", pady=(6, 0)
-        )
-        self.primary_vpn_2_profile_combo = ttk.Combobox(
-            primary_frame,
-            textvariable=self.primary_vpn_2_profile_var,
-            values=self.wg_profiles,
-            state="readonly",
-            width=18,
-        )
-        self.primary_vpn_2_profile_combo.grid(
-            row=1, column=3, sticky="w", padx=(4, 10), pady=(6, 0)
-        )
-
-        btn_primary_2_apply = ttk.Button(
-            primary_frame,
-            text=self.tr("btn_apply", "Übernehmen"),
-            command=lambda: self.save_primary_vpn_slot(2),
-        )
-        btn_primary_2_apply.grid(row=1, column=4, sticky="w", pady=(6, 0))
-
-        self.vpn_table = ttk.Treeview(
-            self.tab_vpn_slots,
-            columns=("slot", "name", "profile", "status"),
-            show="headings",
-            height=8,
-        )
-        for col, title, width, anchor in [
-            ("slot", "Slot", 60, "center"),
-            ("name", "Anzeigename", 180, "w"),
-            ("profile", "Profil", 180, "w"),
-            ("status", "Status", 120, "center"),
-        ]:
-            self.vpn_table.heading(col, text=title)
-            self.vpn_table.column(col, width=width, anchor=anchor)
-        self.vpn_table.pack(fill="x")
-        self.vpn_table.bind("<<TreeviewSelect>>", self.on_vpn_table_select)
-
-        manual_wg_frame = ttk.LabelFrame(
-            self.tab_vpn_slots, text="Manuelle WireGuard-Konfiguration", padding=8
-        )
-        manual_wg_frame.pack(fill="x", pady=(10, 0))
-        manual_wg_frame.columnconfigure(1, weight=1)
-        manual_wg_frame.columnconfigure(3, weight=1)
-
-        self.manual_wg_profile_name_var = tk.StringVar(value="")
-        self.manual_wg_private_key_var = tk.StringVar(value="")
-        self.manual_wg_public_key_var = tk.StringVar(value="")
-        self.manual_wg_endpoint_var = tk.StringVar(value="")
-        self.manual_wg_allowed_ips_var = tk.StringVar(value="0.0.0.0/0")
-        self.manual_wg_dns_var = tk.StringVar(value="")
-        self.manual_wg_keepalive_var = tk.StringVar(value="25")
-        self.manual_wg_save_slot_var = tk.BooleanVar(value=False)
-        self.manual_wg_slot_var = tk.StringVar(value="1")
-
-        ttk.Label(manual_wg_frame, text="Profilname:").grid(
-            row=0, column=0, sticky="w", padx=(0, 4), pady=(0, 4)
-        )
-        self.manual_wg_profile_name_entry = ttk.Entry(
-            manual_wg_frame,
-            textvariable=self.manual_wg_profile_name_var,
-        )
-        self.manual_wg_profile_name_entry.grid(
-            row=0, column=1, sticky="ew", padx=(0, 10), pady=(0, 4)
-        )
-
-        ttk.Label(manual_wg_frame, text="Private Key:").grid(
-            row=0, column=2, sticky="w", padx=(0, 4), pady=(0, 4)
-        )
-        self.manual_wg_private_key_entry = ttk.Entry(
-            manual_wg_frame,
-            textvariable=self.manual_wg_private_key_var,
-            show="*",
-        )
-        self.manual_wg_private_key_entry.grid(row=0, column=3, sticky="ew", pady=(0, 4))
-
-        ttk.Label(manual_wg_frame, text="Public Key:").grid(
-            row=1, column=0, sticky="w", padx=(0, 4), pady=(0, 4)
-        )
-        self.manual_wg_public_key_entry = ttk.Entry(
-            manual_wg_frame,
-            textvariable=self.manual_wg_public_key_var,
-        )
-        self.manual_wg_public_key_entry.grid(
-            row=1, column=1, sticky="ew", padx=(0, 10), pady=(0, 4)
-        )
-
-        ttk.Label(manual_wg_frame, text="Endpoint:").grid(
-            row=1, column=2, sticky="w", padx=(0, 4), pady=(0, 4)
-        )
-        self.manual_wg_endpoint_entry = ttk.Entry(
-            manual_wg_frame,
-            textvariable=self.manual_wg_endpoint_var,
-        )
-        self.manual_wg_endpoint_entry.grid(row=1, column=3, sticky="ew", pady=(0, 4))
-
-        ttk.Label(manual_wg_frame, text="Allowed IPs:").grid(
-            row=2, column=0, sticky="w", padx=(0, 4), pady=(0, 4)
-        )
-        self.manual_wg_allowed_ips_entry = ttk.Entry(
-            manual_wg_frame,
-            textvariable=self.manual_wg_allowed_ips_var,
-        )
-        self.manual_wg_allowed_ips_entry.grid(
-            row=2, column=1, sticky="ew", padx=(0, 10), pady=(0, 4)
-        )
-
-        ttk.Label(manual_wg_frame, text="DNS (optional):").grid(
-            row=2, column=2, sticky="w", padx=(0, 4), pady=(0, 4)
-        )
-        self.manual_wg_dns_entry = ttk.Entry(
-            manual_wg_frame,
-            textvariable=self.manual_wg_dns_var,
-        )
-        self.manual_wg_dns_entry.grid(row=2, column=3, sticky="ew", pady=(0, 4))
-
-        ttk.Label(manual_wg_frame, text="Persistent Keepalive (optional):").grid(
-            row=3, column=0, sticky="w", padx=(0, 4), pady=(0, 4)
-        )
-        self.manual_wg_keepalive_entry = ttk.Entry(
-            manual_wg_frame,
-            textvariable=self.manual_wg_keepalive_var,
-            width=8,
-        )
-        self.manual_wg_keepalive_entry.grid(
-            row=3, column=1, sticky="w", padx=(0, 10), pady=(0, 4)
-        )
-
-        self.manual_wg_save_slot_check = ttk.Checkbutton(
-            manual_wg_frame,
-            text="Als VPN-Slot speichern",
-            variable=self.manual_wg_save_slot_var,
-            command=self._sync_manual_wg_slot_controls,
-        )
-        self.manual_wg_save_slot_check.grid(
-            row=3, column=2, sticky="w", padx=(0, 4), pady=(0, 4)
-        )
-        self.manual_wg_slot_combo = ttk.Combobox(
-            manual_wg_frame,
-            textvariable=self.manual_wg_slot_var,
-            values=[str(i) for i in range(1, VPN_SLOT_COUNT + 1)],
-            state="readonly",
-            width=4,
-        )
-        self.manual_wg_slot_combo.grid(row=3, column=3, sticky="w", pady=(0, 4))
-
-        btn_manual_wg_apply = ttk.Button(
-            manual_wg_frame,
-            text="Profil anwenden",
-            command=self.apply_manual_wireguard_profile,
-        )
-        btn_manual_wg_apply.grid(row=4, column=3, sticky="e", pady=(6, 0))
-        self.register_feature_button("wg", btn_manual_wg_apply)
-        self.add_tooltip(
-            btn_manual_wg_apply,
-            "Erstellt aus den Eingaben ein WireGuard-Profil, speichert es sicher und startet den Tunnel.",
-        )
-
-        btn_manual_wg_clear = ttk.Button(
-            manual_wg_frame,
-            text="Felder leeren",
-            command=self.clear_manual_wireguard_form,
-        )
-        btn_manual_wg_clear.grid(row=4, column=2, sticky="e", padx=(0, 8), pady=(6, 0))
-        self.add_tooltip(
-            btn_manual_wg_clear,
-            "Setzt die manuelle WireGuard-Eingabe auf Standardwerte zurück.",
-        )
-
-        self.manual_wg_status_var = tk.StringVar(
-            value="Bereit für manuelle WireGuard-Konfiguration."
-        )
-        self.manual_wg_status_label = tk.Label(
-            manual_wg_frame,
-            textvariable=self.manual_wg_status_var,
-            fg="#1f4f1f",
-            anchor="w",
-            justify="left",
-        )
-        self.manual_wg_status_label.grid(
-            row=5,
-            column=0,
-            columnspan=4,
-            sticky="ew",
-            pady=(8, 0),
-        )
-
-        self._sync_manual_wg_slot_controls()
-
-        self._vpn_form_loading = False
-        self._vpn_form_dirty = False
-        self.vpn_custom_name_var.trace_add("write", self._on_vpn_form_field_changed)
-        self.vpn_profile_var.trace_add("write", self._on_vpn_form_field_changed)
-
-        self.load_vpn_slot_into_form(1)
-        self.refresh_vpn_slots_table()
-        self.update_vpn_slot_buttons()
-
-        # Tab: Privacy
-        self.tab_privacy = ttk.Frame(self.security_nb, padding=10)
-        self.security_nb.add(
-            self.tab_privacy,
-            text=self.tr("security_tab_privacy", "Privacy"),
-        )
-
-        privacy_frame = ttk.LabelFrame(
-            self.tab_privacy,
-            text=self.tr("privacy_group_stealth", "ISP-Stealthmodus"),
-            padding=10,
-        )
-        privacy_frame.pack(fill="x", pady=(0, 8))
-
-        # Checkboxen
-        cb_stealth = ttk.Checkbutton(
-            privacy_frame,
-            text=self.tr("privacy_check_enabled", "Stealthmodus aktiv"),
-            variable=self.isp_stealth_enabled,
-            command=self.save_privacy_config,
-        )
-        cb_stealth.pack(anchor="w")
-
-        cb_autostart = ttk.Checkbutton(
-            privacy_frame,
-            text=self.tr("privacy_check_autostart", "Autostart beim Programmstart"),
-            variable=self.isp_stealth_autostart,
-            command=self.save_privacy_config,
-        )
-        cb_autostart.pack(anchor="w", pady=(4, 0))
-
-        self.cb_privacy_ipv6 = ttk.Checkbutton(
-            privacy_frame,
-            text=self.tr("privacy_check_disable_ipv6", "IPv6 deaktivieren"),
-            variable=self.isp_stealth_disable_ipv6,
-            command=self.save_privacy_config,
-        )
-        self.cb_privacy_ipv6.pack(anchor="w", pady=(4, 0))
-        self.add_tooltip(
-            self.cb_privacy_ipv6,
-            "Diese Option ist nur verfuegbar, wenn das aktive oder gewaehlte VPN-Profil IPv6 unterstuetzt.",
-        )
-        self.privacy_ipv6_hint = ttk.Label(
-            privacy_frame,
-            text="",
-            foreground="#666666",
-            wraplength=240,
-            justify="left",
-        )
-        self.privacy_ipv6_hint.pack(anchor="w")
-
-        # Vereinfachte Architektur: IPv6 nicht mehr profilbasiert im Privacy-UI steuern.
-        self.cb_privacy_ipv6.pack_forget()
-        self.privacy_ipv6_hint.pack_forget()
-
-        cb_killswitch = ttk.Checkbutton(
-            privacy_frame,
-            text=self.tr("privacy_check_killswitch", "Killswitch aktivieren"),
-            variable=self.isp_stealth_enable_killswitch,
-            command=self.save_privacy_config,
-        )
-        cb_killswitch.pack(anchor="w", pady=(4, 0))
-
-        cb_strict = ttk.Checkbutton(
-            privacy_frame,
-            text=self.tr(
-                "privacy_check_strict",
-                "Strenger Schutz (kritische Aktionen nur mit Bestätigungswort)",
-            ),
-            variable=self.strict_protection_var,
-            command=self.save_privacy_config,
-        )
-        cb_strict.pack(anchor="w", pady=(4, 0))
-        self.add_tooltip(
-            cb_strict,
-            "Wenn aktiv, verlangen kritische Aktionen zusaetzlich das Wort AUSFUEHREN.",
-        )
-
-        # VPN Profil
-        vpn_frame = ttk.Frame(privacy_frame)
-        vpn_frame.pack(fill="x", pady=(8, 0))
-        ttk.Label(
-            vpn_frame, text=self.tr("privacy_label_vpn_profile", "VPN-Profil:")
-        ).pack(side="left")
-        self.isp_stealth_vpn_combo = ttk.Combobox(
-            vpn_frame,
-            textvariable=self.isp_stealth_vpn_choice,
-            values=[item["label"] for item in self.get_privacy_vpn_options()],
-            state="readonly",
-        )
-        self.isp_stealth_vpn_combo.pack(side="left", fill="x", expand=True, padx=(8, 0))
-        self.isp_stealth_vpn_combo.bind(
-            "<<ComboboxSelected>>", lambda e: self.on_privacy_vpn_selected()
-        )
-
-        dns_frame = ttk.Frame(privacy_frame)
-        dns_frame.pack(fill="x", pady=(4, 0))
-        ttk.Label(
-            dns_frame, text=self.tr("privacy_label_dns_profile", "DNS-Profil:")
-        ).pack(side="left")
-        ttk.Label(dns_frame, textvariable=self.isp_stealth_dns_profile).pack(
-            side="left", fill="x", expand=True, padx=(8, 0)
-        )
-
-        # Buttons
-        btn_frame = ttk.Frame(privacy_frame)
-        btn_frame.pack(fill="x", pady=(12, 0))
-        btn_on = ttk.Button(
-            btn_frame,
-            text=self.tr("privacy_btn_on", "Stealthmodus AN"),
-            command=self.isp_stealth_on,
-        )
-        btn_on.pack(side="left")
-        btn_off = ttk.Button(
-            btn_frame,
-            text=self.tr("privacy_btn_off", "Stealthmodus AUS"),
-            command=self.isp_stealth_off,
-        )
-        btn_off.pack(side="left", padx=(8, 0))
-
-        # Tab: Security
-        self.tab_security = ttk.Frame(self.security_nb, padding=10)
-        self.security_nb.add(
-            self.tab_security,
-            text=self.tr("security_tab_main", "Security"),
-        )
-        self.security_status_var = tk.StringVar(value="Monitoring: AUS")
-        self.security_level_var = tk.StringVar(value="Logging: –")
-        self.security_count_var = tk.StringVar(value="Events: 0")
-        self.security_alarm_var = tk.StringVar(value="Letzter Alarm: –")
-        sec_top = ttk.Frame(self.tab_security)
-        sec_top.pack(fill="x", pady=(0, 8))
-        ttk.Label(sec_top, textvariable=self.security_status_var).pack(side="left")
-        ttk.Label(sec_top, text=" | ").pack(side="left")
-        ttk.Label(sec_top, textvariable=self.security_level_var).pack(side="left")
-        ttk.Label(sec_top, text=" | ").pack(side="left")
-        ttk.Label(sec_top, textvariable=self.security_count_var).pack(side="left")
-        ttk.Label(sec_top, text=" | ").pack(side="left")
-        ttk.Label(sec_top, textvariable=self.security_alarm_var).pack(side="left")
-
-        sec_controls = ttk.Frame(self.tab_security)
-        sec_controls.pack(fill="x", pady=(0, 8))
-
-        sec_actions = ttk.LabelFrame(
-            sec_controls,
-            text=self.tr("security_group_actions", "Aktionen"),
-            padding=6,
-        )
-        sec_actions.pack(fill="x")
-
-        btn_sec_export = ttk.Button(
-            sec_actions,
-            text=self.tr("security_btn_export_logs", "Logs exportieren (.txt)"),
-            command=self.export_security_logs,
-        )
-        btn_sec_export.pack(side="left")
-        self.add_tooltip(
-            btn_sec_export,
-            "Exportiert alle Security-Events als TXT-Datei auf den Desktop.",
-        )
-
-        btn_sec_refresh = ttk.Button(
-            sec_actions,
-            text=self.tr("security_btn_refresh_table", "Tabelle aktualisieren"),
-            command=self.security_refresh_table_action,
-        )
-        btn_sec_refresh.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            btn_sec_refresh,
-            "Aktualisiert die Security-Tabelle und Statistik manuell.",
-        )
-
-        btn_sec_scan = ttk.Button(
-            sec_actions,
-            text=self.tr("security_btn_scan_now", "Security-Scan jetzt"),
-            command=self.security_scan_now,
-        )
-        btn_sec_scan.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            btn_sec_scan,
-            "Führt einen sofortigen File/Device-/UFW-Scan aus.",
-        )
-
-        btn_sec_input_scan = ttk.Button(
-            sec_actions,
-            text=self.tr("security_btn_input_scan", "Input-Zugriffe prüfen"),
-            command=self.security_input_access_scan,
-        )
-        btn_sec_input_scan.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            btn_sec_input_scan,
-            "Prüft aktuell offene Zugriffe auf /dev/input-Geräte.",
-        )
-
-        btn_sec_chad = ttk.Button(
-            sec_actions,
-            text=self.tr("btn_analyze_with_chad", "Analyse mit Chad"),
-            command=self.prepare_security_chad_analysis,
-        )
-        btn_sec_chad.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            btn_sec_chad,
-            "Bereitet eine lokale Security-Zusammenfassung für den Chad Analyse-Tab vor.",
-        )
-
-        btn_sec_rebaseline = ttk.Button(
-            sec_actions,
-            text=self.tr("security_btn_rebaseline", "Baseline neu erstellen"),
-            command=self.security_build_baseline,
-        )
-        btn_sec_rebaseline.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            btn_sec_rebaseline,
-            "Erstellt die File/Device-Baseline neu.",
-        )
-
-        sec_filters = ttk.LabelFrame(
-            sec_controls,
-            text=self.tr("security_group_filters", "Filter"),
-            padding=6,
-        )
-        sec_filters.pack(fill="x", pady=(8, 0))
-
-        btn_sec_filter_scan = ttk.Button(
-            sec_filters,
-            text=self.tr("security_btn_filter_scan", "Nur Portscan"),
-            command=self.security_filter_portscan,
-        )
-        btn_sec_filter_scan.pack(side="left")
-        self.add_tooltip(
-            btn_sec_filter_scan,
-            "Zeigt nur Events mit Portscan-Verdacht an.",
-        )
-
-        btn_sec_filter_relevant = ttk.Button(
-            sec_filters,
-            text=self.tr("security_btn_filter_relevant", "Relevant"),
-            command=self.security_filter_relevant,
-        )
-        btn_sec_filter_relevant.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            btn_sec_filter_relevant,
-            "Zeigt nur Warnungen und Alarme an.",
-        )
-
-        btn_sec_filter_external = ttk.Button(
-            sec_filters,
-            text=self.tr("security_btn_filter_external", "Externe"),
-            command=self.security_filter_external,
-        )
-        btn_sec_filter_external.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            btn_sec_filter_external,
-            "Zeigt nur externe UFW-Blocks an.",
-        )
-
-        btn_sec_filter_all = ttk.Button(
-            sec_filters,
-            text=self.tr("security_btn_filter_all", "Alle Events"),
-            command=self.security_filter_all,
-        )
-        btn_sec_filter_all.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            btn_sec_filter_all,
-            "Zeigt wieder alle Security-Events an.",
-        )
-
-        btn_sec_clear = ttk.Button(
-            sec_filters,
-            text=self.tr("security_btn_clear_events", "Events leeren"),
-            command=lambda: self.security_clear_events(confirm=True),
-        )
-        btn_sec_clear.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            btn_sec_clear,
-            "Löscht die aktuelle Eventliste im Security-Tab.",
-        )
-
-        path_guard_frame = ttk.LabelFrame(
-            self.tab_security,
-            text=self.tr("path_guard_group_title", "PATH Guard"),
-            padding=6,
-        )
-        path_guard_frame.pack(fill="x", pady=(0, 8))
-
-        btn_path_guard_check = ttk.Button(
-            path_guard_frame,
-            text=self.tr("path_guard_btn_check", "PATH prüfen"),
-            command=self.run_path_guard_check,
-        )
-        btn_path_guard_check.pack(side="left")
-        self.add_tooltip(
-            btn_path_guard_check,
-            self.tr(
-                "tooltip_path_guard_check",
-                "Prüft PATH-Einträge und Shell-Profile auf auffällige Manipulationen.",
-            ),
-        )
-
-        btn_path_guard_chad = ttk.Button(
-            path_guard_frame,
-            text=self.tr("path_guard_btn_chad", "Mit Chad analysieren"),
-            command=self.analyze_path_guard_with_chad,
-        )
-        btn_path_guard_chad.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            btn_path_guard_chad,
-            self.tr(
-                "tooltip_path_guard_chad",
-                "Bereitet die letzte PATH Guard Prüfung für Chad vor.",
-            ),
-        )
-
-        ttk.Label(
-            path_guard_frame,
-            textvariable=self.path_guard_status_var,
-        ).pack(side="left", padx=(12, 0))
-
-        sec_stats = ttk.Frame(self.tab_security)
-        sec_stats.pack(fill="x", pady=(0, 8))
-        self.security_stat_total_var = tk.StringVar(value="0")
-        self.security_stat_block_var = tk.StringVar(value="0")
-        self.security_stat_scan_var = tk.StringVar(value="0")
-        self.security_stat_top_ip_var = tk.StringVar(value="–")
-        self.security_stat_top_port_var = tk.StringVar(value="–")
-        for i in range(5):
-            sec_stats.columnconfigure(i, weight=1)
-        for col, title, var in [
-            (0, "Gesamt-Events", self.security_stat_total_var),
-            (1, "BLOCK-Events", self.security_stat_block_var),
-            (2, "Portscan-Verdacht", self.security_stat_scan_var),
-            (3, "Top Quelle-IP", self.security_stat_top_ip_var),
-            (4, "Häufigster Ziel-Port", self.security_stat_top_port_var),
-        ]:
-            box = ttk.LabelFrame(sec_stats, text=title, padding=6)
-            box.grid(row=0, column=col, sticky="nsew", padx=(0 if col == 0 else 6, 0))
-            ttk.Label(box, textvariable=var).pack(anchor="center")
-
-        self.security_table = ttk.Treeview(
-            self.tab_security,
-            columns=("time", "type", "src", "port", "proto", "level", "action"),
-            show="headings",
-            height=12,
-        )
-        for col, title, w, anchor in [
-            ("time", "Zeit", 150, "w"),
-            ("type", "Typ", 160, "w"),
-            ("src", "Quelle-IP", 130, "w"),
-            ("port", "Ziel-Port", 90, "center"),
-            ("proto", "Protokoll", 90, "center"),
-            ("level", "Level", 90, "center"),
-            ("action", "Aktion", 90, "center"),
-        ]:
-            self.security_table.heading(col, text=title)
-            self.security_table.column(col, width=w, anchor=anchor)
-        self.security_table.pack(fill="both", expand=True)
-        self.security_table.bind("<<TreeviewSelect>>", self.on_security_event_select)
-
-        self.security_detail = tk.Text(self.tab_security, wrap="word", height=8)
-        self.security_detail.pack(fill="both", expand=True, pady=(8, 0))
-
-        # Tab: ClamAV
-        self.tab_clamav = ttk.Frame(self.security_nb, padding=10)
-        self.security_nb.add(self.tab_clamav, text="ClamAV")
-
-        clamav_wrap = ttk.Frame(self.tab_clamav)
-        clamav_wrap.pack(fill="both", expand=True)
-
-        self.clamav_canvas = tk.Canvas(clamav_wrap, highlightthickness=0)
-        self.clamav_canvas.pack(side="left", fill="both", expand=True)
-
-        self.clamav_scrollbar = ttk.Scrollbar(
-            clamav_wrap,
-            orient="vertical",
-            command=self.clamav_canvas.yview,
-        )
-        self.clamav_scrollbar.pack(side="right", fill="y")
-        self.clamav_canvas.configure(yscrollcommand=self.clamav_scrollbar.set)
-
-        self.clamav_scroll_frame = ttk.Frame(self.clamav_canvas)
-        self.clamav_canvas_window = self.clamav_canvas.create_window(
-            (0, 0),
-            window=self.clamav_scroll_frame,
-            anchor="nw",
-        )
-
-        self._clamav_canvas_mousewheel_active = False
-
-        def _on_clamav_frame_config(_event):
-            self.clamav_canvas.configure(scrollregion=self.clamav_canvas.bbox("all"))
-
-        def _on_clamav_canvas_config(event):
-            self.clamav_canvas.itemconfig(self.clamav_canvas_window, width=event.width)
-
-        def _clamav_canvas_set_wheel_active(active):
-            self._clamav_canvas_mousewheel_active = bool(active)
-
-        def _on_clamav_canvas_wheel(event):
-            if not getattr(self, "_clamav_canvas_mousewheel_active", False):
-                return None
-
-            if getattr(event, "num", None) == 4:
-                self.clamav_canvas.yview_scroll(-1, "units")
-                return "break"
-            if getattr(event, "num", None) == 5:
-                self.clamav_canvas.yview_scroll(1, "units")
-                return "break"
-
-            delta = getattr(event, "delta", 0)
-            if delta:
-                step = -1 if delta > 0 else 1
-                self.clamav_canvas.yview_scroll(step, "units")
-                return "break"
-            return None
-
-        self.clamav_scroll_frame.bind("<Configure>", _on_clamav_frame_config)
-        self.clamav_canvas.bind("<Configure>", _on_clamav_canvas_config)
-
-        self.clamav_canvas.bind(
-            "<Enter>", lambda _e: _clamav_canvas_set_wheel_active(True)
-        )
-        self.clamav_canvas.bind(
-            "<Leave>", lambda _e: _clamav_canvas_set_wheel_active(False)
-        )
-        self.clamav_canvas.bind_all("<MouseWheel>", _on_clamav_canvas_wheel)
-        self.clamav_canvas.bind_all("<Button-4>", _on_clamav_canvas_wheel)
-        self.clamav_canvas.bind_all("<Button-5>", _on_clamav_canvas_wheel)
-
-        clamav_status = ttk.LabelFrame(
-            self.clamav_scroll_frame, text="Status", padding=6
-        )
-        clamav_status.pack(fill="x")
-        clamav_status.columnconfigure(1, weight=1)
-        clamav_status.columnconfigure(3, weight=1)
-
-        ttk.Label(clamav_status, text="Status:").grid(row=0, column=0, sticky="w")
-        ttk.Label(clamav_status, textvariable=self.clamav_status_var).grid(
-            row=0, column=1, sticky="w", padx=(8, 12)
-        )
-        ttk.Label(clamav_status, text="Laufzeit:").grid(row=0, column=2, sticky="w")
-        ttk.Label(clamav_status, textvariable=self.clamav_runtime_var).grid(
-            row=0, column=3, sticky="w", padx=(8, 0)
-        )
-
-        ttk.Label(clamav_status, text="Signaturen:").grid(
-            row=1, column=0, sticky="w", pady=(2, 0)
-        )
-        ttk.Label(clamav_status, textvariable=self.clamav_signatures_var).grid(
-            row=1, column=1, sticky="w", padx=(8, 12), pady=(2, 0)
-        )
-        ttk.Label(clamav_status, text="Dateien gescannt:").grid(
-            row=1, column=2, sticky="w", pady=(2, 0)
-        )
-        ttk.Label(clamav_status, textvariable=self.clamav_scanned_files_var).grid(
-            row=1, column=3, sticky="w", padx=(8, 0), pady=(2, 0)
-        )
-
-        ttk.Label(clamav_status, text="Letzter Scan:").grid(
-            row=2, column=0, sticky="w", pady=(2, 0)
-        )
-        ttk.Label(clamav_status, textvariable=self.clamav_last_scan_var).grid(
-            row=2, column=1, sticky="w", padx=(8, 12), pady=(2, 0)
-        )
-        ttk.Label(clamav_status, text="Geschwindigkeit:").grid(
-            row=2, column=2, sticky="w", pady=(2, 0)
-        )
-        ttk.Label(clamav_status, textvariable=self.clamav_speed_var).grid(
-            row=2, column=3, sticky="w", padx=(8, 0), pady=(2, 0)
-        )
-
-        ttk.Label(clamav_status, text="Letztes Ziel:").grid(
-            row=3, column=0, sticky="w", pady=(2, 0)
-        )
-        ttk.Label(clamav_status, textvariable=self.clamav_last_target_var).grid(
-            row=3, column=1, sticky="w", padx=(8, 12), pady=(2, 0)
-        )
-        ttk.Label(clamav_status, text="ETA:").grid(
-            row=3, column=2, sticky="w", pady=(2, 0)
-        )
-        ttk.Label(clamav_status, textvariable=self.clamav_eta_var).grid(
-            row=3, column=3, sticky="w", padx=(8, 0), pady=(2, 0)
-        )
-
-        ttk.Label(clamav_status, text="Funde:").grid(
-            row=4, column=0, sticky="w", pady=(2, 0)
-        )
-        ttk.Label(clamav_status, textvariable=self.clamav_findings_var).grid(
-            row=4, column=1, sticky="w", padx=(8, 0), pady=(2, 0)
-        )
-        ttk.Label(clamav_status, text="Ergebnis:").grid(
-            row=5, column=0, sticky="w", pady=(2, 0)
-        )
-        ttk.Label(clamav_status, textvariable=self.clamav_result_var).grid(
-            row=5, column=1, columnspan=3, sticky="w", padx=(8, 0), pady=(2, 0)
-        )
-
-        clamav_scan = ttk.LabelFrame(self.clamav_scroll_frame, text="Scan", padding=6)
-        clamav_scan.pack(fill="x", pady=(8, 0))
-
-        clamav_scan_row1 = ttk.Frame(clamav_scan)
-        clamav_scan_row1.pack(fill="x")
-
-        btn_clamav_update = ttk.Button(
-            clamav_scan_row1,
-            text="ClamAV Update",
-            command=self.security_clamav_update_async,
-        )
-        btn_clamav_update.pack(side="left")
-        self.register_feature_button("clamav_update", btn_clamav_update)
-        self.add_tooltip(
-            btn_clamav_update,
-            "Aktualisiert ClamAV-Signaturen mit freshclam.",
-        )
-
-        btn_clamav_quick = ttk.Button(
-            clamav_scan_row1,
-            text="ClamAV Schnellscan",
-            command=self.security_clamav_quickscan_async,
-        )
-        btn_clamav_quick.pack(side="left", padx=(8, 0))
-        self.register_feature_button("clamav_scan", btn_clamav_quick)
-        self.add_tooltip(
-            btn_clamav_quick,
-            "Startet einen kompakten ClamAV-Schnellscan auf typische Benutzerordner.",
-        )
-
-        btn_clamav_folder = ttk.Button(
-            clamav_scan_row1,
-            text="ClamAV Ordner scannen",
-            command=self.security_clamav_folder_scan_async,
-        )
-        btn_clamav_folder.pack(side="left", padx=(8, 0))
-        self.register_feature_button("clamav_scan", btn_clamav_folder)
-        self.add_tooltip(
-            btn_clamav_folder,
-            "Öffnet eine Ordnerauswahl und scannt den gewählten Ordner mit ClamAV.",
-        )
-
-        btn_clamav_system = ttk.Button(
-            clamav_scan_row1,
-            text="Systemscan",
-            command=self.security_clamav_systemscan_async,
-        )
-        btn_clamav_system.pack(side="left", padx=(8, 0))
-        self.register_feature_button("clamav_scan", btn_clamav_system)
-        self.add_tooltip(
-            btn_clamav_system,
-            "Startet einen erweiterten ClamAV-Systemscan auf sinnvollen Standardpfaden.",
-        )
-
-        clamav_actions = ttk.LabelFrame(
-            self.clamav_scroll_frame, text="Funde & Quarantäne", padding=6
-        )
-        clamav_actions.pack(fill="x", pady=(8, 0))
-
-        clamav_actions_row1 = ttk.Frame(clamav_actions)
-        clamav_actions_row1.pack(fill="x")
-        clamav_actions_row2 = ttk.Frame(clamav_actions)
-        clamav_actions_row2.pack(fill="x", pady=(6, 0))
-
-        self.btn_clamav_show_findings = ttk.Button(
-            clamav_actions_row1,
-            text="Funde anzeigen",
-            command=self.show_clamav_findings,
-        )
-        self.btn_clamav_show_findings.pack(side="left")
-        self.add_tooltip(
-            self.btn_clamav_show_findings,
-            "Zeigt aktuell offene ClamAV-Funde mit Signatur an.",
-        )
-
-        self.btn_clamav_export_findings = ttk.Button(
-            clamav_actions_row1,
-            text="Funde exportieren",
-            command=self.export_clamav_findings,
-        )
-        self.btn_clamav_export_findings.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_clamav_export_findings,
-            "Exportiert ClamAV-Funde/Historie als JSON und TXT.",
-        )
-
-        self.btn_clamav_show_quarantine = ttk.Button(
-            clamav_actions_row1,
-            text="Quarantäne anzeigen",
-            command=self.show_clamav_quarantine_history,
-        )
-        self.btn_clamav_show_quarantine.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_clamav_show_quarantine,
-            "Zeigt Dateien in/aus der Quarantänehistorie.",
-        )
-
-        self.btn_clamav_abort_scan = ttk.Button(
-            clamav_actions_row1,
-            text="Scan abbrechen",
-            command=self.clamav_abort_scan,
-        )
-        self.btn_clamav_abort_scan.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_clamav_abort_scan,
-            "Bricht einen laufenden ClamAV-Scan ab.",
-        )
-        self.btn_clamav_abort_scan.configure(state="disabled")
-
-        self.btn_clamav_quarantine = ttk.Button(
-            clamav_actions_row2,
-            text="In Quarantäne verschieben",
-            command=self.quarantine_clamav_findings_async,
-        )
-        self.btn_clamav_quarantine.pack(side="left")
-        self.add_tooltip(
-            self.btn_clamav_quarantine,
-            "Verschiebt offene ClamAV-Funde sicher nach ~/.netmon_quarantine.",
-        )
-
-        self.btn_clamav_quarantine_selected = ttk.Button(
-            clamav_actions_row2,
-            text="Auswahl quarantänisieren",
-            command=self.quarantine_selected_clamav_findings_async,
-        )
-        self.btn_clamav_quarantine_selected.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_clamav_quarantine_selected,
-            "Öffnet eine Auswahl und verschiebt nur ausgewählte Funde in Quarantäne.",
-        )
-
-        self.btn_clamav_restore_quarantine = ttk.Button(
-            clamav_actions_row2,
-            text="Aus Quarantäne wiederherstellen",
-            command=self.restore_clamav_quarantine_async,
-        )
-        self.btn_clamav_restore_quarantine.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_clamav_restore_quarantine,
-            "Stellt quarantänisierte Dateien sicher an ihren Ursprungsort wieder her.",
-        )
-
-        self.btn_clamav_restore_selected = ttk.Button(
-            clamav_actions_row2,
-            text="Auswahl wiederherstellen",
-            command=self.restore_selected_clamav_quarantine_async,
-        )
-        self.btn_clamav_restore_selected.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_clamav_restore_selected,
-            "Öffnet eine Auswahl und stellt nur ausgewählte Quarantäne-Dateien wieder her.",
-        )
-
-        clamav_output_frame = ttk.LabelFrame(
-            self.clamav_scroll_frame, text="Ergebnis / Fundliste / Historie", padding=6
-        )
-        clamav_output_frame.pack(fill="both", expand=True, pady=(8, 0))
-
-        self.clamav_output_text = tk.Text(clamav_output_frame, wrap="word", height=12)
-        self.clamav_output_text.pack(fill="both", expand=True)
-        self.clamav_output_text.insert(
-            "1.0", "ClamAV-Ergebnisse und Fortschritt erscheinen hier.\n"
-        )
-        self.clamav_output_text.configure(state="disabled")
-
-        self._update_clamav_findings_buttons_state()
-
-        self.tab_lynis = ttk.Frame(self.security_nb, padding=10)
-        self.security_nb.add(self.tab_lynis, text="Lynis")
-        self.build_lynis_tab()
-
-        self.tab_rkhunter = ttk.Frame(self.security_nb, padding=10)
-        self.security_nb.add(self.tab_rkhunter, text="rkhunter")
-        self.build_rkhunter_tab()
-
-        self.tab_startup_guard = ttk.Frame(self.security_nb, padding=10)
-        self.security_nb.add(self.tab_startup_guard, text="Startup")
-        self.build_startup_guard_tab()
-
-        self.tab_packet_capture = ttk.Frame(self.security_nb, padding=10)
-        self.security_nb.add(self.tab_packet_capture, text="Capture")
-        self.build_packet_capture_tab()
-        self.after(300, self.refresh_packet_capture_interfaces)
+        build_security_tabs(self)
 
         bottom = ttk.Frame(self.page, padding=10)
         bottom.grid(row=2, column=0, columnspan=2, sticky="ew")
@@ -7251,45 +5134,24 @@ class App(TkBase):
             self.chad_analysis_status_var.set("DNS-Ausgabe geleert.")
 
     def _dns_mode_from_label(self, value):
-        candidate = str(value or "").strip()
-        if candidate in DNS_MODE_LABELS:
-            return candidate
-        lowered = candidate.lower()
-        for mode, label in DNS_MODE_LABELS.items():
-            if lowered == label.lower():
-                return mode
-        return "auto"
+        return dns_controller.dns_mode_from_label(value)
 
     def _dns_mode_label(self, mode):
-        return DNS_MODE_LABELS.get(
-            self._dns_mode_from_label(mode), DNS_MODE_LABELS["auto"]
-        )
+        return dns_controller.dns_mode_label(mode)
 
     def _current_dns_mode(self):
-        mode = self._dns_mode_from_label(self.__dict__.get("dns_mode", "auto"))
-        mode_var = self.__dict__.get("dns_mode_var")
-        if mode_var is not None:
-            mode = self._dns_mode_from_label(mode_var.get() or mode)
-        return mode
+        return dns_controller.current_dns_mode(self)
 
     def _set_dns_mode(self, mode, persist=True, update_var=True):
-        normalized = self._dns_mode_from_label(mode)
-        self.dns_mode = normalized
-        if update_var and "dns_mode_var" in self.__dict__:
-            self.dns_mode_var.set(self._dns_mode_label(normalized))
-        if persist and "privacy_config" in self.__dict__:
-            try:
-                self.save_privacy_config()
-            except Exception:
-                pass
-        return normalized
+        return dns_controller.set_dns_mode(
+            self,
+            mode,
+            persist=persist,
+            update_var=update_var,
+        )
 
     def on_dns_mode_selected(self):
-        mode = self._set_dns_mode(self.dns_mode_var.get())
-        self.refresh_dns_policy_status()
-        self.chad_analysis_status_var.set(
-            f"DNS-Modus gewählt: {self._dns_mode_label(mode)}"
-        )
+        dns_controller.on_dns_mode_selected(self)
 
     def is_vpn_active(self):
         service = self._dns_control_service()
@@ -7304,12 +5166,7 @@ class App(TkBase):
         return service.detect_vpn_active(out)
 
     def _dns_mode_display_name(self, mode):
-        mapping = {
-            "auto": "AUTO",
-            "vpn": "VPN-PRIORITY",
-            "manual": "MANUAL",
-        }
-        return mapping.get(self._dns_mode_from_label(mode), "AUTO")
+        return dns_controller.dns_mode_display_name(mode)
 
     def _manual_dns_choice(self):
         choice_var = self.__dict__.get("dns_choice")
@@ -7428,62 +5285,13 @@ class App(TkBase):
         return service.restart_resolved()
 
     def refresh_dns_policy_status(self):
-        mode = self._current_dns_mode()
-        code, out = run_cmd(["resolvectl", "status"], timeout=8)
-        evaluation = self.evaluate_dns_policy(out if code == 0 else "")
-        conflicts = list(evaluation.get("warnings") or [])
-        if mode == "vpn" and not evaluation.get("vpn_active"):
-            conflicts.append("VPN-PRIORITY ohne aktives VPN")
-        if mode == "manual" and evaluation.get("vpn_active"):
-            conflicts.append("MANUAL ist bei aktivem VPN blockiert")
-        conflicts_text = "keine" if not conflicts else "; ".join(conflicts)
-
-        self.dns_mode_status_var.set(
-            f"Aktiver DNS-Modus: {self._dns_mode_display_name(mode)}"
-        )
-        self.dns_resolver_status_var.set(
-            f"Aktiver Resolver: {evaluation.get('resolver_label', 'unbekannt')}"
-        )
-        self.dns_conflict_status_var.set(f"Konflikte: {conflicts_text}")
-        return {
-            "mode": mode,
-            "resolver": evaluation.get("resolver_label", "unbekannt"),
-            "conflicts": conflicts_text,
-            "vpn_active": bool(evaluation.get("vpn_active")),
-            "servers": list(evaluation.get("active_dns") or []),
-            "dropin_present": bool(evaluation.get("dot_dropin_exists")),
-            "dropin_conflict": bool(evaluation.get("dot_dropin_conflict")),
-            "risk": evaluation.get("risk", "unbekannt"),
-        }
+        return dns_controller.refresh_dns_policy_status(self)
 
     def evaluate_dns_policy(self, resolvectl_output: str) -> dict:
-        service = self._dns_control_service()
-        if service is None:
-            return {
-                "vpn_active": False,
-                "vpn_dns": [],
-                "global_dns": [],
-                "physical_dns": [],
-                "active_dns": [],
-                "dot_dropin_exists": os.path.isfile(DOT_DROPIN_PATH),
-                "dot_dropin_conflict": False,
-                "conflict": False,
-                "risk": "unbekannt",
-                "recommendation": "DNS-Control-Service nicht verfügbar.",
-                "recommendations": ["DNS-Control-Service nicht verfügbar."],
-                "warnings": [],
-                "resolver_label": "unbekannt",
-            }
-        return service.evaluate_dns_policy(
-            resolvectl_output=resolvectl_output,
-            dns_mode=self._current_dns_mode(),
-        )
+        return dns_controller.evaluate_dns_policy(self, resolvectl_output)
 
     def _show_dns_policy_result(self, text, *, startup=False):
-        if not startup:
-            self.nb.select(self.tab_dns)
-            self.update_dns_output(text, append=True)
-        self.refresh_dns_policy_status()
+        dns_controller.show_dns_policy_result(self, text, startup=startup)
 
     def warn_no_vpn(self):
         result = (
@@ -7509,134 +5317,26 @@ class App(TkBase):
         return False, result
 
     def use_vpn_dns(self):
-        service = self._dns_control_service()
-        if service is None:
-            nm_ok, nm_details = self._apply_nm_dns_policy_to_targets(
-                ignore_auto_dns=True
-            )
-            rm_ok, rm_detail = self._remove_manual_dns_dropin()
-            restart_ok, restart_detail = self._restart_resolved_for_dns_policy()
-            success = nm_ok and rm_ok and restart_ok
-            lines = [
-                "=== DNS Control ===",
-                "Aktion: VPN-DNS erzwingen",
-                f"Ergebnis: {'erfolgreich' if success else 'fehlgeschlagen'}",
-                "",
-                "NetMon DoT Drop-in:",
-                "entfernt" if rm_ok else f"Fehler: {rm_detail or 'unknown'}",
-                "",
-                "NetworkManager:",
-                *nm_details,
-                "systemd-resolved Restart:",
-                "OK" if restart_ok else (restart_detail or "fehlgeschlagen"),
-            ]
-            return success, "\n".join(lines).strip()
-        return service.apply_vpn_dns_policy(targets=self._active_nm_dns_targets())
+        return dns_controller.use_vpn_dns(self)
 
     def _normalize_dns_profile_choice(self, choice=None):
-        selected = (choice or self.dns_choice.get() or "").strip()
-        if selected not in DNS_PROFILES:
-            return "System (DHCP/auto)"
-        return selected
+        return dns_controller.normalize_dns_profile_choice(self, choice)
 
     def _apply_dns_profile_choice_via_control(self, choice):
-        normalized_choice = self._normalize_dns_profile_choice(choice)
-        servers = DNS_PROFILES.get(normalized_choice)
-
-        if servers is None:
-            nm_ok, nm_details = self._apply_nm_dns_policy_to_targets(
-                ignore_auto_dns=False
-            )
-            dropin_ok, dropin_detail = self._remove_manual_dns_dropin()
-            restart_ok, restart_detail = self._restart_resolved_for_dns_policy()
-            return {
-                "choice": normalized_choice,
-                "servers": [],
-                "success": nm_ok and dropin_ok and restart_ok,
-                "nm_details": list(nm_details),
-                "dropin_ok": dropin_ok,
-                "dropin_detail": dropin_detail,
-                "dropin_state": "entfernt",
-                "restart_ok": restart_ok,
-                "restart_detail": restart_detail,
-            }
-
-        nm_ok, nm_details = self._apply_nm_dns_policy_to_targets(ignore_auto_dns=True)
-        dropin_ok, dropin_detail = self._write_manual_dns_dropin(normalized_choice)
-        restart_ok, restart_detail = self._restart_resolved_for_dns_policy()
-        return {
-            "choice": normalized_choice,
-            "servers": [
-                str(server).strip() for server in servers if str(server).strip()
-            ],
-            "success": nm_ok and dropin_ok and restart_ok,
-            "nm_details": list(nm_details),
-            "dropin_ok": dropin_ok,
-            "dropin_detail": dropin_detail,
-            "dropin_state": "geschrieben",
-            "restart_ok": restart_ok,
-            "restart_detail": restart_detail,
-        }
+        return dns_controller.apply_dns_profile_choice_via_control(self, choice)
 
     def _format_dns_profile_control_result(self, result, *, heading, action):
-        lines = [
-            heading,
-            f"Aktion: {action}",
-            f"Profil: {result.get('choice', '-')}",
-        ]
-        servers = [
-            str(server).strip()
-            for server in (result.get("servers") or [])
-            if str(server).strip()
-        ]
-        if servers:
-            lines.append(f"Server: {' '.join(servers)}")
-        lines.extend(
-            [
-                f"Ergebnis: {'erfolgreich' if result.get('success') else 'fehlgeschlagen'}",
-                "",
-                "NetworkManager:",
-                *(result.get("nm_details") or ["Keine Details verfügbar."]),
-                "NetMon DoT Drop-in:",
-                (
-                    result.get("dropin_state", "aktualisiert")
-                    if result.get("dropin_ok")
-                    else f"Fehler: {result.get('dropin_detail') or 'unknown'}"
-                ),
-                "systemd-resolved Restart:",
-                (
-                    "OK"
-                    if result.get("restart_ok")
-                    else (result.get("restart_detail") or "fehlgeschlagen")
-                ),
-            ]
+        return dns_controller.format_dns_profile_control_result(
+            result,
+            heading=heading,
+            action=action,
         )
-        return "\n".join(lines).strip()
 
     def use_user_dns(self):
-        if self.is_vpn_active():
-            return self.warn_manual_dns_with_vpn()
-
-        dns_choice = self._normalize_dns_profile_choice(self._manual_dns_choice())
-        self._set_dns_choice_safe(dns_choice)
-        result = self._apply_dns_profile_choice_via_control(dns_choice)
-        return result["success"], self._format_dns_profile_control_result(
-            result,
-            heading="=== DNS Control ===",
-            action="User DNS aktivieren",
-        )
+        return dns_controller.use_user_dns(self)
 
     def enforce_dns_policy(self):
-        vpn_active = self.is_vpn_active()
-        mode = self._current_dns_mode()
-
-        if mode == "auto":
-            return self.use_vpn_dns() if vpn_active else self.use_user_dns()
-        if mode == "vpn":
-            return self.use_vpn_dns() if vpn_active else self.warn_no_vpn()
-        if mode == "manual":
-            return self.use_user_dns()
-        return False, "=== DNS Control ===\nUnbekannter DNS-Modus."
+        return dns_controller.enforce_dns_policy(self)
 
     def _run_dns_policy_action(self, *, startup=False, repair_only=False):
         try:
@@ -8098,57 +5798,16 @@ class App(TkBase):
         return "break"
 
     def _log_chad_error(self, source: str, error_text: str):
-        msg = (error_text or "").strip()
-        if not msg:
-            return
-        if len(msg) > 1200:
-            msg = msg[:1200].rstrip() + " ..."
-        self.log_safe(f"Chad {source} Fehler: {msg}")
+        chad_controller.log_chad_error(self, source, error_text)
 
     def append_to_chad_output(self, title: str, text: str):
-        widget = self.__dict__.get("chad_analysis_text")
-        if widget is None:
-            return
-        text = (text or "").strip()
-        if not text:
-            return
-
-        widget.configure(state="normal")
-        current = widget.get("1.0", "end").strip()
-        if current:
-            widget.insert("end", "\n\n")
-
-        role_key = (title or "").strip().lower()
-        if role_key in {"du", "user"}:
-            header_tag = "chat_user_header"
-            body_tag = "chat_user_body"
-        elif role_key in {"chad", "chad analyse", "chad antwort", "assistant"}:
-            header_tag = "chat_assistant_header"
-            body_tag = "chat_assistant_body"
-        else:
-            header_tag = "chat_system_header"
-            body_tag = "chat_system_body"
-
-        widget.insert("end", f"--- {title} ---\n", header_tag)
-        widget.insert("end", text, body_tag)
-        widget.configure(state="disabled")
-        try:
-            if self.chad_auto_scroll_var.get():
-                widget.see("end")
-        except Exception:
-            pass
+        chad_controller.append_to_chad_output(self, title, text)
 
     def scroll_chad_output_to_top(self):
-        try:
-            self.chad_analysis_text.see("1.0")
-        except Exception:
-            pass
+        chad_controller.scroll_chad_output_to_top(self)
 
     def scroll_chad_output_to_bottom(self):
-        try:
-            self.chad_analysis_text.see("end")
-        except Exception:
-            pass
+        chad_controller.scroll_chad_output_to_bottom(self)
 
     def confirm_chad_send(self, title: str, intro_text: str) -> bool:
         if tk is None or ttk is None:
@@ -8223,397 +5882,22 @@ class App(TkBase):
         return result["ok"]
 
     def send_chad_chat_message(self):
-        if not self._ensure_chad_enabled():
-            return "break"
-        text = self.chad_chat_input.get("1.0", "end").strip()
-
-        if not text:
-            self.chad_chat_status_var.set(
-                self.tr("chad_status_no_message", "Keine Nachricht eingegeben.")
-            )
-            return "break"
-
-        service = self.ai_online_service
-        if service is None or not service.is_available():
-            self.chad_chat_status_var.set(
-                self.tr("chad_status_api_key_missing", "API-Key fehlt.")
-            )
-            return "break"
-
-        ok = self.confirm_chad_send(
-            self.tr("chad_confirm_chat_title", "Chat mit Chad"),
-            self.tr(
-                "chad_confirm_chat_intro",
-                "Diese Nachricht und der lokale Chatkontext werden an die OpenAI API gesendet.\nFortfahren?",
-            ),
-        )
-
-        if not ok:
-            self.chad_chat_status_var.set(
-                self.tr("chad_status_send_cancelled", "Senden abgebrochen.")
-            )
-            return "break"
-
-        self.chad_chat_input.delete("1.0", "end")
-        self.chad_chat_history.append({"role": "user", "content": text})
-        self.append_to_chad_output(self.tr("chad_output_you", "Du"), text)
-        self.chad_chat_status_var.set(self.tr("chad_status_thinking", "Chad denkt..."))
-        pending_files = list(self.chad_pending_files)
-
-        def worker():
-            success, result = service.chat(self.chad_chat_history, files=pending_files)
-
-            def update_ui():
-                if success:
-                    self.chad_chat_history.append(
-                        {"role": "assistant", "content": result}
-                    )
-                    self.chad_pending_files = []
-                    self.append_to_chad_output(self.tr("tab_chad", "Chad"), result)
-                    self.chad_chat_status_var.set(
-                        self.tr("chad_status_reply_received", "Antwort erhalten.")
-                    )
-                else:
-                    self.chad_chat_status_var.set(result)
-                    self._log_chad_error("Chat", result)
-
-            self.after(0, update_ui)
-
-        threading.Thread(target=worker, daemon=True).start()
-        return "break"
+        return chad_controller.send_chad_chat_message(self)
 
     def clear_chad_chat(self):
-        self.chad_chat_history = []
-        self.chad_chat_status_var.set(
-            self.tr("chad_status_chat_cleared", "Chat geleert.")
-        )
+        chad_controller.clear_chad_chat(self)
 
     def add_current_analysis_to_chad_chat(self):
-        if not self._ensure_chad_enabled():
-            return
-        prompt = (self.chad_analysis_current_prompt or "").strip()
-
-        if not prompt:
-            self.chad_chat_status_var.set(
-                self.tr(
-                    "chad_status_no_current_analysis",
-                    "Keine aktuelle Analyse vorhanden.",
-                )
-            )
-            return
-
-        text = (
-            self.tr(
-                "chad_context_from_analysis_prefix",
-                "Bitte nutze diese NetMon-Analyse als Kontext für die weitere Unterhaltung:\n\n",
-            )
-            + prompt
-        )
-
-        self.chad_chat_history.append({"role": "user", "content": text})
-        self.append_to_chad_output(
-            self.tr(
-                "chad_output_analysis_context",
-                "Analyse als Kontext übernommen",
-            ),
-            prompt,
-        )
-        self.chad_chat_status_var.set(
-            self.tr(
-                "chad_status_analysis_added_to_chat",
-                "Aktuelle Analyse in Chat übernommen.",
-            )
-        )
+        chad_controller.add_current_analysis_to_chad_chat(self)
 
     def extract_pdf_text_for_chad(self, path: str) -> str:
-        if PyPDF2 is None:
-            return self.tr(
-                "chad_pdf_support_missing",
-                "PDF-Unterstützung fehlt: bitte python3-pypdf2 installieren.",
-            )
-
-        try:
-            parts = []
-            with open(path, "rb") as f:
-                reader = PyPDF2.PdfReader(f)
-                for idx, page in enumerate(reader.pages[:30], start=1):
-                    text = page.extract_text() or ""
-                    if text.strip():
-                        parts.append(
-                            self.tr(
-                                "chad_pdf_page_header",
-                                "--- Seite {idx} ---\n",
-                            ).format(idx=idx)
-                            + text.strip()
-                        )
-
-            if not parts:
-                return self.tr(
-                    "chad_pdf_no_text",
-                    "PDF gelesen, aber kein extrahierbarer Text gefunden.",
-                )
-
-            return "\n\n".join(parts)
-        except Exception as e:
-            return self.tr(
-                "chad_pdf_read_error",
-                "Fehler beim PDF-Lesen: {error}",
-            ).format(error=e)
+        return chad_controller.extract_pdf_text_for_chad(self, path)
 
     def extract_docx_text_for_chad(self, path: str) -> str:
-        if docx is None:
-            return self.tr(
-                "chad_docx_support_missing",
-                "DOCX-Unterstützung fehlt: bitte python3-docx installieren.",
-            )
-
-        try:
-            document = docx.Document(path)
-            parts = []
-
-            for paragraph in document.paragraphs:
-                text = (paragraph.text or "").strip()
-                if text:
-                    parts.append(text)
-
-            for table in document.tables:
-                for row in table.rows:
-                    cells = [cell.text.strip() for cell in row.cells]
-                    if any(cells):
-                        parts.append(" | ".join(cells))
-
-            if not parts:
-                return self.tr(
-                    "chad_docx_no_text",
-                    "DOCX gelesen, aber kein Text gefunden.",
-                )
-
-            return "\n".join(parts)
-        except Exception as e:
-            return self.tr(
-                "chad_docx_read_error",
-                "Fehler beim DOCX-Lesen: {error}",
-            ).format(error=e)
+        return chad_controller.extract_docx_text_for_chad(self, path)
 
     def import_file_to_chad_chat(self):
-        if not self._ensure_chad_enabled():
-            return
-        path = filedialog.askopenfilename(
-            title=self.tr(
-                "chad_file_dialog_title",
-                "Datei für Chad Analyse auswählen",
-            ),
-            filetypes=[
-                (
-                    self.tr("chad_filetypes_supported", "Unterstützte Dateien"),
-                    "*.txt *.log *.md *.csv *.json *.py *.conf *.ini *.yaml *.yml *.pdf *.docx *.png *.jpg *.jpeg *.webp",
-                ),
-                (
-                    self.tr("chad_filetypes_text", "Textdateien"),
-                    "*.txt *.log *.md *.csv *.json *.py *.conf *.ini *.yaml *.yml",
-                ),
-                ("PDF", "*.pdf"),
-                ("Word DOCX", "*.docx"),
-                (
-                    self.tr("chad_filetypes_images", "Bilder"),
-                    "*.png *.jpg *.jpeg *.webp",
-                ),
-                (self.tr("chad_filetypes_all", "Alle Dateien"), "*.*"),
-            ],
-        )
-
-        if not path:
-            return
-
-        ok = messagebox.askyesno(
-            self.tr("chad_import_confirm_title", "Datei importieren"),
-            self.tr(
-                "chad_import_confirm_body",
-                "Der Dateiinhalt wird lokal in den Chad-Chat übernommen.\n"
-                "Er wird erst an die API gesendet, wenn du danach aktiv sendest.\n\n"
-                "Fortfahren?",
-            ),
-            parent=self,
-        )
-        if not ok:
-            self.chad_chat_status_var.set(
-                self.tr("chad_status_file_import_cancelled", "Dateiimport abgebrochen.")
-            )
-            return
-
-        try:
-            max_size = 5 * 1024 * 1024
-            size = os.path.getsize(path)
-            filename = os.path.basename(path)
-            ext = os.path.splitext(path)[1].lower()
-            if size > max_size:
-                messagebox.showwarning(
-                    self.tr("chad_file_too_large_title", "Datei zu groß"),
-                    self.tr(
-                        "chad_file_too_large_body",
-                        "Die Datei ist größer als 5 MB.\n"
-                        "Bitte erst kleinere Ausschnitte verwenden.",
-                    ),
-                    parent=self,
-                )
-                self.chad_chat_status_var.set(
-                    self.tr("chad_status_file_too_large", "Datei zu groß für Import.")
-                )
-                return
-
-            if size > 500_000:
-                ok = messagebox.askyesno(
-                    self.tr("chad_large_file_title", "Große Datei"),
-                    self.tr(
-                        "chad_large_file_body",
-                        "Die Datei ist {size_mb} MB groß.\n\n"
-                        "Das kann die Analyse verlangsamen.\n\n"
-                        "Trotzdem laden?",
-                    ).format(size_mb=round(size / 1024 / 1024, 2)),
-                    parent=self,
-                )
-                if not ok:
-                    self.chad_chat_status_var.set(
-                        self.tr(
-                            "chad_status_large_file_import_cancelled",
-                            "Import großer Datei abgebrochen.",
-                        )
-                    )
-                    return
-
-            if ext == ".pdf":
-                content = self.extract_pdf_text_for_chad(path)
-            elif ext == ".docx":
-                content = self.extract_docx_text_for_chad(path)
-            elif ext in (".png", ".jpg", ".jpeg", ".webp"):
-                item = {
-                    "type": "image",
-                    "path": path,
-                    "filename": filename,
-                    "size": size,
-                }
-                self.chad_pending_files.append(item)
-                text = self.tr(
-                    "chad_imported_image_body",
-                    "Bild importiert: {filename}\n"
-                    "Pfad: {path}\n"
-                    "Größe: {size_mb} MB\n\n"
-                    "Hinweis: Das Bild wurde für die nächste Online-Analyse vorgemerkt.",
-                ).format(
-                    filename=filename,
-                    path=path,
-                    size_mb=round(size / 1024 / 1024, 2),
-                )
-                self.append_to_chad_output(
-                    self.tr("chad_output_imported_image", "Importiertes Bild"),
-                    text,
-                )
-                self.chad_chat_status_var.set(
-                    self.tr(
-                        "chad_status_image_imported", "Bild importiert: {filename}"
-                    ).format(filename=filename)
-                )
-                return
-            else:
-                with open(path, "r", encoding="utf-8", errors="replace") as f:
-                    content = f.read()
-
-                if "\x00" in content:
-                    self.append_to_chad_output(
-                        self.tr("chad_output_import_notice", "Import-Hinweis"),
-                        self.tr(
-                            "chad_binary_file_notice",
-                            "Die Datei {filename} wirkt wie eine Binärdatei und wurde nicht als Text übernommen.",
-                        ).format(filename=filename),
-                    )
-                    self.chad_chat_status_var.set(
-                        self.tr(
-                            "chad_status_binary_file_skipped",
-                            "Datei wirkt binär und wurde nicht importiert.",
-                        )
-                    )
-                    return
-
-            if content == self.tr(
-                "chad_pdf_support_missing",
-                "PDF-Unterstützung fehlt: bitte python3-pypdf2 installieren.",
-            ) or content == self.tr(
-                "chad_docx_support_missing",
-                "DOCX-Unterstützung fehlt: bitte python3-docx installieren.",
-            ):
-                self.append_to_chad_output(
-                    self.tr("chad_output_import_notice", "Import-Hinweis"), content
-                )
-                self.chad_chat_status_var.set(content)
-                return
-
-            if content.startswith(
-                self.tr("chad_pdf_read_error_prefix", "Fehler beim PDF-Lesen:")
-            ) or content.startswith(
-                self.tr("chad_docx_read_error_prefix", "Fehler beim DOCX-Lesen:")
-            ):
-                self.append_to_chad_output(
-                    self.tr("chad_output_import_error", "Import-Fehler"), content
-                )
-                self.chad_chat_status_var.set(content)
-                return
-
-            max_chars = 120_000
-            if len(content) > max_chars:
-                content = (
-                    content[:60000]
-                    + self.tr(
-                        "chad_content_truncated_marker", "\n\n--- (gekürzt) ---\n\n"
-                    )
-                    + content[-60000:]
-                )
-
-            text = self.tr(
-                "chad_imported_file_body",
-                "Datei importiert: {filename}\n"
-                "Pfad: {path}\n"
-                "Typ: {file_type}\n\n"
-                "{content}",
-            ).format(
-                filename=filename,
-                path=path,
-                file_type=ext or self.tr("label_unknown", "unbekannt"),
-                content=content,
-            )
-
-            self.chad_chat_history.append(
-                {
-                    "role": "user",
-                    "content": self.tr(
-                        "chad_context_from_import_prefix",
-                        "Bitte nutze diese importierte Datei als Kontext:\n\n",
-                    )
-                    + text,
-                }
-            )
-            if size > 500_000:
-                self.append_to_chad_output(
-                    self.tr("chad_output_notice", "Hinweis"),
-                    self.tr(
-                        "chad_large_file_loaded_notice",
-                        "Große Datei geladen ({size_mb} MB). Inhalt ggf. gekürzt für bessere Verarbeitung.",
-                    ).format(size_mb=round(size / 1024 / 1024, 2)),
-                )
-            self.append_to_chad_output(
-                self.tr("chad_output_imported_file", "Importierte Datei"), text
-            )
-            self.chad_chat_status_var.set(
-                self.tr(
-                    "chad_status_file_imported", "Datei importiert: {filename}"
-                ).format(filename=filename)
-            )
-        except Exception as e:
-            self.chad_chat_status_var.set(
-                self.tr(
-                    "chad_status_file_import_error",
-                    "Fehler beim Dateiimport: {error}",
-                ).format(error=e)
-            )
+        chad_controller.import_file_to_chad_chat(self)
 
     def _default_settings_payload(self) -> dict:
         return {
@@ -9186,119 +6470,19 @@ class App(TkBase):
         self._update_chad_controls_state()
 
     def is_chad_enabled(self) -> bool:
-        var = self.__dict__.get("chad_enabled_var")
-        if var is None:
-            return True
-        try:
-            return bool(var.get())
-        except Exception:
-            return True
+        return chad_controller.is_chad_enabled(self)
 
     def _ensure_chad_enabled(self, message: str = "Chad-Anbindung ist deaktiviert."):
-        if self.is_chad_enabled():
-            return True
-        try:
-            self.chad_analysis_status_var.set(
-                message
-                if message != "Chad-Anbindung ist deaktiviert."
-                else self.tr(
-                    "chad_status_disabled",
-                    "Chad-Anbindung ist deaktiviert.",
-                )
-            )
-        except Exception:
-            pass
-        return False
+        return chad_controller.ensure_chad_enabled(self, message=message)
 
     def _show_chad_activation_required_popup(self):
-        try:
-            self.chad_analysis_status_var.set(
-                self.tr(
-                    "chad_status_activate_first",
-                    "Bitte vorher Chad aktivieren.",
-                )
-            )
-        except Exception:
-            pass
-        try:
-            messagebox.showinfo(
-                self.tr("chad_popup_disabled_title", "Chad deaktiviert"),
-                self.tr("chad_status_activate_first", "Bitte vorher Chad aktivieren."),
-                parent=self,
-            )
-        except Exception:
-            pass
+        chad_controller.show_chad_activation_required_popup(self)
 
     def _update_chad_controls_state(self):
-        enabled = self.is_chad_enabled()
-
-        def _set_widget_state(widget, state):
-            try:
-                widget.configure(state=state)
-            except Exception:
-                pass
-
-        _set_widget_state(
-            self.__dict__.get("openai_api_key_entry"),
-            "normal" if enabled else "disabled",
-        )
-        _set_widget_state(
-            self.__dict__.get("chad_chat_input"),
-            "normal" if enabled else "disabled",
-        )
-
-        button_widgets = [
-            ("btn_chad_api_paste", "normal"),
-            ("btn_chad_api_apply", "normal"),
-            ("btn_chad_api_save", "normal" if self.keyring_available else "disabled"),
-            ("btn_chad_api_clear", "normal"),
-            ("btn_chad_api_delete", "normal"),
-            ("btn_chad_send", "normal"),
-            ("btn_chad_take_analysis", "normal"),
-            ("btn_chad_import_file", "normal"),
-            ("btn_chad_online", "normal"),
-            ("btn_chad_copy", "normal"),
-            ("btn_chad_clear", "normal"),
-            ("btn_chad_top", "normal"),
-            ("btn_chad_bottom", "normal"),
-            ("chad_auto_scroll_check", "normal"),
-        ]
-        for widget_name, enabled_state in button_widgets:
-            widget = self.__dict__.get(widget_name)
-            if widget is None:
-                continue
-            _set_widget_state(widget, enabled_state if enabled else "disabled")
-
-        if enabled:
-            try:
-                self.chad_chat_status_var.set(
-                    self.tr("chad_status_chat_ready", "Chat bereit.")
-                )
-            except Exception:
-                pass
-        else:
-            try:
-                self.chad_chat_status_var.set(
-                    self.tr(
-                        "chad_status_chat_disabled",
-                        "Chad-Anbindung deaktiviert.",
-                    )
-                )
-                self.chad_online_status_var.set(
-                    self.tr(
-                        "chad_online_status_disabled",
-                        "Online-Analyse: deaktiviert",
-                    )
-                )
-                self.chad_analysis_status_var.set(
-                    self.tr("chad_status_disabled", "Chad-Anbindung ist deaktiviert.")
-                )
-            except Exception:
-                pass
+        chad_controller.update_chad_controls_state(self)
 
     def _build_chad_analysis_prompt(self, title: str, raw_text: str) -> str:
-        service = self.ai_service or AiAnalysisService()
-        return service.build_prompt(title, raw_text)
+        return chad_controller.build_chad_analysis_prompt(self, title, raw_text)
 
     def _cancel_active_context_menu_timeout(self):
         after_id = self.__dict__.get("_active_context_menu_after_id")
@@ -9809,186 +6993,29 @@ class App(TkBase):
             self.safe_attach_chad_context_menu(widget_name, title)
 
     def set_chad_analysis(self, title: str, raw_text: str):
-        prompt = self._build_chad_analysis_prompt(title, raw_text)
-        settings = self.__dict__.get("settings", {})
-
-        self.chad_analysis_current_prompt = prompt
-        self.chad_online_result = ""
-        self.chad_analysis_source_var.set(
-            f"{self.tr('chad_label_source_prefix', 'Quelle')}: {title}"
-        )
-        self.chad_analysis_status_var.set(
-            self.tr("chad_status_analysis_prepared", "Analyse vorbereitet.")
-        )
-        self.append_to_chad_output(title, prompt)
-
-        try:
-            if settings.get("auto_switch_to_chad", True):
-                self.nb.select(self.tab_chad_analysis)
-        except Exception:
-            pass
+        chad_controller.set_chad_analysis(self, title, raw_text)
 
     def copy_chad_analysis_to_clipboard(self):
-        if not self._ensure_chad_enabled():
-            return
-        text_widget = self.__dict__.get("chad_analysis_text")
-        text = ""
-        if text_widget is not None:
-            try:
-                text = text_widget.get("1.0", "end").strip()
-            except Exception:
-                text = ""
-        if not text.strip():
-            return
-
-        self.clipboard_clear()
-        self.clipboard_append(text)
-
-        try:
-            self.chad_analysis_status_var.set(
-                self.tr(
-                    "chad_status_analysis_copied",
-                    "Analyse in Zwischenablage kopiert.",
-                )
-            )
-        except Exception:
-            pass
+        chad_controller.copy_chad_analysis_to_clipboard(self)
 
     def clear_chad_analysis(self):
-        if not self._ensure_chad_enabled():
-            return
-        self.chad_analysis_current_prompt = ""
-        self.chad_online_result = ""
-        self.chad_chat_history = []
-        self.chad_pending_files = []
-        self.chad_analysis_source_var.set(
-            f"{self.tr('chad_label_source_prefix', 'Quelle')}: –"
-        )
-        self.chad_analysis_status_var.set(
-            self.tr(
-                "chad_status_no_analysis_prepared",
-                "Noch keine Analyse vorbereitet.",
-            )
-        )
-        self.chad_online_status_var.set(
-            self.tr("chad_online_status_inactive", "Online-Analyse: inaktiv")
-        )
-        self.chad_chat_status_var.set(self.tr("chad_status_chat_ready", "Chat bereit."))
-        widget = self.__dict__.get("chad_analysis_text")
-        if widget is not None:
-            widget.configure(state="normal")
-            widget.delete("1.0", "end")
-            widget.configure(state="disabled")
+        chad_controller.clear_chad_analysis(self)
 
     def run_chad_online_analysis(self):
-        if not self._ensure_chad_enabled():
-            return
-        prompt = (self.chad_analysis_current_prompt or "").strip()
-
-        if not prompt:
-            self.chad_analysis_status_var.set(
-                self.tr("chad_status_no_analysis", "Keine Analyse vorhanden.")
-            )
-            return
-
-        service = self.ai_online_service
-        if service is None or not service.is_available():
-            self.chad_analysis_status_var.set(
-                self.tr("chad_status_api_key_missing", "API-Key fehlt.")
-            )
-            self.chad_online_status_var.set(
-                self.tr("chad_online_status_inactive", "Online-Analyse: inaktiv")
-            )
-            return
-
-        ok = self.confirm_chad_send(
-            self.tr("chad_confirm_online_title", "Online Analyse"),
-            self.tr(
-                "chad_confirm_online_intro",
-                "Der Text und ggf. vorgemerkte Bilder werden an die OpenAI API gesendet.\nFortfahren?",
-            ),
-        )
-        if not ok:
-            self.chad_online_status_var.set(
-                self.tr(
-                    "chad_online_status_cancelled",
-                    "Online-Analyse: abgebrochen",
-                )
-            )
-            return
-
-        self.chad_online_status_var.set(
-            self.tr("chad_online_status_running", "Analyse läuft...")
-        )
-        pending_files = list(self.chad_pending_files)
-
-        def worker():
-            success, result = service.analyze(prompt, files=pending_files)
-
-            def update_ui():
-                if success:
-                    self.chad_online_result = result
-                    self.chad_pending_files = []
-                    self.append_to_chad_output(
-                        self.tr("chad_output_response", "Chad Antwort"), result
-                    )
-                    self.chad_online_status_var.set(
-                        self.tr(
-                            "chad_online_status_done",
-                            "Analyse abgeschlossen.",
-                        )
-                    )
-                else:
-                    self.chad_online_status_var.set(
-                        self.tr(
-                            "chad_online_status_error",
-                            "Fehler bei Analyse.",
-                        )
-                    )
-                    self.chad_analysis_status_var.set(result)
-                    self._log_chad_error("Analyse", result)
-
-            self.after(0, update_ui)
-
-        threading.Thread(target=worker, daemon=True).start()
+        chad_controller.run_chad_online_analysis(self)
 
     def prepare_chad_analysis(
         self, title: str, raw_text: str, show_preview: bool | None = None
     ):
-        if not self._ensure_chad_enabled():
-            return
-        settings = self.__dict__.get("settings", {})
-        self.set_chad_analysis(title, raw_text)
-        if show_preview is None:
-            show_preview = bool(settings.get("chad_preview_popup", False))
-        if show_preview:
-            self.open_ai_analysis_preview(title, raw_text)
+        chad_controller.prepare_chad_analysis(
+            self,
+            title,
+            raw_text,
+            show_preview=show_preview,
+        )
 
     def open_ai_analysis_preview(self, title: str, raw_text: str):
-        prompt = self._build_chad_analysis_prompt(title, raw_text)
-
-        win = tk.Toplevel(self)
-        win.title(f"Analyse mit Chad - {title}")
-        win.geometry("700x500")
-
-        text = tk.Text(win, wrap="word")
-        text.insert("1.0", prompt)
-        text.configure(state="disabled")
-        text.pack(fill="both", expand=True, padx=10, pady=10)
-
-        btn_frame = ttk.Frame(win)
-        btn_frame.pack(fill="x", padx=10, pady=(0, 10))
-
-        def copy_to_clipboard():
-            self.clipboard_clear()
-            self.clipboard_append(prompt)
-
-        ttk.Button(
-            btn_frame,
-            text="In Zwischenablage kopieren",
-            command=copy_to_clipboard,
-        ).pack(side="left")
-        ttk.Button(btn_frame, text="Schließen", command=win.destroy).pack(side="right")
+        chad_controller.open_ai_analysis_preview(self, title, raw_text)
 
     def linux_help_placeholder_action(self):
         self.linux_help_status_var.set(
@@ -10051,883 +7078,113 @@ class App(TkBase):
         return launch_cmd[0]
 
     def _set_linux_help_dirty(self, dirty=True):
-        self.linux_help_dirty = bool(dirty)
+        linux_help_controller.set_linux_help_dirty(self, dirty)
 
     def _linux_help_csv_candidates(self):
-        return [
-            os.path.join(NETMON_REPO_ROOT, "netmon", "linux-befehle.csv"),
-            os.path.join(NETMON_REPO_ROOT, "linux-befehle.csv"),
-            os.path.join(os.getcwd(), "linux-befehle.csv"),
-        ]
+        return linux_help_controller.linux_help_csv_candidates()
 
     def _linux_help_csv_path(self):
-        for path in self._linux_help_csv_candidates():
-            if path and os.path.isfile(path):
-                return path
-        return self._linux_help_csv_candidates()[0]
+        return linux_help_controller.linux_help_csv_path()
 
     def _linux_help_slugify(self, text: str) -> str:
-        slug = re.sub(r"[^a-zA-Z0-9]+", "_", (text or "").strip().lower()).strip("_")
-        return slug or "linux_help"
+        return linux_help_controller.linux_help_slugify(text)
 
     def _linux_help_make_id(self, raw, existing_ids=None):
-        entry = raw or {}
-        base = self._linux_help_slugify(
-            entry.get("id")
-            or entry.get("name")
-            or entry.get("cmd")
-            or entry.get("category")
-            or "linux_help"
-        )
-        used = set(existing_ids or [])
-        candidate = base
-        idx = 2
-        while candidate in used:
-            candidate = f"{base}_{idx}"
-            idx += 1
-        return candidate
+        return linux_help_controller.linux_help_make_id(raw, existing_ids=existing_ids)
 
     def linux_help_get_risk_level(self, cmd: str) -> str:
-        text = (cmd or "").strip().lower()
-        if not text:
-            return "unknown"
-
-        danger_patterns = [
-            " rm ",
-            "rm ",
-            " dd ",
-            "dd if=",
-            "mkfs",
-            " fdisk",
-            " parted",
-            "chmod ",
-            "chown ",
-            "systemctl restart",
-            "systemctl stop",
-            "systemctl disable",
-            "apt remove",
-            "apt purge",
-            "kill -9",
-            "reboot",
-            "shutdown",
-        ]
-        caution_patterns = [
-            "apt install",
-            "apt update",
-            "systemctl status",
-            "systemctl start",
-            "mount ",
-            "umount ",
-            "cp ",
-            "mv ",
-            "tar ",
-            "find ",
-            "grep ",
-            "journalctl",
-            "ping ",
-            "curl ",
-            "wget ",
-            "ssh ",
-        ]
-        safe_prefixes = (
-            "ls",
-            "pwd",
-            "ip a",
-            "ip addr",
-            "df -h",
-            "free -h",
-            "uname -a",
-            "whoami",
-            "id",
-            "cat ",
-            "head ",
-            "tail ",
-            "ps ",
-            "top",
-            "du ",
-        )
-
-        padded = f" {text} "
-        if any(
-            pattern in padded or text.startswith(pattern) for pattern in danger_patterns
-        ):
-            return "danger"
-        if any(pattern in text for pattern in caution_patterns):
-            return "caution"
-        if text.startswith(safe_prefixes):
-            return "safe"
-        return "caution"
+        return linux_help_controller.linux_help_get_risk_level(cmd)
 
     def normalize_linux_help_entry(self, raw, existing_ids=None):
-        item = dict(raw or {})
-        cmd = (item.get("cmd") or "").strip()
-        info = (item.get("info") or "").strip()
-        category = (item.get("category") or "Allgemein").strip() or "Allgemein"
-        name = (item.get("name") or cmd or "Unbenannt").strip() or "Unbenannt"
-        explanation = (item.get("explanation") or info).strip()
-        warning_text = (item.get("warning_text") or "").strip()
-        risk = (item.get("risk") or "").strip().lower()
-        if risk not in {"safe", "caution", "danger"}:
-            risk = self.linux_help_get_risk_level(cmd)
-        enabled_raw = item.get("enabled", True)
-        if isinstance(enabled_raw, str):
-            enabled = enabled_raw.strip().lower() not in {"0", "false", "no", "off"}
-        else:
-            enabled = bool(enabled_raw)
-        normalized = {
-            "id": self._linux_help_make_id(item, existing_ids=existing_ids),
-            "category": category,
-            "name": name,
-            "info": info,
-            "cmd": cmd,
-            "risk": risk,
-            "explanation": explanation,
-            "warning_text": warning_text,
-            "enabled": enabled,
-        }
-        return normalized
+        return linux_help_controller.normalize_linux_help_entry(
+            self,
+            raw,
+            existing_ids=existing_ids,
+        )
 
     def _rebuild_linux_help_indexes(self):
-        active_entries = [
-            item for item in self.linux_help_data if item.get("enabled", True)
-        ]
-        active_entries.sort(
-            key=lambda item: (
-                item.get("category", "").lower(),
-                item.get("name", "").lower(),
-            )
-        )
-        categories = sorted(
-            {item.get("category", "Allgemein") for item in active_entries},
-            key=str.lower,
-        )
-        commands_by_category = {category: [] for category in categories}
-        for item in active_entries:
-            commands_by_category.setdefault(item["category"], []).append(item)
-        self.linux_help_commands = active_entries
-        self.linux_help_categories = categories
-        self.linux_help_commands_by_category = commands_by_category
+        linux_help_controller.rebuild_linux_help_indexes(self)
 
     def import_linux_help_csv(self, path):
-        commands = []
-        seen_ids = set()
-        with open(path, "r", encoding="utf-8-sig", newline="") as fh:
-            reader = csv.DictReader(fh)
-            for row in reader:
-                if not row:
-                    continue
-                reduced = {
-                    "category": row.get("category"),
-                    "name": row.get("name"),
-                    "info": row.get("info"),
-                    "cmd": row.get("cmd"),
-                }
-                if not (
-                    reduced.get("category")
-                    and reduced.get("name")
-                    and reduced.get("cmd")
-                ):
-                    continue
-                item = self.normalize_linux_help_entry(reduced, existing_ids=seen_ids)
-                seen_ids.add(item["id"])
-                commands.append(item)
-        commands.sort(
-            key=lambda item: (
-                item.get("category", "").lower(),
-                item.get("name", "").lower(),
-            )
-        )
-        self.linux_help_data = commands
-        self._rebuild_linux_help_indexes()
-        self._set_linux_help_dirty(True)
-        return commands
+        return linux_help_controller.import_linux_help_csv(self, path)
 
     def export_linux_help_csv(self, path):
-        rows = []
-        for item in self.linux_help_data:
-            rows.append(
-                {
-                    "category": item.get("category", ""),
-                    "name": item.get("name", ""),
-                    "info": item.get("info", ""),
-                    "cmd": item.get("cmd", ""),
-                }
-            )
-        with open(path, "w", encoding="utf-8", newline="") as fh:
-            writer = csv.DictWriter(fh, fieldnames=["category", "name", "info", "cmd"])
-            writer.writeheader()
-            writer.writerows(rows)
+        linux_help_controller.export_linux_help_csv(self, path)
 
     def load_linux_help_data(self):
-        data_path = self.linux_help_data_path
-        if os.path.isfile(data_path):
-            with open(data_path, "r", encoding="utf-8") as fh:
-                raw_items = json.load(fh)
-            items = raw_items if isinstance(raw_items, list) else []
-            seen_ids = set()
-            self.linux_help_data = []
-            for item in items:
-                normalized = self.normalize_linux_help_entry(
-                    item, existing_ids=seen_ids
-                )
-                seen_ids.add(normalized["id"])
-                self.linux_help_data.append(normalized)
-            self._rebuild_linux_help_indexes()
-            self._set_linux_help_dirty(False)
-            return self.linux_help_data
-
-        commands = self.import_linux_help_csv(self._linux_help_csv_path())
-        self.save_linux_help_data(update_status=False)
-        self._set_linux_help_dirty(False)
-        return commands
+        return linux_help_controller.load_linux_help_data(self)
 
     def save_linux_help_data(self, update_status=True):
-        self.linux_help_apply_form_to_entry(mark_dirty=False)
-        ok, err = safe_write_json(
-            self.linux_help_data_path,
-            self.linux_help_data,
-            indent=2,
-            ensure_ascii=False,
+        return linux_help_controller.save_linux_help_data(
+            self,
+            update_status=update_status,
         )
-        if not ok:
-            self.linux_help_status_var.set(
-                self.tr(
-                    "linux_help_status_save_failed",
-                    "Linux Hilfe: Speichern fehlgeschlagen.",
-                )
-            )
-            if hasattr(self, "linux_help_text") and self.linux_help_text is not None:
-                self.linux_help_text.delete("1.0", "end")
-                self.linux_help_text.insert(
-                    "1.0",
-                    self.tr(
-                        "linux_help_save_failed_body",
-                        "Die Linux-Hilfe-Daten konnten nicht gespeichert werden.\n\n"
-                        "Pfad: {path}\n"
-                        "Fehler: {error}",
-                    ).format(path=self.linux_help_data_path, error=err),
-                )
-            return False
-        self._set_linux_help_dirty(False)
-        if update_status:
-            self.linux_help_status_var.set(
-                self.tr(
-                    "linux_help_status_saved_count",
-                    "Linux Hilfe: {count} Einträge gespeichert.",
-                ).format(count=len(self.linux_help_data))
-            )
-        return True
 
     def get_linux_help_categories(self):
-        return list(self.linux_help_categories)
+        return linux_help_controller.get_linux_help_categories(self)
 
     def get_linux_help_commands_for_category(self, category):
-        return list(
-            self.linux_help_commands_by_category.get((category or "").strip(), [])
+        return linux_help_controller.get_linux_help_commands_for_category(
+            self,
+            category,
         )
 
     def get_linux_help_command_by_id(self, command_id):
-        target = (command_id or "").strip()
-        for item in self.linux_help_data:
-            if item.get("id") == target:
-                return item
-        return None
+        return linux_help_controller.get_linux_help_command_by_id(self, command_id)
 
     def _sync_linux_help_form_categories(self):
-        categories = self.get_linux_help_categories()
-        self.linux_help_category_combo["values"] = categories
-        self.linux_help_form_category_combo["values"] = categories
+        linux_help_controller.sync_linux_help_form_categories(self)
 
     def _set_linux_help_form_from_entry(self, item=None):
-        entry = item or {}
-        self.linux_help_form_category_var.set(entry.get("category", ""))
-        self.linux_help_form_name_var.set(entry.get("name", ""))
-        self.linux_help_form_info_var.set(entry.get("info", ""))
-        self.linux_help_form_cmd_var.set(entry.get("cmd", ""))
-        self.linux_help_form_risk_var.set(entry.get("risk", "caution"))
-        self.linux_help_form_explanation_var.set(entry.get("explanation", ""))
-        self.linux_help_form_warning_var.set(entry.get("warning_text", ""))
-        self.linux_help_form_enabled_var.set(bool(entry.get("enabled", True)))
+        linux_help_controller.set_linux_help_form_from_entry(self, item)
 
     def _set_linux_help_risk_light(self, risk):
-        if not hasattr(self, "linux_help_risk_canvas"):
-            return
-        fill = {
-            "safe": "green",
-            "caution": "yellow",
-            "danger": "red",
-        }.get((risk or "").strip().lower(), "gray")
-        self.linux_help_risk_canvas.itemconfigure(self.linux_help_risk_dot, fill=fill)
+        linux_help_controller.set_linux_help_risk_light(self, risk)
 
     def _update_linux_help_notes(self, item=None):
-        if not hasattr(self, "linux_help_text") or self.linux_help_text is None:
-            return
-        self.linux_help_text.delete("1.0", "end")
-        if not item:
-            self.linux_help_text.insert(
-                "1.0",
-                self.tr(
-                    "linux_help_notes_empty",
-                    "Hier erscheinen später ausführliche Erklärungen, Hinweise und "
-                    "Sicherheitsinfos zu Linux-Befehlen.\n\n"
-                    "Die vollständige Ausführung wird später integriert. Aktuell "
-                    "dient dieser Bereich zur Anzeige, Datenpflege und Vorbereitung.",
-                ),
-            )
-            return
-        self.linux_help_text.insert(
-            "1.0",
-            "\n".join(
-                [
-                    f"{self.tr('label_id', 'ID')}: {item.get('id') or '–'}",
-                    f"{self.tr('linux_help_label_name', 'Name')}: {item.get('name') or '–'}",
-                    f"{self.tr('label_category', 'Kategorie')}: {item.get('category') or '–'}",
-                    f"{self.tr('linux_help_label_description', 'Beschreibung')}: {item.get('info') or '–'}",
-                    f"{self.tr('linux_help_label_command_name', 'Befehl')}: {item.get('cmd') or '–'}",
-                    f"{self.tr('linux_help_label_risk_text', 'Risiko')}: {item.get('risk') or '–'}",
-                    f"{self.tr('label_active', 'Aktiv')}: {self.tr('label_yes', 'ja') if item.get('enabled', True) else self.tr('label_no', 'nein')}",
-                    "",
-                    f"{self.tr('linux_help_label_explanation_text', 'Erklärung')}: {item.get('explanation') or '–'}",
-                    f"{self.tr('linux_help_label_warning_text', 'Warntext')}: {item.get('warning_text') or '–'}",
-                    "",
-                    f"{self.tr('label_note', 'Hinweis')}:",
-                    self.tr(
-                        "linux_help_note_execution_later",
-                        "Die vollständige Ausführung wird später integriert.",
-                    ),
-                    self.tr(
-                        "linux_help_note_display_only",
-                        "Aktuell dient dieser Bereich zur Anzeige, Datenpflege und Vorbereitung.",
-                    ),
-                ]
-            ),
-        )
+        linux_help_controller.update_linux_help_notes(self, item)
 
     def refresh_linux_help_list(self, category=None):
-        category_name = (category or self.linux_help_category_var.get() or "").strip()
-        if (
-            category_name not in self.linux_help_commands_by_category
-            and self.linux_help_categories
-        ):
-            category_name = self.linux_help_categories[0]
-            self.linux_help_category_var.set(category_name)
-
-        self.linux_help_visible_commands = list(
-            self.get_linux_help_commands_for_category(category_name)
-        )
-        self.linux_help_visible_command_ids = [
-            item.get("id", "") for item in self.linux_help_visible_commands
-        ]
-        self.linux_help_listbox.delete(0, "end")
-        for item in self.linux_help_visible_commands:
-            self.linux_help_listbox.insert(
-                "end", item.get("name") or item.get("cmd") or "–"
-            )
-
-        self.linux_help_selected_id = ""
-        self.linux_help_command_var.set(
-            self.tr("linux_help_no_command_selected", "Kein Befehl ausgewählt.")
-        )
-        self.linux_help_desc_var.set(
-            self.tr(
-                "linux_help_select_left_hint",
-                "Wähle links einen Befehl aus, um Beschreibung, Kommando und Risiko anzuzeigen.",
-            )
-        )
-        self.linux_help_risk_var.set(self.tr("linux_help_risk_unknown", "Risiko: –"))
-        self._set_linux_help_risk_light("unknown")
-        self._set_linux_help_form_from_entry(None)
-        self._update_linux_help_notes(None)
-
-        if self.linux_help_visible_commands:
-            self.linux_help_listbox.selection_clear(0, "end")
-            self.linux_help_listbox.selection_set(0)
-            self.linux_help_listbox.activate(0)
-            self.on_linux_help_select()
+        linux_help_controller.refresh_linux_help_list(self, category=category)
 
     def on_linux_help_select(self, _event=None):
-        try:
-            idx = int(self.linux_help_listbox.curselection()[0])
-        except Exception:
-            return
-        if idx < 0 or idx >= len(self.linux_help_visible_commands):
-            return
-
-        command_id = self.linux_help_visible_command_ids[idx]
-        item = self.get_linux_help_command_by_id(command_id)
-        if not item:
-            return
-        self.linux_help_selected_id = command_id
-        risk = (item.get("risk") or "").strip().lower()
-        risk_text = {
-            "safe": self.tr("linux_help_risk_safe", "Risiko: Sicher"),
-            "caution": self.tr("linux_help_risk_caution", "Risiko: Vorsicht"),
-            "danger": self.tr("linux_help_risk_danger", "Risiko: Gefährlich"),
-        }.get(risk, self.tr("linux_help_risk_unknown", "Risiko: –"))
-
-        self.linux_help_command_var.set(item.get("cmd") or "–")
-        self.linux_help_desc_var.set(
-            item.get("info")
-            or self.tr(
-                "linux_help_no_description",
-                "Keine Beschreibung vorhanden.",
-            )
-        )
-        self.linux_help_risk_var.set(risk_text)
-        self._set_linux_help_risk_light(risk)
-        self._set_linux_help_form_from_entry(item)
-        self._update_linux_help_notes(item)
+        linux_help_controller.on_linux_help_select(self, _event)
 
     def linux_help_apply_form_to_entry(self, mark_dirty=True):
-        target = self.get_linux_help_command_by_id(self.linux_help_selected_id)
-        if target is None:
-            return False
-        target["category"] = (
-            self.linux_help_form_category_var.get() or "Allgemein"
-        ).strip() or "Allgemein"
-        target["name"] = (self.linux_help_form_name_var.get() or "").strip() or target[
-            "name"
-        ]
-        target["info"] = (self.linux_help_form_info_var.get() or "").strip()
-        target["cmd"] = (self.linux_help_form_cmd_var.get() or "").strip()
-        target["explanation"] = (
-            self.linux_help_form_explanation_var.get() or ""
-        ).strip()
-        target["warning_text"] = (self.linux_help_form_warning_var.get() or "").strip()
-        manual_risk = (self.linux_help_form_risk_var.get() or "").strip().lower()
-        if manual_risk in {"safe", "caution", "danger"}:
-            target["risk"] = manual_risk
-        else:
-            target["risk"] = self.linux_help_get_risk_level(target.get("cmd", ""))
-        target["enabled"] = bool(self.linux_help_form_enabled_var.get())
-        normalized = self.normalize_linux_help_entry(
-            target,
-            existing_ids={
-                item["id"] for item in self.linux_help_data if item is not target
-            },
+        return linux_help_controller.linux_help_apply_form_to_entry(
+            self,
+            mark_dirty=mark_dirty,
         )
-        target.update(normalized)
-        self._rebuild_linux_help_indexes()
-        self._sync_linux_help_form_categories()
-        if target.get("category"):
-            self.linux_help_category_var.set(target["category"])
-        self.refresh_linux_help_list(category=target.get("category"))
-        if mark_dirty:
-            self._set_linux_help_dirty(True)
-            self.linux_help_status_var.set(
-                self.tr(
-                    "linux_help_status_changes_pending",
-                    "Linux Hilfe: Änderungen vorgemerkt.",
-                )
-            )
-        return True
 
     def linux_help_new_entry(self):
-        base = {
-            "category": self.linux_help_category_var.get() or "Allgemein",
-            "name": "Neuer Befehl",
-            "info": "Neue Kurzbeschreibung",
-            "cmd": "",
-            "risk": "caution",
-            "explanation": "",
-            "warning_text": "",
-            "enabled": True,
-        }
-        new_entry = self.normalize_linux_help_entry(
-            base, existing_ids={item.get("id") for item in self.linux_help_data}
-        )
-        self.linux_help_data.append(new_entry)
-        self._rebuild_linux_help_indexes()
-        self._sync_linux_help_form_categories()
-        self.linux_help_category_var.set(new_entry["category"])
-        self.refresh_linux_help_list(category=new_entry["category"])
-        self.linux_help_selected_id = new_entry["id"]
-        self._set_linux_help_form_from_entry(new_entry)
-        self._set_linux_help_dirty(True)
-        self.linux_help_status_var.set(
-            self.tr(
-                "linux_help_status_new_entry_ready",
-                "Linux Hilfe: Neuer Eintrag vorbereitet.",
-            )
-        )
+        linux_help_controller.linux_help_new_entry(self)
 
     def linux_help_edit_selected(self):
-        if not self.linux_help_selected_id:
-            self.linux_help_status_var.set(
-                self.tr(
-                    "linux_help_status_select_entry_first",
-                    "Linux Hilfe: Bitte zuerst einen Eintrag auswählen.",
-                )
-            )
-            return
-        if self.linux_help_apply_form_to_entry(mark_dirty=True):
-            self.linux_help_status_var.set(
-                self.tr(
-                    "linux_help_status_selection_updated",
-                    "Linux Hilfe: Auswahl aktualisiert.",
-                )
-            )
+        linux_help_controller.linux_help_edit_selected(self)
 
     def linux_help_delete_selected(self):
-        target = self.get_linux_help_command_by_id(self.linux_help_selected_id)
-        if target is None:
-            self.linux_help_status_var.set(
-                self.tr(
-                    "linux_help_status_select_entry_first",
-                    "Linux Hilfe: Bitte zuerst einen Eintrag auswählen.",
-                )
-            )
-            return
-        self.linux_help_data = [
-            item
-            for item in self.linux_help_data
-            if item.get("id") != self.linux_help_selected_id
-        ]
-        self.linux_help_selected_id = ""
-        self._rebuild_linux_help_indexes()
-        self._sync_linux_help_form_categories()
-        self.refresh_linux_help_list()
-        self._set_linux_help_dirty(True)
-        self.linux_help_status_var.set(
-            self.tr(
-                "linux_help_status_entry_deleted",
-                "Linux Hilfe: Eintrag gelöscht.",
-            )
-        )
+        linux_help_controller.linux_help_delete_selected(self)
 
     def linux_help_import_csv_dialog(self):
-        path = filedialog.askopenfilename(
-            parent=self,
-            title=self.tr(
-                "linux_help_import_csv_title",
-                "Linux-Hilfe CSV importieren",
-            ),
-            filetypes=[
-                (self.tr("filetype_csv", "CSV-Dateien"), "*.csv"),
-                (self.tr("filetype_all", "Alle Dateien"), "*.*"),
-            ],
-            initialfile=os.path.basename(self._linux_help_csv_path()),
-        )
-        if not path:
-            return
-        self.linux_help_import_path = path
-        try:
-            commands = self.import_linux_help_csv(path)
-            self._sync_linux_help_form_categories()
-            if self.linux_help_categories:
-                self.linux_help_category_var.set(self.linux_help_categories[0])
-            self.refresh_linux_help_list()
-            self.save_linux_help_data(update_status=False)
-            self.linux_help_status_var.set(
-                self.tr(
-                    "linux_help_status_imported_count",
-                    "Linux Hilfe: {count} Einträge aus CSV importiert.",
-                ).format(count=len(commands))
-            )
-        except Exception as exc:
-            self.linux_help_status_var.set(
-                self.tr(
-                    "linux_help_status_import_failed",
-                    "Linux Hilfe: CSV-Import fehlgeschlagen.",
-                )
-            )
-            self._update_linux_help_notes(None)
-            if hasattr(self, "linux_help_text") and self.linux_help_text is not None:
-                self.linux_help_text.delete("1.0", "end")
-                self.linux_help_text.insert(
-                    "1.0",
-                    self.tr(
-                        "linux_help_import_failed_body",
-                        "Der CSV-Import ist fehlgeschlagen.\n\n"
-                        "Pfad: {path}\n"
-                        "Fehler: {error}",
-                    ).format(path=path, error=exc),
-                )
+        linux_help_controller.linux_help_import_csv_dialog(self)
 
     def linux_help_export_csv_dialog(self):
-        path = filedialog.asksaveasfilename(
-            parent=self,
-            title=self.tr(
-                "linux_help_export_csv_title",
-                "Linux-Hilfe CSV exportieren",
-            ),
-            defaultextension=".csv",
-            filetypes=[
-                (self.tr("filetype_csv", "CSV-Dateien"), "*.csv"),
-                (self.tr("filetype_all", "Alle Dateien"), "*.*"),
-            ],
-            initialfile="linux_help_export.csv",
-        )
-        if not path:
-            return
-        self.export_linux_help_csv(path)
-        self.linux_help_status_var.set(
-            self.tr("linux_help_status_exported", "Linux Hilfe: CSV exportiert.")
-        )
+        linux_help_controller.linux_help_export_csv_dialog(self)
 
     def send_linux_help_command_to_terminal(self):
-        item = self.get_linux_help_command_by_id(self.linux_help_selected_id)
-        if item is None:
-            self.linux_help_status_var.set(
-                self.tr(
-                    "linux_help_status_no_command_selected",
-                    "Linux Hilfe: Kein Befehl ausgewählt.",
-                )
-            )
-            self.log(
-                self.tr(
-                    "linux_help_log_no_command_selected",
-                    "Linux-Hilfe: Kein Befehl ausgewählt",
-                )
-            )
-            return False
-        if not item.get("enabled", True):
-            self.linux_help_status_var.set(
-                self.tr(
-                    "linux_help_status_entry_disabled",
-                    "Linux Hilfe: Dieser Eintrag ist deaktiviert und kann nicht gesendet werden.",
-                )
-            )
-            self.log(
-                self.tr(
-                    "linux_help_log_disabled_not_sent",
-                    "Linux-Hilfe: Deaktivierter Eintrag nicht gesendet",
-                )
-            )
-            return False
-
-        cmd = item.get("cmd", "")
-        ok, reason = self._validate_linux_help_command_for_terminal(cmd)
-        if not ok:
-            self.linux_help_status_var.set(
-                self.tr(
-                    "linux_help_status_terminal_not_possible",
-                    "Linux Hilfe: Terminalversand nicht möglich ({reason})",
-                ).format(reason=reason)
-            )
-            self.log(
-                self.tr(
-                    "linux_help_log_terminal_cancelled",
-                    "Linux-Hilfe: Terminalversand abgebrochen",
-                )
-            )
-            return False
-
-        risk = (item.get("risk") or "").strip().lower()
-        if risk == "caution":
-            if not self._confirm_danger_action(
-                f"linux_help:send:{item.get('id')}",
-                title=self.tr(
-                    "linux_help_confirm_send_title",
-                    "Befehl an Terminal senden",
-                ),
-                prompt=self.tr(
-                    "linux_help_confirm_send_prompt",
-                    "Dieser Befehl verändert möglicherweise Systemzustände.\n\n"
-                    "Trotzdem ins Terminal senden?",
-                ),
-                cooldown_s=0,
-            ):
-                self.linux_help_status_var.set(
-                    self.tr(
-                        "linux_help_status_terminal_cancelled",
-                        "Linux Hilfe: Terminalversand abgebrochen.",
-                    )
-                )
-                self.log(
-                    self.tr(
-                        "linux_help_log_terminal_cancelled",
-                        "Linux-Hilfe: Terminalversand abgebrochen",
-                    )
-                )
-                return False
-        elif risk == "danger":
-            if not self._confirm_danger_action(
-                f"linux_help:send:{item.get('id')}",
-                title=self.tr(
-                    "linux_help_confirm_danger_title",
-                    "Gefährlichen Befehl senden",
-                ),
-                prompt=self.tr(
-                    "linux_help_confirm_danger_prompt",
-                    "Achtung: Dieser Befehl kann Systemzustände verändern oder Schaden verursachen.\n"
-                    "Nur senden, wenn du genau weißt, was du tust.\n\n"
-                    "Trotzdem ins Terminal senden?",
-                ),
-                cooldown_s=0,
-                require_phrase="SENDEN",
-                force_guard=True,
-            ):
-                self.linux_help_status_var.set(
-                    self.tr(
-                        "linux_help_status_terminal_cancelled",
-                        "Linux Hilfe: Terminalversand abgebrochen.",
-                    )
-                )
-                self.log(
-                    self.tr(
-                        "linux_help_log_terminal_cancelled",
-                        "Linux-Hilfe: Terminalversand abgebrochen",
-                    )
-                )
-                return False
-
-        try:
-            terminal_name = self._open_command_in_external_terminal(cmd)
-        except Exception as exc:
-            self.linux_help_status_var.set(
-                self.tr(
-                    "linux_help_status_terminal_failed",
-                    "Linux Hilfe: Terminal konnte nicht gestartet werden.",
-                )
-            )
-            self.log(
-                self.tr(
-                    "linux_help_log_terminal_cancelled",
-                    "Linux-Hilfe: Terminalversand abgebrochen",
-                )
-            )
-            if hasattr(self, "linux_help_text") and self.linux_help_text is not None:
-                self.linux_help_text.delete("1.0", "end")
-                self.linux_help_text.insert(
-                    "1.0",
-                    "\n".join(
-                        [
-                            f"{self.tr('linux_help_label_name', 'Name')}: {item.get('name') or '–'}",
-                            f"{self.tr('linux_help_label_command_name', 'Befehl')}: {cmd}",
-                            "",
-                            f"{self.tr('label_error', 'Fehler')}:",
-                            str(exc),
-                        ]
-                    ),
-                )
-            return False
-
-        self.linux_help_status_var.set(
-            self.tr(
-                "linux_help_status_sent_to_terminal",
-                "Linux Hilfe: Befehl wurde an ein externes Terminal gesendet.",
-            )
-        )
-        if hasattr(self, "linux_help_text") and self.linux_help_text is not None:
-            self.linux_help_text.delete("1.0", "end")
-            self.linux_help_text.insert(
-                "1.0",
-                "\n".join(
-                    [
-                        f"{self.tr('linux_help_label_name', 'Name')}: {item.get('name') or '–'}",
-                        f"{self.tr('label_category', 'Kategorie')}: {item.get('category') or '–'}",
-                        f"{self.tr('linux_help_label_command_name', 'Befehl')}: {cmd}",
-                        f"{self.tr('label_terminal', 'Terminal')}: {terminal_name}",
-                        "",
-                        f"{self.tr('label_note', 'Hinweis')}:",
-                        self.tr(
-                            "linux_help_terminal_note_sent",
-                            "Befehl wurde an ein externes Terminal gesendet.",
-                        ),
-                        self.tr(
-                            "linux_help_terminal_note_external",
-                            "Die Ausführung erfolgt nicht direkt im NetMon-Prozess.",
-                        ),
-                    ]
-                ),
-            )
-        self.log(
-            self.tr(
-                "linux_help_log_command_sent",
-                "Linux-Hilfe: Befehl an Terminal gesendet: {name}",
-            ).format(name=item.get("name") or cmd)
-        )
-        return True
+        return linux_help_controller.send_linux_help_command_to_terminal(self)
 
     def reload_linux_help_data(self):
-        try:
-            commands = self.load_linux_help_data()
-        except Exception as exc:
-            self.linux_help_data = []
-            self.linux_help_commands = []
-            self.linux_help_categories = []
-            self.linux_help_commands_by_category = {}
-            self.linux_help_visible_commands = []
-            self.linux_help_visible_command_ids = []
-            self.linux_help_selected_id = ""
-            self.linux_help_category_combo["values"] = []
-            self.linux_help_form_category_combo["values"] = []
-            self.linux_help_status_var.set(
-                self.tr(
-                    "linux_help_status_load_failed",
-                    "Linux Hilfe: Daten konnten nicht geladen werden.",
-                )
-            )
-            self.linux_help_command_var.set(
-                self.tr("linux_help_no_command_selected", "Kein Befehl ausgewählt.")
-            )
-            self.linux_help_desc_var.set(
-                self.tr(
-                    "linux_help_desc_load_failed",
-                    "Die Linux-Hilfe konnte keine gültigen Daten laden.",
-                )
-            )
-            self.linux_help_risk_var.set(
-                self.tr("linux_help_risk_unknown", "Risiko: –")
-            )
-            self._set_linux_help_risk_light("unknown")
-            self._set_linux_help_form_from_entry(None)
-            self._update_linux_help_notes(None)
-            if hasattr(self, "linux_help_text") and self.linux_help_text is not None:
-                self.linux_help_text.delete("1.0", "end")
-                self.linux_help_text.insert(
-                    "1.0",
-                    self.tr(
-                        "linux_help_load_failed_body",
-                        "Die Linux-Hilfe-Daten konnten nicht geladen werden.\n\n"
-                        "JSON: {json_path}\n"
-                        "CSV-Basis: {csv_path}\n"
-                        "Fehler: {error}",
-                    ).format(
-                        json_path=self.linux_help_data_path,
-                        csv_path=self._linux_help_csv_path(),
-                        error=exc,
-                    ),
-                )
-            return
-
-        self._sync_linux_help_form_categories()
-        if self.linux_help_categories:
-            self.linux_help_category_var.set(self.linux_help_categories[0])
-        self.refresh_linux_help_list()
-        self.linux_help_status_var.set(
-            self.tr(
-                "linux_help_status_loaded_count",
-                "Linux Hilfe: {count} Einträge geladen.",
-            ).format(count=len(commands))
-        )
+        linux_help_controller.reload_linux_help_data(self)
 
     def _set_dot_profile_choice_safe(self, choice):
-        if threading.current_thread() is threading.main_thread():
-            self.dot_choice.set(choice)
-            return
-        self.after(0, lambda c=choice: self.dot_choice.set(c))
+        dot_controller.set_dot_profile_choice_safe(self, choice)
 
     def _update_dot_light(self):
-        if "l_dot" not in self.__dict__:
-            return
-        if self.__dict__.get("dot_vpn_conflict"):
-            self.set_light(self.l_dot, "red")
-        elif self.dot_last_test_ok is True:
-            self.set_light(self.l_dot, "green")
-        elif self.__dict__.get("dot_vpn_dns_active"):
-            self.set_light(self.l_dot, "yellow")
-        elif self.dot_last_test_ok is False:
-            self.set_light(self.l_dot, "red")
-        else:
-            self.set_light(self.l_dot, "gray")
+        dot_controller.update_dot_light(self)
 
     def _update_dot_light_safe(self):
-        if threading.current_thread() is threading.main_thread():
-            self._update_dot_light()
-            return
-        self.after(0, self._update_dot_light)
+        dot_controller.update_dot_light_safe(self)
 
     def _set_dot_state(
         self,
@@ -10941,429 +7198,59 @@ class App(TkBase):
         vpn_conflict=None,
         vpn_active=None,
     ):
-        self.dot_last_test_ok = ok
-        self.dot_last_test_ts = float(timestamp or time.time())
-        if enabled is not None:
-            self.dot_enabled = bool(enabled)
-        if vpn_conflict is not None:
-            self.dot_vpn_conflict = bool(vpn_conflict)
-        if vpn_active is not None:
-            self.dot_vpn_dns_active = bool(vpn_active)
-
-        profile_text = (profile or "").strip() or "–"
-        if profile_text != "–" and hasattr(self, "dot_choice"):
-            self.dot_choice.set(profile_text)
-        self.dot_profile_var.set(f"Profil: {profile_text}")
-        self.dot_server_var.set(
-            "Server: " + (", ".join(servers or []) if servers else "–")
+        dot_controller.set_dot_state(
+            self,
+            ok,
+            profile=profile,
+            servers=servers,
+            mode=mode,
+            enabled=enabled,
+            timestamp=timestamp,
+            vpn_conflict=vpn_conflict,
+            vpn_active=vpn_active,
         )
-        self.dot_mode_var.set("Modus: " + ((mode or "").strip() or "–"))
-        self.dot_last_test_var.set(
-            "Letzter Test: "
-            + datetime.fromtimestamp(self.dot_last_test_ts).strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
-        )
-
-        if self.__dict__.get("dot_vpn_conflict"):
-            self.dot_status_var.set("DoT: aktiv, aber VPN-Konflikt")
-        elif ok is True:
-            self.dot_status_var.set("DoT: aktiv / Test ok")
-        elif ok is False and self.dot_enabled:
-            self.dot_status_var.set("DoT: Fehler oder Test fehlgeschlagen")
-        elif ok is False:
-            self.dot_status_var.set("DoT: deaktiviert")
-        else:
-            self.dot_status_var.set("DoT: unbekannt")
-
-        self._update_dot_light()
 
     def _set_dot_state_safe(self, ok, **kwargs):
-        if threading.current_thread() is threading.main_thread():
-            self._set_dot_state(ok, **kwargs)
-            return
-        self.after(0, lambda: self._set_dot_state(ok, **kwargs))
+        dot_controller.set_dot_state_safe(self, ok, **kwargs)
 
     def _dot_profile_config(self, profile_name=None):
-        choice_var = self.__dict__.get("dot_choice")
-        selected = (
-            profile_name or (choice_var.get() if choice_var is not None else "") or ""
-        ).strip()
-        if selected not in DOT_PROFILES:
-            selected = "Cloudflare"
-        return selected, DOT_PROFILES[selected]
+        return dot_controller.dot_profile_config(self, profile_name)
 
     def _build_dot_dropin_content(self, profile_name=None):
-        selected, profile = self._dot_profile_config(profile_name)
-        hostname = (profile.get("hostname") or "").strip()
-        dns_entries = []
-        for server in profile.get("dns") or []:
-            entry = str(server).strip()
-            if not entry:
-                continue
-            if hostname:
-                entry = f"{entry}#{hostname}"
-            dns_entries.append(entry)
-        lines = [
-            "# Managed by NetMon",
-            "[Resolve]",
-            f"DNS={' '.join(dns_entries)}",
-            "DNSOverTLS=yes",
-            "Domains=~.",
-            "",
-        ]
-        return selected, profile, "\n".join(lines)
+        return dot_controller.build_dot_dropin_content(self, profile_name)
 
     def _parse_dot_dropin(self, text):
-        servers = []
-        hostnames = []
-        mode = ""
-        enabled = False
-        for raw_line in (text or "").splitlines():
-            line = raw_line.strip()
-            if not line or line.startswith("#"):
-                continue
-            key, sep, value = line.partition("=")
-            if not sep:
-                continue
-            key = key.strip().lower()
-            value = value.strip()
-            if key == "dns":
-                for token in value.split():
-                    item = token.strip()
-                    if not item:
-                        continue
-                    if "#" in item:
-                        server, host = item.split("#", 1)
-                        servers.append(server.strip())
-                        if host.strip():
-                            hostnames.append(host.strip())
-                    else:
-                        servers.append(item)
-            elif key == "dnsovertls":
-                mode = value
-                enabled = value.lower() in {"yes", "opportunistic", "true"}
-        return {
-            "enabled": enabled,
-            "mode": mode or "–",
-            "servers": servers,
-            "hostname": hostnames[0] if hostnames else "",
-        }
+        return dot_controller.parse_dot_dropin(text)
 
     def _read_dot_dropin(self):
-        try:
-            with open(DOT_DROPIN_PATH, "r", encoding="utf-8") as fh:
-                return fh.read()
-        except FileNotFoundError:
-            return ""
-        except Exception as exc:
-            self.log_debug_safe(f"DoT-Drop-in lesen fehlgeschlagen: {exc}")
-            return ""
+        return dot_controller.read_dot_dropin(self)
 
     def is_vpn_dns_active(self):
-        service = self._dns_control_service()
-        if service is None:
-            code, out = run_cmd(["resolvectl", "status"], timeout=8)
-            if code != 0:
-                return False, out
-            return self.detect_vpn_active(out), out
-        code, out = service.read_resolvectl_status(timeout=8)
-        if code != 0:
-            return False, out
-        return service.detect_vpn_active(out), out
+        return dot_controller.is_vpn_dns_active(self)
 
     def detect_netmon_dot_dropin_conflict(self, path=None):
-        service = self._dns_control_service()
-        if service is None:
-            path = path or DOT_DROPIN_PATH
-            if not os.path.isfile(path):
-                return False, ""
-            try:
-                with open(path, "r", encoding="utf-8", errors="replace") as fh:
-                    content = fh.read()
-            except Exception as exc:
-                return True, f"Datei vorhanden, aber nicht lesbar: {exc}"
-            conflict = "DNS=" in content and "Domains=~." in content
-            return conflict, content
-        return service.detect_netmon_dot_dropin_conflict(path)
+        return dot_controller.detect_netmon_dot_dropin_conflict(self, path)
 
     def _dot_leak_conflict_warning_text(self):
-        return (
-            "DNS-Konflikt erkannt:\n\n"
-            "NetMon DoT-Drop-in erzwingt globale DNS-Server, während VPN-DNS "
-            "aktiv ist.\n\n"
-            "Das kann DNS-Leaks verursachen.\n\n"
-            "Empfehlung: NetMon DoT-Drop-in entfernen oder VPN-DNS bevorzugen."
-        )
+        return dot_controller.dot_leak_conflict_warning_text()
 
     def _infer_dot_profile_name(self, servers):
-        normalized = tuple((servers or []))
-        for name, profile in DOT_PROFILES.items():
-            if tuple(profile.get("dns") or []) == normalized:
-                return name
-        return ""
+        return dot_controller.infer_dot_profile_name(servers)
 
     def _parse_dot_resolvectl_status(self, status_text):
-        mode = ""
-        servers = []
-        current_server = ""
-        status_lines = (status_text or "").splitlines()
-        for idx, raw_line in enumerate(status_lines):
-            line = raw_line.strip()
-            if not line:
-                continue
-            if line.startswith("DNSOverTLS setting:"):
-                mode = line.split(":", 1)[1].strip()
-            elif "Protocols:" in line and not mode:
-                if "+DNSOverTLS" in line:
-                    mode = "yes"
-                elif "-DNSOverTLS" in line:
-                    mode = "no"
-            elif line.startswith("Current DNS Server:"):
-                value = line.split(":", 1)[1].strip()
-                current_server = value.split("#", 1)[0].strip()
-                if current_server:
-                    servers.append(current_server)
-            elif line.startswith("DNS Servers:"):
-                values = [line.split(":", 1)[1].strip()]
-                j = idx + 1
-                while j < len(status_lines):
-                    cont = status_lines[j]
-                    if cont.startswith("         ") or cont.startswith("        "):
-                        values.append(cont.strip())
-                        j += 1
-                        continue
-                    break
-                for block in values:
-                    for token in block.split():
-                        server = token.split("#", 1)[0].strip()
-                        if server:
-                            servers.append(server)
-        deduped_servers = []
-        for server in servers:
-            if server not in deduped_servers:
-                deduped_servers.append(server)
-        return {
-            "mode": mode or "–",
-            "servers": deduped_servers,
-            "current_server": current_server,
-        }
+        return dot_controller.parse_dot_resolvectl_status(status_text)
 
     def parse_dot_status_from_resolvectl(self, output: str):
-        text = output or ""
-        lowered = text.lower()
-
-        if "+DNSOverTLS" in text:
-            return "active"
-        if re.search(r"\bdns\s+over\s+tls\s*:\s*(yes|true|active)\b", lowered):
-            return "active"
-        if re.search(r"\bdnsovertls\s+setting\s*:\s*(yes|true)\b", lowered):
-            return "active"
-        if re.search(r"\bdnsovertls\s*=\s*(yes|true)\b", lowered):
-            return "active"
-
-        if "-DNSOverTLS" in text:
-            return "inactive"
-        if re.search(r"\bdns\s+over\s+tls\s*:\s*(no|false|inactive)\b", lowered):
-            return "inactive"
-        if re.search(r"\bdnsovertls\s+setting\s*:\s*(no|false)\b", lowered):
-            return "inactive"
-        if re.search(r"\bdnsovertls\s*=\s*(no|false)\b", lowered):
-            return "inactive"
-
-        return "unknown"
+        return dot_controller.parse_dot_status_from_resolvectl(output)
 
     def _dot_preflight(self):
-        checks = {
-            "sudo": has_cmd("sudo"),
-            "install": has_cmd("install"),
-            "systemctl": has_cmd("systemctl"),
-            "resolvectl": has_cmd("resolvectl"),
-        }
-        missing = [name for name, ok in checks.items() if not ok]
-        active = False
-        active_detail = "unbekannt"
-        if checks["systemctl"]:
-            rc, out = run_cmd(["systemctl", "is-active", "systemd-resolved"], timeout=4)
-            active_detail = (out or "").strip() or "unknown"
-            active = rc == 0 and active_detail == "active"
-        return {
-            "checks": checks,
-            "missing": missing,
-            "available": not missing,
-            "resolved_active": active,
-            "resolved_state": active_detail,
-        }
+        return dot_controller.dot_preflight()
 
     def _dot_tls_probe(self, server, hostname, timeout=4):
-        if not server or not hostname:
-            return None, "TLS-Probe übersprungen (Servername fehlt)."
-        try:
-            context = ssl.create_default_context()
-            with socket.create_connection((server, 853), timeout=timeout) as sock:
-                with context.wrap_socket(sock, server_hostname=hostname):
-                    return True, f"TLS-Verbindung zu {server}:853 erfolgreich."
-        except Exception as exc:
-            return False, f"TLS-Verbindung zu {server}:853 fehlgeschlagen: {exc}"
+        return dot_controller.dot_tls_probe(server, hostname, timeout=timeout)
 
     def _collect_dot_status(self, run_test=False):
-        preflight = self._dot_preflight()
-        dropin_text = self._read_dot_dropin()
-        dropin_cfg = self._parse_dot_dropin(dropin_text)
-        resolvectl_status = ""
-        resolvectl_dns = ""
-        query_out = ""
-        query_ok = None
-        tls_ok = None
-        tls_detail = ""
-        dropin_conflict, _dropin_conflict_content = (
-            self.detect_netmon_dot_dropin_conflict()
-        )
-
-        if preflight["checks"].get("resolvectl"):
-            _, resolvectl_dns = run_cmd(["resolvectl", "dns"], timeout=6)
-            _, resolvectl_status = run_cmd(["resolvectl", "status"], timeout=10)
-
-        vpn_active = self.detect_vpn_active(resolvectl_status)
-        vpn_conflict = bool(dropin_conflict and vpn_active)
-        status_cfg = self._parse_dot_resolvectl_status(resolvectl_status)
-        servers = dropin_cfg["servers"] or status_cfg["servers"]
-        profile_name = self._infer_dot_profile_name(servers)
-        if not profile_name and dropin_cfg["servers"]:
-            profile_name = self._infer_dot_profile_name(dropin_cfg["servers"])
-        mode = dropin_cfg["mode"]
-        if mode in {"", "–"}:
-            mode = status_cfg["mode"]
-        resolvectl_dot_state = self.parse_dot_status_from_resolvectl(resolvectl_status)
-        enabled = (bool(dropin_text.strip()) and dropin_cfg["enabled"]) or (
-            resolvectl_dot_state == "active"
-        )
-        summary_lines = ["=== DNS over TLS Status ===", "Resolver: systemd-resolved"]
-
-        status_available = preflight["checks"].get("systemctl") and preflight[
-            "checks"
-        ].get("resolvectl")
-
-        if not status_available:
-            summary_lines.extend(
-                [
-                    "DNS over TLS ist auf diesem System aktuell nicht verfügbar.",
-                    "",
-                    "Benötigt werden:",
-                    "- systemd-resolved",
-                    "- resolvectl",
-                ]
-            )
-            return {
-                "ok": None,
-                "enabled": False,
-                "profile": profile_name,
-                "servers": servers,
-                "mode": mode,
-                "vpn_conflict": vpn_conflict,
-                "vpn_active": vpn_active,
-                "text": "\n".join(summary_lines),
-            }
-
-        summary_lines.append(
-            f"systemd-resolved: {preflight['resolved_state'] or 'unbekannt'}"
-        )
-        summary_lines.append(f"Profil: {profile_name or '–'}")
-        summary_lines.append(f"Server: {', '.join(servers) if servers else '–'}")
-        summary_lines.append(
-            f"DNS over TLS: {'aktiviert' if enabled else 'deaktiviert'}"
-        )
-        summary_lines.append(f"Modus: {mode or '–'}")
-        summary_lines.append(
-            f"NetMon DoT Drop-in: {'vorhanden' if dropin_text.strip() else 'nicht vorhanden'}"
-        )
-        summary_lines.append(
-            f"Globale DNS-Erzwingung: {'JA' if dropin_conflict else 'NEIN'}"
-        )
-        summary_lines.append(f"VPN aktiv: {'JA' if vpn_active else 'NEIN'}")
-        if vpn_conflict:
-            summary_lines.append("")
-            summary_lines.append("Bewertung: DNS-Leak-Risiko durch DoT/VPN-Konflikt")
-            summary_lines.append(
-                "Empfehlung: DoT-Drop-in entfernen oder VPN-DNS bevorzugen."
-            )
-
-        if not preflight["resolved_active"]:
-            summary_lines.append("Hinweis: systemd-resolved läuft aktuell nicht.")
-            return {
-                "ok": None,
-                "enabled": enabled,
-                "profile": profile_name,
-                "servers": servers,
-                "mode": mode,
-                "vpn_conflict": vpn_conflict,
-                "vpn_active": vpn_active,
-                "text": "\n".join(summary_lines),
-            }
-
-        if run_test:
-            rc_query, query_out = run_cmd(
-                ["resolvectl", "query", "example.com"], timeout=8
-            )
-            query_ok = rc_query == 0 and bool((query_out or "").strip())
-            hostname = ""
-            if profile_name in DOT_PROFILES:
-                hostname = (DOT_PROFILES[profile_name].get("hostname") or "").strip()
-            elif dropin_cfg.get("hostname"):
-                hostname = dropin_cfg["hostname"]
-            if servers:
-                tls_ok, tls_detail = self._dot_tls_probe(servers[0], hostname)
-            config_ok = enabled and mode.lower() in {"yes", "opportunistic"}
-            final_ok = bool(config_ok and query_ok and tls_ok is not False)
-            if vpn_conflict:
-                final_ok = None
-            summary_lines.append(
-                f"Test: {'erfolgreich' if final_ok else 'fehlgeschlagen'}"
-            )
-            summary_lines.append(
-                f"Resolver-Abfrage: {'OK' if query_ok else 'fehlgeschlagen'}"
-            )
-            if tls_ok is None:
-                summary_lines.append("TLS-Probe: übersprungen")
-            else:
-                summary_lines.append(
-                    f"TLS-Probe: {'OK' if tls_ok else 'fehlgeschlagen'}"
-                )
-            if tls_detail:
-                summary_lines.append(f"Hinweis: {tls_detail}")
-        else:
-            if enabled and preflight["resolved_active"]:
-                final_ok = True
-            elif resolvectl_dot_state == "inactive" or not enabled:
-                final_ok = False
-            else:
-                final_ok = None
-            if vpn_conflict:
-                final_ok = None
-            if enabled:
-                summary_lines.append("Test: nicht durchgeführt")
-            else:
-                summary_lines.append("Test: nicht möglich (DoT nicht aktiv)")
-
-        if resolvectl_dns:
-            summary_lines.append("")
-            summary_lines.append("---- resolvectl dns ----")
-            summary_lines.append(resolvectl_dns.strip())
-        if run_test and query_out:
-            summary_lines.append("")
-            summary_lines.append("---- resolvectl query example.com ----")
-            summary_lines.append(query_out.strip())
-
-        return {
-            "ok": final_ok,
-            "enabled": enabled,
-            "profile": profile_name,
-            "servers": servers,
-            "mode": mode,
-            "vpn_conflict": vpn_conflict,
-            "vpn_active": vpn_active,
-            "text": "\n".join(summary_lines).strip(),
-        }
+        return dot_controller.collect_dot_status(self, run_test=run_test)
 
     def _show_dot_status_result(
         self,
@@ -11374,334 +7261,29 @@ class App(TkBase):
         show_output=None,
         emit_chad_warning=None,
     ):
-        if show_output is None:
-            show_output = not startup
-        if emit_chad_warning is None:
-            emit_chad_warning = not startup
-        if not startup:
-            self.nb.select(self.tab_dns)
-        if show_output:
-            self.update_dns_output(status.get("text", ""), append=append)
-        self._set_dot_state(
-            status.get("ok"),
-            profile=status.get("profile", ""),
-            servers=status.get("servers") or [],
-            mode=status.get("mode", ""),
-            enabled=status.get("enabled"),
-            vpn_conflict=status.get("vpn_conflict"),
-            vpn_active=status.get("vpn_active"),
+        dot_controller.show_dot_status_result(
+            self,
+            status,
+            append=append,
+            startup=startup,
+            show_output=show_output,
+            emit_chad_warning=emit_chad_warning,
         )
-        if emit_chad_warning and status.get("vpn_conflict"):
-            self.append_to_chad_output(
-                "DNS Warnung",
-                self._dot_leak_conflict_warning_text(),
-            )
-        if startup:
-            self.dot_last_test_var.set("Letzter Test: Startprüfung")
 
     def startup_dot_status_check(self):
-        try:
-            self.show_dot_status_async(startup=True)
-        except TypeError:
-            try:
-                self.show_dot_status_async()
-            except Exception as exc:
-                try:
-                    self.log(f"[WARN] DoT-Startprüfung fehlgeschlagen: {exc}")
-                except Exception:
-                    pass
-        except Exception as exc:
-            try:
-                self.log(f"[WARN] DoT-Startprüfung fehlgeschlagen: {exc}")
-            except Exception:
-                pass
+        dot_controller.startup_dot_status_check(self)
 
     def show_dot_status_async(self, startup=False):
-        if self.dot_running:
-            if not startup:
-                self.log_safe("DoT-Status läuft bereits.")
-            return
-        self.dot_running = True
-        if not startup:
-            self.nb.select(self.tab_dns)
-            self.log_safe("DoT-Status wird geprüft")
-
-        def job():
-            try:
-                status = self._collect_dot_status(run_test=False)
-                self.after(
-                    0,
-                    lambda s=status: self._show_dot_status_result(
-                        s,
-                        startup=startup,
-                    ),
-                )
-                if not startup:
-                    if status.get("enabled"):
-                        self.log_safe("DoT-Status aktualisiert")
-                    else:
-                        self.log_safe("DoT-Status geprüft")
-            except Exception as exc:
-                error_text = str(exc)
-
-                def fail():
-                    self.dot_status_var.set("DoT: unbekannt")
-                    self.dot_last_test_var.set(
-                        "Letzter Test: Startprüfung fehlgeschlagen"
-                        if startup
-                        else "Letzter Test: fehlgeschlagen"
-                    )
-                    self.dot_last_test_ok = None
-                    self.dot_vpn_conflict = False
-                    self.dot_vpn_dns_active = False
-                    self._update_dot_light()
-                    if not startup:
-                        self.log(
-                            f"[WARN] DoT-Statusprüfung fehlgeschlagen: {error_text}"
-                        )
-
-                self.after(0, fail)
-            finally:
-                self.dot_running = False
-
-        threading.Thread(target=job, daemon=True).start()
+        dot_controller.show_dot_status_async(self, startup=startup)
 
     def enable_dot_async(self):
-        if self.dot_running:
-            self.log_safe("DoT-Aktivierung läuft bereits.")
-            return
-        self.update_dns_controls_state_safe()
-        vpn_active, raw = self.is_vpn_dns_active()
-        if vpn_active:
-            warning = self.tr(
-                "dot_warning_vpn_active",
-                "VPN-DNS ist aktiv.\n\n"
-                "NetMon wird DNS over TLS nicht global erzwingen, weil dadurch "
-                "VPN-DNS überschrieben und DNS-Leaks entstehen können.\n\n"
-                "Bitte nutze VPN-DNS oder deaktiviere zuerst das VPN.",
-            )
-            messagebox.showwarning(
-                self.tr("dot_warning_blocked_title", "DoT blockiert"),
-                warning,
-                parent=self,
-            )
-            result = (
-                "=== DNS over TLS ===\n\n"
-                "Status: Aktivierung blockiert\n"
-                "Grund: VPN-DNS ist aktiv.\n\n"
-                "NetMon hat keine Systemänderung durchgeführt, damit VPN-DNS "
-                "nicht überschrieben wird."
-            )
-            if raw:
-                result += "\n\n---- resolvectl status ----\n" + raw.strip()
-            self.nb.select(self.tab_dns)
-            self.update_dns_output(result, append=True)
-            self.dot_vpn_conflict = True
-            self.dot_vpn_dns_active = True
-            self.dot_last_test_ok = None
-            self._update_dot_light()
-            self.log_safe("DoT-Aktivierung blockiert: VPN-DNS aktiv")
-            self.update_dns_controls_state_safe()
-            return
-        if not self.ensure_sudo_session("DoT aktivieren"):
-            return
-        self.dot_running = True
-        self.nb.select(self.tab_dns)
-        self.update_dns_output(
-            "=== DNS over TLS ===\nStatus: Aktivierung läuft\n",
-            append=False,
-        )
-        self.log_safe("DoT-Aktivierung gestartet")
-
-        def job():
-            tmp_path = ""
-            try:
-                profile_name, _profile, content = self._build_dot_dropin_content()
-                with tempfile.NamedTemporaryFile(
-                    mode="w", encoding="utf-8", delete=False
-                ) as temp_file:
-                    temp_file.write(content)
-                    tmp_path = temp_file.name
-                rc_dir, out_dir = run_cmd(
-                    ["sudo", "-n", "mkdir", "-p", DOT_DROPIN_DIR], timeout=10
-                )
-                if rc_dir != 0:
-                    raise RuntimeError(
-                        (out_dir or "").strip()
-                        or "Drop-in-Verzeichnis konnte nicht erstellt werden."
-                    )
-                rc_install, out_install = run_cmd(
-                    ["sudo", "-n", "install", "-m", "644", tmp_path, DOT_DROPIN_PATH],
-                    timeout=12,
-                )
-                if rc_install != 0:
-                    raise RuntimeError(
-                        (out_install or "").strip()
-                        or "DoT-Drop-in konnte nicht geschrieben werden."
-                    )
-                rc_restart, out_restart = run_cmd(
-                    ["sudo", "-n", "systemctl", "restart", "systemd-resolved"],
-                    timeout=15,
-                )
-                if rc_restart != 0:
-                    raise RuntimeError(
-                        (out_restart or "").strip()
-                        or "systemd-resolved konnte nicht neu gestartet werden."
-                    )
-                status = self._collect_dot_status(run_test=True)
-                if not status.get("profile"):
-                    status["profile"] = profile_name
-                self.after(0, lambda s=status: self._show_dot_status_result(s))
-                self.after(0, self._start_dns_guard_transition)
-                self.log_safe(
-                    "DoT-Test erfolgreich"
-                    if status.get("ok")
-                    else "DoT-Test fehlgeschlagen"
-                )
-                self.log_safe("DoT-Konfiguration aktualisiert")
-            except Exception as exc:
-                self.after(
-                    0,
-                    lambda e=str(exc): self._show_dot_status_result(
-                        {
-                            "ok": False,
-                            "enabled": False,
-                            "profile": self.dot_choice.get(),
-                            "servers": [],
-                            "mode": "–",
-                            "vpn_conflict": False,
-                            "text": "\n".join(
-                                [
-                                    "=== DNS over TLS ===",
-                                    "Aktion: aktivieren",
-                                    "Ergebnis: fehlgeschlagen",
-                                    f"Details: {e}",
-                                ]
-                            ),
-                        }
-                    ),
-                )
-                self.log_safe("DoT-Test fehlgeschlagen")
-            finally:
-                self.dot_running = False
-                if tmp_path:
-                    try:
-                        os.remove(tmp_path)
-                    except Exception:
-                        pass
-
-        threading.Thread(target=job, daemon=True).start()
+        dot_controller.enable_dot_async(self)
 
     def disable_dot_async(self):
-        if self.dot_running:
-            self.log_safe("DoT-Deaktivierung läuft bereits.")
-            return
-        if not self.ensure_sudo_session("DoT deaktivieren"):
-            return
-        self.dot_running = True
-        self.nb.select(self.tab_dns)
-        self.update_dns_output(
-            "=== DNS over TLS ===\nStatus: Deaktivierung läuft\n",
-            append=False,
-        )
-        self.log_safe("DoT-Deaktivierung gestartet")
-
-        def job():
-            try:
-                rc_rm, out_rm = run_cmd(
-                    ["sudo", "-n", "rm", "-f", DOT_DROPIN_PATH], timeout=10
-                )
-                if rc_rm != 0:
-                    raise RuntimeError(
-                        (out_rm or "").strip()
-                        or "DoT-Drop-in konnte nicht entfernt werden."
-                    )
-                rc_restart, out_restart = run_cmd(
-                    ["sudo", "-n", "systemctl", "restart", "systemd-resolved"],
-                    timeout=15,
-                )
-                if rc_restart != 0:
-                    raise RuntimeError(
-                        (out_restart or "").strip()
-                        or "systemd-resolved konnte nicht neu gestartet werden."
-                    )
-                self.after(
-                    0,
-                    lambda: self._show_dot_status_result(
-                        {
-                            "ok": False,
-                            "enabled": False,
-                            "profile": "",
-                            "servers": [],
-                            "mode": "aus",
-                            "vpn_conflict": False,
-                            "text": "\n".join(
-                                [
-                                    "=== DNS over TLS ===",
-                                    "Aktion: deaktivieren",
-                                    "Ergebnis: erfolgreich",
-                                    "Hinweis: NetMon-Drop-in entfernt und systemd-resolved neu gestartet.",
-                                ]
-                            ),
-                        }
-                    ),
-                )
-                self.after(0, self._start_dns_guard_transition)
-                self.log_safe("DoT-Konfiguration aktualisiert")
-            except Exception as exc:
-                self.after(
-                    0,
-                    lambda e=str(exc): self._show_dot_status_result(
-                        {
-                            "ok": False,
-                            "enabled": self.dot_enabled,
-                            "profile": self.dot_choice.get(),
-                            "servers": [],
-                            "mode": "–",
-                            "vpn_conflict": False,
-                            "text": "\n".join(
-                                [
-                                    "=== DNS over TLS ===",
-                                    "Aktion: deaktivieren",
-                                    "Ergebnis: fehlgeschlagen",
-                                    f"Details: {e}",
-                                ]
-                            ),
-                        }
-                    ),
-                )
-                self.log_safe("DoT-Deaktivierung fehlgeschlagen")
-            finally:
-                self.dot_running = False
-
-        threading.Thread(target=job, daemon=True).start()
+        dot_controller.disable_dot_async(self)
 
     def test_dot_async(self):
-        if self.dot_running:
-            self.log_safe("DoT-Test läuft bereits.")
-            return
-        self.dot_running = True
-        self.nb.select(self.tab_dns)
-        self.dot_status_var.set("DoT-Test läuft")
-        self.update_dns_output(
-            "=== DNS over TLS ===\nStatus: Test läuft\n",
-            append=False,
-        )
-        self.log_safe("DoT-Test gestartet")
-
-        def job():
-            try:
-                status = self._collect_dot_status(run_test=True)
-                self.after(0, lambda s=status: self._show_dot_status_result(s))
-                self.log_safe(
-                    "DoT-Test erfolgreich"
-                    if status.get("ok")
-                    else "DoT-Test fehlgeschlagen"
-                )
-            finally:
-                self.dot_running = False
-
-        threading.Thread(target=job, daemon=True).start()
+        dot_controller.test_dot_async(self)
 
     def build_packet_capture_tab(self):
         config = ttk.LabelFrame(
@@ -11869,421 +7451,44 @@ class App(TkBase):
         self.packet_capture_set_running_state(False)
 
     def packet_capture_set_running_state(self, running):
-        packet_capture_ready = bool(
-            self.dep_status.get("tshark") or self.dep_status.get("dumpcap")
-        )
-        if hasattr(self, "btn_packet_capture_start"):
-            self.btn_packet_capture_start.configure(
-                state="disabled" if running or not packet_capture_ready else "normal"
-            )
-        if hasattr(self, "btn_packet_capture_stop"):
-            self.btn_packet_capture_stop.configure(
-                state="normal" if running and packet_capture_ready else "disabled"
-            )
+        packet_capture_controller.packet_capture_set_running_state(self, running)
 
     def append_packet_capture_output(self, text: str, replace: bool = False):
-        if not hasattr(self, "packet_capture_text") or self.packet_capture_text is None:
-            return
-        widget = self.packet_capture_text
-        widget.configure(state="normal")
-        if replace:
-            widget.delete("1.0", "end")
-        if text:
-            if not replace and widget.index("end-1c") != "1.0":
-                widget.insert("end", "\n")
-            widget.insert("end", text.rstrip() + "\n")
-        widget.see("end")
-        widget.configure(state="disabled")
+        packet_capture_controller.append_packet_capture_output(
+            self,
+            text,
+            replace=replace,
+        )
 
     def clear_packet_capture_output(self):
-        if not hasattr(self, "packet_capture_text") or self.packet_capture_text is None:
-            return
-        self.packet_capture_text.configure(state="normal")
-        self.packet_capture_text.delete("1.0", "end")
-        self.packet_capture_text.configure(state="disabled")
+        packet_capture_controller.clear_packet_capture_output(self)
 
     def packet_capture_generate_default_path(self):
-        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return os.path.join(self.packet_capture_dir, f"capture_{stamp}.pcapng")
+        return packet_capture_controller.packet_capture_generate_default_path(self)
 
     def choose_packet_capture_file(self):
-        initial_dir = self.packet_capture_dir
-        current_path = (self.packet_capture_file_var.get() or "").strip()
-        generated_path = self.packet_capture_generate_default_path()
-        initial_file = os.path.basename(current_path or generated_path)
-        chosen = filedialog.asksaveasfilename(
-            parent=self,
-            title="Capture-Datei auswählen",
-            initialdir=initial_dir,
-            initialfile=initial_file,
-            defaultextension=".pcapng",
-            filetypes=[
-                ("Packet Capture", "*.pcapng *.pcap"),
-                ("Alle Dateien", "*.*"),
-            ],
-        )
-        if chosen:
-            self.packet_capture_file_var.set(chosen)
-            self.packet_capture_output_path = chosen
-            self.append_packet_capture_output(f"Capture-Datei gesetzt: {chosen}")
+        packet_capture_controller.choose_packet_capture_file(self)
 
     def refresh_packet_capture_interfaces(self):
-        self._select_security_tab(self.tab_packet_capture)
-        interfaces = []
-        details = []
-        if self.dep_status.get("tshark"):
-            rc, out = run_cmd(["tshark", "-D"], timeout=8)
-            if rc == 0:
-                for line in (out or "").splitlines():
-                    raw = line.strip()
-                    if not raw:
-                        continue
-                    entry = raw.split(".", 1)[-1].strip() if "." in raw else raw
-                    name = entry.split(" ", 1)[0].strip()
-                    if name:
-                        interfaces.append(name)
-                        details.append(raw)
-            elif self._looks_like_dumpcap_permission_issue(out):
-                self.packet_capture_status_var.set("Berechtigung fehlt")
-                self.append_packet_capture_output(
-                    "tshark ist vorhanden, aber dumpcap hat keine ausreichenden Berechtigungen.",
-                    replace=True,
-                )
-                self.show_dumpcap_permission_hint()
-        if not interfaces and self.dep_status.get("ip"):
-            rc, out = run_cmd(["ip", "-o", "link", "show"], timeout=6)
-            if rc == 0:
-                for line in (out or "").splitlines():
-                    parts = line.split(":", 2)
-                    if len(parts) < 2:
-                        continue
-                    name = parts[1].strip().split("@", 1)[0]
-                    if name:
-                        interfaces.append(name)
-        unique = []
-        seen = set()
-        for name in interfaces:
-            if name in seen:
-                continue
-            seen.add(name)
-            unique.append(name)
-        self.packet_capture_interfaces = unique
-        self.dep_status["packet_capture_interfaces"] = bool(unique)
-        if hasattr(self, "packet_capture_interface_combo"):
-            self.packet_capture_interface_combo.configure(values=unique)
-        preferred = next(
-            (name for name in unique if name != "lo"),
-            unique[0] if unique else "",
-        )
-        if preferred and not (self.packet_capture_interface_var.get() or "").strip():
-            self.packet_capture_interface_var.set(preferred)
-        elif (self.packet_capture_interface_var.get() or "").strip() not in unique:
-            self.packet_capture_interface_var.set(preferred)
-        if unique:
-            summary = "Verfügbare Interfaces: " + ", ".join(unique)
-            self.packet_capture_status_var.set("Interfaces bereit")
-            self.append_packet_capture_output(summary, replace=True)
-            if details:
-                self.append_packet_capture_output("\n".join(details))
-        else:
-            self.packet_capture_status_var.set("Keine Interfaces gefunden")
-            self.append_packet_capture_output(
-                "Keine Capture-Interfaces gefunden. Prüfe tshark, dumpcap oder iproute2.",
-                replace=True,
-            )
+        packet_capture_controller.refresh_packet_capture_interfaces(self)
 
     def packet_capture_update_runtime(self):
-        if self.packet_capture_text_after_id is not None:
-            try:
-                self.after_cancel(self.packet_capture_text_after_id)
-            except Exception:
-                pass
-            self.packet_capture_text_after_id = None
-        if not self.packet_capture_running:
-            return
-        runtime = max(
-            0, int(time.time() - float(self.packet_capture_started_at or 0.0))
-        )
-        self.packet_capture_runtime_var.set(f"{runtime}s")
-        file_path = (self.packet_capture_output_path or "").strip()
-        if file_path and os.path.isfile(file_path):
-            try:
-                size_bytes = os.path.getsize(file_path)
-                self.packet_capture_size_var.set(human_size(size_bytes))
-            except Exception:
-                pass
-        self.packet_capture_text_after_id = self.after(
-            1000, self.packet_capture_update_runtime
-        )
+        packet_capture_controller.packet_capture_update_runtime(self)
 
     def packet_capture_show_file_info(self):
-        file_path = (
-            self.packet_capture_output_path or self.packet_capture_file_var.get() or ""
-        ).strip()
-        if not file_path:
-            self.append_packet_capture_output("Noch keine Capture-Datei ausgewählt.")
-            return
-        if not os.path.isfile(file_path):
-            self.append_packet_capture_output(
-                f"Capture-Datei nicht gefunden: {file_path}"
-            )
-            return
-        if self.dep_status.get("capinfos"):
-            rc, out = run_cmd(["capinfos", file_path], timeout=10)
-            if rc == 0 and (out or "").strip():
-                self.append_packet_capture_output(
-                    "=== Capture-Datei Info ===\n" + (out or "").strip()
-                )
-                packets = "-"
-                size_text = self.packet_capture_size_var.get()
-                for line in (out or "").splitlines():
-                    lower = line.lower()
-                    if "number of packets" in lower:
-                        packets = line.split(":", 1)[-1].strip() or "-"
-                    if lower.startswith("file size"):
-                        size_text = line.split(":", 1)[-1].strip() or size_text
-                self.packet_capture_packets_var.set(packets)
-                self.packet_capture_size_var.set(size_text)
-                return
-        try:
-            size_bytes = os.path.getsize(file_path)
-            size_text = human_size(size_bytes)
-            self.packet_capture_size_var.set(size_text)
-            self.append_packet_capture_output(
-                "=== Capture-Datei Info ===\n"
-                f"Datei: {file_path}\n"
-                f"Größe: {size_text}"
-            )
-        except Exception as exc:
-            self.append_packet_capture_output(
-                f"Datei-Info konnte nicht gelesen werden: {exc}"
-            )
+        packet_capture_controller.packet_capture_show_file_info(self)
 
     def packet_capture_start_async(self):
-        if self.packet_capture_running:
-            self.append_packet_capture_output("Ein Capture läuft bereits.")
-            return
-        interface = (self.packet_capture_interface_var.get() or "").strip()
-        if not interface:
-            self.append_packet_capture_output(
-                "Bitte zuerst ein Capture-Interface auswählen.", replace=True
-            )
-            self.packet_capture_status_var.set("Interface fehlt")
-            return
-        output_file = (self.packet_capture_file_var.get() or "").strip()
-        if not output_file:
-            output_file = self.packet_capture_generate_default_path()
-            self.packet_capture_file_var.set(output_file)
-        output_dir = os.path.dirname(output_file)
-        if output_dir:
-            try:
-                os.makedirs(output_dir, exist_ok=True)
-            except Exception:
-                pass
-        capture_filter = (self.packet_capture_filter_var.get() or "").strip()
-        if self.dep_status.get("tshark"):
-            cmd = ["tshark", "-i", interface]
-            if capture_filter:
-                cmd.extend(["-f", capture_filter])
-            cmd.extend(["-w", output_file])
-            capture_tool = "tshark"
-        elif self.dep_status.get("dumpcap"):
-            cmd = ["dumpcap", "-i", interface]
-            if capture_filter:
-                cmd.extend(["-f", capture_filter])
-            cmd.extend(["-w", output_file])
-            capture_tool = "dumpcap"
-        else:
-            self.append_packet_capture_output(
-                "Packet Capture ist nicht verfügbar: tshark oder dumpcap fehlt.",
-                replace=True,
-            )
-            self.packet_capture_status_var.set("Tool fehlt")
-            self.log("Packet Capture fehlgeschlagen: tshark/dumpcap fehlt.")
-            self.show_wireshark_install_hint()
-            return
-        self._select_security_tab(self.tab_packet_capture)
-        self.clear_packet_capture_output()
-        self.append_packet_capture_output(
-            "=== Packet Capture gestartet ===\n"
-            f"Tool: {capture_tool}\n"
-            f"Interface: {interface}\n"
-            f"Datei: {output_file}\n"
-            f"Filter: {capture_filter or '-'}"
-        )
-        self.packet_capture_running = True
-        self.packet_capture_cancel_requested = False
-        self.packet_capture_started_at = time.time()
-        self.packet_capture_output_path = output_file
-        self.packet_capture_status_var.set("läuft")
-        self.packet_capture_runtime_var.set("0s")
-        self.packet_capture_packets_var.set("-")
-        self.packet_capture_size_var.set("-")
-        self.packet_capture_set_running_state(True)
-        self.log(f"Packet Capture gestartet ({interface}).")
-
-        def worker():
-            try:
-                proc = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                )
-                self.packet_capture_active_process = proc
-                captured_lines = []
-                if proc.stdout is not None:
-                    for line in proc.stdout:
-                        text_line = (line or "").rstrip()
-                        if not text_line:
-                            continue
-                        captured_lines.append(text_line)
-                        self.after(
-                            0,
-                            lambda msg=text_line: self.append_packet_capture_output(
-                                msg
-                            ),
-                        )
-                return_code = proc.wait()
-                details = "\n".join(captured_lines[-20:]).strip()
-
-                def finish_success():
-                    self.packet_capture_active_process = None
-                    self.packet_capture_running = False
-                    self.packet_capture_status_var.set(
-                        "gestoppt"
-                        if self.packet_capture_cancel_requested
-                        else (
-                            "abgeschlossen"
-                            if return_code == 0
-                            else f"Fehler ({return_code})"
-                        )
-                    )
-                    self.packet_capture_set_running_state(False)
-                    if details:
-                        self.append_packet_capture_output(details)
-                    if return_code != 0 and not self.packet_capture_cancel_requested:
-                        self.append_packet_capture_output(
-                            "Hinweis: Capture wurde mit Fehler beendet. Fehlende Rechte für tshark/dumpcap sind häufig die Ursache."
-                        )
-                        self.log(
-                            f"Packet Capture fehlgeschlagen ({interface}, rc={return_code})."
-                        )
-                        if self._looks_like_dumpcap_permission_issue(details):
-                            self.show_dumpcap_permission_hint()
-                    else:
-                        self.log(f"Packet Capture gestoppt ({interface}).")
-                    self.packet_capture_show_file_info()
-                    self.packet_capture_update_runtime()
-
-                self.after(0, finish_success)
-            except Exception as exc:
-                error_text = str(exc)
-
-                def finish_error(message=error_text):
-                    self.packet_capture_active_process = None
-                    self.packet_capture_running = False
-                    self.packet_capture_status_var.set("Fehler")
-                    self.packet_capture_set_running_state(False)
-                    self.append_packet_capture_output(
-                        f"Capture konnte nicht gestartet werden: {message}"
-                    )
-                    self.log(f"Packet Capture fehlgeschlagen: {message}")
-                    self.packet_capture_update_runtime()
-
-                self.after(0, finish_error)
-
-        threading.Thread(target=worker, daemon=True).start()
-        self.packet_capture_update_runtime()
+        packet_capture_controller.packet_capture_start_async(self)
 
     def packet_capture_stop(self):
-        if not self.packet_capture_running:
-            self.append_packet_capture_output("Es läuft aktuell kein Capture.")
-            return
-        self.packet_capture_cancel_requested = True
-        proc = self.packet_capture_active_process
-        if proc is None:
-            self.packet_capture_running = False
-            self.packet_capture_status_var.set("gestoppt")
-            self.packet_capture_set_running_state(False)
-            return
-        try:
-            proc.terminate()
-            try:
-                proc.wait(timeout=4)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-        except Exception as exc:
-            self.append_packet_capture_output(f"Capture-Stopp fehlgeschlagen: {exc}")
-            self.log(f"Packet Capture-Stopp fehlgeschlagen: {exc}")
-            return
-        self.append_packet_capture_output("Capture-Stopp angefordert.")
+        packet_capture_controller.packet_capture_stop(self)
 
     def open_packet_capture_in_wireshark(self):
-        file_path = (
-            self.packet_capture_output_path or self.packet_capture_file_var.get() or ""
-        ).strip()
-        launcher = dict(self.dep_status.get("wireshark_launcher") or {})
-        target = (launcher.get("target") or "").strip()
-        kind = (launcher.get("kind") or "").strip()
-        if not target:
-            self.append_packet_capture_output(
-                "Wireshark ist nicht verfügbar. Installationshinweis: sudo apt install wireshark"
-            )
-            return
-        if not file_path or not os.path.isfile(file_path):
-            self.append_packet_capture_output(
-                "Keine gültige Capture-Datei zum Öffnen gefunden."
-            )
-            return
-        try:
-            if kind == "binary":
-                subprocess.Popen([target, file_path])
-            elif kind == "flatpak":
-                subprocess.Popen(["flatpak", "run", target, file_path])
-            elif kind == "desktop":
-                if has_cmd("gtk-launch"):
-                    subprocess.Popen(["gtk-launch", target])
-                else:
-                    raise RuntimeError("gtk-launch ist nicht verfügbar.")
-            elif kind == "desktop_file":
-                if has_cmd("xdg-open"):
-                    subprocess.Popen(["xdg-open", target])
-                else:
-                    raise RuntimeError("xdg-open ist nicht verfügbar.")
-            else:
-                raise RuntimeError("Kein Wireshark-Launcher gefunden.")
-            self.append_packet_capture_output(f"Wireshark geöffnet: {file_path}")
-        except Exception as exc:
-            self.append_packet_capture_output(
-                f"Wireshark konnte nicht geöffnet werden: {exc}"
-            )
-            self.log(f"Wireshark-Start fehlgeschlagen: {exc}")
+        packet_capture_controller.open_packet_capture_in_wireshark(self)
 
     def open_packet_capture_file_location(self):
-        file_path = (
-            self.packet_capture_output_path or self.packet_capture_file_var.get() or ""
-        ).strip()
-        if not file_path:
-            self.append_packet_capture_output("Noch keine Capture-Datei vorhanden.")
-            return
-        target = file_path if os.path.exists(file_path) else os.path.dirname(file_path)
-        if not target:
-            self.append_packet_capture_output(
-                "Kein gültiger Pfad für Capture-Datei vorhanden."
-            )
-            return
-        if not has_cmd("xdg-open"):
-            self.append_packet_capture_output("xdg-open ist nicht verfügbar.")
-            return
-        try:
-            subprocess.Popen(["xdg-open", target])
-            self.append_packet_capture_output(f"Capture-Pfad geöffnet: {target}")
-        except Exception as exc:
-            self.append_packet_capture_output(
-                f"Capture-Pfad konnte nicht geöffnet werden: {exc}"
-            )
-            self.log(f"Capture-Datei öffnen fehlgeschlagen: {exc}")
+        packet_capture_controller.open_packet_capture_file_location(self)
 
     def build_lynis_tab(self):
         lynis_top = ttk.Frame(self.tab_lynis)
@@ -12391,243 +7596,87 @@ class App(TkBase):
         self.lynis_text.configure(state="disabled")
 
     def open_lynis_tab(self):
-        self._select_security_tab(self.tab_lynis)
+        security_audit_controller.open_lynis_tab(self)
 
     def clear_lynis_output(self):
-        if not hasattr(self, "lynis_text") or self.lynis_text is None:
-            return
-        self.lynis_text.configure(state="normal")
-        self.lynis_text.delete("1.0", "end")
-        self.lynis_text.configure(state="disabled")
-        self.lynis_last_output = ""
-        if not self.lynis_running:
-            self.lynis_summary_var.set("Noch kein Audit ausgeführt.")
+        security_audit_controller.clear_lynis_output(self)
 
     def update_lynis_output(self, text: str, append: bool = False):
-        if not hasattr(self, "lynis_text") or self.lynis_text is None:
-            return
-        clean_text = normalize_lynis_output(text)
-        self.lynis_text.configure(state="normal")
-        if not append:
-            self.lynis_text.delete("1.0", "end")
-        if clean_text:
-            if append and self.lynis_text.index("end-1c") != "1.0":
-                self.lynis_text.insert("end", "\n\n")
-            self.lynis_text.insert("end", clean_text)
-        self.lynis_text.see("end")
-        self.lynis_text.configure(state="disabled")
+        security_audit_controller.update_lynis_output(
+            self,
+            text,
+            append=append,
+            normalize_output_fn=normalize_lynis_output,
+        )
 
     def extract_lynis_issues_and_recommendations(self, text: str) -> str:
-        text = normalize_lynis_output(text)
-
-        keep_keywords = [
-            "warning",
-            "warnings",
-            "suggestion",
-            "suggestions",
-            "recommendation",
-            "recommendations",
-            "found",
-            "not found",
-            "disabled",
-            "not enabled",
-            "nicht gefunden",
-            "nicht aktiviert",
-            "dateien gefunden",
-            "unsicher",
-            "fehler",
-            "problem",
-            "hardening",
-        ]
-
-        lines = []
-        for line in text.splitlines():
-            low = line.lower()
-            if any(keyword in low for keyword in keep_keywords):
-                if "gefunden" in low and not (
-                    "dateien gefunden" in low
-                    or "warn" in low
-                    or "problem" in low
-                    or "fehler" in low
-                ):
-                    continue
-                lines.append(line)
-
-        if not lines:
-            return (
-                "=== Lynis Probleme & Empfehlungen ===\n\n"
-                "Keine eindeutigen Probleme oder Empfehlungen gefunden."
-            )
-
-        return "=== Lynis Probleme & Empfehlungen ===\n\n" + "\n".join(lines)
+        return security_audit_controller.extract_lynis_issues_and_recommendations(
+            text,
+            normalize_output_fn=normalize_lynis_output,
+        )
 
     def show_lynis_issues_only(self):
-        text = getattr(self, "lynis_last_output", "") or ""
-        if not text.strip():
-            self.log("Lynis: Keine Ausgabe vorhanden.")
-            return
-
-        filtered = self.extract_lynis_issues_and_recommendations(text)
-        self.lynis_text.configure(state="normal")
-        self.lynis_text.delete("1.0", "end")
-        self.lynis_text.insert("1.0", filtered)
-        self.lynis_text.configure(state="disabled")
+        security_audit_controller.show_lynis_issues_only(
+            self,
+            normalize_output_fn=normalize_lynis_output,
+        )
 
     def show_lynis_full_output(self):
-        text = getattr(self, "lynis_last_output", "") or ""
-        if not text.strip():
-            return
-
-        self.lynis_text.configure(state="normal")
-        self.lynis_text.delete("1.0", "end")
-        self.lynis_text.insert("1.0", text)
-        self.lynis_text.configure(state="disabled")
+        security_audit_controller.show_lynis_full_output(self)
 
     def analyze_lynis_issues_with_chad(self):
-        text = getattr(self, "lynis_last_output", "") or ""
-        if not text.strip():
-            self.log("Lynis: Keine Ausgabe vorhanden.")
-            return
-
-        filtered = self.extract_lynis_issues_and_recommendations(text)
-        self.prepare_chad_analysis("Lynis Probleme Analyse", filtered)
+        security_audit_controller.analyze_lynis_issues_with_chad(
+            self,
+            normalize_output_fn=normalize_lynis_output,
+        )
 
     def _update_lynis_summary_from_output(self, output: str, rc: int):
-        cleaned_output = normalize_lynis_output(output)
-        hardening = "-"
-        warnings_count = "-"
-        suggestions_count = "-"
-
-        def _extract_value(label):
-            patterns = [
-                rf"{label}\s*\((\d+)\)",
-                rf"{label}\s*:?\s*(\d+)",
-            ]
-            for pattern in patterns:
-                match = re.search(pattern, cleaned_output, re.IGNORECASE)
-                if match:
-                    return match.group(1)
-            return "-"
-
-        hardening = _extract_value("Hardening index")
-        warnings_count = _extract_value("Warnings")
-        suggestions_count = _extract_value("Suggestions")
-
-        status = "OK" if rc == 0 else f"Fehler (rc={rc})"
-        self.lynis_summary_var.set(
-            f"Status: {status} | Hardening Index: {hardening} | Warnings: {warnings_count} | Suggestions: {suggestions_count}"
+        security_audit_controller.update_lynis_summary_from_output(
+            self,
+            output,
+            rc,
+            normalize_output_fn=normalize_lynis_output,
         )
-        self.lynis_last_result = {
-            "rc": rc,
-            "hardening_index": hardening,
-            "warnings": warnings_count,
-            "suggestions": suggestions_count,
-        }
 
     def _set_lynis_buttons_state(self, enabled: bool):
-        state = "normal" if enabled else "disabled"
-        feature_enabled = bool(self.dep_status.get("lynis"))
-        if hasattr(self, "btn_lynis_quick"):
-            self.btn_lynis_quick.configure(
-                state=state if enabled and feature_enabled else "disabled"
-            )
-        if hasattr(self, "btn_lynis_full"):
-            self.btn_lynis_full.configure(
-                state=state if enabled and feature_enabled else "disabled"
-            )
+        security_audit_controller.set_lynis_buttons_state(self, enabled)
 
     def _finish_lynis_audit(self, rc, out, *, mode: str = "quick"):
-        self.lynis_running = False
-        self.lynis_active_process = None
-        clean_output = normalize_lynis_output(out or "Keine Ausgabe.")
-        self.lynis_last_output = clean_output
-        self.lynis_status_var.set("abgeschlossen" if rc == 0 else f"Fehler (rc={rc})")
-        self.update_lynis_output(clean_output)
-        self._update_lynis_summary_from_output(clean_output, rc)
-        self._set_lynis_buttons_state(True)
-        self.log(
-            (
-                f"Lynis {'Quick' if mode == 'quick' else 'Full'} Scan abgeschlossen."
-                if rc == 0
-                else f"Lynis {'Quick' if mode == 'quick' else 'Full'} Scan fehlgeschlagen (rc={rc})."
-            )
+        security_audit_controller.finish_lynis_audit(
+            self,
+            rc,
+            out,
+            mode=mode,
+            normalize_output_fn=normalize_lynis_output,
         )
 
     def _lynis_scan_worker(self, cmd, timeout: int, mode: str, header: str):
-        rc, out = run_cmd(cmd, timeout=timeout)
-        clean = normalize_lynis_output(out)
-        output = normalize_lynis_output(f"{header}\n\n{clean or 'Keine Ausgabe.'}")
-        self.after(
-            0,
-            lambda r=rc, o=output, m=mode: self._finish_lynis_audit(r, o, mode=m),
+        security_audit_controller.lynis_scan_worker(
+            self,
+            cmd,
+            timeout,
+            mode,
+            header,
+            normalize_output_fn=normalize_lynis_output,
         )
 
     def _start_lynis_scan(self, *, mode: str, cmd, timeout: int, header: str):
-        if self.__dict__.get("lynis_running", False):
-            self.log_safe("Lynis-Audit läuft bereits.")
-            self.open_lynis_tab()
-            return
-        if not has_cmd("lynis"):
-            self.lynis_status_var.set("nicht installiert")
-            self.lynis_summary_var.set(
-                "Lynis fehlt. Installationshinweis im Log verfügbar."
-            )
-            self.update_lynis_output(
-                "Lynis ist nicht installiert. Bitte den Installationshinweis im Log verwenden."
-            )
-            self.show_lynis_install_hint()
-            self.open_lynis_tab()
-            return
-
-        self.lynis_running = True
-        self.lynis_active_process = "thread"
-        self.lynis_status_var.set("läuft")
-        self.lynis_summary_var.set(
-            "Quick Scan wird ausgeführt ..."
-            if mode == "quick"
-            else "Full Security Scan wird ausgeführt ..."
+        security_audit_controller.start_lynis_scan(
+            self,
+            mode=mode,
+            cmd=cmd,
+            timeout=timeout,
+            header=header,
         )
-        self.open_lynis_tab()
-        self.clear_lynis_output()
-        self.update_lynis_output(f"{header}\n\nScan gestartet. Ausgabe folgt ...")
-        self._set_lynis_buttons_state(False)
-        self.log(
-            "Lynis Quick Scan gestartet (ohne root)"
-            if mode == "quick"
-            else "Lynis Full Scan gestartet (sudo erforderlich)"
-        )
-        threading.Thread(
-            target=self._lynis_scan_worker,
-            args=(cmd, timeout, mode, header),
-            daemon=True,
-        ).start()
 
     def run_lynis_quick(self):
-        self._start_lynis_scan(
-            mode="quick",
-            cmd=["lynis", "audit", "system", "--no-colors"],
-            timeout=120,
-            header="=== Lynis Quick Scan (eingeschränkt) ===",
-        )
+        security_audit_controller.run_lynis_quick(self)
 
     def run_lynis_full(self):
-        messagebox.showinfo(
-            "Lynis Full Scan",
-            "Dieser Scan benötigt Administratorrechte (sudo).\n\n"
-            "Er führt eine vollständige Sicherheitsprüfung durch.",
-            parent=self,
-        )
-        if not self.ensure_sudo_session("Lynis Full Security Scan"):
-            return
-        self._start_lynis_scan(
-            mode="full",
-            cmd=["sudo", "lynis", "audit", "system", "--no-colors"],
-            timeout=180,
-            header="=== Lynis Full Security Scan (sudo) ===",
-        )
+        security_audit_controller.run_lynis_full(self)
 
     def lynis_audit_async(self):
-        self.run_lynis_quick()
+        security_audit_controller.lynis_audit_async(self)
 
     def build_rkhunter_tab(self):
         rkh_top = ttk.Frame(self.tab_rkhunter)
@@ -12701,355 +7750,78 @@ class App(TkBase):
         self.rkhunter_text.configure(state="disabled")
 
     def _set_rkhunter_repair_available(self, enabled):
-        self.rkhunter_repair_available = bool(enabled)
-        if hasattr(self, "btn_rkhunter_repair"):
-            self.btn_rkhunter_repair.configure(
-                state="normal" if self.rkhunter_repair_available else "disabled"
-            )
+        security_audit_controller.set_rkhunter_repair_available(self, enabled)
 
     def open_rkhunter_tab(self):
-        self._select_security_tab(self.tab_rkhunter)
+        security_audit_controller.open_rkhunter_tab(self)
 
     def update_rkhunter_output(self, text: str, append: bool = False):
-        if not hasattr(self, "rkhunter_text") or self.rkhunter_text is None:
-            return
-        self.rkhunter_text.configure(state="normal")
-        if not append:
-            self.rkhunter_text.delete("1.0", "end")
-        if text:
-            if append and self.rkhunter_text.index("end-1c") != "1.0":
-                self.rkhunter_text.insert("end", "\n\n")
-            self.rkhunter_text.insert("end", text)
-        self.rkhunter_text.see("end")
-        self.rkhunter_text.configure(state="disabled")
+        security_audit_controller.update_rkhunter_output(
+            self,
+            text,
+            append=append,
+        )
 
     def clear_rkhunter_output(self):
-        self.update_rkhunter_output("")
-        if not self.rkhunter_running and not self.rkhunter_updating:
-            self.rkhunter_summary_var.set("Noch kein Scan ausgeführt.")
+        security_audit_controller.clear_rkhunter_output(self)
 
     def _update_rkhunter_summary_from_output(self, output: str, rc: int):
-        cleaned_output = re.sub(r"\[[0-9;]*[A-Za-z]", "", output or "")
-        warning_count = len(re.findall(r"Warning", cleaned_output, re.IGNORECASE))
-        ok_count = len(re.findall(r"OK", cleaned_output, re.IGNORECASE))
-        suspect_hits = len(
-            re.findall(
-                r"(found|suspect|infected|rootkit)", cleaned_output, re.IGNORECASE
-            )
-        )
-
-        status = "unauffällig"
-        if warning_count > 0 or suspect_hits > 0:
-            status = "Hinweise/Warnungen gefunden"
-        if rc not in (0,):
-            status = f"Prüfung beendet (rc={rc})"
-
-        self.rkhunter_summary_var.set(
-            f"Warnungen: {warning_count} | OK-Meldungen: {ok_count} | Status: {status}"
-        )
-        self.rkhunter_last_result = {
-            "rc": rc,
-            "warnings": warning_count,
-            "ok": ok_count,
-            "suspect_hits": suspect_hits,
-            "status": status,
-        }
+        security_audit_controller.update_rkhunter_summary_from_output(self, output, rc)
 
     def _finish_rkhunter_update(self, rc, out):
-        self.rkhunter_updating = False
-        self.rkhunter_active_process = None
-        update_problem = detect_update_failure(out or "")
-        self._set_rkhunter_repair_available(update_problem)
-        if self._looks_like_rkhunter_web_cmd_issue(out) or update_problem:
-            self.rkhunter_status_var.set("Konfig-Problem")
-        else:
-            self.rkhunter_status_var.set(
-                "bereit" if rc == 0 else f"Update-Fehler (rc={rc})"
-            )
-        self.update_rkhunter_output(out or "Keine Ausgabe.")
-        if self._looks_like_rkhunter_web_cmd_issue(out):
-            self.rkhunter_summary_var.set(
-                "rkhunter-Update durch fehlerhafte WEB_CMD-Konfiguration blockiert."
-            )
-            self.show_rkhunter_web_cmd_hint()
-        elif update_problem:
-            self.rkhunter_summary_var.set(
-                "RKHunter update failed | Reason: mirror database/config problem detected | Action available: Repair configuration and retry update"
-            )
-        else:
-            lowered_out = (out or "").strip().lower()
-            if rc == 0 and any(
-                marker in lowered_out
-                for marker in (
-                    "already has the latest",
-                    "already up to date",
-                    "no updates available",
-                    "not updated",
-                )
-            ):
-                self.rkhunter_last_update_var.set("Updates aktuell")
-            elif rc == 0:
-                self.rkhunter_last_update_var.set(datetime.now().strftime("%Y-%m-%d"))
-            self.rkhunter_summary_var.set(
-                "rkhunter-Datenbasis aktualisiert."
-                if rc == 0
-                else f"Update beendet (rc={rc})."
-            )
-        if hasattr(self, "btn_rkhunter_update"):
-            self.btn_rkhunter_update.configure(
-                state="normal" if self.dep_status.get("rkhunter") else "disabled"
-            )
-        if hasattr(self, "btn_rkhunter_scan"):
-            self.btn_rkhunter_scan.configure(
-                state="normal" if self.dep_status.get("rkhunter") else "disabled"
-            )
-        self.log_safe(
-            "rkhunter-Update abgeschlossen."
-            if rc == 0
-            else f"rkhunter-Update fehlgeschlagen (rc={rc})."
+        security_audit_controller.finish_rkhunter_update(
+            self,
+            rc,
+            out,
+            detect_update_failure_fn=detect_update_failure,
         )
 
     def _rkhunter_update_worker(self):
-        rc, out = run_rkhunter_update(timeout=600)
-        self.after(0, lambda r=rc, o=out: self._finish_rkhunter_update(r, o))
+        security_audit_controller.rkhunter_update_worker(
+            self,
+            run_rkhunter_update_fn=run_rkhunter_update,
+        )
 
     def rkhunter_update_async(self):
-        if self.rkhunter_running or self.rkhunter_updating:
-            self.log_safe("rkhunter läuft bereits.")
-            self.open_rkhunter_tab()
-            return
-        if not is_rkhunter_installed():
-            self.rkhunter_status_var.set("nicht installiert")
-            self.rkhunter_summary_var.set(
-                "rkhunter fehlt. Installationshinweis im Log verfügbar."
-            )
-            self.update_rkhunter_output(
-                "rkhunter ist nicht installiert. Bitte den Installationshinweis im Log verwenden."
-            )
-            self.show_rkhunter_install_hint()
-            self.open_rkhunter_tab()
-            return
-        if not self.ensure_sudo_session("rkhunter Update"):
-            self.rkhunter_status_var.set("sudo abgebrochen")
-            self.rkhunter_summary_var.set(
-                "rkhunter-Update wurde ohne sudo-Freigabe nicht gestartet."
-            )
-            self.update_rkhunter_output(
-                "rkhunter benötigt Root-Rechte. Bitte sudo-Freigabe erteilen und den Update-Vorgang erneut starten."
-            )
-            self.open_rkhunter_tab()
-            return
-
-        self.rkhunter_updating = True
-        self.rkhunter_active_process = "thread"
-        self._set_rkhunter_repair_available(False)
-        self.rkhunter_status_var.set("update läuft")
-        self.rkhunter_summary_var.set("rkhunter-Update wird ausgeführt ...")
-        self.open_rkhunter_tab()
-        self.update_rkhunter_output("rkhunter Update wird gestartet...")
-        if hasattr(self, "btn_rkhunter_update"):
-            self.btn_rkhunter_update.configure(state="disabled")
-        if hasattr(self, "btn_rkhunter_scan"):
-            self.btn_rkhunter_scan.configure(state="disabled")
-        self.log_safe("rkhunter-Update gestartet.")
-        threading.Thread(target=self._rkhunter_update_worker, daemon=True).start()
+        security_audit_controller.rkhunter_update_async(
+            self,
+            is_rkhunter_installed_fn=is_rkhunter_installed,
+        )
 
     def _finish_rkhunter_repair(self, backup_rc, backup_out, repair_rc, repair_out):
-        if backup_rc != 0:
-            self.rkhunter_updating = False
-            self.rkhunter_active_process = None
-            self.rkhunter_status_var.set("Repair-Fehler")
-            self.rkhunter_summary_var.set(
-                "Backup der rkhunter-Konfiguration fehlgeschlagen."
-            )
-            self.update_rkhunter_output(
-                (backup_out or "Backup fehlgeschlagen.")
-                + "\n\nKeine Änderungen wurden angewendet."
-            )
-            if hasattr(self, "btn_rkhunter_update"):
-                self.btn_rkhunter_update.configure(
-                    state="normal" if self.dep_status.get("rkhunter") else "disabled"
-                )
-            if hasattr(self, "btn_rkhunter_scan"):
-                self.btn_rkhunter_scan.configure(
-                    state="normal" if self.dep_status.get("rkhunter") else "disabled"
-                )
-            self._set_rkhunter_repair_available(True)
-            self.log_safe(
-                "rkhunter-Repair fehlgeschlagen: Backup konnte nicht erstellt werden."
-            )
-            return
-
-        if repair_rc != 0:
-            self.rkhunter_updating = False
-            self.rkhunter_active_process = None
-            self.rkhunter_status_var.set("Repair-Fehler")
-            self.rkhunter_summary_var.set(
-                "rkhunter-Konfiguration konnte nicht repariert werden."
-            )
-            self.update_rkhunter_output(
-                (repair_out or "Repair fehlgeschlagen.")
-                + f"\n\nBackup: {RKHUNTER_BACKUP_PATH}"
-            )
-            if hasattr(self, "btn_rkhunter_update"):
-                self.btn_rkhunter_update.configure(
-                    state="normal" if self.dep_status.get("rkhunter") else "disabled"
-                )
-            if hasattr(self, "btn_rkhunter_scan"):
-                self.btn_rkhunter_scan.configure(
-                    state="normal" if self.dep_status.get("rkhunter") else "disabled"
-                )
-            self._set_rkhunter_repair_available(True)
-            self.log_safe(
-                "rkhunter-Repair fehlgeschlagen: Konfiguration konnte nicht geschrieben werden."
-            )
-            return
-
-        self.update_rkhunter_output(
-            "RKHunter update configuration repaired\n"
-            f"Backup: {RKHUNTER_BACKUP_PATH}\n\n"
-            "Update wird erneut ausgeführt ...",
-            append=False,
+        security_audit_controller.finish_rkhunter_repair(
+            self,
+            backup_rc,
+            backup_out,
+            repair_rc,
+            repair_out,
+            backup_path=RKHUNTER_BACKUP_PATH,
         )
-        self.rkhunter_summary_var.set("RKHunter update configuration repaired")
-        self.rkhunter_status_var.set("retry update läuft")
-        self.log_safe("rkhunter-Konfiguration repariert, Update wird erneut gestartet.")
-        threading.Thread(target=self._rkhunter_update_worker, daemon=True).start()
 
     def _rkhunter_repair_worker(self):
-        backup_rc, backup_out = rkhunter_backup_config()
-        repair_rc, repair_out = rkhunter_repair_config()
-        self.after(
-            0,
-            lambda brc=backup_rc, bout=backup_out, rrc=repair_rc, rout=repair_out: self._finish_rkhunter_repair(
-                brc, bout, rrc, rout
-            ),
+        security_audit_controller.rkhunter_repair_worker(
+            self,
+            rkhunter_backup_config_fn=rkhunter_backup_config,
+            rkhunter_repair_config_fn=rkhunter_repair_config,
         )
 
     def rkhunter_repair_update_async(self):
-        if self.rkhunter_running or self.rkhunter_updating:
-            self.log_safe("rkhunter läuft bereits.")
-            self.open_rkhunter_tab()
-            return
-        if not is_rkhunter_installed():
-            self.rkhunter_status_var.set("nicht installiert")
-            self.rkhunter_summary_var.set(
-                "rkhunter fehlt. Installationshinweis im Log verfügbar."
-            )
-            self.show_rkhunter_install_hint()
-            self.open_rkhunter_tab()
-            return
-        if not self.ensure_sudo_session("rkhunter Repair"):
-            self.rkhunter_status_var.set("sudo abgebrochen")
-            self.rkhunter_summary_var.set(
-                "rkhunter-Repair wurde ohne sudo-Freigabe nicht gestartet."
-            )
-            self.update_rkhunter_output(
-                "rkhunter-Repair benötigt Root-Rechte. Bitte sudo-Freigabe erteilen und die Reparatur erneut starten."
-            )
-            self.open_rkhunter_tab()
-            return
-
-        self.rkhunter_updating = True
-        self.rkhunter_active_process = "thread"
-        self.rkhunter_status_var.set("repair läuft")
-        self.rkhunter_summary_var.set(
-            "RKHunter update failed | Reason: mirror database/config problem detected | Action available: Repair configuration and retry update"
+        security_audit_controller.rkhunter_repair_update_async(
+            self,
+            is_rkhunter_installed_fn=is_rkhunter_installed,
         )
-        self.open_rkhunter_tab()
-        self.update_rkhunter_output(
-            "RKHunter update failed\n"
-            "Reason: mirror database/config problem detected\n"
-            "Action available: Repair configuration and retry update\n\n"
-            "Backup wird erstellt und Konfiguration repariert ...",
-            append=False,
-        )
-        if hasattr(self, "btn_rkhunter_update"):
-            self.btn_rkhunter_update.configure(state="disabled")
-        if hasattr(self, "btn_rkhunter_scan"):
-            self.btn_rkhunter_scan.configure(state="disabled")
-        self._set_rkhunter_repair_available(False)
-        self.log_safe("rkhunter-Repair gestartet.")
-        threading.Thread(target=self._rkhunter_repair_worker, daemon=True).start()
 
     def _finish_rkhunter_scan(self, rc, out):
-        self.rkhunter_running = False
-        self.rkhunter_active_process = None
-        if self._looks_like_rkhunter_web_cmd_issue(out):
-            self.rkhunter_status_var.set("Konfig-Fehler")
-        else:
-            self.rkhunter_status_var.set(
-                "abgeschlossen" if rc == 0 else f"Fehler/Warnung (rc={rc})"
-            )
-        self.update_rkhunter_output(out or "Keine Ausgabe.")
-        if self._looks_like_rkhunter_web_cmd_issue(out):
-            self.rkhunter_summary_var.set(
-                "rkhunter-Scan durch fehlerhafte WEB_CMD-Konfiguration blockiert."
-            )
-            self.show_rkhunter_web_cmd_hint()
-        else:
-            self._update_rkhunter_summary_from_output(out or "", rc)
-        if hasattr(self, "btn_rkhunter_update"):
-            self.btn_rkhunter_update.configure(
-                state="normal" if self.dep_status.get("rkhunter") else "disabled"
-            )
-        if hasattr(self, "btn_rkhunter_scan"):
-            self.btn_rkhunter_scan.configure(
-                state="normal" if self.dep_status.get("rkhunter") else "disabled"
-            )
-        self.log_safe(
-            "rkhunter-Scan abgeschlossen."
-            if rc == 0
-            else "rkhunter-Scan mit Hinweis/Warnung beendet."
-        )
+        security_audit_controller.finish_rkhunter_scan(self, rc, out)
 
     def _rkhunter_scan_worker(self):
-        rc, out = run_cmd(
-            ["sudo", "-n", "rkhunter", "--check", "--skip-keypress", "--nocolors"],
-            timeout=1800,
-        )
-        self.after(0, lambda r=rc, o=out: self._finish_rkhunter_scan(r, o))
+        security_audit_controller.rkhunter_scan_worker(self)
 
     def rkhunter_scan_async(self):
-        if self.rkhunter_running or self.rkhunter_updating:
-            self.log_safe("rkhunter läuft bereits.")
-            self.open_rkhunter_tab()
-            return
-        if not is_rkhunter_installed():
-            self.rkhunter_status_var.set("nicht installiert")
-            self.rkhunter_summary_var.set(
-                "rkhunter fehlt. Installationshinweis im Log verfügbar."
-            )
-            self.update_rkhunter_output(
-                "rkhunter ist nicht installiert. Bitte den Installationshinweis im Log verwenden."
-            )
-            self.show_rkhunter_install_hint()
-            self.open_rkhunter_tab()
-            return
-        if not self.ensure_sudo_session("rkhunter Scan"):
-            self.rkhunter_status_var.set("sudo abgebrochen")
-            self.rkhunter_summary_var.set(
-                "rkhunter-Scan wurde ohne sudo-Freigabe nicht gestartet."
-            )
-            self.update_rkhunter_output(
-                "rkhunter benötigt Root-Rechte. Bitte sudo-Freigabe erteilen und den Scan erneut starten."
-            )
-            self.open_rkhunter_tab()
-            return
-
-        self.rkhunter_running = True
-        self.rkhunter_active_process = "thread"
-        self.rkhunter_status_var.set("scan läuft")
-        self.rkhunter_summary_var.set("rkhunter-Scan wird ausgeführt ...")
-        self.open_rkhunter_tab()
-        self.clear_rkhunter_output()
-        self.update_rkhunter_output("rkhunter-Scan gestartet. Ausgabe folgt ...")
-        if hasattr(self, "btn_rkhunter_update"):
-            self.btn_rkhunter_update.configure(state="disabled")
-        if hasattr(self, "btn_rkhunter_scan"):
-            self.btn_rkhunter_scan.configure(state="disabled")
-        self.log_safe("rkhunter-Scan gestartet.")
-        threading.Thread(target=self._rkhunter_scan_worker, daemon=True).start()
+        security_audit_controller.rkhunter_scan_async(
+            self,
+            is_rkhunter_installed_fn=is_rkhunter_installed,
+        )
 
     def build_startup_guard_tab(self):
         startup_top = ttk.Frame(self.tab_startup_guard)
@@ -13240,874 +8012,86 @@ class App(TkBase):
         self.startup_guard_details_text.configure(state="disabled")
 
     def open_startup_guard_tab(self):
-        self._select_security_tab(self.tab_startup_guard)
+        security_audit_controller.open_startup_guard_tab(self)
 
     def update_startup_guard_output(self, text: str, append: bool = False):
-        if (
-            not hasattr(self, "startup_guard_details_text")
-            or self.startup_guard_details_text is None
-        ):
-            return
-        self.startup_guard_details_text.configure(state="normal")
-        if not append:
-            self.startup_guard_details_text.delete("1.0", "end")
-        if text:
-            if append and self.startup_guard_details_text.index("end-1c") != "1.0":
-                self.startup_guard_details_text.insert("end", "\n\n")
-            self.startup_guard_details_text.insert("end", text)
-        self.startup_guard_details_text.see("end")
-        self.startup_guard_details_text.configure(state="disabled")
+        security_audit_controller.update_startup_guard_output(
+            self,
+            text,
+            append=append,
+        )
 
     def clear_startup_guard_output(self):
-        tree = self.__dict__.get("startup_guard_tree")
-        if tree is not None:
-            tree.delete(*tree.get_children())
-        self.startup_guard_visible_entries = []
-        self.startup_guard_selected_entry = None
-        self.update_startup_guard_output("")
-        if not self.startup_guard_running:
-            self.startup_guard_status_var.set(
-                self.tr(
-                    "startup_guard_status_ready_no_baseline",
-                    "Startup Guard bereit. Noch keine Baseline geladen.",
-                )
-            )
+        security_audit_controller.clear_startup_guard_output(self)
 
     def _format_startup_guard_entry(self, entry: dict) -> str:
-        source = str(entry.get("source") or "–").strip()
-        name = str(
-            entry.get("name") or os.path.basename(entry.get("path") or "") or "–"
-        )
-        path = str(entry.get("path") or "–").strip()
-        return f"- [{source}] {name} | {path}"
+        return security_audit_controller.format_startup_guard_entry(entry)
 
     def _render_startup_guard_result(self, result: dict, current_count: int) -> str:
-        new_entries = list(result.get("new") or [])
-        removed_entries = list(result.get("removed") or [])
-        changed_entries = list(result.get("changed") or [])
-        trusted_entries = list(result.get("trusted") or [])
-        unchanged_entries = list(result.get("unchanged") or [])
-
-        lines = [
-            "=== Startup Guard Prüfung ===",
-            "",
-            f"Aktuelle Einträge: {current_count}",
-            "",
-            "Neue Einträge:",
-        ]
-        if new_entries:
-            lines.extend(
-                self._format_startup_guard_entry(entry) for entry in new_entries
-            )
-        else:
-            lines.append("- Keine neuen Einträge.")
-
-        lines.extend(["", "Entfernte Einträge:"])
-        if removed_entries:
-            lines.extend(
-                self._format_startup_guard_entry(entry) for entry in removed_entries
-            )
-        else:
-            lines.append("- Keine entfernten Einträge.")
-
-        lines.extend(["", "Geänderte Einträge:"])
-        if changed_entries:
-            for item in changed_entries:
-                before = item.get("before") or {}
-                after = item.get("after") or {}
-                lines.append(self._format_startup_guard_entry(after or before))
-                lines.append(
-                    "  Änderung: "
-                    f"sha256 {before.get('sha256', '') != after.get('sha256', '')}, "
-                    f"size {before.get('size', 0)} -> {after.get('size', 0)}, "
-                    f"mtime {before.get('mtime', 0)} -> {after.get('mtime', 0)}"
-                )
-        else:
-            lines.append("- Keine geänderten Einträge.")
-
-        lines.extend(["", "Vertrauensliste / bekannt:"])
-        if trusted_entries:
-            for entry in trusted_entries:
-                item = self._startup_guard_status_entry("TRUSTED", entry)
-                lines.append(self._format_startup_guard_entry(item))
-        else:
-            lines.append("- Keine bekannten Einträge.")
-
-        lines.extend(["", "Unverändert:"])
-        lines.append(f"Anzahl: {len(unchanged_entries)}")
-        return "\n".join(lines)
+        return security_audit_controller.render_startup_guard_result(
+            self,
+            result,
+            current_count,
+        )
 
     def _startup_guard_status_entry(self, status: str, entry) -> dict:
-        if status in {"CHANGED", "TRUSTED"} and (
-            (entry or {}).get("before") is not None
-            or (entry or {}).get("after") is not None
-        ):
-            before = dict((entry or {}).get("before") or {})
-            after = dict((entry or {}).get("after") or {})
-            item = dict(after or before)
-            item["_before"] = before
-            item["_after"] = after
-        else:
-            item = dict(entry or {})
-        item["_status"] = status
-        return item
+        return security_audit_controller.startup_guard_status_entry(status, entry)
 
     def show_startup_guard_result(self, result):
-        tree = self.__dict__.get("startup_guard_tree")
-        if tree is not None:
-            tree.delete(*tree.get_children())
-        self.startup_guard_visible_entries = []
-        self.startup_guard_selected_entry = None
-
-        groups = [
-            ("NEW", result.get("new", [])),
-            ("CHANGED", result.get("changed", [])),
-            ("REMOVED", result.get("removed", [])),
-            ("TRUSTED", result.get("trusted", [])),
-            ("UNCHANGED", result.get("unchanged", [])),
-        ]
-
-        for status, entries in groups:
-            for entry in entries:
-                item = self._startup_guard_status_entry(status, entry)
-                self.startup_guard_visible_entries.append(item)
-                if tree is not None:
-                    tree.insert(
-                        "",
-                        "end",
-                        values=(
-                            status,
-                            item.get("source", "-"),
-                            item.get("name", "-"),
-                            item.get("path", "-"),
-                        ),
-                    )
-
-        summary_text = self._render_startup_guard_result(
-            result,
-            len(self.startup_guard_visible_entries),
-        )
-        self.update_startup_guard_output(summary_text)
+        security_audit_controller.show_startup_guard_result(self, result)
 
     def format_startup_guard_entry_details(self, entry: dict) -> str:
-        lines = []
-        lines.append("=== Startup Guard Eintrag ===")
-        lines.append("")
-        lines.append(f"Status: {entry.get('_status', '-')}")
-        lines.append(f"Quelle: {entry.get('source', '-')}")
-        lines.append(f"Name: {entry.get('name', '-')}")
-        lines.append(f"Pfad: {entry.get('path', '-')}")
-        lines.append(f"Größe: {entry.get('size', '-')}")
-        lines.append(f"MTime: {entry.get('mtime', '-')}")
-        lines.append(f"SHA256: {entry.get('sha256', '-')}")
-
-        before = entry.get("_before") or {}
-        after = entry.get("_after") or {}
-        if entry.get("_status") == "CHANGED" and before:
-            lines.append("")
-            lines.append("Vorher:")
-            lines.append(f"Größe: {before.get('size', '-')}")
-            lines.append(f"MTime: {before.get('mtime', '-')}")
-            lines.append(f"SHA256: {before.get('sha256', '-')}")
-            if after:
-                lines.append("")
-                lines.append("Nachher:")
-                lines.append(f"Größe: {after.get('size', '-')}")
-                lines.append(f"MTime: {after.get('mtime', '-')}")
-                lines.append(f"SHA256: {after.get('sha256', '-')}")
-
-        lines.append("")
-
-        path = entry.get("path", "")
-        if path and os.path.isfile(path):
-            try:
-                with open(path, "r", encoding="utf-8", errors="replace") as handle:
-                    content = handle.read(12000)
-                lines.append("Dateiinhalt/Ausschnitt:")
-                lines.append("-" * 40)
-                lines.append(content)
-            except Exception as exc:
-                lines.append(f"Datei konnte nicht gelesen werden: {exc}")
-        else:
-            lines.append("Datei nicht vorhanden oder entfernt.")
-
-        return "\n".join(lines)
+        return security_audit_controller.format_startup_guard_entry_details(entry)
 
     def on_startup_guard_select(self, _event=None):
-        tree = self.__dict__.get("startup_guard_tree")
-        if tree is None:
-            return
-        selection = tree.selection()
-        if not selection:
-            return
-
-        index = tree.index(selection[0])
-        if index < 0 or index >= len(self.startup_guard_visible_entries):
-            return
-
-        entry = self.startup_guard_visible_entries[index]
-        self.startup_guard_selected_entry = entry
-        details = self.format_startup_guard_entry_details(entry)
-        self.update_startup_guard_output(details)
+        security_audit_controller.on_startup_guard_select(self, _event=_event)
 
     def analyze_selected_startup_entry_with_chad(self):
-        entry = getattr(self, "startup_guard_selected_entry", None)
-        if not entry:
-            self.log(
-                self.tr(
-                    "startup_guard_log_no_entry_selected",
-                    "Startup Guard: Kein Eintrag ausgewählt.",
-                )
-            )
-            return
-
-        details = self.format_startup_guard_entry_details(entry)
-        self.prepare_chad_analysis("Startup Guard Eintrag Analyse", details)
+        security_audit_controller.analyze_selected_startup_entry_with_chad(self)
 
     def analyze_startup_guard_changes_with_chad(self):
-        result = getattr(self, "startup_guard_last_result", None)
-        if not result:
-            self.log(
-                self.tr(
-                    "startup_guard_log_no_check_available",
-                    "Startup Guard: Keine Prüfung vorhanden.",
-                )
-            )
-            return
-
-        parts = ["=== Startup Guard Änderungen ===", ""]
-        for label, key in [
-            ("Neue Einträge", "new"),
-            ("Geänderte Einträge", "changed"),
-            ("Entfernte Einträge", "removed"),
-        ]:
-            entries = list(result.get(key) or [])
-            parts.append(label + ":")
-            if not entries:
-                parts.append("- keine")
-            else:
-                for entry in entries:
-                    if key == "changed":
-                        before = (entry or {}).get("before") or {}
-                        after = (entry or {}).get("after") or {}
-                        parts.append(
-                            f"- {after.get('source', before.get('source', '-'))}: "
-                            f"{after.get('name', before.get('name', '-'))} | "
-                            f"{after.get('path', before.get('path', '-'))}"
-                        )
-                        parts.append(
-                            "  SHA256 alt/neu: "
-                            f"{before.get('sha256', '-')} -> {after.get('sha256', '-')}"
-                        )
-                    else:
-                        parts.append(
-                            f"- {entry.get('source', '-')}: {entry.get('name', '-')} | "
-                            f"{entry.get('path', '-')}"
-                        )
-                        parts.append(f"  SHA256: {entry.get('sha256', '-')}")
-            parts.append("")
-
-        text = "\n".join(parts)
-        self.prepare_chad_analysis("Startup Guard Änderungen Analyse", text)
+        security_audit_controller.analyze_startup_guard_changes_with_chad(self)
 
     def format_path_guard_result(self, result: dict) -> str:
-        lines = []
-        hints = []
-        suspicious_found = False
-
-        lines.append("=== PATH Guard Prüfung ===")
-        lines.append("")
-        lines.append(f"Risiko: {result.get('risk', '-')}")
-        lines.append(f"Hoch: {result.get('counts', {}).get('high', 0)}")
-        lines.append(f"Mittel: {result.get('counts', {}).get('medium', 0)}")
-        lines.append("")
-
-        lines.append("Aktueller PATH:")
-        for idx, entry in enumerate(result.get("path_entries", []), start=1):
-            lines.append(f"{idx}. {entry}")
-
-        lines.append("")
-        lines.append("PATH-Einträge:")
-        relevant_path_findings = False
-        for item in result.get("path_findings", []):
-            sev = item.get("severity", "ok")
-            entry = item.get("entry", "-")
-            issues = item.get("issues", [])
-            if sev == "ok":
-                continue
-            if sev == "info":
-                for issue in issues:
-                    if "/snap/bin" in issue:
-                        hints.append(issue)
-                    elif "User-Bin-Pfad" in issue:
-                        hints.append(
-                            f"{entry} ist als User-Bin-Pfad im PATH eingebunden."
-                        )
-                continue
-            relevant_path_findings = True
-            suspicious_found = True
-            lines.append(f"- [{sev.upper()}] {entry}")
-            for issue in issues:
-                lines.append(f"  - {issue}")
-        if not relevant_path_findings:
-            lines.append("- Keine auffälligen PATH-Einträge erkannt.")
-
-        lines.append("")
-        lines.append("Shell-Profile:")
-        for profile in result.get("profile_findings", []):
-            path = profile.get("path", "-")
-            exists = profile.get("exists", False)
-            severity = profile.get("severity", "ok")
-            matches = profile.get("matches", [])
-            lines.append(
-                f"- {path} ({'vorhanden' if exists else 'nicht vorhanden'}, {severity})"
-            )
-            for match in matches:
-                if match.get("severity") == "info":
-                    text = str(match.get("text") or "")
-                    if "$HOME/.local/bin" in text or "~/.local/bin" in text:
-                        hints.append(
-                            "~/.local/bin wird über .profile/.bashrc eingebunden. Das ist üblich."
-                        )
-                    if "$HOME/bin" in text or "~/bin" in text:
-                        hints.append(
-                            "~/bin wird über .profile/.bashrc eingebunden. Das ist üblich."
-                        )
-                    continue
-                if match.get("severity") in {"medium", "high"}:
-                    suspicious_found = True
-                lines.append(f"  Zeile {match.get('line')}: {match.get('text')}")
-                for issue in match.get("issues", []):
-                    lines.append(f"    - {issue}")
-
-        unique_hints = []
-        seen_hints = set()
-        for hint in hints:
-            normalized = str(hint or "").strip()
-            if not normalized or normalized in seen_hints:
-                continue
-            seen_hints.add(normalized)
-            unique_hints.append(normalized)
-
-        if unique_hints:
-            lines.append("")
-            lines.append("Hinweise:")
-            for hint in unique_hints:
-                lines.append(f"- {hint}")
-
-        lines.append("")
-        if suspicious_found:
-            lines.append("Verdächtige PATH-Manipulationen sollten geprüft werden.")
-        else:
-            lines.append("Keine verdächtige PATH-Manipulation erkannt.")
-
-        return "\n".join(lines)
+        return security_audit_controller.format_path_guard_result(result)
 
     def set_path_guard_light(self, state: str, message: str = ""):
-        self.path_guard_last_state = str(state or "unknown")
-        status_text = message or ""
-
-        if state == "ok":
-            self.set_light(self.l_path_guard, "green")
-            if not status_text:
-                status_text = "PATH Guard: Risiko niedrig"
-        elif state == "warning":
-            self.set_light(self.l_path_guard, "yellow")
-            if not status_text:
-                status_text = "PATH Guard: Risiko mittel"
-        elif state == "error":
-            self.set_light(self.l_path_guard, "red")
-            if not status_text:
-                status_text = "PATH Guard: Risiko hoch"
-        else:
-            self.set_light(self.l_path_guard, "gray")
-            if not status_text:
-                status_text = "PATH Guard: noch nicht geprüft"
-
-        self.path_guard_status_var.set(status_text)
+        security_audit_controller.set_path_guard_light(
+            self,
+            state,
+            message=message,
+        )
 
     def run_path_guard_check(self):
-        try:
-            if self.path_guard_service is None:
-                self.set_path_guard_light(
-                    "unknown", "PATH Guard: Service nicht verfügbar."
-                )
-                self.log("PATH Guard: Service nicht verfügbar.")
-                return
-            result = self.path_guard_service.run_check()
-            self.path_guard_last_result = result
-            text = self.format_path_guard_result(result)
-            risk = str(result.get("risk") or "").strip().lower()
-
-            if risk == "hoch":
-                self.set_path_guard_light("error", "PATH Guard: Risiko hoch")
-            elif risk == "mittel":
-                self.set_path_guard_light("warning", "PATH Guard: Risiko mittel")
-            elif risk == "niedrig":
-                self.set_path_guard_light("ok", "PATH Guard: Risiko niedrig")
-            else:
-                self.set_path_guard_light("unknown", "PATH Guard: Risiko unbekannt")
-
-            self.security_detail.configure(state="normal")
-            if self.security_detail.index("end-1c") != "1.0":
-                self.security_detail.insert("end", "\n\n")
-            self.security_detail.insert("end", text)
-            self.security_detail.see("end")
-            self.security_detail.configure(state="normal")
-            self.log(
-                f"PATH Guard: Prüfung abgeschlossen (Risiko: {result.get('risk')})."
-            )
-        except Exception as exc:
-            self.set_path_guard_light("error", "PATH Guard: Fehler bei der Prüfung")
-            self.log(f"PATH Guard: Fehler: {exc}")
+        security_audit_controller.run_path_guard_check(self)
 
     def analyze_path_guard_with_chad(self):
-        result = getattr(self, "path_guard_last_result", None)
-        if not result:
-            self.log("PATH Guard: Keine Prüfung vorhanden.")
-            return
-
-        text = self.format_path_guard_result(result)
-        self.prepare_chad_analysis("PATH Guard Analyse", text)
+        security_audit_controller.analyze_path_guard_with_chad(self)
 
     def startup_guard_mark_selected_trusted(self):
-        entry = getattr(self, "startup_guard_selected_entry", None)
-        if not entry:
-            self.log(
-                self.tr(
-                    "startup_guard_log_no_entry_selected",
-                    "Startup Guard: Kein Eintrag ausgewählt.",
-                )
-            )
-            return
-
-        if entry.get("_status") == "REMOVED":
-            self.log(
-                self.tr(
-                    "startup_guard_log_removed_cannot_trust",
-                    "Startup Guard: Entfernte Einträge können nicht als bekannt markiert werden.",
-                )
-            )
-            return
-
-        trustlist_path = self.__dict__.get("startup_guard_trustlist_path", "")
-        ok, err = self.startup_guard_service.mark_trusted(
-            entry.get("path", ""),
-            entry,
-            trustlist_path,
-        )
-        if ok:
-            self.log(
-                self.tr(
-                    "startup_guard_log_marked_trusted",
-                    "Startup Guard: Eintrag als bekannt markiert: {name}",
-                ).format(name=entry.get("name", "-"))
-            )
-            self.startup_guard_check()
-        else:
-            self.log(
-                self.tr(
-                    "startup_guard_log_trustlist_error",
-                    "Startup Guard: Trustlist Fehler: {error}",
-                ).format(error=err)
-            )
+        security_audit_controller.startup_guard_mark_selected_trusted(self)
 
     def startup_guard_remove_selected_trusted(self):
-        entry = getattr(self, "startup_guard_selected_entry", None)
-        if not entry:
-            self.log(
-                self.tr(
-                    "startup_guard_log_no_entry_selected",
-                    "Startup Guard: Kein Eintrag ausgewählt.",
-                )
-            )
-            return
-
-        trustlist_path = self.__dict__.get("startup_guard_trustlist_path", "")
-        ok, err = self.startup_guard_service.remove_trusted(
-            entry.get("path", ""),
-            trustlist_path,
-        )
-        if ok:
-            self.log(
-                self.tr(
-                    "startup_guard_log_removed_trusted",
-                    "Startup Guard: Eintrag aus Vertrauensliste entfernt: {name}",
-                ).format(name=entry.get("name", "-"))
-            )
-            self.startup_guard_check()
-        else:
-            self.log(
-                self.tr(
-                    "startup_guard_log_trustlist_error",
-                    "Startup Guard: Trustlist Fehler: {error}",
-                ).format(error=err)
-            )
+        security_audit_controller.startup_guard_remove_selected_trusted(self)
 
     def startup_guard_show_trustlist(self):
-        trustlist_path = self.__dict__.get("startup_guard_trustlist_path", "")
-        trustlist = self.startup_guard_service.load_trustlist(trustlist_path)
-        trusted = dict(trustlist.get("trusted") or {})
-        lines = ["=== Startup Guard Vertrauensliste ===", ""]
-
-        if not trusted:
-            lines.append(
-                self.tr(
-                    "startup_guard_trustlist_empty",
-                    "Keine Einträge vorhanden.",
-                )
-            )
-        else:
-            for path, item in sorted(trusted.items()):
-                lines.append(f"- {item.get('name', '-')}")
-                lines.append(f"  Pfad: {path}")
-                lines.append(f"  SHA256: {item.get('sha256', '-')}")
-                lines.append(f"  Markiert: {item.get('trusted_at', '-')}")
-                lines.append("")
-
-        self.open_startup_guard_tab()
-        self.update_startup_guard_output("\n".join(lines))
+        security_audit_controller.startup_guard_show_trustlist(self)
 
     def set_startup_guard_light(self, state: str, message: str = ""):
-        self.startup_guard_last_state = str(state or "off")
-        status_text = message or ""
-
-        if state == "ok":
-            self.set_light(self.l_startup_guard, "green")
-            if not status_text:
-                status_text = self.tr(
-                    "startup_guard_status_ok",
-                    "Startup Guard: OK",
-                )
-        elif state == "changed":
-            self.set_light(self.l_startup_guard, "yellow")
-            if not status_text:
-                status_text = self.tr(
-                    "startup_guard_status_changed",
-                    "Startup Guard: Änderungen erkannt",
-                )
-        elif state == "error":
-            self.set_light(self.l_startup_guard, "red")
-            if not status_text:
-                status_text = self.tr(
-                    "startup_guard_status_error",
-                    "Startup Guard: Fehler",
-                )
-        else:
-            self.set_light(self.l_startup_guard, "gray")
-            if not status_text:
-                status_text = self.tr(
-                    "startup_guard_status_no_baseline",
-                    "Startup Guard: keine Baseline",
-                )
-
-        self.startup_guard_status_var.set(status_text)
+        security_audit_controller.set_startup_guard_light(
+            self,
+            state,
+            message=message,
+        )
 
     def startup_guard_startup_check(self):
-        try:
-            if self.startup_guard_service is None:
-                self.set_startup_guard_light(
-                    "error",
-                    self.tr(
-                        "startup_guard_status_service_unavailable",
-                        "Startup Guard: Service nicht verfügbar",
-                    ),
-                )
-                return
-            if not os.path.isfile(self.startup_guard_baseline_path):
-                self.set_startup_guard_light(
-                    "off",
-                    self.tr(
-                        "startup_guard_status_no_baseline_available",
-                        "Startup Guard: keine Baseline vorhanden",
-                    ),
-                )
-                return
-
-            baseline = self.startup_guard_service.load_baseline(
-                self.startup_guard_baseline_path
-            )
-            trustlist_path = self.__dict__.get("startup_guard_trustlist_path", "")
-            trustlist = self.startup_guard_service.load_trustlist(trustlist_path)
-            if not isinstance(baseline, dict) or "entries" not in baseline:
-                self.set_startup_guard_light(
-                    "error",
-                    self.tr(
-                        "startup_guard_status_baseline_load_failed",
-                        "Startup Guard: Baseline konnte nicht geladen werden",
-                    ),
-                )
-                return
-
-            current = self.startup_guard_service.collect_entries()
-            result = self.startup_guard_service.compare_to_baseline(
-                baseline, current, trustlist
-            )
-            changed_count = (
-                len(result.get("new", []))
-                + len(result.get("changed", []))
-                + len(result.get("removed", []))
-            )
-
-            if changed_count == 0:
-                self.set_startup_guard_light(
-                    "ok",
-                    self.tr(
-                        "startup_guard_status_no_changes",
-                        "Startup Guard: keine Änderungen",
-                    ),
-                )
-            else:
-                self.set_startup_guard_light(
-                    "changed",
-                    self.tr(
-                        "startup_guard_status_changes_detected_count",
-                        "Startup Guard: {count} Änderung(en) erkannt",
-                    ).format(count=changed_count),
-                )
-        except Exception as exc:
-            self.set_startup_guard_light(
-                "error",
-                self.tr(
-                    "startup_guard_status_startcheck_error",
-                    "Startup Guard: Fehler beim Startcheck: {error}",
-                ).format(error=exc),
-            )
+        security_audit_controller.startup_guard_startup_check(self)
 
     def startup_guard_create_baseline(self):
-        if self.startup_guard_running:
-            self.log_safe(
-                self.tr(
-                    "startup_guard_log_already_running",
-                    "Startup Guard läuft bereits.",
-                )
-            )
-            self.open_startup_guard_tab()
-            return
-        if self.startup_guard_service is None:
-            self.set_startup_guard_light(
-                "error",
-                self.tr(
-                    "startup_guard_status_service_unavailable",
-                    "Startup Guard: Service nicht verfügbar",
-                ),
-            )
-            self.update_startup_guard_output(
-                self.tr(
-                    "startup_guard_output_service_unavailable",
-                    "Startup Guard Service ist nicht verfügbar. Bitte Installation prüfen.",
-                )
-            )
-            self.open_startup_guard_tab()
-            return
-
-        self.startup_guard_running = True
-        self.startup_guard_status_var.set(
-            self.tr(
-                "startup_guard_status_creating_baseline",
-                "Baseline wird erstellt ...",
-            )
-        )
-        self.open_startup_guard_tab()
-        self.update_startup_guard_output(
-            self.tr(
-                "startup_guard_output_creating_baseline",
-                "Startup Guard Baseline wird erstellt ...",
-            )
-        )
-
-        def worker():
-            entries = self.startup_guard_service.collect_entries()
-            ok, err = self.startup_guard_service.save_baseline(
-                self.startup_guard_baseline_path,
-                entries,
-            )
-
-            def finish():
-                self.startup_guard_running = False
-                if ok:
-                    self.startup_guard_status_var.set(
-                        self.tr(
-                            "startup_guard_status_baseline_created_count",
-                            "Baseline erstellt ({count} Einträge)",
-                        ).format(count=len(entries))
-                    )
-                    self.update_startup_guard_output(
-                        "\n".join(
-                            [
-                                "=== Startup Guard Baseline ===",
-                                f"Datei: {self.startup_guard_baseline_path}",
-                                f"Einträge: {len(entries)}",
-                                "",
-                                "Hinweis: Diese Baseline dient nur dem späteren Vergleich.",
-                            ]
-                        )
-                    )
-                    self.set_startup_guard_light(
-                        "ok",
-                        self.tr(
-                            "startup_guard_status_baseline_created",
-                            "Startup Guard: Baseline erstellt",
-                        ),
-                    )
-                    self.log(
-                        self.tr(
-                            "startup_guard_log_baseline_created_count",
-                            "Startup Guard: Baseline erstellt ({count} Einträge).",
-                        ).format(count=len(entries))
-                    )
-                else:
-                    self.update_startup_guard_output(
-                        "\n".join(
-                            [
-                                "=== Startup Guard Baseline ===",
-                                "Ergebnis: fehlgeschlagen",
-                                f"Details: {err}",
-                            ]
-                        )
-                    )
-                    self.set_startup_guard_light(
-                        "error",
-                        self.tr(
-                            "startup_guard_status_error",
-                            "Startup Guard: Fehler",
-                        ),
-                    )
-                    self.log(
-                        self.tr(
-                            "startup_guard_log_baseline_error",
-                            "Startup Guard: Baseline Fehler: {error}",
-                        ).format(error=err)
-                    )
-
-            self.after(0, finish)
-
-        threading.Thread(target=worker, daemon=True).start()
+        security_audit_controller.startup_guard_create_baseline(self)
 
     def startup_guard_check(self):
-        if self.startup_guard_running:
-            self.log_safe(
-                self.tr(
-                    "startup_guard_log_already_running",
-                    "Startup Guard läuft bereits.",
-                )
-            )
-            self.open_startup_guard_tab()
-            return
-        if self.startup_guard_service is None:
-            self.set_startup_guard_light(
-                "error",
-                self.tr(
-                    "startup_guard_status_service_unavailable",
-                    "Startup Guard: Service nicht verfügbar",
-                ),
-            )
-            self.update_startup_guard_output(
-                self.tr(
-                    "startup_guard_output_service_unavailable",
-                    "Startup Guard Service ist nicht verfügbar. Bitte Installation prüfen.",
-                )
-            )
-            self.open_startup_guard_tab()
-            return
-        if not os.path.isfile(self.startup_guard_baseline_path):
-            self.set_startup_guard_light(
-                "off",
-                self.tr(
-                    "startup_guard_status_no_baseline_available",
-                    "Startup Guard: keine Baseline vorhanden",
-                ),
-            )
-            self.update_startup_guard_output(
-                "\n".join(
-                    [
-                        "=== Startup Guard Prüfung ===",
-                        "",
-                        "Es ist noch keine Baseline vorhanden.",
-                        "Bitte zuerst 'Baseline erstellen' ausführen.",
-                    ]
-                )
-            )
-            self.open_startup_guard_tab()
-            self.log(
-                self.tr(
-                    "startup_guard_log_no_baseline_available",
-                    "Startup Guard: Keine Baseline vorhanden.",
-                )
-            )
-            return
-
-        self.startup_guard_running = True
-        self.startup_guard_status_var.set(
-            self.tr(
-                "startup_guard_status_check_running",
-                "Startup wird geprüft ...",
-            )
-        )
-        self.open_startup_guard_tab()
-        self.update_startup_guard_output(
-            self.tr(
-                "startup_guard_output_check_running",
-                "Startup Guard Prüfung läuft ...",
-            )
-        )
-
-        def worker():
-            baseline = self.startup_guard_service.load_baseline(
-                self.startup_guard_baseline_path
-            )
-            trustlist_path = self.__dict__.get("startup_guard_trustlist_path", "")
-            trustlist = self.startup_guard_service.load_trustlist(trustlist_path)
-            current = self.startup_guard_service.collect_entries()
-            result = self.startup_guard_service.compare_to_baseline(
-                baseline, current, trustlist
-            )
-
-            def finish():
-                self.startup_guard_running = False
-                self.startup_guard_last_result = result
-                self.startup_guard_status_var.set(
-                    self.tr(
-                        "startup_guard_status_check_done",
-                        "Prüfung abgeschlossen",
-                    )
-                )
-                self.show_startup_guard_result(result)
-                changed_count = (
-                    len(result.get("new", []))
-                    + len(result.get("changed", []))
-                    + len(result.get("removed", []))
-                )
-                if changed_count == 0:
-                    self.set_startup_guard_light(
-                        "ok",
-                        self.tr(
-                            "startup_guard_status_no_changes",
-                            "Startup Guard: keine Änderungen",
-                        ),
-                    )
-                else:
-                    self.set_startup_guard_light(
-                        "changed",
-                        self.tr(
-                            "startup_guard_status_changes_detected_count",
-                            "Startup Guard: {count} Änderung(en) erkannt",
-                        ).format(count=changed_count),
-                    )
-                self.log(
-                    self.tr(
-                        "startup_guard_log_check_done_counts",
-                        "Startup Guard: Prüfung abgeschlossen (neu={new}, entfernt={removed}, geändert={changed}).",
-                    ).format(
-                        new=len(result.get("new") or []),
-                        removed=len(result.get("removed") or []),
-                        changed=len(result.get("changed") or []),
-                    )
-                )
-
-            self.after(0, finish)
-
-        threading.Thread(target=worker, daemon=True).start()
+        security_audit_controller.startup_guard_check(self)
 
     # ---------- Security ----------
     def security_open_tab(self):
@@ -14598,40 +8582,16 @@ class App(TkBase):
         return m.group(1).upper()
 
     def _security_update_status(self, color):
-        self.set_light(self.l_sec, color)
-        self.security_status_var.set(
-            "Monitoring: AKTIV" if self.security_monitoring else "Monitoring: AUS"
-        )
-        self.security_level_var.set(f"Logging: {self.security_log_level}")
-        self.security_count_var.set(f"Events: {len(self.security_events)}")
-        self.security_alarm_var.set(f"Letzter Alarm: {self.security_last_alarm}")
+        security_monitoring_controller.security_update_status(self, color)
 
     def _read_ufw_log_tail(self, lines=1200):
-        rc, out = run_cmd(
-            ["sudo", "-n", "tail", "-n", str(lines), "/var/log/ufw.log"], timeout=8
-        )
-        if rc != 0:
-            rc, out = run_cmd(["tail", "-n", str(lines), "/var/log/ufw.log"], timeout=8)
-        if rc != 0:
-            return []
-        return [ln for ln in (out or "").splitlines() if ln.strip()]
+        return security_monitoring_controller.read_ufw_log_tail(lines=lines)
 
     def _parse_ufw_block_line(self, line):
-        parser = self._security_parser()
-        if parser is None:
-            if not self.__dict__.get("_security_parser_missing_logged"):
-                self._security_parser_missing_logged = True
-                self.log_debug(
-                    "Security parser nicht verfügbar - UFW-Events werden derzeit nicht klassifiziert."
-                )
-            return None
-
-        return parser.parse_ufw_block_line(
+        return security_monitoring_controller.parse_ufw_block_line(
+            self,
             line,
-            aggregated=self.security_aggregated,
-            dedup_cache=self.security_dedup_cache,
             is_local_or_lan_ip_fn=is_local_or_lan_ip,
-            log_debug_fn=self.log_debug,
         )
 
     def _security_detect_portscan(self):
@@ -14715,391 +8675,46 @@ class App(TkBase):
         return findings
 
     def _security_filtered_events(self):
-        store = self._security_store()
-        if store is not None:
-            return store.filtered_events(
-                self.security_events, self.security_filter_mode, limit=400
-            )
-
-        if self.security_filter_mode == "portscan":
-            base = [
-                e for e in self.security_events if e.get("type") == "Portscan-Verdacht"
-            ]
-        elif self.security_filter_mode == "relevant":
-            base = [
-                e
-                for e in self.security_events
-                if any(
-                    token in str(e.get("level", "")).upper()
-                    for token in ("WARN", "ALERT", "CRITICAL")
-                )
-            ]
-        elif self.security_filter_mode == "external":
-            base = [e for e in self.security_events if e.get("external")]
-        else:
-            base = list(self.security_events)
-        return base[-400:]
+        return security_monitoring_controller.security_filtered_events(self)
 
     def _security_compute_stats(self):
-        store = self._security_store()
-        if store is not None:
-            return store.compute_stats(self.security_events)
-
-        total = len(self.security_events)
-        block = sum(
-            1
-            for e in self.security_events
-            if e.get("type") == "UFW BLOCK" and e.get("external")
-        )
-        scan = sum(
-            1 for e in self.security_events if e.get("type") == "Portscan-Verdacht"
-        )
-        src_count = {}
-        port_count = {}
-        for e in self.security_events:
-            if not e.get("external"):
-                continue
-            src = e.get("src", "-")
-            src_count[src] = src_count.get(src, 0) + 1
-            port = e.get("port", "-")
-            if port and port != "-":
-                port_count[port] = port_count.get(port, 0) + 1
-        top_ip = max(src_count.items(), key=lambda kv: kv[1])[0] if src_count else "–"
-        top_port = (
-            max(port_count.items(), key=lambda kv: kv[1])[0] if port_count else "–"
-        )
-        return total, block, scan, top_ip, top_port
+        return security_monitoring_controller.security_compute_stats(self)
 
     def _security_update_stats_view(self):
-        total, block, scan, top_ip, top_port = self._security_compute_stats()
-        self.security_stat_total_var.set(str(total))
-        self.security_stat_block_var.set(str(block))
-        self.security_stat_scan_var.set(str(scan))
-        self.security_stat_top_ip_var.set(top_ip)
-        self.security_stat_top_port_var.set(top_port)
+        security_monitoring_controller.security_update_stats_view(self)
 
     def _refresh_security_table(self):
-        for item in self.security_table.get_children():
-            self.security_table.delete(item)
-        self.security_visible_events = self._security_filtered_events()
-
-        # Aggregierte Events nur in der Gesamtansicht anzeigen,
-        # damit Filteransichten nicht verfälscht wirken.
-        if self.security_filter_mode == "all":
-            agg_idx = 0
-            for cat, count in self.security_aggregated.items():
-                if count > 0:
-                    self.security_table.insert(
-                        "",
-                        "end",
-                        iid=f"agg-{agg_idx}",
-                        values=(
-                            "-",  # time
-                            f"Aggregiert {cat}",
-                            "-",
-                            f"{count}",
-                            "-",
-                            "INFO",
-                            "AGGREGATED",
-                        ),
-                    )
-                    agg_idx += 1
-
-        for idx, e in enumerate(self.security_visible_events):
-            self.security_table.insert(
-                "",
-                "end",
-                iid=f"sec-{idx}",
-                values=(
-                    e.get("time", "-"),
-                    e.get("type", "-"),
-                    e.get("src", "-"),
-                    e.get("port", "-"),
-                    e.get("proto", "-"),
-                    e.get("level", "-"),
-                    e.get("action", "-"),
-                ),
-            )
-        self._security_update_stats_view()
+        security_monitoring_controller.refresh_security_table(self)
 
     def on_security_event_select(self, _event=None):
-        sel = self.security_table.selection()
-        if not sel:
-            return
-        try:
-            idx = int(sel[0].split("-", 1)[1])
-        except Exception:
-            return
-        view = self.security_visible_events
-        if idx < 0 or idx >= len(view):
-            return
-        ev = view[idx]
-        self.security_detail.delete("1.0", "end")
-        self.security_detail.insert("end", ev.get("raw", ""))
-        self.security_detail.see("1.0")
+        security_monitoring_controller.on_security_event_select(self, _event=_event)
 
     def security_refresh_table_action(self):
-        self._refresh_security_table()
-        self.log(
-            self.tr(
-                "security_log_table_refreshed",
-                "Security-Tabelle aktualisiert.",
-            )
-        )
+        security_monitoring_controller.security_refresh_table_action(self)
 
     def security_filter_portscan(self):
-        self.security_filter_mode = "portscan"
-        self._refresh_security_table()
-        self.log(
-            self.tr(
-                "security_log_filter_portscan",
-                "Security-Filter: Nur Portscan.",
-            )
-        )
+        security_monitoring_controller.security_filter_portscan(self)
 
     def security_filter_relevant(self):
-        self.security_filter_mode = "relevant"
-        self._refresh_security_table()
-        self.log(
-            self.tr(
-                "security_log_filter_relevant",
-                "Security-Filter: Nur Warnungen/Alarme.",
-            )
-        )
+        security_monitoring_controller.security_filter_relevant(self)
 
     def security_filter_external(self):
-        self.security_filter_mode = "external"
-        self._refresh_security_table()
-        self.log(
-            self.tr(
-                "security_log_filter_external",
-                "Security-Filter: Nur externe UFW-Blocks.",
-            )
-        )
+        security_monitoring_controller.security_filter_external(self)
 
     def security_filter_all(self):
-        self.security_filter_mode = "all"
-        self._refresh_security_table()
-        self.log(
-            self.tr(
-                "security_log_filter_all",
-                "Security-Filter: Alle Events.",
-            )
-        )
+        security_monitoring_controller.security_filter_all(self)
 
     def security_clear_events(self, confirm=False):
-        if confirm and self.security_events:
-            ok = messagebox.askyesno(
-                self.tr("security_clear_title", "Security-Events leeren"),
-                self.tr(
-                    "security_clear_body",
-                    "Die aktuell angezeigten Security-Events werden entfernt.\n\nFortfahren?",
-                ),
-                parent=self,
-            )
-            if not ok:
-                self.log(
-                    self.tr(
-                        "security_log_clear_cancelled",
-                        "Security-Events leeren abgebrochen.",
-                    )
-                )
-                return
-        self.security_events = []
-        self.security_event_keys = set()
-        self.security_visible_events = []
-        self.security_last_portscan_alert = {}
-        self.security_aggregated = {}
-        self.security_dedup_cache = {}
-        self.security_last_alarm = "–"
-        self.security_detail.delete("1.0", "end")
-        self._refresh_security_table()
-        self._security_update_status("green" if self.security_monitoring else "gray")
-        self.log(
-            self.tr(
-                "security_log_cleared",
-                "Security-Events geleert.",
-            )
-        )
+        security_monitoring_controller.security_clear_events(self, confirm=confirm)
 
     def _security_export_dir(self):
-        home = os.path.expanduser("~")
-        desk_de = os.path.join(home, "Schreibtisch")
-        desk_en = os.path.join(home, "Desktop")
-        if os.path.isdir(desk_de):
-            return desk_de
-        if os.path.isdir(desk_en):
-            return desk_en
-        return home
+        return security_monitoring_controller.security_export_dir()
 
     def export_security_logs(self):
-        stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        export_dir = self._security_export_dir()
-        path = os.path.join(export_dir, f"netmon_security_log_{stamp}.txt")
-        try:
-            with open(path, "w", encoding="utf-8") as f:
-                f.write("NetMon Security Export\n")
-                f.write("=" * 24 + "\n")
-                f.write(f"Exportzeit: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write(
-                    f"Monitoring-Status: {'AKTIV' if self.security_monitoring else 'AUS'}\n"
-                )
-                f.write(f"UFW Logging-Level: {self.security_log_level}\n")
-                f.write(f"Anzahl Events: {len(self.security_events)}\n")
-                f.write(f"Letzter Alarm: {self.security_last_alarm}\n\n")
-
-                # Summary
-                f.write("SECURITY SUMMARY\n")
-                f.write("-" * 20 + "\n")
-                f.write(
-                    f"Externe UFW-Blocks: {len([e for e in self.security_events if e.get('type') == 'UFW BLOCK'])}\n"
-                )
-                f.write(
-                    f"Portscan-Verdacht: {len([e for e in self.security_events if 'PORTSCAN' in e.get('type', '')])}\n"
-                )
-                f.write(
-                    f"Dateiänderungen: {len([e for e in self.security_events if e.get('type', '').startswith('FILE')])}\n"
-                )
-                f.write(
-                    f"Device-Änderungen: {len([e for e in self.security_events if e.get('type', '').startswith('DEVICE')])}\n"
-                )
-                f.write(
-                    f"Input-Access: {len([e for e in self.security_events if 'INPUT ACCESS' in e.get('type', '')])}\n"
-                )
-                for cat, count in self.security_aggregated.items():
-                    f.write(f"Aggregiert {cat}: {count}\n")
-                f.write("\n")
-
-                f.write("SECURITY EVENTS\n")
-                f.write("-" * 120 + "\n")
-                f.write(
-                    "Zeit | Typ | Quelle-IP | Ziel-Port | Protokoll | Level | Aktion\n"
-                )
-                for e in self.security_events:
-                    f.write(
-                        f"{e.get('time','-')} | {e.get('type','-')} | {e.get('src','-')} | "
-                        f"{e.get('port','-')} | {e.get('proto','-')} | {e.get('level','-')} | "
-                        f"{e.get('action','-')}\n"
-                    )
-
-                # Rohdaten nur wenn gewünscht, aber für jetzt immer, da optional nicht implementiert
-                f.write("\nDETAIL / ROHDATEN\n")
-                f.write("-" * 120 + "\n")
-                for idx, e in enumerate(self.security_events, start=1):
-                    f.write(f"[{idx}] {e.get('time','-')} {e.get('type','-')}\n")
-                    f.write((e.get("raw") or "-") + "\n\n")
-
-            self.log(
-                self.tr(
-                    "security_log_exported",
-                    "Security-Logs exportiert: {path}",
-                ).format(path=path)
-            )
-        except Exception as e:
-            messagebox.showerror(
-                self.tr("security_export_title", "Security Export"),
-                self.tr(
-                    "security_export_failed_body",
-                    "Export fehlgeschlagen:\n{error}",
-                ).format(error=e),
-                parent=self,
-            )
-            self.log(
-                self.tr(
-                    "security_log_export_failed",
-                    "Security-Export fehlgeschlagen: {error}",
-                ).format(error=e)
-            )
+        security_monitoring_controller.export_security_logs(self)
 
     def _security_poll_async(self):
-        if not self.security_monitoring or self.security_scan_running:
-            return
-        self.security_scan_running = True
-
-        def job():
-            lines = self._read_ufw_log_tail()
-            new_events = []
-            for ln in lines:
-                ev = self._parse_ufw_block_line(ln)
-                if not ev:
-                    continue
-                if ev["key"] in self.security_event_keys:
-                    continue
-                self.security_event_keys.add(ev["key"])
-                new_events.append(ev)
-
-            if new_events:
-                self.security_events.extend(new_events)
-                self.security_events = self.security_events[-1200:]
-
-            findings = self._security_detect_portscan()
-            for f in findings:
-                if f["key"] in self.security_event_keys:
-                    continue
-                self.security_event_keys.add(f["key"])
-                self.security_events.append(f)
-
-            integrity_events = self.scan_integrity_changes()
-            for f in integrity_events:
-                if f["key"] in self.security_event_keys:
-                    continue
-                self.security_event_keys.add(f["key"])
-                self.security_events.append(f)
-
-            device_events = self.scan_device_changes()
-            for f in device_events:
-                if f["key"] in self.security_event_keys:
-                    continue
-                self.security_event_keys.add(f["key"])
-                self.security_events.append(f)
-
-            input_access_events = self.scan_input_access_changes()
-            for f in input_access_events:
-                if f["key"] in self.security_event_keys:
-                    continue
-                self.security_event_keys.add(f["key"])
-                self.security_events.append(f)
-
-            harmless_rst_events = [
-                e for e in new_events if e.get("type") == "HARMLESS RETURN TRAFFIC"
-            ]
-            has_scan_alert = bool(findings)
-            has_new_blocks = any(
-                e.get("external") and e.get("type") == "UFW BLOCK" for e in new_events
-            )
-            has_custom_alert = bool(
-                integrity_events or device_events or input_access_events
-            )
-            if has_scan_alert:
-                color = "red"
-                self.security_last_alarm = "Portscan-Verdacht"
-            elif has_new_blocks:
-                color = "yellow"
-                self.security_last_alarm = "Neue BLOCK-Events"
-            elif has_custom_alert:
-                color = "yellow"
-                self.security_last_alarm = "Datei-/Geräte-Änderung"
-            else:
-                color = "green"
-
-            def done():
-                self._refresh_security_table()
-                for ev in harmless_rst_events[:5]:
-                    self.log(
-                        ev.get("summary") or "[INFO] harmless return traffic (RST)"
-                    )
-                if len(harmless_rst_events) > 5:
-                    self.log(
-                        f"[INFO] harmless return traffic (RST): {len(harmless_rst_events)} Ereignisse"
-                    )
-                self._security_update_status(color)
-                self.security_scan_running = False
-                if self.security_monitoring:
-                    self.after(5000, self._security_poll_async)
-
-            self.after(0, done)
-
-        threading.Thread(target=job, daemon=True).start()
+        security_monitoring_controller.security_poll_async(self)
 
     def _security_query_log_level(self):
         # Ermittelt das aktuelle UFW-Logging-Level (wenn verfügbar), sonst fallback.
@@ -15127,56 +8742,10 @@ class App(TkBase):
         return "–"
 
     def security_start_monitoring(self):
-        if self.security_monitoring:
-            self.log(
-                self.tr(
-                    "security_log_monitoring_already_running",
-                    "Security Monitoring läuft bereits.",
-                )
-            )
-            return
-        self.security_monitoring = True
-
-        query_fn = getattr(self, "_security_query_log_level", None)
-        if callable(query_fn):
-            try:
-                self.security_log_level = query_fn()
-            except Exception as e:
-                self.security_log_level = "–"
-                self.log(
-                    self.tr(
-                        "security_log_level_query_failed",
-                        "Security: Log-Level-Abfrage fehlgeschlagen: {error}",
-                    ).format(error=e)
-                )
-        else:
-            self.security_log_level = "–"
-            self.log(
-                self.tr(
-                    "security_log_level_query_unavailable",
-                    "Security: Log-Level-Abfrage nicht verfügbar, Fallback '–'.",
-                )
-            )
-
-        self.log(
-            self.tr(
-                "security_log_monitoring_started",
-                "Security Monitoring gestartet.",
-            )
-        )
-        self._security_update_status("green")
-        self._security_poll_async()
+        security_monitoring_controller.security_start_monitoring(self)
 
     def security_stop_monitoring(self):
-        self.security_monitoring = False
-        self.security_scan_running = False
-        self.log(
-            self.tr(
-                "security_log_monitoring_stopped",
-                "Security Monitoring gestoppt.",
-            )
-        )
-        self._security_update_status("gray")
+        security_monitoring_controller.security_stop_monitoring(self)
 
     def security_build_baseline(self):
         self.build_integrity_baseline()
@@ -15222,58 +8791,10 @@ class App(TkBase):
         return ok
 
     def security_scan_now(self):
-        if self.security_scan_running:
-            self.log("Security-Scan läuft bereits.")
-            return
-        self.security_scan_running = True
-
-        def job():
-            new_events = []
-            try:
-                new_events.extend(self.scan_integrity_changes())
-                new_events.extend(self.scan_device_changes())
-                new_events.extend(self.scan_input_access_changes())
-            except Exception as e:
-                self.log_safe(f"Security-Scan fehlgeschlagen: {e}")
-            finally:
-                self.security_scan_running = False
-
-            for ev in new_events:
-                if ev["key"] in self.security_event_keys:
-                    continue
-                self.security_event_keys.add(ev["key"])
-                self.security_events.append(ev)
-            if new_events:
-                self.log_safe(f"Security-Scan: {len(new_events)} neue Events")
-            self._refresh_security_table_safe()
-
-        threading.Thread(target=job, daemon=True).start()
+        security_monitoring_controller.security_scan_now(self)
 
     def security_input_access_scan(self):
-        if self.security_scan_running:
-            self.log("Security-Scan läuft bereits.")
-            return
-        self.security_scan_running = True
-
-        def job():
-            events = []
-            try:
-                events.extend(self.scan_input_access_changes())
-            except Exception as e:
-                self.log_safe(f"Input-Zugriffscheck fehlgeschlagen: {e}")
-            finally:
-                self.security_scan_running = False
-
-            for ev in events:
-                if ev["key"] in self.security_event_keys:
-                    continue
-                self.security_event_keys.add(ev["key"])
-                self.security_events.append(ev)
-            if events:
-                self.log_safe(f"Input-Zugriffscheck: {len(events)} neue Events")
-            self._refresh_security_table_safe()
-
-        threading.Thread(target=job, daemon=True).start()
+        security_monitoring_controller.security_input_access_scan(self)
 
     def update_clamav_panel(
         self,
@@ -15284,18 +8805,15 @@ class App(TkBase):
         findings=None,
         result=None,
     ):
-        if status is not None and hasattr(self, "clamav_status_var"):
-            self.clamav_status_var.set(status)
-        if signatures is not None and hasattr(self, "clamav_signatures_var"):
-            self.clamav_signatures_var.set(signatures)
-        if last_scan is not None and hasattr(self, "clamav_last_scan_var"):
-            self.clamav_last_scan_var.set(last_scan)
-        if last_target is not None and hasattr(self, "clamav_last_target_var"):
-            self.clamav_last_target_var.set(last_target)
-        if findings is not None and hasattr(self, "clamav_findings_var"):
-            self.clamav_findings_var.set(findings)
-        if result is not None and hasattr(self, "clamav_result_var"):
-            self.clamav_result_var.set(result)
+        clamav_controller.update_clamav_panel(
+            self,
+            status=status,
+            signatures=signatures,
+            last_scan=last_scan,
+            last_target=last_target,
+            findings=findings,
+            result=result,
+        )
 
     def update_clamav_panel_safe(
         self,
@@ -15306,222 +8824,48 @@ class App(TkBase):
         findings=None,
         result=None,
     ):
-        if threading.current_thread() is threading.main_thread():
-            self.update_clamav_panel(
-                status=status,
-                signatures=signatures,
-                last_scan=last_scan,
-                last_target=last_target,
-                findings=findings,
-                result=result,
-            )
-            return
-        self.after(
-            0,
-            lambda s=status, sig=signatures, ls=last_scan, lt=last_target, f=findings, r=result: self.update_clamav_panel(
-                status=s,
-                signatures=sig,
-                last_scan=ls,
-                last_target=lt,
-                findings=f,
-                result=r,
-            ),
+        clamav_controller.update_clamav_panel_safe(
+            self,
+            status=status,
+            signatures=signatures,
+            last_scan=last_scan,
+            last_target=last_target,
+            findings=findings,
+            result=result,
         )
 
     def _clamav_findings_open(self):
-        return [
-            item
-            for item in (self.clamav_findings or [])
-            if (item.get("status") or "").strip().lower() == "found"
-        ]
+        return clamav_controller.clamav_findings_open(self)
 
     def _clamav_findings_quarantined(self):
-        return [
-            item
-            for item in (self.clamav_findings or [])
-            if (item.get("status") or "").strip().lower() == "quarantine"
-            and (item.get("quarantine_path") or "").strip()
-        ]
+        return clamav_controller.clamav_findings_quarantined(self)
 
     def _update_clamav_findings_buttons_state(self):
-        has_open = bool(self._clamav_findings_open())
-        has_quarantined = bool(self._clamav_findings_quarantined())
-        open_state = "normal" if has_open else "disabled"
-        quarantine_state = "normal" if has_quarantined else "disabled"
-
-        for name in (
-            "btn_clamav_show_findings",
-            "btn_clamav_quarantine",
-            "btn_clamav_quarantine_selected",
-        ):
-            btn = getattr(self, name, None)
-            if btn is not None:
-                try:
-                    btn.configure(state=open_state)
-                except Exception:
-                    pass
-
-        export_btn = getattr(self, "btn_clamav_export_findings", None)
-        if export_btn is not None:
-            try:
-                export_btn.configure(
-                    state="normal" if bool(self.clamav_findings) else "disabled"
-                )
-            except Exception:
-                pass
-
-        for name in (
-            "btn_clamav_show_quarantine",
-            "btn_clamav_restore_quarantine",
-            "btn_clamav_restore_selected",
-        ):
-            btn = getattr(self, name, None)
-            if btn is not None:
-                try:
-                    btn.configure(state=quarantine_state)
-                except Exception:
-                    pass
+        clamav_controller.update_clamav_findings_buttons_state(self)
 
     def _update_clamav_findings_buttons_state_safe(self):
-        if threading.current_thread() is threading.main_thread():
-            self._update_clamav_findings_buttons_state()
-            return
-        self.after(0, self._update_clamav_findings_buttons_state)
+        clamav_controller.update_clamav_findings_buttons_state_safe(self)
 
     def _write_clamav_output(self, lines, replace=True):
-        widget = getattr(self, "clamav_output_text", None)
-        if widget is None:
-            return
-
-        if isinstance(lines, str):
-            text = lines
-        else:
-            text = "\n".join([str(line) for line in (lines or [])])
-        if text and not text.endswith("\n"):
-            text += "\n"
-
-        def _apply():
-            try:
-                widget.configure(state="normal")
-                if replace:
-                    widget.delete("1.0", "end")
-                widget.insert("end", text)
-                widget.see("end")
-                widget.configure(state="disabled")
-            except Exception:
-                pass
-
-        if threading.current_thread() is threading.main_thread():
-            _apply()
-            return
-        self.after(0, _apply)
+        clamav_controller.write_clamav_output(self, lines, replace=replace)
 
     def _format_runtime_hms(self, seconds):
-        try:
-            total = max(0, int(seconds))
-        except Exception:
-            total = 0
-        h, rem = divmod(total, 3600)
-        m, s = divmod(rem, 60)
-        if h > 0:
-            return f"{h:d}:{m:02d}:{s:02d}"
-        return f"{m:02d}:{s:02d}"
+        return clamav_controller.format_runtime_hms(seconds)
 
     def _clamav_progress_apply(self):
-        started = float(getattr(self, "clamav_scan_started_at", 0.0) or 0.0)
-        scanned = int(getattr(self, "clamav_scanned_files", 0) or 0)
-        expected = getattr(self, "clamav_expected_files", None)
-        elapsed = max(0.0, time.time() - started) if started > 0 else 0.0
-
-        runtime_txt = self._format_runtime_hms(elapsed) if started > 0 else "-"
-        speed_txt = "-"
-        eta_txt = "-"
-        if elapsed >= 1.0 and scanned > 0:
-            speed = scanned / elapsed
-            speed_txt = f"{speed:.1f} Dateien/s"
-            if (
-                isinstance(expected, int)
-                and expected > scanned
-                and speed > 0.1
-                and scanned >= 10
-            ):
-                remaining = expected - scanned
-                eta_seconds = int(max(1, remaining / speed))
-                if eta_seconds >= 3600:
-                    eta_txt = f"~{eta_seconds // 3600} h"
-                elif eta_seconds >= 60:
-                    eta_txt = f"~{eta_seconds // 60} min"
-                else:
-                    eta_txt = f"~{eta_seconds} s"
-            elif isinstance(expected, int) and expected > 0:
-                eta_txt = "wird berechnet..."
-
-        if hasattr(self, "clamav_runtime_var"):
-            self.clamav_runtime_var.set(runtime_txt)
-        if hasattr(self, "clamav_scanned_files_var"):
-            self.clamav_scanned_files_var.set(str(max(0, scanned)))
-        if hasattr(self, "clamav_speed_var"):
-            self.clamav_speed_var.set(speed_txt)
-        if hasattr(self, "clamav_eta_var"):
-            self.clamav_eta_var.set(eta_txt)
+        clamav_controller.clamav_progress_apply(self)
 
     def _clamav_progress_tick(self):
-        self.clamav_progress_after_id = None
-        if not getattr(self, "security_clamav_running", False):
-            return
-        self._clamav_progress_apply()
-        self.clamav_progress_after_id = self.after(1000, self._clamav_progress_tick)
+        clamav_controller.clamav_progress_tick(self)
 
     def _clamav_progress_start(self, expected_files=None):
-        self.clamav_scan_started_at = time.time()
-        self.clamav_scanned_files = 0
-        self.clamav_expected_files = (
-            int(expected_files)
-            if isinstance(expected_files, int) and expected_files > 0
-            else None
-        )
-        if self.clamav_progress_after_id is not None:
-            try:
-                self.after_cancel(self.clamav_progress_after_id)
-            except Exception:
-                pass
-            self.clamav_progress_after_id = None
-        self._clamav_progress_apply()
-        self.clamav_progress_after_id = self.after(1000, self._clamav_progress_tick)
+        clamav_controller.clamav_progress_start(self, expected_files=expected_files)
 
     def _clamav_progress_update_safe(self, scanned_files):
-        def _apply():
-            try:
-                val = int(scanned_files)
-            except Exception:
-                val = 0
-            if val > self.clamav_scanned_files:
-                self.clamav_scanned_files = val
-            self._clamav_progress_apply()
-
-        if threading.current_thread() is threading.main_thread():
-            _apply()
-            return
-        self.after(0, _apply)
+        clamav_controller.clamav_progress_update_safe(self, scanned_files)
 
     def _clamav_progress_finish_safe(self):
-        def _finish():
-            if self.clamav_progress_after_id is not None:
-                try:
-                    self.after_cancel(self.clamav_progress_after_id)
-                except Exception:
-                    pass
-                self.clamav_progress_after_id = None
-            self._clamav_progress_apply()
-            if hasattr(self, "clamav_eta_var"):
-                self.clamav_eta_var.set("-")
-            self.clamav_scan_started_at = 0.0
-            self.clamav_expected_files = None
-
-        if threading.current_thread() is threading.main_thread():
-            _finish()
-            return
-        self.after(0, _finish)
+        clamav_controller.clamav_progress_finish_safe(self)
 
     def _clamav_is_excluded_root(self, path, excluded_roots):
         real = os.path.realpath(path)
@@ -15578,14 +8922,7 @@ class App(TkBase):
         return total
 
     def _clamav_parse_scanned_files(self, output):
-        for line in (output or "").splitlines():
-            s = line.strip()
-            if s.startswith("Scanned files:"):
-                try:
-                    return int(s.split(":", 1)[1].strip())
-                except Exception:
-                    return None
-        return None
+        return clamav_controller.clamav_parse_scanned_files(output)
 
     def _run_clamscan_with_progress(self, cmd, timeout=3600, progress_cb=None):
         proc = None
@@ -15802,144 +9139,26 @@ class App(TkBase):
             self.clamav_cancel_requested = False
 
     def clamav_abort_scan(self):
-        if not self.security_clamav_running:
-            self.log("Kein ClamAV-Scan läuft.")
-            self._set_clamav_abort_button_state(False)
-            return
-        self.clamav_cancel_requested = True
-        proc = self.clamav_active_process
-        if proc is not None and proc.poll() is None:
-            try:
-                os.killpg(proc.pid, signal.SIGTERM)
-            except Exception:
-                try:
-                    proc.terminate()
-                except Exception:
-                    pass
-        self.log("ClamAV-Scan-Abbruch angefordert...")
+        clamav_controller.clamav_abort_scan(self)
 
     def export_clamav_findings(self):
-        findings = list(self.clamav_findings or [])
-        if not findings:
-            self.log("Keine ClamAV-Funde zum Exportieren vorhanden.")
-            self._update_clamav_findings_buttons_state()
-            return
-
-        export_dir = self._security_export_dir()
-        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        json_path = os.path.join(export_dir, f"netmon_clamav_findings_{stamp}.json")
-        txt_path = os.path.join(export_dir, f"netmon_clamav_findings_{stamp}.txt")
-
-        try:
-            with open(json_path, "w", encoding="utf-8") as fh:
-                json.dump(findings, fh, indent=2, ensure_ascii=False)
-
-            with open(txt_path, "w", encoding="utf-8") as fh:
-                fh.write("NetMon ClamAV Findings Export\n")
-                fh.write(f"Zeit: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                fh.write(f"Einträge: {len(findings)}\n\n")
-                for idx, item in enumerate(findings, start=1):
-                    fh.write(f"[{idx}]\n")
-                    fh.write(f"Status: {item.get('status', '-')}\n")
-                    fh.write(f"Pfad: {item.get('path', '-')}\n")
-                    fh.write(f"Signatur: {item.get('signature', '-')}\n")
-                    fh.write(f"Scan-Typ: {item.get('scan_type', '-')}\n")
-                    fh.write(f"Zeit: {item.get('timestamp', '-')}\n")
-                    qpath = item.get("quarantine_path")
-                    if qpath:
-                        fh.write(f"Quarantäne: {qpath}\n")
-                    rpath = item.get("restore_path")
-                    if rpath:
-                        fh.write(f"Wiederhergestellt nach: {rpath}\n")
-                    fh.write("\n")
-
-            self.log(f"ClamAV-Funde exportiert: {json_path}")
-            self.log(f"ClamAV-Funde exportiert: {txt_path}")
-        except Exception as exc:
-            self.log(f"ClamAV-Funde Export fehlgeschlagen: {exc}")
-            self.log_debug_safe(f"ClamAV-Export Fehler: {exc}")
+        clamav_controller.export_clamav_findings(self)
 
     def _load_clamav_findings(self):
-        self.clamav_findings = []
-        path = getattr(self, "clamav_findings_path", "")
-        if not path or not os.path.isfile(path):
-            return
-        try:
-            with open(path, "r", encoding="utf-8") as fh:
-                raw = json.load(fh)
-            if not isinstance(raw, list):
-                return
-            cleaned = []
-            for item in raw:
-                if not isinstance(item, dict):
-                    continue
-                p = (item.get("path") or "").strip()
-                if not p:
-                    continue
-                cleaned.append(
-                    {
-                        "path": p,
-                        "signature": (item.get("signature") or "-").strip() or "-",
-                        "timestamp": (item.get("timestamp") or "").strip()
-                        or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "scan_type": (item.get("scan_type") or "unknown").strip()
-                        or "unknown",
-                        "status": (item.get("status") or "found").strip() or "found",
-                        "quarantine_path": (item.get("quarantine_path") or "").strip(),
-                        "quarantine_timestamp": (
-                            item.get("quarantine_timestamp") or ""
-                        ).strip(),
-                    }
-                )
-            self.clamav_findings = cleaned[-300:]
-        except Exception as exc:
-            self.log_debug(f"ClamAV-Fundliste laden fehlgeschlagen: {exc}")
+        clamav_controller.load_clamav_findings(self)
 
     def _save_clamav_findings(self):
-        path = getattr(self, "clamav_findings_path", "")
-        if not path:
-            return
-        ok, err = safe_write_json(
-            path,
-            self.clamav_findings[-300:],
-            indent=2,
-            ensure_ascii=False,
-        )
-        if not ok:
-            self.log_debug(f"ClamAV-Fundliste speichern fehlgeschlagen: {err}")
+        clamav_controller.save_clamav_findings(self)
 
     def _clamav_extract_findings(self, output, scan_type, timestamp):
-        findings = []
-        pattern = re.compile(r"^(.*?):\s(.+?)\sFOUND$")
-        for raw_line in (output or "").splitlines():
-            line = raw_line.strip()
-            m = pattern.match(line)
-            if not m:
-                continue
-            file_path = os.path.normpath((m.group(1) or "").strip())
-            signature = (m.group(2) or "-").strip() or "-"
-            if not file_path:
-                continue
-            findings.append(
-                {
-                    "path": file_path,
-                    "signature": signature,
-                    "timestamp": timestamp,
-                    "scan_type": scan_type,
-                    "status": "found",
-                }
-            )
-        return findings
+        return clamav_controller.clamav_extract_findings(
+            output,
+            scan_type,
+            timestamp,
+        )
 
     def _clamav_replace_open_findings(self, findings):
-        history = [
-            item
-            for item in (self.clamav_findings or [])
-            if (item.get("status") or "").strip().lower() != "found"
-        ]
-        self.clamav_findings = (history + list(findings or []))[-300:]
-        self._save_clamav_findings()
-        self._update_clamav_findings_buttons_state_safe()
+        clamav_controller.clamav_replace_open_findings(self, findings)
 
     def _clamav_next_quarantine_path(self, source_path):
         base = os.path.basename(source_path.rstrip(os.sep)) or "file"
@@ -16040,1392 +9259,58 @@ class App(TkBase):
         return [home], True
 
     def _clamav_extract_error_message(self, output):
-        lines = [ln.strip() for ln in (output or "").splitlines() if ln.strip()]
-        if not lines:
-            return ""
-
-        patterns = [
-            "error:",
-            "access denied",
-            "permission denied",
-            "can't open",
-            "cannot open",
-            "can't read",
-            "scan aborted",
-            "internal error",
-            "database error",
-        ]
-
-        for line in reversed(lines):
-            lower = line.lower()
-            if any(token in lower for token in patterns):
-                return line
-
-        for line in lines:
-            lower = line.lower()
-            if lower.startswith("error"):
-                return line
-
-        # Keine technische Fehlerzeile gefunden (z.B. nur SCAN SUMMARY-Ende).
-        return ""
+        return clamav_controller.clamav_extract_error_message(output)
 
     def _clamav_is_nonfatal_scan_issue(self, output):
-        text = (output or "").lower()
-        if not text:
-            return False
-
-        fatal_markers = [
-            "no supported database files found",
-            "database initialization failed",
-            "libclamav error",
-            "unknown option",
-            "invalid option",
-            "bytecode: security",
-        ]
-        if any(marker in text for marker in fatal_markers):
-            return False
-
-        benign_markers = [
-            "can't open file or directory",
-            "permission denied",
-            "access denied",
-            "can't read file",
-        ]
-        return any(marker in text for marker in benign_markers)
+        return clamav_controller.clamav_is_nonfatal_scan_issue(output)
 
     def _clamav_is_nonfatal_update_issue(self, output):
-        text = (output or "").lower()
-        if not text:
-            return False
-
-        # Auf manchen Systemen ist kein clamd/clamav-daemon aktiv.
-        # freshclam kann dann mit einer Service-Meldung enden,
-        # obwohl kein kritischer Scan-/Datenbankfehler vorliegt.
-        nonfatal_markers = [
-            "failed to stop clamav-daemon.service: unit clamav-daemon.service not loaded",
-            "failed to reload clamav-daemon.service: unit clamav-daemon.service not loaded",
-            "failed to restart clamav-daemon.service: unit clamav-daemon.service not loaded",
-            "notifyclamd: service clamav-daemon is not running",
-        ]
-        if not any(marker in text for marker in nonfatal_markers):
-            return False
-
-        fatal_markers = [
-            "no supported database files found",
-            "database initialization failed",
-            "can't download",
-            "download failed",
-            "invalid dns reply",
-            "connection failed",
-        ]
-        return not any(marker in text for marker in fatal_markers)
+        return clamav_controller.clamav_is_nonfatal_update_issue(output)
 
     def _clamav_parse_infected_count(self, output):
-        infected_count = None
-        for line in (output or "").splitlines():
-            s = line.strip()
-            if s.startswith("Infected files:"):
-                try:
-                    infected_count = int(s.split(":", 1)[1].strip())
-                except Exception:
-                    infected_count = None
-                break
-        if infected_count is None:
-            infected_count = sum(
-                1
-                for line in (output or "").splitlines()
-                if line.strip().endswith("FOUND")
-            )
-        return infected_count
+        return clamav_controller.clamav_parse_infected_count(output)
 
     def security_clamav_update_async(self):
-        if not has_cmd("freshclam"):
-            self.update_clamav_panel(
-                status="nicht installiert", signatures="nicht aktualisierbar"
-            )
-            self.log("ClamAV-Update nicht möglich: freshclam fehlt.")
-            return
-        if self.security_clamav_update_running:
-            self.log("ClamAV-Update läuft bereits.")
-            return
-
-        self.security_clamav_update_running = True
-        self.update_clamav_panel(status="Update läuft")
-
-        def job():
-            temp_cfg_path = ""
-            try:
-                self.log_safe("ClamAV-Update gestartet...")
-
-                # Fallback-Konfiguration für Umgebungen, in denen /var/log/clamav
-                # nicht beschreibbar ist.
-                try:
-                    user_tmp = tempfile.gettempdir()
-                    user_tag = re.sub(r"[^a-zA-Z0-9_.-]", "_", getpass.getuser())
-                    user_db_dir = os.path.join(user_tmp, f"netmon-clamav-db-{user_tag}")
-                    user_log_file = os.path.join(
-                        user_tmp, f"netmon-freshclam-{user_tag}.log"
-                    )
-                    os.makedirs(user_db_dir, exist_ok=True)
-                    with tempfile.NamedTemporaryFile(
-                        "w",
-                        delete=False,
-                        prefix="netmon-freshclam-",
-                        suffix=".conf",
-                    ) as cfg:
-                        cfg.write(f"DatabaseDirectory {user_db_dir}\n")
-                        cfg.write("DatabaseMirror database.clamav.net\n")
-                        cfg.write(f"UpdateLogFile {user_log_file}\n")
-                        cfg.write("Foreground true\n")
-                        cfg.write("CompressLocalDatabase no\n")
-                        temp_cfg_path = cfg.name
-                except Exception as cfg_exc:
-                    temp_cfg_path = ""
-                    self.log_debug_safe(
-                        f"ClamAV-Update: Temp-Config konnte nicht erstellt werden: {cfg_exc}"
-                    )
-
-                attempts = []
-                if temp_cfg_path:
-                    attempts.append(
-                        (
-                            "freshclam --stdout --config-file <temp>",
-                            [
-                                "freshclam",
-                                "--stdout",
-                                "--config-file",
-                                temp_cfg_path,
-                            ],
-                        )
-                    )
-                    if has_cmd("sudo"):
-                        attempts.append(
-                            (
-                                "sudo -n freshclam --stdout --config-file <temp>",
-                                [
-                                    "sudo",
-                                    "-n",
-                                    "freshclam",
-                                    "--stdout",
-                                    "--config-file",
-                                    temp_cfg_path,
-                                ],
-                            )
-                        )
-
-                attempts.append(("freshclam --stdout", ["freshclam", "--stdout"]))
-                if has_cmd("sudo"):
-                    attempts.append(
-                        (
-                            "sudo -n freshclam --stdout",
-                            ["sudo", "-n", "freshclam", "--stdout"],
-                        )
-                    )
-
-                rc = 1
-                used_sudo = False
-                all_outputs = []
-                for label, cmd in attempts:
-                    rc, cmd_out = run_cmd(cmd, timeout=900)
-                    if cmd_out:
-                        all_outputs.append(f"[{label}]\n{cmd_out}")
-                    if rc == 0:
-                        used_sudo = label.startswith("sudo ")
-                        break
-
-                if rc == 0:
-                    self.update_clamav_panel_safe(status="bereit", signatures="aktuell")
-                    self.log_safe("ClamAV-Update abgeschlossen.")
-                    if used_sudo:
-                        self.log_debug_safe(
-                            "ClamAV-Update wurde mit sudo -n ausgeführt."
-                        )
-                else:
-                    merged = "\n".join(all_outputs).strip()
-                    lines = [ln.strip() for ln in merged.splitlines() if ln.strip()]
-                    last_line = lines[-1] if lines else ""
-                    lower_merged = merged.lower()
-
-                    if self._clamav_is_nonfatal_update_issue(merged):
-                        self.update_clamav_panel_safe(
-                            status="bereit", signatures="unbekannt"
-                        )
-                        self.log_safe(
-                            "ClamAV-Update: Hinweis – clamav-daemon/clamd ist nicht geladen."
-                        )
-                        self.log_safe(
-                            "Update-Lauf wurde ohne aktiven Daemon fortgesetzt."
-                        )
-                    else:
-                        if "a password is required" in lower_merged:
-                            user_error = (
-                                "freshclam benötigt Root-Rechte "
-                                "(sudo ohne Passwort derzeit nicht möglich)."
-                            )
-                        elif any(
-                            token in merged
-                            for token in [
-                                "Failed to open log file /var/log/clamav/freshclam",
-                                "Can't open /var/log/clamav/freshclam",
-                            ]
-                        ):
-                            user_error = (
-                                "freshclam kann sein System-Logfile nicht öffnen "
-                                "(/var/log/clamav/freshclam)."
-                            )
-                        elif last_line:
-                            user_error = last_line
-                        else:
-                            user_error = f"Unbekannter Fehler (rc={rc})."
-
-                        self.update_clamav_panel_safe(
-                            status="Fehler", signatures="Update fehlgeschlagen"
-                        )
-                        self.log_safe(f"ClamAV-Update fehlgeschlagen: {user_error}")
-
-                if all_outputs:
-                    self.log_debug_safe(
-                        "ClamAV update raw: " + "\n\n".join(all_outputs)[:3000]
-                    )
-            finally:
-                if temp_cfg_path:
-                    try:
-                        os.remove(temp_cfg_path)
-                    except Exception:
-                        pass
-                self.security_clamav_update_running = False
-
-        threading.Thread(target=job, daemon=True).start()
+        clamav_controller.security_clamav_update_async(self)
 
     def security_clamav_quickscan_async(self):
-        if not has_cmd("clamscan"):
-            self.update_clamav_panel(
-                status="nicht installiert", result="clamscan fehlt"
-            )
-            self.log("ClamAV nicht gefunden (clamscan fehlt).")
-            return
-        if self.security_clamav_running:
-            self.log("ClamAV-Schnellscan läuft bereits.")
-            return
-
-        self.security_clamav_running = True
-        self.update_clamav_panel(status="Scan läuft", result="-")
-        self._clamav_progress_start()
-
-        def job():
-            try:
-                targets, used_home_fallback = self._clamav_quick_targets()
-                target_label = ", ".join(targets)
-                if len(target_label) > 120:
-                    target_label = target_label[:117] + "..."
-                self.update_clamav_panel_safe(last_target=target_label)
-
-                self.log_safe("ClamAV-Schnellscan gestartet...")
-                if used_home_fallback:
-                    self.log_safe(
-                        "ClamAV: Keine Standardordner gefunden, nutze Home-Verzeichnis."
-                    )
-
-                cmd = ["clamscan", "-r", "--infected"] + targets
-                rc, out, cancelled = self._run_clamscan_with_cancel(cmd, timeout=900)
-
-                if cancelled:
-                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    self.update_clamav_panel_safe(
-                        status="abgebrochen",
-                        last_scan=timestamp,
-                        result="Scan abgebrochen",
-                    )
-                    self.log_safe("ClamAV-Schnellscan abgebrochen.")
-                    if out:
-                        self.log_debug_safe("ClamAV scan raw: " + out[:1000])
-                    return
-
-                infected_count = self._clamav_parse_infected_count(out)
-                scanned_files = self._clamav_parse_scanned_files(out)
-                if isinstance(scanned_files, int) and scanned_files >= 0:
-                    self._clamav_progress_update_safe(scanned_files)
-
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                findings_txt = str(infected_count)
-                result_txt = (
-                    "Keine Bedrohungen gefunden"
-                    if infected_count == 0
-                    else f"{infected_count} verdächtige Dateien gefunden"
-                )
-
-                nonfatal_issue = rc == 2 and (
-                    self._clamav_is_nonfatal_scan_issue(out)
-                    or self._clamav_parse_scanned_files(out) is not None
-                )
-                if rc in (0, 1) or nonfatal_issue:
-                    extracted_findings = self._clamav_extract_findings(
-                        out, scan_type="quickscan", timestamp=timestamp
-                    )
-                    self._clamav_replace_open_findings(extracted_findings)
-                    self.update_clamav_panel_safe(
-                        status=(
-                            "abgeschlossen"
-                            if not nonfatal_issue
-                            else "abgeschlossen (Warnungen)"
-                        ),
-                        signatures="aktuell" if has_cmd("freshclam") else "unbekannt",
-                        last_scan=timestamp,
-                        findings=findings_txt,
-                        result=(
-                            result_txt
-                            if not nonfatal_issue
-                            else f"{result_txt} (mit Zugriffswarnungen)"
-                        ),
-                    )
-                    if len(targets) == 1:
-                        self.log_safe(
-                            f"ClamAV-Schnellscan abgeschlossen. Ziel: {targets[0]} | Funde: {infected_count}"
-                        )
-                    else:
-                        self.log_safe(
-                            f"ClamAV-Schnellscan abgeschlossen. Ziele: {len(targets)} | Funde: {infected_count}"
-                        )
-                    if nonfatal_issue:
-                        self.log_safe(
-                            "ClamAV-Schnellscan: Einige Dateien konnten nicht gelesen werden (Zugriffswarnungen)."
-                        )
-                else:
-                    error_line = self._clamav_extract_error_message(out)
-                    self.update_clamav_panel_safe(
-                        status="Fehler",
-                        last_scan=timestamp,
-                        findings="-",
-                        result="Scan fehlgeschlagen",
-                    )
-                    if error_line:
-                        self.log_safe(
-                            f"ClamAV-Schnellscan fehlgeschlagen: {error_line}"
-                        )
-                    else:
-                        self.log_safe(
-                            f"ClamAV-Schnellscan fehlgeschlagen (rc={rc}, keine technische Fehlerzeile erkannt)."
-                        )
-
-                if out:
-                    self.log_debug_safe("ClamAV scan raw: " + out[:1000])
-            finally:
-                self.security_clamav_running = False
-                self._clamav_progress_finish_safe()
-
-        threading.Thread(target=job, daemon=True).start()
+        clamav_controller.security_clamav_quickscan_async(self)
 
     def security_clamav_folder_scan_async(self):
-        if not has_cmd("clamscan"):
-            self.update_clamav_panel(
-                status="nicht installiert", result="clamscan fehlt"
-            )
-            self.log("ClamAV ist nicht installiert.")
-            return
-        if self.security_clamav_running:
-            self.log("ClamAV-Scan läuft bereits.")
-            return
-
-        selected = filedialog.askdirectory(
-            title="Ordner für ClamAV-Scan auswählen",
-            initialdir=os.path.expanduser("~"),
-            mustexist=True,
-        )
-        if not selected:
-            return
-
-        target = os.path.realpath(os.path.normpath(selected))
-        if not os.path.isabs(target) or not os.path.isdir(target):
-            self.log("ClamAV-Ordnerscan abgebrochen: Ordner nicht gefunden.")
-            return
-
-        self.security_clamav_running = True
-        self.update_clamav_panel(status="Scan läuft", result="-", last_target=target)
-        self._clamav_progress_start()
-
-        def job():
-            try:
-                self.log_safe(f"ClamAV-Ordnerscan gestartet: {target}")
-
-                rc, out, cancelled = self._run_clamscan_with_cancel(
-                    ["clamscan", "-r", "--infected", target],
-                    timeout=900,
-                )
-                if cancelled:
-                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    self.update_clamav_panel_safe(
-                        status="abgebrochen",
-                        last_scan=timestamp,
-                        last_target=target,
-                        result="Scan abgebrochen",
-                    )
-                    self.log_safe("ClamAV-Ordnerscan abgebrochen.")
-                    if out:
-                        self.log_debug_safe("ClamAV folder scan raw: " + out[:1000])
-                    return
-
-                infected_count = self._clamav_parse_infected_count(out)
-                scanned_files = self._clamav_parse_scanned_files(out)
-                if isinstance(scanned_files, int) and scanned_files >= 0:
-                    self._clamav_progress_update_safe(scanned_files)
-
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                result_txt = (
-                    "Keine Bedrohungen gefunden"
-                    if infected_count == 0
-                    else f"{infected_count} verdächtige Dateien gefunden"
-                )
-
-                nonfatal_issue = rc == 2 and (
-                    self._clamav_is_nonfatal_scan_issue(out)
-                    or self._clamav_parse_scanned_files(out) is not None
-                )
-                if rc in (0, 1) or nonfatal_issue:
-                    extracted_findings = self._clamav_extract_findings(
-                        out, scan_type="folder_scan", timestamp=timestamp
-                    )
-                    self._clamav_replace_open_findings(extracted_findings)
-                    self.update_clamav_panel_safe(
-                        status=(
-                            "abgeschlossen"
-                            if not nonfatal_issue
-                            else "abgeschlossen (Warnungen)"
-                        ),
-                        signatures="aktuell" if has_cmd("freshclam") else "unbekannt",
-                        last_scan=timestamp,
-                        last_target=target,
-                        findings=str(infected_count),
-                        result=(
-                            result_txt
-                            if not nonfatal_issue
-                            else f"{result_txt} (mit Zugriffswarnungen)"
-                        ),
-                    )
-                    self.log_safe(
-                        f"ClamAV-Ordnerscan abgeschlossen. Ziel: {target} | Funde: {infected_count}"
-                    )
-                    if nonfatal_issue:
-                        self.log_safe(
-                            "ClamAV-Ordnerscan: Einige Dateien konnten nicht gelesen werden (Zugriffswarnungen)."
-                        )
-                else:
-                    error_line = self._clamav_extract_error_message(out)
-                    self.update_clamav_panel_safe(
-                        status="Fehler",
-                        last_scan=timestamp,
-                        last_target=target,
-                        findings="-",
-                        result="Scan fehlgeschlagen",
-                    )
-                    if error_line:
-                        self.log_safe(f"ClamAV-Ordnerscan fehlgeschlagen: {error_line}")
-                    else:
-                        self.log_safe(
-                            f"ClamAV-Ordnerscan fehlgeschlagen (rc={rc}, keine technische Fehlerzeile erkannt)."
-                        )
-
-                if out:
-                    self.log_debug_safe("ClamAV folder scan raw: " + out[:1000])
-            finally:
-                self.security_clamav_running = False
-                self._clamav_progress_finish_safe()
-
-        threading.Thread(target=job, daemon=True).start()
+        clamav_controller.security_clamav_folder_scan_async(self)
 
     def security_clamav_systemscan_async(self):
-        if not has_cmd("clamscan"):
-            self.update_clamav_panel(
-                status="nicht installiert", result="clamscan fehlt"
-            )
-            self.log("ClamAV ist nicht installiert.")
-            return
-        if self.security_clamav_running:
-            self.log("ClamAV-Scan läuft bereits.")
-            return
-
-        targets = self._clamav_system_targets()
-        excluded = self._clamav_system_excluded_roots()
-        if not targets:
-            self.log("ClamAV-Systemscan: keine geeigneten Ziele gefunden.")
-            return
-
-        target_label = ", ".join(targets)
-        if len(target_label) > 140:
-            target_label = target_label[:137] + "..."
-
-        self.security_clamav_running = True
-        self.update_clamav_panel(
-            status="Scan läuft",
-            result="Systemscan läuft",
-            last_target=target_label,
-        )
-        self._write_clamav_output(
-            [
-                "ClamAV-Systemscan gestartet.",
-                f"Ziele: {target_label}",
-                "Ausgeschlossene Pfade: " + ", ".join(excluded),
-                "",
-                "Fortschritt wird im Statusbereich aktualisiert.",
-            ],
-            replace=True,
-        )
-
-        def job():
-            try:
-                estimated_total = None
-                try:
-                    estimated_total = self._clamav_count_files(
-                        targets, excluded_roots=excluded
-                    )
-                except Exception as exc:
-                    self.log_debug_safe(
-                        f"ClamAV-Systemscan Dateivorzählung fehlgeschlagen: {exc}"
-                    )
-
-                self.after(0, lambda n=estimated_total: self._clamav_progress_start(n))
-                self.log_safe("ClamAV-Systemscan gestartet...")
-
-                exclude_args = [
-                    f"--exclude-dir=^{re.escape(root)}($|/)" for root in excluded
-                ]
-                cmd = ["clamscan", "-r", *exclude_args, *targets]
-                rc, out, cancelled, timed_out, scanned_live = (
-                    self._run_clamscan_with_progress(
-                        cmd,
-                        timeout=5400,
-                        progress_cb=self._clamav_progress_update_safe,
-                    )
-                )
-
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                scanned_files = self._clamav_parse_scanned_files(out)
-                if not isinstance(scanned_files, int):
-                    scanned_files = scanned_live
-                self._clamav_progress_update_safe(scanned_files)
-
-                if cancelled:
-                    self.update_clamav_panel_safe(
-                        status="abgebrochen",
-                        last_scan=timestamp,
-                        last_target=target_label,
-                        result="Systemscan abgebrochen",
-                    )
-                    self._write_clamav_output(
-                        [
-                            "ClamAV-Systemscan abgebrochen.",
-                            f"Ziele: {target_label}",
-                            f"Dateien gescannt: {scanned_files}",
-                        ],
-                        replace=True,
-                    )
-                    self.log_safe("ClamAV-Systemscan abgebrochen.")
-                    return
-
-                if timed_out:
-                    self.update_clamav_panel_safe(
-                        status="Fehler",
-                        last_scan=timestamp,
-                        last_target=target_label,
-                        result="Systemscan Timeout",
-                    )
-                    self._write_clamav_output(
-                        [
-                            "ClamAV-Systemscan Timeout.",
-                            f"Ziele: {target_label}",
-                            f"Dateien gescannt: {scanned_files}",
-                        ],
-                        replace=True,
-                    )
-                    self.log_safe("ClamAV-Systemscan fehlgeschlagen: Timeout.")
-                    return
-
-                infected_count = self._clamav_parse_infected_count(out)
-                result_txt = (
-                    "Keine Bedrohungen gefunden"
-                    if infected_count == 0
-                    else f"{infected_count} verdächtige Dateien gefunden"
-                )
-
-                nonfatal_issue = rc == 2 and (
-                    self._clamav_is_nonfatal_scan_issue(out)
-                    or self._clamav_parse_scanned_files(out) is not None
-                )
-                if rc in (0, 1) or nonfatal_issue:
-                    extracted_findings = self._clamav_extract_findings(
-                        out, scan_type="system_scan", timestamp=timestamp
-                    )
-                    self._clamav_replace_open_findings(extracted_findings)
-                    self.update_clamav_panel_safe(
-                        status=(
-                            "abgeschlossen"
-                            if not nonfatal_issue
-                            else "abgeschlossen (Warnungen)"
-                        ),
-                        signatures="aktuell" if has_cmd("freshclam") else "unbekannt",
-                        last_scan=timestamp,
-                        last_target=target_label,
-                        findings=str(infected_count),
-                        result=(
-                            result_txt
-                            if not nonfatal_issue
-                            else f"{result_txt} (mit Zugriffswarnungen)"
-                        ),
-                    )
-                    self._write_clamav_output(
-                        [
-                            "ClamAV-Systemscan abgeschlossen.",
-                            f"Ziele: {target_label}",
-                            f"Dateien gescannt: {scanned_files}",
-                            f"Funde: {infected_count}",
-                            f"Ergebnis: {result_txt}",
-                        ],
-                        replace=True,
-                    )
-                    self.log_safe(
-                        f"ClamAV-Systemscan abgeschlossen. Ziele: {len(targets)} | Funde: {infected_count}"
-                    )
-                    if nonfatal_issue:
-                        self.log_safe(
-                            "ClamAV-Systemscan: Einige Dateien konnten nicht gelesen werden (Zugriffswarnungen)."
-                        )
-                else:
-                    error_line = self._clamav_extract_error_message(out)
-                    self.update_clamav_panel_safe(
-                        status="Fehler",
-                        last_scan=timestamp,
-                        last_target=target_label,
-                        findings="-",
-                        result="Systemscan fehlgeschlagen",
-                    )
-                    self._write_clamav_output(
-                        [
-                            "ClamAV-Systemscan fehlgeschlagen.",
-                            f"Ziele: {target_label}",
-                            f"Dateien gescannt: {scanned_files}",
-                            (
-                                f"Details: {error_line}"
-                                if error_line
-                                else f"Rückgabecode: {rc} (keine technische Fehlerzeile erkannt)"
-                            ),
-                        ],
-                        replace=True,
-                    )
-                    if error_line:
-                        self.log_safe(f"ClamAV-Systemscan fehlgeschlagen: {error_line}")
-                    else:
-                        self.log_safe(
-                            f"ClamAV-Systemscan fehlgeschlagen (rc={rc}, keine technische Fehlerzeile erkannt)."
-                        )
-
-                if out:
-                    self.log_debug_safe("ClamAV system scan raw: " + out[:1500])
-            finally:
-                self.security_clamav_running = False
-                self._clamav_progress_finish_safe()
-
-        threading.Thread(target=job, daemon=True).start()
+        clamav_controller.security_clamav_systemscan_async(self)
 
     def _log_clamav_quarantine_preview(self, items, label="Trockenlauf"):
-        if not items:
-            self.log("Keine offenen ClamAV-Funde für die Vorschau vorhanden.")
-            return
-
-        preview_limit = 20
-        self.log(
-            f"ClamAV-Quarantäne {label}: {len(items)} Datei(en) (keine Änderungen durchgeführt)."
-        )
-        for idx, item in enumerate(items, start=1):
-            src = os.path.normpath((item.get("path") or "").strip())
-            if not src:
-                continue
-            if not os.path.exists(src):
-                self.log(f"{idx}. [fehlt] {src}")
-                continue
-            dest = self._clamav_next_quarantine_path(src)
-            self.log(f"{idx}. {src}")
-            self.log(f"   -> {dest}")
-            if idx >= preview_limit:
-                rest = len(items) - preview_limit
-                if rest > 0:
-                    self.log(f"... und {rest} weitere Datei(en).")
-                break
+        clamav_controller.log_clamav_quarantine_preview(self, items, label=label)
 
     def _log_clamav_restore_preview(self, items, label="Trockenlauf"):
-        if not items:
-            self.log("Keine Quarantäne-Dateien für die Vorschau vorhanden.")
-            return
-
-        preview_limit = 20
-        self.log(
-            f"ClamAV-Wiederherstellung {label}: {len(items)} Datei(en) (keine Änderungen durchgeführt)."
-        )
-        for idx, item in enumerate(items, start=1):
-            qpath = os.path.normpath((item.get("quarantine_path") or "").strip())
-            original = os.path.normpath((item.get("path") or "").strip())
-            if not qpath or not original:
-                continue
-            if not os.path.exists(qpath):
-                self.log(f"{idx}. [quarantäne fehlt] {qpath}")
-                continue
-            dest = self._clamav_next_restore_path(original)
-            self.log(f"{idx}. {qpath}")
-            self.log(f"   -> {dest}")
-            if idx >= preview_limit:
-                rest = len(items) - preview_limit
-                if rest > 0:
-                    self.log(f"... und {rest} weitere Datei(en).")
-                break
+        clamav_controller.log_clamav_restore_preview(self, items, label=label)
 
     def show_clamav_findings(self):
-        findings = self._clamav_findings_open()
-        if not findings:
-            msg = "Keine offenen ClamAV-Funde vorhanden."
-            self.log(msg)
-            self._write_clamav_output([msg], replace=True)
-            self._update_clamav_findings_buttons_state()
-            return
-
-        lines = ["ClamAV-Funde:", ""]
-        self.log("ClamAV-Funde:")
-        for idx, item in enumerate(findings, start=1):
-            path = item.get("path", "-")
-            sig = item.get("signature", "-")
-            self.log(f"{idx}. {path}")
-            self.log(f"   Signatur: {sig}")
-            lines.append(f"{idx}. {path}")
-            lines.append(f"   Signatur: {sig}")
-            lines.append("")
-        self._write_clamav_output(lines, replace=True)
+        clamav_controller.show_clamav_findings(self)
 
     def show_clamav_quarantine_history(self):
-        quarantined = self._clamav_findings_quarantined()
-        if not quarantined:
-            msg = "Keine Dateien in der ClamAV-Quarantäne vorhanden."
-            self.log(msg)
-            self._write_clamav_output([msg], replace=True)
-            self._update_clamav_findings_buttons_state()
-            return
-
-        lines = ["ClamAV-Quarantäne:", ""]
-        self.log("ClamAV-Quarantäne:")
-        for idx, item in enumerate(quarantined, start=1):
-            src = item.get("path", "-")
-            qpath = item.get("quarantine_path", "-")
-            qts = item.get("quarantine_timestamp") or item.get("timestamp") or "-"
-            self.log(f"{idx}. {src}")
-            self.log(f"   Quarantäne: {qpath}")
-            self.log(f"   Zeit: {qts}")
-            lines.append(f"{idx}. {src}")
-            lines.append(f"   Quarantäne: {qpath}")
-            lines.append(f"   Zeit: {qts}")
-            lines.append("")
-        self._write_clamav_output(lines, replace=True)
+        clamav_controller.show_clamav_quarantine_history(self)
 
     def quarantine_clamav_findings_async(self):
-        if not has_cmd("clamscan"):
-            self.update_clamav_panel(
-                status="nicht installiert", result="clamscan fehlt"
-            )
-            self.log("ClamAV ist nicht installiert.")
-            self._update_clamav_findings_buttons_state()
-            return
-        if self.security_clamav_running:
-            self.log("ClamAV-Scan läuft bereits.")
-            return
-
-        open_findings = self._clamav_findings_open()
-        if not open_findings:
-            self.log("Keine offenen ClamAV-Funde vorhanden.")
-            self._update_clamav_findings_buttons_state()
-            return
-
-        self._log_clamav_quarantine_preview(open_findings, label="Vorschau")
-        if not messagebox.askyesno(
-            "ClamAV Quarantäne",
-            f"{len(open_findings)} offene Datei(en) in Quarantäne verschieben?",
-            parent=self,
-        ):
-            self.log("ClamAV-Quarantäne abgebrochen.")
-            return
-
-        self.security_clamav_running = True
-        self.update_clamav_panel(status="Quarantäne läuft", result="-")
-
-        def job():
-            moved = 0
-            missing = 0
-            failed = 0
-            try:
-                self.log_safe("ClamAV-Quarantäne gestartet...")
-                try:
-                    os.makedirs(self.clamav_quarantine_dir, exist_ok=True)
-                except Exception as exc:
-                    self.update_clamav_panel_safe(
-                        status="Fehler", result="Quarantäne fehlgeschlagen"
-                    )
-                    self.log_safe(f"ClamAV-Quarantäne fehlgeschlagen: {exc}")
-                    return
-
-                for item in open_findings:
-                    src_raw = os.path.normpath((item.get("path") or "").strip())
-                    if not src_raw:
-                        continue
-                    src, src_error = self._clamav_validate_source_for_quarantine(
-                        src_raw
-                    )
-                    if src is None:
-                        item["status"] = "missing"
-                        item["quarantine_timestamp"] = datetime.now().strftime(
-                            "%Y-%m-%d %H:%M:%S"
-                        )
-                        if src_error == "nicht vorhanden":
-                            missing += 1
-                            self.log_safe(f"Datei nicht mehr vorhanden: {src_raw}")
-                        else:
-                            failed += 1
-                            self.log_safe(
-                                f"Datei übersprungen (unsicherer Pfad): {src_raw}"
-                            )
-                            self.log_debug_safe(
-                                f"ClamAV-Quarantäne Pfadprüfung fehlgeschlagen: {src_raw} ({src_error})"
-                            )
-                        continue
-
-                    dest = self._clamav_next_quarantine_path(src)
-                    if not self._clamav_path_is_within(
-                        dest, self.clamav_quarantine_dir
-                    ):
-                        failed += 1
-                        self.log_safe(
-                            f"Datei übersprungen (unsicheres Quarantäne-Ziel): {src}"
-                        )
-                        self.log_debug_safe(
-                            f"ClamAV-Quarantäne Ziel außerhalb Quarantäne-Ordner: {dest}"
-                        )
-                        continue
-                    try:
-                        shutil.move(src, dest)
-                        moved += 1
-                        item["status"] = "quarantine"
-                        item["quarantine_path"] = dest
-                        item["quarantine_timestamp"] = datetime.now().strftime(
-                            "%Y-%m-%d %H:%M:%S"
-                        )
-                    except Exception as exc:
-                        failed += 1
-                        self.log_safe(
-                            f"Datei konnte nicht in Quarantäne verschoben werden: {src}"
-                        )
-                        self.log_debug_safe(
-                            f"ClamAV-Quarantäne Move-Fehler ({src} -> {dest}): {exc}"
-                        )
-
-                self._save_clamav_findings()
-                self._update_clamav_findings_buttons_state_safe()
-
-                now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                if failed == 0:
-                    status = "abgeschlossen"
-                else:
-                    status = "Fehler"
-                if moved > 0:
-                    result_msg = f"{moved} Datei(en) in Quarantäne verschoben"
-                elif missing > 0 and failed == 0:
-                    result_msg = "Keine Datei verschoben (nicht mehr vorhanden)"
-                else:
-                    result_msg = "Quarantäne teilweise fehlgeschlagen"
-
-                self.update_clamav_panel_safe(
-                    status=status,
-                    signatures="aktuell" if has_cmd("freshclam") else "unbekannt",
-                    last_scan=now_ts,
-                    findings=str(len(self._clamav_findings_open())),
-                    result=result_msg,
-                )
-
-                self.log_safe(f"{moved} Datei(en) in Quarantäne verschoben.")
-                self.log_safe(f"Quarantäne-Ordner: {self.clamav_quarantine_dir}")
-                if missing:
-                    self.log_safe(f"{missing} Datei(en) waren nicht mehr vorhanden.")
-                if failed:
-                    self.log_safe(
-                        f"{failed} Datei(en) konnten nicht verschoben werden."
-                    )
-            finally:
-                self.security_clamav_running = False
-
-        threading.Thread(target=job, daemon=True).start()
+        clamav_controller.quarantine_clamav_findings_async(self)
 
     def quarantine_selected_clamav_findings_async(self):
-        if not has_cmd("clamscan"):
-            self.update_clamav_panel(
-                status="nicht installiert", result="clamscan fehlt"
-            )
-            self.log("ClamAV ist nicht installiert.")
-            self._update_clamav_findings_buttons_state()
-            return
-        if self.security_clamav_running:
-            self.log("ClamAV-Scan läuft bereits.")
-            return
-
-        open_findings = self._clamav_findings_open()
-        if not open_findings:
-            self.log("Keine offenen ClamAV-Funde vorhanden.")
-            self._update_clamav_findings_buttons_state()
-            return
-
-        selected = self._clamav_select_items_dialog(
-            open_findings,
-            title="ClamAV: Funde zur Quarantäne auswählen",
-            mode="found",
-        )
-        if selected is None:
-            return
-        if not selected:
-            self.log("Keine Funde ausgewählt.")
-            return
-
-        self._log_clamav_quarantine_preview(selected, label="Vorschau (Auswahl)")
-        if not messagebox.askyesno(
-            "ClamAV Quarantäne (Auswahl)",
-            f"{len(selected)} ausgewählte Datei(en) in Quarantäne verschieben?",
-            parent=self,
-        ):
-            self.log("ClamAV-Quarantäne (Auswahl) abgebrochen.")
-            return
-
-        self.security_clamav_running = True
-        self.update_clamav_panel(status="Quarantäne läuft", result="-")
-
-        def job():
-            moved = 0
-            missing = 0
-            failed = 0
-            try:
-                self.log_safe("ClamAV-Quarantäne (Auswahl) gestartet...")
-                try:
-                    os.makedirs(self.clamav_quarantine_dir, exist_ok=True)
-                except Exception as exc:
-                    self.update_clamav_panel_safe(
-                        status="Fehler", result="Quarantäne fehlgeschlagen"
-                    )
-                    self.log_safe(f"ClamAV-Quarantäne fehlgeschlagen: {exc}")
-                    return
-
-                for item in selected:
-                    src_raw = os.path.normpath((item.get("path") or "").strip())
-                    if not src_raw:
-                        continue
-                    src, src_error = self._clamav_validate_source_for_quarantine(
-                        src_raw
-                    )
-                    if src is None:
-                        item["status"] = "missing"
-                        item["quarantine_timestamp"] = datetime.now().strftime(
-                            "%Y-%m-%d %H:%M:%S"
-                        )
-                        if src_error == "nicht vorhanden":
-                            missing += 1
-                            self.log_safe(f"Datei nicht mehr vorhanden: {src_raw}")
-                        else:
-                            failed += 1
-                            self.log_safe(
-                                f"Datei übersprungen (unsicherer Pfad): {src_raw}"
-                            )
-                            self.log_debug_safe(
-                                f"ClamAV-Quarantäne-Auswahl Pfadprüfung fehlgeschlagen: {src_raw} ({src_error})"
-                            )
-                        continue
-
-                    dest = self._clamav_next_quarantine_path(src)
-                    if not self._clamav_path_is_within(
-                        dest, self.clamav_quarantine_dir
-                    ):
-                        failed += 1
-                        self.log_safe(
-                            f"Datei übersprungen (unsicheres Quarantäne-Ziel): {src}"
-                        )
-                        self.log_debug_safe(
-                            f"ClamAV-Quarantäne-Auswahl Ziel außerhalb Quarantäne-Ordner: {dest}"
-                        )
-                        continue
-                    try:
-                        shutil.move(src, dest)
-                        moved += 1
-                        item["status"] = "quarantine"
-                        item["quarantine_path"] = dest
-                        item["quarantine_timestamp"] = datetime.now().strftime(
-                            "%Y-%m-%d %H:%M:%S"
-                        )
-                    except Exception as exc:
-                        failed += 1
-                        self.log_safe(
-                            f"Datei konnte nicht in Quarantäne verschoben werden: {src}"
-                        )
-                        self.log_debug_safe(
-                            f"ClamAV-Quarantäne-Auswahl Move-Fehler ({src} -> {dest}): {exc}"
-                        )
-
-                self._save_clamav_findings()
-                self._update_clamav_findings_buttons_state_safe()
-
-                now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                status = "abgeschlossen" if failed == 0 else "Fehler"
-                if moved > 0:
-                    result_msg = (
-                        f"{moved} ausgewählte Datei(en) in Quarantäne verschoben"
-                    )
-                elif missing > 0 and failed == 0:
-                    result_msg = (
-                        "Keine ausgewählte Datei verschoben (nicht mehr vorhanden)"
-                    )
-                else:
-                    result_msg = "Auswahl-Quarantäne teilweise fehlgeschlagen"
-
-                self.update_clamav_panel_safe(
-                    status=status,
-                    signatures="aktuell" if has_cmd("freshclam") else "unbekannt",
-                    last_scan=now_ts,
-                    findings=str(len(self._clamav_findings_open())),
-                    result=result_msg,
-                )
-
-                self.log_safe(
-                    f"{moved} ausgewählte Datei(en) in Quarantäne verschoben."
-                )
-                self.log_safe(f"Quarantäne-Ordner: {self.clamav_quarantine_dir}")
-                if missing:
-                    self.log_safe(
-                        f"{missing} ausgewählte Datei(en) waren nicht mehr vorhanden."
-                    )
-                if failed:
-                    self.log_safe(
-                        f"{failed} ausgewählte Datei(en) konnten nicht verschoben werden."
-                    )
-            finally:
-                self.security_clamav_running = False
-
-        threading.Thread(target=job, daemon=True).start()
+        clamav_controller.quarantine_selected_clamav_findings_async(self)
 
     def restore_clamav_quarantine_async(self):
-        if not has_cmd("clamscan"):
-            self.update_clamav_panel(
-                status="nicht installiert",
-                result="clamscan fehlt",
-            )
-            self.log("ClamAV ist nicht installiert.")
-            self._update_clamav_findings_buttons_state()
-            return
-        if self.security_clamav_running:
-            self.log("ClamAV-Scan läuft bereits.")
-            return
-
-        quarantined = self._clamav_findings_quarantined()
-        if not quarantined:
-            self.log("Keine Dateien in der ClamAV-Quarantäne vorhanden.")
-            self._update_clamav_findings_buttons_state()
-            return
-
-        self._log_clamav_restore_preview(quarantined, label="Vorschau")
-        if not messagebox.askyesno(
-            "ClamAV Wiederherstellung",
-            f"{len(quarantined)} Quarantäne-Datei(en) wiederherstellen?",
-            parent=self,
-        ):
-            self.log("ClamAV-Wiederherstellung abgebrochen.")
-            return
-
-        self.security_clamav_running = True
-        self.update_clamav_panel(status="Wiederherstellung läuft", result="-")
-
-        def job():
-            restored = 0
-            missing = 0
-            failed = 0
-            try:
-                self.log_safe("ClamAV-Wiederherstellung gestartet...")
-                for item in quarantined:
-                    qpath_raw = os.path.normpath(
-                        (item.get("quarantine_path") or "").strip()
-                    )
-                    original_path = os.path.normpath((item.get("path") or "").strip())
-                    if not qpath_raw or not original_path:
-                        failed += 1
-                        continue
-                    qpath, qpath_error = self._clamav_validate_quarantine_path(
-                        qpath_raw
-                    )
-                    if qpath is None:
-                        item["status"] = "quarantine_missing"
-                        item["restore_timestamp"] = datetime.now().strftime(
-                            "%Y-%m-%d %H:%M:%S"
-                        )
-                        if qpath_error == "außerhalb des Quarantäne-Ordners":
-                            failed += 1
-                            self.log_safe(
-                                f"Quarantäne-Datei übersprungen (unsicherer Pfad): {qpath_raw}"
-                            )
-                            self.log_debug_safe(
-                                f"ClamAV-Restore Quarantäne-Pfadprüfung fehlgeschlagen: {qpath_raw} ({qpath_error})"
-                            )
-                        else:
-                            missing += 1
-                            self.log_safe(
-                                f"Quarantäne-Datei nicht mehr vorhanden: {qpath_raw}"
-                            )
-                        continue
-                    if not os.path.exists(qpath):
-                        item["status"] = "quarantine_missing"
-                        item["restore_timestamp"] = datetime.now().strftime(
-                            "%Y-%m-%d %H:%M:%S"
-                        )
-                        missing += 1
-                        self.log_safe(f"Quarantäne-Datei nicht mehr vorhanden: {qpath}")
-                        continue
-
-                    safe_original = self._clamav_safe_restore_source(original_path)
-                    restore_target = self._clamav_next_restore_path(safe_original)
-                    home_root = os.path.realpath(os.path.expanduser("~"))
-                    if not self._clamav_path_is_within(restore_target, home_root):
-                        failed += 1
-                        self.log_safe(
-                            f"Datei konnte nicht sicher wiederhergestellt werden: {original_path}"
-                        )
-                        self.log_debug_safe(
-                            f"ClamAV-Restore Ziel außerhalb Home-Verzeichnis: {restore_target}"
-                        )
-                        continue
-                    restore_dir = os.path.dirname(restore_target)
-                    try:
-                        if restore_dir and not os.path.isdir(restore_dir):
-                            os.makedirs(restore_dir, exist_ok=True)
-                        shutil.move(qpath, restore_target)
-                        item["status"] = "restored"
-                        item["restore_path"] = restore_target
-                        item["restore_timestamp"] = datetime.now().strftime(
-                            "%Y-%m-%d %H:%M:%S"
-                        )
-                        restored += 1
-                    except Exception as exc:
-                        failed += 1
-                        self.log_safe(
-                            f"Datei konnte nicht wiederhergestellt werden: {original_path}"
-                        )
-                        self.log_debug_safe(
-                            f"ClamAV-Restore-Fehler ({qpath} -> {restore_target}): {exc}"
-                        )
-
-                self._save_clamav_findings()
-                self._update_clamav_findings_buttons_state_safe()
-
-                now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                if failed == 0:
-                    status = "abgeschlossen"
-                else:
-                    status = "Fehler"
-                if restored > 0:
-                    result_msg = (
-                        f"{restored} Datei(en) aus Quarantäne wiederhergestellt"
-                    )
-                elif missing > 0 and failed == 0:
-                    result_msg = (
-                        "Keine Datei wiederhergestellt (Quarantäne-Dateien fehlen)"
-                    )
-                else:
-                    result_msg = "Wiederherstellung teilweise fehlgeschlagen"
-
-                self.update_clamav_panel_safe(
-                    status=status,
-                    signatures="aktuell" if has_cmd("freshclam") else "unbekannt",
-                    last_scan=now_ts,
-                    findings=str(len(self._clamav_findings_open())),
-                    result=result_msg,
-                )
-                self.log_safe(
-                    f"ClamAV-Wiederherstellung abgeschlossen. Wiederhergestellt: {restored}"
-                )
-                if missing:
-                    self.log_safe(f"{missing} Quarantäne-Datei(en) fehlten.")
-                if failed:
-                    self.log_safe(
-                        f"{failed} Datei(en) konnten nicht wiederhergestellt werden."
-                    )
-            finally:
-                self.security_clamav_running = False
-
-        threading.Thread(target=job, daemon=True).start()
+        clamav_controller.restore_clamav_quarantine_async(self)
 
     def restore_selected_clamav_quarantine_async(self):
-        if not has_cmd("clamscan"):
-            self.update_clamav_panel(
-                status="nicht installiert",
-                result="clamscan fehlt",
-            )
-            self.log("ClamAV ist nicht installiert.")
-            self._update_clamav_findings_buttons_state()
-            return
-        if self.security_clamav_running:
-            self.log("ClamAV-Scan läuft bereits.")
-            return
-
-        quarantined = self._clamav_findings_quarantined()
-        if not quarantined:
-            self.log("Keine Dateien in der ClamAV-Quarantäne vorhanden.")
-            self._update_clamav_findings_buttons_state()
-            return
-
-        selected = self._clamav_select_items_dialog(
-            quarantined,
-            title="ClamAV: Quarantäne-Dateien zur Wiederherstellung auswählen",
-            mode="quarantine",
-        )
-        if selected is None:
-            return
-        if not selected:
-            self.log("Keine Quarantäne-Dateien ausgewählt.")
-            return
-
-        self._log_clamav_restore_preview(selected, label="Vorschau (Auswahl)")
-        if not messagebox.askyesno(
-            "ClamAV Wiederherstellung (Auswahl)",
-            f"{len(selected)} ausgewählte Quarantäne-Datei(en) wiederherstellen?",
-            parent=self,
-        ):
-            self.log("ClamAV-Wiederherstellung (Auswahl) abgebrochen.")
-            return
-
-        self.security_clamav_running = True
-        self.update_clamav_panel(status="Wiederherstellung läuft", result="-")
-
-        def job():
-            restored = 0
-            missing = 0
-            failed = 0
-            try:
-                self.log_safe("ClamAV-Wiederherstellung (Auswahl) gestartet...")
-                for item in selected:
-                    qpath_raw = os.path.normpath(
-                        (item.get("quarantine_path") or "").strip()
-                    )
-                    original_path = os.path.normpath((item.get("path") or "").strip())
-                    if not qpath_raw or not original_path:
-                        failed += 1
-                        continue
-                    qpath, qpath_error = self._clamav_validate_quarantine_path(
-                        qpath_raw
-                    )
-                    if qpath is None:
-                        item["status"] = "quarantine_missing"
-                        item["restore_timestamp"] = datetime.now().strftime(
-                            "%Y-%m-%d %H:%M:%S"
-                        )
-                        if qpath_error == "außerhalb des Quarantäne-Ordners":
-                            failed += 1
-                            self.log_safe(
-                                f"Quarantäne-Datei übersprungen (unsicherer Pfad): {qpath_raw}"
-                            )
-                            self.log_debug_safe(
-                                f"ClamAV-Restore-Auswahl Quarantäne-Pfadprüfung fehlgeschlagen: {qpath_raw} ({qpath_error})"
-                            )
-                        else:
-                            missing += 1
-                            self.log_safe(
-                                f"Quarantäne-Datei nicht mehr vorhanden: {qpath_raw}"
-                            )
-                        continue
-                    if not os.path.exists(qpath):
-                        item["status"] = "quarantine_missing"
-                        item["restore_timestamp"] = datetime.now().strftime(
-                            "%Y-%m-%d %H:%M:%S"
-                        )
-                        missing += 1
-                        self.log_safe(f"Quarantäne-Datei nicht mehr vorhanden: {qpath}")
-                        continue
-
-                    safe_original = self._clamav_safe_restore_source(original_path)
-                    restore_target = self._clamav_next_restore_path(safe_original)
-                    home_root = os.path.realpath(os.path.expanduser("~"))
-                    if not self._clamav_path_is_within(restore_target, home_root):
-                        failed += 1
-                        self.log_safe(
-                            f"Datei konnte nicht sicher wiederhergestellt werden: {original_path}"
-                        )
-                        self.log_debug_safe(
-                            f"ClamAV-Restore-Auswahl Ziel außerhalb Home-Verzeichnis: {restore_target}"
-                        )
-                        continue
-                    restore_dir = os.path.dirname(restore_target)
-                    try:
-                        if restore_dir and not os.path.isdir(restore_dir):
-                            os.makedirs(restore_dir, exist_ok=True)
-                        shutil.move(qpath, restore_target)
-                        item["status"] = "restored"
-                        item["restore_path"] = restore_target
-                        item["restore_timestamp"] = datetime.now().strftime(
-                            "%Y-%m-%d %H:%M:%S"
-                        )
-                        restored += 1
-                    except Exception as exc:
-                        failed += 1
-                        self.log_safe(
-                            f"Datei konnte nicht wiederhergestellt werden: {original_path}"
-                        )
-                        self.log_debug_safe(
-                            f"ClamAV-Restore-Auswahl Fehler ({qpath} -> {restore_target}): {exc}"
-                        )
-
-                self._save_clamav_findings()
-                self._update_clamav_findings_buttons_state_safe()
-
-                now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                status = "abgeschlossen" if failed == 0 else "Fehler"
-                if restored > 0:
-                    result_msg = f"{restored} ausgewählte Datei(en) aus Quarantäne wiederhergestellt"
-                elif missing > 0 and failed == 0:
-                    result_msg = "Keine ausgewählte Datei wiederhergestellt (fehlend)"
-                else:
-                    result_msg = "Auswahl-Wiederherstellung teilweise fehlgeschlagen"
-
-                self.update_clamav_panel_safe(
-                    status=status,
-                    signatures="aktuell" if has_cmd("freshclam") else "unbekannt",
-                    last_scan=now_ts,
-                    findings=str(len(self._clamav_findings_open())),
-                    result=result_msg,
-                )
-                self.log_safe(
-                    f"ClamAV-Wiederherstellung (Auswahl) abgeschlossen. Wiederhergestellt: {restored}"
-                )
-                if missing:
-                    self.log_safe(
-                        f"{missing} ausgewählte Quarantäne-Datei(en) fehlten."
-                    )
-                if failed:
-                    self.log_safe(
-                        f"{failed} ausgewählte Datei(en) konnten nicht wiederhergestellt werden."
-                    )
-            finally:
-                self.security_clamav_running = False
-
-        threading.Thread(target=job, daemon=True).start()
+        clamav_controller.restore_selected_clamav_quarantine_async(self)
 
     def security_clamav_scan_async(self):
-        self.security_clamav_quickscan_async()
+        clamav_controller.security_clamav_scan_async(self)
 
     def security_set_ufw_logging_high(self):
-        if not self.ensure_sudo_session("UFW Logging HIGH setzen"):
-            return
-        rc, out = run_cmd(["sudo", "-n", "ufw", "logging", "high"], timeout=12)
-        if rc != 0:
-            rc, out = run_cmd(["ufw", "logging", "high"], timeout=12)
-        if rc == 0:
-            self.security_log_level = "HIGH"
-            self.log("Security: UFW Logging auf HIGH gesetzt.")
-            self._security_update_status(
-                "green" if self.security_monitoring else "gray"
-            )
-        else:
-            self.log(f"Security: UFW Logging HIGH fehlgeschlagen: {out}")
+        firewall_controller.security_set_ufw_logging_high(self)
 
     def ensure_sudo_session(self, reason=""):
         if not has_cmd("sudo"):
@@ -17859,169 +9744,31 @@ class App(TkBase):
         ]
 
     def load_primary_vpn_slots_config(self):
-        slots = self._default_primary_vpn_slots()
-        try:
-            if os.path.isfile(self.primary_vpn_config_path):
-                with open(self.primary_vpn_config_path, "r", encoding="utf-8") as f:
-                    raw = json.load(f)
-                if isinstance(raw, list):
-                    for item in raw:
-                        if not isinstance(item, dict):
-                            continue
-                        slot_no = int(item.get("slot", 0))
-                        if 1 <= slot_no <= len(slots):
-                            profile = self._base_wg_profile_name(item.get("profile"))
-                            slots[slot_no - 1] = {
-                                "slot": slot_no,
-                                "custom_name": (item.get("custom_name") or "").strip(),
-                                "profile": profile,
-                            }
-        except Exception as e:
-            self.log(f"Primäre VPN-Slot-Konfig konnte nicht geladen werden: {e}")
-        return slots
+        return vpn_controller.load_primary_vpn_slots_config(self)
 
     def get_privacy_vpn_options(self):
-        options = []
-        seen_labels = set()
-        slots = self.__dict__.get("primary_vpn_slots", []) or []
-        for slot in slots:
-            profile = self._base_wg_profile_name(slot.get("profile"))
-            if not profile:
-                continue
-
-            raw_label = (slot.get("custom_name") or "").strip()
-            label = raw_label or profile
-            if not label:
-                continue
-
-            unique_label = label
-            suffix = 2
-            while unique_label in seen_labels:
-                unique_label = f"{label} ({suffix})"
-                suffix += 1
-
-            seen_labels.add(unique_label)
-            options.append({"label": unique_label, "profile": profile})
-
-        if not options:
-            for label, profile in PRIVACY_VPN_LABELS.items():
-                options.append({"label": label, "profile": profile})
-
-        return options
+        return vpn_controller.get_privacy_vpn_options(self)
 
     def _privacy_vpn_label_profile_maps(self):
-        label_to_profile = {}
-        profile_to_label = {}
-
-        for item in self.get_privacy_vpn_options():
-            label = item.get("label", "")
-            profile = item.get("profile", "")
-            if label and profile:
-                label_to_profile[label] = profile
-                profile_to_label.setdefault(profile, label)
-
-        for label, profile in PRIVACY_VPN_LABELS.items():
-            label_to_profile.setdefault(label, profile)
-            profile_to_label.setdefault(profile, label)
-
-        return label_to_profile, profile_to_label
+        return vpn_controller.privacy_vpn_label_profile_maps(self)
 
     def update_privacy_vpn_combo(self):
-        values = [item["label"] for item in self.get_privacy_vpn_options()]
-        if "isp_stealth_vpn_combo" in self.__dict__:
-            self.isp_stealth_vpn_combo["values"] = values
-
-        current_profile = ""
-        if "isp_stealth_vpn_profile" in self.__dict__:
-            current_profile = (self.isp_stealth_vpn_profile.get() or "").strip()
-        if current_profile and self._privacy_vpn_label_for_profile(current_profile):
-            if "isp_stealth_vpn_choice" in self.__dict__:
-                self.isp_stealth_vpn_choice.set(
-                    self._privacy_vpn_label_for_profile(current_profile)
-                )
-            if "isp_stealth_vpn_profile" in self.__dict__:
-                self.isp_stealth_vpn_profile.set(current_profile)
-        else:
-            if current_profile and "isp_stealth_vpn_profile" in self.__dict__:
-                self.isp_stealth_vpn_profile.set("")
-            if "isp_stealth_vpn_choice" in self.__dict__:
-                self.isp_stealth_vpn_choice.set("")
-            if current_profile:
-                self.save_privacy_config()
+        vpn_controller.update_privacy_vpn_combo(self)
 
     def _privacy_vpn_profile_from_value(self, value):
-        selected = (value or "").strip()
-        if not selected:
-            return ""
-
-        label_to_profile, profile_to_label = self._privacy_vpn_label_profile_maps()
-        if selected in label_to_profile:
-            return label_to_profile[selected]
-        if selected in profile_to_label:
-            return selected
-
-        if selected in PRIVACY_VPN_LABELS:
-            return PRIVACY_VPN_LABELS[selected]
-        if selected in PRIVACY_VPN_PROFILES_TO_LABEL:
-            return selected
-
-        return ""
+        return vpn_controller.privacy_vpn_profile_from_value(self, value)
 
     def _privacy_vpn_label_for_profile(self, profile):
-        selected = (profile or "").strip()
-        if not selected:
-            return ""
-
-        _, profile_to_label = self._privacy_vpn_label_profile_maps()
-        if selected in profile_to_label:
-            return profile_to_label[selected]
-
-        return PRIVACY_VPN_PROFILES_TO_LABEL.get(selected, "")
+        return vpn_controller.privacy_vpn_label_for_profile(self, profile)
 
     def save_primary_vpn_slots_config(self):
-        ok, err = safe_write_json(
-            self.primary_vpn_config_path,
-            self.primary_vpn_slots,
-            indent=2,
-            ensure_ascii=False,
-        )
-        if not ok:
-            self.log(f"Primäre VPN-Slot-Konfig konnte nicht gespeichert werden: {err}")
+        vpn_controller.save_primary_vpn_slots_config(self)
 
     def load_vpn_slots_config(self):
-        slots = self._default_vpn_slots()
-        try:
-            if os.path.isfile(self.vpn_config_path):
-                with open(self.vpn_config_path, "r", encoding="utf-8") as f:
-                    raw = json.load(f)
-                if isinstance(raw, list):
-                    for item in raw:
-                        if not isinstance(item, dict):
-                            continue
-                        slot_no = int(item.get("slot", 0))
-                        if 1 <= slot_no <= VPN_SLOT_COUNT:
-                            slots[slot_no - 1] = {
-                                "slot": slot_no,
-                                "custom_name": (item.get("custom_name") or "").strip(),
-                                "profile": self._base_wg_profile_name(
-                                    item.get("profile")
-                                ),
-                            }
-        except Exception as e:
-            self.log(f"VPN-Slot-Konfig konnte nicht geladen werden: {e}")
-        return slots
+        return vpn_controller.load_vpn_slots_config(self)
 
     def save_vpn_slots_config(self):
-        ok, err = safe_write_json(
-            self.vpn_config_path,
-            self.vpn_slots,
-            indent=2,
-            ensure_ascii=False,
-        )
-        if not ok:
-            self.log(f"VPN-Slot-Konfig konnte nicht gespeichert werden: {err}")
-            return False
-        return True
+        return vpn_controller.save_vpn_slots_config(self)
 
     def load_link_slots_config(self):
         slots = self._default_link_slots()
@@ -18693,88 +10440,16 @@ class App(TkBase):
         return "bereit", "red"
 
     def open_primary_vpn_slot(self, slot_no):
-        if not (1 <= slot_no <= len(self.primary_vpn_slots)):
-            self.log(f"Unbekannter Standard-VPN-Slot: {slot_no}")
-            return False
-        slot = self.primary_vpn_slots[slot_no - 1]
-        profile = self._base_wg_profile_name(slot.get("profile"))
-        if not profile:
-            self.log(f"Standard-VPN-Slot {slot_no} ist nicht konfiguriert.")
-            return False
-        self.log(f"Standard-VPN-Slot {slot_no}: starte Profil '{profile}'")
-        try:
-            ok = self.vpn_switch(profile)
-        except Exception as exc:
-            self.log(
-                f"Standard-VPN-Slot {slot_no}: interner Fehler beim Start von '{profile}': {exc}"
-            )
-            self.log_debug_safe(traceback.format_exc())
-            ok = False
-        if not ok:
-            self.log(
-                f"Standard-VPN-Slot {slot_no} konnte Profil '{profile}' nicht starten."
-            )
-        return ok
+        return vpn_controller.open_primary_vpn_slot(self, slot_no)
 
     def save_primary_vpn_slot(self, slot_no):
-        if not (1 <= slot_no <= len(self.primary_vpn_slots)):
-            self.log(f"Unbekannter Standard-VPN-Slot zum Speichern: {slot_no}")
-            return
-
-        if slot_no == 1:
-            custom_name = (self.primary_vpn_1_name_var.get() or "").strip()
-            profile = self.primary_vpn_1_profile_var.get() or ""
-        else:
-            custom_name = (self.primary_vpn_2_name_var.get() or "").strip()
-            profile = self.primary_vpn_2_profile_var.get() or ""
-
-        profile = self._base_wg_profile_name(profile)
-
-        available_profiles = set(self.__dict__.get("wg_profiles", []) or [])
-        if profile:
-            if (
-                available_profiles
-                and profile not in available_profiles
-                and not self._wg_profile_exists(profile)
-            ):
-                self.log(
-                    f"Standard-VPN-Slot {slot_no}: Profil '{profile}' nicht gefunden. Speichern abgebrochen."
-                )
-                return
-
-        self.primary_vpn_slots[slot_no - 1]["custom_name"] = custom_name
-        self.primary_vpn_slots[slot_no - 1]["profile"] = profile
-        self.save_primary_vpn_slots_config()
-        self.update_primary_vpn_buttons()
-        self.update_privacy_vpn_combo()
-        self.log(f"Standard-VPN-Slot {slot_no} gespeichert: {custom_name or profile}.")
-        if profile:
-            self.run_async(
-                lambda p=profile, s=slot_no: self.reconcile_vpn_slot_firewall_state(
-                    reason=f"Primary-Slot-Zuordnung {s}->{p}",
-                    touched_profiles=[p],
-                    refresh_ui=False,
-                )
-            )
+        vpn_controller.save_primary_vpn_slot(self, slot_no)
 
     def update_primary_vpn_buttons(self):
-        if not hasattr(self, "btn_primary_vpn_1"):
-            return
-        self.btn_primary_vpn_1.config(
-            text=self.primary_vpn_slots[0].get("custom_name", "VPN CH")
-        )
-        self.btn_primary_vpn_2.config(
-            text=self.primary_vpn_slots[1].get("custom_name", "VPN DE")
-        )
+        vpn_controller.update_primary_vpn_buttons(self)
 
     def update_primary_vpn_form_controls(self):
-        if threading.current_thread() is not threading.main_thread():
-            self.after(0, self.update_primary_vpn_form_controls)
-            return
-        if "primary_vpn_1_profile_combo" in self.__dict__:
-            self.primary_vpn_1_profile_combo["values"] = self.wg_profiles
-        if "primary_vpn_2_profile_combo" in self.__dict__:
-            self.primary_vpn_2_profile_combo["values"] = self.wg_profiles
+        vpn_controller.update_primary_vpn_form_controls(self)
 
     def update_vpn_slot_buttons(self):
         if threading.current_thread() is not threading.main_thread():
@@ -18790,83 +10465,16 @@ class App(TkBase):
                 self.set_light(self.vpn_slot_lights[idx], color)
 
     def refresh_vpn_slots_table(self):
-        if threading.current_thread() is not threading.main_thread():
-            self.after(0, self.refresh_vpn_slots_table)
-            return
-        if not hasattr(self, "vpn_table"):
-            return
-        selected = self.vpn_table.selection()
-        selected_iid = selected[0] if selected else None
-        self._vpn_table_refreshing = True
-        try:
-            for item in self.vpn_table.get_children():
-                self.vpn_table.delete(item)
-            for slot in self.vpn_slots:
-                status, _color = self._vpn_slot_status(slot)
-                name = (slot.get("custom_name") or "").strip() or "-"
-                profile = self._base_wg_profile_name(slot.get("profile")) or "-"
-                iid = f"vpn-slot-{slot['slot']}"
-                self.vpn_table.insert(
-                    "",
-                    "end",
-                    iid=iid,
-                    values=(
-                        slot["slot"],
-                        name,
-                        profile,
-                        status,
-                    ),
-                )
-            if selected_iid and selected_iid in self.vpn_table.get_children():
-                current_selection = self.vpn_table.selection()
-                if not current_selection or current_selection[0] != selected_iid:
-                    self.vpn_table.selection_set(selected_iid)
-                self.vpn_table.focus(selected_iid)
-        finally:
-            self._vpn_table_refreshing = False
+        vpn_controller.refresh_vpn_slots_table(self)
 
     def load_vpn_slot_into_form(self, slot_no):
-        if not (1 <= slot_no <= VPN_SLOT_COUNT):
-            return
-        slot = self.vpn_slots[slot_no - 1]
-        self._vpn_form_loading = True
-        try:
-            self.vpn_slot_choice.set(str(slot_no))
-            self.vpn_custom_name_var.set((slot.get("custom_name") or "").strip())
-            self.vpn_profile_var.set(self._base_wg_profile_name(slot.get("profile")))
-        finally:
-            self._vpn_form_loading = False
-        self._vpn_form_dirty = False
+        vpn_controller.load_vpn_slot_into_form(self, slot_no)
 
     def sync_vpn_profile_form_selection(self):
-        if threading.current_thread() is not threading.main_thread():
-            self.after(0, self.sync_vpn_profile_form_selection)
-            return
-        profile_var = self.__dict__.get("vpn_profile_var")
-        if profile_var is None:
-            return
-        profile = self._base_wg_profile_name(profile_var.get())
-        available_profiles = set(self.__dict__.get("wg_profiles", []) or [])
-        if profile and profile not in available_profiles:
-            profile_var.set("")
+        vpn_controller.sync_vpn_profile_form_selection(self)
 
     def sync_primary_vpn_form_selection(self):
-        if threading.current_thread() is not threading.main_thread():
-            self.after(0, self.sync_primary_vpn_form_selection)
-            return
-        available_profiles = set(self.__dict__.get("wg_profiles", []) or [])
-        for slot_no, var_name in enumerate(
-            ("primary_vpn_1_profile_var", "primary_vpn_2_profile_var"), 1
-        ):
-            profile_var = self.__dict__.get(var_name)
-            if profile_var is None:
-                continue
-            saved_profile = self.primary_vpn_slots[slot_no - 1].get("profile", "")
-            base_profile = self._base_wg_profile_name(saved_profile)
-            if base_profile and base_profile in available_profiles:
-                profile_var.set(saved_profile)
-            else:
-                profile_var.set("")
+        vpn_controller.sync_primary_vpn_form_selection(self)
 
     def _on_vpn_form_field_changed(self, *_args):
         if getattr(self, "_vpn_form_loading", False):
@@ -18874,122 +10482,32 @@ class App(TkBase):
         self._vpn_form_dirty = True
 
     def on_vpn_slot_select(self, _event=None):
-        try:
-            slot_no = int((self.vpn_slot_choice.get() or "0").strip())
-        except ValueError:
-            slot_no = 0
-        self.load_vpn_slot_into_form(slot_no)
+        vpn_controller.on_vpn_slot_select(self, _event=_event)
 
     def on_vpn_table_select(self, _event=None):
-        if getattr(self, "_vpn_table_refreshing", False):
-            return
-        sel = self.vpn_table.selection() if hasattr(self, "vpn_table") else ()
-        if not sel:
-            return
-        values = self.vpn_table.item(sel[0], "values")
-        if not values:
-            return
-        try:
-            slot_no = int(values[0])
-        except (TypeError, ValueError):
-            return
-
-        # Keep manual form edits stable: periodic table refresh should not
-        # overwrite the current slot form while user is editing it.
-        if getattr(self, "_vpn_form_dirty", False):
-            try:
-                current_slot = int((self.vpn_slot_choice.get() or "0").strip())
-            except ValueError:
-                current_slot = 0
-            if slot_no == current_slot:
-                return
-
-        self.load_vpn_slot_into_form(slot_no)
+        vpn_controller.on_vpn_table_select(self, _event=_event)
 
     def _resolve_vpn_profile_input(self, profile_value, refresh_profiles=False):
-        candidate = self._base_wg_profile_name(profile_value)
-        if not candidate:
-            return ""
-
-        if refresh_profiles:
-            self.refresh_wg_profiles()
-            combo = self.__dict__.get("vpn_profile_combo")
-            if combo is not None:
-                try:
-                    combo["values"] = self.wg_profiles
-                except Exception:
-                    pass
-
-        profiles = [
-            self._base_wg_profile_name(name)
-            for name in (self.__dict__.get("wg_profiles", []) or [])
-            if self._base_wg_profile_name(name)
-        ]
-
-        if candidate in profiles:
-            return candidate
-
-        if not profiles:
-            return candidate
-
-        lowered = candidate.lower()
-        case_matches = [name for name in profiles if name.lower() == lowered]
-        if len(case_matches) == 1:
-            return case_matches[0]
-
-        if self._wg_profile_exists(candidate):
-            return candidate
-
-        return candidate
+        return vpn_controller.resolve_vpn_profile_input(
+            self,
+            profile_value,
+            refresh_profiles=refresh_profiles,
+        )
 
     def assign_vpn_slot(self):
-        try:
-            slot_no = int((self.vpn_slot_choice.get() or "0").strip())
-        except ValueError:
-            slot_no = 0
-        if not (1 <= slot_no <= VPN_SLOT_COUNT):
-            self.log("Ungültiger VPN-Slot ausgewählt.")
-            return
+        vpn_controller.assign_vpn_slot(self)
 
-        profile_input = (self.vpn_profile_var.get() or "").strip()
-        profile = self._resolve_vpn_profile_input(profile_input, refresh_profiles=True)
-        custom_name = (self.vpn_custom_name_var.get() or "").strip()
-        if not profile:
-            self.log(
-                "Bitte ein gültiges WireGuard-Profil auswählen oder manuell einen vorhandenen Profilnamen eingeben."
-            )
-            return
-        if profile_input != profile:
-            self.vpn_profile_var.set(profile)
+    def _is_vpn_profile_referenced_in_other_slots(self, profile, skip_slot_no=None):
+        return vpn_controller.is_vpn_profile_referenced_in_other_slots(
+            self,
+            profile,
+            skip_slot_no=skip_slot_no,
+        )
 
-        previous_slots = [dict(existing_slot) for existing_slot in self.vpn_slots]
-        for idx, slot in enumerate(self.vpn_slots):
-            if idx != slot_no - 1 and (slot.get("profile") or "").strip() == profile:
-                slot["profile"] = ""
-                slot["custom_name"] = ""
-
-        slot = self.vpn_slots[slot_no - 1]
-        slot["custom_name"] = custom_name
-        slot["profile"] = profile
-        save_result = self.save_vpn_slots_config()
-        if save_result is False:
-            self.vpn_slots = previous_slots
-            self.load_vpn_slot_into_form(slot_no)
-            self.update_vpn_slot_buttons()
-            self.refresh_vpn_slots_table()
-            self.log(
-                f"VPN-Slot {slot_no} konnte nicht gespeichert werden – Änderungen wurden zurückgesetzt."
-            )
-            return
-        self.update_vpn_slot_buttons()
-        self.refresh_vpn_slots_table()
-        self.log(f"VPN-Slot {slot_no} gespeichert: {profile}.")
-        self.run_async(
-            lambda p=profile, s=slot_no: self.reconcile_vpn_slot_firewall_state(
-                reason=f"Slot-Zuordnung {s}->{p}",
-                touched_profiles=[p],
-                refresh_ui=False,
-            )
+    def _collect_referenced_vpn_profiles(self, include_active=True):
+        return vpn_controller.collect_referenced_vpn_profiles(
+            self,
+            include_active=include_active,
         )
 
     def _sync_manual_wg_slot_controls(self):
@@ -19019,618 +10537,77 @@ class App(TkBase):
                 pass
 
     def clear_manual_wireguard_form(self):
-        if "manual_wg_profile_name_var" not in self.__dict__:
-            return
-        self.manual_wg_profile_name_var.set("")
-        self.manual_wg_private_key_var.set("")
-        self.manual_wg_public_key_var.set("")
-        self.manual_wg_endpoint_var.set("")
-        self.manual_wg_allowed_ips_var.set("0.0.0.0/0")
-        self.manual_wg_dns_var.set("")
-        self.manual_wg_keepalive_var.set("25")
-        self.manual_wg_save_slot_var.set(False)
-        self.manual_wg_slot_var.set("1")
-        self._sync_manual_wg_slot_controls()
-        self._set_manual_wg_status(
-            "Eingabefelder zurückgesetzt.",
-            level="info",
-        )
+        vpn_controller.clear_manual_wireguard_form(self)
 
     def _is_valid_wireguard_key(self, value):
-        token = (value or "").strip()
-        if not token:
-            return False
-        return bool(re.fullmatch(r"[A-Za-z0-9+/=]{40,}", token))
+        return vpn_controller.is_valid_wireguard_key(self, value)
 
     def _parse_manual_wireguard_endpoint(self, endpoint):
-        raw = (endpoint or "").strip()
-        if not raw:
-            return None, None, "Endpoint fehlt (Format host:port)."
-
-        if raw.startswith("[") and "]:" in raw:
-            host, port = raw[1:].split("]:", 1)
-        else:
-            host, sep, port = raw.rpartition(":")
-            if not sep:
-                return None, None, "Endpoint ungültig (Format host:port)."
-
-        host = host.strip()
-        port = port.strip()
-        if not host:
-            return None, None, "Endpoint-Host fehlt."
-        if not port.isdigit():
-            return None, None, "Endpoint-Port muss numerisch sein."
-        port_no = int(port)
-        if not (1 <= port_no <= 65535):
-            return None, None, "Endpoint-Port muss zwischen 1 und 65535 liegen."
-
-        return host, str(port_no), ""
+        return vpn_controller.parse_manual_wireguard_endpoint(self, endpoint)
 
     def _validate_manual_wireguard_form(self):
-        profile = (self.manual_wg_profile_name_var.get() or "").strip()
-        private_key = (self.manual_wg_private_key_var.get() or "").strip()
-        public_key = (self.manual_wg_public_key_var.get() or "").strip()
-        endpoint = (self.manual_wg_endpoint_var.get() or "").strip()
-        allowed_ips_raw = (self.manual_wg_allowed_ips_var.get() or "").strip()
-        dns_raw = (self.manual_wg_dns_var.get() or "").strip()
-        keepalive_raw = (self.manual_wg_keepalive_var.get() or "").strip()
-
-        if not re.fullmatch(r"[A-Za-z0-9_.-]+", profile or ""):
-            return None, "Profilname ungültig (erlaubt: A-Z, a-z, 0-9, _, -, .)."
-        if self._is_internal_ipv4_profile(profile):
-            return None, "Profilname darf nicht auf __ipv4 enden (reserviert)."
-
-        if not self._is_valid_wireguard_key(private_key):
-            return None, "Private Key ungültig."
-        if not self._is_valid_wireguard_key(public_key):
-            return None, "Public Key ungültig."
-
-        endpoint_host, endpoint_port, endpoint_err = (
-            self._parse_manual_wireguard_endpoint(endpoint)
-        )
-        if endpoint_err:
-            return None, endpoint_err
-
-        allowed_ips = [p.strip() for p in allowed_ips_raw.split(",") if p.strip()]
-        if not allowed_ips:
-            return None, "Allowed IPs darf nicht leer sein."
-        for token in allowed_ips:
-            try:
-                ipaddress.ip_network(token, strict=False)
-            except ValueError:
-                return None, f"Allowed IP ungültig: {token}"
-
-        dns_values = []
-        if dns_raw:
-            dns_values = [p.strip() for p in dns_raw.split(",") if p.strip()]
-            for token in dns_values:
-                candidate = token
-                if candidate.startswith("[") and candidate.endswith("]"):
-                    candidate = candidate[1:-1].strip()
-                try:
-                    ipaddress.ip_address(candidate)
-                except ValueError:
-                    return None, f"DNS-Eintrag ungültig: {token}"
-
-        keepalive = ""
-        if keepalive_raw:
-            if not keepalive_raw.isdigit():
-                return None, "Persistent Keepalive muss numerisch sein."
-            keepalive_no = int(keepalive_raw)
-            if not (0 <= keepalive_no <= 65535):
-                return None, "Persistent Keepalive muss zwischen 0 und 65535 liegen."
-            keepalive = str(keepalive_no)
-
-        normalized_endpoint = (
-            f"[{endpoint_host}]:{endpoint_port}"
-            if ":" in endpoint_host and not endpoint_host.startswith("[")
-            else f"{endpoint_host}:{endpoint_port}"
-        )
-
-        return {
-            "profile": profile,
-            "private_key": private_key,
-            "public_key": public_key,
-            "endpoint": normalized_endpoint,
-            "allowed_ips": ", ".join(allowed_ips),
-            "dns": ", ".join(dns_values),
-            "keepalive": keepalive,
-        }, ""
+        return vpn_controller.validate_manual_wireguard_form(self)
 
     def _build_manual_wireguard_config_text(self, payload):
-        lines = [
-            "[Interface]",
-            f"PrivateKey = {payload['private_key']}",
-        ]
-        if payload.get("dns"):
-            lines.append(f"DNS = {payload['dns']}")
-
-        lines.extend(
-            [
-                "",
-                "[Peer]",
-                f"PublicKey = {payload['public_key']}",
-                f"AllowedIPs = {payload['allowed_ips']}",
-                f"Endpoint = {payload['endpoint']}",
-            ]
-        )
-        if payload.get("keepalive"):
-            lines.append(f"PersistentKeepalive = {payload['keepalive']}")
-
-        return "\n".join(lines) + "\n"
+        return vpn_controller.build_manual_wireguard_config_text(self, payload)
 
     def _write_manual_wg_profile(self, profile_name, config_text):
-        tmp_path = ""
-        try:
-            with tempfile.NamedTemporaryFile(
-                mode="w", encoding="utf-8", delete=False
-            ) as temp_file:
-                temp_file.write(config_text)
-                tmp_path = temp_file.name
-
-            try:
-                os.chmod(tmp_path, 0o600)
-            except Exception:
-                pass
-
-            target = self._wg_profile_path(profile_name)
-            rc, out = run_cmd(
-                ["sudo", "-n", "install", "-m", "600", tmp_path, target],
-                timeout=12,
-            )
-            if rc != 0:
-                return False, (out or "").strip() or "unbekannter Fehler"
-            return True, ""
-        finally:
-            if tmp_path:
-                try:
-                    os.remove(tmp_path)
-                except Exception:
-                    pass
+        return vpn_controller.write_manual_wg_profile(self, profile_name, config_text)
 
     def _assign_manual_profile_to_slot(self, profile_name, slot_no):
-        if not (1 <= slot_no <= VPN_SLOT_COUNT):
-            return False, "Ungültiger Zielslot für manuelles Profil."
-
-        previous_slots = [dict(existing_slot) for existing_slot in self.vpn_slots]
-        for idx, slot in enumerate(self.vpn_slots):
-            if (
-                idx != slot_no - 1
-                and self._base_wg_profile_name(slot.get("profile")) == profile_name
-            ):
-                slot["profile"] = ""
-                slot["custom_name"] = ""
-
-        slot = self.vpn_slots[slot_no - 1]
-        slot["profile"] = profile_name
-        if not (slot.get("custom_name") or "").strip():
-            slot["custom_name"] = profile_name
-
-        save_result = self.save_vpn_slots_config()
-        if save_result is False:
-            self.vpn_slots = previous_slots
-            return False, "VPN-Slot konnte nicht gespeichert werden."
-        self.reconcile_vpn_slot_firewall_state(
-            reason=f"Manuelle Slot-Zuordnung {slot_no}->{profile_name}",
-            touched_profiles=[profile_name],
-            refresh_ui=False,
+        return vpn_controller.assign_manual_profile_to_slot(
+            self,
+            profile_name,
+            slot_no,
         )
-        return True, ""
 
     def apply_manual_wireguard_profile(self):
-        payload, err = self._validate_manual_wireguard_form()
-        if err:
-            self._set_manual_wg_status(
-                f"Validierung fehlgeschlagen: {err}",
-                level="error",
-            )
-            self.log(f"Manuelle WireGuard-Konfiguration ungültig: {err}")
-            return
-
-        save_to_slot = bool(self.manual_wg_save_slot_var.get())
-        slot_no = 0
-        if save_to_slot:
-            try:
-                slot_no = int((self.manual_wg_slot_var.get() or "0").strip())
-            except ValueError:
-                slot_no = 0
-            if not (1 <= slot_no <= VPN_SLOT_COUNT):
-                self._set_manual_wg_status(
-                    "Ungültiger VPN-Slot ausgewählt.",
-                    level="error",
-                )
-                self.log("Manuelles WireGuard-Profil: Ungültiger VPN-Slot ausgewählt.")
-                return
-
-        profile = payload["profile"]
-        if not self.ensure_sudo_session(
-            f"Manuelles WireGuard-Profil anwenden ({profile})"
-        ):
-            self._set_manual_wg_status(
-                "Sudo-Freigabe fehlt - Profil wurde nicht angewendet.",
-                level="warn",
-            )
-            return
-
-        self._set_manual_wg_status(
-            f"Profil wird angewendet: {profile}",
-            level="info",
-        )
-        self.log(
-            f"Manuelle WireGuard-Konfiguration wird angewendet (Profil: {profile})."
-        )
-
-        def job():
-            config_text = self._build_manual_wireguard_config_text(payload)
-            ok_write, write_err = self._write_manual_wg_profile(profile, config_text)
-            if not ok_write:
-                self.after(
-                    0,
-                    lambda m=write_err: self._set_manual_wg_status(
-                        f"Speichern fehlgeschlagen: {m}",
-                        level="error",
-                    ),
-                )
-                self.after(
-                    0,
-                    lambda m=write_err: self.log(
-                        f"Manuelles WireGuard-Profil konnte nicht gespeichert werden: {m}"
-                    ),
-                )
-                return
-
-            self.refresh_wg_profiles()
-
-            slot_saved = True
-            slot_err = ""
-            if save_to_slot:
-                slot_saved, slot_err = self._assign_manual_profile_to_slot(
-                    profile, slot_no
-                )
-
-            start_ok = self.vpn_switch(profile, ensure_sudo=False, refresh_ui=False)
-
-            def finish():
-                if hasattr(self, "vpn_profile_combo"):
-                    self.vpn_profile_combo["values"] = self.wg_profiles
-                self.update_primary_vpn_form_controls()
-                self.sync_primary_vpn_form_selection()
-                self.sync_vpn_profile_form_selection()
-                self.update_vpn_slot_buttons()
-                self.refresh_vpn_slots_table()
-                self.update_ipv6_controls_state()
-
-                if save_to_slot:
-                    if slot_saved:
-                        self.log(
-                            f"Manuelles Profil '{profile}' in VPN-Slot {slot_no} gespeichert."
-                        )
-                    else:
-                        self.log(
-                            f"Manuelles Profil '{profile}' gestartet, Slot-Speicherung fehlgeschlagen: {slot_err}"
-                        )
-
-                if start_ok:
-                    self._set_manual_wg_status(
-                        f"Profil aktiv: {profile}",
-                        level="ok",
-                    )
-                    self.log(f"Manuelles WireGuard-Profil aktiv: {profile}")
-                else:
-                    self._set_manual_wg_status(
-                        f"Profil gespeichert, Start fehlgeschlagen: {profile}",
-                        level="warn",
-                    )
-                    self.log(
-                        f"Manuelles WireGuard-Profil gespeichert, Start fehlgeschlagen: {profile}"
-                    )
-
-            self.after(0, finish)
-
-        self.run_async(job)
-
-    def _is_vpn_profile_referenced_in_other_slots(self, profile, skip_slot_no=None):
-        profile = self._base_wg_profile_name(profile)
-        if not profile:
-            return False
-        for idx, slot in enumerate(self.vpn_slots, start=1):
-            if skip_slot_no and idx == skip_slot_no:
-                continue
-            if self._base_wg_profile_name(slot.get("profile")) == profile:
-                return True
-        return False
-
-    def _collect_referenced_vpn_profiles(self, include_active=True):
-        profiles = []
-        seen = set()
-
-        def add_profile(value):
-            profile = self._base_wg_profile_name(value)
-            if not profile or profile in seen:
-                return
-            seen.add(profile)
-            profiles.append(profile)
-
-        for slot in self.__dict__.get("vpn_slots") or []:
-            add_profile(slot.get("profile"))
-
-        for slot in self.__dict__.get("primary_vpn_slots") or []:
-            add_profile(slot.get("profile"))
-
-        privacy_profile = ""
-        if "isp_stealth_vpn_profile" in self.__dict__:
-            try:
-                privacy_profile = (
-                    self._base_wg_profile_name(self.isp_stealth_vpn_profile.get()) or ""
-                )
-            except Exception:
-                privacy_profile = ""
-
-        if not privacy_profile and "isp_stealth_vpn_choice" in self.__dict__:
-            try:
-                privacy_profile = self._base_wg_profile_name(
-                    self._privacy_vpn_profile_from_value(
-                        self.isp_stealth_vpn_choice.get()
-                    )
-                )
-            except Exception:
-                privacy_profile = ""
-
-        if not privacy_profile:
-            cfg = self.__dict__.get("privacy_config") or {}
-            cfg_profile = str(cfg.get("vpn_profile") or "").strip()
-            if cfg_profile:
-                try:
-                    privacy_profile = self._base_wg_profile_name(
-                        self._privacy_vpn_profile_from_value(cfg_profile)
-                    )
-                except Exception:
-                    privacy_profile = self._base_wg_profile_name(cfg_profile)
-
-        add_profile(privacy_profile)
-
-        if include_active:
-            try:
-                add_profile(self.active_wg_profile())
-            except Exception:
-                pass
-
-        return profiles
+        vpn_controller.apply_manual_wireguard_profile(self)
 
     def _collect_interface_rules_for_profiles(
         self, profiles, include_family_candidates=False
     ):
-        # include_family_candidates bleibt aus API-Kompatibilitätsgründen bestehen,
-        # wird in der vereinfachten Architektur aber bewusst ignoriert.
-        profile_set = {
-            self._base_wg_profile_name(profile)
-            for profile in (profiles or [])
-            if self._base_wg_profile_name(profile)
-        }
-        interfaces = set()
-        for base_profile in sorted(profile_set):
-            resolved = self.resolve_profile_family_runtime(
-                base_profile, log_missing=False
-            )
-            effective_ipv4 = (resolved.get("effective_ipv4_interface") or "").strip()
-            effective_ipv6 = (resolved.get("effective_ipv6_interface") or "").strip()
-
-            if effective_ipv4:
-                interfaces.add(effective_ipv4)
-            if effective_ipv6:
-                interfaces.add(effective_ipv6)
-
-            self.log_debug(
-                f"[DEBUG] UFW-Regeln für {base_profile} basieren auf IPv4={effective_ipv4 or '-'}, IPv6={effective_ipv6 or 'None'}"
-            )
-
-        return {iface for iface in interfaces if iface}
+        return vpn_controller.collect_interface_rules_for_profiles(
+            self,
+            profiles,
+            include_family_candidates=include_family_candidates,
+        )
 
     def _collect_interface_rules_for_profiles_safe(
         self, profiles, include_family_candidates=False
     ):
-        collector = self._collect_interface_rules_for_profiles
-        try:
-            return collector(
-                profiles, include_family_candidates=include_family_candidates
-            )
-        except TypeError:
-            # Kompatibilität für ersetzte/monkey-gepatchte Collector.
-            return collector(profiles)
+        return vpn_controller.collect_interface_rules_for_profiles_safe(
+            self,
+            profiles,
+            include_family_candidates=include_family_candidates,
+        )
 
     def _collect_endpoint_rules_for_profiles(self, profiles):
-        endpoints = set()
-        profile_set = {
-            self._base_wg_profile_name(profile)
-            for profile in (profiles or [])
-            if self._base_wg_profile_name(profile)
-        }
-        for base_profile in sorted(profile_set):
-            resolved = self.resolve_profile_family_runtime(
-                base_profile, log_missing=False
-            )
-            candidates = resolved.get("endpoint_profiles") or [base_profile]
-            for candidate in candidates:
-                endpoint_ip, endpoint_port = self.parse_vpn_endpoint(candidate)
-                if endpoint_ip and endpoint_port:
-                    endpoints.add((endpoint_ip, endpoint_port))
-        return endpoints
+        return vpn_controller.collect_endpoint_rules_for_profiles(self, profiles)
 
     def ensure_profile_family_ready_for_use(self, profile_name, log_failures=True):
-        base_profile = self._base_wg_profile_name(profile_name)
-        if not base_profile:
-            return None
-        resolved = self.resolve_profile_family_runtime(
-            base_profile, log_missing=log_failures
+        return vpn_controller.ensure_profile_family_ready_for_use(
+            self,
+            profile_name,
+            log_failures=log_failures,
         )
-        self.log_debug(
-            f"[DEBUG] Profilfamilie {base_profile}: base={base_profile}, ipv4={resolved.get('ipv4_profile') or '-'}"
-        )
-        return resolved
 
     def _apply_profile_ufw_rules_non_killswitch(self, interfaces, endpoints):
-        interfaces = sorted(
-            {str(i).strip() for i in (interfaces or set()) if str(i).strip()}
+        return vpn_controller.apply_profile_ufw_rules_non_killswitch(
+            self,
+            interfaces,
+            endpoints,
         )
-        endpoints = sorted(
-            {
-                (str(ip).strip(), str(port).strip())
-                for ip, port in (endpoints or set())
-                if str(ip).strip() and str(port).strip()
-            }
-        )
-        if not interfaces and not endpoints:
-            self.log_debug(
-                "VPN/UFW-Reconcile: Keine Interface- oder Endpoint-Regeln erforderlich."
-            )
-            return True
-
-        network_service = self._network_service()
-        with self.ufw_lock:
-            rc_status, out_status = self._read_ufw_status(verbose=True)
-            if rc_status != 0:
-                self.log(
-                    "VPN/UFW-Reconcile: UFW-Status nicht lesbar – Regelsetzung übersprungen."
-                )
-                if out_status:
-                    self.log_debug_safe(out_status)
-                return False
-            if not self._ufw_status_is_active(out_status):
-                self.log(
-                    "VPN/UFW-Reconcile: UFW ist deaktiviert – Vorbereitung gespeichert, Regelsetzung übersprungen."
-                )
-                return True
-
-            known_keys = self._ufw_existing_rule_keys(out_status)
-
-            added_iface_rules = []
-            added_endpoint_rules = []
-            failed_rules = []
-            dedup_removed = 0
-
-            for iface in interfaces:
-                self.log_debug(
-                    f"[DEBUG] UFW-Regeln werden auf Interface {iface} angewendet"
-                )
-                for direction in ("out", "in"):
-                    ok_rule, added, detail, known_keys = self.ensure_ufw_rule_exists(
-                        {
-                            "type": "interface",
-                            "iface": iface,
-                            "direction": direction,
-                        },
-                        network_service=network_service,
-                        known_keys=known_keys,
-                    )
-                    if ok_rule and not added:
-                        continue
-                    if ok_rule and added:
-                        added_iface_rules.append(f"{direction} on {iface}")
-                    else:
-                        failed_rules.append((f"{direction} on {iface}", detail))
-
-            for endpoint_ip, endpoint_port in endpoints:
-                ok_rule, added, detail, known_keys = self.ensure_ufw_rule_exists(
-                    {
-                        "type": "endpoint",
-                        "ip": endpoint_ip,
-                        "port": endpoint_port,
-                    },
-                    network_service=network_service,
-                    known_keys=known_keys,
-                )
-                if ok_rule and not added:
-                    continue
-                if ok_rule and added:
-                    added_endpoint_rules.append(f"{endpoint_ip}:{endpoint_port}")
-                else:
-                    failed_rules.append(
-                        (f"udp endpoint {endpoint_ip}:{endpoint_port}", detail)
-                    )
-
-            dedup_removed = self._dedupe_vpn_ufw_rules()
-
-        if dedup_removed:
-            self.log(f"UFW-Duplikate bereinigt: {dedup_removed}")
-
-        if added_iface_rules:
-            self.log("UFW-Regeln gesetzt (Interfaces): " + ", ".join(added_iface_rules))
-        if added_endpoint_rules:
-            self.log("UDP-Endpoint-Regeln gesetzt: " + ", ".join(added_endpoint_rules))
-        if not added_iface_rules and not added_endpoint_rules:
-            self.log_debug(
-                "VPN/UFW-Reconcile: Alle benötigten Regeln waren bereits vorhanden."
-            )
-
-        if failed_rules:
-            self.log(
-                "VPN/UFW-Reconcile: Einige Regeln konnten nicht gesetzt werden: "
-                + ", ".join(label for label, _ in failed_rules)
-            )
-            detail = failed_rules[0][1]
-            if detail:
-                self.log_debug_safe(detail)
-            return False
-        return True
 
     def reconcile_vpn_slot_firewall_state(
         self, reason="", touched_profiles=None, refresh_ui=False
     ):
-        touched = []
-        for profile in touched_profiles or []:
-            base = self._base_wg_profile_name(profile)
-            if base and base not in touched:
-                touched.append(base)
-
-        referenced_profiles = self._collect_referenced_vpn_profiles(include_active=True)
-        for profile in touched:
-            if profile not in referenced_profiles:
-                referenced_profiles.append(profile)
-
-        resolved_by_profile = {}
-        for profile in sorted(set(referenced_profiles)):
-            resolved = self.ensure_profile_family_ready_for_use(
-                profile, log_failures=True
-            )
-            if resolved:
-                resolved_by_profile[profile] = resolved
-
-        if touched:
-            for profile in touched:
-                resolved = resolved_by_profile.get(profile) or {}
-                self.log(
-                    f"Profilfamilie vorbereitet: {profile} | "
-                    f"IPv4-Interface={resolved.get('effective_ipv4_interface') or '-'} | "
-                    f"IPv6-Interface={resolved.get('effective_ipv6_interface') or 'None'}"
-                )
-
-        interfaces = self._collect_interface_rules_for_profiles(referenced_profiles)
-        endpoints = self._collect_endpoint_rules_for_profiles(referenced_profiles)
-
-        reason_text = (reason or "").strip() or "VPN-Slot-Reconcile"
-        self.log_debug(
-            f"[DEBUG] {reason_text}: Interfaces={sorted(interfaces)} Endpoints={sorted(endpoints)}"
+        return vpn_controller.reconcile_vpn_slot_firewall_state(
+            self,
+            reason=reason,
+            touched_profiles=touched_profiles,
+            refresh_ui=refresh_ui,
         )
-
-        if not has_cmd("ufw"):
-            self.log(
-                "VPN/UFW-Reconcile: UFW nicht verfügbar – nur Profilvorbereitung durchgeführt."
-            )
-            return True
-
-        if self.killswitch_is_on():
-            self.log(
-                "Killswitch-Sollzustand wird mit aktueller Profilfamilie synchronisiert."
-            )
-            ok = self._killswitch_on_sync(refresh_ui=refresh_ui)
-            if ok:
-                self.log("Killswitch-Sollzustand vorbereitet.")
-            return ok
-
-        ok = self._apply_profile_ufw_rules_non_killswitch(interfaces, endpoints)
-        if ok:
-            self.log("VPN/UFW-Sollzustand vorbereitet.")
-        return ok
 
     def _remove_interface_rule(self, iface, direction):
         direction = (direction or "").strip().lower()
@@ -19898,470 +10875,43 @@ class App(TkBase):
             self._end_network_operation()
 
     def _remove_firewall_rules_for_vpn_profile(self, profile, removed_from_slot=None):
-        profile = self._base_wg_profile_name(profile)
-        if not profile:
-            self.log("Firewall-Cleanup übersprungen: Kein Profil im Slot hinterlegt.")
-            return True
-
-        if self._is_vpn_profile_referenced_in_other_slots(
-            profile, skip_slot_no=removed_from_slot
-        ):
-            self.log(
-                f"Firewall-Cleanup übersprungen: Profil '{profile}' wird noch in einem anderen VPN-Slot verwendet."
-            )
-            return True
-
-        profile_interfaces = self._collect_interface_rules_for_profiles_safe(
-            [profile], include_family_candidates=True
-        )
-        profile_endpoints = self._collect_endpoint_rules_for_profiles([profile])
-        all_profiles = self._collect_referenced_vpn_profiles(include_active=True)
-        referenced_interfaces = self._collect_interface_rules_for_profiles(all_profiles)
-        referenced_endpoints = self._collect_endpoint_rules_for_profiles(all_profiles)
-        return self._reconcile_vpn_firewall_rules(
-            old_interfaces=profile_interfaces,
-            new_interfaces=referenced_interfaces,
-            old_endpoints=profile_endpoints,
-            new_endpoints=referenced_endpoints,
-            removed_profile=profile,
+        return vpn_controller.remove_firewall_rules_for_vpn_profile(
+            self,
+            profile,
+            removed_from_slot=removed_from_slot,
         )
 
     def clear_vpn_slot(self, confirm=False):
-        try:
-            slot_no = int((self.vpn_slot_choice.get() or "0").strip())
-        except ValueError:
-            slot_no = 0
-        if not (1 <= slot_no <= VPN_SLOT_COUNT):
-            self.log("Ungültiger VPN-Slot ausgewählt.")
-            return
-
-        slot = self.vpn_slots[slot_no - 1]
-        old_profile = self._base_wg_profile_name(slot.get("profile"))
-        previous_slot_state = {
-            "custom_name": slot.get("custom_name", ""),
-            "profile": slot.get("profile", ""),
-        }
-
-        if confirm and old_profile:
-            ok = messagebox.askyesno(
-                "VPN-Slot aufheben",
-                f"Slot {slot_no} mit Profil '{old_profile}' wird geleert. Fortfahren?",
-                parent=self,
-            )
-            if not ok:
-                self.log(f"VPN-Slot {slot_no} aufheben abgebrochen.")
-                return
-
-        old_profiles = self._collect_referenced_vpn_profiles(include_active=True)
-        old_interfaces = self._collect_interface_rules_for_profiles_safe(
-            old_profiles, include_family_candidates=True
-        )
-        old_endpoints = self._collect_endpoint_rules_for_profiles(old_profiles)
-
-        slot["custom_name"] = ""
-        slot["profile"] = ""
-        save_result = self.save_vpn_slots_config()
-        if save_result is False:
-            slot["custom_name"] = previous_slot_state["custom_name"]
-            slot["profile"] = previous_slot_state["profile"]
-            self.load_vpn_slot_into_form(slot_no)
-            self.update_vpn_slot_buttons()
-            self.refresh_vpn_slots_table()
-            self.log(
-                f"VPN-Slot {slot_no} konnte nicht gelöscht werden – Änderungen wurden zurückgesetzt."
-            )
-            return
-
-        if old_profile:
-            self.log(
-                f"VPN-Slot {slot_no}: Profil '{old_profile}' entfernt – gleicht die Firewall mit dem neuen Sollzustand ab."
-            )
-            new_profiles = self._collect_referenced_vpn_profiles(include_active=True)
-            new_interfaces = self._collect_interface_rules_for_profiles(new_profiles)
-            new_endpoints = self._collect_endpoint_rules_for_profiles(new_profiles)
-            reconcile_ok = self._reconcile_vpn_firewall_rules(
-                old_interfaces=old_interfaces,
-                new_interfaces=new_interfaces,
-                old_endpoints=old_endpoints,
-                new_endpoints=new_endpoints,
-                removed_profile=old_profile,
-            )
-            if reconcile_ok is False:
-                self.log(
-                    "Firewall-Reconcile nach Slot-Löschung unvollständig. Bitte UFW-Regeln prüfen."
-                )
-
-        self.load_vpn_slot_into_form(slot_no)
-        self.update_vpn_slot_buttons()
-        self.refresh_vpn_slots_table()
-        if old_profile:
-            self.log(f"VPN-Slot {slot_no} aufgehoben ({old_profile}).")
-        else:
-            self.log(f"VPN-Slot {slot_no} aufgehoben.")
+        vpn_controller.clear_vpn_slot(self, confirm=confirm)
 
     def delete_selected_vpn_profile(self):
-        profile = self._base_wg_profile_name(self.vpn_profile_var.get())
-        if not profile:
-            self.log("Bitte erst ein WireGuard-Profil auswählen.")
-            return
-
-        ok = messagebox.askyesno(
-            "WireGuard-Profil löschen",
-            (
-                "Dieses WireGuard-Profil wird gelöscht.\n\n"
-                f"Original: {profile}.conf\n"
-                "Fortfahren?"
-            ),
-            parent=self,
-        )
-        if not ok:
-            self.log("Löschen abgebrochen.")
-            return
-
-        if not self.ensure_sudo_session("VPN-Profil löschen"):
-            return
-
-        old_referenced_profiles = self._collect_referenced_vpn_profiles(
-            include_active=True
-        )
-        old_referenced_interfaces = self._collect_interface_rules_for_profiles_safe(
-            old_referenced_profiles, include_family_candidates=True
-        )
-        old_referenced_endpoints = self._collect_endpoint_rules_for_profiles(
-            old_referenced_profiles
-        )
-
-        # Debugging: vollständige Profilauflösung / Existenzkette
-        self.log_debug(f"Formular-Profilwert = {self.vpn_profile_var.get()!r}")
-        self.log_debug(f"Basisprofil = {profile!r}")
-
-        original_path = self._wg_profile_path(profile)
-        original_exists = self._wg_profile_exists(profile)
-        active_ifaces = [
-            iface
-            for iface in self.get_wg_interfaces()
-            if self._base_wg_profile_name(iface) == profile
-        ]
-
-        self.log_debug(f"Originalpfad = {original_path}")
-        self.log_debug(f"exists(original) = {original_exists}")
-        self.log_debug(f"aktive Interfaces = {active_ifaces}")
-
-        if not original_exists and not active_ifaces:
-            self.log(f"Dateiprofil nicht vorhanden: {profile}.conf")
-            self.log("Löschen abgebrochen: Kein Dateiprofil vorhanden.")
-            return
-
-        if not original_exists and active_ifaces:
-            self.log_debug(
-                f"Kein Dateiprofil gefunden, aber aktives Interface vorhanden für '{profile}': {active_ifaces}"
-            )
-            self.log(
-                "Versuche aktives Interface zu beenden und anschließend Delete zu prüfen."
-            )
-            # kein sofortiger Return: wir versuchen erst sauberes Stoppen, dann ggf. Abbruch
-
-        active_profile = self._base_wg_profile_name(self.active_wg_profile())
-        if active_profile and active_profile == profile:
-            self.vpn_off(ensure_sudo=False, refresh_ui=False)
-            remaining_ifaces = [
-                iface
-                for iface in self.get_wg_interfaces()
-                if self._base_wg_profile_name(iface) == profile
-            ]
-            for iface in remaining_ifaces:
-                rc_down, out_down = run_cmd(
-                    ["sudo", "-n", "wg-quick", "down", iface], timeout=12
-                )
-                if rc_down != 0:
-                    self.log(
-                        f"Zusätzliches Stoppen fehlgeschlagen ({iface}): {(out_down or '').strip() or 'unknown'}"
-                    )
-            remaining_ifaces = [
-                iface
-                for iface in self.get_wg_interfaces()
-                if self._base_wg_profile_name(iface) == profile
-            ]
-            if remaining_ifaces:
-                self.log(
-                    f"Löschen abgebrochen: WireGuard-Interface für '{profile}' ist noch aktiv: {', '.join(remaining_ifaces)}"
-                )
-                try:
-                    self.refresh()
-                except Exception:
-                    pass
-                return
-
-        deleted = []
-        missing = []
-        failed = []
-        internal_ipv4_profile = f"{profile}{WG_IPV4_PROFILE_SUFFIX}"
-
-        # Wieder Klarheit: alle Prüfungen basieren auf _wg_profile_exists
-        exist_map = {
-            profile: original_exists,
-            internal_ipv4_profile: self._wg_profile_exists(internal_ipv4_profile),
-        }
-
-        for candidate, label in (
-            (profile, "Originalprofil"),
-            (internal_ipv4_profile, "Interne IPv4-Kopie"),
-        ):
-            candidate = (candidate or "").strip()
-            if not candidate:
-                continue
-
-            target = self._wg_profile_path(candidate)
-            candidate_exists = exist_map.get(
-                candidate, self._wg_profile_exists(candidate)
-            )
-
-            self.log_debug(
-                f"Prüfe Löschung {label} ({candidate}) -> {target} (exists={candidate_exists})"
-            )
-            self.log_debug(f"target = {target}")
-            self.log_debug(f"hostname = {socket.gethostname()}")
-            try:
-                self.log_debug(f"pwd = {os.getcwd()}")
-            except Exception as e:
-                self.log_debug(f"pwd = <err: {e}>")
-
-            self.log_debug(f"exists(target) vor rm = {os.path.exists(target)}")
-            self.log_debug("ls -l /etc/wireguard (vorher):")
-            rc_ls_before, out_ls_before = run_cmd(
-                ["ls", "-l", "/etc/wireguard"], timeout=5
-            )
-            self.log_debug(out_ls_before or "<kein Output>")
-
-            if not candidate_exists:
-                if label == "Originalprofil":
-                    self.log(f"Dateiprofil nicht gefunden: {candidate}")
-                else:
-                    self.log(f"Runtime-Dateiprofil nicht gefunden: {candidate}")
-                missing.append((label, candidate))
-                continue
-
-            rc, out = run_cmd(["sudo", "-n", "rm", "-f", target], timeout=10)
-            self.log_debug(f"sudo -n rm rc={rc}, out={out!r}")
-
-            after_exists = os.path.exists(target)
-            self.log_debug(f"exists(target) nach rm = {after_exists}")
-            self.log_debug("ls -l /etc/wireguard (nachher):")
-            rc_ls_after, out_ls_after = run_cmd(
-                ["ls", "-l", "/etc/wireguard"], timeout=5
-            )
-            self.log_debug(out_ls_after or "<kein Output>")
-
-            if rc != 0:
-                failed.append(
-                    (
-                        label,
-                        candidate,
-                        f"sudo rm fehlgeschlagen (rc={rc}): {(out or '').strip() or 'unknown'}",
-                    )
-                )
-                continue
-
-            if self._wg_profile_exists(candidate):
-                failed.append(
-                    (label, candidate, "Datei existiert nach sudo rm weiterhin")
-                )
-            else:
-                deleted.append((label, candidate))
-
-        original_deleted = any(candidate == profile for _label, candidate in deleted)
-
-        slots_cleared = 0
-        if original_deleted:
-            previous_slots = [dict(existing_slot) for existing_slot in self.vpn_slots]
-            for slot in self.vpn_slots:
-                slot_profile = self._base_wg_profile_name(slot.get("profile"))
-                if slot_profile != profile:
-                    continue
-                slot["profile"] = ""
-                slot["custom_name"] = ""
-                slots_cleared += 1
-            if slots_cleared:
-                save_result = self.save_vpn_slots_config()
-                if save_result is False:
-                    self.vpn_slots = previous_slots
-                    slots_cleared = 0
-                    self.log(
-                        "VPN-Slot-Bereinigung nach Profil-Löschung fehlgeschlagen – Slot-Änderungen wurden zurückgesetzt."
-                    )
-            new_referenced_profiles = self._collect_referenced_vpn_profiles(
-                include_active=True
-            )
-            new_referenced_interfaces = self._collect_interface_rules_for_profiles(
-                new_referenced_profiles
-            )
-            new_referenced_endpoints = self._collect_endpoint_rules_for_profiles(
-                new_referenced_profiles
-            )
-            if slots_cleared:
-                reconcile_ok = self._reconcile_vpn_firewall_rules(
-                    old_interfaces=old_referenced_interfaces,
-                    new_interfaces=new_referenced_interfaces,
-                    old_endpoints=old_referenced_endpoints,
-                    new_endpoints=new_referenced_endpoints,
-                    removed_profile=profile,
-                )
-                if reconcile_ok is False:
-                    self.log(
-                        "Firewall-Reconcile nach Profil-Löschung unvollständig. Bitte UFW-Regeln prüfen."
-                    )
-
-        self.refresh_wg_profiles()
-        if hasattr(self, "vpn_profile_combo"):
-            self.vpn_profile_combo["values"] = self.wg_profiles
-        self.update_primary_vpn_form_controls()
-        self.sync_primary_vpn_form_selection()
-        if original_deleted:
-            self.vpn_profile_var.set("")
-        self.sync_vpn_profile_form_selection()
-        try:
-            slot_no = int((self.vpn_slot_choice.get() or "0").strip())
-        except ValueError:
-            slot_no = 1
-        if not (1 <= slot_no <= VPN_SLOT_COUNT):
-            slot_no = 1
-        if original_deleted:
-            self.load_vpn_slot_into_form(slot_no)
-        self.update_vpn_slot_buttons()
-        self.refresh_vpn_slots_table()
-        self.update_ipv6_controls_state()
-
-        for label, candidate in deleted:
-            self.log(f"{label} gelöscht: {candidate}")
-        for label, candidate in missing:
-            self.log(f"{label} nicht gefunden: {candidate}")
-        for label, candidate, reason in failed:
-            self.log(f"{label} löschen fehlgeschlagen ({candidate}): {reason}")
-        if slots_cleared:
-            self.log(f"VPN-Slots bereinigt: {slots_cleared}")
-        if original_deleted:
-            self.log(f"WireGuard-Profil gelöscht: {profile}")
+        vpn_controller.delete_selected_vpn_profile(self)
 
     def _start_vpn_slot_profile(self, profile, slot_no=None, test_mode=False):
-        profile = self._base_wg_profile_name(profile)
-        if not profile:
-            self.log("Bitte ein WireGuard-Profil auswählen.")
-            return False
-        if not self.ensure_sudo_session("VPN-Slot starten"):
-            return False
-        active_profile = self._base_wg_profile_name(self.active_wg_profile())
-        if active_profile == profile:
-            self.log_safe("VPN-Profil bereits aktiv.")
-            self.refresh_safe()
-            return True
-
-        self.dns_guard_transition_until = time.time() + 5.0
-        try:
-            self.set_dns_guard_state("transition")
-        except Exception:
-            pass
-        self.update_dns_controls_state_safe()
-
-        def runner():
-            try:
-                ok = self.vpn_switch(profile, ensure_sudo=False, refresh_ui=False)
-            except Exception as exc:
-                ok = False
-                self.log_safe(f"VPN-Slot-Start interner Fehler ({profile}): {exc}")
-                self.log_debug_safe(traceback.format_exc())
-            if ok:
-                prefix = "VPN-Test" if test_mode else f"VPN-Slot {slot_no}"
-                self.log_safe(f"{prefix}: {profile} gestartet.")
-            elif test_mode:
-                self.log_safe(f"VPN-Test fehlgeschlagen: {profile}")
-            self.refresh_safe()
-            return ok
-
-        self.run_async(runner)
-        return True
+        return vpn_controller.start_vpn_slot_profile(
+            self,
+            profile,
+            slot_no=slot_no,
+            test_mode=test_mode,
+        )
 
     def test_vpn_slot(self):
-        profile_input = (self.vpn_profile_var.get() or "").strip()
-        profile = self._resolve_vpn_profile_input(profile_input, refresh_profiles=True)
-        if not profile:
-            self.log(
-                "VPN-Test abgebrochen: Profil nicht gefunden. Bitte gültigen Profilnamen wählen/eingeben."
-            )
-            return
-        if profile_input != profile:
-            self.vpn_profile_var.set(profile)
-        self._start_vpn_slot_profile(profile, test_mode=True)
+        vpn_controller.test_vpn_slot(self)
 
     def open_vpn_slot(self, idx):
-        if idx < 0 or idx >= len(self.vpn_slots):
-            return
-
-        slot = self.vpn_slots[idx]
-        profile = self._base_wg_profile_name(slot.get("profile"))
-
-        if not profile:
-            self.log(f"VPN-Slot {idx + 1} ist frei.")
-            if hasattr(self, "tab_vpn_slots"):
-                self._select_system_tab(self.tab_vpn_slots)
-                self.load_vpn_slot_into_form(idx + 1)
-            return
-
-        if profile not in (self.wg_profiles or []):
-            self.log(f"VPN-Slot {idx + 1}: Profil '{profile}' nicht gefunden.")
-            if hasattr(self, "tab_vpn_slots"):
-                self._select_system_tab(self.tab_vpn_slots)
-                self.load_vpn_slot_into_form(idx + 1)
-            return
-
-        self._start_vpn_slot_profile(profile, slot_no=idx + 1)
+        vpn_controller.open_vpn_slot(self, idx)
 
     def _default_hdd_slots(self):
-        return [
-            {
-                "slot": i + 1,
-                "custom_name": "",
-                "device": "",
-                "device_uuid": "",
-                "mountpoint": "",
-            }
-            for i in range(HDD_SLOT_COUNT)
-        ]
+        return hdd_controller.default_hdd_slots()
 
     def load_hdd_slots_config(self):
-        slots = self._default_hdd_slots()
-        try:
-            if os.path.isfile(self.hdd_config_path):
-                with open(self.hdd_config_path, "r", encoding="utf-8") as f:
-                    raw = json.load(f)
-                if isinstance(raw, list):
-                    for item in raw:
-                        if not isinstance(item, dict):
-                            continue
-                        slot_no = int(item.get("slot", 0))
-                        if 1 <= slot_no <= HDD_SLOT_COUNT:
-                            slots[slot_no - 1] = {
-                                "slot": slot_no,
-                                "custom_name": (item.get("custom_name") or "").strip(),
-                                "device": (item.get("device") or "").strip(),
-                                "device_uuid": (item.get("device_uuid") or "").strip(),
-                                "mountpoint": (item.get("mountpoint") or "").strip(),
-                            }
-        except Exception as e:
-            self.log(f"HDD Slot-Konfig konnte nicht geladen werden: {e}")
-        return slots
+        return hdd_controller.load_hdd_slots_config(self)
 
     def save_hdd_slots_config(self):
-        ok, err = safe_write_json(
-            self.hdd_config_path,
-            self.hdd_slots,
-            indent=2,
-            ensure_ascii=False,
-        )
-        if not ok:
-            self.log(f"HDD Slot-Konfig konnte nicht gespeichert werden: {err}")
+        hdd_controller.save_hdd_slots_config(self)
 
     def save_hdd_config(self):
-        self.save_hdd_slots_config()
+        hdd_controller.save_hdd_config(self)
 
     def load_privacy_config(self):
         config = {
@@ -20693,40 +11243,13 @@ class App(TkBase):
         threading.Thread(target=job, daemon=True).start()
 
     def hdd_slot_configured(self, slot):
-        return bool((slot.get("device") or "").strip())
+        return hdd_controller.hdd_slot_configured(slot)
 
     def _hdd_find_device_by_uuid(self, device_uuid):
-        device_uuid = (device_uuid or "").strip()
-        if not device_uuid:
-            return None
-        for disk in self.detected_disks:
-            if (disk.get("uuid") or "").strip() == device_uuid:
-                return disk
-        return None
+        return hdd_controller.hdd_find_device_by_uuid(self, device_uuid)
 
     def _hdd_resolve_slot_device(self, slot):
-        configured_device = (slot.get("device") or "").strip()
-        configured_uuid = (slot.get("device_uuid") or "").strip()
-
-        disk = (
-            self.detected_disks_by_device.get(configured_device)
-            if configured_device
-            else None
-        )
-        if disk:
-            live_uuid = (disk.get("uuid") or "").strip()
-            if live_uuid and live_uuid != configured_uuid:
-                slot["device_uuid"] = live_uuid
-            return configured_device, disk
-
-        disk = self._hdd_find_device_by_uuid(configured_uuid)
-        if disk:
-            live_device = (disk.get("device") or "").strip()
-            if live_device and live_device != configured_device:
-                slot["device"] = live_device
-            return live_device, disk
-
-        return configured_device, None
+        return hdd_controller.hdd_resolve_slot_device(self, slot)
 
     def scan_hdds(self):
         if not has_cmd("lsblk"):
@@ -20871,86 +11394,31 @@ class App(TkBase):
         return detected
 
     def _slot_for_device(self, device):
-        for slot in self.hdd_slots:
-            slot_device, _slot_disk = self._hdd_resolve_slot_device(slot)
-            if slot_device == device:
-                return slot.get("slot")
-        return None
+        return hdd_controller.slot_for_device(self, device)
 
     def _refresh_hdd_table(self, keep_selection=True):
-        selected = self.hdd_selected_device if keep_selection else None
-        for item in self.hdd_table.get_children():
-            self.hdd_table.delete(item)
-        for d in self.detected_disks:
-            status = d.get("status") or (
-                "gemountet" if d.get("mounted") else "nicht gemountet"
-            )
-            slot_no = self._slot_for_device(d.get("device") or "")
-            slot_txt = str(slot_no) if slot_no else "-"
-            label_model = d.get("label") or d.get("model") or "-"
-            self.hdd_table.insert(
-                "",
-                "end",
-                iid=d.get("device") or f"disk-{len(self.hdd_table.get_children())}",
-                values=(
-                    d.get("device") or "-",
-                    label_model,
-                    d.get("fstype") or "-",
-                    human_size(d.get("size_bytes")),
-                    status,
-                    d.get("mountpoint") or "-",
-                    slot_txt,
-                ),
-            )
-        if selected and selected in self.hdd_table.get_children():
-            self.hdd_table.selection_set(selected)
-            self.hdd_table.focus(selected)
+        hdd_controller.refresh_hdd_table(self, keep_selection=keep_selection)
 
     def _slot_display_name(self, idx):
-        slot = self.hdd_slots[idx]
-        custom = (slot.get("custom_name") or "").strip()
-        if custom:
-            return custom
-        device, disk = self._hdd_resolve_slot_device(slot)
-        if not device:
-            return f"Slot {idx + 1} frei"
-        disk = disk or {}
-        return (
-            (disk.get("label") or "").strip()
-            or (disk.get("model") or "").strip()
-            or device
-        )
+        return hdd_controller.slot_display_name(self, idx)
 
     def update_hdd_slot_button_labels(self):
-        for idx, btn in enumerate(self.hdd_slot_name_buttons):
-            try:
-                btn.configure(text=self._slot_display_name(idx))
-            except Exception:
-                pass
+        hdd_controller.update_hdd_slot_button_labels(self)
 
     def update_hdd_buttons(self):
-        self.update_hdd_slot_button_labels()
+        hdd_controller.update_hdd_buttons(self)
 
     def on_hdd_name_focus_in(self, _event=None):
-        self.hdd_name_editing = True
+        hdd_controller.on_hdd_name_focus_in(self, _event)
 
     def on_hdd_name_focus_out(self, _event=None):
-        self.hdd_name_editing = False
+        hdd_controller.on_hdd_name_focus_out(self, _event)
 
     def on_hdd_name_changed(self, *_args):
-        if self._hdd_name_programmatic_update:
-            return
-        self.hdd_name_dirty = True
+        hdd_controller.on_hdd_name_changed(self, *_args)
 
     def set_hdd_name_from_model(self, name):
-        value = (name or "").strip()
-        self._hdd_name_programmatic_update = True
-        try:
-            self.hdd_custom_name_var.set(value)
-            self.hdd_last_loaded_name = value
-            self.hdd_name_dirty = False
-        finally:
-            self._hdd_name_programmatic_update = False
+        hdd_controller.set_hdd_name_from_model(self, name)
 
     def scan_hdds_async(self):
         def job():
@@ -20970,841 +11438,58 @@ class App(TkBase):
         threading.Thread(target=job, daemon=True).start()
 
     def on_hdd_table_select(self, _event=None):
-        sel = self.hdd_table.selection()
-        if not sel:
-            self.hdd_selected_device = None
-            return
-        dev = sel[0]
-        self.hdd_selected_device = dev
-        disk = self.detected_disks_by_device.get(dev)
-        if not disk:
-            return
-
-        if self.hdd_name_editing or self.hdd_name_dirty:
-            return
-
-        slot_no = self._slot_for_device(dev)
-        if slot_no:
-            self.hdd_slot_choice.set(str(slot_no))
-            self.set_hdd_name_from_model(
-                (self.hdd_slots[slot_no - 1].get("custom_name") or "").strip()
-            )
-        else:
-            self.set_hdd_name_from_model((disk.get("label") or "").strip())
+        hdd_controller.on_hdd_table_select(self, _event)
 
     def assign_selected_disk_to_slot(self):
-        sel = self.hdd_table.selection()
-        if not sel:
-            self.log("Bitte erst eine erkannte Festplatte auswählen.")
-            return
-        dev = sel[0]
-        disk = self.detected_disks_by_device.get(dev)
-        if not disk:
-            self.log("Ausgewählte Festplatte ist nicht mehr verfügbar.")
-            return
-        try:
-            slot_no = int((self.hdd_slot_choice.get() or "0").strip())
-        except ValueError:
-            slot_no = 0
-        if not (1 <= slot_no <= HDD_SLOT_COUNT):
-            self.log("Ungültiger Slot ausgewählt.")
-            return
-
-        # Device nur einem Slot zuordnen.
-        for slot in self.hdd_slots:
-            if (slot.get("device") or "").strip() == dev:
-                slot["device"] = ""
-                slot["mountpoint"] = ""
-                slot["custom_name"] = ""
-
-        target = self.hdd_slots[slot_no - 1]
-        target["device"] = dev
-        target["device_uuid"] = (disk.get("uuid") or "").strip()
-        target["mountpoint"] = (
-            (disk.get("mountpoint") or "").strip()
-            or target.get("mountpoint")
-            or f"/mnt/{os.path.basename(dev)}"
-        )
-        target["custom_name"] = (self.hdd_custom_name_var.get() or "").strip()
-        self.save_hdd_config()
-        self.hdd_last_loaded_name = target["custom_name"]
-        self.hdd_name_dirty = False
-        self._refresh_hdd_table(keep_selection=True)
-        self.update_hdd_buttons()
-        self.hdd_refresh_async()
-        self.log(f"HDD Zuordnung übernommen: {dev} -> Slot {slot_no}.")
+        hdd_controller.assign_selected_disk_to_slot(self)
 
     def clear_slot_assignment(self, confirm=False):
-        try:
-            slot_no = int((self.hdd_slot_choice.get() or "0").strip())
-        except ValueError:
-            slot_no = 0
-        if not (1 <= slot_no <= HDD_SLOT_COUNT):
-            self.log("Ungültiger Slot ausgewählt.")
-            return
-
-        target = self.hdd_slots[slot_no - 1]
-        had_assignment = bool(
-            (target.get("device") or "").strip()
-            or (target.get("device_uuid") or "").strip()
-            or (target.get("mountpoint") or "").strip()
-            or (target.get("custom_name") or "").strip()
-        )
-        if confirm and had_assignment:
-            slot_label = (target.get("custom_name") or "").strip() or f"Slot {slot_no}"
-            ok = messagebox.askyesno(
-                "HDD-Zuordnung aufheben",
-                f"{slot_label} wird vom Slot getrennt. Fortfahren?",
-                parent=self,
-            )
-            if not ok:
-                self.log(f"HDD Zuordnung aufheben abgebrochen: Slot {slot_no}.")
-                return
-        target["device"] = ""
-        target["device_uuid"] = ""
-        target["mountpoint"] = ""
-        target["custom_name"] = ""
-        self.hdd_selected_device = None
-        self.save_hdd_config()
-        self.set_hdd_name_from_model("")
-        self._refresh_hdd_table(keep_selection=False)
-        self.update_hdd_buttons()
-
-        self.hdd_slot_states[slot_no - 1] = {
-            "configured": False,
-            "present": False,
-            "mounted": None,
-        }
-        self._hdd_apply_slot_lights()
-        self.log(f"HDD Zuordnung aufgehoben: Slot {slot_no}.")
+        hdd_controller.clear_slot_assignment(self, confirm=confirm)
 
     def _hdd_sanitize_mapper_name(self, device):
-        base = os.path.basename(device or "slot")
-        safe = re.sub(r"[^A-Za-z0-9_-]", "_", base)
-        return f"netmon_{safe}"
+        return hdd_controller.hdd_sanitize_mapper_name(device)
 
     def _hdd_list_mappers(self):
-        mapper_dir = "/dev/mapper"
-        try:
-            entries = sorted(
-                name for name in os.listdir(mapper_dir) if name and name != "control"
-            )
-        except Exception:
-            entries = []
-        return entries
+        return hdd_controller.hdd_list_mappers()
 
     def _hdd_probe_live_device(self, device):
-        if not device or not has_cmd("lsblk"):
-            return {}
-
-        rc, out = run_cmd(
-            [
-                "lsblk",
-                "-J",
-                "-p",
-                "-o",
-                "NAME,PATH,TYPE,FSTYPE,UUID,MOUNTPOINT",
-            ],
-            timeout=8,
-        )
-        if rc != 0 or not out.strip():
-            return {}
-        try:
-            data = json.loads(out)
-        except Exception:
-            return {}
-
-        def find_node(node):
-            path = (node.get("path") or node.get("name") or "").strip()
-            if path == device:
-                return node
-            for child in node.get("children") or []:
-                found = find_node(child)
-                if found:
-                    return found
-            return None
-
-        root = None
-        for candidate in data.get("blockdevices", []):
-            root = find_node(candidate)
-            if root:
-                break
-        if not root:
-            return {}
-
-        info = {
-            "device_path": (root.get("path") or root.get("name") or "").strip(),
-            "device_uuid": (root.get("uuid") or "").strip(),
-            "mapper_name": "",
-            "mapper_path": "",
-            "mounted_targets": [],
-            "mounted_sources": [],
-        }
-
-        def walk(node):
-            path = (node.get("path") or node.get("name") or "").strip()
-            mountpoint = (node.get("mountpoint") or "").strip()
-            if mountpoint:
-                info["mounted_targets"].append(mountpoint)
-                if path:
-                    info["mounted_sources"].append(path)
-
-            if path.startswith("/dev/mapper/") and not info["mapper_path"]:
-                info["mapper_path"] = path
-                info["mapper_name"] = os.path.basename(path)
-
-            for child in node.get("children") or []:
-                walk(child)
-
-        walk(root)
-
-        info["mounted_targets"] = list(dict.fromkeys(info["mounted_targets"]))
-        info["mounted_sources"] = list(dict.fromkeys(info["mounted_sources"]))
-        return info
+        return hdd_controller.hdd_probe_live_device(device)
 
     def _hdd_luks_info_for_device(self, device):
-        disk = self.detected_disks_by_device.get(device) or {}
-        live = self._hdd_probe_live_device(device)
-        mapper_path = (live.get("mapper_path") or "").strip()
-        mapper_name = (live.get("mapper_name") or "").strip()
-        if not mapper_path:
-            mapper_path = (disk.get("luks_mapper_path") or "").strip()
-        if not mapper_name:
-            mapper_name = (disk.get("luks_mapper_name") or "").strip()
-        if not mapper_name and mapper_path.startswith("/dev/mapper/"):
-            mapper_name = os.path.basename(mapper_path)
-
-        cached_mapper = (self.hdd_luks_mappers.get(device) or "").strip()
-        if not mapper_name:
-            mapper_name = cached_mapper
-        if (
-            not mapper_path
-            and mapper_name
-            and os.path.exists(f"/dev/mapper/{mapper_name}")
-        ):
-            mapper_path = f"/dev/mapper/{mapper_name}"
-        if not mapper_name and mapper_path.startswith("/dev/mapper/"):
-            mapper_name = os.path.basename(mapper_path)
-        if not mapper_name:
-            mapper_name = self._hdd_sanitize_mapper_name(device)
-        if (
-            not mapper_path
-            and cached_mapper
-            and os.path.exists(f"/dev/mapper/{cached_mapper}")
-        ):
-            mapper_path = f"/dev/mapper/{cached_mapper}"
-        if (
-            not mapper_path
-            and mapper_name
-            and os.path.exists(f"/dev/mapper/{mapper_name}")
-        ):
-            mapper_path = f"/dev/mapper/{mapper_name}"
-
-        unlocked = bool(mapper_path)
-        if mapper_name and mapper_path:
-            self.hdd_luks_mappers[device] = mapper_name
-
-        return {
-            "is_luks": bool(disk.get("is_luks")),
-            "locked": bool(disk.get("is_luks")) and not unlocked,
-            "unlocked": unlocked,
-            "mapper_name": mapper_name,
-            "mapper_path": mapper_path,
-            "mounted_targets": live.get("mounted_targets") or [],
-            "mounted_sources": live.get("mounted_sources") or [],
-            "device_uuid": (live.get("device_uuid") or disk.get("uuid") or "").strip(),
-            "available_mappers": self._hdd_list_mappers(),
-        }
+        return hdd_controller.hdd_luks_info_for_device(self, device)
 
     def _hdd_find_mount_source(self, mapper_path):
-        mapper_path = (mapper_path or "").strip()
-        if not mapper_path or not has_cmd("lsblk"):
-            return mapper_path
-
-        rc, out = run_cmd(
-            [
-                "lsblk",
-                "-J",
-                "-p",
-                "-o",
-                "PATH,FSTYPE,TYPE",
-                mapper_path,
-            ],
-            timeout=8,
-        )
-        if rc != 0 or not out.strip():
-            return mapper_path
-        try:
-            data = json.loads(out)
-        except Exception:
-            return mapper_path
-
-        def walk(node):
-            node_path = (node.get("path") or node.get("name") or "").strip()
-            node_fstype = (node.get("fstype") or "").strip()
-            if node_path == mapper_path and node_fstype:
-                return node_path
-            for child in node.get("children") or []:
-                child_path = (child.get("path") or child.get("name") or "").strip()
-                child_fstype = (child.get("fstype") or "").strip()
-                if child_path and child_fstype:
-                    return child_path
-                found = walk(child)
-                if found:
-                    return found
-            return None
-
-        for device in data.get("blockdevices", []):
-            found = walk(device)
-            if found:
-                return found
-        return mapper_path
+        return hdd_controller.hdd_find_mount_source(mapper_path)
 
     def _hdd_is_mounted(self, device, mountpoint):
-        live = self._hdd_probe_live_device(device)
-        targets = live.get("mounted_targets") or []
-        if targets:
-            if mountpoint and mountpoint in targets:
-                return True, mountpoint
-            return True, targets[0]
-
-        sources = []
-        if device:
-            sources.append(device)
-        luks = self._hdd_luks_info_for_device(device)
-        mapper_path = (luks.get("mapper_path") or "").strip()
-        if mapper_path:
-            sources.append(mapper_path)
-        sources.extend(luks.get("mounted_sources") or [])
-        sources = [src for src in dict.fromkeys(src.strip() for src in sources if src)]
-
-        if has_cmd("findmnt") and mountpoint:
-            rc, out = run_cmd(
-                ["findmnt", "-rn", "-T", mountpoint, "-o", "SOURCE,TARGET"], timeout=4
-            )
-            if rc == 0 and out.strip():
-                parts = out.split(None, 1)
-                source = parts[0].strip() if parts else ""
-                target = parts[1].strip() if len(parts) > 1 else mountpoint
-                if not sources or not source or source in sources:
-                    return True, target
-        if has_cmd("findmnt"):
-            for source in sources:
-                rc, out = run_cmd(
-                    ["findmnt", "-rn", "-S", source, "-o", "TARGET"], timeout=4
-                )
-                if rc == 0 and out.strip():
-                    found_targets = [
-                        ln.strip() for ln in out.splitlines() if ln.strip()
-                    ]
-                    if found_targets:
-                        if mountpoint and mountpoint in found_targets:
-                            return True, mountpoint
-                        return True, found_targets[0]
-        if has_cmd("mount") and mountpoint:
-            rc, out = run_cmd(["mount"], timeout=4)
-            if rc == 0 and out.strip():
-                needle = f" on {mountpoint} "
-                for line in out.splitlines():
-                    if needle not in line:
-                        continue
-                    source = line.split(" on ", 1)[0].strip()
-                    if not sources or source in sources:
-                        return True, mountpoint
-        return False, ""
+        return hdd_controller.hdd_is_mounted(self, device, mountpoint)
 
     def _hdd_usage_for_mountpoint(self, mountpoint):
-        if not mountpoint or not has_cmd("df"):
-            return None
-        rc, out = run_cmd(["df", "-B1", mountpoint], timeout=6)
-        if rc != 0 or not out.strip():
-            return None
-        lines = [ln for ln in out.splitlines() if ln.strip()]
-        if len(lines) < 2:
-            return None
-        cols = lines[-1].split()
-        if len(cols) < 6:
-            return None
-        try:
-            return {
-                "total": int(cols[1]),
-                "used": int(cols[2]),
-                "free": int(cols[3]),
-                "use_pct": cols[4],
-            }
-        except (TypeError, ValueError):
-            return None
+        return hdd_controller.hdd_usage_for_mountpoint(mountpoint)
 
     def _hdd_collect_slot_state(self, idx):
-        slot = self.hdd_slots[idx]
-        device, disk = self._hdd_resolve_slot_device(slot)
-        mountpoint = (slot.get("mountpoint") or "").strip()
-        if not device:
-            return {
-                "slot": idx,
-                "custom_name": (slot.get("custom_name") or "").strip(),
-                "device": "",
-                "mountpoint": mountpoint,
-                "configured": False,
-                "present": False,
-                "mounted": None,
-                "actual_target": "",
-                "fstype": "",
-                "label": "",
-                "model": "",
-                "size_bytes": None,
-                "usage": None,
-                "is_luks": False,
-                "luks_locked": False,
-                "luks_mapper_name": "",
-                "luks_mapper_path": "",
-            }
-
-        luks = self._hdd_luks_info_for_device(device)
-        mounted, actual_target = self._hdd_is_mounted(device, mountpoint)
-        if not mounted and luks.get("mounted_targets"):
-            actual_target = luks["mounted_targets"][0]
-            mounted = True
-        if not actual_target and disk:
-            actual_target = (disk.get("mountpoint") or "").strip()
-        usage = (
-            self._hdd_usage_for_mountpoint(actual_target or mountpoint)
-            if mounted
-            else None
-        )
-        return {
-            "slot": idx,
-            "custom_name": (slot.get("custom_name") or "").strip(),
-            "device": device,
-            "mountpoint": mountpoint,
-            "configured": True,
-            "present": disk is not None,
-            "mounted": mounted if disk is not None else None,
-            "actual_target": actual_target,
-            "fstype": (disk.get("fstype") if disk else "") or "",
-            "label": (disk.get("label") if disk else "") or "",
-            "model": (disk.get("model") if disk else "") or "",
-            "size_bytes": disk.get("size_bytes") if disk else None,
-            "usage": usage,
-            "is_luks": luks.get(
-                "is_luks", bool(disk.get("is_luks")) if disk else False
-            ),
-            "luks_locked": luks.get(
-                "locked", bool(disk.get("luks_locked")) if disk else False
-            ),
-            "luks_mapper_name": luks.get("mapper_name") or "",
-            "luks_mapper_path": luks.get("mapper_path") or "",
-        }
+        return hdd_controller.hdd_collect_slot_state(self, idx)
 
     def _hdd_apply_slot_lights(self):
-        for idx, light in enumerate(self.hdd_slot_lights):
-            state = (
-                self.hdd_slot_states[idx] if idx < len(self.hdd_slot_states) else None
-            )
-            if not state or not state.get("configured") or not state.get("present"):
-                color = "gray"
-            elif state.get("is_luks") and state.get("luks_locked"):
-                color = "orange"
-            elif state.get("mounted") is True:
-                color = "green"
-            elif state.get("mounted") is False:
-                color = "red"
-            else:
-                color = "gray"
-            self.set_light(light, color)
-        self.update_hdd_slot_button_labels()
+        hdd_controller.hdd_apply_slot_lights(self)
 
     def hdd_refresh_async(self):
-        if self.hdd_refresh_running:
-            return
-        self.hdd_refresh_running = True
-
-        def job():
-            disks = self.scan_hdds()
-            disks_by_device = {
-                (d.get("device") or ""): d for d in disks if d.get("device")
-            }
-            prev_detected = self.detected_disks_by_device
-            self.detected_disks_by_device = disks_by_device
-            states = [
-                self._hdd_collect_slot_state(i) for i in range(len(self.hdd_slots))
-            ]
-            self.detected_disks_by_device = prev_detected
-
-            def done():
-                self.detected_disks = disks
-                self.detected_disks_by_device = disks_by_device
-                self._refresh_hdd_table(keep_selection=True)
-                self.hdd_slot_states = states
-                self._hdd_apply_slot_lights()
-                self.hdd_refresh_running = False
-
-            self.after(0, done)
-
-        threading.Thread(target=job, daemon=True).start()
+        hdd_controller.hdd_refresh_async(self)
 
     def _hdd_render_usage_bar(self, usage):
-        self.hdd_usage_canvas.delete("all")
-        cw = max(self.hdd_usage_canvas.winfo_width(), 320)
-        ch = max(self.hdd_usage_canvas.winfo_height(), 30)
-        pad = 6
-        x0, y0, x1, y1 = pad, pad, cw - pad, ch - pad
-        self.hdd_usage_canvas.create_rectangle(
-            x0, y0, x1, y1, fill="#f0f0f0", outline="#999"
-        )
-
-        if not usage or not usage.get("total"):
-            self.hdd_usage_canvas.create_text(
-                cw // 2, ch // 2, text="Keine Nutzungsdaten verfügbar", fill="#666"
-            )
-            return
-
-        total = max(int(usage["total"]), 1)
-        used = min(max(int(usage.get("used", 0)), 0), total)
-        frac = used / total
-        ux = x0 + int((x1 - x0) * frac)
-        self.hdd_usage_canvas.create_rectangle(
-            x0, y0, ux, y1, fill="#d9534f", outline=""
-        )
-        pct = usage.get("use_pct") or f"{frac * 100:.0f}%"
-        txt = (
-            f"Belegt {human_size(used)} / Frei {human_size(usage.get('free'))} "
-            f"von {human_size(total)} ({pct})"
-        )
-        self.hdd_usage_canvas.create_text(cw // 2, ch // 2, text=txt, fill="#111")
+        hdd_controller.hdd_render_usage_bar(self, usage)
 
     def _hdd_render_info(self, state):
-        mounted = state.get("mounted")
-        if mounted is True:
-            mounted_txt = "gemountet"
-        elif mounted is False:
-            mounted_txt = "nicht gemountet"
-        else:
-            mounted_txt = "unbekannt"
-
-        usage = state.get("usage") or {}
-        display_name = (
-            (state.get("custom_name") or "").strip()
-            or (state.get("label") or "").strip()
-            or (state.get("model") or "").strip()
-            or (state.get("device") or "").strip()
-            or "-"
-        )
-        lines = [
-            f"Anzeigename: {display_name}",
-            f"Device: {state.get('device') or '-'}",
-            f"Mountpoint: {state.get('mountpoint') or '-'}",
-            f"Status: {mounted_txt}",
-            f"Verschlüsselung: {'LUKS' if state.get('is_luks') else 'nein'}",
-            f"LUKS Zustand: {'gesperrt' if state.get('luks_locked') else ('offen' if state.get('is_luks') else '-')}",
-            f"Aktuelles Target: {state.get('actual_target') or '-'}",
-            f"Dateisystem: {state.get('fstype') or '-'}",
-            f"Gesamtgröße: {human_size(state.get('size_bytes'))}",
-            f"Belegt: {human_size(usage.get('used'))}",
-            f"Frei: {human_size(usage.get('free'))}",
-            f"Auslastung: {usage.get('use_pct') or '-'}",
-        ]
-
-        self.hdd_info_text.delete("1.0", "end")
-        self.hdd_info_text.insert("end", "\n".join(lines) + "\n")
-        self.hdd_info_text.see("1.0")
-        self._hdd_render_usage_bar(usage if usage else None)
+        hdd_controller.hdd_render_info(self, state)
 
     def hdd_info_async(self, idx):
-        if idx < 0 or idx >= len(self.hdd_slots):
-            return
-
-        def job():
-            state = self._hdd_collect_slot_state(idx)
-
-            def show():
-                self.hdd_slot_states[idx] = state
-                self._hdd_apply_slot_lights()
-                self._select_system_tab(self.tab_hdd)
-                self._hdd_render_info(state)
-                self.log(f"HDD Info geladen: Slot {idx + 1}.")
-
-            self.after(0, show)
-
-        threading.Thread(target=job, daemon=True).start()
+        hdd_controller.hdd_info_async(self, idx)
 
     def hdd_mount_async(self, idx):
-        if idx < 0 or idx >= len(self.hdd_slots):
-            return
-        if not self.ensure_sudo_session("HDD Mount"):
-            return
-        slot = self.hdd_slots[idx]
-        label = self._slot_display_name(idx)
-        device, _disk = self._hdd_resolve_slot_device(slot)
-        mountpoint = (
-            slot.get("mountpoint") or ""
-        ).strip() or f"/mnt/{os.path.basename(device)}"
-        if not self.hdd_slot_configured(slot):
-            self.log(f"HDD Slot nicht konfiguriert: {label}.")
-            return
-
-        luks = self._hdd_luks_info_for_device(device)
-        luks_passphrase = None
-        if luks.get("is_luks") and not luks.get("unlocked"):
-            if not has_cmd("cryptsetup"):
-                self.log(
-                    "LUKS erkannt, aber cryptsetup fehlt (sudo apt install -y cryptsetup)."
-                )
-                return
-            luks_passphrase = simpledialog.askstring(
-                "LUKS Passphrase",
-                f"Bitte LUKS-Passphrase für {device} eingeben:",
-                show="*",
-                parent=self,
-            )
-            if luks_passphrase is None:
-                self.log(f"LUKS Mount abgebrochen: {label}.")
-                return
-            if not luks_passphrase:
-                self.log("LUKS Passphrase leer, Mount abgebrochen.")
-                return
-
-        def job():
-            if not os.path.exists(device):
-                self.after(
-                    0,
-                    lambda: self.log(
-                        f"HDD Mount fehlgeschlagen für {label}: Device existiert nicht ({device})."
-                    ),
-                )
-                return
-
-            current_luks = self._hdd_luks_info_for_device(device)
-            mount_source = self._hdd_find_mount_source(device)
-            if current_luks.get("is_luks"):
-                mapper_name = current_luks.get("mapper_name")
-                mapper_path = current_luks.get("mapper_path")
-                if not mapper_name:
-                    mapper_name = self._hdd_sanitize_mapper_name(device)
-                    mapper_path = f"/dev/mapper/{mapper_name}"
-
-                if not os.path.exists(mapper_path):
-                    rc, out = run_cmd_with_input(
-                        [
-                            "sudo",
-                            "-n",
-                            "cryptsetup",
-                            "luksOpen",
-                            device,
-                            mapper_name,
-                            "--key-file",
-                            "-",
-                        ],
-                        input_text=(luks_passphrase or "") + "\n",
-                        timeout=25,
-                    )
-                    if rc != 0:
-                        rc, out = run_cmd_with_input(
-                            [
-                                "cryptsetup",
-                                "luksOpen",
-                                device,
-                                mapper_name,
-                                "--key-file",
-                                "-",
-                            ],
-                            input_text=(luks_passphrase or "") + "\n",
-                            timeout=25,
-                        )
-                    if rc != 0:
-                        self.after(
-                            0,
-                            lambda: self.log(
-                                f"LUKS öffnen fehlgeschlagen für {label}: {out}"
-                            ),
-                        )
-                        return
-                    time.sleep(0.4)
-                    current_luks = self._hdd_luks_info_for_device(device)
-                    mapper_path = current_luks.get("mapper_path") or mapper_path
-                    mapper_name = current_luks.get("mapper_name") or mapper_name
-
-                if not mapper_path or not os.path.exists(mapper_path):
-                    available_mappers = (
-                        current_luks.get("available_mappers")
-                        or self._hdd_list_mappers()
-                    )
-                    mapper_list = (
-                        ", ".join(available_mappers) if available_mappers else "-"
-                    )
-                    searched = mapper_path or f"/dev/mapper/{mapper_name}"
-                    self.after(
-                        0,
-                        lambda: self.log(
-                            f"HDD Mount fehlgeschlagen für {label}: Gesuchtes Device: {searched} | Vorhandene Mapper: {mapper_list}"
-                        ),
-                    )
-                    return
-
-                mount_source = self._hdd_find_mount_source(mapper_path)
-                self.hdd_luks_mappers[device] = mapper_name
-                self.after(
-                    0,
-                    lambda: self.log(f"LUKS Mount-Quelle gewählt: {mount_source}"),
-                )
-
-            mounted, target = self._hdd_is_mounted(device, mountpoint)
-            if mounted is True:
-                self.after(
-                    0,
-                    lambda: self.log(
-                        f"HDD bereits gemountet: {label} ({target or mountpoint})."
-                    ),
-                )
-                self.after(0, lambda: self.hdd_info_async(idx))
-                return
-
-            used_desktop_mount = False
-            if has_cmd("udisksctl") and not current_luks.get("is_luks"):
-                rc, out = run_cmd(
-                    ["udisksctl", "mount", "-b", mount_source], timeout=20
-                )
-                if rc == 0:
-                    used_desktop_mount = True
-                else:
-                    self.after(
-                        0,
-                        lambda: self.log(
-                            "udisksctl-Mount fehlgeschlagen, versuche klassischen Mount auf konfigurierten Pfad."
-                        ),
-                    )
-
-            if not used_desktop_mount:
-                rc, out = run_cmd(["sudo", "-n", "mkdir", "-p", mountpoint], timeout=8)
-                if rc != 0:
-                    rc, out = run_cmd(["mkdir", "-p", mountpoint], timeout=8)
-                if rc != 0:
-                    self.after(
-                        0,
-                        lambda: self.log(f"HDD Mountpoint Fehler {mountpoint}: {out}"),
-                    )
-                    return
-
-                rc, out = run_cmd(
-                    ["sudo", "-n", "mount", mount_source, mountpoint], timeout=12
-                )
-                if rc != 0:
-                    rc, out = run_cmd(["mount", mount_source, mountpoint], timeout=12)
-
-            def done():
-                if rc == 0:
-                    if used_desktop_mount:
-                        self.log(
-                            f"HDD desktop-integriert gemountet: {label} ({mount_source})."
-                        )
-                    else:
-                        self.log(
-                            f"HDD gemountet: {label} ({mount_source} -> {mountpoint})."
-                        )
-                else:
-                    self.log(f"HDD Mount fehlgeschlagen für {label}: {out}")
-                    if (
-                        "password" in (out or "").lower()
-                        or "not permitted" in (out or "").lower()
-                    ):
-                        self.log(
-                            "Hinweis: sudo-Auth fehlt oder Rechte unzureichend (siehe Sudo-Auth beim Start)."
-                        )
-                self.hdd_refresh_async()
-                self.hdd_info_async(idx)
-
-            self.after(0, done)
-
-        threading.Thread(target=job, daemon=True).start()
+        hdd_controller.hdd_mount_async(self, idx)
 
     def hdd_unmount_async(self, idx):
-        if idx < 0 or idx >= len(self.hdd_slots):
-            return
-        if not self.ensure_sudo_session("HDD Unmount"):
-            return
-        slot = self.hdd_slots[idx]
-        label = self._slot_display_name(idx)
-        device, _disk = self._hdd_resolve_slot_device(slot)
-        mountpoint = (
-            slot.get("mountpoint") or ""
-        ).strip() or f"/mnt/{os.path.basename(device)}"
-        if not self.hdd_slot_configured(slot):
-            self.log(f"HDD Slot nicht konfiguriert: {label}.")
-            return
-
-        def job():
-            current_luks = self._hdd_luks_info_for_device(device)
-            raw_mount_source = (
-                current_luks.get("mapper_path")
-                if current_luks.get("is_luks")
-                else device
-            )
-            if not raw_mount_source:
-                raw_mount_source = device
-            mount_source = self._hdd_find_mount_source(raw_mount_source)
-
-            mounted, target = self._hdd_is_mounted(device, mountpoint)
-            active_target = target or mountpoint
-            if mounted is False:
-                self.after(
-                    0,
-                    lambda: self.log(f"HDD bereits ungemountet: {label}."),
-                )
-            else:
-                rc, out = run_cmd(["sudo", "-n", "umount", active_target], timeout=12)
-                if rc != 0:
-                    rc, out = run_cmd(
-                        ["sudo", "-n", "umount", mount_source], timeout=12
-                    )
-                if rc != 0:
-                    rc, out = run_cmd(["umount", active_target], timeout=12)
-                if rc != 0 and has_cmd("udisksctl") and not current_luks.get("is_luks"):
-                    rc, out = run_cmd(
-                        ["udisksctl", "unmount", "-b", mount_source], timeout=20
-                    )
-
-                if rc != 0:
-                    self.after(
-                        0,
-                        lambda: self.log(
-                            f"HDD Unmount fehlgeschlagen für {label}: {out}"
-                        ),
-                    )
-                    self.after(0, lambda: self.hdd_refresh_async())
-                    self.after(0, lambda: self.hdd_info_async(idx))
-                    return
-
-            close_rc = 0
-            close_out = ""
-            if current_luks.get("is_luks") and has_cmd("cryptsetup"):
-                mapper_name = current_luks.get("mapper_name")
-                if mapper_name:
-                    close_rc, close_out = run_cmd(
-                        ["sudo", "-n", "cryptsetup", "luksClose", mapper_name],
-                        timeout=20,
-                    )
-                    if close_rc != 0:
-                        close_rc, close_out = run_cmd(
-                            ["cryptsetup", "luksClose", mapper_name], timeout=20
-                        )
-
-            def done():
-                self.log(f"HDD unmount erfolgreich: {label}.")
-                if current_luks.get("is_luks") and current_luks.get("mapper_name"):
-                    if close_rc == 0:
-                        self.log(
-                            f"LUKS geschlossen: {current_luks.get('mapper_name')}."
-                        )
-                    elif close_out:
-                        self.log(
-                            f"LUKS schließen fehlgeschlagen ({current_luks.get('mapper_name')}): {close_out}"
-                        )
-                self.hdd_refresh_async()
-                self.hdd_info_async(idx)
-
-            self.after(0, done)
-
-        threading.Thread(target=job, daemon=True).start()
+        hdd_controller.hdd_unmount_async(self, idx)
 
     def preflight_recheck(self):
         self.log(self.tr("preflight_log_started", "Preflight-Prüfung gestartet..."))
@@ -23288,30 +12973,10 @@ class App(TkBase):
         return ""
 
     def get_killswitch_vpn_profiles(self):
-        profiles = []
-        seen = set()
-        candidates = [self.active_wg_profile(), *self.list_wg_profiles()]
-        for profile in candidates:
-            name = (profile or "").strip()
-            if not name or name in seen:
-                continue
-            endpoint_ip, endpoint_port = self.parse_vpn_endpoint(name)
-            if endpoint_ip and endpoint_port:
-                seen.add(name)
-                profiles.append(name)
-        return profiles
+        return firewall_controller.get_killswitch_vpn_profiles(self)
 
     def get_killswitch_vpn_endpoints(self):
-        endpoints = []
-        seen = set()
-        for profile in self.get_killswitch_vpn_profiles():
-            endpoint_ip, endpoint_port = self.parse_vpn_endpoint(profile)
-            key = (endpoint_ip, endpoint_port)
-            if not endpoint_ip or not endpoint_port or key in seen:
-                continue
-            seen.add(key)
-            endpoints.append(key)
-        return endpoints
+        return firewall_controller.get_killswitch_vpn_endpoints(self)
 
     def list_wg_profiles(self):
         profiles = set()
@@ -23426,108 +13091,37 @@ class App(TkBase):
 
     # ---------- UFW status robust + LOCK ----------
     def _read_ufw_status(self, verbose=False):
-        cmd = ["sudo", "-n", "ufw", "status"]
-        if verbose:
-            cmd.append("verbose")
-        return run_cmd(cmd, timeout=12 if verbose else 8)
+        return firewall_controller.read_ufw_status(verbose=verbose)
 
     def _ufw_status_is_active(self, status_text):
-        t = (status_text or "").strip().lower()
-        if "inactive" in t or "inaktiv" in t:
-            return False
-        if "status:" in t and ("active" in t or "aktiv" in t):
-            return True
-        if "status:" in t and ("inactive" not in t) and ("inaktiv" not in t):
-            return True
-        return False
+        return firewall_controller.ufw_status_is_active(status_text)
 
     def _ufw_rule_lines(self, status_text):
-        lines = []
-        for line in (status_text or "").splitlines():
-            line_l = line.strip().lower()
-            if not line_l:
-                continue
-            if line_l.startswith(("status:", "to", "--", "action", "from")):
-                continue
-            if line_l.startswith(("default:", "voreinstellung:")):
-                continue
-            lines.append(line_l)
-        return lines
+        return firewall_controller.ufw_rule_lines(status_text)
 
     def _ufw_default_policy_matches(self, status_text, incoming=None, outgoing=None):
-        t = (status_text or "").lower()
-        if (
-            incoming == "deny"
-            and "deny (incoming)" not in t
-            and "deny (eingehend)" not in t
-        ):
-            return False
-        if (
-            outgoing == "deny"
-            and "deny (outgoing)" not in t
-            and "deny (abgehend)" not in t
-        ):
-            return False
-        if (
-            outgoing == "allow"
-            and "allow (outgoing)" not in t
-            and "allow (abgehend)" not in t
-        ):
-            return False
-        return True
+        return firewall_controller.ufw_default_policy_matches(
+            status_text,
+            incoming=incoming,
+            outgoing=outgoing,
+        )
 
     def _ufw_has_interface_rule(self, status_text, iface, direction):
-        iface = (iface or "").strip().lower()
-        direction = direction.strip().lower()
-        if not iface or direction not in {"in", "out"}:
-            return False
-        for line in self._ufw_rule_lines(status_text):
-            if (
-                "allow" not in line and "zulassen" not in line
-            ) or f"on {iface}" not in line:
-                continue
-            if re.search(rf"\b{direction}\b", line):
-                return True
-        return False
+        return firewall_controller.ufw_has_interface_rule(
+            status_text,
+            iface,
+            direction,
+        )
 
     def _ufw_has_endpoint_rule(self, status_text, endpoint_ip, endpoint_port):
-        endpoint_ip = str(endpoint_ip or "").strip().lower()
-        endpoint_port = str(endpoint_port or "").strip().lower()
-        if not endpoint_ip or not endpoint_port:
-            return False
-        for line in self._ufw_rule_lines(status_text):
-            if "allow" not in line and "zulassen" not in line:
-                continue
-            if endpoint_ip not in line or endpoint_port not in line:
-                continue
-            if "udp" not in line:
-                continue
-            if re.search(r"\bout\b", line):
-                return True
-        return False
+        return firewall_controller.ufw_has_endpoint_rule(
+            status_text,
+            endpoint_ip,
+            endpoint_port,
+        )
 
     def _ufw_existing_rule_keys(self, status_text):
-        keys = set()
-        for raw_line in (status_text or "").splitlines():
-            parsed = self._parse_ufw_structured_rule(raw_line)
-            if not parsed:
-                continue
-            policy = (parsed.get("policy") or "").upper()
-            direction = (parsed.get("direction") or "").upper()
-            if policy != "ALLOW":
-                continue
-
-            iface = (parsed.get("interface") or "").strip().lower()
-            if iface and direction in {"IN", "OUT"}:
-                keys.add(("iface", direction.lower(), iface))
-
-            ip = (parsed.get("ip") or "").strip().lower()
-            port = str(parsed.get("port") or "").strip().lower()
-            proto = (parsed.get("proto") or "").strip().lower()
-            if direction == "OUT" and proto == "udp" and ip and port:
-                keys.add(("endpoint", ip, port))
-
-        return keys
+        return firewall_controller.ufw_existing_rule_keys(status_text)
 
     def ensure_ufw_rule_exists(
         self,
@@ -23536,264 +13130,44 @@ class App(TkBase):
         network_service=None,
         known_keys=None,
     ):
-        rule_type = (rule or {}).get("type")
-        known_keys = known_keys if isinstance(known_keys, set) else set()
-
-        if rule_type == "interface":
-            iface = str((rule or {}).get("iface") or "").strip()
-            direction = str((rule or {}).get("direction") or "").strip().lower()
-            if not iface or direction not in {"in", "out"}:
-                return False, False, "ungültige Interface-Regel", known_keys
-            key = ("iface", direction, iface.lower())
-            if key in known_keys:
-                return True, False, "exists", known_keys
-            if network_service is not None:
-                rc_cmd, out_cmd = network_service.ufw_allow_on_iface(
-                    direction, iface, timeout=20
-                )
-            else:
-                rc_cmd, out_cmd = run_cmd(
-                    ["sudo", "-n", "ufw", "allow", direction, "on", iface],
-                    timeout=20,
-                )
-            if rc_cmd == 0:
-                known_keys.add(key)
-                return True, True, "added", known_keys
-            return False, False, (out_cmd or "").strip() or "unknown", known_keys
-
-        if rule_type == "endpoint":
-            ip = str((rule or {}).get("ip") or "").strip()
-            port = str((rule or {}).get("port") or "").strip()
-            if not ip or not port:
-                return False, False, "ungültige Endpoint-Regel", known_keys
-            key = ("endpoint", ip.lower(), port.lower())
-            if key in known_keys:
-                return True, False, "exists", known_keys
-            if network_service is not None:
-                rc_cmd, out_cmd = network_service.ufw_allow_udp_endpoint(
-                    ip, port, timeout=20
-                )
-            else:
-                rc_cmd, out_cmd = run_cmd(
-                    [
-                        "sudo",
-                        "-n",
-                        "ufw",
-                        "allow",
-                        "out",
-                        "to",
-                        ip,
-                        "port",
-                        port,
-                        "proto",
-                        "udp",
-                    ],
-                    timeout=20,
-                )
-            if rc_cmd == 0:
-                known_keys.add(key)
-                return True, True, "added", known_keys
-            return False, False, (out_cmd or "").strip() or "unknown", known_keys
-
-        return False, False, "unbekannter Regeltyp", known_keys
+        return firewall_controller.ensure_ufw_rule_exists(
+            rule,
+            network_service=network_service,
+            known_keys=known_keys,
+        )
 
     def _parse_ufw_status_numbered(self, status_numbered_text):
-        entries = []
-        for raw in (status_numbered_text or "").splitlines():
-            line = raw.strip()
-            m = re.match(r"^\[\s*(\d+)\]\s+(.*)$", line)
-            if not m:
-                continue
-            try:
-                num = int(m.group(1))
-            except ValueError:
-                continue
-            entries.append((num, m.group(2).strip()))
-        return entries
+        return firewall_controller.parse_ufw_status_numbered(status_numbered_text)
 
     def _dedupe_vpn_ufw_rules(self):
-        """Entfernt doppelte VPN-bezogene UFW-ALLOW-Regeln (Interface/UDP-Endpoint)."""
-        rc, out = run_cmd(["sudo", "-n", "ufw", "status", "numbered"], timeout=12)
-        if rc != 0 or not (out or "").strip():
-            return 0
-
-        parsed_entries = []
-        for num, rest in self._parse_ufw_status_numbered(out):
-            parsed = self._parse_ufw_structured_rule(rest)
-            if not parsed:
-                continue
-            if (parsed.get("policy") or "").upper() != "ALLOW":
-                continue
-            category = parsed.get("category")
-            if category not in {"interface", "vpn_endpoint"}:
-                continue
-
-            key = (
-                (parsed.get("policy") or "").upper(),
-                (parsed.get("direction") or "").upper(),
-                bool(parsed.get("is_ipv6")),
-                category,
-                (parsed.get("interface") or "").strip().lower(),
-                (parsed.get("ip") or "").strip().lower(),
-                str(parsed.get("port") or "").strip().lower(),
-                (parsed.get("proto") or "").strip().lower(),
-                (parsed.get("to") or "").strip().lower(),
-                (parsed.get("from") or "").strip().lower(),
-            )
-            parsed_entries.append((num, key, parsed))
-
-        buckets = {}
-        for num, key, parsed in parsed_entries:
-            buckets.setdefault(key, []).append((num, parsed))
-
-        delete_nums = []
-        for items in buckets.values():
-            if len(items) <= 1:
-                continue
-            items_sorted = sorted(items, key=lambda x: x[0])
-            # älteste Regel behalten, neuere Duplikate entfernen
-            for num, _parsed in items_sorted[1:]:
-                delete_nums.append(num)
-
-        if not delete_nums:
-            return 0
-
-        removed = 0
-        for num in sorted(set(delete_nums), reverse=True):
-            rc_del, _out_del = run_cmd(
-                ["sudo", "-n", "ufw", "--force", "delete", str(num)],
-                timeout=12,
-            )
-            if rc_del == 0:
-                removed += 1
-
-        return removed
+        return firewall_controller.dedupe_vpn_ufw_rules()
 
     def _ufw_has_outgoing_port_rule(self, status_text, port, proto):
-        port = str(port or "").strip()
-        proto = str(proto or "").strip().lower()
-        if not port or not proto:
-            return False
-        for line in self._ufw_rule_lines(status_text):
-            if "allow" not in line and "zulassen" not in line:
-                continue
-            if not re.search(r"\bout\b", line):
-                continue
-            if proto not in line:
-                continue
-            if re.search(rf"\b{re.escape(port)}(?:/{re.escape(proto)})?\b", line):
-                return True
-        return False
+        return firewall_controller.ufw_has_outgoing_port_rule(
+            status_text,
+            port,
+            proto,
+        )
 
     def _verify_killswitch_rules(
         self, status_text, enabled, wg_ifaces=None, handshake_rules=None
     ):
-        wg_ifaces = sorted(
-            {str(iface).strip() for iface in (wg_ifaces or []) if str(iface).strip()}
-        )
-        handshake_rules = sorted(
-            {
-                (str(ip).strip(), str(port).strip())
-                for ip, port in (handshake_rules or [])
-                if str(ip).strip() and str(port).strip()
-            }
-        )
-        issues = []
-
-        if not self._ufw_status_is_active(status_text):
-            issues.append("UFW ist nicht aktiv.")
-            return False, issues
-
-        if enabled:
-            if not self._ufw_default_policy_matches(
-                status_text, incoming="deny", outgoing="deny"
-            ):
-                issues.append("UFW Default-Policy ist nicht auf deny/deny gesetzt.")
-            if not self._ufw_has_interface_rule(status_text, "lo", "in"):
-                issues.append("Loopback-IN-Regel fehlt.")
-            if not self._ufw_has_interface_rule(status_text, "lo", "out"):
-                issues.append("Loopback-OUT-Regel fehlt.")
-            if not wg_ifaces and not handshake_rules:
-                issues.append(
-                    "Weder WireGuard-Interface noch Handshake-Regel vorhanden."
-                )
-            for wg_if in wg_ifaces:
-                if not self._ufw_has_interface_rule(status_text, wg_if, "in"):
-                    issues.append(f"WireGuard-IN-Regel fehlt fuer {wg_if}.")
-                if not self._ufw_has_interface_rule(status_text, wg_if, "out"):
-                    issues.append(f"WireGuard-OUT-Regel fehlt fuer {wg_if}.")
-            for endpoint_ip, endpoint_port in handshake_rules:
-                if not self._ufw_has_endpoint_rule(
-                    status_text, endpoint_ip, endpoint_port
-                ):
-                    issues.append(
-                        f"Handshake-Regel fehlt fuer {endpoint_ip}:{endpoint_port}/udp."
-                    )
-
-            return not issues, issues
-
-        if not self._ufw_default_policy_matches(
-            status_text, incoming="deny", outgoing="allow"
-        ):
-            issues.append("UFW Default-Policy ist nicht auf deny/allow zurueckgesetzt.")
-        if self._ufw_has_interface_rule(status_text, "lo", "in"):
-            issues.append("Loopback-IN-Regel ist noch vorhanden.")
-        if self._ufw_has_interface_rule(status_text, "lo", "out"):
-            issues.append("Loopback-OUT-Regel ist noch vorhanden.")
-        for wg_if in wg_ifaces:
-            if self._ufw_has_interface_rule(status_text, wg_if, "in"):
-                issues.append(f"WireGuard-IN-Regel fuer {wg_if} ist noch vorhanden.")
-            if self._ufw_has_interface_rule(status_text, wg_if, "out"):
-                issues.append(f"WireGuard-OUT-Regel fuer {wg_if} ist noch vorhanden.")
-        for endpoint_ip, endpoint_port in handshake_rules:
-            if self._ufw_has_endpoint_rule(status_text, endpoint_ip, endpoint_port):
-                issues.append(
-                    f"Handshake-Regel fuer {endpoint_ip}:{endpoint_port}/udp ist noch vorhanden."
-                )
-        return not issues, issues
-
-    def check_ufw_active(self):
-        with self.ufw_lock:
-            rc, out = self._read_ufw_status()
-        if rc != 0:
-            return False
-        return self._ufw_status_is_active(out)
-
-    def check_ssh_rule_active(self):
-        with self.ufw_lock:
-            rc, out = self._read_ufw_status()
-        if rc != 0:
-            return None
-        if not self._ufw_status_is_active(out):
-            return None
-
-        ssh_patterns = (
-            r"(^|\s)22/tcp(\s|$)",
-            r"(^|\s)ssh(\s|$)",
-        )
-        for line in self._ufw_rule_lines(out):
-            if "allow" not in line and "zulassen" not in line:
-                continue
-            if any(re.search(pattern, line, re.IGNORECASE) for pattern in ssh_patterns):
-                return True
-        return False
-
-    def killswitch_is_on(self):
-        wg_ifaces = sorted(set(self.get_wg_interfaces()))
-        handshake_rules = self.get_killswitch_vpn_endpoints()
-        with self.ufw_lock:
-            rc, out = self._read_ufw_status(verbose=True)
-
-        if rc != 0:
-            return False
-
-        verified, _issues = self._verify_killswitch_rules(
-            out,
-            enabled=True,
+        return firewall_controller.verify_killswitch_rules(
+            self,
+            status_text,
+            enabled,
             wg_ifaces=wg_ifaces,
             handshake_rules=handshake_rules,
         )
-        return verified
+
+    def check_ufw_active(self):
+        return firewall_controller.check_ufw_active(self)
+
+    def check_ssh_rule_active(self):
+        return firewall_controller.check_ssh_rule_active(self)
+
+    def killswitch_is_on(self):
+        return firewall_controller.killswitch_is_on(self)
 
     # ---------- NM DNS header ----------
     def nm_get_dns_list(self, iface: str):
@@ -23890,80 +13264,12 @@ class App(TkBase):
 
     # ---------- DNS apply ----------
     def apply_dns(self, choice=None, refresh_ui=True, update_choice_var=True):
-        controls_locked, lock_reason = self._dns_controls_locked()
-        if controls_locked:
-            if lock_reason == "transition":
-                warning_message = self.tr(
-                    "dns_warning_locked_transition_message",
-                    "Es läuft gerade ein VPN-/DNS-Wechsel.\n\n"
-                    "Bitte warten, bis der Vorgang abgeschlossen ist. "
-                    "Währenddessen ist ein manueller DNS-Wechsel gesperrt.",
-                )
-                result = (
-                    "=== DNS anwenden ===\n"
-                    "Status: blockiert\n"
-                    "Grund: VPN-/DNS-Wechsel läuft.\n\n"
-                    "Bitte warten, bis der laufende Vorgang abgeschlossen ist."
-                )
-                log_message = "DNS anwenden blockiert: VPN-/DNS-Wechsel läuft"
-            else:
-                warning_message = self.tr(
-                    "dns_warning_locked_vpn_message",
-                    "VPN ist aktiv.\n\n"
-                    "DNS wird vom VPN-Profil verwaltet. "
-                    "Ein manueller DNS-Wechsel kann DNS-Leaks verursachen.",
-                )
-                result = (
-                    "=== DNS anwenden ===\n"
-                    "Status: blockiert\n"
-                    "Grund: VPN ist aktiv.\n\n"
-                    "DNS wird vom VPN-Profil verwaltet. Ein manueller DNS-Wechsel "
-                    "würde DNS-Leaks verursachen."
-                )
-                log_message = "DNS anwenden blockiert: VPN aktiv"
-            messagebox.showwarning(
-                self.tr("dns_warning_locked_title", "DNS gesperrt"),
-                warning_message,
-                parent=self,
-            )
-            self.nb.select(self.tab_dns)
-            self.update_dns_output(result)
-            self.log_safe(log_message)
-            self.update_dns_controls_state_safe()
-            return False
-        choice = self._normalize_dns_profile_choice(choice)
-        if update_choice_var:
-            self._set_dns_choice_safe(choice)
-
-        self.nb.select(self.tab_dns)
-        self.log_safe("DNS-Profil wird angewendet...")
-
-        result = self._apply_dns_profile_choice_via_control(choice)
-        self.update_dns_output(
-            self._format_dns_profile_control_result(
-                result,
-                heading="=== DNS anwenden ===",
-                action="DNS-Profil anwenden",
-            )
+        return dns_controller.apply_dns(
+            self,
+            choice=choice,
+            refresh_ui=refresh_ui,
+            update_choice_var=update_choice_var,
         )
-
-        if not result["success"]:
-            self.log_safe("DNS anwenden fehlgeschlagen")
-            self.refresh_dns_policy_status()
-            self.update_dns_controls_state_safe()
-            return False
-
-        self.log_safe(f"DNS-Profil angewendet: {choice}")
-        self.last_dns_consistency_ok = None
-        self.last_dns_consistency_ts = 0.0
-        self.dns_consistency_enabled = True
-        self.dns_consistency_one_shot = True
-        self.dns_consistency_check_async(force=True)
-        self.refresh_dns_policy_status()
-        self.update_dns_controls_state_safe()
-        if refresh_ui:
-            self.refresh_safe()
-        return True
 
     def show_dns_status(self):
         self.nb.select(self.tab_dns)
@@ -24206,518 +13512,45 @@ class App(TkBase):
 
     # ---------- Actions ----------
     def fw_enable(self, interactive_guard=True):
-        if interactive_guard and not self._confirm_danger_action(
-            "firewall:enable",
-            title=self.tr("firewall_confirm_enable_title", "Firewall aktivieren"),
-            prompt=self.tr(
-                "firewall_confirm_enable_prompt",
-                "Diese Aktion aktiviert UFW systemweit.\n"
-                "Dadurch kann sich das Netzwerkverhalten sofort ändern.\n\n"
-                "Wirklich fortfahren?",
-            ),
-            cooldown_s=0,
-            require_phrase="AUSFUEHREN",
-        ):
-            self.log(
-                self.tr(
-                    "firewall_log_enable_cancelled",
-                    "Firewall-Aktivierung abgebrochen.",
-                )
-            )
-            return
-
-        if not self.ensure_sudo_session("Firewall aktivieren"):
-            return
-
-        def job():
-            if self.check_ufw_active():
-                self.after(
-                    0,
-                    lambda: self.log(
-                        self.tr(
-                            "firewall_log_already_enabled",
-                            "Firewall ist bereits aktiv.",
-                        )
-                    ),
-                )
-                return
-
-            rc, out = run_cmd(["sudo", "-n", "ufw", "--force", "enable"], timeout=40)
-
-            if rc != 0:
-                self.after(
-                    0,
-                    lambda: self.log(
-                        self.tr(
-                            "firewall_log_enable_failed",
-                            "Firewall konnte NICHT aktiviert werden",
-                        )
-                    ),
-                )
-                if out:
-                    self.after(0, lambda: self.log(out))
-            else:
-                self.after(
-                    0,
-                    lambda: self.log(
-                        self.tr("firewall_log_enabled", "Firewall aktiviert.")
-                    ),
-                )
-
-            self.after(0, self.refresh)
-
-        self.run_async(job)
+        firewall_controller.fw_enable(self, interactive_guard=interactive_guard)
 
     def _parse_ufw_action(self, action_text):
-        text = str(action_text or "").strip()
-        if not text:
-            return "", ""
-        parts = text.upper().split()
-        policy = parts[0] if parts else ""
-        direction = ""
-        for token in parts[1:]:
-            if token in {"IN", "OUT"}:
-                direction = token
-                break
-        if not direction:
-            lower = text.lower()
-            if " out" in lower or lower.endswith("out"):
-                direction = "OUT"
-            elif " in" in lower or lower.endswith("in"):
-                direction = "IN"
-        return policy, direction
+        return firewall_controller.parse_ufw_action(action_text)
 
     def _extract_ip_port_proto_from_ufw_to(self, to_text):
-        text = str(to_text or "").strip()
-        ip_val = None
-        port_val = None
-        proto_val = ""
-
-        m = re.search(r"(?P<port>\d{1,5})/(?P<proto>tcp|udp)\b", text, re.IGNORECASE)
-        if m:
-            port_val = m.group("port")
-            proto_val = m.group("proto").lower()
-        else:
-            m_port = re.search(r"\bport\s+(?P<port>\d{1,5})\b", text, re.IGNORECASE)
-            if m_port:
-                port_val = m_port.group("port")
-
-        cleaned = (
-            text.replace("[", " ").replace("]", " ").replace("(", " ").replace(")", " ")
-        )
-        for token in re.split(r"[\s,]+", cleaned):
-            cand = token.strip()
-            if not cand:
-                continue
-            try:
-                ipaddress.ip_address(cand)
-                ip_val = cand
-                break
-            except ValueError:
-                continue
-
-        return ip_val, port_val, proto_val
+        return firewall_controller.extract_ip_port_proto_from_ufw_to(to_text)
 
     def _is_ufw_non_rule_line(self, line):
-        text = str(line or "").strip()
-        if not text:
-            return True
-
-        lower = text.lower()
-        meta_prefixes = (
-            "status:",
-            "new profiles:",
-            "logging:",
-            "protokollierung:",
-            "voreinstellung:",
-            "default:",
-        )
-        if lower.startswith(meta_prefixes):
-            return True
-
-        header_tokens = {
-            "aktion",
-            "action",
-            "zu",
-            "to",
-            "von",
-            "from",
-        }
-        compact = re.sub(r"\s+", " ", text).strip().lower()
-        if compact in {
-            "aktion zu von",
-            "action to from",
-            "to action from",
-            "zu aktion von",
-        }:
-            return True
-        if set(compact.split()) <= header_tokens and len(compact.split()) >= 2:
-            return True
-
-        if re.fullmatch(r"[-=]{3,}.*", text):
-            return True
-
-        return False
+        return firewall_controller.is_ufw_non_rule_line(line)
 
     def _parse_ufw_structured_rule(self, raw_line):
-        line = str(raw_line or "").strip()
-        if self._is_ufw_non_rule_line(line):
-            return None
-
-        line_norm = re.sub(r"\s+", " ", line).strip()
-        action_match = re.search(
-            r"\b(ALLOW|DENY|REJECT)\b(?:\s+(IN|OUT))?\b",
-            line_norm,
-            re.IGNORECASE,
-        )
-        if not action_match:
-            return None
-
-        policy = (action_match.group(1) or "").upper()
-        direction = (action_match.group(2) or "").upper()
-
-        to_field = line_norm[: action_match.start()].strip()
-        from_field = line_norm[action_match.end() :].strip()
-        if not to_field:
-            return None
-
-        is_ipv6 = "(v6)" in line.lower()
-        to_clean = re.sub(r"\s*\(v6\)\s*", "", to_field, flags=re.IGNORECASE).strip()
-        from_clean = re.sub(
-            r"\s*\(v6\)\s*", "", from_field, flags=re.IGNORECASE
-        ).strip()
-
-        interface = None
-        target_base = to_clean
-        m_iface = re.search(
-            r"^(?P<target>.+?)\s+on\s+(?P<iface>[A-Za-z0-9_.:-]+)$",
-            to_clean,
-            re.IGNORECASE,
-        )
-        if m_iface:
-            target_base = m_iface.group("target").strip()
-            interface = m_iface.group("iface").strip()
-
-        ip_val, port_val, proto_val = self._extract_ip_port_proto_from_ufw_to(
-            target_base
-        )
-
-        category = "other"
-        if interface:
-            category = "interface"
-        elif proto_val.lower() == "udp" and ip_val and port_val:
-            category = "vpn_endpoint"
-        elif port_val:
-            category = "standard_port"
-
-        if category == "interface":
-            display = target_base or "Anywhere"
-        elif category == "vpn_endpoint":
-            display = f"{ip_val}:{port_val}/{proto_val}"
-        elif category == "standard_port":
-            if ip_val and proto_val:
-                display = f"{ip_val}:{port_val}/{proto_val}"
-            elif proto_val:
-                display = f"{port_val}/{proto_val}"
-            else:
-                display = f"{port_val}"
-        else:
-            display = target_base or line_norm
-
-        return {
-            "direction": direction,
-            "policy": policy,
-            "interface": interface,
-            "ip": ip_val,
-            "port": port_val,
-            "proto": proto_val,
-            "is_ipv6": bool(is_ipv6),
-            "raw": line,
-            "to": to_clean,
-            "from": from_clean,
-            "category": category,
-            "target_base": target_base,
-            "display": display,
-        }
+        return firewall_controller.parse_ufw_structured_rule(raw_line)
 
     def _ip_sort_key(self, value):
-        text = str(value or "").strip()
-        if not text:
-            return (2, "")
-        try:
-            addr = ipaddress.ip_address(text)
-            return (0, addr.version, int(addr))
-        except ValueError:
-            return (1, text)
+        return firewall_controller.ip_sort_key(value)
 
     def _ufw_rule_sort_key(self, rule):
-        category = rule.get("category")
-        policy = rule.get("policy") or ""
-        direction = rule.get("direction") or ""
-        if category == "interface":
-            return ((rule.get("interface") or ""), direction, policy)
-        if category == "standard_port":
-            port = int(rule.get("port") or 0)
-            proto = rule.get("proto") or ""
-            return (port, proto, direction, policy, rule.get("display") or "")
-        if category == "vpn_endpoint":
-            return (
-                self._ip_sort_key(rule.get("ip")),
-                int(rule.get("port") or 0),
-                direction,
-                policy,
-            )
-        return (rule.get("display") or rule.get("raw") or "",)
+        return firewall_controller.ufw_rule_sort_key(rule)
 
     def _format_ufw_rule_lines(self, rules):
-        if not rules:
-            return ["(keine Regeln)"]
-
-        dedup = {}
-        for rule in rules:
-            action = (rule.get("policy") or "-").upper() or "-"
-            direction = (rule.get("direction") or "-").upper() or "-"
-            target = (
-                rule.get("display") or rule.get("to") or rule.get("raw") or "-"
-            ).strip() or "-"
-            iface = (rule.get("interface") or "-").strip() or "-"
-            key = (action, direction, target, iface)
-            dedup[key] = dedup.get(key, 0) + 1
-
-        rows = sorted(
-            dedup.items(),
-            key=lambda item: (item[0][0], item[0][1], item[0][2], item[0][3]),
-        )
-
-        action_w = 6
-        direction_w = 9
-        target_w = 30
-        iface_w = 18
-
-        header = f"{'AKTION':<6} {'RICHTUNG':<9} {'ZIEL':<30} {'INTERFACE':<18}"
-        sep = "-" * len(header)
-
-        lines = [header, sep]
-        for (action, direction, target, iface), count in rows:
-            action = (action or "-")[:action_w]
-            direction = (direction or "-")[:direction_w]
-            iface = (iface or "-")[:iface_w]
-            if len(target) > target_w:
-                target = target[: target_w - 1] + "…"
-            suffix = f" [DUP x{count}]" if count > 1 else ""
-            lines.append(f"{action:<6} {direction:<9} {target:<30} {iface:<18}{suffix}")
-        return lines
+        return firewall_controller.format_ufw_rule_lines(rules)
 
     def _format_ufw_status_grouped(
         self, status_label, default_in, default_out, rules, metadata=None
     ):
-        v4_rules = [r for r in rules if not r.get("is_ipv6")]
-        v6_rules = [r for r in rules if r.get("is_ipv6")]
-
-        def by_cat(items, cat):
-            return [r for r in items if r.get("category") == cat]
-
-        metadata = metadata or []
-        sections = [
-            "Firewall-Status",
-            f"Aktiv: {status_label}",
-            f"Default IN: {default_in}",
-            f"Default OUT: {default_out}",
-        ]
-        if metadata:
-            sections.append("")
-            sections.append("Metadaten")
-            for item in metadata:
-                sections.append(f"- {item}")
-
-        sections.extend(
-            [
-                "",
-                "=== INTERFACE REGELN (IPv4) ===",
-                *self._format_ufw_rule_lines(by_cat(v4_rules, "interface")),
-                "",
-                "=== STANDARD PORTS (IPv4) ===",
-                *self._format_ufw_rule_lines(by_cat(v4_rules, "standard_port")),
-                "",
-                "=== VPN ENDPOINTS (UDP IPv4) ===",
-                *self._format_ufw_rule_lines(by_cat(v4_rules, "vpn_endpoint")),
-            ]
-        )
-
-        v4_other = by_cat(v4_rules, "other")
-        if v4_other:
-            sections.extend(
-                [
-                    "",
-                    "=== SONSTIGES (IPv4) ===",
-                    *self._format_ufw_rule_lines(v4_other),
-                ]
-            )
-
-        sections.extend(
-            [
-                "",
-                "=== INTERFACE REGELN (IPv6) ===",
-                *self._format_ufw_rule_lines(by_cat(v6_rules, "interface")),
-                "",
-                "=== STANDARD PORTS (IPv6) ===",
-                *self._format_ufw_rule_lines(by_cat(v6_rules, "standard_port")),
-                "",
-                "=== VPN ENDPOINTS (UDP IPv6) ===",
-                *self._format_ufw_rule_lines(by_cat(v6_rules, "vpn_endpoint")),
-            ]
-        )
-
-        v6_other = by_cat(v6_rules, "other")
-        if v6_other:
-            sections.extend(
-                [
-                    "",
-                    "=== SONSTIGES (IPv6) ===",
-                    *self._format_ufw_rule_lines(v6_other),
-                ]
-            )
-
-        return "\n".join(sections)
-
-    def fw_status(self):
-        if not self.ensure_sudo_session("Firewall Status lesen"):
-            return
-        with self.ufw_lock:
-            rc, out = run_cmd(["sudo", "-n", "ufw", "status", "verbose"], timeout=12)
-
-        if rc != 0:
-            self.log(
-                self.tr(
-                    "firewall_log_status_read_failed",
-                    "Firewall-Status konnte nicht gelesen werden.",
-                )
-            )
-            if out:
-                self.log(out)
-            return
-
-        status_label = "unbekannt"
-        default_in = "-"
-        default_out = "-"
-        metadata_lines = []
-        structured_rules = []
-
-        for raw_line in (out or "").splitlines():
-            line = raw_line.strip()
-            if not line:
-                continue
-
-            lower = line.lower()
-            if lower.startswith("status:"):
-                status_label = line.split(":", 1)[1].strip() or "unbekannt"
-                continue
-
-            if lower.startswith("default:") or lower.startswith("voreinstellung:"):
-                default_text = line.split(":", 1)[1].strip() if ":" in line else line
-                match_in = re.search(
-                    r"(allow|deny|reject)\s*\((incoming|eingehend)\)",
-                    default_text,
-                    re.IGNORECASE,
-                )
-                match_out = re.search(
-                    r"(allow|deny|reject)\s*\((outgoing|abgehend|ausgehend)\)",
-                    default_text,
-                    re.IGNORECASE,
-                )
-                if match_in:
-                    default_in = match_in.group(1).upper()
-                if match_out:
-                    default_out = match_out.group(1).upper()
-                metadata_lines.append(line)
-                continue
-
-            if (
-                lower.startswith("logging:")
-                or lower.startswith("protokollierung:")
-                or lower.startswith("new profiles:")
-            ):
-                metadata_lines.append(line)
-                continue
-
-            if self._is_ufw_non_rule_line(line):
-                continue
-
-            parsed = self._parse_ufw_structured_rule(line)
-            if parsed is not None:
-                structured_rules.append(parsed)
-
-        summary = self._format_ufw_status_grouped(
+        return firewall_controller.format_ufw_status_grouped(
             status_label=status_label,
             default_in=default_in,
             default_out=default_out,
-            rules=structured_rules,
-            metadata=metadata_lines,
+            rules=rules,
+            metadata=metadata,
         )
-        self.log(summary)
+
+    def fw_status(self):
+        firewall_controller.fw_status(self)
 
     def fw_disable(self, interactive_guard=True):
-        if interactive_guard and not self._confirm_danger_action(
-            "firewall:disable",
-            title=self.tr("firewall_confirm_disable_title", "Firewall deaktivieren"),
-            prompt=self.tr(
-                "firewall_confirm_disable_prompt",
-                "Diese Aktion deaktiviert UFW systemweit.\n"
-                "Dein System kann dadurch unmittelbar weniger geschützt sein.\n\n"
-                "Wirklich fortfahren?",
-            ),
-            cooldown_s=0,
-            require_phrase="AUSFUEHREN",
-        ):
-            self.log(
-                self.tr(
-                    "firewall_log_disable_cancelled",
-                    "Firewall-Deaktivierung abgebrochen.",
-                )
-            )
-            return
-
-        if not self.ensure_sudo_session("Firewall deaktivieren"):
-            return
-
-        def job():
-            if not self.check_ufw_active():
-                self.after(
-                    0,
-                    lambda: self.log(
-                        self.tr(
-                            "firewall_log_already_disabled",
-                            "Firewall ist bereits deaktiviert.",
-                        )
-                    ),
-                )
-                return
-
-            rc, out = run_cmd(["sudo", "-n", "ufw", "disable"], timeout=40)
-
-            if rc != 0:
-                self.after(
-                    0,
-                    lambda: self.log(
-                        self.tr(
-                            "firewall_log_disable_failed",
-                            "Firewall konnte NICHT deaktiviert werden",
-                        )
-                    ),
-                )
-                if out:
-                    self.after(0, lambda: self.log(out))
-            else:
-                self.after(
-                    0,
-                    lambda: self.log(
-                        self.tr("firewall_log_disabled", "Firewall deaktiviert.")
-                    ),
-                )
-
-            self.after(0, self.refresh)
-
-        self.run_async(job)
+        firewall_controller.fw_disable(self, interactive_guard=interactive_guard)
 
     def vpn_switch(
         self, target, ensure_sudo=True, refresh_ui=True, force_reconnect=False
@@ -24939,201 +13772,10 @@ class App(TkBase):
             self._end_network_operation()
 
     def _recover_firewall_after_killswitch_failure(self):
-        network_service = self._network_service()
-        cmds = [
-            ["sudo", "-n", "ufw", "default", "allow", "outgoing"],
-            ["sudo", "-n", "ufw", "default", "deny", "incoming"],
-            ["sudo", "-n", "ufw", "allow", "out", "53/udp"],
-            ["sudo", "-n", "ufw", "allow", "out", "53/tcp"],
-            ["sudo", "-n", "ufw", "allow", "out", "443/tcp"],
-            ["sudo", "-n", "ufw", "allow", "out", "80/tcp"],
-        ]
-        with self.ufw_lock:
-            for cmd in cmds:
-                if network_service is not None:
-                    network_service.run(cmd, timeout=20)
-                else:
-                    run_cmd(cmd, timeout=20)
+        firewall_controller.recover_firewall_after_killswitch_failure(self)
 
     def _killswitch_on_sync(self, refresh_ui=True):
-        if not self._try_begin_network_operation("Killswitch aktivieren"):
-            if refresh_ui:
-                self.refresh_safe()
-            return False
-        try:
-            referenced_profiles = self._collect_referenced_vpn_profiles(
-                include_active=True
-            )
-            wg_ifaces = sorted(
-                set(self._collect_interface_rules_for_profiles(referenced_profiles))
-            )
-            wg_ifaces = sorted(set(wg_ifaces) | set(self.get_wg_interfaces()))
-            handshake_rules = sorted(set(self.get_killswitch_vpn_endpoints()))
-            for profile in self._collect_referenced_vpn_profiles(include_active=True):
-                resolved = self.resolve_profile_family_runtime(
-                    profile, log_missing=False
-                )
-                self.log_debug(
-                    f"[DEBUG] UFW-Regeln für {profile} basieren auf "
-                    f"IPv4={resolved.get('effective_ipv4_interface') or '-'}, "
-                    f"IPv6={resolved.get('effective_ipv6_interface') or 'None'}"
-                )
-            if not wg_ifaces and not handshake_rules:
-                self.log_safe(
-                    self.tr(
-                        "killswitch_log_no_profile_with_endpoint",
-                        "Kein WireGuard-Profil mit Endpoint gefunden – Killswitch kann nicht aktiviert werden.",
-                    )
-                )
-                return False
-
-            network_service = self._network_service()
-            with self.ufw_lock:
-                rc_s, out_s = self._read_ufw_status()
-                ufw_on = (rc_s == 0) and self._ufw_status_is_active(out_s)
-                if not ufw_on:
-                    if network_service is not None:
-                        rc_enable, out_enable = network_service.ufw_enable_force(
-                            timeout=20
-                        )
-                    else:
-                        rc_enable, out_enable = run_cmd(
-                            ["sudo", "-n", "ufw", "--force", "enable"], timeout=20
-                        )
-                    if rc_enable != 0:
-                        self.log_safe(
-                            self.tr(
-                                "killswitch_log_enable_failed_ufw",
-                                "Killswitch-Aktivierung fehlgeschlagen: UFW konnte nicht aktiviert werden.",
-                            )
-                        )
-                        if out_enable:
-                            self.log_safe(out_enable)
-                        return False
-
-                cmds = [
-                    ["sudo", "-n", "ufw", "default", "deny", "outgoing"],
-                    ["sudo", "-n", "ufw", "default", "deny", "incoming"],
-                    ["sudo", "-n", "ufw", "allow", "in", "on", "lo"],
-                    ["sudo", "-n", "ufw", "allow", "out", "on", "lo"],
-                    ["sudo", "-n", "ufw", "allow", "out", "53/udp"],
-                    ["sudo", "-n", "ufw", "allow", "out", "53/tcp"],
-                    ["sudo", "-n", "ufw", "allow", "out", "443/tcp"],
-                    ["sudo", "-n", "ufw", "allow", "out", "80/tcp"],
-                ]
-                for wg_if in wg_ifaces:
-                    cmds.extend(
-                        [
-                            ["sudo", "-n", "ufw", "allow", "out", "on", wg_if],
-                            ["sudo", "-n", "ufw", "allow", "in", "on", wg_if],
-                        ]
-                    )
-                for endpoint_ip, endpoint_port in handshake_rules:
-                    cmds.append(
-                        [
-                            "sudo",
-                            "-n",
-                            "ufw",
-                            "allow",
-                            "out",
-                            "to",
-                            endpoint_ip,
-                            "port",
-                            endpoint_port,
-                            "proto",
-                            "udp",
-                        ]
-                    )
-
-                command_failures = []
-                for cmd in cmds:
-                    if network_service is not None:
-                        rc_cmd, out_cmd = network_service.run(cmd, timeout=20)
-                    else:
-                        rc_cmd, out_cmd = run_cmd(cmd, timeout=20)
-                    if rc_cmd != 0:
-                        command_failures.append((cmd, out_cmd))
-
-                rc_v, out_v = self._read_ufw_status(verbose=True)
-
-            if command_failures:
-                failed_cmd = " ".join(command_failures[0][0][3:])
-                self.log_safe(
-                    self.tr(
-                        "killswitch_log_enable_failed_command",
-                        "Killswitch-Aktivierung fehlgeschlagen: UFW-Befehl fehlgeschlagen ({command}).",
-                    ).format(command=failed_cmd)
-                )
-                failure_out = command_failures[0][1]
-                if failure_out:
-                    self.log_safe(failure_out)
-                self._recover_firewall_after_killswitch_failure()
-                if refresh_ui:
-                    self.refresh_safe()
-                return False
-
-            if rc_v != 0:
-                self.log_safe(
-                    self.tr(
-                        "killswitch_log_enable_failed_verify",
-                        "Killswitch-Aktivierung fehlgeschlagen: UFW-Status konnte nicht verifiziert werden.",
-                    )
-                )
-                if out_v:
-                    self.log_safe(out_v)
-                self._recover_firewall_after_killswitch_failure()
-                if refresh_ui:
-                    self.refresh_safe()
-                return False
-
-            verified, issues = self._verify_killswitch_rules(
-                out_v,
-                enabled=True,
-                wg_ifaces=wg_ifaces,
-                handshake_rules=handshake_rules,
-            )
-            if not verified:
-                self.log_safe(
-                    self.tr(
-                        "killswitch_log_enable_incomplete",
-                        "Killswitch-Aktivierung unvollstaendig: UFW-Regeln entsprechen nicht dem erwarteten Endzustand.",
-                    )
-                )
-                self.log_safe(
-                    self.tr("label_details_prefix", "Details: ") + "; ".join(issues[:3])
-                )
-                self._recover_firewall_after_killswitch_failure()
-                if refresh_ui:
-                    self.refresh_safe()
-                return False
-
-            for endpoint_ip, endpoint_port in handshake_rules:
-                self.log_safe(
-                    self.tr(
-                        "killswitch_log_handshake_allowed",
-                        "Killswitch: WireGuard Handshake erlaubt für {endpoint}",
-                    ).format(endpoint=f"{endpoint_ip}:{endpoint_port}")
-                )
-            if wg_ifaces:
-                allowed_ifaces = ", ".join(wg_ifaces)
-                self.log_safe(
-                    self.tr(
-                        "killswitch_log_enabled_ifaces",
-                        "Killswitch AN – nur Traffic über {ifaces}, Loopback und WireGuard-Handshake erlaubt.",
-                    ).format(ifaces=allowed_ifaces)
-                )
-            else:
-                self.log_safe(
-                    self.tr(
-                        "killswitch_log_enabled_basic",
-                        "Killswitch AN – Loopback und WireGuard-Handshake erlaubt, Tunnelaufbau kann starten.",
-                    )
-                )
-            if refresh_ui:
-                self.refresh_safe()
-            return True
-        finally:
-            self._end_network_operation()
+        return firewall_controller.killswitch_on_sync(self, refresh_ui=refresh_ui)
 
     def killswitch_on(
         self,
@@ -25142,206 +13784,16 @@ class App(TkBase):
         refresh_ui=True,
         interactive_guard=True,
     ):
-        if (
-            interactive_guard
-            and ensure_sudo
-            and not self._confirm_danger_action(
-                "killswitch:on",
-                title=self.tr(
-                    "killswitch_confirm_enable_title", "Killswitch aktivieren"
-                ),
-                prompt=self.tr(
-                    "killswitch_confirm_enable_prompt",
-                    "Diese Aktion setzt UFW auf restriktive Regeln.\n"
-                    "Ohne aktiven VPN-Tunnel kann Internetzugang blockiert werden.\n\n"
-                    "Wirklich fortfahren?",
-                ),
-                cooldown_s=0,
-                require_phrase="AUSFUEHREN",
-            )
-        ):
-            self.log(
-                self.tr(
-                    "killswitch_log_enable_cancelled",
-                    "Killswitch-Aktivierung abgebrochen.",
-                )
-            )
-            return False
-
-        if ensure_sudo and not self.ensure_sudo_session("Killswitch aktivieren"):
-            return False
-        if not async_mode:
-            return self._killswitch_on_sync(refresh_ui=refresh_ui)
-
-        def job():
-            self._killswitch_on_sync(refresh_ui=refresh_ui)
-
-        self.run_async(job)
-        return True
+        return firewall_controller.killswitch_on(
+            self,
+            async_mode=async_mode,
+            ensure_sudo=ensure_sudo,
+            refresh_ui=refresh_ui,
+            interactive_guard=interactive_guard,
+        )
 
     def _killswitch_off_sync(self, refresh_ui=True):
-        if not self._try_begin_network_operation("Killswitch deaktivieren"):
-            if refresh_ui:
-                self.refresh_safe()
-            return False
-        try:
-            network_service = self._network_service()
-            with self.ufw_lock:
-                rc_s, out_s = self._read_ufw_status()
-                ufw_on = (rc_s == 0) and self._ufw_status_is_active(out_s)
-                if not ufw_on:
-                    if network_service is not None:
-                        rc_enable, out_enable = network_service.ufw_enable_force(
-                            timeout=20
-                        )
-                    else:
-                        rc_enable, out_enable = run_cmd(
-                            ["sudo", "-n", "ufw", "--force", "enable"], timeout=20
-                        )
-                    if rc_enable != 0:
-                        self.log_safe(
-                            self.tr(
-                                "killswitch_log_disable_failed_ufw",
-                                "Killswitch-Deaktivierung fehlgeschlagen: UFW konnte nicht aktiviert werden.",
-                            )
-                        )
-                        if out_enable:
-                            self.log_safe(out_enable)
-                        return False
-
-                referenced_profiles = self._collect_referenced_vpn_profiles(
-                    include_active=True
-                )
-                configured_real_ifaces = set(
-                    self._collect_interface_rules_for_profiles(referenced_profiles)
-                )
-                active_ifaces = {
-                    str(iface).strip()
-                    for iface in self.get_wg_interfaces()
-                    if str(iface).strip()
-                }
-                wg_ifaces = sorted(configured_real_ifaces | active_ifaces)
-                wg_ifaces = sorted({w for w in wg_ifaces if w})
-                handshake_rules = sorted(set(self.get_killswitch_vpn_endpoints()))
-
-                cleanup_cmds = [
-                    ["sudo", "-n", "ufw", "delete", "allow", "in", "on", "lo"],
-                    ["sudo", "-n", "ufw", "delete", "allow", "out", "on", "lo"],
-                ]
-                for wg_if in wg_ifaces:
-                    cleanup_cmds.extend(
-                        [
-                            [
-                                "sudo",
-                                "-n",
-                                "ufw",
-                                "delete",
-                                "allow",
-                                "out",
-                                "on",
-                                wg_if,
-                            ],
-                            ["sudo", "-n", "ufw", "delete", "allow", "in", "on", wg_if],
-                        ]
-                    )
-                for endpoint_ip, endpoint_port in handshake_rules:
-                    cleanup_cmds.append(
-                        [
-                            "sudo",
-                            "-n",
-                            "ufw",
-                            "delete",
-                            "allow",
-                            "out",
-                            "to",
-                            endpoint_ip,
-                            "port",
-                            endpoint_port,
-                            "proto",
-                            "udp",
-                        ]
-                    )
-
-                for cmd in cleanup_cmds:
-                    if network_service is not None:
-                        network_service.run(cmd, timeout=20)
-                    else:
-                        run_cmd(cmd, timeout=20)
-
-                default_cmds = [
-                    ["sudo", "-n", "ufw", "default", "allow", "outgoing"],
-                    ["sudo", "-n", "ufw", "default", "deny", "incoming"],
-                ]
-                command_failures = []
-                for cmd in default_cmds:
-                    if network_service is not None:
-                        rc_cmd, out_cmd = network_service.run(cmd, timeout=20)
-                    else:
-                        rc_cmd, out_cmd = run_cmd(cmd, timeout=20)
-                    if rc_cmd != 0:
-                        command_failures.append((cmd, out_cmd))
-
-                rc_v, out_v = self._read_ufw_status(verbose=True)
-
-            if command_failures:
-                failed_cmd = " ".join(command_failures[0][0][3:])
-                self.log_safe(
-                    self.tr(
-                        "killswitch_log_disable_failed_command",
-                        "Killswitch-Deaktivierung fehlgeschlagen: UFW-Befehl fehlgeschlagen ({command}).",
-                    ).format(command=failed_cmd)
-                )
-                failure_out = command_failures[0][1]
-                if failure_out:
-                    self.log_safe(failure_out)
-                if refresh_ui:
-                    self.refresh_safe()
-                return False
-
-            if rc_v != 0:
-                self.log_safe(
-                    self.tr(
-                        "killswitch_log_disable_failed_verify",
-                        "Killswitch-Deaktivierung fehlgeschlagen: UFW-Status konnte nicht verifiziert werden.",
-                    )
-                )
-                if out_v:
-                    self.log_safe(out_v)
-                if refresh_ui:
-                    self.refresh_safe()
-                return False
-
-            verified, issues = self._verify_killswitch_rules(
-                out_v,
-                enabled=False,
-                wg_ifaces=wg_ifaces,
-                handshake_rules=handshake_rules,
-            )
-            if not verified:
-                self.log_safe(
-                    self.tr(
-                        "killswitch_log_disable_incomplete",
-                        "Killswitch-Deaktivierung unvollstaendig: UFW-Regeln entsprechen nicht dem erwarteten Endzustand.",
-                    )
-                )
-                self.log_safe(
-                    self.tr("label_details_prefix", "Details: ") + "; ".join(issues[:3])
-                )
-                if refresh_ui:
-                    self.refresh_safe()
-                return False
-
-            self.log_safe(
-                self.tr(
-                    "killswitch_log_disabled",
-                    "Killswitch AUS – UFW bleibt aktiv, normales Routing wieder erlaubt.",
-                )
-            )
-            if refresh_ui:
-                self.refresh_safe()
-            return True
-        finally:
-            self._end_network_operation()
+        return firewall_controller.killswitch_off_sync(self, refresh_ui=refresh_ui)
 
     def killswitch_off(
         self,
@@ -25350,185 +13802,19 @@ class App(TkBase):
         refresh_ui=True,
         interactive_guard=True,
     ):
-        if (
-            interactive_guard
-            and ensure_sudo
-            and not self._confirm_danger_action(
-                "killswitch:off",
-                title=self.tr(
-                    "killswitch_confirm_disable_title", "Killswitch deaktivieren"
-                ),
-                prompt=self.tr(
-                    "killswitch_confirm_disable_prompt",
-                    "Diese Aktion hebt restriktive Killswitch-Regeln auf.\n"
-                    "Danach ist normales Routing wieder erlaubt.\n\n"
-                    "Wirklich fortfahren?",
-                ),
-                cooldown_s=0,
-                require_phrase="AUSFUEHREN",
-            )
-        ):
-            self.log(
-                self.tr(
-                    "killswitch_log_disable_cancelled",
-                    "Killswitch-Deaktivierung abgebrochen.",
-                )
-            )
-            return False
-
-        if ensure_sudo and not self.ensure_sudo_session("Killswitch deaktivieren"):
-            return False
-        if not async_mode:
-            return self._killswitch_off_sync(refresh_ui=refresh_ui)
-
-        def job():
-            self._killswitch_off_sync(refresh_ui=refresh_ui)
-
-        self.run_async(job)
-        return True
+        return firewall_controller.killswitch_off(
+            self,
+            async_mode=async_mode,
+            ensure_sudo=ensure_sudo,
+            refresh_ui=refresh_ui,
+            interactive_guard=interactive_guard,
+        )
 
     def allow_ssh_rule_async(self):
-        if not self.ensure_sudo_session("SSH UFW-Regel setzen"):
-            return
-
-        def job():
-            with self.ufw_lock:
-                _, status_out = run_cmd(
-                    ["sudo", "-n", "ufw", "status", "numbered"], timeout=12
-                )
-            if status_out.strip():
-                for line in status_out.splitlines():
-                    if re.search(
-                        r"(^|[^0-9])22/tcp([^0-9]|$)", line, re.IGNORECASE
-                    ) or re.search(r"(^|[^0-9])22([^0-9]|$)", line):
-                        self.after(
-                            0,
-                            lambda: self.log(
-                                self.tr(
-                                    "ssh_log_port_22_already_allowed",
-                                    "SSH/UFW: Port 22 ist bereits freigegeben.",
-                                )
-                            ),
-                        )
-                        self.after(0, self.refresh)
-                        return
-
-            with self.ufw_lock:
-                rc, out = run_cmd(["sudo", "-n", "ufw", "allow", "22/tcp"], timeout=15)
-            if rc == 0:
-                msg = (out or "").strip() or self.tr("ssh_rule_set", "Regel gesetzt.")
-                self.after(
-                    0,
-                    lambda m=msg: self.log(
-                        self.tr(
-                            "ssh_log_rule_set", "SSH/UFW gesetzt: {message}"
-                        ).format(message=m)
-                    ),
-                )
-            else:
-                msg = (out or "").strip() or self.tr(
-                    "label_unknown_error", "unbekannter Fehler"
-                )
-                self.after(
-                    0,
-                    lambda m=msg: self.log(
-                        self.tr(
-                            "ssh_log_rule_set_failed",
-                            "SSH/UFW setzen fehlgeschlagen: {message}",
-                        ).format(message=m)
-                    ),
-                )
-
-            self.after(0, self.refresh)
-
-        threading.Thread(target=job, daemon=True).start()
+        firewall_controller.allow_ssh_rule_async(self)
 
     def remove_ssh_rule_async(self, auto=False):
-        if not self.ensure_sudo_session("SSH UFW-Regeln entfernen"):
-            return
-        if not auto:
-            ok = messagebox.askyesno(
-                self.tr("ssh_remove_confirm_title", "Achtung"),
-                self.tr(
-                    "ssh_remove_confirm_body",
-                    "Das entfernt UFW-Regeln für SSH (Port 22).\n"
-                    "Wenn du per SSH verbunden bist, kannst du dich aussperren.\n\n"
-                    "Wirklich fortfahren?",
-                ),
-            )
-            if not ok:
-                self.log(self.tr("ssh_log_cancelled", "SSH/UFW: Abgebrochen."))
-                return
-
-        def job():
-            with self.ufw_lock:
-                _, out = run_cmd(
-                    ["sudo", "-n", "ufw", "status", "numbered"], timeout=12
-                )
-            if not out.strip():
-                self.after(
-                    0,
-                    lambda: self.log(
-                        self.tr(
-                            "ssh_log_status_numbered_unavailable",
-                            "UFW status numbered leer/unverfügbar.",
-                        )
-                    ),
-                )
-                return
-
-            matches = []
-            for line in out.splitlines():
-                m = re.match(r"^\[\s*(\d+)\]\s+(.*)$", line.strip())
-                if not m:
-                    continue
-                num = int(m.group(1))
-                rest = m.group(2)
-                if re.search(r"(^|[^0-9])22([^0-9]|$)", rest):
-                    matches.append((num, rest))
-
-            if not matches:
-                self.after(
-                    0,
-                    lambda: self.log(
-                        self.tr(
-                            "ssh_log_no_port_22_rule",
-                            "SSH/UFW: keine Port-22-Regel gefunden.",
-                        )
-                    ),
-                )
-                return
-
-            matches.sort(key=lambda x: x[0], reverse=True)
-            for num, rest in matches:
-                with self.ufw_lock:
-                    rc2, del_out = run_cmd(
-                        ["sudo", "-n", "ufw", "--force", "delete", str(num)], timeout=12
-                    )
-                if rc2 == 0:
-                    self.after(
-                        0,
-                        lambda r=rest: self.log(
-                            self.tr(
-                                "ssh_log_removed",
-                                "SSH/UFW entfernt: {rule}",
-                            ).format(rule=r)
-                        ),
-                    )
-                else:
-                    self.after(
-                        0,
-                        lambda o=del_out: self.log(
-                            self.tr(
-                                "ssh_log_delete_failed",
-                                "SSH/UFW delete failed: {message}",
-                            ).format(message=o)
-                        ),
-                    )
-
-            self.after(0, self.refresh)
-
-        threading.Thread(target=job, daemon=True).start()
+        firewall_controller.remove_ssh_rule_async(self, auto=auto)
 
     def _current_port_reality_target(self):
         candidates = []
@@ -25660,177 +13946,38 @@ class App(TkBase):
             self.log(f"Port {port} → {shown}")
 
     def _speedtest_logs_dir(self):
-        log_dir = os.path.join(self.netmon_state_dir, "logs")
-        os.makedirs(log_dir, exist_ok=True)
-        return log_dir
+        return speedtest_controller.speedtest_logs_dir(self)
 
     def _speedtest_history_path(self):
-        return os.path.join(self._speedtest_logs_dir(), "speedtest_history.jsonl")
+        return speedtest_controller.speedtest_history_path(self)
 
     def _load_speedtest_history(self):
-        path = self._speedtest_history_path()
-        if not os.path.isfile(path):
-            return
-        loaded = []
-        try:
-            with open(path, "r", encoding="utf-8") as fh:
-                for line in fh:
-                    line = (line or "").strip()
-                    if not line:
-                        continue
-                    try:
-                        item = json.loads(line)
-                    except Exception:
-                        continue
-                    if isinstance(item, dict):
-                        loaded.append(item)
-        except Exception as exc:
-            self.log_debug_safe(f"Speedtest-Verlauf konnte nicht geladen werden: {exc}")
-            return
-
-        if loaded:
-            self.speedtest_history = loaded[-self.speedtest_history_limit :]
-            self.speedtest_last_result = dict(self.speedtest_history[-1])
-            if len(loaded) > self.speedtest_history_limit:
-                self._persist_speedtest_history()
+        speedtest_controller.load_speedtest_history(self)
 
     def _persist_speedtest_history(self):
-        path = self._speedtest_history_path()
-        records = list(self.speedtest_history[-self.speedtest_history_limit :])
-        try:
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, "w", encoding="utf-8") as fh:
-                for item in records:
-                    fh.write(json.dumps(item, ensure_ascii=False) + "\n")
-        except Exception as exc:
-            self.log_debug_safe(
-                f"Speedtest-Verlauf konnte nicht gespeichert werden: {exc}"
-            )
+        speedtest_controller.persist_speedtest_history(self)
 
     def _append_speedtest_history(self, result):
-        if not isinstance(result, dict):
-            return
-        self.speedtest_last_result = dict(result)
-        self.speedtest_history.append(dict(result))
-        self.speedtest_history = self.speedtest_history[-self.speedtest_history_limit :]
-        self._persist_speedtest_history()
+        speedtest_controller.append_speedtest_history(self, result)
 
     def _speedtest_warn_messages(self, result):
-        warns = []
-        if not isinstance(result, dict):
-            return warns
-        dl = result.get("download_mbps")
-        ul = result.get("upload_mbps")
-        ping = result.get("ping_ms")
-        jitter = result.get("jitter_ms")
-
-        if (
-            isinstance(dl, (int, float))
-            and dl < SPEEDTEST_WARN_DEFAULTS["download_mbps_min"]
-        ):
-            warns.append(
-                f"Download niedrig: {dl:.1f} Mbit/s (< {SPEEDTEST_WARN_DEFAULTS['download_mbps_min']:.1f})"
-            )
-        if (
-            isinstance(ul, (int, float))
-            and ul < SPEEDTEST_WARN_DEFAULTS["upload_mbps_min"]
-        ):
-            warns.append(
-                f"Upload niedrig: {ul:.1f} Mbit/s (< {SPEEDTEST_WARN_DEFAULTS['upload_mbps_min']:.1f})"
-            )
-        if (
-            isinstance(ping, (int, float))
-            and ping > SPEEDTEST_WARN_DEFAULTS["ping_ms_max"]
-        ):
-            warns.append(
-                f"Ping hoch: {ping:.0f} ms (> {SPEEDTEST_WARN_DEFAULTS['ping_ms_max']:.0f})"
-            )
-        if (
-            isinstance(jitter, (int, float))
-            and jitter > SPEEDTEST_WARN_DEFAULTS["jitter_ms_max"]
-        ):
-            warns.append(
-                f"Jitter hoch: {jitter:.0f} ms (> {SPEEDTEST_WARN_DEFAULTS['jitter_ms_max']:.0f})"
-            )
-        return warns
+        return speedtest_controller.speedtest_warn_messages(result)
 
     def speedtest_async(self):
-        def job():
-            self.log_safe("Speedtest gestartet...")
-            result, err = run_speedtest(run_cmd, has_cmd, timeout=120)
-            if err:
-                self.log_safe(f"Speedtest fehlgeschlagen: {err}")
-                marker = "Versuchte Befehle:"
-                if marker in str(err):
-                    attempted = str(err).split(marker, 1)[1].strip()
-                    if attempted:
-                        self.log_safe(f"Speedtest-Diagnose (CLI): {attempted}")
-                return
-
-            self._append_speedtest_history(result)
-            self.after(0, lambda r=dict(result): self.update_speedtest_panel(r))
-            self.log_debug_safe(json.dumps(result, ensure_ascii=False))
-            self.log_debug_safe(format_speedtest_summary(result))
-            self.log_debug_safe(format_speedtest_table(result))
-            self.log_safe("Speedtest abgeschlossen.")
-
-            for warn in self._speedtest_warn_messages(result):
-                self.log_debug_safe(f"[WARN] Speedtest: {warn}")
-
-            if getattr(self, "debug_mode", False):
-                self.log_debug_safe(
-                    f"Speedtest intern: tool={result.get('tool','-')} history={len(self.speedtest_history)}"
-                )
-
-        threading.Thread(target=job, daemon=True).start()
+        return speedtest_controller.speedtest_async(
+            self,
+            run_speedtest_fn=run_speedtest,
+            format_summary_fn=format_speedtest_summary,
+            format_table_fn=format_speedtest_table,
+            run_cmd_fn=run_cmd,
+            has_cmd_fn=has_cmd,
+        )
 
     def update_speedtest_panel(self, result):
-        if not result:
-            self.speedtest_ping_var.set("-")
-            self.speedtest_jitter_var.set("-")
-            self.speedtest_download_var.set("-")
-            self.speedtest_upload_var.set("-")
-            self.speedtest_timestamp_var.set("Noch kein Speedtest durchgeführt")
-            return
-
-        ping = result.get("ping_ms")
-        jitter = result.get("jitter_ms")
-        download = result.get("download_mbps")
-        upload = result.get("upload_mbps")
-        timestamp = result.get("timestamp")
-
-        self.speedtest_ping_var.set(f"{round(ping)} ms" if ping is not None else "-")
-        self.speedtest_jitter_var.set(
-            f"{round(jitter)} ms" if jitter is not None else "-"
-        )
-        self.speedtest_download_var.set(
-            f"{download:.1f} Mbit/s" if download is not None else "-"
-        )
-        self.speedtest_upload_var.set(
-            f"{upload:.1f} Mbit/s" if upload is not None else "-"
-        )
-        self.speedtest_timestamp_var.set(timestamp or "-")
+        speedtest_controller.update_speedtest_panel(self, result)
 
     def show_speedtest_history(self):
-        if not self.speedtest_history:
-            self.log("Speedtest-Verlauf: noch keine Einträge.")
-            return
-
-        self.log("Speedtest-Verlauf (letzte Ergebnisse):")
-        for item in self.speedtest_history[-self.speedtest_history_limit :]:
-            stamp = item.get("timestamp") or "-"
-            ping = item.get("ping_ms")
-            jitter = item.get("jitter_ms")
-            download = item.get("download_mbps")
-            upload = item.get("upload_mbps")
-
-            ping_txt = "-" if ping is None else f"{ping:.0f}"
-            jitter_txt = "-" if jitter is None else f"{jitter:.0f}"
-            dl_txt = "-" if download is None else f"{download:.1f}"
-            ul_txt = "-" if upload is None else f"{upload:.1f}"
-            self.log(
-                f"{stamp} | Ping {ping_txt} ms | Jitter {jitter_txt} ms | DL {dl_txt} | UL {ul_txt}"
-            )
+        speedtest_controller.show_speedtest_history(self)
 
     # ---------- Trace (Table of hops) ----------
     def _hop_lookup_log_once(self, ip: str, message: str):
@@ -27665,6 +15812,55 @@ class App(TkBase):
 
 
 if __name__ == "__main__":
-    from netmon.main import main
+    import traceback as _bootstrap_traceback
 
-    sys.exit(main())
+    def get_startup_error_log_path():
+        base = os.environ.get("XDG_STATE_HOME", "").strip()
+        if not base:
+            base = os.path.expanduser("~/.local/state")
+
+        state_dir = os.path.join(base, "netmon")
+        os.makedirs(state_dir, exist_ok=True)
+
+        return os.path.join(state_dir, "startup_error.log")
+
+    def _report_bootstrap_failure(exc: BaseException):
+        log_path = get_startup_error_log_path()
+        try:
+            with open(log_path, "a", encoding="utf-8") as fh:
+                fh.write("\n" + "=" * 80 + "\n")
+                fh.write("NetMon app.py bootstrap failure\n\n")
+                _bootstrap_traceback.print_exc(file=fh)
+                fh.write("=" * 80 + "\n")
+        except Exception:
+            pass
+
+        try:
+            import tkinter as _tk
+            from tkinter import messagebox as _messagebox
+
+            root = _tk.Tk()
+            root.withdraw()
+            _messagebox.showerror(
+                "NetMon Startfehler",
+                "NetMon konnte nicht gestartet werden.\n\n"
+                f"Fehler: {exc}\n\n"
+                f"Details: {log_path}",
+                parent=root,
+            )
+            root.destroy()
+        except Exception:
+            pass
+
+    try:
+        try:
+            from netmon.main import main
+        except ModuleNotFoundError:
+            from main import main
+
+        sys.exit(main())
+    except SystemExit:
+        raise
+    except BaseException as exc:
+        _report_bootstrap_failure(exc)
+        raise

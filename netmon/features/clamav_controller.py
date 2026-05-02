@@ -1,0 +1,1816 @@
+"""ClamAV controller helpers for NetMon."""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import signal
+import shutil
+import tempfile
+import threading
+import time
+from datetime import datetime
+from tkinter import filedialog, messagebox
+
+import getpass
+
+try:
+    from netmon.core.utils import safe_write_json
+except ModuleNotFoundError:
+    from core.utils import safe_write_json
+
+try:
+    from netmon.core.command import run_cmd
+except ModuleNotFoundError:
+    from core.command import run_cmd
+
+try:
+    from netmon.core.tooling import has_cmd
+except ModuleNotFoundError:
+    from core.tooling import has_cmd
+
+
+def update_clamav_panel(
+    app,
+    status=None,
+    signatures=None,
+    last_scan=None,
+    last_target=None,
+    findings=None,
+    result=None,
+):
+    if status is not None and hasattr(app, "clamav_status_var"):
+        app.clamav_status_var.set(status)
+    if signatures is not None and hasattr(app, "clamav_signatures_var"):
+        app.clamav_signatures_var.set(signatures)
+    if last_scan is not None and hasattr(app, "clamav_last_scan_var"):
+        app.clamav_last_scan_var.set(last_scan)
+    if last_target is not None and hasattr(app, "clamav_last_target_var"):
+        app.clamav_last_target_var.set(last_target)
+    if findings is not None and hasattr(app, "clamav_findings_var"):
+        app.clamav_findings_var.set(findings)
+    if result is not None and hasattr(app, "clamav_result_var"):
+        app.clamav_result_var.set(result)
+
+
+def update_clamav_panel_safe(
+    app,
+    status=None,
+    signatures=None,
+    last_scan=None,
+    last_target=None,
+    findings=None,
+    result=None,
+):
+    if threading.current_thread() is threading.main_thread():
+        update_clamav_panel(
+            app,
+            status=status,
+            signatures=signatures,
+            last_scan=last_scan,
+            last_target=last_target,
+            findings=findings,
+            result=result,
+        )
+        return
+    app.after(
+        0,
+        lambda s=status, sig=signatures, ls=last_scan, lt=last_target, f=findings, r=result: update_clamav_panel(
+            app,
+            status=s,
+            signatures=sig,
+            last_scan=ls,
+            last_target=lt,
+            findings=f,
+            result=r,
+        ),
+    )
+
+
+def clamav_findings_open(app):
+    return [
+        item
+        for item in (app.clamav_findings or [])
+        if (item.get("status") or "").strip().lower() == "found"
+    ]
+
+
+def clamav_findings_quarantined(app):
+    return [
+        item
+        for item in (app.clamav_findings or [])
+        if (item.get("status") or "").strip().lower() == "quarantine"
+        and (item.get("quarantine_path") or "").strip()
+    ]
+
+
+def update_clamav_findings_buttons_state(app):
+    has_open = bool(clamav_findings_open(app))
+    has_quarantined = bool(clamav_findings_quarantined(app))
+    open_state = "normal" if has_open else "disabled"
+    quarantine_state = "normal" if has_quarantined else "disabled"
+
+    for name in (
+        "btn_clamav_show_findings",
+        "btn_clamav_quarantine",
+        "btn_clamav_quarantine_selected",
+    ):
+        btn = getattr(app, name, None)
+        if btn is not None:
+            try:
+                btn.configure(state=open_state)
+            except Exception:
+                pass
+
+    export_btn = getattr(app, "btn_clamav_export_findings", None)
+    if export_btn is not None:
+        try:
+            export_btn.configure(
+                state="normal" if bool(app.clamav_findings) else "disabled"
+            )
+        except Exception:
+            pass
+
+    for name in (
+        "btn_clamav_show_quarantine",
+        "btn_clamav_restore_quarantine",
+        "btn_clamav_restore_selected",
+    ):
+        btn = getattr(app, name, None)
+        if btn is not None:
+            try:
+                btn.configure(state=quarantine_state)
+            except Exception:
+                pass
+
+
+def update_clamav_findings_buttons_state_safe(app):
+    if threading.current_thread() is threading.main_thread():
+        update_clamav_findings_buttons_state(app)
+        return
+    app.after(0, lambda: update_clamav_findings_buttons_state(app))
+
+
+def write_clamav_output(app, lines, replace=True):
+    widget = getattr(app, "clamav_output_text", None)
+    if widget is None:
+        return
+
+    if isinstance(lines, str):
+        text = lines
+    else:
+        text = "\n".join([str(line) for line in (lines or [])])
+    if text and not text.endswith("\n"):
+        text += "\n"
+
+    def _apply():
+        try:
+            widget.configure(state="normal")
+            if replace:
+                widget.delete("1.0", "end")
+            widget.insert("end", text)
+            widget.see("end")
+            widget.configure(state="disabled")
+        except Exception:
+            pass
+
+    if threading.current_thread() is threading.main_thread():
+        _apply()
+        return
+    app.after(0, _apply)
+
+
+def format_runtime_hms(seconds):
+    try:
+        total = max(0, int(seconds))
+    except Exception:
+        total = 0
+    h, rem = divmod(total, 3600)
+    m, s = divmod(rem, 60)
+    if h > 0:
+        return f"{h:d}:{m:02d}:{s:02d}"
+    return f"{m:02d}:{s:02d}"
+
+
+def clamav_progress_apply(app):
+    started = float(getattr(app, "clamav_scan_started_at", 0.0) or 0.0)
+    scanned = int(getattr(app, "clamav_scanned_files", 0) or 0)
+    expected = getattr(app, "clamav_expected_files", None)
+    elapsed = max(0.0, time.time() - started) if started > 0 else 0.0
+
+    runtime_txt = format_runtime_hms(elapsed) if started > 0 else "-"
+    speed_txt = "-"
+    eta_txt = "-"
+    if elapsed >= 1.0 and scanned > 0:
+        speed = scanned / elapsed
+        speed_txt = f"{speed:.1f} Dateien/s"
+        if (
+            isinstance(expected, int)
+            and expected > scanned
+            and speed > 0.1
+            and scanned >= 10
+        ):
+            remaining = expected - scanned
+            eta_seconds = int(max(1, remaining / speed))
+            if eta_seconds >= 3600:
+                eta_txt = f"~{eta_seconds // 3600} h"
+            elif eta_seconds >= 60:
+                eta_txt = f"~{eta_seconds // 60} min"
+            else:
+                eta_txt = f"~{eta_seconds} s"
+        elif isinstance(expected, int) and expected > 0:
+            eta_txt = "wird berechnet..."
+
+    if hasattr(app, "clamav_runtime_var"):
+        app.clamav_runtime_var.set(runtime_txt)
+    if hasattr(app, "clamav_scanned_files_var"):
+        app.clamav_scanned_files_var.set(str(max(0, scanned)))
+    if hasattr(app, "clamav_speed_var"):
+        app.clamav_speed_var.set(speed_txt)
+    if hasattr(app, "clamav_eta_var"):
+        app.clamav_eta_var.set(eta_txt)
+
+
+def clamav_progress_tick(app):
+    app.clamav_progress_after_id = None
+    if not getattr(app, "security_clamav_running", False):
+        return
+    clamav_progress_apply(app)
+    app.clamav_progress_after_id = app.after(1000, lambda: clamav_progress_tick(app))
+
+
+def clamav_progress_start(app, expected_files=None):
+    app.clamav_scan_started_at = time.time()
+    app.clamav_scanned_files = 0
+    app.clamav_expected_files = (
+        int(expected_files)
+        if isinstance(expected_files, int) and expected_files > 0
+        else None
+    )
+    if app.clamav_progress_after_id is not None:
+        try:
+            app.after_cancel(app.clamav_progress_after_id)
+        except Exception:
+            pass
+        app.clamav_progress_after_id = None
+    clamav_progress_apply(app)
+    app.clamav_progress_after_id = app.after(1000, lambda: clamav_progress_tick(app))
+
+
+def clamav_progress_update_safe(app, scanned_files):
+    def _apply():
+        try:
+            val = int(scanned_files)
+        except Exception:
+            val = 0
+        if val > app.clamav_scanned_files:
+            app.clamav_scanned_files = val
+        clamav_progress_apply(app)
+
+    if threading.current_thread() is threading.main_thread():
+        _apply()
+        return
+    app.after(0, _apply)
+
+
+def clamav_progress_finish_safe(app):
+    def _finish():
+        if app.clamav_progress_after_id is not None:
+            try:
+                app.after_cancel(app.clamav_progress_after_id)
+            except Exception:
+                pass
+            app.clamav_progress_after_id = None
+        clamav_progress_apply(app)
+        if hasattr(app, "clamav_eta_var"):
+            app.clamav_eta_var.set("-")
+        app.clamav_scan_started_at = 0.0
+        app.clamav_expected_files = None
+
+    if threading.current_thread() is threading.main_thread():
+        _finish()
+        return
+    app.after(0, _finish)
+
+
+def clamav_parse_scanned_files(output):
+    for line in (output or "").splitlines():
+        s = line.strip()
+        if s.startswith("Scanned files:"):
+            try:
+                return int(s.split(":", 1)[1].strip())
+            except Exception:
+                return None
+    return None
+
+
+def load_clamav_findings(app):
+    app.clamav_findings = []
+    path = getattr(app, "clamav_findings_path", "")
+    if not path or not os.path.isfile(path):
+        return
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            raw = json.load(fh)
+        if not isinstance(raw, list):
+            return
+        cleaned = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            p = (item.get("path") or "").strip()
+            if not p:
+                continue
+            cleaned.append(
+                {
+                    "path": p,
+                    "signature": (item.get("signature") or "-").strip() or "-",
+                    "timestamp": (item.get("timestamp") or "").strip()
+                    or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "scan_type": (item.get("scan_type") or "unknown").strip()
+                    or "unknown",
+                    "status": (item.get("status") or "found").strip() or "found",
+                    "quarantine_path": (item.get("quarantine_path") or "").strip(),
+                    "quarantine_timestamp": (
+                        item.get("quarantine_timestamp") or ""
+                    ).strip(),
+                }
+            )
+        app.clamav_findings = cleaned[-300:]
+    except Exception as exc:
+        app.log_debug(f"ClamAV-Fundliste laden fehlgeschlagen: {exc}")
+
+
+def save_clamav_findings(app):
+    path = getattr(app, "clamav_findings_path", "")
+    if not path:
+        return
+    ok, err = safe_write_json(
+        path,
+        app.clamav_findings[-300:],
+        indent=2,
+        ensure_ascii=False,
+    )
+    if not ok:
+        app.log_debug(f"ClamAV-Fundliste speichern fehlgeschlagen: {err}")
+
+
+def clamav_extract_findings(output, scan_type, timestamp):
+    findings = []
+    pattern = re.compile(r"^(.*?):\s(.+?)\sFOUND$")
+    for raw_line in (output or "").splitlines():
+        line = raw_line.strip()
+        match = pattern.match(line)
+        if not match:
+            continue
+        file_path = os.path.normpath((match.group(1) or "").strip())
+        signature = (match.group(2) or "-").strip() or "-"
+        if not file_path:
+            continue
+        findings.append(
+            {
+                "path": file_path,
+                "signature": signature,
+                "timestamp": timestamp,
+                "scan_type": scan_type,
+                "status": "found",
+            }
+        )
+    return findings
+
+
+def clamav_replace_open_findings(app, findings):
+    history = [
+        item
+        for item in (app.clamav_findings or [])
+        if (item.get("status") or "").strip().lower() != "found"
+    ]
+    app.clamav_findings = (history + list(findings or []))[-300:]
+    save_clamav_findings(app)
+    update_clamav_findings_buttons_state_safe(app)
+
+
+def clamav_extract_error_message(output):
+    lines = [ln.strip() for ln in (output or "").splitlines() if ln.strip()]
+    if not lines:
+        return ""
+
+    patterns = [
+        "error:",
+        "access denied",
+        "permission denied",
+        "can't open",
+        "cannot open",
+        "can't read",
+        "scan aborted",
+        "internal error",
+        "database error",
+    ]
+
+    for line in reversed(lines):
+        lower = line.lower()
+        if any(token in lower for token in patterns):
+            return line
+
+    for line in lines:
+        lower = line.lower()
+        if lower.startswith("error"):
+            return line
+
+    return ""
+
+
+def clamav_is_nonfatal_scan_issue(output):
+    text = (output or "").lower()
+    if not text:
+        return False
+
+    fatal_markers = [
+        "no supported database files found",
+        "database initialization failed",
+        "libclamav error",
+        "unknown option",
+        "invalid option",
+        "bytecode: security",
+    ]
+    if any(marker in text for marker in fatal_markers):
+        return False
+
+    benign_markers = [
+        "can't open file or directory",
+        "permission denied",
+        "access denied",
+        "can't read file",
+    ]
+    return any(marker in text for marker in benign_markers)
+
+
+def clamav_is_nonfatal_update_issue(output):
+    text = (output or "").lower()
+    if not text:
+        return False
+
+    nonfatal_markers = [
+        "failed to stop clamav-daemon.service: unit clamav-daemon.service not loaded",
+        "failed to reload clamav-daemon.service: unit clamav-daemon.service not loaded",
+        "failed to restart clamav-daemon.service: unit clamav-daemon.service not loaded",
+        "notifyclamd: service clamav-daemon is not running",
+    ]
+    if not any(marker in text for marker in nonfatal_markers):
+        return False
+
+    fatal_markers = [
+        "no supported database files found",
+        "database initialization failed",
+        "can't download",
+        "download failed",
+        "invalid dns reply",
+        "connection failed",
+    ]
+    return not any(marker in text for marker in fatal_markers)
+
+
+def clamav_parse_infected_count(output):
+    infected_count = None
+    for line in (output or "").splitlines():
+        s = line.strip()
+        if s.startswith("Infected files:"):
+            try:
+                infected_count = int(s.split(":", 1)[1].strip())
+            except Exception:
+                infected_count = None
+            break
+    if infected_count is None:
+        infected_count = sum(
+            1 for line in (output or "").splitlines() if line.strip().endswith("FOUND")
+        )
+    return infected_count
+
+
+def export_clamav_findings(app):
+    findings = list(app.clamav_findings or [])
+    if not findings:
+        app.log("Keine ClamAV-Funde zum Exportieren vorhanden.")
+        update_clamav_findings_buttons_state(app)
+        return
+
+    export_dir = app._security_export_dir()
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    json_path = os.path.join(export_dir, f"netmon_clamav_findings_{stamp}.json")
+    txt_path = os.path.join(export_dir, f"netmon_clamav_findings_{stamp}.txt")
+
+    try:
+        with open(json_path, "w", encoding="utf-8") as fh:
+            json.dump(findings, fh, indent=2, ensure_ascii=False)
+
+        with open(txt_path, "w", encoding="utf-8") as fh:
+            fh.write("NetMon ClamAV Findings Export\n")
+            fh.write(f"Zeit: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            fh.write(f"Einträge: {len(findings)}\n\n")
+            for idx, item in enumerate(findings, start=1):
+                fh.write(f"[{idx}]\n")
+                fh.write(f"Status: {item.get('status', '-')}\n")
+                fh.write(f"Pfad: {item.get('path', '-')}\n")
+                fh.write(f"Signatur: {item.get('signature', '-')}\n")
+                fh.write(f"Scan-Typ: {item.get('scan_type', '-')}\n")
+                fh.write(f"Zeit: {item.get('timestamp', '-')}\n")
+                qpath = item.get("quarantine_path")
+                if qpath:
+                    fh.write(f"Quarantäne: {qpath}\n")
+                rpath = item.get("restore_path")
+                if rpath:
+                    fh.write(f"Wiederhergestellt nach: {rpath}\n")
+                fh.write("\n")
+
+        app.log(f"ClamAV-Funde exportiert: {json_path}")
+        app.log(f"ClamAV-Funde exportiert: {txt_path}")
+    except Exception as exc:
+        app.log(f"ClamAV-Funde Export fehlgeschlagen: {exc}")
+        app.log_debug_safe(f"ClamAV-Export Fehler: {exc}")
+
+
+def log_clamav_quarantine_preview(app, items, label="Trockenlauf"):
+    if not items:
+        app.log("Keine offenen ClamAV-Funde für die Vorschau vorhanden.")
+        return
+
+    preview_limit = 20
+    app.log(
+        f"ClamAV-Quarantäne {label}: {len(items)} Datei(en) (keine Änderungen durchgeführt)."
+    )
+    for idx, item in enumerate(items, start=1):
+        src = os.path.normpath((item.get("path") or "").strip())
+        if not src:
+            continue
+        if not os.path.exists(src):
+            app.log(f"{idx}. [fehlt] {src}")
+            continue
+        dest = app._clamav_next_quarantine_path(src)
+        app.log(f"{idx}. {src}")
+        app.log(f"   -> {dest}")
+        if idx >= preview_limit:
+            rest = len(items) - preview_limit
+            if rest > 0:
+                app.log(f"... und {rest} weitere Datei(en).")
+            break
+
+
+def log_clamav_restore_preview(app, items, label="Trockenlauf"):
+    if not items:
+        app.log("Keine Quarantäne-Dateien für die Vorschau vorhanden.")
+        return
+
+    preview_limit = 20
+    app.log(
+        f"ClamAV-Wiederherstellung {label}: {len(items)} Datei(en) (keine Änderungen durchgeführt)."
+    )
+    for idx, item in enumerate(items, start=1):
+        qpath = os.path.normpath((item.get("quarantine_path") or "").strip())
+        original = os.path.normpath((item.get("path") or "").strip())
+        if not qpath or not original:
+            continue
+        if not os.path.exists(qpath):
+            app.log(f"{idx}. [quarantäne fehlt] {qpath}")
+            continue
+        dest = app._clamav_next_restore_path(original)
+        app.log(f"{idx}. {qpath}")
+        app.log(f"   -> {dest}")
+        if idx >= preview_limit:
+            rest = len(items) - preview_limit
+            if rest > 0:
+                app.log(f"... und {rest} weitere Datei(en).")
+            break
+
+
+def show_clamav_findings(app):
+    findings = clamav_findings_open(app)
+    if not findings:
+        msg = "Keine offenen ClamAV-Funde vorhanden."
+        app.log(msg)
+        write_clamav_output(app, [msg], replace=True)
+        update_clamav_findings_buttons_state(app)
+        return
+
+    lines = ["ClamAV-Funde:", ""]
+    app.log("ClamAV-Funde:")
+    for idx, item in enumerate(findings, start=1):
+        path = item.get("path", "-")
+        sig = item.get("signature", "-")
+        app.log(f"{idx}. {path}")
+        app.log(f"   Signatur: {sig}")
+        lines.append(f"{idx}. {path}")
+        lines.append(f"   Signatur: {sig}")
+        lines.append("")
+    write_clamav_output(app, lines, replace=True)
+
+
+def show_clamav_quarantine_history(app):
+    quarantined = clamav_findings_quarantined(app)
+    if not quarantined:
+        msg = "Keine Dateien in der ClamAV-Quarantäne vorhanden."
+        app.log(msg)
+        write_clamav_output(app, [msg], replace=True)
+        update_clamav_findings_buttons_state(app)
+        return
+
+    lines = ["ClamAV-Quarantäne:", ""]
+    app.log("ClamAV-Quarantäne:")
+    for idx, item in enumerate(quarantined, start=1):
+        src = item.get("path", "-")
+        qpath = item.get("quarantine_path", "-")
+        qts = item.get("quarantine_timestamp") or item.get("timestamp") or "-"
+        app.log(f"{idx}. {src}")
+        app.log(f"   Quarantäne: {qpath}")
+        app.log(f"   Zeit: {qts}")
+        lines.append(f"{idx}. {src}")
+        lines.append(f"   Quarantäne: {qpath}")
+        lines.append(f"   Zeit: {qts}")
+        lines.append("")
+    write_clamav_output(app, lines, replace=True)
+
+
+def clamav_abort_scan(app):
+    if not app.security_clamav_running:
+        app.log("Kein ClamAV-Scan läuft.")
+        app._set_clamav_abort_button_state(False)
+        return
+    app.clamav_cancel_requested = True
+    proc = app.clamav_active_process
+    if proc is not None and proc.poll() is None:
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+        except Exception:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+    app.log("ClamAV-Scan-Abbruch angefordert...")
+
+
+def security_clamav_update_async(app):
+    if not has_cmd("freshclam"):
+        update_clamav_panel(
+            app, status="nicht installiert", signatures="nicht aktualisierbar"
+        )
+        app.log("ClamAV-Update nicht möglich: freshclam fehlt.")
+        return
+    if app.security_clamav_update_running:
+        app.log("ClamAV-Update läuft bereits.")
+        return
+
+    app.security_clamav_update_running = True
+    update_clamav_panel(app, status="Update läuft")
+
+    def job():
+        temp_cfg_path = ""
+        try:
+            app.log_safe("ClamAV-Update gestartet...")
+
+            try:
+                user_tmp = tempfile.gettempdir()
+                user_tag = re.sub(r"[^a-zA-Z0-9_.-]", "_", getpass.getuser())
+                user_db_dir = os.path.join(user_tmp, f"netmon-clamav-db-{user_tag}")
+                user_log_file = os.path.join(
+                    user_tmp, f"netmon-freshclam-{user_tag}.log"
+                )
+                os.makedirs(user_db_dir, exist_ok=True)
+                with tempfile.NamedTemporaryFile(
+                    "w",
+                    delete=False,
+                    prefix="netmon-freshclam-",
+                    suffix=".conf",
+                ) as cfg:
+                    cfg.write(f"DatabaseDirectory {user_db_dir}\n")
+                    cfg.write("DatabaseMirror database.clamav.net\n")
+                    cfg.write(f"UpdateLogFile {user_log_file}\n")
+                    cfg.write("Foreground true\n")
+                    cfg.write("CompressLocalDatabase no\n")
+                    temp_cfg_path = cfg.name
+            except Exception as cfg_exc:
+                temp_cfg_path = ""
+                app.log_debug_safe(
+                    f"ClamAV-Update: Temp-Config konnte nicht erstellt werden: {cfg_exc}"
+                )
+
+            attempts = []
+            if temp_cfg_path:
+                attempts.append(
+                    (
+                        "freshclam --stdout --config-file <temp>",
+                        [
+                            "freshclam",
+                            "--stdout",
+                            "--config-file",
+                            temp_cfg_path,
+                        ],
+                    )
+                )
+                if has_cmd("sudo"):
+                    attempts.append(
+                        (
+                            "sudo -n freshclam --stdout --config-file <temp>",
+                            [
+                                "sudo",
+                                "-n",
+                                "freshclam",
+                                "--stdout",
+                                "--config-file",
+                                temp_cfg_path,
+                            ],
+                        )
+                    )
+
+            attempts.append(("freshclam --stdout", ["freshclam", "--stdout"]))
+            if has_cmd("sudo"):
+                attempts.append(
+                    (
+                        "sudo -n freshclam --stdout",
+                        ["sudo", "-n", "freshclam", "--stdout"],
+                    )
+                )
+
+            rc = 1
+            used_sudo = False
+            all_outputs = []
+            for label, cmd in attempts:
+                rc, cmd_out = run_cmd(cmd, timeout=900)
+                if cmd_out:
+                    all_outputs.append(f"[{label}]\n{cmd_out}")
+                if rc == 0:
+                    used_sudo = label.startswith("sudo ")
+                    break
+
+            if rc == 0:
+                update_clamav_panel_safe(app, status="bereit", signatures="aktuell")
+                app.log_safe("ClamAV-Update abgeschlossen.")
+                if used_sudo:
+                    app.log_debug_safe("ClamAV-Update wurde mit sudo -n ausgeführt.")
+            else:
+                merged = "\n".join(all_outputs).strip()
+                lines = [ln.strip() for ln in merged.splitlines() if ln.strip()]
+                last_line = lines[-1] if lines else ""
+                lower_merged = merged.lower()
+
+                if clamav_is_nonfatal_update_issue(merged):
+                    update_clamav_panel_safe(
+                        app, status="bereit", signatures="unbekannt"
+                    )
+                    app.log_safe(
+                        "ClamAV-Update: Hinweis – clamav-daemon/clamd ist nicht geladen."
+                    )
+                    app.log_safe("Update-Lauf wurde ohne aktiven Daemon fortgesetzt.")
+                else:
+                    if "a password is required" in lower_merged:
+                        user_error = (
+                            "freshclam benötigt Root-Rechte "
+                            "(sudo ohne Passwort derzeit nicht möglich)."
+                        )
+                    elif any(
+                        token in merged
+                        for token in [
+                            "Failed to open log file /var/log/clamav/freshclam",
+                            "Can't open /var/log/clamav/freshclam",
+                        ]
+                    ):
+                        user_error = (
+                            "freshclam kann sein System-Logfile nicht öffnen "
+                            "(/var/log/clamav/freshclam)."
+                        )
+                    elif last_line:
+                        user_error = last_line
+                    else:
+                        user_error = f"Unbekannter Fehler (rc={rc})."
+
+                    update_clamav_panel_safe(
+                        app, status="Fehler", signatures="Update fehlgeschlagen"
+                    )
+                    app.log_safe(f"ClamAV-Update fehlgeschlagen: {user_error}")
+
+            if all_outputs:
+                app.log_debug_safe(
+                    "ClamAV update raw: " + "\n\n".join(all_outputs)[:3000]
+                )
+        finally:
+            if temp_cfg_path:
+                try:
+                    os.remove(temp_cfg_path)
+                except Exception:
+                    pass
+            app.security_clamav_update_running = False
+
+    threading.Thread(target=job, daemon=True).start()
+
+
+def security_clamav_quickscan_async(app):
+    if not has_cmd("clamscan"):
+        update_clamav_panel(app, status="nicht installiert", result="clamscan fehlt")
+        app.log("ClamAV nicht gefunden (clamscan fehlt).")
+        return
+    if app.security_clamav_running:
+        app.log("ClamAV-Schnellscan läuft bereits.")
+        return
+
+    app.security_clamav_running = True
+    update_clamav_panel(app, status="Scan läuft", result="-")
+    app._clamav_progress_start()
+
+    def job():
+        try:
+            targets, used_home_fallback = app._clamav_quick_targets()
+            target_label = ", ".join(targets)
+            if len(target_label) > 120:
+                target_label = target_label[:117] + "..."
+            update_clamav_panel_safe(app, last_target=target_label)
+
+            app.log_safe("ClamAV-Schnellscan gestartet...")
+            if used_home_fallback:
+                app.log_safe(
+                    "ClamAV: Keine Standardordner gefunden, nutze Home-Verzeichnis."
+                )
+
+            cmd = ["clamscan", "-r", "--infected"] + targets
+            rc, out, cancelled = app._run_clamscan_with_cancel(cmd, timeout=900)
+
+            if cancelled:
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                update_clamav_panel_safe(
+                    app,
+                    status="abgebrochen",
+                    last_scan=timestamp,
+                    result="Scan abgebrochen",
+                )
+                app.log_safe("ClamAV-Schnellscan abgebrochen.")
+                if out:
+                    app.log_debug_safe("ClamAV scan raw: " + out[:1000])
+                return
+
+            infected_count = clamav_parse_infected_count(out)
+            scanned_files = clamav_parse_scanned_files(out)
+            if isinstance(scanned_files, int) and scanned_files >= 0:
+                app._clamav_progress_update_safe(scanned_files)
+
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            findings_txt = str(infected_count)
+            result_txt = (
+                "Keine Bedrohungen gefunden"
+                if infected_count == 0
+                else f"{infected_count} verdächtige Dateien gefunden"
+            )
+
+            nonfatal_issue = rc == 2 and (
+                clamav_is_nonfatal_scan_issue(out)
+                or clamav_parse_scanned_files(out) is not None
+            )
+            if rc in (0, 1) or nonfatal_issue:
+                extracted_findings = clamav_extract_findings(
+                    out, scan_type="quickscan", timestamp=timestamp
+                )
+                clamav_replace_open_findings(app, extracted_findings)
+                update_clamav_panel_safe(
+                    app,
+                    status=(
+                        "abgeschlossen"
+                        if not nonfatal_issue
+                        else "abgeschlossen (Warnungen)"
+                    ),
+                    signatures="aktuell" if has_cmd("freshclam") else "unbekannt",
+                    last_scan=timestamp,
+                    findings=findings_txt,
+                    result=(
+                        result_txt
+                        if not nonfatal_issue
+                        else f"{result_txt} (mit Zugriffswarnungen)"
+                    ),
+                )
+                if len(targets) == 1:
+                    app.log_safe(
+                        f"ClamAV-Schnellscan abgeschlossen. Ziel: {targets[0]} | Funde: {infected_count}"
+                    )
+                else:
+                    app.log_safe(
+                        f"ClamAV-Schnellscan abgeschlossen. Ziele: {len(targets)} | Funde: {infected_count}"
+                    )
+                if nonfatal_issue:
+                    app.log_safe(
+                        "ClamAV-Schnellscan: Einige Dateien konnten nicht gelesen werden (Zugriffswarnungen)."
+                    )
+            else:
+                error_line = clamav_extract_error_message(out)
+                update_clamav_panel_safe(
+                    app,
+                    status="Fehler",
+                    last_scan=timestamp,
+                    findings="-",
+                    result="Scan fehlgeschlagen",
+                )
+                if error_line:
+                    app.log_safe(f"ClamAV-Schnellscan fehlgeschlagen: {error_line}")
+                else:
+                    app.log_safe(
+                        f"ClamAV-Schnellscan fehlgeschlagen (rc={rc}, keine technische Fehlerzeile erkannt)."
+                    )
+
+            if out:
+                app.log_debug_safe("ClamAV scan raw: " + out[:1000])
+        finally:
+            app.security_clamav_running = False
+            app._clamav_progress_finish_safe()
+
+    threading.Thread(target=job, daemon=True).start()
+
+
+def security_clamav_folder_scan_async(app):
+    if not has_cmd("clamscan"):
+        update_clamav_panel(app, status="nicht installiert", result="clamscan fehlt")
+        app.log("ClamAV ist nicht installiert.")
+        return
+    if app.security_clamav_running:
+        app.log("ClamAV-Scan läuft bereits.")
+        return
+
+    selected = filedialog.askdirectory(
+        title="Ordner für ClamAV-Scan auswählen",
+        initialdir=os.path.expanduser("~"),
+        mustexist=True,
+    )
+    if not selected:
+        return
+
+    target = os.path.realpath(os.path.normpath(selected))
+    if not os.path.isabs(target) or not os.path.isdir(target):
+        app.log("ClamAV-Ordnerscan abgebrochen: Ordner nicht gefunden.")
+        return
+
+    app.security_clamav_running = True
+    update_clamav_panel(app, status="Scan läuft", result="-", last_target=target)
+    app._clamav_progress_start()
+
+    def job():
+        try:
+            app.log_safe(f"ClamAV-Ordnerscan gestartet: {target}")
+
+            rc, out, cancelled = app._run_clamscan_with_cancel(
+                ["clamscan", "-r", "--infected", target],
+                timeout=900,
+            )
+            if cancelled:
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                update_clamav_panel_safe(
+                    app,
+                    status="abgebrochen",
+                    last_scan=timestamp,
+                    last_target=target,
+                    result="Scan abgebrochen",
+                )
+                app.log_safe("ClamAV-Ordnerscan abgebrochen.")
+                if out:
+                    app.log_debug_safe("ClamAV folder scan raw: " + out[:1000])
+                return
+
+            infected_count = clamav_parse_infected_count(out)
+            scanned_files = clamav_parse_scanned_files(out)
+            if isinstance(scanned_files, int) and scanned_files >= 0:
+                app._clamav_progress_update_safe(scanned_files)
+
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            result_txt = (
+                "Keine Bedrohungen gefunden"
+                if infected_count == 0
+                else f"{infected_count} verdächtige Dateien gefunden"
+            )
+
+            nonfatal_issue = rc == 2 and (
+                clamav_is_nonfatal_scan_issue(out)
+                or clamav_parse_scanned_files(out) is not None
+            )
+            if rc in (0, 1) or nonfatal_issue:
+                extracted_findings = clamav_extract_findings(
+                    out, scan_type="folder_scan", timestamp=timestamp
+                )
+                clamav_replace_open_findings(app, extracted_findings)
+                update_clamav_panel_safe(
+                    app,
+                    status=(
+                        "abgeschlossen"
+                        if not nonfatal_issue
+                        else "abgeschlossen (Warnungen)"
+                    ),
+                    signatures="aktuell" if has_cmd("freshclam") else "unbekannt",
+                    last_scan=timestamp,
+                    last_target=target,
+                    findings=str(infected_count),
+                    result=(
+                        result_txt
+                        if not nonfatal_issue
+                        else f"{result_txt} (mit Zugriffswarnungen)"
+                    ),
+                )
+                app.log_safe(
+                    f"ClamAV-Ordnerscan abgeschlossen. Ziel: {target} | Funde: {infected_count}"
+                )
+                if nonfatal_issue:
+                    app.log_safe(
+                        "ClamAV-Ordnerscan: Einige Dateien konnten nicht gelesen werden (Zugriffswarnungen)."
+                    )
+            else:
+                error_line = clamav_extract_error_message(out)
+                update_clamav_panel_safe(
+                    app,
+                    status="Fehler",
+                    last_scan=timestamp,
+                    last_target=target,
+                    findings="-",
+                    result="Scan fehlgeschlagen",
+                )
+                if error_line:
+                    app.log_safe(f"ClamAV-Ordnerscan fehlgeschlagen: {error_line}")
+                else:
+                    app.log_safe(
+                        f"ClamAV-Ordnerscan fehlgeschlagen (rc={rc}, keine technische Fehlerzeile erkannt)."
+                    )
+
+            if out:
+                app.log_debug_safe("ClamAV folder scan raw: " + out[:1000])
+        finally:
+            app.security_clamav_running = False
+            app._clamav_progress_finish_safe()
+
+    threading.Thread(target=job, daemon=True).start()
+
+
+def security_clamav_systemscan_async(app):
+    if not has_cmd("clamscan"):
+        update_clamav_panel(app, status="nicht installiert", result="clamscan fehlt")
+        app.log("ClamAV ist nicht installiert.")
+        return
+    if app.security_clamav_running:
+        app.log("ClamAV-Scan läuft bereits.")
+        return
+
+    targets = app._clamav_system_targets()
+    excluded = app._clamav_system_excluded_roots()
+    if not targets:
+        app.log("ClamAV-Systemscan: keine geeigneten Ziele gefunden.")
+        return
+
+    target_label = ", ".join(targets)
+    if len(target_label) > 140:
+        target_label = target_label[:137] + "..."
+
+    app.security_clamav_running = True
+    update_clamav_panel(
+        app,
+        status="Scan läuft",
+        result="Systemscan läuft",
+        last_target=target_label,
+    )
+    write_clamav_output(
+        app,
+        [
+            "ClamAV-Systemscan gestartet.",
+            f"Ziele: {target_label}",
+            "Ausgeschlossene Pfade: " + ", ".join(excluded),
+            "",
+            "Fortschritt wird im Statusbereich aktualisiert.",
+        ],
+        replace=True,
+    )
+
+    def job():
+        try:
+            estimated_total = None
+            try:
+                estimated_total = app._clamav_count_files(
+                    targets, excluded_roots=excluded
+                )
+            except Exception as exc:
+                app.log_debug_safe(
+                    f"ClamAV-Systemscan Dateivorzählung fehlgeschlagen: {exc}"
+                )
+
+            app.after(0, lambda n=estimated_total: app._clamav_progress_start(n))
+            app.log_safe("ClamAV-Systemscan gestartet...")
+
+            exclude_args = [
+                f"--exclude-dir=^{re.escape(root)}($|/)" for root in excluded
+            ]
+            cmd = ["clamscan", "-r", *exclude_args, *targets]
+            rc, out, cancelled, timed_out, scanned_live = (
+                app._run_clamscan_with_progress(
+                    cmd,
+                    timeout=5400,
+                    progress_cb=app._clamav_progress_update_safe,
+                )
+            )
+
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            scanned_files = clamav_parse_scanned_files(out)
+            if not isinstance(scanned_files, int):
+                scanned_files = scanned_live
+            app._clamav_progress_update_safe(scanned_files)
+
+            if cancelled:
+                update_clamav_panel_safe(
+                    app,
+                    status="abgebrochen",
+                    last_scan=timestamp,
+                    last_target=target_label,
+                    result="Systemscan abgebrochen",
+                )
+                write_clamav_output(
+                    app,
+                    [
+                        "ClamAV-Systemscan abgebrochen.",
+                        f"Ziele: {target_label}",
+                        f"Dateien gescannt: {scanned_files}",
+                    ],
+                    replace=True,
+                )
+                app.log_safe("ClamAV-Systemscan abgebrochen.")
+                return
+
+            if timed_out:
+                update_clamav_panel_safe(
+                    app,
+                    status="Fehler",
+                    last_scan=timestamp,
+                    last_target=target_label,
+                    result="Systemscan Timeout",
+                )
+                write_clamav_output(
+                    app,
+                    [
+                        "ClamAV-Systemscan Timeout.",
+                        f"Ziele: {target_label}",
+                        f"Dateien gescannt: {scanned_files}",
+                    ],
+                    replace=True,
+                )
+                app.log_safe("ClamAV-Systemscan fehlgeschlagen: Timeout.")
+                return
+
+            infected_count = clamav_parse_infected_count(out)
+            result_txt = (
+                "Keine Bedrohungen gefunden"
+                if infected_count == 0
+                else f"{infected_count} verdächtige Dateien gefunden"
+            )
+
+            nonfatal_issue = rc == 2 and (
+                clamav_is_nonfatal_scan_issue(out)
+                or clamav_parse_scanned_files(out) is not None
+            )
+            if rc in (0, 1) or nonfatal_issue:
+                extracted_findings = clamav_extract_findings(
+                    out, scan_type="system_scan", timestamp=timestamp
+                )
+                clamav_replace_open_findings(app, extracted_findings)
+                update_clamav_panel_safe(
+                    app,
+                    status=(
+                        "abgeschlossen"
+                        if not nonfatal_issue
+                        else "abgeschlossen (Warnungen)"
+                    ),
+                    signatures="aktuell" if has_cmd("freshclam") else "unbekannt",
+                    last_scan=timestamp,
+                    last_target=target_label,
+                    findings=str(infected_count),
+                    result=(
+                        result_txt
+                        if not nonfatal_issue
+                        else f"{result_txt} (mit Zugriffswarnungen)"
+                    ),
+                )
+                write_clamav_output(
+                    app,
+                    [
+                        "ClamAV-Systemscan abgeschlossen.",
+                        f"Ziele: {target_label}",
+                        f"Dateien gescannt: {scanned_files}",
+                        f"Funde: {infected_count}",
+                        f"Ergebnis: {result_txt}",
+                    ],
+                    replace=True,
+                )
+                app.log_safe(
+                    f"ClamAV-Systemscan abgeschlossen. Ziele: {len(targets)} | Funde: {infected_count}"
+                )
+                if nonfatal_issue:
+                    app.log_safe(
+                        "ClamAV-Systemscan: Einige Dateien konnten nicht gelesen werden (Zugriffswarnungen)."
+                    )
+            else:
+                error_line = clamav_extract_error_message(out)
+                update_clamav_panel_safe(
+                    app,
+                    status="Fehler",
+                    last_scan=timestamp,
+                    last_target=target_label,
+                    findings="-",
+                    result="Systemscan fehlgeschlagen",
+                )
+                write_clamav_output(
+                    app,
+                    [
+                        "ClamAV-Systemscan fehlgeschlagen.",
+                        f"Ziele: {target_label}",
+                        f"Dateien gescannt: {scanned_files}",
+                        (
+                            f"Details: {error_line}"
+                            if error_line
+                            else f"Rückgabecode: {rc} (keine technische Fehlerzeile erkannt)"
+                        ),
+                    ],
+                    replace=True,
+                )
+                if error_line:
+                    app.log_safe(f"ClamAV-Systemscan fehlgeschlagen: {error_line}")
+                else:
+                    app.log_safe(
+                        f"ClamAV-Systemscan fehlgeschlagen (rc={rc}, keine technische Fehlerzeile erkannt)."
+                    )
+
+            if out:
+                app.log_debug_safe("ClamAV system scan raw: " + out[:1500])
+        finally:
+            app.security_clamav_running = False
+            app._clamav_progress_finish_safe()
+
+    threading.Thread(target=job, daemon=True).start()
+
+
+def security_clamav_scan_async(app):
+    security_clamav_quickscan_async(app)
+
+
+def quarantine_clamav_findings_async(app):
+    if not has_cmd("clamscan"):
+        update_clamav_panel(app, status="nicht installiert", result="clamscan fehlt")
+        app.log("ClamAV ist nicht installiert.")
+        app._update_clamav_findings_buttons_state()
+        return
+    if app.security_clamav_running:
+        app.log("ClamAV-Scan läuft bereits.")
+        return
+
+    open_findings = app._clamav_findings_open()
+    if not open_findings:
+        app.log("Keine offenen ClamAV-Funde vorhanden.")
+        app._update_clamav_findings_buttons_state()
+        return
+
+    app._log_clamav_quarantine_preview(open_findings, label="Vorschau")
+    if not messagebox.askyesno(
+        "ClamAV Quarantäne",
+        f"{len(open_findings)} offene Datei(en) in Quarantäne verschieben?",
+        parent=app,
+    ):
+        app.log("ClamAV-Quarantäne abgebrochen.")
+        return
+
+    app.security_clamav_running = True
+    update_clamav_panel(app, status="Quarantäne läuft", result="-")
+
+    def job():
+        moved = 0
+        missing = 0
+        failed = 0
+        try:
+            app.log_safe("ClamAV-Quarantäne gestartet...")
+            try:
+                os.makedirs(app.clamav_quarantine_dir, exist_ok=True)
+            except Exception as exc:
+                update_clamav_panel_safe(
+                    app,
+                    status="Fehler",
+                    result="Quarantäne fehlgeschlagen",
+                )
+                app.log_safe(f"ClamAV-Quarantäne fehlgeschlagen: {exc}")
+                return
+
+            for item in open_findings:
+                src_raw = os.path.normpath((item.get("path") or "").strip())
+                if not src_raw:
+                    continue
+                src, src_error = app._clamav_validate_source_for_quarantine(src_raw)
+                if src is None:
+                    item["status"] = "missing"
+                    item["quarantine_timestamp"] = datetime.now().strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                    if src_error == "nicht vorhanden":
+                        missing += 1
+                        app.log_safe(f"Datei nicht mehr vorhanden: {src_raw}")
+                    else:
+                        failed += 1
+                        app.log_safe(f"Datei übersprungen (unsicherer Pfad): {src_raw}")
+                        app.log_debug_safe(
+                            "ClamAV-Quarantäne Pfadprüfung fehlgeschlagen: "
+                            f"{src_raw} ({src_error})"
+                        )
+                    continue
+
+                dest = app._clamav_next_quarantine_path(src)
+                if not app._clamav_path_is_within(dest, app.clamav_quarantine_dir):
+                    failed += 1
+                    app.log_safe(
+                        f"Datei übersprungen (unsicheres Quarantäne-Ziel): {src}"
+                    )
+                    app.log_debug_safe(
+                        "ClamAV-Quarantäne Ziel außerhalb Quarantäne-Ordner: " f"{dest}"
+                    )
+                    continue
+                try:
+                    shutil.move(src, dest)
+                    moved += 1
+                    item["status"] = "quarantine"
+                    item["quarantine_path"] = dest
+                    item["quarantine_timestamp"] = datetime.now().strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                except Exception as exc:
+                    failed += 1
+                    app.log_safe(
+                        f"Datei konnte nicht in Quarantäne verschoben werden: {src}"
+                    )
+                    app.log_debug_safe(
+                        f"ClamAV-Quarantäne Move-Fehler ({src} -> {dest}): {exc}"
+                    )
+
+            app._save_clamav_findings()
+            app._update_clamav_findings_buttons_state_safe()
+
+            now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            status = "abgeschlossen" if failed == 0 else "Fehler"
+            if moved > 0:
+                result_msg = f"{moved} Datei(en) in Quarantäne verschoben"
+            elif missing > 0 and failed == 0:
+                result_msg = "Keine Datei verschoben (nicht mehr vorhanden)"
+            else:
+                result_msg = "Quarantäne teilweise fehlgeschlagen"
+
+            update_clamav_panel_safe(
+                app,
+                status=status,
+                signatures="aktuell" if has_cmd("freshclam") else "unbekannt",
+                last_scan=now_ts,
+                findings=str(len(app._clamav_findings_open())),
+                result=result_msg,
+            )
+
+            app.log_safe(f"{moved} Datei(en) in Quarantäne verschoben.")
+            app.log_safe(f"Quarantäne-Ordner: {app.clamav_quarantine_dir}")
+            if missing:
+                app.log_safe(f"{missing} Datei(en) waren nicht mehr vorhanden.")
+            if failed:
+                app.log_safe(f"{failed} Datei(en) konnten nicht verschoben werden.")
+        finally:
+            app.security_clamav_running = False
+
+    threading.Thread(target=job, daemon=True).start()
+
+
+def quarantine_selected_clamav_findings_async(app):
+    if not has_cmd("clamscan"):
+        update_clamav_panel(app, status="nicht installiert", result="clamscan fehlt")
+        app.log("ClamAV ist nicht installiert.")
+        app._update_clamav_findings_buttons_state()
+        return
+    if app.security_clamav_running:
+        app.log("ClamAV-Scan läuft bereits.")
+        return
+
+    open_findings = app._clamav_findings_open()
+    if not open_findings:
+        app.log("Keine offenen ClamAV-Funde vorhanden.")
+        app._update_clamav_findings_buttons_state()
+        return
+
+    selected = app._clamav_select_items_dialog(
+        open_findings,
+        title="ClamAV: Funde zur Quarantäne auswählen",
+        mode="found",
+    )
+    if selected is None:
+        return
+    if not selected:
+        app.log("Keine Funde ausgewählt.")
+        return
+
+    app._log_clamav_quarantine_preview(selected, label="Vorschau (Auswahl)")
+    if not messagebox.askyesno(
+        "ClamAV Quarantäne (Auswahl)",
+        f"{len(selected)} ausgewählte Datei(en) in Quarantäne verschieben?",
+        parent=app,
+    ):
+        app.log("ClamAV-Quarantäne (Auswahl) abgebrochen.")
+        return
+
+    app.security_clamav_running = True
+    update_clamav_panel(app, status="Quarantäne läuft", result="-")
+
+    def job():
+        moved = 0
+        missing = 0
+        failed = 0
+        try:
+            app.log_safe("ClamAV-Quarantäne (Auswahl) gestartet...")
+            try:
+                os.makedirs(app.clamav_quarantine_dir, exist_ok=True)
+            except Exception as exc:
+                update_clamav_panel_safe(
+                    app,
+                    status="Fehler",
+                    result="Quarantäne fehlgeschlagen",
+                )
+                app.log_safe(f"ClamAV-Quarantäne fehlgeschlagen: {exc}")
+                return
+
+            for item in selected:
+                src_raw = os.path.normpath((item.get("path") or "").strip())
+                if not src_raw:
+                    continue
+                src, src_error = app._clamav_validate_source_for_quarantine(src_raw)
+                if src is None:
+                    item["status"] = "missing"
+                    item["quarantine_timestamp"] = datetime.now().strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                    if src_error == "nicht vorhanden":
+                        missing += 1
+                        app.log_safe(f"Datei nicht mehr vorhanden: {src_raw}")
+                    else:
+                        failed += 1
+                        app.log_safe(f"Datei übersprungen (unsicherer Pfad): {src_raw}")
+                        app.log_debug_safe(
+                            "ClamAV-Quarantäne-Auswahl Pfadprüfung fehlgeschlagen: "
+                            f"{src_raw} ({src_error})"
+                        )
+                    continue
+
+                dest = app._clamav_next_quarantine_path(src)
+                if not app._clamav_path_is_within(dest, app.clamav_quarantine_dir):
+                    failed += 1
+                    app.log_safe(
+                        f"Datei übersprungen (unsicheres Quarantäne-Ziel): {src}"
+                    )
+                    app.log_debug_safe(
+                        "ClamAV-Quarantäne-Auswahl Ziel außerhalb "
+                        f"Quarantäne-Ordner: {dest}"
+                    )
+                    continue
+                try:
+                    shutil.move(src, dest)
+                    moved += 1
+                    item["status"] = "quarantine"
+                    item["quarantine_path"] = dest
+                    item["quarantine_timestamp"] = datetime.now().strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                except Exception as exc:
+                    failed += 1
+                    app.log_safe(
+                        f"Datei konnte nicht in Quarantäne verschoben werden: {src}"
+                    )
+                    app.log_debug_safe(
+                        f"ClamAV-Quarantäne-Auswahl Move-Fehler ({src} -> {dest}): {exc}"
+                    )
+
+            app._save_clamav_findings()
+            app._update_clamav_findings_buttons_state_safe()
+
+            now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            status = "abgeschlossen" if failed == 0 else "Fehler"
+            if moved > 0:
+                result_msg = f"{moved} ausgewählte Datei(en) in Quarantäne verschoben"
+            elif missing > 0 and failed == 0:
+                result_msg = "Keine ausgewählte Datei verschoben (nicht mehr vorhanden)"
+            else:
+                result_msg = "Auswahl-Quarantäne teilweise fehlgeschlagen"
+
+            update_clamav_panel_safe(
+                app,
+                status=status,
+                signatures="aktuell" if has_cmd("freshclam") else "unbekannt",
+                last_scan=now_ts,
+                findings=str(len(app._clamav_findings_open())),
+                result=result_msg,
+            )
+
+            app.log_safe(f"{moved} ausgewählte Datei(en) in Quarantäne verschoben.")
+            app.log_safe(f"Quarantäne-Ordner: {app.clamav_quarantine_dir}")
+            if missing:
+                app.log_safe(
+                    f"{missing} ausgewählte Datei(en) waren nicht mehr vorhanden."
+                )
+            if failed:
+                app.log_safe(
+                    f"{failed} ausgewählte Datei(en) konnten nicht verschoben werden."
+                )
+        finally:
+            app.security_clamav_running = False
+
+    threading.Thread(target=job, daemon=True).start()
+
+
+def restore_clamav_quarantine_async(app):
+    if not has_cmd("clamscan"):
+        update_clamav_panel(
+            app,
+            status="nicht installiert",
+            result="clamscan fehlt",
+        )
+        app.log("ClamAV ist nicht installiert.")
+        app._update_clamav_findings_buttons_state()
+        return
+    if app.security_clamav_running:
+        app.log("ClamAV-Scan läuft bereits.")
+        return
+
+    quarantined = app._clamav_findings_quarantined()
+    if not quarantined:
+        app.log("Keine Dateien in der ClamAV-Quarantäne vorhanden.")
+        app._update_clamav_findings_buttons_state()
+        return
+
+    app._log_clamav_restore_preview(quarantined, label="Vorschau")
+    if not messagebox.askyesno(
+        "ClamAV Wiederherstellung",
+        f"{len(quarantined)} Quarantäne-Datei(en) wiederherstellen?",
+        parent=app,
+    ):
+        app.log("ClamAV-Wiederherstellung abgebrochen.")
+        return
+
+    app.security_clamav_running = True
+    update_clamav_panel(app, status="Wiederherstellung läuft", result="-")
+
+    def job():
+        restored = 0
+        missing = 0
+        failed = 0
+        try:
+            app.log_safe("ClamAV-Wiederherstellung gestartet...")
+            for item in quarantined:
+                qpath_raw = os.path.normpath(
+                    (item.get("quarantine_path") or "").strip()
+                )
+                original_path = os.path.normpath((item.get("path") or "").strip())
+                if not qpath_raw or not original_path:
+                    failed += 1
+                    continue
+                qpath, qpath_error = app._clamav_validate_quarantine_path(qpath_raw)
+                if qpath is None:
+                    item["status"] = "quarantine_missing"
+                    item["restore_timestamp"] = datetime.now().strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                    if qpath_error == "außerhalb des Quarantäne-Ordners":
+                        failed += 1
+                        app.log_safe(
+                            f"Quarantäne-Datei übersprungen (unsicherer Pfad): {qpath_raw}"
+                        )
+                        app.log_debug_safe(
+                            "ClamAV-Restore Quarantäne-Pfadprüfung fehlgeschlagen: "
+                            f"{qpath_raw} ({qpath_error})"
+                        )
+                    else:
+                        missing += 1
+                        app.log_safe(
+                            f"Quarantäne-Datei nicht mehr vorhanden: {qpath_raw}"
+                        )
+                    continue
+                if not os.path.exists(qpath):
+                    item["status"] = "quarantine_missing"
+                    item["restore_timestamp"] = datetime.now().strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                    missing += 1
+                    app.log_safe(f"Quarantäne-Datei nicht mehr vorhanden: {qpath}")
+                    continue
+
+                safe_original = app._clamav_safe_restore_source(original_path)
+                restore_target = app._clamav_next_restore_path(safe_original)
+                home_root = os.path.realpath(os.path.expanduser("~"))
+                if not app._clamav_path_is_within(restore_target, home_root):
+                    failed += 1
+                    app.log_safe(
+                        f"Datei konnte nicht sicher wiederhergestellt werden: {original_path}"
+                    )
+                    app.log_debug_safe(
+                        f"ClamAV-Restore Ziel außerhalb Home-Verzeichnis: {restore_target}"
+                    )
+                    continue
+                restore_dir = os.path.dirname(restore_target)
+                try:
+                    if restore_dir and not os.path.isdir(restore_dir):
+                        os.makedirs(restore_dir, exist_ok=True)
+                    shutil.move(qpath, restore_target)
+                    item["status"] = "restored"
+                    item["restore_path"] = restore_target
+                    item["restore_timestamp"] = datetime.now().strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                    restored += 1
+                except Exception as exc:
+                    failed += 1
+                    app.log_safe(
+                        f"Datei konnte nicht wiederhergestellt werden: {original_path}"
+                    )
+                    app.log_debug_safe(
+                        f"ClamAV-Restore-Fehler ({qpath} -> {restore_target}): {exc}"
+                    )
+
+            app._save_clamav_findings()
+            app._update_clamav_findings_buttons_state_safe()
+
+            now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            status = "abgeschlossen" if failed == 0 else "Fehler"
+            if restored > 0:
+                result_msg = f"{restored} Datei(en) aus Quarantäne wiederhergestellt"
+            elif missing > 0 and failed == 0:
+                result_msg = "Keine Datei wiederhergestellt (Quarantäne-Dateien fehlen)"
+            else:
+                result_msg = "Wiederherstellung teilweise fehlgeschlagen"
+
+            update_clamav_panel_safe(
+                app,
+                status=status,
+                signatures="aktuell" if has_cmd("freshclam") else "unbekannt",
+                last_scan=now_ts,
+                findings=str(len(app._clamav_findings_open())),
+                result=result_msg,
+            )
+            app.log_safe(
+                f"ClamAV-Wiederherstellung abgeschlossen. Wiederhergestellt: {restored}"
+            )
+            if missing:
+                app.log_safe(f"{missing} Quarantäne-Datei(en) fehlten.")
+            if failed:
+                app.log_safe(
+                    f"{failed} Datei(en) konnten nicht wiederhergestellt werden."
+                )
+        finally:
+            app.security_clamav_running = False
+
+    threading.Thread(target=job, daemon=True).start()
+
+
+def restore_selected_clamav_quarantine_async(app):
+    if not has_cmd("clamscan"):
+        update_clamav_panel(
+            app,
+            status="nicht installiert",
+            result="clamscan fehlt",
+        )
+        app.log("ClamAV ist nicht installiert.")
+        app._update_clamav_findings_buttons_state()
+        return
+    if app.security_clamav_running:
+        app.log("ClamAV-Scan läuft bereits.")
+        return
+
+    quarantined = app._clamav_findings_quarantined()
+    if not quarantined:
+        app.log("Keine Dateien in der ClamAV-Quarantäne vorhanden.")
+        app._update_clamav_findings_buttons_state()
+        return
+
+    selected = app._clamav_select_items_dialog(
+        quarantined,
+        title="ClamAV: Quarantäne-Dateien zur Wiederherstellung auswählen",
+        mode="quarantine",
+    )
+    if selected is None:
+        return
+    if not selected:
+        app.log("Keine Quarantäne-Dateien ausgewählt.")
+        return
+
+    app._log_clamav_restore_preview(selected, label="Vorschau (Auswahl)")
+    if not messagebox.askyesno(
+        "ClamAV Wiederherstellung (Auswahl)",
+        f"{len(selected)} ausgewählte Quarantäne-Datei(en) wiederherstellen?",
+        parent=app,
+    ):
+        app.log("ClamAV-Wiederherstellung (Auswahl) abgebrochen.")
+        return
+
+    app.security_clamav_running = True
+    update_clamav_panel(app, status="Wiederherstellung läuft", result="-")
+
+    def job():
+        restored = 0
+        missing = 0
+        failed = 0
+        try:
+            app.log_safe("ClamAV-Wiederherstellung (Auswahl) gestartet...")
+            for item in selected:
+                qpath_raw = os.path.normpath(
+                    (item.get("quarantine_path") or "").strip()
+                )
+                original_path = os.path.normpath((item.get("path") or "").strip())
+                if not qpath_raw or not original_path:
+                    failed += 1
+                    continue
+                qpath, qpath_error = app._clamav_validate_quarantine_path(qpath_raw)
+                if qpath is None:
+                    item["status"] = "quarantine_missing"
+                    item["restore_timestamp"] = datetime.now().strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                    if qpath_error == "außerhalb des Quarantäne-Ordners":
+                        failed += 1
+                        app.log_safe(
+                            f"Quarantäne-Datei übersprungen (unsicherer Pfad): {qpath_raw}"
+                        )
+                        app.log_debug_safe(
+                            "ClamAV-Restore-Auswahl Quarantäne-Pfadprüfung fehlgeschlagen: "
+                            f"{qpath_raw} ({qpath_error})"
+                        )
+                    else:
+                        missing += 1
+                        app.log_safe(
+                            f"Quarantäne-Datei nicht mehr vorhanden: {qpath_raw}"
+                        )
+                    continue
+                if not os.path.exists(qpath):
+                    item["status"] = "quarantine_missing"
+                    item["restore_timestamp"] = datetime.now().strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                    missing += 1
+                    app.log_safe(f"Quarantäne-Datei nicht mehr vorhanden: {qpath}")
+                    continue
+
+                safe_original = app._clamav_safe_restore_source(original_path)
+                restore_target = app._clamav_next_restore_path(safe_original)
+                home_root = os.path.realpath(os.path.expanduser("~"))
+                if not app._clamav_path_is_within(restore_target, home_root):
+                    failed += 1
+                    app.log_safe(
+                        f"Datei konnte nicht sicher wiederhergestellt werden: {original_path}"
+                    )
+                    app.log_debug_safe(
+                        "ClamAV-Restore-Auswahl Ziel außerhalb Home-Verzeichnis: "
+                        f"{restore_target}"
+                    )
+                    continue
+                restore_dir = os.path.dirname(restore_target)
+                try:
+                    if restore_dir and not os.path.isdir(restore_dir):
+                        os.makedirs(restore_dir, exist_ok=True)
+                    shutil.move(qpath, restore_target)
+                    item["status"] = "restored"
+                    item["restore_path"] = restore_target
+                    item["restore_timestamp"] = datetime.now().strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                    restored += 1
+                except Exception as exc:
+                    failed += 1
+                    app.log_safe(
+                        f"Datei konnte nicht wiederhergestellt werden: {original_path}"
+                    )
+                    app.log_debug_safe(
+                        f"ClamAV-Restore-Auswahl Fehler ({qpath} -> {restore_target}): {exc}"
+                    )
+
+            app._save_clamav_findings()
+            app._update_clamav_findings_buttons_state_safe()
+
+            now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            status = "abgeschlossen" if failed == 0 else "Fehler"
+            if restored > 0:
+                result_msg = (
+                    f"{restored} ausgewählte Datei(en) aus Quarantäne wiederhergestellt"
+                )
+            elif missing > 0 and failed == 0:
+                result_msg = "Keine ausgewählte Datei wiederhergestellt (fehlend)"
+            else:
+                result_msg = "Auswahl-Wiederherstellung teilweise fehlgeschlagen"
+
+            update_clamav_panel_safe(
+                app,
+                status=status,
+                signatures="aktuell" if has_cmd("freshclam") else "unbekannt",
+                last_scan=now_ts,
+                findings=str(len(app._clamav_findings_open())),
+                result=result_msg,
+            )
+            app.log_safe(
+                "ClamAV-Wiederherstellung (Auswahl) abgeschlossen. "
+                f"Wiederhergestellt: {restored}"
+            )
+            if missing:
+                app.log_safe(f"{missing} ausgewählte Quarantäne-Datei(en) fehlten.")
+            if failed:
+                app.log_safe(
+                    f"{failed} ausgewählte Datei(en) konnten nicht wiederhergestellt werden."
+                )
+        finally:
+            app.security_clamav_running = False
+
+    threading.Thread(target=job, daemon=True).start()
