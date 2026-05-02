@@ -163,6 +163,15 @@ except ModuleNotFoundError:
         LangService = None
 
 try:
+    from netmon.ui.widgets.lights import make_light as build_light_widget
+    from netmon.ui.widgets.lights import set_light as update_light_widget
+    from netmon.ui.widgets.tooltip import SimpleTooltip
+except ModuleNotFoundError:
+    from ui.widgets.lights import make_light as build_light_widget
+    from ui.widgets.lights import set_light as update_light_widget
+    from ui.widgets.tooltip import SimpleTooltip
+
+try:
     from netmon.core.coordinator import NetmonStateCoordinator
 except ModuleNotFoundError:
     try:
@@ -652,73 +661,6 @@ else:
 
 TkBase = tk.Tk if tk is not None else object
 TkError = tk.TclError if tk is not None else RuntimeError
-
-
-class SimpleTooltip:
-    def __init__(self, widget, text, enabled_var, delay_ms=500, wraplength=320):
-        self.widget = widget
-        self.text = text
-        self.enabled_var = enabled_var
-        self.delay_ms = delay_ms
-        self.wraplength = wraplength
-        self.tipwindow = None
-        self.after_id = None
-
-        widget.bind("<Enter>", self._on_enter, add="+")
-        widget.bind("<Leave>", self._on_leave, add="+")
-        widget.bind("<ButtonPress>", self._on_leave, add="+")
-
-    def _on_enter(self, _event=None):
-        if not self.enabled_var.get():
-            return
-        self._schedule()
-
-    def _on_leave(self, _event=None):
-        self._unschedule()
-        self._hide()
-
-    def _schedule(self):
-        self._unschedule()
-        self.after_id = self.widget.after(self.delay_ms, self._show)
-
-    def _unschedule(self):
-        if self.after_id is not None:
-            try:
-                self.widget.after_cancel(self.after_id)
-            except Exception:
-                pass
-            self.after_id = None
-
-    def _show(self):
-        if self.tipwindow is not None or not self.enabled_var.get():
-            return
-        x = self.widget.winfo_rootx() + 14
-        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 8
-        tw = tk.Toplevel(self.widget)
-        tw.wm_overrideredirect(True)
-        tw.wm_geometry(f"+{x}+{y}")
-        label = tk.Label(
-            tw,
-            text=self.text,
-            justify="left",
-            background="#ffffe0",
-            relief="solid",
-            borderwidth=1,
-            wraplength=self.wraplength,
-            padx=6,
-            pady=4,
-        )
-        label.pack()
-        self.tipwindow = tw
-
-    def _hide(self):
-        tw = self.tipwindow
-        self.tipwindow = None
-        if tw is not None:
-            try:
-                tw.destroy()
-            except Exception:
-                pass
 
 
 # ---------- PATH Fix (wichtig bei Start über Desktop/Icon) ----------
@@ -4831,17 +4773,10 @@ class App(TkBase):
 
     # ---------- UI helpers ----------
     def make_light(self, parent, label):
-        f = ttk.Frame(parent)
-        f.pack(fill="x", pady=4)
-        c = tk.Canvas(f, width=18, height=18, highlightthickness=0)
-        c.pack(side="left")
-        dot = c.create_oval(2, 2, 16, 16, fill="gray")
-        lbl = ttk.Label(f, text=label)
-        lbl.pack(side="left", padx=8)
-        return c, dot, lbl
+        return build_light_widget(parent, label, tk_module=tk, ttk_module=ttk)
 
     def set_light(self, light, color):
-        light[0].itemconfig(light[1], fill=color)
+        update_light_widget(light, color)
 
     def _validate_alarm_time(self, value):
         txt = str(value or "").strip()
