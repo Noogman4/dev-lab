@@ -71,7 +71,7 @@ class DNSControlService:
 
             if collecting and not stripped.endswith(":"):
                 tokens = stripped.split()
-                if tokens and all(token.count(".") or ":" in token for token in tokens):
+                if tokens and all(token.count(".") > 0 or ":" in token for token in tokens):
                     servers.extend(tokens)
                     continue
                 collecting = False
@@ -121,6 +121,21 @@ class DNSControlService:
         if "%" in value:
             value = value.split("%", 1)[0]
         return value
+
+    def detect_dnssec_mode(self, resolvectl_output: str) -> str:
+        lower_text = (resolvectl_output or "").lower()
+        if "dnssec=yes" in lower_text or "dnssec setting: yes" in lower_text:
+            return "yes"
+        if (
+            "dnssec=allow-downgrade" in lower_text
+            or "dnssec setting: allow-downgrade" in lower_text
+        ):
+            return "allow-downgrade"
+        if "dnssec=no" in lower_text or "dnssec setting: no" in lower_text:
+            return "no"
+        if "dnssec" in lower_text:
+            return "unknown"
+        return "unknown"
 
     def dns_server_is_private_or_local(self, dns_server: str) -> bool:
         value = self.normalize_dns_server(dns_server)
@@ -333,7 +348,6 @@ class DNSControlService:
         self,
         *,
         resolvectl_output: str,
-        dns_mode: str = "auto",
     ) -> dict:
         text = resolvectl_output or ""
         lower_text = text.lower()
@@ -354,13 +368,9 @@ class DNSControlService:
         )
         dot_dropin_exists = bool(dot_dropin_content)
         dot_active = "+dnsovertls" in lower_text or "dns over tls: yes" in lower_text
-        dnssec_strict = (
-            "dnssec=yes" in lower_text or "dnssec setting: yes" in lower_text
-        )
-        dnssec_allow_downgrade = (
-            "dnssec=allow-downgrade" in lower_text
-            or "dnssec setting: allow-downgrade" in lower_text
-        )
+        dnssec_mode = self.detect_dnssec_mode(resolvectl_output)
+        dnssec_strict = dnssec_mode == "yes"
+        dnssec_allow_downgrade = dnssec_mode == "allow-downgrade"
         docker_detected = any(token in lower_text for token in ("docker0", "veth"))
         vpn_dns_detected = sorted(
             set(
@@ -478,6 +488,7 @@ class DNSControlService:
             "dot_active": dot_active,
             "dnssec_strict": dnssec_strict,
             "dnssec_allow_downgrade": dnssec_allow_downgrade,
+            "dnssec_mode": dnssec_mode,
             "docker_detected": docker_detected,
             "multiple_dns_sources": multiple_dns_sources,
             "only_vpn_dns": only_vpn_dns,
@@ -488,76 +499,55 @@ class DNSControlService:
             "recommendations": recommendations,
             "warnings": warnings,
             "resolver_label": resolver_label,
-            "dns_mode": dns_mode,
         }
 
-    def build_dns_health_report(
-        self, resolvectl_output: str, *, dns_mode: str = "auto"
-    ) -> str:
-        evaluation = self.evaluate_dns_policy(
-            resolvectl_output=resolvectl_output,
-            dns_mode=dns_mode,
+    def build_dns_health_report(self, resolvectl_output: str) -> str:
+        evaluation = self.evaluate_dns_policy(resolvectl_output=resolvectl_output)
+        active_dns = list(evaluation.get("active_dns") or [])
+        primary_dns = active_dns[0] if active_dns else ""
+        fallback_dns = active_dns[1] if len(active_dns) > 1 else ""
+        dnssec_active = bool(
+            evaluation.get("dnssec_strict") or evaluation.get("dnssec_allow_downgrade")
+        )
+        dot_active = bool(evaluation.get("dot_active"))
+        conflict = bool(evaluation.get("conflict"))
+        warnings = list(evaluation.get("warnings") or [])
+
+        lines = ["=== DNS Health Check ===", ""]
+
+        if primary_dns:
+            lines.append(f"✔ Aktiver DNS-Server: {primary_dns}")
+        else:
+            lines.append("✖ Kein aktiver DNS-Server erkannt")
+
+        if fallback_dns:
+            lines.append(f"✔ Fallback DNS: {fallback_dns}")
+
+        lines.append(
+            "✔ DNS-over-TLS: aktiv" if dot_active else "✖ DNS-over-TLS nicht aktiv"
         )
 
-        lines = [
-            "=== DNS Health Check ===",
-            "",
-            f"DNS-Modus: {dns_mode.upper()}",
-            f"VPN-DNS erkannt: {'JA' if evaluation['vpn_active'] else 'NEIN'}",
-            f"DNS over TLS aktiv: {'JA' if evaluation['dot_active'] else 'NEIN'}",
-            f"NetMon DoT Drop-in: {'vorhanden' if evaluation['dot_dropin_exists'] else 'nicht vorhanden'}",
-            f"Globale DNS-Erzwingung: {'JA' if evaluation['dot_dropin_conflict'] else 'NEIN'}",
-            f"Docker/veth erkannt: {'JA' if evaluation['docker_detected'] else 'NEIN'}",
-            f"Mehrere DNS-Quellen: {'JA' if evaluation['multiple_dns_sources'] else 'NEIN'}",
-            f"Aktiver Resolver: {evaluation['resolver_label']}",
-        ]
-        if evaluation["conflict"]:
-            lines.append("Bewertung: DNS-Leak-Risiko")
-        lines.extend(
-            [
-                f"Risiko: {evaluation['risk']}",
-                "",
-                "VPN-DNS:",
-            ]
-        )
-        if evaluation["vpn_dns"]:
-            for dns in evaluation["vpn_dns"]:
-                lines.append(f"- {dns}")
+        if evaluation.get("dnssec_strict"):
+            lines.append("✔ DNSSEC: aktiv (Strict Mode)")
+        elif evaluation.get("dnssec_allow_downgrade"):
+            lines.append("○ DNSSEC: aktiv (Fallback möglich)")
         else:
-            lines.append("- Keine VPN-DNS-Server erkannt")
+            lines.append("✖ DNSSEC nicht verfügbar")
 
-        lines.append("")
-        lines.append("Globale/öffentliche DNS:")
-        if evaluation["global_dns"]:
-            for dns in evaluation["global_dns"]:
-                lines.append(f"- {dns}")
+        lines.extend(["", "=== Ergebnis ==="])
+        if primary_dns and dot_active and dnssec_active and not conflict:
+            lines.append("✔ DNS-Konfiguration stabil")
+            lines.append("✔ Keine Auffälligkeiten erkannt")
         else:
-            lines.append("- leer")
-
-        lines.append("")
-        lines.append("Physische LAN/WLAN-DNS:")
-        if evaluation["physical_dns"]:
-            for dns in evaluation["physical_dns"]:
-                lines.append(f"- {dns}")
-        else:
-            lines.append("- leer")
-
-        lines.append("")
-        lines.append("Auffälligkeiten:")
-        if evaluation["warnings"]:
-            for warning in evaluation["warnings"]:
-                lines.append(f"- {warning}")
-        else:
-            lines.append("- Keine kritischen Auffälligkeiten erkannt.")
-
-        lines.append("")
-        lines.append("Empfehlungen:")
-        for recommendation in evaluation["recommendations"]:
-            lines.append(f"- {recommendation}")
-
-        lines.append("")
-        lines.append("Rohdaten:")
-        lines.append(resolvectl_output or "")
+            if conflict:
+                lines.append("✖ DNS-Konfiguration auffällig")
+                lines.append("✖ Möglicher DNS-Konflikt erkannt")
+            else:
+                lines.append("✖ DNS-Konfiguration eingeschränkt")
+                if warnings:
+                    lines.append(f"✖ {warnings[0]}")
+                else:
+                    lines.append("✖ Auffälligkeiten erkannt")
         return "\n".join(lines).rstrip()
 
     def build_dns_leak_check_result(
@@ -648,8 +638,17 @@ class DNSControlService:
         success = True
         ignore_value = "yes" if ignore_auto_dns else "no"
 
+        def run_step(cmd: list[str], *, error_prefix: str) -> tuple[bool, str]:
+            rc, out = self.run_cmd(cmd, timeout=12)
+            if rc == 0:
+                return True, ""
+            message = (out or "").strip() or "unbekannter Fehler"
+            return False, f"{error_prefix}: {message}"
+
         for iface, con in targets:
-            cmds = [
+            details.append(f"✔ Verbindung erkannt: {con} ({iface})")
+
+            ipv4_ok, ipv4_err = run_step(
                 [
                     "sudo",
                     "-n",
@@ -660,6 +659,9 @@ class DNSControlService:
                     "ipv4.ignore-auto-dns",
                     ignore_value,
                 ],
+                error_prefix="✖ Fehler beim Setzen von Auto-DNS (IPv4)",
+            )
+            ipv6_ok, ipv6_err = run_step(
                 [
                     "sudo",
                     "-n",
@@ -670,20 +672,46 @@ class DNSControlService:
                     "ipv6.ignore-auto-dns",
                     ignore_value,
                 ],
+                error_prefix="✖ Fehler beim Setzen von Auto-DNS (IPv6)",
+            )
+            if ipv4_ok and ipv6_ok:
+                auto_dns_label = "deaktiviert" if ignore_auto_dns else "aktiviert"
+                details.append(f"✔ Auto-DNS {auto_dns_label} (IPv4 / IPv6)")
+            else:
+                success = False
+                if ipv4_err:
+                    details.append(ipv4_err)
+                if ipv6_err:
+                    details.append(ipv6_err)
+
+            dns4_ok, dns4_err = run_step(
                 ["sudo", "-n", "nmcli", "con", "mod", con, "ipv4.dns", ""],
+                error_prefix="✖ Fehler beim Zurücksetzen der DNS-Server (IPv4)",
+            )
+            dns6_ok, dns6_err = run_step(
                 ["sudo", "-n", "nmcli", "con", "mod", con, "ipv6.dns", ""],
+                error_prefix="✖ Fehler beim Zurücksetzen der DNS-Server (IPv6)",
+            )
+            if dns4_ok and dns6_ok:
+                details.append("✔ Manuelle DNS-Server zurückgesetzt")
+            else:
+                success = False
+                if dns4_err:
+                    details.append(dns4_err)
+                if dns6_err:
+                    details.append(dns6_err)
+
+            up_ok, up_err = run_step(
                 ["sudo", "-n", "nmcli", "con", "up", con],
-            ]
-            details.append(f"Connection: {con} ({iface})")
-            for cmd in cmds:
-                rc, out = self.run_cmd(cmd, timeout=12)
-                details.append(f"$ {' '.join(cmd)}")
-                details.append(f"rc={rc}")
-                if out:
-                    details.append((out or "").strip())
-                if rc != 0:
-                    success = False
-                details.append("")
+                error_prefix="✖ Fehler beim Neustart der Verbindung",
+            )
+            if up_ok:
+                details.append("✔ Verbindung neu gestartet")
+            else:
+                success = False
+                details.append(up_err)
+
+            details.append("")
         return success, details
 
     def write_dropin(self, content: str) -> tuple[bool, str]:
@@ -748,13 +776,16 @@ class DNSControlService:
             "Aktion: VPN-DNS erzwingen",
             f"Ergebnis: {'erfolgreich' if success else 'fehlgeschlagen'}",
             "",
-            "NetMon DoT Drop-in:",
-            "entfernt" if rm_ok else f"Fehler: {rm_detail or 'unknown'}",
+            "[System]",
+            "✔ NetMon DoT-Konfiguration entfernt"
+            if rm_ok
+            else f"✖ Fehler beim Entfernen der NetMon DoT-Konfiguration: {rm_detail or 'unknown'}",
+            "✔ systemd-resolved neu gestartet"
+            if restart_ok
+            else f"✖ Fehler beim Neustarten von systemd-resolved: {restart_detail or 'fehlgeschlagen'}",
             "",
-            "NetworkManager:",
+            "[NetworkManager]",
             *nm_details,
-            "systemd-resolved Restart:",
-            "OK" if restart_ok else (restart_detail or "fehlgeschlagen"),
         ]
         return success, "\n".join(lines).strip()
 

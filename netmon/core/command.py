@@ -26,7 +26,7 @@ def run_cmd(args, timeout=15, text=True):
         return p.returncode, out
     except subprocess.TimeoutExpired:
         return 124, "Command timed out"
-    except Exception as e:
+    except OSError as e:
         return 1, f"Command failed: {e}"
 
 
@@ -49,7 +49,7 @@ def run_cmd_with_input(args, input_text="", timeout=20):
         return p.returncode, out
     except subprocess.TimeoutExpired:
         return 124, "Command timed out"
-    except Exception as e:
+    except OSError as e:
         return 1, f"Command failed: {e}"
 
 
@@ -64,6 +64,21 @@ def check_sudo_nopasswd() -> bool:
             check=False,
         )
         return p.returncode == 0
+    except Exception:
+        return False
+
+
+def _safe_messagebox_showerror(messagebox, title, message, *, parent=None):
+    options = {}
+    if parent is not None:
+        try:
+            if bool(parent.winfo_exists()):
+                options["parent"] = parent
+        except Exception:
+            pass
+    try:
+        messagebox.showerror(title, message, **options)
+        return True
     except Exception:
         return False
 
@@ -105,7 +120,8 @@ def renew_sudo_timestamp(parent=None):
                 return True
         except Exception:
             pass
-        messagebox.showerror(
+        _safe_messagebox_showerror(
+            messagebox,
             "Sudo Passwort",
             "Passwort ungültig oder sudo-Rechte fehlen.",
             parent=parent,

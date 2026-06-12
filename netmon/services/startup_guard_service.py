@@ -2,7 +2,7 @@ import glob
 import hashlib
 import json
 import os
-from datetime import datetime
+from datetime import datetime, UTC
 
 try:
     from netmon.core.utils import safe_write_json
@@ -102,7 +102,7 @@ class StartupGuardService:
 
     def save_baseline(self, path: str, entries: list[dict]) -> tuple[bool, str]:
         payload = {
-            "generated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+            "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
             "entries": list(entries or []),
         }
         return safe_write_json(path, payload)
@@ -149,7 +149,7 @@ class StartupGuardService:
             "name": item.get("name") or os.path.basename(normalized_path),
             "source": item.get("source") or "",
             "sha256": sha256,
-            "trusted_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+            "trusted_at": datetime.now(UTC).isoformat(timespec="seconds"),
             "note": "vom Nutzer als bekannt markiert",
         }
         trustlist["trusted"] = trusted
@@ -165,6 +165,9 @@ class StartupGuardService:
         trusted.pop(normalized_path, None)
         trustlist["trusted"] = trusted
         return self.save_trustlist(trustlist_path, trustlist)
+
+    def reset_trustlist(self, trustlist_path: str) -> tuple[bool, str]:
+        return self.save_trustlist(trustlist_path, {"trusted": {}})
 
     def compare_to_baseline(
         self, baseline: dict, current: list[dict], trustlist: dict | None = None
@@ -193,10 +196,7 @@ class StartupGuardService:
         for path, current_entry in current_map.items():
             baseline_entry = baseline_map.get(path)
             if baseline_entry is None:
-                if self.is_trusted(current_entry, trustlist_data):
-                    trusted_entries.append(current_entry)
-                else:
-                    new_entries.append(current_entry)
+                new_entries.append(current_entry)
                 continue
             changed = any(
                 baseline_entry.get(field) != current_entry.get(field)

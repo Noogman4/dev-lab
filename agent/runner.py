@@ -2,7 +2,7 @@ import shlex
 import subprocess
 from pathlib import Path
 
-REPO_ROOT = Path("/workspaces/dev-lab").resolve()
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 ALLOWED_BASE_COMMANDS = {
     "pytest",
@@ -26,13 +26,23 @@ def run_command(command: str) -> str:
     if base not in ALLOWED_BASE_COMMANDS:
         raise ValueError(f"Befehl nicht erlaubt: {base}")
 
-    result = subprocess.run(
-        parts,
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            parts,
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return "\n".join(
+            [
+                f"$ {command}",
+                "exit_code=127",
+                "STDERR:",
+                f"Befehl nicht gefunden: {base}",
+            ]
+        )
 
     output = []
     output.append(f"$ {command}")
