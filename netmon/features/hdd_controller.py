@@ -82,9 +82,18 @@ def _clear_hdd_slot_fields(slot):
 
 
 
+_SAFE_MOUNT_BASES = ("/mnt/", "/media/", "/run/media/")
+
+
 def _slot_mountpoint(slot, device):
-    configured_mountpoint = (slot.get("mountpoint") or "").strip()
-    return configured_mountpoint or f"/mnt/{os.path.basename(device)}"
+    default = f"/mnt/{os.path.basename(device) or 'netmon_hdd'}"
+    raw = (slot.get("mountpoint") or "").strip()
+    if not raw:
+        return default
+    resolved = os.path.realpath(raw)
+    if any(resolved.startswith(base) for base in _SAFE_MOUNT_BASES):
+        return resolved
+    return default
 
 
 def default_hdd_slots():
