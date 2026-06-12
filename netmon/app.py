@@ -8278,16 +8278,6 @@ class App(TkBase):
         name = str(theme_name or "").strip().lower()
         return name if name in THEMES else "light"
 
-    def _theme_name_from_display_name(self, display_name):
-        text = str(display_name or "").strip()
-        normalized = self._normalize_theme_name(text)
-        if normalized in THEMES:
-            return normalized
-        for name, label in THEME_DISPLAY_NAMES.items():
-            if text.lower() == str(label).strip().lower():
-                return name
-        return "light"
-
     def _normalize_theme_studio_style(self, style_name):
         style = str(style_name or "").strip().lower()
         return style if style in {"dezent", "kräftig", "warm", "kühl"} else "dezent"
@@ -9290,9 +9280,6 @@ class App(TkBase):
             except Exception:
                 pass
 
-    def clock_toggle_alarm(self):
-        self.clock_apply_alarm_settings(log_change=True)
-
     def clock_apply_alarm_settings(self, log_change=True):
         alarm_txt = self._validate_alarm_time(self.alarm_time_var.get())
         enabled = bool(self.alarm_enabled_var.get())
@@ -9521,16 +9508,6 @@ class App(TkBase):
                 "",
                 "sudo apt update",
                 "sudo apt install rkhunter",
-            ],
-        )
-
-    def show_radio_install_hint(self):
-        self.log_install_hint(
-            "mpv (Radio) ist nicht installiert.",
-            [
-                "Installieren mit:",
-                "",
-                "sudo apt install -y mpv",
             ],
         )
 
@@ -9778,13 +9755,6 @@ class App(TkBase):
             if entry not in entries:
                 entries.append(entry)
         return entries
-
-    def _parse_manual_dns_servers(self, value):
-        return [
-            self.normalize_dns_value(entry)
-            for entry in self._parse_manual_dns_entries(value)
-            if self.normalize_dns_value(entry)
-        ]
 
     def _normalize_custom_dns_profile_name(self, value):
         return re.sub(r"\s+", " ", str(value or "").strip())
@@ -13618,11 +13588,6 @@ class App(TkBase):
             return
         return radio_controller.commit_radio_volume_change(self, event)
 
-    def toggle_selected_radio_favorite(self):
-        if radio_controller is None:
-            return False
-        return radio_controller.toggle_selected_favorite(self)
-
     def add_selected_radio_favorite(self):
         if radio_controller is None:
             return False
@@ -13957,15 +13922,6 @@ class App(TkBase):
         self._sync_dns_protocol_profile_labels()
         self.update_dns_controls_state_safe()
 
-    def _read_optional_text_file(self, path):
-        try:
-            with open(path, "r", encoding="utf-8") as handle:
-                return handle.read()
-        except FileNotFoundError:
-            return ""
-        except Exception:
-            return ""
-
     def _write_root_text_file(self, path, content):
         tmp_path = ""
         try:
@@ -14011,12 +13967,6 @@ class App(TkBase):
                 (out_rm or "").strip() or f"Datei konnte nicht entfernt werden: {path}",
             )
         return True, ""
-
-    def _restore_root_text_file(self, path, previous_text):
-        previous = str(previous_text or "")
-        if previous.strip():
-            return self._write_root_text_file(path, previous)
-        return self._remove_root_text_file(path)
 
     def is_physical_dns_candidate(self, name: str, conn_type: str, device: str) -> bool:
         service = self._dns_control_service()
@@ -16969,26 +16919,6 @@ class App(TkBase):
             return
         self._run_download_scan(selected, target_kind="file")
 
-    def download_scan_placeholder_action(self, action_label: str):
-        now_text = datetime.now().strftime("%d.%m.%Y %H:%M")
-        selected = str(self.download_scan_selected_file or "").strip()
-        file_label = (
-            os.path.basename(selected) if selected else "Keine Datei ausgewählt"
-        )
-        self._set_download_scan_status(
-            status="🟡 ungeprüft",
-            result=f"{action_label} ist vorbereitet",
-            filename=file_label,
-            last_scan=now_text,
-            log_message=f"{action_label} ist als Platzhalter vorbereitet.",
-        )
-        self._update_download_scan_result_text(
-            f"{action_label}\n\n"
-            "Die UI ist vorbereitet, die eigentliche Scan-Anbindung folgt später schrittweise.\n"
-            "Vorgesehen sind ClamAV-Dateiscans und ein anschließendes manuelles "
-            "Verschieben nach Bestätigung."
-        )
-
     def update_startup_vpn_profile_options(self):
         combo = self.__dict__.get("start_vpn_profile_combo")
         value_var = self.__dict__.get("var_start_vpn_profile")
@@ -17040,9 +16970,6 @@ class App(TkBase):
                 dot_cb.configure(state="disabled")
             except Exception:
                 pass
-
-    def update_start_system_controls_state(self):
-        self.on_start_network_mode_changed()
 
     def apply_startup_settings(self):
         startup_theme = (
@@ -20657,9 +20584,6 @@ class App(TkBase):
     def is_chad_enabled(self) -> bool:
         return chad_controller.is_chad_enabled(self)
 
-    def _ensure_chad_enabled(self, message: str = "Chad-Anbindung ist deaktiviert."):
-        return chad_controller.ensure_chad_enabled(self, message=message)
-
     def _show_chad_activation_required_popup(self):
         chad_controller.show_chad_activation_required_popup(self)
 
@@ -21187,37 +21111,6 @@ class App(TkBase):
         widget.bind("<Button-3>", show_menu, add="+")
         widget._netmon_context_menu = menu
 
-    def attach_fast_mousewheel_scroll(self, widget, units: int = 4):
-        if widget is None:
-            return
-
-        attached = self.__dict__.setdefault("_fast_mousewheel_scroll_attached", set())
-        widget_id = str(widget)
-        if widget_id in attached:
-            return
-        attached.add(widget_id)
-
-        step = max(1, int(units))
-
-        def on_mousewheel(event):
-            delta = getattr(event, "delta", 0)
-            if delta:
-                widget.yview_scroll(-step if delta > 0 else step, "units")
-                return "break"
-            return None
-
-        def on_wheel_up(_event):
-            widget.yview_scroll(-step, "units")
-            return "break"
-
-        def on_wheel_down(_event):
-            widget.yview_scroll(step, "units")
-            return "break"
-
-        widget.bind("<MouseWheel>", on_mousewheel, add="+")
-        widget.bind("<Button-4>", on_wheel_up, add="+")
-        widget.bind("<Button-5>", on_wheel_down, add="+")
-
     def attach_copy_paste_context_menu(self, widget):
         if widget is None:
             return
@@ -21295,21 +21188,6 @@ class App(TkBase):
 
         widget.bind("<Button-3>", show_menu, add="+")
         widget._netmon_context_menu = menu
-
-    def safe_attach_text_context_menu(self, widget_name: str):
-        widget = self.__dict__.get(widget_name)
-        if widget is None:
-            return
-
-        try:
-            self.attach_text_context_menu(widget)
-        except Exception as exc:
-            try:
-                self.log(
-                    f"[WARN] Kontextmenü für {widget_name} konnte nicht gesetzt werden: {exc}"
-                )
-            except Exception:
-                pass
 
     def attach_all_selection_copy_shortcuts(self):
         text_targets = [
@@ -21637,21 +21515,6 @@ class App(TkBase):
         listbox.bind("<Button-3>", show_menu, add="+")
         listbox._chad_context_menu = menu
 
-    def safe_attach_chad_listbox_context_menu(self, widget_name: str, title: str):
-        widget = self.__dict__.get(widget_name)
-        if widget is None:
-            return
-
-        try:
-            self.attach_chad_listbox_context_menu(widget, title)
-        except Exception as exc:
-            try:
-                self.log(
-                    f"[WARN] Listen-Kontextmenü für {widget_name} konnte nicht gesetzt werden: {exc}"
-                )
-            except Exception:
-                pass
-
     def attach_all_chad_context_menus(self):
         targets = [
             ("text", "NetMon Log Analyse"),
@@ -21887,9 +21750,6 @@ class App(TkBase):
     def _update_dot_light(self):
         dot_controller.update_dot_light(self)
 
-    def _update_dot_light_safe(self):
-        dot_controller.update_dot_light_safe(self)
-
     def _set_dot_state(
         self,
         ok,
@@ -21913,9 +21773,6 @@ class App(TkBase):
             vpn_conflict=vpn_conflict,
             vpn_active=vpn_active,
         )
-
-    def _set_dot_state_safe(self, ok, **kwargs):
-        dot_controller.set_dot_state_safe(self, ok, **kwargs)
 
     def _dot_profile_config(self, profile_name=None):
         return dot_controller.dot_profile_config(self, profile_name)
@@ -29390,9 +29247,6 @@ class App(TkBase):
         )
         firewall_controller.fw_enable(self, interactive_guard=interactive_guard)
 
-    def _parse_ufw_action(self, action_text):
-        return firewall_controller.parse_ufw_action(action_text)
-
     def _extract_ip_port_proto_from_ufw_to(self, to_text):
         return firewall_controller.extract_ip_port_proto_from_ufw_to(to_text)
 
@@ -29404,9 +29258,6 @@ class App(TkBase):
 
     def _ip_sort_key(self, value):
         return firewall_controller.ip_sort_key(value)
-
-    def _ufw_rule_sort_key(self, rule):
-        return firewall_controller.ufw_rule_sort_key(rule)
 
     def _read_ufw_status(self, verbose=False):
         return firewall_controller.read_ufw_status(self, verbose=verbose)
@@ -30205,9 +30056,6 @@ class App(TkBase):
 
     def open_add_firewall_rule_dialog(self):
         firewall_controller.open_add_firewall_rule_dialog(self)
-
-    def _update_add_firewall_rule_preview(self):
-        return firewall_controller.update_add_firewall_rule_preview(self)
 
     def remove_selected_firewall_rule(self):
         return firewall_controller.remove_selected_firewall_rule(self)
@@ -33115,15 +32963,6 @@ class App(TkBase):
         if "dnssec=no" in lower_text or "dnssec setting: no" in lower_text:
             return "no"
         return "unknown"
-
-    def _dnssec_mode_status_text(self, mode: str) -> str:
-        if mode == "yes":
-            return "Strict Mode"
-        if mode == "allow-downgrade":
-            return "Fallback möglich"
-        if mode == "no":
-            return "deaktiviert"
-        return "Status nicht eindeutig"
 
     def dnssec_strict_mode_warning_text(self) -> str:
         return (
