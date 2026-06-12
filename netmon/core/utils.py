@@ -108,7 +108,22 @@ def human_size(num_bytes):
     return f"{value:.1f} {units[idx]}"
 
 
+def call_in_ui_thread(app, fn) -> None:
+    """Run fn() on the Tk main thread.
+
+    If already on the main thread, calls fn() directly.
+    Otherwise schedules it via app.after(0, fn).
+    """
+    import threading
+
+    if threading.current_thread() is threading.main_thread():
+        fn()
+    else:
+        app.after(0, fn)
+
+
 __all__ = [
+    "call_in_ui_thread",
     "format_table",
     "human_rate",
     "human_size",

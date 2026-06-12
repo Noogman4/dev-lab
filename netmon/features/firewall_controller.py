@@ -11,6 +11,11 @@ from tkinter import messagebox
 from tkinter import ttk
 
 try:
+    from netmon.core.utils import call_in_ui_thread
+except ModuleNotFoundError:
+    from core.utils import call_in_ui_thread
+
+try:
     from netmon.core.command import run_cmd
 except ModuleNotFoundError:
     from core.command import run_cmd
@@ -93,7 +98,7 @@ def _refresh_firewall_views(app):
 
 def _schedule_firewall_refresh(app):
     try:
-        app.after(0, app.refresh)
+        call_in_ui_thread(app, app.refresh)
     except Exception:
         try:
             app.refresh()
@@ -1741,14 +1746,14 @@ def fw_enable(app, interactive_guard=True):
                 ),
             )
             if out:
-                app.after(0, lambda: app.log(out))
+                call_in_ui_thread(app, lambda: app.log(out))
         else:
             app.after(
                 0,
                 lambda: app.log(app.tr("firewall_log_enabled", "Firewall aktiviert.")),
             )
 
-        app.after(0, app.refresh)
+        call_in_ui_thread(app, app.refresh)
 
     app.run_async(job)
 
@@ -1880,7 +1885,7 @@ def fw_disable(app, interactive_guard=True):
                 ),
             )
             if out:
-                app.after(0, lambda: app.log(out))
+                call_in_ui_thread(app, lambda: app.log(out))
         else:
             app.after(
                 0,
@@ -1889,7 +1894,7 @@ def fw_disable(app, interactive_guard=True):
                 ),
             )
 
-        app.after(0, app.refresh)
+        call_in_ui_thread(app, app.refresh)
 
     app.run_async(job)
 
@@ -2344,7 +2349,7 @@ def apply_add_firewall_rule(app):
                     pass
             _refresh_firewall_views(app)
 
-        app.after(0, done)
+        call_in_ui_thread(app, done)
 
     threading.Thread(target=job, daemon=True).start()
     return True
@@ -2423,7 +2428,7 @@ def remove_selected_firewall_rule(app):
                 except Exception:
                     pass
 
-            app.after(0, _status_failed)
+            call_in_ui_thread(app, _status_failed)
             return
 
         matches = []
@@ -2505,7 +2510,7 @@ def remove_selected_firewall_rule(app):
                 pass
             _refresh_firewall_views(app)
 
-        app.after(0, done)
+        call_in_ui_thread(app, done)
 
     threading.Thread(target=job, daemon=True).start()
     return True

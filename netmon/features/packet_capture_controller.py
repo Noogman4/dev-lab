@@ -20,46 +20,418 @@ except ModuleNotFoundError:
     from core.tooling import has_cmd
 
 try:
-    from netmon.core.utils import human_size
+    from netmon.core.utils import human_size, call_in_ui_thread
 except ModuleNotFoundError:
-    from core.utils import human_size
+    from core.utils import human_size, call_in_ui_thread
+
+
+def _app_value(app, name: str, default=None):
+    return app.__dict__.get(name, default)
+
+
+def _app_var_get(app, name: str, default=""):
+    var = _app_value(app, name)
+    if var is None:
+        return default
+    try:
+        value = var.get()
+    except Exception:
+        value = default
+    return value if value is not None else default
+
+
+def _app_var_set(app, name: str, value) -> bool:
+    var = _app_value(app, name)
+    if var is None:
+        return False
+    try:
+        var.set(value)
+    except Exception:
+        return False
+    return True
+
+
+def _packet_capture_dep_enabled(app, name: str) -> bool:
+    return bool((_app_value(app, "dep_status", {}) or {}).get(name))
+
+
+def _packet_capture_text_widget(app):
+    return _app_value(app, "packet_capture_text")
+
+
+def _packet_capture_file_path(app) -> str:
+    return str(
+        _app_value(app, "packet_capture_output_path")
+        or _app_var_get(app, "packet_capture_file_var", "")
+        or ""
+    ).strip()
+
+
+def _packet_capture_existing_file_path(app) -> str:
+    file_path = _packet_capture_file_path(app)
+    if file_path and os.path.isfile(file_path):
+        return file_path
+    return ""
+
+
+def _packet_capture_open_target_path(app) -> str:
+    file_path = _packet_capture_file_path(app)
+    if not file_path:
+        return ""
+    return file_path if os.path.exists(file_path) else os.path.dirname(file_path)
+
+
+def _packet_capture_wireshark_launcher(app) -> dict:
+    return dict(
+        (_app_value(app, "dep_status", {}) or {}).get("wireshark_launcher") or {}
+    )
+
+
+def _packet_capture_wireshark_command(
+    launcher: dict,
+    file_path: str,
+    *,
+    has_cmd_fn=has_cmd,
+):
+    target = str((launcher or {}).get("target") or "").strip()
+    kind = str((launcher or {}).get("kind") or "").strip()
+    if kind == "binary":
+        return [target, file_path]
+    if kind == "flatpak":
+        return ["flatpak", "run", target, file_path]
+    if kind == "desktop":
+        if has_cmd_fn("gtk-launch"):
+            return ["gtk-launch", target]
+        raise RuntimeError("gtk-launch ist nicht verfügbar.")
+    if kind == "desktop_file":
+        if has_cmd_fn("xdg-open"):
+            return ["xdg-open", target]
+        raise RuntimeError("xdg-open ist nicht verfügbar.")
+    raise RuntimeError("Kein Wireshark-Launcher gefunden.")
+
+
+def _packet_capture_open_location_command(target: str, *, has_cmd_fn=has_cmd):
+    if has_cmd_fn("xdg-open"):
+        return ["xdg-open", target]
+    raise RuntimeError("xdg-open ist nicht verfügbar.")
+
+
+def _packet_capture_filter(app) -> str:
+    return str(_app_var_get(app, "packet_capture_filter_var", "") or "").strip()
+
+
+def _packet_capture_start_command(app, interface: str, output_file: str):
+    capture_filter = _packet_capture_filter(app)
+    if _packet_capture_dep_enabled(app, "tshark"):
+        cmd = ["tshark", "-i", interface]
+        if capture_filter:
+            cmd.extend(["-f", capture_filter])
+        cmd.extend(["-w", output_file])
+        return cmd, "tshark"
+    if _packet_capture_dep_enabled(app, "dumpcap"):
+        cmd = ["dumpcap", "-i", interface]
+        if capture_filter:
+            cmd.extend(["-f", capture_filter])
+        cmd.extend(["-w", output_file])
+        return cmd, "dumpcap"
+    return None, ""
+
+
+def _packet_capture_capinfos_summary(output: str, default_size: str = "-") -> dict:
+    packets = "-"
+    size_text = str(default_size or "-")
+    for line in str(output or "").splitlines():
+        lower = line.lower()
+        if "number of packets" in lower:
+            packets = _packet_capture_summary_value(line, "-")
+        if lower.startswith("file size"):
+            size_text = _packet_capture_summary_value(line, size_text)
+    return {"packets": packets, "size_text": size_text}
+
+
+def _packet_capture_summary_value(line: str, default: str = "-") -> str:
+    return str(line or "").split(":", 1)[-1].strip() or str(default or "-")
+
+
+def _packet_capture_completion_status(cancel_requested: bool, return_code: int) -> str:
+    if cancel_requested:
+        return "gestoppt"
+    if return_code == 0:
+        return "abgeschlossen"
+    return f"Fehler ({return_code})"
+
+
+def _packet_capture_size_text(file_path: str) -> str:
+    return human_size(os.path.getsize(file_path))
+
+
+def _packet_capture_file_info_header() -> str:
+    return "=== Capture-Datei Info ==="
+
+
+def _packet_capture_file_info_body_lines(file_path: str, size_text: str) -> list[str]:
+    return [
+        f"Datei: {file_path}",
+        f"Größe: {size_text}",
+    ]
+
+
+def _packet_capture_file_info_lines(file_path: str, size_text: str) -> list[str]:
+    return [_packet_capture_file_info_header()] + _packet_capture_file_info_body_lines(
+        file_path,
+        size_text,
+    )
+
+
+def _packet_capture_file_info_text(file_path: str, size_text: str) -> str:
+    return "\n".join(_packet_capture_file_info_lines(file_path, size_text))
+
+
+def _packet_capture_file_info_missing_message(file_path: str) -> str:
+    path = str(file_path or "").strip()
+    if not path:
+        return "Noch keine Capture-Datei ausgewählt."
+    return f"Capture-Datei nicht gefunden: {path}"
+
+
+def _packet_capture_open_location_missing_message(file_path: str, target: str) -> str:
+    if not str(file_path or "").strip():
+        return "Noch keine Capture-Datei vorhanden."
+    if not str(target or "").strip():
+        return "Kein gültiger Pfad für Capture-Datei vorhanden."
+    return ""
+
+
+def _packet_capture_wireshark_missing_message(target: str, file_path: str) -> str:
+    if not str(target or "").strip():
+        return "Wireshark ist nicht verfügbar. Installationshinweis: sudo apt install wireshark"
+    if not str(file_path or "").strip():
+        return "Keine gültige Capture-Datei zum Öffnen gefunden."
+    return ""
+
+
+def _packet_capture_stop_request_message(has_running_capture: bool) -> str:
+    if not has_running_capture:
+        return "Es läuft aktuell kein Capture."
+    return "Capture-Stopp angefordert."
+
+
+def _packet_capture_open_success_message(label: str, target: str) -> str:
+    return f"{str(label or '').strip()} geöffnet: {target}"
+
+
+def _packet_capture_open_location_result_message(
+    target: str, error_message: str = ""
+) -> str:
+    if str(error_message or "").strip():
+        return f"Capture-Pfad konnte nicht geöffnet werden: {error_message}"
+    return _packet_capture_open_success_message("Capture-Pfad", target)
+
+
+def _packet_capture_wireshark_result_message(
+    file_path: str, error_message: str = ""
+) -> str:
+    if str(error_message or "").strip():
+        return f"Wireshark konnte nicht geöffnet werden: {error_message}"
+    return _packet_capture_open_success_message("Wireshark", file_path)
+
+
+def _packet_capture_start_failure_messages(message: str) -> tuple[str, str]:
+    error_text = str(message or "").strip()
+    return (
+        f"Capture konnte nicht gestartet werden: {error_text}",
+        f"Packet Capture fehlgeschlagen: {error_text}",
+    )
+
+
+def _packet_capture_stop_failure_messages(message: str) -> tuple[str, str]:
+    error_text = str(message or "").strip()
+    return (
+        f"Capture-Stopp fehlgeschlagen: {error_text}",
+        f"Packet Capture-Stopp fehlgeschlagen: {error_text}",
+    )
+
+
+def _packet_capture_state_log_message(state: str, interface: str) -> str:
+    return f"Packet Capture {state} ({interface})."
+
+
+def _packet_capture_missing_tool_message() -> str:
+    return "Packet Capture ist nicht verfügbar: tshark oder dumpcap fehlt."
+
+
+def _packet_capture_start_guard_message(is_running: bool, interface: str) -> str:
+    if is_running:
+        return "Ein Capture läuft bereits."
+    if not str(interface or "").strip():
+        return "Bitte zuerst ein Capture-Interface auswählen."
+    return ""
+
+
+def _packet_capture_file_info_error_message(message: str) -> str:
+    return f"Datei-Info konnte nicht gelesen werden: {str(message or '').strip()}"
+
+
+def _packet_capture_completion_failure_messages(
+    interface: str, return_code: int
+) -> tuple[str, str]:
+    return (
+        "Hinweis: Capture wurde mit Fehler beendet. Fehlende Rechte für "
+        "tshark/dumpcap sind häufig die Ursache.",
+        f"Packet Capture fehlgeschlagen ({interface}, rc={return_code}).",
+    )
+
+
+def _packet_capture_wireshark_failure_log_message(message: str) -> str:
+    return f"Wireshark-Start fehlgeschlagen: {str(message or '').strip()}"
+
+
+def _packet_capture_open_location_failure_log_message(message: str) -> str:
+    return f"Capture-Datei öffnen fehlgeschlagen: {str(message or '').strip()}"
+
+
+def _packet_capture_missing_tool_log_message() -> str:
+    return "Packet Capture fehlgeschlagen: tshark/dumpcap fehlt."
+
+
+def _packet_capture_interfaces_ready_message(interfaces) -> str:
+    return "Verfügbare Interfaces: " + ", ".join(list(interfaces or []))
+
+
+def _packet_capture_no_interfaces_message() -> str:
+    return "Keine Capture-Interfaces gefunden. Prüfe tshark, dumpcap oder iproute2."
+
+
+def _packet_capture_dumpcap_permission_message() -> str:
+    return "tshark ist vorhanden, aber dumpcap hat keine ausreichenden Berechtigungen."
+
+
+def _packet_capture_capinfos_text(output: str) -> str:
+    return _packet_capture_file_info_header() + "\n" + str(output or "").strip()
+
+
+def _packet_capture_start_text(
+    capture_tool: str,
+    interface: str,
+    output_file: str,
+    capture_filter: str,
+) -> str:
+    return "\n".join(
+        _packet_capture_start_lines(
+            capture_tool,
+            interface,
+            output_file,
+            capture_filter,
+        )
+    )
+
+
+def _packet_capture_start_body_lines(
+    capture_tool: str,
+    interface: str,
+    output_file: str,
+    capture_filter: str,
+) -> list[str]:
+    return [
+        f"Tool: {capture_tool}",
+        f"Interface: {interface}",
+        f"Datei: {output_file}",
+        f"Filter: {capture_filter or '-'}",
+    ]
+
+
+def _packet_capture_start_lines(
+    capture_tool: str,
+    interface: str,
+    output_file: str,
+    capture_filter: str,
+) -> list[str]:
+    return ["=== Packet Capture gestartet ==="] + _packet_capture_start_body_lines(
+        capture_tool,
+        interface,
+        output_file,
+        capture_filter,
+    )
+
+
+def _packet_capture_initial_file_name(current_path: str, generated_path: str) -> str:
+    return os.path.basename(str(current_path or generated_path or "").strip())
+
+
+def _packet_capture_ready(app) -> bool:
+    return _packet_capture_dep_enabled(app, "tshark") or _packet_capture_dep_enabled(
+        app, "dumpcap"
+    )
+
+
+def _packet_capture_needs_separator(widget, replace: bool) -> bool:
+    return bool(widget is not None and not replace and widget.index("end-1c") != "1.0")
+
+
+def _packet_capture_output_segment(text: str) -> str:
+    return str(text or "").rstrip() + "\n"
+
+
+def _packet_capture_button_states(running: bool, ready: bool) -> dict:
+    return {
+        "start": "disabled" if running or not ready else "normal",
+        "stop": "normal" if running and ready else "disabled",
+    }
+
+
+def _packet_capture_clear_widget(widget) -> bool:
+    if widget is None:
+        return False
+    widget.delete("1.0", "end")
+    return True
+
+
+def _packet_capture_apply_output(
+    widget, text: str = "", *, replace: bool = False
+) -> bool:
+    if widget is None:
+        return False
+    if replace:
+        _packet_capture_clear_widget(widget)
+    if text:
+        if _packet_capture_needs_separator(widget, replace):
+            widget.insert("end", "\n")
+        widget.insert("end", _packet_capture_output_segment(text))
+    return True
+
+
+def _packet_capture_apply_button_states(app, states: dict) -> None:
+    start_button = _app_value(app, "btn_packet_capture_start")
+    if start_button is not None:
+        start_button.configure(state=states.get("start", "disabled"))
+    stop_button = _app_value(app, "btn_packet_capture_stop")
+    if stop_button is not None:
+        stop_button.configure(state=states.get("stop", "disabled"))
 
 
 def packet_capture_set_running_state(app, running):
-    packet_capture_ready = bool(
-        app.dep_status.get("tshark") or app.dep_status.get("dumpcap")
-    )
-    if hasattr(app, "btn_packet_capture_start"):
-        app.btn_packet_capture_start.configure(
-            state="disabled" if running or not packet_capture_ready else "normal"
-        )
-    if hasattr(app, "btn_packet_capture_stop"):
-        app.btn_packet_capture_stop.configure(
-            state="normal" if running and packet_capture_ready else "disabled"
-        )
+    packet_capture_ready = _packet_capture_ready(app)
+    states = _packet_capture_button_states(running, packet_capture_ready)
+    _packet_capture_apply_button_states(app, states)
 
 
 def append_packet_capture_output(app, text: str, replace: bool = False):
-    if not hasattr(app, "packet_capture_text") or app.packet_capture_text is None:
+    widget = _packet_capture_text_widget(app)
+    if widget is None:
         return
-    widget = app.packet_capture_text
     widget.configure(state="normal")
-    if replace:
-        widget.delete("1.0", "end")
-    if text:
-        if not replace and widget.index("end-1c") != "1.0":
-            widget.insert("end", "\n")
-        widget.insert("end", text.rstrip() + "\n")
+    _packet_capture_apply_output(widget, text, replace=replace)
     widget.see("end")
     widget.configure(state="disabled")
 
 
 def clear_packet_capture_output(app):
-    if not hasattr(app, "packet_capture_text") or app.packet_capture_text is None:
+    widget = _packet_capture_text_widget(app)
+    if widget is None:
         return
-    app.packet_capture_text.configure(state="normal")
-    app.packet_capture_text.delete("1.0", "end")
-    app.packet_capture_text.configure(state="disabled")
+    widget.configure(state="normal")
+    _packet_capture_apply_output(widget, replace=True)
+    widget.configure(state="disabled")
 
 
 def packet_capture_generate_default_path(app):
@@ -69,9 +441,9 @@ def packet_capture_generate_default_path(app):
 
 def choose_packet_capture_file(app):
     initial_dir = app.packet_capture_dir
-    current_path = (app.packet_capture_file_var.get() or "").strip()
+    current_path = str(_app_var_get(app, "packet_capture_file_var", "") or "").strip()
     generated_path = packet_capture_generate_default_path(app)
-    initial_file = os.path.basename(current_path or generated_path)
+    initial_file = _packet_capture_initial_file_name(current_path, generated_path)
     chosen = filedialog.asksaveasfilename(
         parent=app,
         title="Capture-Datei auswählen",
@@ -84,7 +456,7 @@ def choose_packet_capture_file(app):
         ],
     )
     if chosen:
-        app.packet_capture_file_var.set(chosen)
+        _app_var_set(app, "packet_capture_file_var", chosen)
         app.packet_capture_output_path = chosen
         append_packet_capture_output(app, f"Capture-Datei gesetzt: {chosen}")
 
@@ -93,7 +465,7 @@ def refresh_packet_capture_interfaces(app):
     app._select_security_tab(app.tab_packet_capture)
     interfaces = []
     details = []
-    if app.dep_status.get("tshark"):
+    if _packet_capture_dep_enabled(app, "tshark"):
         rc, out = run_cmd(["tshark", "-D"], timeout=8)
         if rc == 0:
             for line in (out or "").splitlines():
@@ -109,11 +481,11 @@ def refresh_packet_capture_interfaces(app):
             app.packet_capture_status_var.set("Berechtigung fehlt")
             append_packet_capture_output(
                 app,
-                "tshark ist vorhanden, aber dumpcap hat keine ausreichenden Berechtigungen.",
+                _packet_capture_dumpcap_permission_message(),
                 replace=True,
             )
             app.show_dumpcap_permission_hint()
-    if not interfaces and app.dep_status.get("ip"):
+    if not interfaces and _packet_capture_dep_enabled(app, "ip"):
         rc, out = run_cmd(["ip", "-o", "link", "show"], timeout=6)
         if rc == 0:
             for line in (out or "").splitlines():
@@ -132,27 +504,31 @@ def refresh_packet_capture_interfaces(app):
         unique.append(name)
     app.packet_capture_interfaces = unique
     app.dep_status["packet_capture_interfaces"] = bool(unique)
-    if hasattr(app, "packet_capture_interface_combo"):
-        app.packet_capture_interface_combo.configure(values=unique)
+    interface_combo = _app_value(app, "packet_capture_interface_combo")
+    if interface_combo is not None:
+        interface_combo.configure(values=unique)
     preferred = next(
         (name for name in unique if name != "lo"),
         unique[0] if unique else "",
     )
-    if preferred and not (app.packet_capture_interface_var.get() or "").strip():
-        app.packet_capture_interface_var.set(preferred)
-    elif (app.packet_capture_interface_var.get() or "").strip() not in unique:
-        app.packet_capture_interface_var.set(preferred)
+    selected_interface = str(
+        _app_var_get(app, "packet_capture_interface_var", "") or ""
+    ).strip()
+    if preferred and not selected_interface:
+        _app_var_set(app, "packet_capture_interface_var", preferred)
+    elif selected_interface not in unique:
+        _app_var_set(app, "packet_capture_interface_var", preferred)
     if unique:
-        summary = "Verfügbare Interfaces: " + ", ".join(unique)
-        app.packet_capture_status_var.set("Interfaces bereit")
+        summary = _packet_capture_interfaces_ready_message(unique)
+        _app_var_set(app, "packet_capture_status_var", "Interfaces bereit")
         append_packet_capture_output(app, summary, replace=True)
         if details:
             append_packet_capture_output(app, "\n".join(details))
     else:
-        app.packet_capture_status_var.set("Keine Interfaces gefunden")
+        _app_var_set(app, "packet_capture_status_var", "Keine Interfaces gefunden")
         append_packet_capture_output(
             app,
-            "Keine Capture-Interfaces gefunden. Prüfe tshark, dumpcap oder iproute2.",
+            _packet_capture_no_interfaces_message(),
             replace=True,
         )
 
@@ -167,12 +543,15 @@ def packet_capture_update_runtime(app):
     if not app.packet_capture_running:
         return
     runtime = max(0, int(time.time() - float(app.packet_capture_started_at or 0.0)))
-    app.packet_capture_runtime_var.set(f"{runtime}s")
+    _app_var_set(app, "packet_capture_runtime_var", f"{runtime}s")
     file_path = (app.packet_capture_output_path or "").strip()
     if file_path and os.path.isfile(file_path):
         try:
-            size_bytes = os.path.getsize(file_path)
-            app.packet_capture_size_var.set(human_size(size_bytes))
+            _app_var_set(
+                app,
+                "packet_capture_size_var",
+                _packet_capture_size_text(file_path),
+            )
         except Exception:
             pass
     app.packet_capture_text_after_id = app.after(
@@ -182,116 +561,105 @@ def packet_capture_update_runtime(app):
 
 
 def packet_capture_show_file_info(app):
-    file_path = (
-        app.packet_capture_output_path or app.packet_capture_file_var.get() or ""
-    ).strip()
+    file_path = _packet_capture_file_path(app)
     if not file_path:
-        append_packet_capture_output(app, "Noch keine Capture-Datei ausgewählt.")
+        append_packet_capture_output(
+            app,
+            _packet_capture_file_info_missing_message(file_path),
+        )
         return
     if not os.path.isfile(file_path):
-        append_packet_capture_output(app, f"Capture-Datei nicht gefunden: {file_path}")
+        append_packet_capture_output(
+            app,
+            _packet_capture_file_info_missing_message(file_path),
+        )
         return
-    if app.dep_status.get("capinfos"):
+    if _packet_capture_dep_enabled(app, "capinfos"):
         rc, out = run_cmd(["capinfos", file_path], timeout=10)
         if rc == 0 and (out or "").strip():
             append_packet_capture_output(
                 app,
-                "=== Capture-Datei Info ===\n" + (out or "").strip(),
+                _packet_capture_capinfos_text(out),
             )
-            packets = "-"
-            size_text = app.packet_capture_size_var.get()
-            for line in (out or "").splitlines():
-                lower = line.lower()
-                if "number of packets" in lower:
-                    packets = line.split(":", 1)[-1].strip() or "-"
-                if lower.startswith("file size"):
-                    size_text = line.split(":", 1)[-1].strip() or size_text
-            app.packet_capture_packets_var.set(packets)
-            app.packet_capture_size_var.set(size_text)
+            size_text = str(_app_var_get(app, "packet_capture_size_var", "-") or "-")
+            summary = _packet_capture_capinfos_summary(out, size_text)
+            _app_var_set(app, "packet_capture_packets_var", summary["packets"])
+            _app_var_set(app, "packet_capture_size_var", summary["size_text"])
             return
     try:
-        size_bytes = os.path.getsize(file_path)
-        size_text = human_size(size_bytes)
-        app.packet_capture_size_var.set(size_text)
+        size_text = _packet_capture_size_text(file_path)
+        _app_var_set(app, "packet_capture_size_var", size_text)
         append_packet_capture_output(
             app,
-            "=== Capture-Datei Info ===\n"
-            f"Datei: {file_path}\n"
-            f"Größe: {size_text}",
+            _packet_capture_file_info_text(file_path, size_text),
         )
     except Exception as exc:
         append_packet_capture_output(
             app,
-            f"Datei-Info konnte nicht gelesen werden: {exc}",
+            _packet_capture_file_info_error_message(str(exc)),
         )
 
 
 def packet_capture_start_async(app):
+    interface = str(_app_var_get(app, "packet_capture_interface_var", "") or "").strip()
+    guard_message = _packet_capture_start_guard_message(
+        app.packet_capture_running,
+        interface,
+    )
     if app.packet_capture_running:
-        append_packet_capture_output(app, "Ein Capture läuft bereits.")
+        append_packet_capture_output(app, guard_message)
         return
-    interface = (app.packet_capture_interface_var.get() or "").strip()
     if not interface:
         append_packet_capture_output(
             app,
-            "Bitte zuerst ein Capture-Interface auswählen.",
+            guard_message,
             replace=True,
         )
-        app.packet_capture_status_var.set("Interface fehlt")
+        _app_var_set(app, "packet_capture_status_var", "Interface fehlt")
         return
-    output_file = (app.packet_capture_file_var.get() or "").strip()
+    output_file = str(_app_var_get(app, "packet_capture_file_var", "") or "").strip()
     if not output_file:
         output_file = packet_capture_generate_default_path(app)
-        app.packet_capture_file_var.set(output_file)
+        _app_var_set(app, "packet_capture_file_var", output_file)
     output_dir = os.path.dirname(output_file)
     if output_dir:
         try:
             os.makedirs(output_dir, exist_ok=True)
         except Exception:
             pass
-    capture_filter = (app.packet_capture_filter_var.get() or "").strip()
-    if app.dep_status.get("tshark"):
-        cmd = ["tshark", "-i", interface]
-        if capture_filter:
-            cmd.extend(["-f", capture_filter])
-        cmd.extend(["-w", output_file])
-        capture_tool = "tshark"
-    elif app.dep_status.get("dumpcap"):
-        cmd = ["dumpcap", "-i", interface]
-        if capture_filter:
-            cmd.extend(["-f", capture_filter])
-        cmd.extend(["-w", output_file])
-        capture_tool = "dumpcap"
-    else:
+    capture_filter = _packet_capture_filter(app)
+    cmd, capture_tool = _packet_capture_start_command(app, interface, output_file)
+    if not cmd or not capture_tool:
         append_packet_capture_output(
             app,
-            "Packet Capture ist nicht verfügbar: tshark oder dumpcap fehlt.",
+            _packet_capture_missing_tool_message(),
             replace=True,
         )
-        app.packet_capture_status_var.set("Tool fehlt")
-        app.log("Packet Capture fehlgeschlagen: tshark/dumpcap fehlt.")
+        _app_var_set(app, "packet_capture_status_var", "Tool fehlt")
+        app.log(_packet_capture_missing_tool_log_message())
         app.show_wireshark_install_hint()
         return
     app._select_security_tab(app.tab_packet_capture)
     clear_packet_capture_output(app)
     append_packet_capture_output(
         app,
-        "=== Packet Capture gestartet ===\n"
-        f"Tool: {capture_tool}\n"
-        f"Interface: {interface}\n"
-        f"Datei: {output_file}\n"
-        f"Filter: {capture_filter or '-'}",
+        _packet_capture_start_text(
+            capture_tool,
+            interface,
+            output_file,
+            capture_filter,
+        ),
     )
     app.packet_capture_running = True
     app.packet_capture_cancel_requested = False
     app.packet_capture_started_at = time.time()
     app.packet_capture_output_path = output_file
-    app.packet_capture_status_var.set("läuft")
-    app.packet_capture_runtime_var.set("0s")
-    app.packet_capture_packets_var.set("-")
-    app.packet_capture_size_var.set("-")
+    _app_var_set(app, "packet_capture_status_var", "läuft")
+    _app_var_set(app, "packet_capture_runtime_var", "0s")
+    _app_var_set(app, "packet_capture_packets_var", "-")
+    _app_var_set(app, "packet_capture_size_var", "-")
     packet_capture_set_running_state(app, True)
-    app.log(f"Packet Capture gestartet ({interface}).")
+    app.log(_packet_capture_state_log_message("gestartet", interface))
 
     def worker():
         try:
@@ -319,51 +687,56 @@ def packet_capture_start_async(app):
             def finish_success():
                 app.packet_capture_active_process = None
                 app.packet_capture_running = False
-                app.packet_capture_status_var.set(
-                    "gestoppt"
-                    if app.packet_capture_cancel_requested
-                    else (
-                        "abgeschlossen"
-                        if return_code == 0
-                        else f"Fehler ({return_code})"
-                    )
+                _app_var_set(
+                    app,
+                    "packet_capture_status_var",
+                    _packet_capture_completion_status(
+                        app.packet_capture_cancel_requested,
+                        return_code,
+                    ),
                 )
                 packet_capture_set_running_state(app, False)
                 if details:
                     append_packet_capture_output(app, details)
                 if return_code != 0 and not app.packet_capture_cancel_requested:
+                    output_message, log_message = (
+                        _packet_capture_completion_failure_messages(
+                            interface,
+                            return_code,
+                        )
+                    )
                     append_packet_capture_output(
                         app,
-                        "Hinweis: Capture wurde mit Fehler beendet. Fehlende Rechte "
-                        "für tshark/dumpcap sind häufig die Ursache.",
+                        output_message,
                     )
-                    app.log(
-                        f"Packet Capture fehlgeschlagen ({interface}, rc={return_code})."
-                    )
+                    app.log(log_message)
                     if app._looks_like_dumpcap_permission_issue(details):
                         app.show_dumpcap_permission_hint()
                 else:
-                    app.log(f"Packet Capture gestoppt ({interface}).")
+                    app.log(_packet_capture_state_log_message("gestoppt", interface))
                 packet_capture_show_file_info(app)
                 packet_capture_update_runtime(app)
 
-            app.after(0, finish_success)
+            call_in_ui_thread(app, finish_success)
         except Exception as exc:
             error_text = str(exc)
 
             def finish_error(message=error_text):
                 app.packet_capture_active_process = None
                 app.packet_capture_running = False
-                app.packet_capture_status_var.set("Fehler")
+                _app_var_set(app, "packet_capture_status_var", "Fehler")
                 packet_capture_set_running_state(app, False)
+                output_message, log_message = _packet_capture_start_failure_messages(
+                    message
+                )
                 append_packet_capture_output(
                     app,
-                    f"Capture konnte nicht gestartet werden: {message}",
+                    output_message,
                 )
-                app.log(f"Packet Capture fehlgeschlagen: {message}")
+                app.log(log_message)
                 packet_capture_update_runtime(app)
 
-            app.after(0, finish_error)
+            call_in_ui_thread(app, finish_error)
 
     threading.Thread(target=worker, daemon=True).start()
     packet_capture_update_runtime(app)
@@ -371,13 +744,16 @@ def packet_capture_start_async(app):
 
 def packet_capture_stop(app):
     if not app.packet_capture_running:
-        append_packet_capture_output(app, "Es läuft aktuell kein Capture.")
+        append_packet_capture_output(
+            app,
+            _packet_capture_stop_request_message(False),
+        )
         return
     app.packet_capture_cancel_requested = True
     proc = app.packet_capture_active_process
     if proc is None:
         app.packet_capture_running = False
-        app.packet_capture_status_var.set("gestoppt")
+        _app_var_set(app, "packet_capture_status_var", "gestoppt")
         packet_capture_set_running_state(app, False)
         return
     try:
@@ -387,80 +763,69 @@ def packet_capture_stop(app):
         except subprocess.TimeoutExpired:
             proc.kill()
     except Exception as exc:
-        append_packet_capture_output(app, f"Capture-Stopp fehlgeschlagen: {exc}")
-        app.log(f"Packet Capture-Stopp fehlgeschlagen: {exc}")
+        output_message, log_message = _packet_capture_stop_failure_messages(str(exc))
+        append_packet_capture_output(app, output_message)
+        app.log(log_message)
         return
-    append_packet_capture_output(app, "Capture-Stopp angefordert.")
+    append_packet_capture_output(
+        app,
+        _packet_capture_stop_request_message(True),
+    )
 
 
 def open_packet_capture_in_wireshark(app):
-    file_path = (
-        app.packet_capture_output_path or app.packet_capture_file_var.get() or ""
-    ).strip()
-    launcher = dict(app.dep_status.get("wireshark_launcher") or {})
-    target = (launcher.get("target") or "").strip()
-    kind = (launcher.get("kind") or "").strip()
-    if not target:
-        append_packet_capture_output(
-            app,
-            "Wireshark ist nicht verfügbar. Installationshinweis: sudo apt install wireshark",
+    if callable(getattr(app, "wireshark_launch_blocked", None)) and app.wireshark_launch_blocked():
+        message = (
+            "Wireshark-Start ist in NetMon gesperrt.\n"
+            "Hinweis: Diese Option blockiert nur NetMon-intern. "
+            "Systemweit muessen Rechte oder Pakete separat angepasst werden."
         )
+        append_packet_capture_output(app, message)
+        try:
+            app.log("Wireshark-Start aus NetMon blockiert.")
+        except Exception:
+            pass
         return
-    if not file_path or not os.path.isfile(file_path):
-        append_packet_capture_output(
-            app,
-            "Keine gültige Capture-Datei zum Öffnen gefunden.",
-        )
+    file_path = _packet_capture_existing_file_path(app)
+    launcher = _packet_capture_wireshark_launcher(app)
+    target = (launcher.get("target") or "").strip()
+    missing_message = _packet_capture_wireshark_missing_message(target, file_path)
+    if missing_message:
+        append_packet_capture_output(app, missing_message)
         return
     try:
-        if kind == "binary":
-            subprocess.Popen([target, file_path])
-        elif kind == "flatpak":
-            subprocess.Popen(["flatpak", "run", target, file_path])
-        elif kind == "desktop":
-            if has_cmd("gtk-launch"):
-                subprocess.Popen(["gtk-launch", target])
-            else:
-                raise RuntimeError("gtk-launch ist nicht verfügbar.")
-        elif kind == "desktop_file":
-            if has_cmd("xdg-open"):
-                subprocess.Popen(["xdg-open", target])
-            else:
-                raise RuntimeError("xdg-open ist nicht verfügbar.")
-        else:
-            raise RuntimeError("Kein Wireshark-Launcher gefunden.")
-        append_packet_capture_output(app, f"Wireshark geöffnet: {file_path}")
+        subprocess.Popen(_packet_capture_wireshark_command(launcher, file_path))
+        append_packet_capture_output(
+            app,
+            _packet_capture_wireshark_result_message(file_path),
+        )
     except Exception as exc:
         append_packet_capture_output(
             app,
-            f"Wireshark konnte nicht geöffnet werden: {exc}",
+            _packet_capture_wireshark_result_message(file_path, str(exc)),
         )
-        app.log(f"Wireshark-Start fehlgeschlagen: {exc}")
+        app.log(_packet_capture_wireshark_failure_log_message(str(exc)))
 
 
 def open_packet_capture_file_location(app):
-    file_path = (
-        app.packet_capture_output_path or app.packet_capture_file_var.get() or ""
-    ).strip()
-    if not file_path:
-        append_packet_capture_output(app, "Noch keine Capture-Datei vorhanden.")
-        return
-    target = file_path if os.path.exists(file_path) else os.path.dirname(file_path)
-    if not target:
+    file_path = _packet_capture_file_path(app)
+    target = _packet_capture_open_target_path(app)
+    missing_message = _packet_capture_open_location_missing_message(file_path, target)
+    if missing_message:
         append_packet_capture_output(
             app,
-            "Kein gültiger Pfad für Capture-Datei vorhanden.",
+            missing_message,
         )
         return
-    if not has_cmd("xdg-open"):
-        append_packet_capture_output(app, "xdg-open ist nicht verfügbar.")
-        return
     try:
-        subprocess.Popen(["xdg-open", target])
-        append_packet_capture_output(app, f"Capture-Pfad geöffnet: {target}")
+        subprocess.Popen(_packet_capture_open_location_command(target))
+        append_packet_capture_output(
+            app,
+            _packet_capture_open_location_result_message(target),
+        )
     except Exception as exc:
         append_packet_capture_output(
             app,
-            f"Capture-Pfad konnte nicht geöffnet werden: {exc}",
+            _packet_capture_open_location_result_message(target, str(exc)),
         )
-        app.log(f"Capture-Datei öffnen fehlgeschlagen: {exc}")
+        app.log(_packet_capture_open_location_failure_log_message(str(exc)))

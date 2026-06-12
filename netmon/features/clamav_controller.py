@@ -7,18 +7,20 @@ import os
 import re
 import signal
 import shutil
+import subprocess
 import tempfile
 import threading
 import time
 from datetime import datetime
-from tkinter import filedialog, messagebox
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
 
 import getpass
 
 try:
-    from netmon.core.utils import safe_write_json
+    from netmon.core.utils import safe_write_json, call_in_ui_thread
 except ModuleNotFoundError:
-    from core.utils import safe_write_json
+    from core.utils import safe_write_json, call_in_ui_thread
 
 try:
     from netmon.core.command import run_cmd
@@ -31,6 +33,40 @@ except ModuleNotFoundError:
     from core.tooling import has_cmd
 
 
+def _app_value(app, name: str, default=None):
+    return app.__dict__.get(name, default)
+
+
+def _app_list(app, name: str):
+    return list(_app_value(app, name, []) or [])
+
+
+def _app_var_set(app, name: str, value) -> bool:
+    var = _app_value(app, name)
+    if var is None:
+        return False
+    try:
+        var.set(value)
+    except Exception:
+        return False
+    return True
+
+
+def _app_widget(app, name: str):
+    return _app_value(app, name)
+
+
+def _clamav_runtime_state(app):
+    started = float(getattr(app, "clamav_scan_started_at", 0.0) or 0.0)
+    scanned = int(getattr(app, "clamav_scanned_files", 0) or 0)
+    expected = getattr(app, "clamav_expected_files", None)
+    return started, scanned, expected
+
+
+def _clamav_findings_path(app) -> str:
+    return str(getattr(app, "clamav_findings_path", "") or "").strip()
+
+
 def update_clamav_panel(
     app,
     status=None,
@@ -40,18 +76,17 @@ def update_clamav_panel(
     findings=None,
     result=None,
 ):
-    if status is not None and hasattr(app, "clamav_status_var"):
-        app.clamav_status_var.set(status)
-    if signatures is not None and hasattr(app, "clamav_signatures_var"):
-        app.clamav_signatures_var.set(signatures)
-    if last_scan is not None and hasattr(app, "clamav_last_scan_var"):
-        app.clamav_last_scan_var.set(last_scan)
-    if last_target is not None and hasattr(app, "clamav_last_target_var"):
-        app.clamav_last_target_var.set(last_target)
-    if findings is not None and hasattr(app, "clamav_findings_var"):
-        app.clamav_findings_var.set(findings)
-    if result is not None and hasattr(app, "clamav_result_var"):
-        app.clamav_result_var.set(result)
+    updates = (
+        ("clamav_status_var", status),
+        ("clamav_signatures_var", signatures),
+        ("clamav_last_scan_var", last_scan),
+        ("clamav_last_target_var", last_target),
+        ("clamav_findings_var", findings),
+        ("clamav_result_var", result),
+    )
+    for name, value in updates:
+        if value is not None:
+            _app_var_set(app, name, value)
 
 
 def update_clamav_panel_safe(
@@ -91,7 +126,7 @@ def update_clamav_panel_safe(
 def clamav_findings_open(app):
     return [
         item
-        for item in (app.clamav_findings or [])
+        for item in _app_list(app, "clamav_findings")
         if (item.get("status") or "").strip().lower() == "found"
     ]
 
@@ -99,7 +134,7 @@ def clamav_findings_open(app):
 def clamav_findings_quarantined(app):
     return [
         item
-        for item in (app.clamav_findings or [])
+        for item in _app_list(app, "clamav_findings")
         if (item.get("status") or "").strip().lower() == "quarantine"
         and (item.get("quarantine_path") or "").strip()
     ]
@@ -116,18 +151,20 @@ def update_clamav_findings_buttons_state(app):
         "btn_clamav_quarantine",
         "btn_clamav_quarantine_selected",
     ):
-        btn = getattr(app, name, None)
+        btn = _app_widget(app, name)
         if btn is not None:
             try:
                 btn.configure(state=open_state)
             except Exception:
                 pass
 
-    export_btn = getattr(app, "btn_clamav_export_findings", None)
+    export_btn = _app_widget(app, "btn_clamav_export_findings")
     if export_btn is not None:
         try:
             export_btn.configure(
-                state="normal" if bool(app.clamav_findings) else "disabled"
+                state=(
+                    "normal" if bool(_app_list(app, "clamav_findings")) else "disabled"
+                )
             )
         except Exception:
             pass
@@ -137,7 +174,7 @@ def update_clamav_findings_buttons_state(app):
         "btn_clamav_restore_quarantine",
         "btn_clamav_restore_selected",
     ):
-        btn = getattr(app, name, None)
+        btn = _app_widget(app, name)
         if btn is not None:
             try:
                 btn.configure(state=quarantine_state)
@@ -149,11 +186,284 @@ def update_clamav_findings_buttons_state_safe(app):
     if threading.current_thread() is threading.main_thread():
         update_clamav_findings_buttons_state(app)
         return
-    app.after(0, lambda: update_clamav_findings_buttons_state(app))
+    call_in_ui_thread(app, lambda: update_clamav_findings_buttons_state(app))
+
+
+def clamav_is_excluded_root(path, excluded_roots):
+    real = os.path.realpath(path)
+    for root in excluded_roots or []:
+        resolved_root = os.path.realpath(root)
+        if real == resolved_root or real.startswith(resolved_root + os.sep):
+            return True
+    return False
+
+
+def clamav_system_targets():
+    home = os.path.expanduser("~")
+    candidates = [home, "/etc", "/opt", "/usr/local"]
+    targets = []
+    seen = set()
+    for raw in candidates:
+        path = os.path.realpath(os.path.normpath(raw))
+        if path in seen:
+            continue
+        seen.add(path)
+        if os.path.isdir(path):
+            targets.append(path)
+    return targets
+
+
+def clamav_system_excluded_roots():
+    return [
+        "/proc",
+        "/sys",
+        "/dev",
+        "/run",
+        "/tmp",
+        "/var/tmp",
+    ]
+
+
+def clamav_count_files(app, targets, excluded_roots=None, limit=600000):
+    total = 0
+    excluded_roots = list(excluded_roots or [])
+    for target in targets or []:
+        if not os.path.isdir(target):
+            continue
+        for root, dirs, files in os.walk(target, topdown=True):
+            if clamav_is_excluded_root(root, excluded_roots):
+                dirs[:] = []
+                continue
+            dirs[:] = [
+                directory
+                for directory in dirs
+                if not clamav_is_excluded_root(
+                    os.path.join(root, directory), excluded_roots
+                )
+            ]
+            total += len(files)
+            if total >= limit:
+                return total
+    return total
+
+
+def clamav_select_items_dialog(app, items, title, mode="found"):
+    if not items:
+        return None
+
+    win = tk.Toplevel(app)
+    win.title(title)
+    win.transient(app)
+    win.grab_set()
+    win.resizable(True, True)
+    win.minsize(760, 360)
+
+    container = ttk.Frame(win, padding=10)
+    container.pack(fill="both", expand=True)
+
+    hint = (
+        "Mehrfachauswahl mit Strg/Shift möglich."
+        if mode == "found"
+        else "Wähle Quarantäne-Einträge zur Wiederherstellung aus."
+    )
+    ttk.Label(container, text=hint).pack(anchor="w", pady=(0, 8))
+
+    list_wrap = ttk.Frame(container)
+    list_wrap.pack(fill="both", expand=True)
+    list_wrap.columnconfigure(0, weight=1)
+    list_wrap.rowconfigure(0, weight=1)
+
+    listbox = tk.Listbox(
+        list_wrap,
+        selectmode=tk.EXTENDED,
+        exportselection=False,
+        font=("Courier", 10),
+    )
+    listbox.grid(row=0, column=0, sticky="nsew")
+    scroll = ttk.Scrollbar(list_wrap, orient="vertical", command=listbox.yview)
+    scroll.grid(row=0, column=1, sticky="ns")
+    listbox.configure(yscrollcommand=scroll.set)
+
+    for idx, item in enumerate(items, start=1):
+        src = (item.get("path") or "-").strip() or "-"
+        sig = (item.get("signature") or "-").strip() or "-"
+        marker = ""
+        if mode == "quarantine":
+            qpath = (item.get("quarantine_path") or "").strip()
+            marker = f" | Q: {qpath}" if qpath else ""
+        line = f"{idx:>2}. {src} | Sig: {sig}{marker}"
+        if len(line) > 240:
+            line = line[:237] + "..."
+        listbox.insert("end", line)
+
+    result = {"selection": None}
+
+    def on_select_all():
+        listbox.selection_set(0, "end")
+
+    def on_clear():
+        listbox.selection_clear(0, "end")
+
+    def on_cancel():
+        result["selection"] = None
+        win.destroy()
+
+    def on_ok():
+        selected_idx = listbox.curselection()
+        if not selected_idx:
+            result["selection"] = []
+        else:
+            result["selection"] = [items[i] for i in selected_idx if i < len(items)]
+        win.destroy()
+
+    btns = ttk.Frame(container)
+    btns.pack(fill="x", pady=(10, 0))
+    ttk.Button(btns, text="Alle", command=on_select_all).pack(side="left")
+    ttk.Button(btns, text="Keine", command=on_clear).pack(side="left", padx=(8, 0))
+    ttk.Button(btns, text="Abbrechen", command=on_cancel).pack(side="right")
+    ttk.Button(btns, text="Übernehmen", command=on_ok).pack(side="right", padx=(0, 8))
+
+    win.protocol("WM_DELETE_WINDOW", on_cancel)
+    win.wait_window()
+    return result["selection"]
+
+
+def set_clamav_abort_button_state(app, enabled):
+    btn = _app_widget(app, "btn_clamav_abort_scan")
+    if btn is None:
+        return
+    state = "normal" if enabled else "disabled"
+    if threading.current_thread() is threading.main_thread():
+        try:
+            btn.configure(state=state)
+        except Exception:
+            pass
+        return
+    call_in_ui_thread(app, lambda s=state: btn.configure(state=s))
+
+
+def run_clamscan_with_progress(app, cmd, timeout=3600, progress_cb=None):
+    proc = None
+    cancelled = False
+    timed_out = False
+    out_lines = []
+    scanned = 0
+
+    app.clamav_cancel_requested = False
+    app._set_clamav_abort_button_state(True)
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            start_new_session=True,
+        )
+        app.clamav_active_process = proc
+        started = time.time()
+
+        while True:
+            if app.clamav_cancel_requested and proc.poll() is None:
+                cancelled = True
+                try:
+                    os.killpg(proc.pid, signal.SIGTERM)
+                except Exception:
+                    try:
+                        proc.terminate()
+                    except Exception:
+                        pass
+
+            if (time.time() - started) > float(timeout) and proc.poll() is None:
+                timed_out = True
+                try:
+                    os.killpg(proc.pid, signal.SIGTERM)
+                except Exception:
+                    try:
+                        proc.terminate()
+                    except Exception:
+                        pass
+
+            line = proc.stdout.readline() if proc.stdout is not None else ""
+            if line:
+                out_lines.append(line)
+                text = line.strip()
+                if text.endswith(" OK") or text.endswith(" FOUND"):
+                    scanned += 1
+                    if callable(progress_cb):
+                        progress_cb(scanned)
+
+            if proc.poll() is not None:
+                try:
+                    rest = proc.stdout.read() if proc.stdout is not None else ""
+                except Exception:
+                    rest = ""
+                if rest:
+                    out_lines.append(rest)
+                break
+
+            if not line:
+                time.sleep(0.05)
+
+        rc = proc.returncode if proc.returncode is not None else 1
+        if timed_out:
+            rc = 124
+        elif cancelled and rc == 0:
+            rc = -15
+        return rc, "".join(out_lines), cancelled, timed_out, scanned
+    finally:
+        app.clamav_active_process = None
+        app._set_clamav_abort_button_state(False)
+        app.clamav_cancel_requested = False
+
+
+def run_clamscan_with_cancel(app, cmd, timeout=900):
+    proc = None
+    cancelled = False
+    out = ""
+    rc = 1
+    app.clamav_cancel_requested = False
+    app._set_clamav_abort_button_state(True)
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            start_new_session=True,
+        )
+        app.clamav_active_process = proc
+
+        while True:
+            if app.clamav_cancel_requested and proc.poll() is None:
+                cancelled = True
+                try:
+                    os.killpg(proc.pid, signal.SIGTERM)
+                except Exception:
+                    try:
+                        proc.terminate()
+                    except Exception:
+                        pass
+            try:
+                out, _ = proc.communicate(timeout=0.25)
+                rc = proc.returncode if proc.returncode is not None else 1
+                break
+            except subprocess.TimeoutExpired:
+                if app.clamav_cancel_requested:
+                    cancelled = True
+                    continue
+
+        if cancelled and rc not in (0,):
+            rc = -15
+        return rc, out or "", cancelled
+    finally:
+        app.clamav_active_process = None
+        app._set_clamav_abort_button_state(False)
+        app.clamav_cancel_requested = False
 
 
 def write_clamav_output(app, lines, replace=True):
-    widget = getattr(app, "clamav_output_text", None)
+    widget = _app_widget(app, "clamav_output_text")
     if widget is None:
         return
 
@@ -178,7 +488,7 @@ def write_clamav_output(app, lines, replace=True):
     if threading.current_thread() is threading.main_thread():
         _apply()
         return
-    app.after(0, _apply)
+    call_in_ui_thread(app, _apply)
 
 
 def format_runtime_hms(seconds):
@@ -194,9 +504,7 @@ def format_runtime_hms(seconds):
 
 
 def clamav_progress_apply(app):
-    started = float(getattr(app, "clamav_scan_started_at", 0.0) or 0.0)
-    scanned = int(getattr(app, "clamav_scanned_files", 0) or 0)
-    expected = getattr(app, "clamav_expected_files", None)
+    started, scanned, expected = _clamav_runtime_state(app)
     elapsed = max(0.0, time.time() - started) if started > 0 else 0.0
 
     runtime_txt = format_runtime_hms(elapsed) if started > 0 else "-"
@@ -222,14 +530,10 @@ def clamav_progress_apply(app):
         elif isinstance(expected, int) and expected > 0:
             eta_txt = "wird berechnet..."
 
-    if hasattr(app, "clamav_runtime_var"):
-        app.clamav_runtime_var.set(runtime_txt)
-    if hasattr(app, "clamav_scanned_files_var"):
-        app.clamav_scanned_files_var.set(str(max(0, scanned)))
-    if hasattr(app, "clamav_speed_var"):
-        app.clamav_speed_var.set(speed_txt)
-    if hasattr(app, "clamav_eta_var"):
-        app.clamav_eta_var.set(eta_txt)
+    _app_var_set(app, "clamav_runtime_var", runtime_txt)
+    _app_var_set(app, "clamav_scanned_files_var", str(max(0, scanned)))
+    _app_var_set(app, "clamav_speed_var", speed_txt)
+    _app_var_set(app, "clamav_eta_var", eta_txt)
 
 
 def clamav_progress_tick(app):
@@ -271,7 +575,7 @@ def clamav_progress_update_safe(app, scanned_files):
     if threading.current_thread() is threading.main_thread():
         _apply()
         return
-    app.after(0, _apply)
+    call_in_ui_thread(app, _apply)
 
 
 def clamav_progress_finish_safe(app):
@@ -283,15 +587,14 @@ def clamav_progress_finish_safe(app):
                 pass
             app.clamav_progress_after_id = None
         clamav_progress_apply(app)
-        if hasattr(app, "clamav_eta_var"):
-            app.clamav_eta_var.set("-")
+        _app_var_set(app, "clamav_eta_var", "-")
         app.clamav_scan_started_at = 0.0
         app.clamav_expected_files = None
 
     if threading.current_thread() is threading.main_thread():
         _finish()
         return
-    app.after(0, _finish)
+    call_in_ui_thread(app, _finish)
 
 
 def clamav_parse_scanned_files(output):
@@ -307,7 +610,7 @@ def clamav_parse_scanned_files(output):
 
 def load_clamav_findings(app):
     app.clamav_findings = []
-    path = getattr(app, "clamav_findings_path", "")
+    path = _clamav_findings_path(app)
     if not path or not os.path.isfile(path):
         return
     try:
@@ -343,7 +646,7 @@ def load_clamav_findings(app):
 
 
 def save_clamav_findings(app):
-    path = getattr(app, "clamav_findings_path", "")
+    path = _clamav_findings_path(app)
     if not path:
         return
     ok, err = safe_write_json(
@@ -383,12 +686,117 @@ def clamav_extract_findings(output, scan_type, timestamp):
 def clamav_replace_open_findings(app, findings):
     history = [
         item
-        for item in (app.clamav_findings or [])
+        for item in _app_list(app, "clamav_findings")
         if (item.get("status") or "").strip().lower() != "found"
     ]
     app.clamav_findings = (history + list(findings or []))[-300:]
     save_clamav_findings(app)
     update_clamav_findings_buttons_state_safe(app)
+
+
+def clamav_next_quarantine_path(app, source_path):
+    base = os.path.basename(source_path.rstrip(os.sep)) or "file"
+    stem, ext = os.path.splitext(base)
+    stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    candidate = os.path.join(
+        app.clamav_quarantine_dir,
+        f"{stem}__quarantine__{stamp}{ext}",
+    )
+    idx = 1
+    while os.path.exists(candidate):
+        candidate = os.path.join(
+            app.clamav_quarantine_dir,
+            f"{stem}__quarantine__{stamp}_{idx}{ext}",
+        )
+        idx += 1
+    return candidate
+
+
+def clamav_next_restore_path(original_path):
+    target = os.path.normpath(original_path)
+    if not os.path.exists(target):
+        return target
+
+    base = os.path.basename(target.rstrip(os.sep)) or "file"
+    stem, ext = os.path.splitext(base)
+    stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    parent = os.path.dirname(target) or os.path.expanduser("~")
+    candidate = os.path.join(parent, f"{stem}__restored__{stamp}{ext}")
+    idx = 1
+    while os.path.exists(candidate):
+        candidate = os.path.join(
+            parent,
+            f"{stem}__restored__{stamp}_{idx}{ext}",
+        )
+        idx += 1
+    return candidate
+
+
+def clamav_path_is_within(candidate_path, root_path):
+    try:
+        candidate_real = os.path.realpath(candidate_path)
+        root_real = os.path.realpath(root_path)
+        return os.path.commonpath([candidate_real, root_real]) == root_real
+    except Exception:
+        return False
+
+
+def clamav_validate_source_for_quarantine(app, source_path):
+    src = os.path.realpath(os.path.normpath((source_path or "").strip()))
+    if not src:
+        return None, "leer"
+    if not os.path.isabs(src):
+        return None, "nicht absolut"
+    if not os.path.exists(src):
+        return None, "nicht vorhanden"
+    if os.path.isdir(src):
+        return None, "ist ein Ordner"
+    home_root = os.path.realpath(os.path.expanduser("~"))
+    if not clamav_path_is_within(src, home_root):
+        return None, "außerhalb des Home-Verzeichnisses"
+    return src, ""
+
+
+def clamav_validate_quarantine_path(app, quarantine_path):
+    qpath = os.path.realpath(os.path.normpath((quarantine_path or "").strip()))
+    if not qpath:
+        return None, "leer"
+    if not os.path.isabs(qpath):
+        return None, "nicht absolut"
+    if not clamav_path_is_within(qpath, app.clamav_quarantine_dir):
+        return None, "außerhalb des Quarantäne-Ordners"
+    return qpath, ""
+
+
+def clamav_safe_restore_source(original_path):
+    original = os.path.realpath(os.path.normpath((original_path or "").strip()))
+    home_root = os.path.realpath(os.path.expanduser("~"))
+    if original and clamav_path_is_within(original, home_root):
+        return original
+    base = os.path.basename((original_path or "").strip()) or "restored_file"
+    return os.path.join(home_root, base)
+
+
+def clamav_quick_targets():
+    home = os.path.expanduser("~")
+    candidates = [
+        os.path.join(home, "Downloads"),
+        os.path.join(home, "Desktop"),
+        os.path.join(home, "Dokumente"),
+        os.path.join(home, "Documents"),
+    ]
+    seen = set()
+    targets = []
+    for path in candidates:
+        norm = os.path.normpath(path)
+        if norm in seen:
+            continue
+        seen.add(norm)
+        if os.path.isdir(norm):
+            targets.append(norm)
+    if targets:
+        return targets, False
+    return [home], True
 
 
 def clamav_extract_error_message(output):
@@ -812,6 +1220,7 @@ def security_clamav_quickscan_async(app):
         return
 
     app.security_clamav_running = True
+    app.security_clamav_last_systemcheck_text = ""
     update_clamav_panel(app, status="Scan läuft", result="-")
     app._clamav_progress_start()
 
@@ -834,6 +1243,17 @@ def security_clamav_quickscan_async(app):
 
             if cancelled:
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                app.security_clamav_last_systemcheck_text = "\n".join(
+                    [
+                        "=== ClamAV ===",
+                        "Status: abgebrochen",
+                        "Signaturen: -",
+                        f"Letzter Scan: {timestamp}",
+                        f"Ziel: {target_label or '-'}",
+                        "Funde: -",
+                        "Ergebnis: Scan abgebrochen",
+                    ]
+                )
                 update_clamav_panel_safe(
                     app,
                     status="abgebrochen",
@@ -867,6 +1287,30 @@ def security_clamav_quickscan_async(app):
                     out, scan_type="quickscan", timestamp=timestamp
                 )
                 clamav_replace_open_findings(app, extracted_findings)
+                app.security_clamav_last_systemcheck_text = "\n".join(
+                    [
+                        "=== ClamAV ===",
+                        (
+                            "Status: abgeschlossen"
+                            if not nonfatal_issue
+                            else "Status: abgeschlossen (Warnungen)"
+                        ),
+                        (
+                            "Signaturen: aktuell"
+                            if has_cmd("freshclam")
+                            else "Signaturen: unbekannt"
+                        ),
+                        f"Letzter Scan: {timestamp}",
+                        f"Ziel: {target_label or '-'}",
+                        f"Funde: {findings_txt}",
+                        "Ergebnis: "
+                        + (
+                            result_txt
+                            if not nonfatal_issue
+                            else f"{result_txt} (mit Zugriffswarnungen)"
+                        ),
+                    ]
+                )
                 update_clamav_panel_safe(
                     app,
                     status=(
@@ -897,6 +1341,22 @@ def security_clamav_quickscan_async(app):
                     )
             else:
                 error_line = clamav_extract_error_message(out)
+                app.security_clamav_last_systemcheck_text = "\n".join(
+                    [
+                        "=== ClamAV ===",
+                        "Status: Fehler",
+                        "Signaturen: -",
+                        f"Letzter Scan: {timestamp}",
+                        f"Ziel: {target_label or '-'}",
+                        "Funde: -",
+                        "Ergebnis: "
+                        + (
+                            f"Scan fehlgeschlagen: {error_line}"
+                            if error_line
+                            else f"Scan fehlgeschlagen (rc={rc})"
+                        ),
+                    ]
+                )
                 update_clamav_panel_safe(
                     app,
                     status="Fehler",
@@ -1089,7 +1549,7 @@ def security_clamav_systemscan_async(app):
                     f"ClamAV-Systemscan Dateivorzählung fehlgeschlagen: {exc}"
                 )
 
-            app.after(0, lambda n=estimated_total: app._clamav_progress_start(n))
+            call_in_ui_thread(app, lambda n=estimated_total: app._clamav_progress_start(n))
             app.log_safe("ClamAV-Systemscan gestartet...")
 
             exclude_args = [

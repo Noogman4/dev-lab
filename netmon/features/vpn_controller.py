@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import hashlib
 import json
 import os
 import re
@@ -11,7 +12,7 @@ import tempfile
 import threading
 import time
 import traceback
-from tkinter import messagebox
+from tkinter import filedialog, messagebox
 
 try:
     from netmon.config.constants import (
@@ -39,9 +40,157 @@ except ModuleNotFoundError:
     from core.tooling import has_cmd
 
 try:
-    from netmon.core.utils import safe_write_json
+    from netmon.core.utils import safe_write_json, call_in_ui_thread
 except ModuleNotFoundError:
-    from core.utils import safe_write_json
+    from core.utils import safe_write_json, call_in_ui_thread
+
+try:
+    from netmon.core.state import get_netmon_documents_dir
+except ModuleNotFoundError:
+    from core.state import get_netmon_documents_dir
+
+
+def _app_value(app, name, default=None):
+    return app.__dict__.get(name, default)
+
+
+def _app_list(app, name):
+    return _app_value(app, name, []) or []
+
+
+def _app_var_get(app, name):
+    var = _app_value(app, name, None)
+    if var is None:
+        return ""
+    try:
+        return var.get()
+    except Exception:
+        return ""
+
+
+def _app_var_set(app, name, value):
+    var = _app_value(app, name, None)
+    if var is None:
+        return False
+    try:
+        var.set(value)
+        return True
+    except Exception:
+        return False
+
+
+def _single_line(text) -> str:
+    return " ".join(str(text or "").split())
+
+
+def _format_command_output(out) -> str:
+    text = str(out or "").strip()
+    if not text:
+        return "-"
+    lines = [line.rstrip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return "-"
+    if len(lines) == 1:
+        return lines[0]
+    return "\n".join(f"    {line}" for line in lines)
+
+
+def _log_command_result(app, scope: str, cmd, rc, out):
+    scope = str(scope or "CMD").strip().upper()
+    app.log_network_debug(f"[VPN][{scope}] cmd: {_single_line(' '.join(cmd or []))}")
+    app.log_network_debug(f"[VPN][{scope}] rc: {int(rc)}")
+    app.log_network_debug(f"[VPN][{scope}] out:\n{_format_command_output(out)}")
+
+
+def _vpn_user_log(app, message: str):
+    text = str(message or "").strip()
+    if not text:
+        return
+    app.log_safe(text)
+
+
+def _privacy_config_dict(app):
+    raw_config = _app_value(app, "privacy_config", None)
+    if isinstance(raw_config, dict):
+        return raw_config
+    raw_config = {}
+    app.__dict__["privacy_config"] = raw_config
+    return raw_config
+
+
+def netmon_wireguard_profiles_dir():
+    path = os.path.join(get_netmon_documents_dir(), "WireGuard")
+    try:
+        os.makedirs(path, exist_ok=True)
+    except Exception:
+        pass
+    return path
+
+
+def _legacy_netmon_wireguard_profiles_dir():
+    return os.path.expanduser("~/.local/share/netmon/wireguard")
+
+
+def ensure_netmon_wireguard_profiles_dir():
+    target_dir = netmon_wireguard_profiles_dir()
+    legacy_dir = _legacy_netmon_wireguard_profiles_dir()
+    if os.path.isdir(legacy_dir) and os.path.abspath(legacy_dir) != os.path.abspath(
+        target_dir
+    ):
+        try:
+            entries = sorted(os.listdir(legacy_dir))
+        except OSError:
+            entries = []
+        for entry in entries:
+            source = os.path.join(legacy_dir, entry)
+            target = os.path.join(target_dir, entry)
+            if not os.path.isfile(source) or os.path.exists(target):
+                continue
+            try:
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                with open(source, "rb") as src_handle, open(target, "wb") as dst_handle:
+                    dst_handle.write(src_handle.read())
+            except Exception:
+                continue
+    return target_dir
+
+
+def _save_privacy_config_safe(app, error_prefix: str = "") -> bool:
+    save_fn = getattr(app, "save_privacy_config", None)
+    if not callable(save_fn):
+        return False
+    try:
+        save_fn()
+    except Exception as exc:
+        prefix = str(error_prefix or "").strip()
+        if prefix:
+            app.log_debug_safe(f"{prefix}: {exc}")
+        return False
+    return True
+
+
+def _normalized_nm_last_import_state(state):
+    raw_state = state if isinstance(state, dict) else {}
+    connections = [
+        str(item or "").strip()
+        for item in raw_state.get("connections", [])
+        if str(item or "").strip()
+    ]
+    source_files = [
+        str(item or "").strip()
+        for item in raw_state.get("source_files", [])
+        if str(item or "").strip()
+    ]
+    imported_at = raw_state.get("imported_at", 0)
+    try:
+        imported_at = int(imported_at or 0)
+    except (TypeError, ValueError):
+        imported_at = 0
+    return {
+        "connections": connections,
+        "source_files": source_files,
+        "imported_at": imported_at,
+    }
 
 
 def load_primary_vpn_slots_config(app):
@@ -70,17 +219,37 @@ def load_primary_vpn_slots_config(app):
 def get_privacy_vpn_options(app):
     options = []
     seen_labels = set()
-    slots = app.__dict__.get("primary_vpn_slots", []) or []
+    slot_labels = {}
+    slots = _app_list(app, "primary_vpn_slots")
     for slot in slots:
         profile = app._base_wg_profile_name(slot.get("profile"))
         if not profile:
             continue
-
         raw_label = (slot.get("custom_name") or "").strip()
-        label = raw_label or profile
-        if not label:
-            continue
+        if raw_label and profile not in slot_labels:
+            slot_labels[profile] = raw_label
 
+    available_profiles = [
+        app._base_wg_profile_name(profile) for profile in _app_list(app, "wg_profiles")
+    ]
+    available_profiles = [profile for profile in available_profiles if profile]
+
+    source_profiles = []
+    if available_profiles:
+        source_profiles.extend(available_profiles)
+    else:
+        for slot in slots:
+            profile = app._base_wg_profile_name(slot.get("profile"))
+            if profile:
+                source_profiles.append(profile)
+
+    seen_profiles = set()
+    for profile in source_profiles:
+        if profile in seen_profiles:
+            continue
+        seen_profiles.add(profile)
+
+        label = slot_labels.get(profile) or profile
         unique_label = label
         suffix = 2
         while unique_label in seen_labels:
@@ -95,6 +264,88 @@ def get_privacy_vpn_options(app):
             options.append({"label": label, "profile": profile})
 
     return options
+
+
+INTERNAL_IPV4_PROFILE_PREFIX = "n4_"
+INTERNAL_IPV4_PROFILE_BASE_MARKER = "# NetMon-Base-Profile: "
+INTERNAL_IPV4_PROFILE_KIND_MARKER = "# NetMon-Internal-IPv4: yes"
+
+
+def _legacy_internal_ipv4_profile_name(base_profile):
+    return f"{base_profile}{WG_IPV4_PROFILE_SUFFIX}"
+
+
+def _compact_internal_ipv4_profile_name(base_profile):
+    raw = str(base_profile or "").strip().lower()
+    cleaned = re.sub(r"[^a-z0-9]+", "", raw) or "wg"
+    digest = hashlib.sha1(str(base_profile or "").encode("utf-8")).hexdigest()[:4]
+    stem_max = max(1, 15 - len(INTERNAL_IPV4_PROFILE_PREFIX) - len(digest))
+    stem = cleaned[:stem_max]
+    return f"{INTERNAL_IPV4_PROFILE_PREFIX}{stem}{digest}"
+
+
+def _read_internal_ipv4_base_profile_marker(app, profile_name):
+    rc, out = read_wg_profile_text(app, profile_name)
+    if rc != 0:
+        return ""
+    for raw_line in (out or "").splitlines():
+        line = str(raw_line or "").strip()
+        if line.startswith(INTERNAL_IPV4_PROFILE_BASE_MARKER):
+            return line[len(INTERNAL_IPV4_PROFILE_BASE_MARKER) :].strip()
+    return ""
+
+
+def base_wg_profile_name(app, profile):
+    name = str(profile or "").strip()
+    if not name:
+        return ""
+    if name.endswith(WG_IPV4_PROFILE_SUFFIX):
+        return name[: -len(WG_IPV4_PROFILE_SUFFIX)].strip()
+    if name.startswith(INTERNAL_IPV4_PROFILE_PREFIX):
+        resolved = _read_internal_ipv4_base_profile_marker(app, name)
+        if resolved:
+            return resolved
+    return name
+
+
+def internal_ipv4_profile_candidates(app, profile_name):
+    base_profile = base_wg_profile_name(app, profile_name)
+    if not base_profile:
+        return []
+    legacy_name = _legacy_internal_ipv4_profile_name(base_profile)
+    preferred_name = (
+        legacy_name
+        if len(legacy_name) <= 15
+        else _compact_internal_ipv4_profile_name(base_profile)
+    )
+    candidates = [preferred_name]
+    if legacy_name != preferred_name:
+        candidates.append(legacy_name)
+    unique = []
+    seen = set()
+    for candidate in candidates:
+        candidate = str(candidate or "").strip()
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        unique.append(candidate)
+    return unique
+
+
+def internal_ipv4_profile_name(app, profile_name):
+    candidates = internal_ipv4_profile_candidates(app, profile_name)
+    return candidates[0] if candidates else ""
+
+
+def is_internal_ipv4_profile(app, profile_name):
+    name = str(profile_name or "").strip()
+    if not name:
+        return False
+    if name.endswith(WG_IPV4_PROFILE_SUFFIX):
+        return True
+    if name.startswith(INTERNAL_IPV4_PROFILE_PREFIX):
+        return bool(_read_internal_ipv4_base_profile_marker(app, name))
+    return False
 
 
 def privacy_vpn_label_profile_maps(app):
@@ -117,24 +368,26 @@ def privacy_vpn_label_profile_maps(app):
 
 def update_privacy_vpn_combo(app):
     values = [item["label"] for item in get_privacy_vpn_options(app)]
-    if "isp_stealth_vpn_combo" in app.__dict__:
-        app.isp_stealth_vpn_combo["values"] = values
+    combo = _app_value(app, "isp_stealth_vpn_combo")
+    if combo is not None:
+        try:
+            if combo.winfo_exists():
+                combo["values"] = values
+        except Exception:
+            pass
 
-    current_profile = ""
-    if "isp_stealth_vpn_profile" in app.__dict__:
-        current_profile = (app.isp_stealth_vpn_profile.get() or "").strip()
+    current_profile = str(_app_var_get(app, "isp_stealth_vpn_profile") or "").strip()
     if current_profile and app._privacy_vpn_label_for_profile(current_profile):
-        if "isp_stealth_vpn_choice" in app.__dict__:
-            app.isp_stealth_vpn_choice.set(
-                app._privacy_vpn_label_for_profile(current_profile)
-            )
-        if "isp_stealth_vpn_profile" in app.__dict__:
-            app.isp_stealth_vpn_profile.set(current_profile)
+        _app_var_set(
+            app,
+            "isp_stealth_vpn_choice",
+            app._privacy_vpn_label_for_profile(current_profile),
+        )
+        _app_var_set(app, "isp_stealth_vpn_profile", current_profile)
     else:
-        if current_profile and "isp_stealth_vpn_profile" in app.__dict__:
-            app.isp_stealth_vpn_profile.set("")
-        if "isp_stealth_vpn_choice" in app.__dict__:
-            app.isp_stealth_vpn_choice.set("")
+        if current_profile:
+            _app_var_set(app, "isp_stealth_vpn_profile", "")
+        _app_var_set(app, "isp_stealth_vpn_choice", "")
         if current_profile:
             app.save_privacy_config()
 
@@ -216,30 +469,43 @@ def save_vpn_slots_config(app):
     return True
 
 
+def _widget_alive(widget):
+    try:
+        return widget is not None and bool(widget.winfo_exists())
+    except Exception:
+        return False
+
+
 def update_primary_vpn_buttons(app):
-    if not hasattr(app, "btn_primary_vpn_1"):
+    btn1 = _app_value(app, "btn_primary_vpn_1")
+    btn2 = _app_value(app, "btn_primary_vpn_2")
+    primary_slots = _app_list(app, "primary_vpn_slots")
+    if len(primary_slots) < 2:
         return
-    app.btn_primary_vpn_1.config(
-        text=app.primary_vpn_slots[0].get("custom_name", "VPN CH")
-    )
-    app.btn_primary_vpn_2.config(
-        text=app.primary_vpn_slots[1].get("custom_name", "VPN DE")
-    )
+
+    if _widget_alive(btn1):
+        btn1.config(text=primary_slots[0].get("custom_name", "VPN CH"))
+    if _widget_alive(btn2):
+        btn2.config(text=primary_slots[1].get("custom_name", "VPN DE"))
 
 
 def update_primary_vpn_form_controls(app):
     if threading.current_thread() is not threading.main_thread():
-        app.after(0, app.update_primary_vpn_form_controls)
+        call_in_ui_thread(app, app.update_primary_vpn_form_controls)
         return
-    if "primary_vpn_1_profile_combo" in app.__dict__:
-        app.primary_vpn_1_profile_combo["values"] = app.wg_profiles
-    if "primary_vpn_2_profile_combo" in app.__dict__:
-        app.primary_vpn_2_profile_combo["values"] = app.wg_profiles
+    combo1 = _app_value(app, "primary_vpn_1_profile_combo")
+    combo2 = _app_value(app, "primary_vpn_2_profile_combo")
+
+    if _widget_alive(combo1):
+        combo1["values"] = app.wg_profiles
+
+    if _widget_alive(combo2):
+        combo2["values"] = app.wg_profiles
 
 
 def refresh_vpn_slots_table(app):
     if threading.current_thread() is not threading.main_thread():
-        app.after(0, app.refresh_vpn_slots_table)
+        call_in_ui_thread(app, app.refresh_vpn_slots_table)
         return
     if not hasattr(app, "vpn_table"):
         return
@@ -276,21 +542,21 @@ def refresh_vpn_slots_table(app):
 
 def sync_primary_vpn_form_selection(app):
     if threading.current_thread() is not threading.main_thread():
-        app.after(0, app.sync_primary_vpn_form_selection)
+        call_in_ui_thread(app, app.sync_primary_vpn_form_selection)
         return
-    available_profiles = set(app.__dict__.get("wg_profiles", []) or [])
+    available_profiles = set(_app_list(app, "wg_profiles"))
+    primary_slots = _app_list(app, "primary_vpn_slots")
+    if len(primary_slots) < 2:
+        return
     for slot_no, var_name in enumerate(
         ("primary_vpn_1_profile_var", "primary_vpn_2_profile_var"), 1
     ):
-        profile_var = app.__dict__.get(var_name)
-        if profile_var is None:
-            continue
-        saved_profile = app.primary_vpn_slots[slot_no - 1].get("profile", "")
+        saved_profile = primary_slots[slot_no - 1].get("profile", "")
         base_profile = app._base_wg_profile_name(saved_profile)
         if base_profile and base_profile in available_profiles:
-            profile_var.set(saved_profile)
+            _app_var_set(app, var_name, saved_profile)
         else:
-            profile_var.set("")
+            _app_var_set(app, var_name, "")
 
 
 def open_primary_vpn_slot(app, slot_no):
@@ -374,7 +640,7 @@ def load_vpn_slot_into_form(app, slot_no):
 
 def sync_vpn_profile_form_selection(app):
     if threading.current_thread() is not threading.main_thread():
-        app.after(0, app.sync_vpn_profile_form_selection)
+        call_in_ui_thread(app, app.sync_vpn_profile_form_selection)
         return
     profile_var = app.__dict__.get("vpn_profile_var")
     if profile_var is None:
@@ -425,7 +691,7 @@ def resolve_vpn_profile_input(app, profile_value, *, refresh_profiles=False):
 
     if refresh_profiles:
         app.refresh_wg_profiles()
-        combo = app.__dict__.get("vpn_profile_combo")
+        combo = _app_value(app, "vpn_profile_combo")
         if combo is not None:
             try:
                 combo["values"] = app.wg_profiles
@@ -434,7 +700,7 @@ def resolve_vpn_profile_input(app, profile_value, *, refresh_profiles=False):
 
     profiles = [
         app._base_wg_profile_name(name)
-        for name in (app.__dict__.get("wg_profiles", []) or [])
+        for name in _app_list(app, "wg_profiles")
         if app._base_wg_profile_name(name)
     ]
 
@@ -683,53 +949,44 @@ def delete_selected_vpn_profile(app):
 
     original_path = app._wg_profile_path(profile)
     original_exists = app._wg_profile_exists(profile)
-    active_ifaces = [
-        iface
-        for iface in app.get_wg_interfaces()
-        if app._base_wg_profile_name(iface) == profile
+    active_connections = [
+        name
+        for name in get_active_nm_vpn_connections(app)
+        if app._base_wg_profile_name(name) == profile
+        or str(name or "").strip() == profile
     ]
 
     app.log_debug(f"Originalpfad = {original_path}")
     app.log_debug(f"exists(original) = {original_exists}")
-    app.log_debug(f"aktive Interfaces = {active_ifaces}")
+    app.log_debug(f"aktive NetworkManager-VPNs = {active_connections}")
 
-    if not original_exists and not active_ifaces:
+    if not original_exists and not active_connections:
         app.log(f"Dateiprofil nicht vorhanden: {profile}.conf")
         app.log("Löschen abgebrochen: Kein Dateiprofil vorhanden.")
         return
 
-    if not original_exists and active_ifaces:
+    if not original_exists and active_connections:
         app.log_debug(
-            f"Kein Dateiprofil gefunden, aber aktives Interface vorhanden für '{profile}': {active_ifaces}"
+            "Kein Dateiprofil gefunden, aber aktive NetworkManager-VPN-Verbindung "
+            f"vorhanden für '{profile}': {active_connections}"
         )
         app.log(
-            "Versuche aktives Interface zu beenden und anschließend Delete zu prüfen."
+            "Versuche aktive VPN-Verbindung zu beenden und anschließend Delete zu prüfen."
         )
 
     active_profile = app._base_wg_profile_name(app.active_wg_profile())
     if active_profile and active_profile == profile:
         app.vpn_off(ensure_sudo=False, refresh_ui=False)
-        remaining_ifaces = [
-            iface
-            for iface in app.get_wg_interfaces()
-            if app._base_wg_profile_name(iface) == profile
+        remaining_connections = [
+            name
+            for name in get_active_nm_vpn_connections(app)
+            if app._base_wg_profile_name(name) == profile
+            or str(name or "").strip() == profile
         ]
-        for iface in remaining_ifaces:
-            rc_down, out_down = run_cmd(
-                ["sudo", "-n", "wg-quick", "down", iface], timeout=12
-            )
-            if rc_down != 0:
-                app.log(
-                    f"Zusätzliches Stoppen fehlgeschlagen ({iface}): {(out_down or '').strip() or 'unknown'}"
-                )
-        remaining_ifaces = [
-            iface
-            for iface in app.get_wg_interfaces()
-            if app._base_wg_profile_name(iface) == profile
-        ]
-        if remaining_ifaces:
+        if remaining_connections:
             app.log(
-                f"Löschen abgebrochen: WireGuard-Interface für '{profile}' ist noch aktiv: {', '.join(remaining_ifaces)}"
+                "Löschen abgebrochen: VPN-Verbindung für "
+                f"'{profile}' ist noch aktiv: {', '.join(remaining_connections)}"
             )
             try:
                 app.refresh()
@@ -740,17 +997,18 @@ def delete_selected_vpn_profile(app):
     deleted = []
     missing = []
     failed = []
-    internal_ipv4_profile = f"{profile}{WG_IPV4_PROFILE_SUFFIX}"
+    internal_ipv4_profiles = app._internal_ipv4_profile_candidates(profile)
 
-    exist_map = {
-        profile: original_exists,
-        internal_ipv4_profile: app._wg_profile_exists(internal_ipv4_profile),
-    }
+    exist_map = {profile: original_exists}
+    for internal_profile in internal_ipv4_profiles:
+        exist_map[internal_profile] = app._wg_profile_exists(internal_profile)
 
-    for candidate, label in (
-        (profile, "Originalprofil"),
-        (internal_ipv4_profile, "Interne IPv4-Kopie"),
-    ):
+    delete_candidates = [(profile, "Originalprofil")]
+    for index, internal_profile in enumerate(internal_ipv4_profiles):
+        label = "Interne IPv4-Kopie" if index == 0 else "Alte interne IPv4-Kopie"
+        delete_candidates.append((internal_profile, label))
+
+    for candidate, label in delete_candidates:
         candidate = (candidate or "").strip()
         if not candidate:
             continue
@@ -964,6 +1222,7 @@ def clear_manual_wireguard_form(app):
     app.manual_wg_private_key_var.set("")
     app.manual_wg_public_key_var.set("")
     app.manual_wg_endpoint_var.set("")
+    app.manual_wg_address_var.set("")
     app.manual_wg_allowed_ips_var.set("0.0.0.0/0")
     app.manual_wg_dns_var.set("")
     app.manual_wg_keepalive_var.set("25")
@@ -981,6 +1240,46 @@ def is_valid_wireguard_key(_app, value):
     if not token:
         return False
     return bool(re.fullmatch(r"[A-Za-z0-9+/=]{40,}", token))
+
+
+def normalize_wireguard_key(_app, value):
+    token = str(value or "").strip()
+    token = " ".join(token.split())
+    token = token.replace(" ", "")
+    if token.startswith("=") and token.count("=") >= 2:
+        token = token[1:].strip()
+    return token
+
+
+def validate_wireguard_key_value(app, value, label):
+    token = app._normalize_wireguard_key(value)
+    if not token:
+        return "", f"{label} fehlt."
+    if not app._is_valid_wireguard_key(token):
+        return (
+            "",
+            f"{label} ungültig. Bitte nur den reinen Base64-Key ohne führendes '=' oder zusätzliche Zeichen einfügen.",
+        )
+    return token, ""
+
+
+def manual_wireguard_error_widget_name(_app, error_text):
+    text = str(error_text or "").strip()
+    mapping = (
+        ("Profilname", "manual_wg_profile_name_entry"),
+        ("Private Key", "manual_wg_private_key_entry"),
+        ("Public Key", "manual_wg_public_key_entry"),
+        ("Endpoint", "manual_wg_endpoint_entry"),
+        ("Address", "manual_wg_address_entry"),
+        ("Allowed IP", "manual_wg_allowed_ips_entry"),
+        ("DNS-Eintrag", "manual_wg_dns_entry"),
+        ("Persistent Keepalive", "manual_wg_keepalive_entry"),
+        ("VPN-Slot", "manual_wg_slot_combo"),
+    )
+    for prefix, widget_name in mapping:
+        if text.startswith(prefix):
+            return widget_name
+    return ""
 
 
 def parse_manual_wireguard_endpoint(_app, endpoint):
@@ -1010,28 +1309,49 @@ def parse_manual_wireguard_endpoint(_app, endpoint):
 
 def validate_manual_wireguard_form(app):
     profile = (app.manual_wg_profile_name_var.get() or "").strip()
-    private_key = (app.manual_wg_private_key_var.get() or "").strip()
-    public_key = (app.manual_wg_public_key_var.get() or "").strip()
+    private_key_raw = app.manual_wg_private_key_var.get() or ""
+    public_key_raw = app.manual_wg_public_key_var.get() or ""
     endpoint = (app.manual_wg_endpoint_var.get() or "").strip()
+    address_raw = (app.manual_wg_address_var.get() or "").strip()
     allowed_ips_raw = (app.manual_wg_allowed_ips_var.get() or "").strip()
     dns_raw = (app.manual_wg_dns_var.get() or "").strip()
     keepalive_raw = (app.manual_wg_keepalive_var.get() or "").strip()
 
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", profile or ""):
         return None, "Profilname ungültig (erlaubt: A-Z, a-z, 0-9, _, -, .)."
-    if app._is_internal_ipv4_profile(profile):
-        return None, "Profilname darf nicht auf __ipv4 enden (reserviert)."
+    if app._is_internal_ipv4_profile(profile) or profile.startswith(
+        INTERNAL_IPV4_PROFILE_PREFIX
+    ):
+        return (
+            None,
+            "Profilname ist fuer interne NetMon-IPv4-Laufzeitprofile reserviert.",
+        )
 
-    if not app._is_valid_wireguard_key(private_key):
-        return None, "Private Key ungültig."
-    if not app._is_valid_wireguard_key(public_key):
-        return None, "Public Key ungültig."
+    private_key, private_key_err = app._validate_wireguard_key_value(
+        private_key_raw, "Private Key"
+    )
+    if private_key_err:
+        return None, private_key_err
+    public_key, public_key_err = app._validate_wireguard_key_value(
+        public_key_raw, "Public Key"
+    )
+    if public_key_err:
+        return None, public_key_err
 
     endpoint_host, endpoint_port, endpoint_err = app._parse_manual_wireguard_endpoint(
         endpoint
     )
     if endpoint_err:
         return None, endpoint_err
+
+    address_values = [p.strip() for p in address_raw.split(",") if p.strip()]
+    if not address_values:
+        return None, "Address darf nicht leer sein."
+    for token in address_values:
+        try:
+            ipaddress.ip_network(token, strict=False)
+        except ValueError:
+            return None, f"Address ungültig: {token}"
 
     allowed_ips = [p.strip() for p in allowed_ips_raw.split(",") if p.strip()]
     if not allowed_ips:
@@ -1074,6 +1394,7 @@ def validate_manual_wireguard_form(app):
         "private_key": private_key,
         "public_key": public_key,
         "endpoint": normalized_endpoint,
+        "address": ", ".join(address_values),
         "allowed_ips": ", ".join(allowed_ips),
         "dns": ", ".join(dns_values),
         "keepalive": keepalive,
@@ -1084,6 +1405,7 @@ def build_manual_wireguard_config_text(_app, payload):
     lines = [
         "[Interface]",
         f"PrivateKey = {payload['private_key']}",
+        f"Address = {payload['address']}",
     ]
     if payload.get("dns"):
         lines.append(f"DNS = {payload['dns']}")
@@ -1167,9 +1489,12 @@ def apply_manual_wireguard_profile(app):
     payload, err = app._validate_manual_wireguard_form()
     if err:
         app._set_manual_wg_status(
-            f"Validierung fehlgeschlagen: {err}",
+            err,
             level="error",
         )
+        widget_name = app._manual_wireguard_error_widget_name(err)
+        if widget_name:
+            app._focus_manual_wg_field(widget_name)
         app.log(f"Manuelle WireGuard-Konfiguration ungültig: {err}")
         return
 
@@ -1185,6 +1510,7 @@ def apply_manual_wireguard_profile(app):
                 "Ungültiger VPN-Slot ausgewählt.",
                 level="error",
             )
+            app._focus_manual_wg_field("manual_wg_slot_combo")
             app.log("Manuelles WireGuard-Profil: Ungültiger VPN-Slot ausgewählt.")
             return
 
@@ -1265,7 +1591,7 @@ def apply_manual_wireguard_profile(app):
                     f"Manuelles WireGuard-Profil gespeichert, Start fehlgeschlagen: {profile}"
                 )
 
-        app.after(0, finish)
+        call_in_ui_thread(app, finish)
 
     app.run_async(job)
 
@@ -1528,3 +1854,1577 @@ def remove_firewall_rules_for_vpn_profile(app, profile, removed_from_slot=None):
         new_endpoints=referenced_endpoints,
         removed_profile=profile,
     )
+
+
+def wait_for_vpn_ready(app, timeout=15, interval=0.5):
+    deadline = time.time() + max(0, timeout)
+    last_iface = ""
+    last_internet_ok = False
+
+    while time.time() <= deadline:
+        wg_iface = str((app.get_wg_iface() or "")).strip()
+        internet_ok = False
+        if wg_iface:
+            try:
+                internet_ok = bool(app.check_internet())
+            except Exception:
+                internet_ok = False
+
+        last_iface = wg_iface
+        last_internet_ok = internet_ok
+
+        if wg_iface and internet_ok:
+            return True
+
+        time.sleep(max(0.1, interval))
+
+    log_debug_safe = app.__dict__.get("log_debug_safe")
+    if callable(log_debug_safe):
+        log_debug_safe(
+            "VPN-Ready-Timeout: "
+            + f"iface={'set' if last_iface else 'missing'}, "
+            + f"internet_ok={last_internet_ok}"
+        )
+    return False
+
+
+def _parse_nm_name_type_rows(out):
+    rows = []
+    for raw_line in (out or "").splitlines():
+        line = str(raw_line or "").strip()
+        if not line:
+            continue
+        name, sep, conn_type = line.rpartition(":")
+        if not sep:
+            continue
+        name = name.strip()
+        conn_type = conn_type.strip().lower()
+        if name:
+            rows.append((name, conn_type))
+    return rows
+
+
+def get_nm_vpn_profiles(app):
+    if not has_cmd("nmcli"):
+        return []
+    cmd = ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show"]
+    rc, out = run_cmd(cmd, timeout=10)
+    if callable(getattr(app, "_debug_log_system_cmd", None)):
+        app._debug_log_system_cmd(cmd, rc, out)
+    if rc != 0:
+        return []
+    return [
+        name for name, conn_type in _parse_nm_name_type_rows(out) if conn_type == "vpn"
+    ]
+
+
+def get_nm_connection_rows(app):
+    if not has_cmd("nmcli"):
+        return []
+    cmd = ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show"]
+    rc, out = run_cmd(cmd, timeout=10)
+    if callable(getattr(app, "_debug_log_system_cmd", None)):
+        app._debug_log_system_cmd(cmd, rc, out)
+    if rc != 0:
+        return []
+    return _parse_nm_name_type_rows(out)
+
+
+def get_nm_wireguard_profiles(app):
+    return [
+        name
+        for name, conn_type in get_nm_connection_rows(app)
+        if conn_type == "wireguard"
+    ]
+
+
+def get_active_nm_vpn_connections(app):
+    if not has_cmd("nmcli"):
+        return []
+    cmd = ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"]
+    rc, out = run_cmd(cmd, timeout=10)
+    if callable(getattr(app, "_debug_log_system_cmd", None)):
+        app._debug_log_system_cmd(cmd, rc, out)
+    if rc != 0:
+        return []
+    return [
+        name for name, conn_type in _parse_nm_name_type_rows(out) if conn_type == "vpn"
+    ]
+
+
+def get_active_nm_wireguard_connections(app):
+    if not has_cmd("nmcli"):
+        return []
+    cmd = ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"]
+    rc, out = run_cmd(cmd, timeout=10)
+    if callable(getattr(app, "_debug_log_system_cmd", None)):
+        app._debug_log_system_cmd(cmd, rc, out)
+    if rc != 0:
+        return []
+    return [
+        name
+        for name, conn_type in _parse_nm_name_type_rows(out)
+        if conn_type == "wireguard"
+    ]
+
+
+def get_nm_last_import_state(app):
+    return _normalized_nm_last_import_state(
+        _privacy_config_dict(app).get("nm_last_import")
+    )
+
+
+def set_nm_last_import_state(app, state):
+    current_state = get_nm_last_import_state(app)
+    next_state = dict(current_state)
+    if isinstance(state, dict):
+        next_state.update(state)
+    next_state = _normalized_nm_last_import_state(next_state)
+
+    _privacy_config_dict(app)["nm_last_import"] = next_state
+
+    _save_privacy_config_safe(
+        app,
+        "NM-Importstatus konnte nicht persistiert werden",
+    )
+    return next_state
+
+
+def collect_referenced_wg_profile_import_paths(app):
+    paths = []
+    seen = set()
+    profiles = collect_referenced_vpn_profiles(app, include_active=False)
+    for profile in profiles:
+        profile_name = app._base_wg_profile_name(profile)
+        if not profile_name or profile_name in seen:
+            continue
+        seen.add(profile_name)
+        path = app._wg_profile_path(profile_name)
+        paths.append((profile_name, path))
+    return paths
+
+
+def build_nm_wireguard_readiness_report(app):
+    referenced_profiles = [
+        profile for profile, _path in collect_referenced_wg_profile_import_paths(app)
+    ]
+    nm_wireguard_profiles = sorted(set(get_nm_wireguard_profiles(app)))
+
+    referenced_set = set(referenced_profiles)
+    nm_set = set(nm_wireguard_profiles)
+
+    missing_profiles = sorted(referenced_set - nm_set)
+    extra_profiles = sorted(nm_set - referenced_set)
+    ready = bool(referenced_profiles) and not missing_profiles
+
+    return {
+        "ready": ready,
+        "referenced_profiles": referenced_profiles,
+        "nm_wireguard_profiles": nm_wireguard_profiles,
+        "missing_profiles": missing_profiles,
+        "extra_profiles": extra_profiles,
+    }
+
+
+def log_nm_wireguard_readiness_report(app):
+    if not has_cmd("nmcli"):
+        app.log("Phase-3-Prüfung nicht verfügbar: nmcli fehlt.")
+        return {
+            "ready": False,
+            "referenced_profiles": [],
+            "nm_wireguard_profiles": [],
+            "missing_profiles": [],
+            "extra_profiles": [],
+        }
+
+    report = build_nm_wireguard_readiness_report(app)
+    referenced_profiles = report["referenced_profiles"]
+    nm_wireguard_profiles = report["nm_wireguard_profiles"]
+    missing_profiles = report["missing_profiles"]
+    extra_profiles = report["extra_profiles"]
+
+    if referenced_profiles:
+        app.log("Referenzierte NetMon-Profile: " + ", ".join(referenced_profiles))
+    else:
+        app.log("Referenzierte NetMon-Profile: keine")
+
+    if nm_wireguard_profiles:
+        app.log(
+            "NetworkManager-WireGuard-Connections: " + ", ".join(nm_wireguard_profiles)
+        )
+    else:
+        app.log("NetworkManager-WireGuard-Connections: keine")
+
+    if missing_profiles:
+        app.log(
+            "Phase-3-Prüfung: fehlende NM-Connections: " + ", ".join(missing_profiles)
+        )
+    else:
+        app.log("Phase-3-Prüfung: keine fehlenden NM-Connections.")
+
+    if extra_profiles:
+        app.log(
+            "Phase-3-Prüfung: zusätzliche NM-WireGuard-Connections: "
+            + ", ".join(extra_profiles)
+        )
+
+    if report["ready"]:
+        app.log(
+            "Phase-3-Prüfung: bereit für Umstellung auf NetworkManager-Wechselpfad."
+        )
+    else:
+        app.log(
+            "Phase-3-Prüfung: noch nicht bereit für Umstellung auf NetworkManager-Wechselpfad."
+        )
+
+    return report
+
+
+def get_vpn_backend_mode(app):
+    return "wg-quick"
+
+
+def set_vpn_backend_mode(app, mode):
+    normalized = "wg-quick"
+    config = _privacy_config_dict(app)
+    config["vpn_backend_mode"] = normalized
+    _save_privacy_config_safe(app)
+    return normalized
+
+
+def enable_networkmanager_vpn_backend(app):
+    set_vpn_backend_mode(app, "wg-quick")
+    app.log(
+        "NetworkManager-Wechselpfad ist zurueckgerollt. NetMon bleibt im stabilen wg-quick-Modus."
+    )
+    return True
+
+
+def disable_networkmanager_vpn_backend(app):
+    set_vpn_backend_mode(app, "wg-quick")
+    app.log("VPN-Backend zurück auf wg-quick gesetzt.")
+    return True
+
+
+def get_active_nm_vpn_interfaces(app):
+    nm_active = getattr(app, "nm_active_connections_detailed", None)
+    rows = []
+    if callable(nm_active):
+        try:
+            rows = nm_active() or []
+        except Exception:
+            rows = []
+    if not rows and has_cmd("nmcli"):
+        cmd = ["nmcli", "-t", "-f", "NAME,DEVICE,TYPE", "con", "show", "--active"]
+        rc, out = run_cmd(cmd, timeout=10)
+        if callable(getattr(app, "_debug_log_system_cmd", None)):
+            app._debug_log_system_cmd(cmd, rc, out)
+        if rc == 0:
+            for line in (out or "").splitlines():
+                parts = line.split(":")
+                if len(parts) < 3:
+                    continue
+                rows.append((parts[0], parts[1], parts[2]))
+    interfaces = []
+    seen = set()
+    for _name, device, conn_type in rows:
+        if str(conn_type or "").strip().lower() != "vpn":
+            continue
+        iface = str(device or "").strip()
+        if not iface or iface in seen:
+            continue
+        seen.add(iface)
+        interfaces.append(iface)
+    return interfaces
+
+
+def get_active_nm_wireguard_interfaces(app):
+    nm_active = getattr(app, "nm_active_connections_detailed", None)
+    rows = []
+    if callable(nm_active):
+        try:
+            rows = nm_active() or []
+        except Exception:
+            rows = []
+    if not rows and has_cmd("nmcli"):
+        cmd = ["nmcli", "-t", "-f", "NAME,DEVICE,TYPE", "con", "show", "--active"]
+        rc, out = run_cmd(cmd, timeout=10)
+        if callable(getattr(app, "_debug_log_system_cmd", None)):
+            app._debug_log_system_cmd(cmd, rc, out)
+        if rc == 0:
+            for line in (out or "").splitlines():
+                parts = line.split(":")
+                if len(parts) < 3:
+                    continue
+                rows.append((parts[0], parts[1], parts[2]))
+    interfaces = []
+    seen = set()
+    for _name, device, conn_type in rows:
+        if str(conn_type or "").strip().lower() != "wireguard":
+            continue
+        iface = str(device or "").strip()
+        if not iface or iface in seen:
+            continue
+        seen.add(iface)
+        interfaces.append(iface)
+    return interfaces
+
+
+def wg_profile_path(_app, profile_name):
+    name = (profile_name or "").strip()
+    if not name:
+        return ""
+    return f"/etc/wireguard/{name}.conf"
+
+
+def wg_profile_exists(app, profile_name):
+    path = app._wg_profile_path(profile_name)
+    if not path:
+        return False
+
+    user_exists = os.path.isfile(path)
+    if user_exists:
+        app.log_debug(f"os.path.isfile({path}) = True")
+        return True
+    app.log_debug(f"os.path.isfile({path}) = False")
+
+    rc, out = run_cmd(["sudo", "-n", "test", "-f", path], timeout=5)
+    app.log_debug(f"sudo test -f {path} rc={rc}, out={out!r}")
+    return rc == 0
+
+
+def active_wg_profile(app):
+    ifaces = app.get_wg_interfaces()
+    if ifaces:
+        return app._base_wg_profile_name(ifaces[0])
+    return None
+
+
+def get_wg_interfaces(app):
+    commands = [
+        ["wg", "show", "interfaces"],
+        ["sudo", "-n", "wg", "show", "interfaces"],
+    ]
+    rc = 1
+    out = ""
+    for cmd in commands:
+        rc, out = run_cmd(cmd, timeout=3)
+        if callable(getattr(app, "_debug_log_system_cmd", None)):
+            app._debug_log_system_cmd(cmd, rc, out)
+        if rc == 0:
+            break
+    if rc != 0:
+        return []
+
+    interfaces = []
+    seen = set()
+    for value in (out or "").split():
+        iface = str(value or "").strip()
+        if not iface or iface in seen:
+            continue
+        seen.add(iface)
+        interfaces.append(iface)
+    return interfaces
+
+
+def cleanup_wireguard_interfaces(app):
+    network_service = app._network_service()
+    app.log_safe("WG Cleanup gestartet")
+
+    active_ifaces = app.get_wg_interfaces()
+    for iface in active_ifaces:
+        app.log_safe(f"WG down: {iface}")
+        down_cmd = ["sudo", "-n", "wg-quick", "down", iface]
+        if network_service is not None:
+            rc_down, out_down = network_service.wg_quick_down(iface, timeout=12)
+        else:
+            rc_down, out_down = run_cmd(down_cmd, timeout=12)
+        _log_command_result(app, "WG", down_cmd, rc_down, out_down)
+        if rc_down != 0:
+            app.log_safe(f"WG down Fehler ({iface}): rc={rc_down}")
+            if out_down:
+                app.log_safe((out_down or "").strip())
+
+    remaining_ifaces = app.get_wg_interfaces()
+    deleted_ifaces = []
+    for iface in remaining_ifaces:
+        app.log_safe(f"WG forced delete: {iface}")
+        delete_cmd = ["sudo", "-n", "ip", "link", "delete", iface]
+        rc_delete, out_delete = run_cmd(delete_cmd, timeout=10)
+        _log_command_result(app, "NET", delete_cmd, rc_delete, out_delete)
+        if rc_delete != 0:
+            app.log_safe(f"WG forced delete Fehler ({iface}): rc={rc_delete}")
+            if out_delete:
+                app.log_safe((out_delete or "").strip())
+        else:
+            deleted_ifaces.append(iface)
+
+    final_ifaces = app.get_wg_interfaces()
+    if final_ifaces and deleted_ifaces:
+        lingering = [
+            iface for iface in final_ifaces if iface not in set(deleted_ifaces)
+        ]
+        if not lingering:
+            app.log_safe(
+                "WG Cleanup: keine bestaetigte Rest-Schnittstelle mehr, stale Interface-Liste wird ignoriert."
+            )
+            final_ifaces = []
+    if final_ifaces:
+        app.log_safe(
+            "WG Cleanup fehlgeschlagen: "
+            + ", ".join(final_ifaces)
+            + " weiterhin aktiv"
+        )
+        return False
+
+    app.log_safe("WG state clean")
+    return True
+
+
+def parse_vpn_endpoint(app, profile_name):
+    if not profile_name:
+        return None, None
+
+    try:
+        rc, out = app._read_wg_profile_text(profile_name)
+    except Exception:
+        path = f"/etc/wireguard/{str(profile_name or '').strip()}.conf"
+        rc, out = run_cmd(["sudo", "-n", "cat", path], timeout=5)
+        if rc != 0:
+            rc, out = run_cmd(["cat", path], timeout=5)
+    if rc != 0:
+        return None, None
+
+    for raw_line in (out or "").splitlines():
+        line = raw_line.split("#", 1)[0].split(";", 1)[0].strip()
+        if not line or "=" not in line:
+            continue
+        key, value = [part.strip() for part in line.split("=", 1)]
+        if key.lower() != "endpoint" or not value:
+            continue
+
+        if value.startswith("[") and "]:" in value:
+            host, port = value[1:].split("]:", 1)
+        else:
+            host, sep, port = value.rpartition(":")
+            if not sep:
+                continue
+
+        host = host.strip()
+        port = port.strip()
+        if not host or not port.isdigit():
+            continue
+        return host, port
+
+    return None, None
+
+
+def resolve_profile_family_runtime(app, profile_name, log_missing=True):
+    base_profile = app._base_wg_profile_name(profile_name)
+    system_ipv6_disabled = app.ipv6_is_disabled()
+    ipv4_profile = app._internal_ipv4_profile_name(base_profile) if base_profile else ""
+    runtime = {
+        "base_profile": base_profile,
+        "ipv4_profile": ipv4_profile or base_profile,
+        "effective_ipv4_interface": "",
+        "effective_ipv6_interface": None,
+        "supports_ipv6": (
+            app.profile_supports_ipv6(base_profile) if base_profile else False
+        ),
+        "runtime_profile": "",
+        "system_ipv6_disabled": system_ipv6_disabled,
+        "endpoint_profiles": [],
+    }
+    if not base_profile:
+        return runtime
+
+    base_exists = app._wg_profile_exists(base_profile)
+    ipv4_exists = bool(ipv4_profile and app._wg_profile_exists(ipv4_profile))
+    if system_ipv6_disabled and not ipv4_exists:
+        ipv4_exists = app.ensure_internal_ipv4_profile(
+            base_profile,
+            log_failures=log_missing,
+        )
+    if base_exists:
+        runtime["effective_ipv4_interface"] = base_profile
+        runtime["runtime_profile"] = base_profile
+        runtime["endpoint_profiles"] = [base_profile]
+    if ipv4_exists:
+        runtime["ipv4_profile"] = ipv4_profile
+        if system_ipv6_disabled:
+            runtime["effective_ipv4_interface"] = ipv4_profile
+            runtime["runtime_profile"] = ipv4_profile
+        if ipv4_profile not in runtime["endpoint_profiles"]:
+            runtime["endpoint_profiles"].append(ipv4_profile)
+
+    app.log_debug(
+        f"[DEBUG] Resolver {base_profile} -> IPv4={runtime['effective_ipv4_interface'] or '-'}, "
+        f"IPv6={runtime['effective_ipv6_interface'] or 'None'}, supports_ipv6={runtime['supports_ipv6']}"
+    )
+    return runtime
+
+
+def resolve_runtime_vpn_profile(app, profile_name, log_missing=True):
+    base_profile = app._base_wg_profile_name(profile_name)
+    if not base_profile:
+        return ""
+    if app.ipv6_is_disabled():
+        ipv4_profile = app._internal_ipv4_profile_name(base_profile)
+        if app._wg_profile_exists(ipv4_profile):
+            return ipv4_profile
+        if app.ensure_internal_ipv4_profile(
+            base_profile,
+            log_failures=log_missing,
+        ) and app._wg_profile_exists(ipv4_profile):
+            return ipv4_profile
+        if log_missing:
+            app.log_safe(
+                f"VPN Start abgebrochen: Fuer Profil '{base_profile}' ist keine interne IPv4-only Kopie verfuegbar."
+            )
+            app.log_safe(
+                "Bitte IPv6 aktivieren oder ein Profil mit nutzbaren IPv4-Eintraegen verwenden."
+            )
+        return ""
+    if app._wg_profile_exists(base_profile):
+        return base_profile
+    if log_missing:
+        app.log_safe(f"VPN Start abgebrochen: Profil '{base_profile}' nicht gefunden.")
+    return ""
+
+
+def vpn_switch(
+    app,
+    target,
+    ensure_sudo=True,
+    refresh_ui=True,
+    force_reconnect=False,
+    skip_cleanup=False,
+):
+    if not app._try_begin_network_operation(f"VPN wechseln auf {target}"):
+        if refresh_ui:
+            app.refresh_safe()
+        return False
+    try:
+        if callable(getattr(app, "debug_nm_state", None)):
+            app.debug_nm_state(f"vor VPN Wechsel auf {target}")
+        target = str(target or "").strip()
+        app.log_debug(f"Basisprofil = {target!r}")
+        if not target:
+            app.log_safe(
+                app.tr("vpn_log_no_profile_selected", "Kein WireGuard-Profil gewählt.")
+            )
+            app._recover_firewall_after_killswitch_failure()
+            if refresh_ui:
+                app.refresh_safe()
+            return False
+
+        if ensure_sudo and not app.ensure_sudo_session(f"VPN umschalten auf {target}"):
+            return False
+
+        resolved = app.resolve_profile_family_runtime(target, log_missing=True)
+        runtime_target = (resolved.get("runtime_profile") or "").strip()
+        app.log_debug(f"Runtimeprofil = {runtime_target!r}")
+        app.log_debug(f"IPv6 deaktiviert = {resolved.get('system_ipv6_disabled')}")
+        app.log_debug(
+            f"[DEBUG] Resolver {target} -> IPv4={resolved.get('effective_ipv4_interface') or '-'}, "
+            f"IPv6={resolved.get('effective_ipv6_interface') or 'None'}, supports_ipv6={resolved.get('supports_ipv6')}"
+        )
+
+        if not runtime_target:
+            runtime_target = app.resolve_runtime_vpn_profile(target, log_missing=True)
+        if not runtime_target:
+            app._recover_firewall_after_killswitch_failure()
+            if refresh_ui:
+                app.refresh_safe()
+            return False
+
+        active_ifaces = app.get_wg_interfaces()
+        reconnecting_same_profile = runtime_target in active_ifaces
+        if reconnecting_same_profile:
+            if not force_reconnect and len(active_ifaces) == 1:
+                app.log_safe(
+                    app.tr(
+                        "vpn_log_profile_already_active",
+                        "VPN-Profil bereits aktiv.",
+                    )
+                )
+                if refresh_ui:
+                    app.refresh_safe()
+                return True
+            app.log_safe(
+                app.tr(
+                    "vpn_log_force_reconnect",
+                    "Vorhandenes Runtimeprofil erkannt - Reconnect wird erzwungen.",
+                )
+            )
+        elif len(active_ifaces) > 1:
+            app.log_safe(
+                "Mehrere aktive WG-Interfaces erkannt. Cleanup vor neuem Start wird erzwungen."
+            )
+
+        if len(runtime_target) > 15:
+            app.log_safe(
+                f"VPN Start abgebrochen: Runtime-Profilname '{runtime_target}' ist zu lang fuer ein WireGuard-Interface (max 15 Zeichen)."
+            )
+            app.log_safe(
+                "Bitte interne IPv4-Runtime-Profile pruefen oder die Profilaufbereitung aktualisieren."
+            )
+            if refresh_ui:
+                app.refresh_safe()
+            return False
+
+        network_service = app._network_service()
+        runtime_path = app._wg_profile_path(runtime_target)
+        app._check_wireguard_profile_for_multiple_endpoints(
+            runtime_target, runtime_path
+        )
+        if network_service is not None:
+            rc_check, out_check = network_service.file_exists(runtime_path)
+        else:
+            rc_check, out_check = run_cmd(
+                ["sudo", "-n", "test", "-f", runtime_path], timeout=5
+            )
+        app.log_debug_safe(f"Runtimepfad = {runtime_path}")
+        app.log_debug_safe(f"sudo test -f Runtimepfad rc = {rc_check}")
+        if rc_check != 0:
+            _vpn_user_log(
+                app,
+                app.tr(
+                    "vpn_log_runtime_file_missing",
+                    "VPN Start abgebrochen: Runtime-Datei nicht gefunden: {path}",
+                ).format(path=runtime_path),
+            )
+            if out_check:
+                _vpn_user_log(app, out_check)
+            if refresh_ui:
+                app.refresh_safe()
+            return False
+
+        app.prepare_dns_for_vpn_profile_switch()
+        if skip_cleanup:
+            app.log_network_debug(
+                "[DEBUG] WG Cleanup vor VPN Start übersprungen: bereits sauber."
+            )
+        elif not cleanup_wireguard_interfaces(app):
+            app._recover_firewall_after_killswitch_failure()
+            if refresh_ui:
+                app.refresh_safe()
+            return False
+
+        up_cmd = ["sudo", "-n", "wg-quick", "up", runtime_target]
+        if network_service is not None:
+            rc, out = network_service.wg_quick_up(runtime_target, timeout=20)
+        else:
+            rc, out = run_cmd(up_cmd, timeout=20)
+        _log_command_result(app, "WG", up_cmd, rc, out)
+        if rc == 0:
+            if force_reconnect:
+                _vpn_user_log(
+                    app,
+                    app.tr(
+                        "vpn_log_reconnected",
+                        "VPN Verbindung neu aufgebaut.",
+                    ),
+                )
+            else:
+                _vpn_user_log(
+                    app, app.tr("vpn_log_connected", "VPN Verbindung aufgebaut.")
+                )
+            _vpn_user_log(
+                app,
+                app.tr("vpn_log_started", "VPN gestartet: {target}").format(
+                    target=target
+                ),
+            )
+            app.log_debug_safe(out)
+        else:
+            _vpn_user_log(
+                app,
+                app.tr(
+                    "vpn_log_start_failed_rc", "VPN Start fehlgeschlagen: rc={rc}"
+                ).format(rc=rc),
+            )
+            if out:
+                _vpn_user_log(app, (out or "").strip())
+            app.log_debug_safe(out)
+
+        app.last_wg_transfer = None
+        app.last_wg_ts = None
+        app.refresh_wg_profiles()
+        app.update_primary_vpn_form_controls()
+        app.sync_primary_vpn_form_selection()
+        if rc == 0 and app.killswitch_is_on():
+            app._killswitch_on_sync(refresh_ui=False)
+        if rc == 0:
+            app._schedule_dns_finalize_after_vpn_profile_switch(delay_ms=2500)
+            app.run_async(lambda t=target: app.verify_vpn_exit_country(t))
+        else:
+            app._schedule_dns_finalize_after_vpn_profile_switch(delay_ms=750)
+        if callable(getattr(app, "debug_nm_state", None)):
+            app.debug_nm_state(f"nach VPN Wechsel auf {target}")
+
+        app.update_ipv6_controls_state_safe()
+        if refresh_ui:
+            app.refresh_safe()
+        return rc == 0
+    finally:
+        app._end_network_operation()
+
+
+def vpn_off(app, ensure_sudo=True, refresh_ui=True):
+    if not app._try_begin_network_operation("VPN deaktivieren"):
+        if refresh_ui:
+            app.refresh_safe()
+        return False
+    try:
+        if callable(getattr(app, "debug_nm_state", None)):
+            app.debug_nm_state("vor VPN AUS")
+        if ensure_sudo and not app.ensure_sudo_session("VPN deaktivieren"):
+            return False
+        cleanup_ok = cleanup_wireguard_interfaces(app)
+        if not cleanup_ok:
+            if refresh_ui:
+                app.refresh_safe()
+            return False
+        _vpn_user_log(app, app.tr("vpn_log_disabled", "VPN deaktiviert."))
+        app.prepare_dns_for_vpn_profile_switch()
+        app._schedule_dns_finalize_after_vpn_profile_switch(delay_ms=2500)
+        if app.killswitch_is_on():
+            _vpn_user_log(
+                app,
+                app.tr(
+                    "killswitch_log_notice_enabled_without_vpn",
+                    "HINWEIS: Killswitch ist AN – ohne VPN evtl. kein Internet (gewollt).",
+                ),
+            )
+        app.refresh_wg_profiles()
+        if callable(getattr(app, "debug_nm_state", None)):
+            app.debug_nm_state("nach VPN AUS")
+        app.update_ipv6_controls_state_safe()
+        if refresh_ui:
+            app.refresh_safe()
+        return True
+    finally:
+        app._end_network_operation()
+
+
+def _vpn_switch_networkmanager(app, target, *, refresh_ui=True, force_reconnect=False):
+    target = app._base_wg_profile_name(target)
+    report = build_nm_wireguard_readiness_report(app)
+    if not report.get("ready"):
+        _vpn_user_log(
+            app,
+            "NetworkManager-Wechselpfad blockiert: Phase-3-Prüfung ist noch nicht grün."
+        )
+        if refresh_ui:
+            app.refresh_safe()
+        return False
+    if target not in set(get_nm_wireguard_profiles(app)):
+        _vpn_user_log(
+            app,
+            f"VPN Start abgebrochen: NetworkManager-Connection '{target}' nicht gefunden."
+        )
+        if refresh_ui:
+            app.refresh_safe()
+        return False
+
+    active_connections = get_active_nm_wireguard_connections(app)
+    reconnecting_same_profile = target in active_connections
+    if reconnecting_same_profile and not force_reconnect:
+        _vpn_user_log(
+            app,
+            app.tr(
+                "vpn_log_profile_already_active",
+                "VPN-Profil bereits aktiv.",
+            ),
+        )
+        if refresh_ui:
+            app.refresh_safe()
+        return True
+    if reconnecting_same_profile and force_reconnect:
+        _vpn_user_log(
+            app,
+            app.tr(
+                "vpn_log_force_reconnect",
+                "Vorhandenes Runtimeprofil erkannt - Reconnect wird erzwungen.",
+            ),
+        )
+
+    app.prepare_dns_for_vpn_profile_switch()
+    app.log_network_debug("[VPN][NM] path: sudo nmcli connection down/up")
+
+    for name in active_connections:
+        if name != target or reconnecting_same_profile:
+            down_cmd = ["sudo", "-n", "nmcli", "connection", "down", name]
+            rc_down, out_down = run_cmd(down_cmd, timeout=20)
+            _log_command_result(app, "NM", down_cmd, rc_down, out_down)
+
+    up_cmd = ["sudo", "-n", "nmcli", "connection", "up", target]
+    rc, out = run_cmd(up_cmd, timeout=40)
+    _log_command_result(app, "NM", up_cmd, rc, out)
+    if rc == 0:
+        if force_reconnect:
+            _vpn_user_log(
+                app, app.tr("vpn_log_reconnected", "VPN Verbindung neu aufgebaut.")
+            )
+        else:
+            _vpn_user_log(app, app.tr("vpn_log_connected", "VPN Verbindung aufgebaut."))
+        _vpn_user_log(
+            app,
+            app.tr("vpn_log_started", "VPN gestartet: {target}").format(target=target)
+        )
+        app.log_debug_safe(out)
+    else:
+        _vpn_user_log(
+            app,
+            app.tr(
+                "vpn_log_start_failed_rc", "VPN Start fehlgeschlagen: rc={rc}"
+            ).format(rc=rc),
+        )
+        if out:
+            _vpn_user_log(app, (out or "").strip())
+        app.log_debug_safe(out)
+
+    app.last_wg_transfer = None
+    app.last_wg_ts = None
+    app.refresh_wg_profiles()
+    app.update_primary_vpn_form_controls()
+    app.sync_primary_vpn_form_selection()
+    if rc == 0 and app.killswitch_is_on():
+        app._killswitch_on_sync(refresh_ui=False)
+    if rc == 0:
+        app._schedule_dns_finalize_after_vpn_profile_switch(delay_ms=2500)
+        app.run_async(lambda t=target: app.verify_vpn_exit_country(t))
+    else:
+        app._schedule_dns_finalize_after_vpn_profile_switch(delay_ms=750)
+    if callable(getattr(app, "debug_nm_state", None)):
+        app.debug_nm_state(f"nach VPN Wechsel auf {target}")
+
+    app.update_ipv6_controls_state_safe()
+    if refresh_ui:
+        app.refresh_safe()
+    return rc == 0
+
+
+def _vpn_off_networkmanager(app, *, refresh_ui=True):
+    targets = get_active_nm_wireguard_connections(app)
+    app.log_network_debug("[VPN][NM] path: sudo nmcli connection down")
+    for target in targets:
+        down_cmd = ["sudo", "-n", "nmcli", "connection", "down", target]
+        rc_down, out_down = run_cmd(down_cmd, timeout=20)
+        _log_command_result(app, "NM", down_cmd, rc_down, out_down)
+    _vpn_user_log(app, app.tr("vpn_log_disabled", "VPN deaktiviert."))
+    app.prepare_dns_for_vpn_profile_switch()
+    app._schedule_dns_finalize_after_vpn_profile_switch(delay_ms=2500)
+    if app.killswitch_is_on():
+        _vpn_user_log(
+            app,
+            app.tr(
+                "killswitch_log_notice_enabled_without_vpn",
+                "HINWEIS: Killswitch ist AN – ohne VPN evtl. kein Internet (gewollt).",
+            ),
+        )
+    app.refresh_wg_profiles()
+    if callable(getattr(app, "debug_nm_state", None)):
+        app.debug_nm_state("nach VPN AUS")
+    app.update_ipv6_controls_state_safe()
+    if refresh_ui:
+        app.refresh_safe()
+    return True
+
+
+def list_wg_profile_files(app, include_internal=False):
+    profiles = set()
+    cmd = [
+        "find",
+        "/etc/wireguard",
+        "-maxdepth",
+        "1",
+        "-type",
+        "f",
+        "-name",
+        "*.conf",
+        "-printf",
+        "%f\n",
+    ]
+    rc, out = run_cmd(["sudo", "-n", *cmd], timeout=5)
+    if rc != 0:
+        rc, out = run_cmd(cmd, timeout=5)
+    if rc != 0:
+        return []
+    for line in (out or "").splitlines():
+        name = line.strip()
+        if name.endswith(".conf"):
+            name = name[:-5]
+        if not name:
+            continue
+        if app._is_internal_ipv4_profile(name):
+            if include_internal:
+                profiles.add(name)
+            continue
+        profiles.add(name)
+    return sorted(profiles)
+
+
+def list_netmon_wg_profile_files(app, include_internal=False):
+    profiles = set()
+    wg_dir = ensure_netmon_wireguard_profiles_dir()
+    if not os.path.isdir(wg_dir):
+        return []
+    try:
+        entries = sorted(os.listdir(wg_dir))
+    except OSError:
+        return []
+    for entry in entries:
+        name = str(entry or "").strip()
+        if not name.endswith(".conf"):
+            continue
+        name = name[:-5]
+        if not name:
+            continue
+        if app._is_internal_ipv4_profile(name):
+            if include_internal:
+                profiles.add(name)
+            continue
+        profiles.add(name)
+    return sorted(profiles)
+
+
+def read_wg_profile_text(app, profile_name):
+    path = app._wg_profile_path(profile_name)
+    if not path:
+        return 1, ""
+    rc, out = run_cmd(["sudo", "-n", "cat", path], timeout=5)
+    if rc != 0:
+        rc, out = run_cmd(["cat", path], timeout=5)
+    return rc, out
+
+
+def sync_internal_ipv4_profiles(app, log_failures=True):
+    # Laufzeitkopien werden bei Bedarf erzeugt; ein separater Global-Sync ist
+    # aktuell nicht erforderlich.
+    app.log_debug("[VPN][PROFILE] Interne IPv4-Runtimeprofile werden on-demand gepflegt.")
+
+
+def list_wg_profiles(app):
+    profiles = set()
+
+    for profile in list_wg_profile_files(app):
+        name = str(profile or "").strip()
+        if name:
+            profiles.add(name)
+
+    for profile in list_netmon_wg_profile_files(app):
+        name = str(profile or "").strip()
+        if name:
+            profiles.add(name)
+
+    for profile in get_nm_vpn_profiles(app):
+        name = str(profile or "").strip()
+        if name:
+            profiles.add(name)
+
+    return sorted(profiles)
+
+
+def refresh_wg_profiles(app):
+    profiles = app.list_wg_profiles()
+    app.wg_profiles = profiles
+    if app.__dict__.get("isp_stealth_vpn_combo") is not None:
+        app.update_privacy_vpn_combo()
+    try:
+        app.log_network_debug(f"[VPN][PROFILE] available: {profiles}")
+    except Exception:
+        pass
+
+
+def reload_wg_profiles(app):
+    app.refresh_wg_profiles()
+    if hasattr(app, "vpn_profile_combo"):
+        app.vpn_profile_combo["values"] = app.wg_profiles
+    app.sync_primary_vpn_form_selection()
+    app.sync_vpn_profile_form_selection()
+    app.update_vpn_slot_buttons()
+    app.update_primary_vpn_form_controls()
+    app.refresh_vpn_slots_table()
+    if hasattr(app, "isp_stealth_vpn_combo"):
+        app.update_privacy_vpn_combo()
+
+    app.update_ipv6_controls_state()
+    if app.wg_profiles:
+        app.log(f"WireGuard-Profile: {', '.join(app.wg_profiles)}")
+    else:
+        app.log("WireGuard-Profile: keine gefunden")
+
+
+def profile_supports_ipv6(app, profile_name):
+    if not profile_name:
+        return False
+
+    rc, out = app._read_wg_profile_text(profile_name)
+    if rc != 0:
+        return False
+
+    def has_ipv6_token(token):
+        value = (token or "").strip()
+        if not value:
+            return False
+        if value.startswith("[") and value.endswith("]"):
+            value = value[1:-1].strip()
+        try:
+            if "/" in value:
+                return ipaddress.ip_network(value, strict=False).version == 6
+            return ipaddress.ip_address(value).version == 6
+        except ValueError:
+            return False
+
+    for raw_line in (out or "").splitlines():
+        line = raw_line.split("#", 1)[0].split(";", 1)[0].strip()
+        if not line or "=" not in line:
+            continue
+        key, value = [part.strip() for part in line.split("=", 1)]
+        key_l = key.lower()
+        if not value:
+            continue
+
+        if key_l in {"address", "dns", "allowedips"}:
+            tokens = [part.strip() for part in value.split(",") if part.strip()]
+            if any(has_ipv6_token(token) for token in tokens):
+                return True
+            continue
+
+        if key_l == "endpoint":
+            host = value
+            if value.startswith("[") and "]:" in value:
+                host = value[1:].split("]:", 1)[0].strip()
+            else:
+                host, sep, port = value.rpartition(":")
+                if sep and port.strip().isdigit():
+                    host = host.strip()
+            if has_ipv6_token(host):
+                return True
+
+    return False
+
+
+def extract_ipv4_tokens(_app, value):
+    tokens = []
+    for raw_token in (value or "").split(","):
+        token = raw_token.strip()
+        if not token:
+            continue
+        candidate = token
+        if candidate.startswith("[") and candidate.endswith("]"):
+            candidate = candidate[1:-1].strip()
+        try:
+            if "/" in candidate:
+                if ipaddress.ip_network(candidate, strict=False).version == 4:
+                    tokens.append(token)
+            elif ipaddress.ip_address(candidate).version == 4:
+                tokens.append(token)
+        except ValueError:
+            continue
+    return tokens
+
+
+def endpoint_uses_ipv6_literal(_app, value):
+    endpoint = (value or "").strip()
+    if not endpoint:
+        return False
+    if endpoint.startswith("[") and "]:" in endpoint:
+        return True
+    host, sep, port = endpoint.rpartition(":")
+    if not sep or not port.strip().isdigit():
+        return False
+    host = host.strip()
+    try:
+        return ipaddress.ip_address(host).version == 6
+    except ValueError:
+        return False
+
+
+def build_ipv4_only_wg_profile_content(app, profile_name):
+    rc, out = app._read_wg_profile_text(profile_name)
+    if rc != 0:
+        return "", "WireGuard-Profil konnte nicht gelesen werden."
+
+    filtered_lines = []
+    relevant_keys = {"address", "dns", "allowedips"}
+
+    for raw_line in (out or "").splitlines():
+        stripped = raw_line.strip()
+        if not stripped:
+            filtered_lines.append("")
+            continue
+        if stripped.startswith("[") and stripped.endswith("]"):
+            filtered_lines.append(stripped)
+            continue
+        if "=" not in raw_line:
+            filtered_lines.append(raw_line.rstrip())
+            continue
+
+        key, value = [part.strip() for part in raw_line.split("=", 1)]
+        key_l = key.lower()
+
+        if key_l in relevant_keys:
+            ipv4_tokens = app._extract_ipv4_tokens(value)
+            if not ipv4_tokens:
+                continue
+            filtered_lines.append(f"{key} = {', '.join(ipv4_tokens)}")
+            continue
+
+        if key_l == "endpoint" and app._endpoint_uses_ipv6_literal(value):
+            return (
+                "",
+                "Endpoint nutzt eine IPv6-Adresse und kann nicht als IPv4-only Kopie übernommen werden.",
+            )
+
+        filtered_lines.append(raw_line.rstrip())
+
+    content = "\n".join(filtered_lines).rstrip() + "\n"
+    return content, ""
+
+
+def ensure_internal_ipv4_profile(app, profile_name, log_failures=True):
+    base_profile = app._base_wg_profile_name(profile_name)
+    if not base_profile:
+        return False
+
+    ipv4_profile = app._internal_ipv4_profile_name(base_profile)
+    if app._wg_profile_exists(ipv4_profile):
+        return True
+
+    content, reason = app.build_ipv4_only_wg_profile_content(base_profile)
+    if not content:
+        if log_failures and reason:
+            app.log_safe(reason)
+        return False
+    content = (
+        "\n".join(
+            [
+                INTERNAL_IPV4_PROFILE_KIND_MARKER,
+                f"{INTERNAL_IPV4_PROFILE_BASE_MARKER}{base_profile}",
+                "",
+                content.rstrip(),
+            ]
+        ).rstrip()
+        + "\n"
+    )
+
+    tmp_path = ""
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", delete=False
+        ) as temp_file:
+            temp_file.write(content)
+            tmp_path = temp_file.name
+        target = app._wg_profile_path(ipv4_profile)
+        rc, out = run_cmd(
+            ["sudo", "-n", "install", "-m", "600", tmp_path, target],
+            timeout=12,
+        )
+        if rc != 0:
+            if log_failures:
+                app.log_safe(
+                    (out or "").strip()
+                    or f"Interne IPv4-Kopie konnte nicht erstellt werden: {ipv4_profile}"
+                )
+            return False
+        return True
+    finally:
+        if tmp_path:
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+
+
+def import_wg_profiles_from_folder(app):
+    initialdir = app.get_wg_import_dir() or ensure_netmon_wireguard_profiles_dir()
+    files = filedialog.askopenfilenames(
+        title="WireGuard-Profile auswählen",
+        initialdir=initialdir,
+        filetypes=[("WireGuard config", "*.conf"), ("Alle Dateien", "*.*")],
+    )
+    if not files:
+        app.log("Import abgebrochen.")
+        return
+
+    first_dir = os.path.dirname(str(files[0]).strip()) if files else ""
+    if first_dir:
+        app.set_wg_import_dir(first_dir)
+
+    def job():
+        selected_files = sorted([str(p).strip() for p in files if str(p).strip()])
+
+        imported = 0
+        skipped = 0
+        failed = 0
+        imported_profiles = []
+
+        for src in selected_files:
+            base = os.path.basename(src)
+            name = base[:-5] if base.endswith(".conf") else base
+            if not re.match(r"^[A-Za-z0-9_.-]+$", name):
+                skipped += 1
+                app.after(
+                    0,
+                    lambda n=name: app.log(
+                        f"Übersprungen (ungültiger Profilname): {n}"
+                    ),
+                )
+                continue
+
+            target = f"/etc/wireguard/{name}.conf"
+            rc_cp, out_cp = run_cmd(
+                ["sudo", "-n", "install", "-m", "600", src, target], timeout=10
+            )
+            if rc_cp == 0:
+                imported += 1
+                imported_profiles.append(name)
+                call_in_ui_thread(app, lambda n=name: app.log(f"Profil importiert: {n}"))
+            else:
+                failed += 1
+                app.after(
+                    0,
+                    lambda n=name, o=out_cp: app.log(
+                        f"Import fehlgeschlagen ({n}): {o}"
+                    ),
+                )
+
+        def finish():
+            if imported_profiles:
+                app.reconcile_vpn_slot_firewall_state(
+                    reason="Import-Reconcile",
+                    touched_profiles=imported_profiles,
+                    refresh_ui=False,
+                )
+            app.sync_internal_ipv4_profiles(log_failures=False)
+            app.refresh_wg_profiles()
+            if hasattr(app, "vpn_profile_combo"):
+                app.vpn_profile_combo["values"] = app.wg_profiles
+            app.update_primary_vpn_form_controls()
+            app.sync_primary_vpn_form_selection()
+            app.sync_vpn_profile_form_selection()
+            app.update_vpn_slot_buttons()
+            app.refresh_vpn_slots_table()
+            app.log(
+                f"WireGuard-Import beendet: {imported} importiert, {skipped} übersprungen, {failed} fehlgeschlagen."
+            )
+
+        call_in_ui_thread(app, finish)
+
+    threading.Thread(target=job, daemon=True).start()
+
+
+def import_wg_profiles_to_networkmanager(app):
+    if not has_cmd("nmcli"):
+        app.log("NetworkManager-Import nicht verfügbar: nmcli fehlt.")
+        return
+
+    initialdir = app.get_wg_import_dir() or ensure_netmon_wireguard_profiles_dir()
+    if not os.path.isdir(initialdir):
+        initialdir = ensure_netmon_wireguard_profiles_dir()
+
+    files = filedialog.askopenfilenames(
+        title="WireGuard-Profile nach NetworkManager importieren",
+        initialdir=initialdir,
+        filetypes=[("WireGuard config", "*.conf"), ("Alle Dateien", "*.*")],
+    )
+    if not files:
+        app.log("NetworkManager-Import abgebrochen.")
+        return
+
+    first_dir = os.path.dirname(str(files[0]).strip()) if files else ""
+    if first_dir:
+        app.set_wg_import_dir(first_dir)
+
+    if not app.ensure_sudo_session("WireGuard nach NetworkManager importieren"):
+        return
+
+    def job():
+        selected_files = sorted(
+            [str(path).strip() for path in files if str(path).strip()]
+        )
+        import_wireguard_paths_to_networkmanager(
+            app,
+            selected_files,
+            operation_name="NetworkManager-WireGuard-Import",
+        )
+
+    threading.Thread(target=job, daemon=True).start()
+
+
+def import_referenced_wg_profiles_to_networkmanager(app):
+    if not has_cmd("nmcli"):
+        app.log("NetworkManager-Import nicht verfügbar: nmcli fehlt.")
+        return
+    if not app.ensure_sudo_session(
+        "Referenzierte WireGuard-Profile nach NetworkManager importieren"
+    ):
+        return
+
+    collector = app.__dict__.get("collect_referenced_wg_profile_import_paths")
+    if callable(collector):
+        referenced_paths = collector()
+    else:
+        referenced_paths = collect_referenced_wg_profile_import_paths(app)
+    if not referenced_paths:
+        app.log("Kein referenziertes WireGuard-Profil zum NM-Import gefunden.")
+        return
+
+    def job():
+        selected_files = [path for _profile, path in referenced_paths]
+        import_wireguard_paths_to_networkmanager(
+            app,
+            selected_files,
+            operation_name="NetworkManager-WireGuard-Import (referenzierte Profile)",
+        )
+
+    threading.Thread(target=job, daemon=True).start()
+
+
+def import_wireguard_paths_to_networkmanager(
+    app,
+    selected_files,
+    *,
+    operation_name="NetworkManager-WireGuard-Import",
+):
+    def _delete_nm_connection(name):
+        rc, out = run_cmd(
+            ["sudo", "-n", "nmcli", "connection", "delete", name],
+            timeout=15,
+        )
+        if rc != 0:
+            raise RuntimeError((out or "").strip() or f"delete rc={rc}")
+
+    def process():
+        previous_state = get_nm_last_import_state(app)
+        tx_factory = getattr(app, "_new_rollback_transaction", None)
+        tx = tx_factory(operation_name) if callable(tx_factory) else None
+
+        imported_connections = []
+        imported_files = []
+        skipped = 0
+        failed = 0
+        rollback_triggered = False
+
+        for src in selected_files:
+            base = os.path.basename(src)
+            profile_name = base[:-5] if base.endswith(".conf") else base
+            if not os.path.isfile(src):
+                skipped += 1
+                app.after(
+                    0,
+                    lambda n=profile_name, path=src: app.log(
+                        f"NM-Import übersprungen: Dateiprofil fehlt: {n} ({path})"
+                    ),
+                )
+                continue
+            if not re.match(r"^[A-Za-z0-9_.-]+$", profile_name):
+                skipped += 1
+                app.after(
+                    0,
+                    lambda n=profile_name: app.log(
+                        f"NM-Import übersprungen (ungültiger Profilname): {n}"
+                    ),
+                )
+                continue
+
+            existing_connections = set(get_nm_wireguard_profiles(app))
+            if profile_name in existing_connections:
+                skipped += 1
+                app.after(
+                    0,
+                    lambda n=profile_name: app.log(
+                        f"NM-Import übersprungen: Connection bereits vorhanden: {n}"
+                    ),
+                )
+                continue
+
+            cmd = [
+                "sudo",
+                "-n",
+                "nmcli",
+                "connection",
+                "import",
+                "type",
+                "wireguard",
+                "file",
+                src,
+            ]
+            rc, out = run_cmd(cmd, timeout=25)
+            app.log_debug_safe(f"NM-IMPORT CMD -> {' '.join(cmd)}")
+            app.log_debug_safe(f"NM-IMPORT RC -> {rc}")
+            app.log_debug_safe(f"NM-IMPORT OUT -> {(out or '').strip() or '-'}")
+            if rc != 0:
+                failed += 1
+                rollback_triggered = True
+                app.after(
+                    0,
+                    lambda n=profile_name, details=out, code=rc: app.log(
+                        f"NM-Import fehlgeschlagen ({n}): rc={code}, {(details or '').strip() or 'unbekannter Fehler'}"
+                    ),
+                )
+                break
+
+            current_connections = set(get_nm_wireguard_profiles(app))
+            added_connections = sorted(current_connections - existing_connections)
+            if not added_connections and profile_name in current_connections:
+                added_connections = [profile_name]
+            if not added_connections:
+                failed += 1
+                rollback_triggered = True
+                app.after(
+                    0,
+                    lambda n=profile_name: app.log(
+                        f"NM-Import fehlgeschlagen ({n}): keine neue WireGuard-Connection in NetworkManager erkannt."
+                    ),
+                )
+                break
+
+            imported_files.append(src)
+            for connection_name in added_connections:
+                if connection_name not in imported_connections:
+                    imported_connections.append(connection_name)
+                if tx is not None:
+                    tx.add_rollback(
+                        f"nmcli delete {connection_name}",
+                        lambda name=connection_name: _delete_nm_connection(name),
+                    )
+            app.after(
+                0,
+                lambda names=", ".join(added_connections), n=profile_name: app.log(
+                    f"NM-Import erfolgreich: {n} -> {names}"
+                ),
+            )
+
+        if rollback_triggered:
+            rollback_ok = True
+            if tx is not None:
+                rollback_ok = tx.rollback()
+            set_nm_last_import_state(app, previous_state)
+
+            def finish_rollback():
+                if imported_connections:
+                    app.log(
+                        "NM-Import wurde zurückgerollt: "
+                        + ", ".join(imported_connections)
+                    )
+                if not rollback_ok:
+                    app.log(
+                        "NM-Import-Rollback war nicht vollständig. Bitte NetworkManager-Connections prüfen."
+                    )
+
+            call_in_ui_thread(app, finish_rollback)
+            return
+
+        if imported_connections:
+            set_nm_last_import_state(
+                app,
+                {
+                    "connections": imported_connections,
+                    "source_files": imported_files,
+                    "imported_at": int(time.time()),
+                },
+            )
+        nm_rows = get_nm_connection_rows(app)
+
+        def finish():
+            summary = ", ".join(
+                [f"{name} [{conn_type}]" for name, conn_type in nm_rows]
+            )
+            if summary:
+                app.log(f"NetworkManager Connections: {summary}")
+            else:
+                app.log("NetworkManager Connections: keine gefunden")
+            app.log(
+                "NM-Import beendet: "
+                f"{len(imported_connections)} importiert, {skipped} übersprungen, {failed} fehlgeschlagen."
+            )
+
+        call_in_ui_thread(app, finish)
+
+    process()
+
+
+def rollback_last_nm_wireguard_import(app):
+    if not has_cmd("nmcli"):
+        app.log("NM-Import-Rollback nicht verfügbar: nmcli fehlt.")
+        return
+
+    state = get_nm_last_import_state(app)
+    connections = state.get("connections", [])
+    if not connections:
+        app.log("Kein gespeicherter NM-Import zum Rollback vorhanden.")
+        return
+
+    if not app.ensure_sudo_session("NetworkManager-WireGuard-Import zurückrollen"):
+        return
+
+    def job():
+        removed = []
+        missing = []
+        failed = []
+
+        for connection_name in connections:
+            existing_connections = set(get_nm_wireguard_profiles(app))
+            if connection_name not in existing_connections:
+                missing.append(connection_name)
+                continue
+
+            cmd = ["sudo", "-n", "nmcli", "connection", "delete", connection_name]
+            rc, out = run_cmd(cmd, timeout=15)
+            app.log_debug_safe(f"NM-ROLLBACK CMD -> {' '.join(cmd)}")
+            app.log_debug_safe(f"NM-ROLLBACK RC -> {rc}")
+            app.log_debug_safe(f"NM-ROLLBACK OUT -> {(out or '').strip() or '-'}")
+            if rc == 0:
+                removed.append(connection_name)
+            else:
+                failed.append(
+                    (
+                        connection_name,
+                        (out or "").strip() or f"delete rc={rc}",
+                    )
+                )
+
+        remaining_connections = []
+        current_connections = set(get_nm_wireguard_profiles(app))
+        for connection_name in connections:
+            if connection_name in current_connections:
+                remaining_connections.append(connection_name)
+
+        set_nm_last_import_state(
+            app,
+            {
+                "connections": remaining_connections,
+                "source_files": (
+                    state.get("source_files", []) if remaining_connections else []
+                ),
+                "imported_at": (
+                    state.get("imported_at", 0) if remaining_connections else 0
+                ),
+            },
+        )
+        nm_rows = get_nm_connection_rows(app)
+
+        def finish():
+            if removed:
+                app.log("NM-Import-Rollback entfernt: " + ", ".join(removed))
+            if missing:
+                app.log("NM-Import-Rollback bereits weg: " + ", ".join(missing))
+            for connection_name, reason in failed:
+                app.log(
+                    f"NM-Import-Rollback fehlgeschlagen ({connection_name}): {reason}"
+                )
+            summary = ", ".join(
+                [f"{name} [{conn_type}]" for name, conn_type in nm_rows]
+            )
+            if summary:
+                app.log(f"NetworkManager Connections: {summary}")
+            else:
+                app.log("NetworkManager Connections: keine gefunden")
+
+        call_in_ui_thread(app, finish)
+
+    threading.Thread(target=job, daemon=True).start()

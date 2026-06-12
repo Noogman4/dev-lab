@@ -7,6 +7,11 @@ import os
 import subprocess
 import threading
 
+try:
+    from netmon.core.utils import call_in_ui_thread
+except ModuleNotFoundError:
+    from core.utils import call_in_ui_thread
+
 
 
 def _tr(app, key, default):
@@ -314,7 +319,7 @@ def start_selected_game(app):
                 _set_fun_status(app, "fun_status_stopped", "Spiel gestoppt.")
 
         try:
-            app.after(0, finalize)
+            call_in_ui_thread(app, finalize)
         except Exception:
             finalize()
 

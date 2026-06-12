@@ -26,9 +26,9 @@ except ModuleNotFoundError:
     from core.tooling import has_cmd
 
 try:
-    from netmon.core.utils import safe_write_json
+    from netmon.core.utils import safe_write_json, call_in_ui_thread
 except ModuleNotFoundError:
-    from core.utils import safe_write_json
+    from core.utils import safe_write_json, call_in_ui_thread
 
 
 def default_radio_settings():
@@ -3260,7 +3260,7 @@ def _wait_for_radio_process(app, proc, station_name):
             update_radio_header(app)
 
     try:
-        app.after(0, finalize)
+        call_in_ui_thread(app, finalize)
     except Exception:
         finalize()
 
@@ -3306,16 +3306,16 @@ def stop_radio_playback(app, *, async_mode=True, clear_current=False):
             _cleanup_radio_ipc_path(app)
             app.radio_ipc_path = ""
             try:
-                app.after(0, update_radio_header, app)
-                app.after(0, refresh_radio_source_ui, app)
+                call_in_ui_thread(app, lambda: update_radio_header(app))
+                call_in_ui_thread(app, lambda: refresh_radio_source_ui(app))
                 app.after(
                     0,
                     lambda: set_radio_status(
                         app, _tr(app, "radio_status_stopped", "Radio gestoppt.")
                     ),
                 )
-                app.after(0, lambda: _set_radio_light(app, "gray"))
-                app.after(0, lambda: _set_radio_station_text(app, ""))
+                call_in_ui_thread(app, lambda: _set_radio_light(app, "gray"))
+                call_in_ui_thread(app, lambda: _set_radio_station_text(app, ""))
                 app.after(
                     0,
                     lambda: _set_radio_title_text(
@@ -4880,7 +4880,7 @@ def play_radio_station(app, station_id=""):
                 )
 
             try:
-                app.after(0, announce)
+                call_in_ui_thread(app, announce)
             except Exception:
                 announce()
 

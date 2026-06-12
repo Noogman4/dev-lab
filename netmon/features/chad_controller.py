@@ -10,6 +10,11 @@ import time
 from datetime import datetime
 
 try:
+    from netmon.core.utils import call_in_ui_thread
+except ModuleNotFoundError:
+    from core.utils import call_in_ui_thread
+
+try:
     from netmon.services.ai_analysis_service import AiAnalysisService
 except ModuleNotFoundError:
     try:
@@ -1307,7 +1312,7 @@ def send_chad_chat_message(app):
                 app.chad_chat_status_var.set(result)
                 log_chad_error(app, "Chat", result)
 
-        app.after(0, update_ui)
+        call_in_ui_thread(app, update_ui)
 
     threading.Thread(target=worker, daemon=True).start()
     return "break"
@@ -1442,7 +1447,7 @@ def run_chad_online_analysis(app):
                 app.chad_analysis_status_var.set(result)
                 log_chad_error(app, "Analyse", result)
 
-        app.after(0, update_ui)
+        call_in_ui_thread(app, update_ui)
 
     threading.Thread(target=worker, daemon=True).start()
 

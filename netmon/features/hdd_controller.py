@@ -15,9 +15,9 @@ except ModuleNotFoundError:
     from config.constants import HDD_SLOT_COUNT
 
 try:
-    from netmon.core.utils import human_size, safe_write_json
+    from netmon.core.utils import human_size, safe_write_json, call_in_ui_thread
 except ModuleNotFoundError:
-    from core.utils import human_size, safe_write_json
+    from core.utils import human_size, safe_write_json, call_in_ui_thread
 
 try:
     from netmon.core.command import run_cmd
@@ -887,7 +887,7 @@ def hdd_refresh_async(app):
             else:
                 hdd_sync_auto_mount_ui(app)
 
-        app.after(0, done)
+        call_in_ui_thread(app, done)
 
     threading.Thread(target=job, daemon=True).start()
 
@@ -979,7 +979,7 @@ def hdd_info_async(app, idx, select_tab=True, log_event=True):
             if log_event:
                 app.log(f"HDD Info geladen: Slot {idx + 1}.")
 
-        app.after(0, show)
+        call_in_ui_thread(app, show)
 
     threading.Thread(target=job, daemon=True).start()
 
@@ -1001,7 +1001,7 @@ def hdd_info_for_device_async(app, device, log_event=True):
             if log_event:
                 app.log(f"HDD Info geladen: {device}.")
 
-        app.after(0, show)
+        call_in_ui_thread(app, show)
 
     threading.Thread(target=job, daemon=True).start()
 
@@ -1258,7 +1258,7 @@ def hdd_mount_async(app, idx, select_tab=True):
                 app.hdd_info_async, idx, select_tab, log_event=False
             )
 
-        app.after(0, done)
+        call_in_ui_thread(app, done)
 
     threading.Thread(target=job, daemon=True).start()
 
@@ -1330,7 +1330,7 @@ def hdd_unmount_async(app, idx, select_tab=True):
                     0,
                     lambda: app.log(f"HDD Unmount fehlgeschlagen für {label}: {out}"),
                 )
-                app.after(0, lambda: app.hdd_refresh_async())
+                call_in_ui_thread(app, lambda: app.hdd_refresh_async())
                 app.after(
                     0,
                     lambda: _call_with_optional_select_tab(
@@ -1367,6 +1367,6 @@ def hdd_unmount_async(app, idx, select_tab=True):
                 app.hdd_info_async, idx, select_tab, log_event=False
             )
 
-        app.after(0, done)
+        call_in_ui_thread(app, done)
 
     threading.Thread(target=job, daemon=True).start()
