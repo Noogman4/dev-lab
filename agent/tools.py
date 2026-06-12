@@ -23,10 +23,3 @@ def read_file(path: str) -> str:
 
     return file_path.read_text(encoding="utf-8")
 
-
-def write_file(path: str, content: str) -> None:
-    file_path = (REPO_ROOT / path).resolve()
-
-    file_path.parent.mkdir(parents=True, exist_ok=True)
-
-    file_path.write_text(content, encoding="utf-8")

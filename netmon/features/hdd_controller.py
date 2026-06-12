@@ -35,6 +35,58 @@ except ModuleNotFoundError:
     from core.tooling import has_cmd
 
 
+def _app_value(app, name, default):
+    return app.__dict__.get(name, default)
+
+
+def _app_callable(app, name, fallback):
+    candidate = app.__dict__.get(name)
+    return candidate if callable(candidate) else fallback
+
+
+def _call_with_optional_select_tab(func, idx, select_tab, log_event=True):
+    try:
+        return func(idx, select_tab=select_tab, log_event=log_event)
+    except TypeError:
+        try:
+            return func(idx, select_tab=select_tab)
+        except TypeError:
+            return func(idx)
+
+
+def _detected_disks(app):
+    return _app_value(app, "detected_disks", []) or []
+
+
+def _detected_disks_by_device(app):
+    return _app_value(app, "detected_disks_by_device", {}) or {}
+
+
+def _selected_hdd_slot_no(app) -> int:
+    try:
+        slot_no = int((app.hdd_slot_choice.get() or "0").strip())
+    except ValueError:
+        slot_no = 0
+    return slot_no if 1 <= slot_no <= HDD_SLOT_COUNT else 0
+
+
+
+def _clear_hdd_slot_fields(slot):
+    slot["device"] = ""
+    slot["device_uuid"] = ""
+    slot["mountpoint"] = ""
+    slot["custom_name"] = ""
+    slot["auto_mount"] = False
+
+
+
+
+
+def _slot_mountpoint(slot, device):
+    configured_mountpoint = (slot.get("mountpoint") or "").strip()
+    return configured_mountpoint or f"/mnt/{os.path.basename(device)}"
+
+
 def default_hdd_slots():
     return [
         {
@@ -43,6 +95,7 @@ def default_hdd_slots():
             "device": "",
             "device_uuid": "",
             "mountpoint": "",
+            "auto_mount": False,
         }
         for i in range(HDD_SLOT_COUNT)
     ]
@@ -66,6 +119,7 @@ def load_hdd_slots_config(app):
                             "device": (item.get("device") or "").strip(),
                             "device_uuid": (item.get("device_uuid") or "").strip(),
                             "mountpoint": (item.get("mountpoint") or "").strip(),
+                            "auto_mount": bool(item.get("auto_mount", False)),
                         }
     except Exception as e:
         app.log(f"HDD Slot-Konfig konnte nicht geladen werden: {e}")
@@ -91,11 +145,15 @@ def hdd_slot_configured(slot):
     return bool((slot.get("device") or "").strip())
 
 
+def hdd_auto_mount_enabled(slot):
+    return bool((slot or {}).get("auto_mount", False))
+
+
 def hdd_find_device_by_uuid(app, device_uuid):
     device_uuid = (device_uuid or "").strip()
     if not device_uuid:
         return None
-    for disk in app.detected_disks:
+    for disk in _detected_disks(app):
         if (disk.get("uuid") or "").strip() == device_uuid:
             return disk
     return None
@@ -104,12 +162,9 @@ def hdd_find_device_by_uuid(app, device_uuid):
 def hdd_resolve_slot_device(app, slot):
     configured_device = (slot.get("device") or "").strip()
     configured_uuid = (slot.get("device_uuid") or "").strip()
+    disks_by_device = _detected_disks_by_device(app)
 
-    disk = (
-        app.detected_disks_by_device.get(configured_device)
-        if configured_device
-        else None
-    )
+    disk = disks_by_device.get(configured_device) if configured_device else None
     if disk:
         live_uuid = (disk.get("uuid") or "").strip()
         if live_uuid and live_uuid != configured_uuid:
@@ -160,8 +215,13 @@ def refresh_hdd_table(app, keep_selection=True):
             ),
         )
     if selected and selected in app.hdd_table.get_children():
-        app.hdd_table.selection_set(selected)
-        app.hdd_table.focus(selected)
+        app._hdd_programmatic_selection = True
+        app._hdd_suppress_next_selection_log_for = selected
+        try:
+            app.hdd_table.selection_set(selected)
+            app.hdd_table.focus(selected)
+        finally:
+            app._hdd_programmatic_selection = False
 
 
 def slot_display_name(app, idx):
@@ -221,10 +281,24 @@ def on_hdd_table_select(app, _event=None):
         app.hdd_selected_device = None
         return
     dev = sel[0]
+    current_info_device = str(app.__dict__.get("hdd_info_selected_device") or "").strip()
     app.hdd_selected_device = dev
     disk = app.detected_disks_by_device.get(dev)
     if not disk:
         return
+    suppress_log = False
+    suppressed_device = app.__dict__.get("_hdd_suppress_next_selection_log_for")
+    if suppressed_device == dev:
+        suppress_log = True
+        app._hdd_suppress_next_selection_log_for = None
+    if current_info_device == dev:
+        suppress_log = True
+    hdd_info_for_device_async(
+        app,
+        dev,
+        log_event=not suppress_log
+        and not bool(app.__dict__.get("_hdd_programmatic_selection", False)),
+    )
 
     if app.hdd_name_editing or app.hdd_name_dirty:
         return
@@ -238,6 +312,150 @@ def on_hdd_table_select(app, _event=None):
         )
     else:
         set_hdd_name_from_model(app, (disk.get("label") or "").strip())
+
+
+def hdd_sync_auto_mount_ui(app, state=None):
+    if state is None:
+        device = str(getattr(app, "hdd_selected_device", "") or "").strip()
+        state = hdd_collect_device_state(app, device) if device else None
+
+    available = False
+    enabled = False
+    hint = ""
+    if state and (state.get("device") or "").strip():
+        slot_no = slot_for_device(app, state.get("device") or "")
+        if slot_no:
+            slot = app.hdd_slots[slot_no - 1]
+            enabled = hdd_auto_mount_enabled(slot)
+            available = True
+            if state.get("is_luks"):
+                available = False
+                enabled = False
+                if slot.get("auto_mount"):
+                    slot["auto_mount"] = False
+                    save_hdd_config(app)
+                hint = "LUKS bzw. verschlüsselte Devices können nicht automatisch gemountet werden."
+        else:
+            hint = (
+                "Automount ist nur für Devices verfügbar, die einem HDD-Slot "
+                "zugeordnet sind."
+            )
+
+    auto_mount_var = app.__dict__.get("hdd_info_auto_mount_var")
+    auto_mount_check = app.__dict__.get("hdd_info_auto_mount_check")
+    auto_mount_hint_var = app.__dict__.get("hdd_info_auto_mount_hint_var")
+
+    app._hdd_auto_mount_programmatic_update = True
+    try:
+        if auto_mount_var is not None:
+            auto_mount_var.set(bool(enabled))
+        try:
+            if auto_mount_check is not None:
+                auto_mount_check.configure(
+                state=("normal" if available else "disabled")
+                )
+        except Exception:
+            pass
+        try:
+            if auto_mount_hint_var is not None:
+                auto_mount_hint_var.set(hint)
+        except Exception:
+            pass
+    finally:
+        app._hdd_auto_mount_programmatic_update = False
+
+
+def on_hdd_auto_mount_toggle(app):
+    if getattr(app, "_hdd_auto_mount_programmatic_update", False):
+        return
+    device = str(getattr(app, "hdd_selected_device", "") or "").strip()
+    if not device:
+        hdd_sync_auto_mount_ui(app, None)
+        return
+    state = hdd_collect_device_state(app, device)
+    slot_no = slot_for_device(app, device)
+    if not slot_no:
+        hdd_sync_auto_mount_ui(app, state)
+        app.log("HDD Automount erfordert eine Slot-Zuordnung für das ausgewählte Device.")
+        return
+    if state.get("is_luks"):
+        app.hdd_slots[slot_no - 1]["auto_mount"] = False
+        save_hdd_config(app)
+        hdd_sync_auto_mount_ui(app, state)
+        app.log("LUKS bzw. verschlüsselte Devices können nicht automatisch gemountet werden.")
+        return
+
+    auto_mount_var = app.__dict__.get("hdd_info_auto_mount_var")
+    enabled = bool(auto_mount_var.get()) if auto_mount_var is not None else False
+    app.hdd_slots[slot_no - 1]["auto_mount"] = enabled
+    save_hdd_config(app)
+    hdd_sync_auto_mount_ui(app, state)
+    app.log(
+        f"HDD Automount {'aktiviert' if enabled else 'deaktiviert'}: {device}."
+    )
+
+
+def hdd_collect_device_state(app, device):
+    device = str(device or "").strip()
+    slot_no = slot_for_device(app, device)
+    slot = app.hdd_slots[slot_no - 1] if slot_no else {}
+    disk = _detected_disks_by_device(app).get(device)
+    mountpoint = (
+        (slot.get("mountpoint") or "").strip()
+        or str((disk or {}).get("mountpoint") or "").strip()
+        or (f"/mnt/{os.path.basename(device)}" if device else "")
+    )
+
+    if not device:
+        return {
+            "slot": (slot_no - 1) if slot_no else -1,
+            "custom_name": (slot.get("custom_name") or "").strip(),
+            "device": "",
+            "mountpoint": mountpoint,
+            "configured": bool(slot_no),
+            "present": False,
+            "mounted": None,
+            "actual_target": "",
+            "fstype": "",
+            "label": "",
+            "model": "",
+            "size_bytes": None,
+            "usage": None,
+            "is_luks": False,
+            "luks_locked": False,
+            "luks_mapper_name": "",
+            "luks_mapper_path": "",
+        }
+
+    luks = hdd_luks_info_for_device(app, device)
+    mounted, actual_target = hdd_is_mounted(app, device, mountpoint)
+    if not mounted and luks.get("mounted_targets"):
+        actual_target = luks["mounted_targets"][0]
+        mounted = True
+    if not actual_target and disk:
+        actual_target = (disk.get("mountpoint") or "").strip()
+    usage = hdd_usage_for_mountpoint(actual_target or mountpoint) if mounted else None
+    return {
+        "slot": (slot_no - 1) if slot_no else -1,
+        "custom_name": (slot.get("custom_name") or "").strip(),
+        "device": device,
+        "mountpoint": mountpoint,
+        "configured": bool(slot_no),
+        "present": disk is not None,
+        "mounted": mounted if disk is not None else None,
+        "actual_target": actual_target,
+        "fstype": (disk.get("fstype") if disk else "") or "",
+        "label": (disk.get("label") if disk else "") or "",
+        "model": (disk.get("model") if disk else "") or "",
+        "size_bytes": disk.get("size_bytes") if disk else None,
+        "usage": usage,
+        "is_luks": luks.get("is_luks", bool(disk.get("is_luks")) if disk else False),
+        "luks_locked": luks.get(
+            "locked", bool(disk.get("luks_locked")) if disk else False
+        ),
+        "luks_mapper_name": luks.get("mapper_name") or "",
+        "luks_mapper_path": luks.get("mapper_path") or "",
+    }
 
 
 def assign_selected_disk_to_slot(app):
@@ -265,6 +483,7 @@ def assign_selected_disk_to_slot(app):
             slot["custom_name"] = ""
 
     target = app.hdd_slots[slot_no - 1]
+    previous_target_device = (target.get("device") or "").strip()
     target["device"] = dev
     target["device_uuid"] = (disk.get("uuid") or "").strip()
     target["mountpoint"] = (
@@ -272,6 +491,7 @@ def assign_selected_disk_to_slot(app):
         or target.get("mountpoint")
         or f"/mnt/{os.path.basename(dev)}"
     )
+    target["auto_mount"] = bool(target.get("auto_mount")) if previous_target_device == dev else False
     target["custom_name"] = (app.hdd_custom_name_var.get() or "").strip()
     save_hdd_config(app)
     app.hdd_last_loaded_name = target["custom_name"]
@@ -279,6 +499,7 @@ def assign_selected_disk_to_slot(app):
     refresh_hdd_table(app, keep_selection=True)
     update_hdd_buttons(app)
     app.hdd_refresh_async()
+    hdd_sync_auto_mount_ui(app)
     app.log(f"HDD Zuordnung übernommen: {dev} -> Slot {slot_no}.")
 
 
@@ -317,6 +538,7 @@ def clear_slot_assignment(app, confirm=False):
     set_hdd_name_from_model(app, "")
     refresh_hdd_table(app, keep_selection=False)
     update_hdd_buttons(app)
+    hdd_sync_auto_mount_ui(app, None)
 
     app.hdd_slot_states[slot_no - 1] = {
         "configured": False,
@@ -415,7 +637,7 @@ def hdd_probe_live_device(device):
 
 
 def hdd_luks_info_for_device(app, device):
-    disk = app.detected_disks_by_device.get(device) or {}
+    disk = _detected_disks_by_device(app).get(device) or {}
     live = hdd_probe_live_device(device)
     mapper_path = (live.get("mapper_path") or "").strip()
     mapper_name = (live.get("mapper_name") or "").strip()
@@ -426,7 +648,7 @@ def hdd_luks_info_for_device(app, device):
     if not mapper_name and mapper_path.startswith("/dev/mapper/"):
         mapper_name = os.path.basename(mapper_path)
 
-    cached_mapper = (app.hdd_luks_mappers.get(device) or "").strip()
+    cached_mapper = (_app_value(app, "hdd_luks_mappers", {}).get(device) or "").strip()
     if not mapper_name:
         mapper_name = cached_mapper
     if not mapper_path and mapper_name and os.path.exists(f"/dev/mapper/{mapper_name}"):
@@ -446,7 +668,7 @@ def hdd_luks_info_for_device(app, device):
 
     unlocked = bool(mapper_path)
     if mapper_name and mapper_path:
-        app.hdd_luks_mappers[device] = mapper_name
+        _app_value(app, "hdd_luks_mappers", {})[device] = mapper_name
 
     return {
         "is_luks": bool(disk.get("is_luks")),
@@ -605,36 +827,12 @@ def hdd_collect_slot_state(app, idx):
             "luks_mapper_name": "",
             "luks_mapper_path": "",
         }
-
-    luks = hdd_luks_info_for_device(app, device)
-    mounted, actual_target = hdd_is_mounted(app, device, mountpoint)
-    if not mounted and luks.get("mounted_targets"):
-        actual_target = luks["mounted_targets"][0]
-        mounted = True
-    if not actual_target and disk:
-        actual_target = (disk.get("mountpoint") or "").strip()
-    usage = hdd_usage_for_mountpoint(actual_target or mountpoint) if mounted else None
-    return {
-        "slot": idx,
-        "custom_name": (slot.get("custom_name") or "").strip(),
-        "device": device,
-        "mountpoint": mountpoint,
-        "configured": True,
-        "present": disk is not None,
-        "mounted": mounted if disk is not None else None,
-        "actual_target": actual_target,
-        "fstype": (disk.get("fstype") if disk else "") or "",
-        "label": (disk.get("label") if disk else "") or "",
-        "model": (disk.get("model") if disk else "") or "",
-        "size_bytes": disk.get("size_bytes") if disk else None,
-        "usage": usage,
-        "is_luks": luks.get("is_luks", bool(disk.get("is_luks")) if disk else False),
-        "luks_locked": luks.get(
-            "locked", bool(disk.get("luks_locked")) if disk else False
-        ),
-        "luks_mapper_name": luks.get("mapper_name") or "",
-        "luks_mapper_path": luks.get("mapper_path") or "",
-    }
+    state = hdd_collect_device_state(app, device)
+    state["slot"] = idx
+    state["custom_name"] = (slot.get("custom_name") or "").strip()
+    state["mountpoint"] = mountpoint
+    state["configured"] = True
+    return state
 
 
 def hdd_apply_slot_lights(app):
@@ -662,7 +860,7 @@ def hdd_refresh_async(app):
     def job():
         disks = app.scan_hdds()
         disks_by_device = {(d.get("device") or ""): d for d in disks if d.get("device")}
-        prev_detected = app.detected_disks_by_device
+        prev_detected = _detected_disks_by_device(app)
         app.detected_disks_by_device = disks_by_device
         states = [hdd_collect_slot_state(app, i) for i in range(len(app.hdd_slots))]
         app.detected_disks_by_device = prev_detected
@@ -674,6 +872,11 @@ def hdd_refresh_async(app):
             app.hdd_slot_states = states
             hdd_apply_slot_lights(app)
             app.hdd_refresh_running = False
+            if getattr(app, "_hdd_startup_auto_mount_pending", False):
+                app._hdd_startup_auto_mount_pending = False
+                hdd_startup_auto_mount(app)
+            else:
+                hdd_sync_auto_mount_ui(app)
 
         app.after(0, done)
 
@@ -745,9 +948,10 @@ def hdd_render_info(app, state):
     app.hdd_info_text.insert("end", "\n".join(lines) + "\n")
     app.hdd_info_text.see("1.0")
     hdd_render_usage_bar(app, usage if usage else None)
+    hdd_sync_auto_mount_ui(app, state)
 
 
-def hdd_info_async(app, idx):
+def hdd_info_async(app, idx, select_tab=True, log_event=True):
     if idx < 0 or idx >= len(app.hdd_slots):
         return
 
@@ -755,40 +959,123 @@ def hdd_info_async(app, idx):
         state = hdd_collect_slot_state(app, idx)
 
         def show():
-            app.hdd_slot_states[idx] = state
+            slot_states = _app_value(app, "hdd_slot_states", [])
+            if idx < len(slot_states):
+                slot_states[idx] = state
             hdd_apply_slot_lights(app)
-            app._select_system_tab(app.tab_hdd)
+            app.hdd_selected_device = (state.get("device") or "").strip() or None
+            if select_tab:
+                app._select_system_tab(app.tab_hdd)
             hdd_render_info(app, state)
-            app.log(f"HDD Info geladen: Slot {idx + 1}.")
+            if log_event:
+                app.log(f"HDD Info geladen: Slot {idx + 1}.")
 
         app.after(0, show)
 
     threading.Thread(target=job, daemon=True).start()
 
 
-def hdd_mount_async(app, idx):
-    if idx < 0 or idx >= len(app.hdd_slots):
+def hdd_info_for_device_async(app, device, log_event=True):
+    device = str(device or "").strip()
+    if not device:
         return
-    if not app.ensure_sudo_session("HDD Mount"):
+    app.hdd_info_selected_device = device
+
+    def job():
+        state = hdd_collect_device_state(app, device)
+
+        def show():
+            if getattr(app, "hdd_info_selected_device", "") != device:
+                return
+            app.hdd_selected_device = device
+            hdd_render_info(app, state)
+            if log_event:
+                app.log(f"HDD Info geladen: {device}.")
+
+        app.after(0, show)
+
+    threading.Thread(target=job, daemon=True).start()
+
+
+def hdd_startup_auto_mount(app):
+    enabled_slots = [
+        idx
+        for idx, slot in enumerate(app.hdd_slots)
+        if hdd_auto_mount_enabled(slot) and hdd_slot_configured(slot)
+    ]
+    if not enabled_slots:
+        return
+
+    def schedule(idx, delay_ms):
+        def run_mount(current_idx=idx):
+            try:
+                hdd_mount_async(app, current_idx, select_tab=False)
+            except TypeError:
+                hdd_mount_async(app, current_idx)
+
+        app.after(
+            delay_ms,
+            run_mount,
+        )
+
+    scheduled = 0
+    for idx in enabled_slots:
+        state = hdd_collect_slot_state(app, idx)
+        if state.get("is_luks"):
+            app.hdd_slots[idx]["auto_mount"] = False
+            app.log(
+                f"HDD Automount übersprungen: Slot {idx + 1} ist LUKS/verschlüsselt."
+            )
+            continue
+        schedule(idx, scheduled * 500)
+        scheduled += 1
+
+    save_hdd_config(app)
+
+
+def hdd_mount_async(app, idx, select_tab=True):
+    if idx < 0 or idx >= len(app.hdd_slots):
         return
     slot = app.hdd_slots[idx]
     label = slot_display_name(app, idx)
-    device, _disk = hdd_resolve_slot_device(app, slot)
-    mountpoint = (
-        slot.get("mountpoint") or ""
-    ).strip() or f"/mnt/{os.path.basename(device)}"
+    resolve_slot_device = _app_callable(
+        app,
+        "_hdd_resolve_slot_device",
+        lambda current_slot: hdd_resolve_slot_device(app, current_slot),
+    )
+    device, _disk = resolve_slot_device(slot)
+    mountpoint = _slot_mountpoint(slot, device)
     if not hdd_slot_configured(slot):
         app.log(f"HDD Slot nicht konfiguriert: {label}.")
         return
 
-    luks = hdd_luks_info_for_device(app, device)
+    luks_info = _app_callable(
+        app,
+        "_hdd_luks_info_for_device",
+        lambda current_device: hdd_luks_info_for_device(app, current_device),
+    )
+    mount_source_for = _app_callable(
+        app, "_hdd_find_mount_source", hdd_find_mount_source
+    )
+    is_mounted = _app_callable(
+        app,
+        "_hdd_is_mounted",
+        lambda current_device, current_mountpoint: hdd_is_mounted(
+            app, current_device, current_mountpoint
+        ),
+    )
+    luks = luks_info(device)
     luks_passphrase = None
     if luks.get("is_luks") and not luks.get("unlocked"):
+        app.log("LUKS Schritt 1/2: Systemrechte bestätigen.")
+        if not app.ensure_sudo_session("LUKS Systemrechte für HDD Mount"):
+            return
         if not has_cmd("cryptsetup"):
             app.log(
                 "LUKS erkannt, aber cryptsetup fehlt (sudo apt install -y cryptsetup)."
             )
             return
+        app.log("LUKS Schritt 2/2: LUKS-Passphrase eingeben.")
         luks_passphrase = simpledialog.askstring(
             "LUKS Passphrase",
             f"Bitte LUKS-Passphrase für {device} eingeben:",
@@ -801,6 +1088,8 @@ def hdd_mount_async(app, idx):
         if not luks_passphrase:
             app.log("LUKS Passphrase leer, Mount abgebrochen.")
             return
+    elif not app.ensure_sudo_session("HDD Mount"):
+        return
 
     def job():
         if not os.path.exists(device):
@@ -812,8 +1101,8 @@ def hdd_mount_async(app, idx):
             )
             return
 
-        current_luks = hdd_luks_info_for_device(app, device)
-        mount_source = hdd_find_mount_source(device)
+        current_luks = luks_info(device)
+        mount_source = mount_source_for(device)
         if current_luks.get("is_luks"):
             mapper_name = current_luks.get("mapper_name")
             mapper_path = current_luks.get("mapper_path")
@@ -857,10 +1146,13 @@ def hdd_mount_async(app, idx):
                         ),
                     )
                     return
-                time.sleep(0.4)
-                current_luks = hdd_luks_info_for_device(app, device)
-                mapper_path = current_luks.get("mapper_path") or mapper_path
-                mapper_name = current_luks.get("mapper_name") or mapper_name
+                for _ in range(15):
+                    time.sleep(0.2)
+                    current_luks = luks_info(device)
+                    mapper_path = current_luks.get("mapper_path") or mapper_path
+                    mapper_name = current_luks.get("mapper_name") or mapper_name
+                    if mapper_path and os.path.exists(mapper_path):
+                        break
 
             if not mapper_path or not os.path.exists(mapper_path):
                 available_mappers = (
@@ -876,14 +1168,20 @@ def hdd_mount_async(app, idx):
                 )
                 return
 
-            mount_source = hdd_find_mount_source(mapper_path)
+            mount_source = mount_source_for(mapper_path)
             app.hdd_luks_mappers[device] = mapper_name
             app.after(
                 0,
                 lambda: app.log(f"LUKS Mount-Quelle gewählt: {mount_source}"),
             )
+            app.after(
+                0,
+                lambda: app.log(
+                    "LUKS wird per Root-Mount auf den konfigurierten Pfad eingebunden."
+                ),
+            )
 
-        mounted, target = hdd_is_mounted(app, device, mountpoint)
+        mounted, target = is_mounted(device, mountpoint)
         if mounted is True:
             app.after(
                 0,
@@ -891,7 +1189,12 @@ def hdd_mount_async(app, idx):
                     f"HDD bereits gemountet: {label} ({target or mountpoint})."
                 ),
             )
-            app.after(0, lambda: app.hdd_info_async(idx))
+            app.after(
+                0,
+                lambda: _call_with_optional_select_tab(
+                    app.hdd_info_async, idx, select_tab, log_event=False
+                ),
+            )
             return
 
         used_desktop_mount = False
@@ -942,38 +1245,60 @@ def hdd_mount_async(app, idx):
                         "Hinweis: sudo-Auth fehlt oder Rechte unzureichend (siehe Sudo-Auth beim Start)."
                     )
             app.hdd_refresh_async()
-            app.hdd_info_async(idx)
+            _call_with_optional_select_tab(
+                app.hdd_info_async, idx, select_tab, log_event=False
+            )
 
         app.after(0, done)
 
     threading.Thread(target=job, daemon=True).start()
 
 
-def hdd_unmount_async(app, idx):
+def hdd_unmount_async(app, idx, select_tab=True):
     if idx < 0 or idx >= len(app.hdd_slots):
         return
     if not app.ensure_sudo_session("HDD Unmount"):
         return
     slot = app.hdd_slots[idx]
     label = slot_display_name(app, idx)
-    device, _disk = hdd_resolve_slot_device(app, slot)
-    mountpoint = (
-        slot.get("mountpoint") or ""
-    ).strip() or f"/mnt/{os.path.basename(device)}"
+    resolve_slot_device = _app_callable(
+        app,
+        "_hdd_resolve_slot_device",
+        lambda current_slot: hdd_resolve_slot_device(app, current_slot),
+    )
+    device, _disk = resolve_slot_device(slot)
+    mountpoint = _slot_mountpoint(slot, device)
     if not hdd_slot_configured(slot):
         app.log(f"HDD Slot nicht konfiguriert: {label}.")
         return
 
     def job():
-        current_luks = hdd_luks_info_for_device(app, device)
+        luks_info = _app_callable(
+            app,
+            "_hdd_luks_info_for_device",
+            lambda current_device: hdd_luks_info_for_device(app, current_device),
+        )
+        mount_source_for = _app_callable(
+            app,
+            "_hdd_find_mount_source",
+            hdd_find_mount_source,
+        )
+        is_mounted = _app_callable(
+            app,
+            "_hdd_is_mounted",
+            lambda current_device, current_mountpoint: hdd_is_mounted(
+                app, current_device, current_mountpoint
+            ),
+        )
+        current_luks = luks_info(device)
         raw_mount_source = (
             current_luks.get("mapper_path") if current_luks.get("is_luks") else device
         )
         if not raw_mount_source:
             raw_mount_source = device
-        mount_source = hdd_find_mount_source(raw_mount_source)
+        mount_source = mount_source_for(raw_mount_source)
 
-        mounted, target = hdd_is_mounted(app, device, mountpoint)
+        mounted, target = is_mounted(device, mountpoint)
         active_target = target or mountpoint
         if mounted is False:
             app.after(
@@ -997,7 +1322,12 @@ def hdd_unmount_async(app, idx):
                     lambda: app.log(f"HDD Unmount fehlgeschlagen für {label}: {out}"),
                 )
                 app.after(0, lambda: app.hdd_refresh_async())
-                app.after(0, lambda: app.hdd_info_async(idx))
+                app.after(
+                    0,
+                    lambda: _call_with_optional_select_tab(
+                        app.hdd_info_async, idx, select_tab, log_event=False
+                    ),
+                )
                 return
 
         close_rc = 0
@@ -1024,7 +1354,9 @@ def hdd_unmount_async(app, idx):
                         f"LUKS schließen fehlgeschlagen ({current_luks.get('mapper_name')}): {close_out}"
                     )
             app.hdd_refresh_async()
-            app.hdd_info_async(idx)
+            _call_with_optional_select_tab(
+                app.hdd_info_async, idx, select_tab, log_event=False
+            )
 
         app.after(0, done)
 

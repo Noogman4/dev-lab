@@ -367,25 +367,6 @@ def ensure_chad_inline_prompt(app):
     _focus_chad_input_end(app)
 
 
-def get_chad_inline_input(app) -> str:
-    widget = _get_chad_output_widget(app)
-    if widget is None:
-        return ""
-    try:
-        return widget.get("chad_input_start", "end-1c").strip()
-    except Exception:
-        return ""
-
-
-def clear_chad_inline_input(app):
-    widget = _get_chad_output_widget(app)
-    if widget is None:
-        return
-    try:
-        widget.delete("chad_prompt_start", "end")
-    except Exception:
-        pass
-    ensure_chad_inline_prompt(app)
 
 
 def get_chad_transcript_text(app) -> str:
@@ -398,43 +379,6 @@ def get_chad_transcript_text(app) -> str:
         return ""
 
 
-def guard_chad_inline_input(app, _event=None):
-    widget = _get_chad_output_widget(app)
-    if widget is None:
-        return None
-    if not is_chad_enabled(app):
-        return "break"
-
-    try:
-        insert_index = widget.index("insert")
-        input_start = widget.index("chad_input_start")
-    except Exception:
-        ensure_chad_inline_prompt(app)
-        return "break"
-
-    if widget.compare(insert_index, "<", input_start):
-        _focus_chad_input_end(app)
-        return "break"
-    return None
-
-
-def guard_chad_inline_delete(app, _event=None):
-    widget = _get_chad_output_widget(app)
-    if widget is None:
-        return None
-    if not is_chad_enabled(app):
-        return "break"
-
-    try:
-        if widget.compare(
-            widget.index("insert"), "<=", widget.index("chad_input_start")
-        ):
-            _focus_chad_input_end(app)
-            return "break"
-    except Exception:
-        ensure_chad_inline_prompt(app)
-        return "break"
-    return None
 
 
 def _get_chad_entry_kind(title: str) -> str:
