@@ -13426,11 +13426,6 @@ class App(TkBase):
             return
         return fun_controller.refresh_fun_games(self)
 
-    def open_fun_games_folder(self):
-        if fun_controller is None:
-            return False
-        return fun_controller.open_fun_games_folder(self)
-
     def start_selected_fun_game(self):
         if fun_controller is None:
             return False
@@ -13748,11 +13743,6 @@ class App(TkBase):
         if radio_controller is None:
             return False
         return radio_controller.delete_selected_station(self)
-
-    def play_favorite_selection(self, event=None):
-        if radio_controller is None:
-            return False
-        return radio_controller.play_favorite_selection(self, event)
 
     def _select_security_tab(self, tab):
         nb = self.__dict__.get("nb")
@@ -14646,12 +14636,6 @@ class App(TkBase):
     def append_to_chad_output(self, title: str, text: str):
         chad_controller.append_to_chad_output(self, title, text)
 
-    def scroll_chad_output_to_top(self):
-        chad_controller.scroll_chad_output_to_top(self)
-
-    def scroll_chad_output_to_bottom(self):
-        chad_controller.scroll_chad_output_to_bottom(self)
-
     def confirm_chad_send(self, title: str, intro_text: str) -> bool:
         if tk is None or ttk is None:
             return messagebox.askyesno(title, intro_text, parent=self)
@@ -15003,20 +14987,11 @@ class App(TkBase):
     def send_chad_chat_message(self):
         return chad_controller.send_chad_chat_message(self)
 
-    def clear_chad_chat(self):
-        chad_controller.clear_chad_chat(self)
-
-    def add_current_analysis_to_chad_chat(self):
-        chad_controller.add_current_analysis_to_chad_chat(self)
-
     def extract_pdf_text_for_chad(self, path: str) -> str:
         return chad_controller.extract_pdf_text_for_chad(self, path)
 
     def extract_docx_text_for_chad(self, path: str) -> str:
         return chad_controller.extract_docx_text_for_chad(self, path)
-
-    def import_file_to_chad_chat(self):
-        chad_controller.import_file_to_chad_chat(self)
 
     def save_chad_analysis_to_file(self):
         chad_controller.save_chad_analysis_to_file(self)
@@ -21547,12 +21522,6 @@ class App(TkBase):
     def set_chad_direct_prompt(self, title: str, prompt: str):
         chad_controller.set_chad_direct_prompt(self, title, prompt)
 
-    def copy_chad_analysis_to_clipboard(self):
-        chad_controller.copy_chad_analysis_to_clipboard(self)
-
-    def clear_chad_analysis(self):
-        chad_controller.clear_chad_analysis(self)
-
     def run_chad_online_analysis(self):
         chad_controller.run_chad_online_analysis(self)
 
@@ -21699,9 +21668,6 @@ class App(TkBase):
     def refresh_linux_help_list(self, category=None):
         linux_help_controller.refresh_linux_help_list(self, category=category)
 
-    def clear_linux_help_filters(self):
-        linux_help_controller.clear_linux_help_filters(self)
-
     def on_linux_help_select(self, _event=None):
         linux_help_controller.on_linux_help_select(self, _event)
 
@@ -21711,20 +21677,8 @@ class App(TkBase):
             mark_dirty=mark_dirty,
         )
 
-    def linux_help_new_entry(self):
-        linux_help_controller.linux_help_new_entry(self)
-
     def linux_help_edit_selected(self):
         linux_help_controller.linux_help_edit_selected(self)
-
-    def linux_help_delete_selected(self):
-        linux_help_controller.linux_help_delete_selected(self)
-
-    def linux_help_import_csv_dialog(self):
-        linux_help_controller.linux_help_import_csv_dialog(self)
-
-    def linux_help_export_csv_dialog(self):
-        linux_help_controller.linux_help_export_csv_dialog(self)
 
     def build_linux_help_chad_prompt(self, item):
         return linux_help_controller.build_linux_help_chad_prompt(self, item)
@@ -21734,9 +21688,6 @@ class App(TkBase):
 
     def send_linux_help_to_chad(self):
         return linux_help_controller.send_linux_help_to_chad(self)
-
-    def show_linux_help_tree_menu(self, event):
-        linux_help_controller.show_linux_help_tree_menu(self, event)
 
     def send_linux_help_command_to_terminal(self):
         return linux_help_controller.send_linux_help_command_to_terminal(self)
@@ -21831,20 +21782,11 @@ class App(TkBase):
             emit_chad_warning=emit_chad_warning,
         )
 
-    def startup_dot_status_check(self):
-        dot_controller.startup_dot_status_check(self)
-
     def show_dot_status_async(self, startup=False):
         dot_controller.show_dot_status_async(self, startup=startup)
 
     def enable_dot_async(self):
         dot_controller.enable_dot_async(self)
-
-    def disable_dot_async(self):
-        dot_controller.disable_dot_async(self)
-
-    def test_dot_async(self):
-        dot_controller.test_dot_async(self)
 
     def build_packet_capture_tab(self):
         config = ttk.LabelFrame(
@@ -22028,26 +21970,11 @@ class App(TkBase):
     def packet_capture_generate_default_path(self):
         return packet_capture_controller.packet_capture_generate_default_path(self)
 
-    def choose_packet_capture_file(self):
-        packet_capture_controller.choose_packet_capture_file(self)
-
-    def refresh_packet_capture_interfaces(self):
-        packet_capture_controller.refresh_packet_capture_interfaces(self)
-
     def packet_capture_update_runtime(self):
         packet_capture_controller.packet_capture_update_runtime(self)
 
     def packet_capture_show_file_info(self):
         packet_capture_controller.packet_capture_show_file_info(self)
-
-    def packet_capture_start_async(self):
-        packet_capture_controller.packet_capture_start_async(self)
-
-    def packet_capture_stop(self):
-        packet_capture_controller.packet_capture_stop(self)
-
-    def open_packet_capture_in_wireshark(self):
-        packet_capture_controller.open_packet_capture_in_wireshark(self)
 
     def wireshark_launch_blocked(self):
         return bool(self.settings.get("wireshark_launch_blocked", False))
@@ -22127,9 +22054,6 @@ class App(TkBase):
             )
         except Exception:
             pass
-
-    def open_packet_capture_file_location(self):
-        packet_capture_controller.open_packet_capture_file_location(self)
 
     def build_lynis_tab(self):
         lynis_top = ttk.LabelFrame(
@@ -22291,12 +22215,6 @@ class App(TkBase):
     def show_lynis_full_output(self):
         security_audit_controller.show_lynis_full_output(self)
 
-    def analyze_lynis_issues_with_chad(self):
-        security_audit_controller.analyze_lynis_issues_with_chad(
-            self,
-            normalize_output_fn=normalize_lynis_output,
-        )
-
     def _update_lynis_summary_from_output(self, output: str, rc: int):
         security_audit_controller.update_lynis_summary_from_output(
             self,
@@ -22344,9 +22262,6 @@ class App(TkBase):
 
     def run_lynis_full(self):
         security_audit_controller.run_lynis_full(self)
-
-    def lynis_audit_async(self):
-        security_audit_controller.lynis_audit_async(self)
 
     def build_rkhunter_tab(self):
         rkh_top = ttk.LabelFrame(
@@ -22456,12 +22371,6 @@ class App(TkBase):
             run_rkhunter_update_fn=run_rkhunter_update,
         )
 
-    def rkhunter_update_async(self):
-        security_audit_controller.rkhunter_update_async(
-            self,
-            is_rkhunter_installed_fn=is_rkhunter_installed,
-        )
-
     def _finish_rkhunter_repair(self, backup_rc, backup_out, repair_rc, repair_out):
         security_audit_controller.finish_rkhunter_repair(
             self,
@@ -22479,23 +22388,11 @@ class App(TkBase):
             rkhunter_repair_config_fn=rkhunter_repair_config,
         )
 
-    def rkhunter_repair_update_async(self):
-        security_audit_controller.rkhunter_repair_update_async(
-            self,
-            is_rkhunter_installed_fn=is_rkhunter_installed,
-        )
-
     def _finish_rkhunter_scan(self, rc, out):
         security_audit_controller.finish_rkhunter_scan(self, rc, out)
 
     def _rkhunter_scan_worker(self):
         security_audit_controller.rkhunter_scan_worker(self)
-
-    def rkhunter_scan_async(self):
-        security_audit_controller.rkhunter_scan_async(
-            self,
-            is_rkhunter_installed_fn=is_rkhunter_installed,
-        )
 
     def build_startup_guard_tab(self):
         build_startup_guard_tab(self)
@@ -22509,9 +22406,6 @@ class App(TkBase):
             text,
             append=append,
         )
-
-    def clear_startup_guard_output(self):
-        security_audit_controller.clear_startup_guard_output(self)
 
     def _format_startup_guard_entry(self, entry: dict) -> str:
         return security_audit_controller.format_startup_guard_entry(entry)
@@ -22534,9 +22428,6 @@ class App(TkBase):
 
     def on_startup_guard_select(self, _event=None):
         security_audit_controller.on_startup_guard_select(self, _event=_event)
-
-    def analyze_selected_startup_entry_with_chad(self):
-        security_audit_controller.analyze_selected_startup_entry_with_chad(self)
 
     def analyze_startup_guard_changes_with_chad(self):
         security_audit_controller.analyze_startup_guard_changes_with_chad(self)
@@ -23197,20 +23088,6 @@ class App(TkBase):
             return
         repository_guard_controller.run_repository_guard_scan(self)
 
-    def on_repository_guard_source_select(self, _event=None):
-        if repository_guard_controller is None:
-            return
-        repository_guard_controller.on_repository_guard_source_select(
-            self, _event=_event
-        )
-
-    def on_repository_guard_finding_select(self, _event=None):
-        if repository_guard_controller is None:
-            return
-        repository_guard_controller.on_repository_guard_finding_select(
-            self, _event=_event
-        )
-
     def set_repository_guard_source_filter(self, filter_mode: str):
         if repository_guard_controller is None:
             return
@@ -23227,16 +23104,6 @@ class App(TkBase):
             filter_mode,
         )
 
-    def copy_repository_guard_report(self):
-        if repository_guard_controller is None:
-            return
-        repository_guard_controller.copy_repository_guard_report(self)
-
-    def export_repository_guard_report(self):
-        if repository_guard_controller is None:
-            return
-        repository_guard_controller.export_repository_guard_report(self)
-
     def create_repository_guard_baseline(self):
         if repository_guard_controller is None:
             return
@@ -23252,25 +23119,10 @@ class App(TkBase):
             return
         repository_guard_controller.mark_selected_repository_guard_trusted(self)
 
-    def remove_selected_repository_guard_trusted(self):
-        if repository_guard_controller is None:
-            return
-        repository_guard_controller.remove_selected_repository_guard_trusted(self)
-
     def show_repository_guard_trustlist(self):
         if repository_guard_controller is None:
             return
         repository_guard_controller.show_repository_guard_trustlist(self)
-
-    def reset_repository_guard_trustlist(self):
-        if repository_guard_controller is None:
-            return
-        repository_guard_controller.reset_repository_guard_trustlist(self)
-
-    def run_repository_guard_primary_action(self):
-        if repository_guard_controller is None:
-            return
-        repository_guard_controller.run_repository_guard_primary_action(self)
 
     def copy_repository_guard_quick_action_snippet(self):
         if repository_guard_controller is None:
@@ -23281,11 +23133,6 @@ class App(TkBase):
         if repository_guard_controller is None:
             return
         repository_guard_controller.copy_repository_guard_selected_uri(self)
-
-    def copy_repository_guard_selected_file_path(self):
-        if repository_guard_controller is None:
-            return
-        repository_guard_controller.copy_repository_guard_selected_file_path(self)
 
     def get_repository_guard_sources_analysis_text(self) -> str:
         table = self.__dict__.get("repository_guard_sources_tree")
@@ -23789,9 +23636,6 @@ class App(TkBase):
     def startup_guard_startup_check(self):
         security_audit_controller.startup_guard_startup_check(self)
 
-    def startup_guard_create_baseline(self):
-        security_audit_controller.startup_guard_create_baseline(self)
-
     def startup_guard_check(self):
         security_audit_controller.startup_guard_check(self)
 
@@ -23852,9 +23696,6 @@ class App(TkBase):
 
     def security_show_connected_devices(self):
         security_monitoring_controller.security_show_connected_devices(self)
-
-    def refresh_input_access_table(self):
-        return security_monitoring_controller.refresh_input_access_table(self)
 
     def _security_input_access_whitelisted(self, proc_name, pid):
         return security_monitoring_controller.security_input_access_whitelisted(
@@ -23939,18 +23780,6 @@ class App(TkBase):
     def security_refresh_table_action(self):
         security_monitoring_controller.security_refresh_table_action(self)
 
-    def security_filter_portscan(self):
-        security_monitoring_controller.security_filter_portscan(self)
-
-    def security_filter_relevant(self):
-        security_monitoring_controller.security_filter_relevant(self)
-
-    def security_filter_external(self):
-        security_monitoring_controller.security_filter_external(self)
-
-    def security_filter_all(self):
-        security_monitoring_controller.security_filter_all(self)
-
     def security_clear_events(self, confirm=False):
         security_monitoring_controller.security_clear_events(self, confirm=confirm)
 
@@ -24012,9 +23841,6 @@ class App(TkBase):
                 return level
 
         return "–"
-
-    def get_ufw_logging_level(self):
-        return security_monitoring_controller.get_ufw_logging_level(self)
 
     def refresh_security_log_level(self, log_failures=False):
         level = self._security_query_log_level()
@@ -24082,12 +23908,6 @@ class App(TkBase):
         if light is not None:
             self.set_light(light, color)
 
-    def security_start_monitoring(self):
-        security_monitoring_controller.security_start_monitoring(self)
-
-    def security_stop_monitoring(self):
-        security_monitoring_controller.security_stop_monitoring(self)
-
     def security_build_baseline(self):
         self._record_diagnostic_action(
             "Security-Baseline erstellen",
@@ -24114,9 +23934,6 @@ class App(TkBase):
             },
         )
         security_monitoring_controller.security_scan_now(self)
-
-    def security_input_access_scan(self):
-        security_monitoring_controller.security_input_access_scan(self)
 
     def refresh_roots_baseline_guard_status(self):
         if roots_baseline_guard_controller is None:
@@ -24609,12 +24426,6 @@ class App(TkBase):
             timeout=timeout,
         )
 
-    def clamav_abort_scan(self):
-        clamav_controller.clamav_abort_scan(self)
-
-    def export_clamav_findings(self):
-        clamav_controller.export_clamav_findings(self)
-
     def _load_clamav_findings(self):
         clamav_controller.load_clamav_findings(self)
 
@@ -24666,44 +24477,14 @@ class App(TkBase):
     def _clamav_parse_infected_count(self, output):
         return clamav_controller.clamav_parse_infected_count(output)
 
-    def security_clamav_update_async(self):
-        clamav_controller.security_clamav_update_async(self)
-
     def security_clamav_quickscan_async(self):
         clamav_controller.security_clamav_quickscan_async(self)
-
-    def security_clamav_folder_scan_async(self):
-        clamav_controller.security_clamav_folder_scan_async(self)
-
-    def security_clamav_systemscan_async(self):
-        clamav_controller.security_clamav_systemscan_async(self)
 
     def _log_clamav_quarantine_preview(self, items, label="Trockenlauf"):
         clamav_controller.log_clamav_quarantine_preview(self, items, label=label)
 
     def _log_clamav_restore_preview(self, items, label="Trockenlauf"):
         clamav_controller.log_clamav_restore_preview(self, items, label=label)
-
-    def show_clamav_findings(self):
-        clamav_controller.show_clamav_findings(self)
-
-    def show_clamav_quarantine_history(self):
-        clamav_controller.show_clamav_quarantine_history(self)
-
-    def quarantine_clamav_findings_async(self):
-        clamav_controller.quarantine_clamav_findings_async(self)
-
-    def quarantine_selected_clamav_findings_async(self):
-        clamav_controller.quarantine_selected_clamav_findings_async(self)
-
-    def restore_clamav_quarantine_async(self):
-        clamav_controller.restore_clamav_quarantine_async(self)
-
-    def restore_selected_clamav_quarantine_async(self):
-        clamav_controller.restore_selected_clamav_quarantine_async(self)
-
-    def security_clamav_scan_async(self):
-        clamav_controller.security_clamav_scan_async(self)
 
     def security_set_ufw_logging_high(self):
         firewall_controller.security_set_ufw_logging_high(self)
@@ -24952,9 +24733,6 @@ class App(TkBase):
     def _load_desktop_app_entries(self):
         return links_controller.load_desktop_app_entries(self)
 
-    def refresh_desktop_app_entries(self):
-        links_controller.refresh_desktop_app_entries(self)
-
     def _default_link_slots(self):
         return links_controller.default_link_slots()
 
@@ -25011,9 +24789,6 @@ class App(TkBase):
 
     def import_wg_profiles_from_folder(self):
         return vpn_controller.import_wg_profiles_from_folder(self)
-
-    def import_wg_profiles_to_networkmanager(self):
-        return vpn_controller.import_wg_profiles_to_networkmanager(self)
 
     def _is_internal_ipv4_profile(self, profile_name):
         return vpn_controller.is_internal_ipv4_profile(self, profile_name)
@@ -25149,15 +24924,6 @@ class App(TkBase):
     def load_link_slot_into_form(self, slot_no):
         links_controller.load_link_slot_into_form(self, slot_no)
 
-    def on_link_slot_select(self, _event=None):
-        links_controller.on_link_slot_select(self, _event=_event)
-
-    def on_link_table_select(self, _event=None):
-        links_controller.on_link_table_select(self, _event=_event)
-
-    def on_link_type_change(self, _event=None):
-        links_controller.on_link_type_change(self, _event=_event)
-
     def on_systemlink_app_select(self, _event=None):
         links_controller.on_systemlink_app_select(self, _event=_event)
 
@@ -25182,17 +24948,11 @@ class App(TkBase):
     def _find_flatpak_app_id_by_query(self, query):
         return links_controller.find_flatpak_app_id_by_query(self, query)
 
-    def assign_link_slot(self):
-        links_controller.assign_link_slot(self)
-
     def clear_link_slot(self, confirm=False):
         links_controller.clear_link_slot(self, confirm=confirm)
 
     def _build_form_link_slot(self):
         return links_controller.build_form_link_slot(self)
-
-    def test_link_slot(self):
-        links_controller.test_link_slot(self)
 
     def open_link_slot(self, idx):
         links_controller.open_link_slot(self, idx)
@@ -25271,9 +25031,6 @@ class App(TkBase):
             return
         self._vpn_form_dirty = True
 
-    def on_vpn_slot_select(self, _event=None):
-        vpn_controller.on_vpn_slot_select(self, _event=_event)
-
     def on_vpn_table_select(self, _event=None):
         vpn_controller.on_vpn_table_select(self, _event=_event)
 
@@ -25343,9 +25100,6 @@ class App(TkBase):
         except Exception:
             pass
         return True
-
-    def clear_manual_wireguard_form(self):
-        vpn_controller.clear_manual_wireguard_form(self)
 
     def _is_valid_wireguard_key(self, value):
         return vpn_controller.is_valid_wireguard_key(self, value)
@@ -25728,9 +25482,6 @@ class App(TkBase):
             slot_no=slot_no,
             test_mode=test_mode,
         )
-
-    def test_vpn_slot(self):
-        vpn_controller.test_vpn_slot(self)
 
     def open_vpn_slot(self, idx):
         vpn_controller.open_vpn_slot(self, idx)
@@ -26332,15 +26083,6 @@ class App(TkBase):
     def update_hdd_buttons(self):
         hdd_controller.update_hdd_buttons(self)
 
-    def on_hdd_name_focus_in(self, _event=None):
-        hdd_controller.on_hdd_name_focus_in(self, _event)
-
-    def on_hdd_name_focus_out(self, _event=None):
-        hdd_controller.on_hdd_name_focus_out(self, _event)
-
-    def on_hdd_name_changed(self, *_args):
-        hdd_controller.on_hdd_name_changed(self, *_args)
-
     def set_hdd_name_from_model(self, name):
         hdd_controller.set_hdd_name_from_model(self, name)
 
@@ -26366,9 +26108,6 @@ class App(TkBase):
 
     def on_hdd_auto_mount_toggle(self):
         hdd_controller.on_hdd_auto_mount_toggle(self)
-
-    def assign_selected_disk_to_slot(self):
-        hdd_controller.assign_selected_disk_to_slot(self)
 
     def clear_slot_assignment(self, confirm=False):
         hdd_controller.clear_slot_assignment(self, confirm=confirm)
@@ -30043,9 +29782,6 @@ class App(TkBase):
             pass
         return True
 
-    def fw_status(self):
-        firewall_controller.fw_status(self)
-
     def fw_disable(self, interactive_guard=True):
         self._record_diagnostic_action(
             "Firewall deaktivieren",
@@ -30054,17 +29790,8 @@ class App(TkBase):
         )
         firewall_controller.fw_disable(self, interactive_guard=interactive_guard)
 
-    def open_add_firewall_rule_dialog(self):
-        firewall_controller.open_add_firewall_rule_dialog(self)
-
-    def remove_selected_firewall_rule(self):
-        return firewall_controller.remove_selected_firewall_rule(self)
-
     def update_firewall_rule_remove_button_state(self, _event=None):
         return firewall_controller.update_firewall_rule_remove_button_state(self)
-
-    def on_firewall_rule_select(self, _event=None):
-        return firewall_controller.on_firewall_rule_select(self, _event=_event)
 
     def get_available_vpn_profiles(self):
         try:
@@ -30204,12 +29931,6 @@ class App(TkBase):
             refresh_ui=refresh_ui,
             interactive_guard=interactive_guard,
         )
-
-    def allow_ssh_rule_async(self):
-        firewall_controller.allow_ssh_rule_async(self)
-
-    def remove_ssh_rule_async(self, auto=False):
-        firewall_controller.remove_ssh_rule_async(self, auto=auto)
 
     def _current_port_reality_target(self):
         candidates = []
@@ -30363,16 +30084,6 @@ class App(TkBase):
 
     def _speedtest_warn_messages(self, result):
         return speedtest_controller.speedtest_warn_messages(result)
-
-    def speedtest_async(self):
-        return speedtest_controller.speedtest_async(
-            self,
-            run_speedtest_fn=run_speedtest,
-            format_summary_fn=format_speedtest_summary,
-            format_table_fn=format_speedtest_table,
-            run_cmd_fn=run_cmd,
-            has_cmd_fn=has_cmd,
-        )
 
     def update_speedtest_panel(self, result):
         speedtest_controller.update_speedtest_panel(self, result)
