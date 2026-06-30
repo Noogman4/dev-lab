@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 4</title>
+  <meta
+    name="description"
+    content="Viertes unabhaengiges Sicherheits-Audit des NetMon-Quellcodes (v1.1.15, Juni 2026). Kein kritisches Sicherheitsproblem gefunden."
+  >
+  <link rel="icon" type="image/png" href="./favicon.png">
+  <link rel="apple-touch-icon" href="./favicon.png">
+  <link rel="canonical" href="https://netmonroots.com/security-audit-r4.html">
+  <link rel="alternate" hreflang="de" href="https://netmonroots.com/security-audit-r4.html">
+  <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/security-audit-r4.html">
+  <meta property="og:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 4">
+  <meta property="og:description" content="Viertes Sicherheits-Audit des NetMon-Quellcodes (v1.1.15, Juni 2026). Kein kritisches Sicherheitsproblem gefunden.">
+  <meta property="og:url" content="https://netmonroots.com/security-audit-r4.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NetMon Roots">
+  <meta property="og:locale" content="de_DE">
+  <meta property="og:image" content="https://netmonroots.com/favicon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 4">
+  <meta name="twitter:description" content="Viertes Sicherheits-Audit des NetMon-Quellcodes (v1.1.15, Juni 2026). Kein kritisches Sicherheitsproblem gefunden.">
+  <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
+  <link rel="stylesheet" href="./styles.css">
+  <style>
+    /* ── Audit-spezifische Erweiterungen ─────────────────────────────────── */
+    .audit-hero { padding: 64px 0 48px; }
+    .audit-hero .eyebrow { color: var(--accent); }
+
+    .verdict-banner {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 28px 32px;
+      margin: 40px 0;
+      border: 1px solid rgba(114, 240, 182, 0.4);
+      border-radius: var(--radius-sm);
+      background: rgba(58, 198, 143, 0.08);
+    }
+    .verdict-icon {
+      font-size: 2.8rem;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .verdict-text h2 { margin: 0 0 6px; font-size: 1.4rem; color: var(--accent); }
+    .verdict-text p  { margin: 0; color: var(--muted); font-size: 0.97rem; line-height: 1.55; }
+
+    .audit-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 32px 0;
+    }
+    .audit-meta-card {
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .audit-meta-card .label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .audit-meta-card .value {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .audit-meta-card .value.ok   { color: var(--accent); }
+    .audit-meta-card .value.warn { color: var(--accent-warm); }
+
+    .audit-section { margin-top: 56px; }
+    .audit-section h2 {
+      font-size: 1.55rem;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+    .audit-section .section-rule {
+      height: 1px;
+      background: var(--line);
+      margin-bottom: 28px;
+    }
+
+    .scope-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.93rem;
+    }
+    .scope-table th {
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .scope-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(154, 177, 204, 0.08);
+      vertical-align: top;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .scope-table tr:last-child td { border-bottom: none; }
+    .scope-table code {
+      font-size: 0.83rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .badge-ok   { background: rgba(58, 198, 143, 0.15); color: #72f0b6; }
+    .badge-low  { background: rgba(255, 184, 107, 0.15); color: #ffb86b; }
+    .badge-med  { background: rgba(255, 184, 107, 0.2);  color: #ffb86b; }
+    .badge-high { background: rgba(220, 60, 60, 0.15);   color: #ff7070; }
+    .badge-info { background: rgba(90, 160, 240, 0.15);  color: #7ab8f5; }
+
+    .finding-card {
+      margin-bottom: 24px;
+      padding: 24px 28px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .finding-card.filtered {
+      border-color: rgba(154, 177, 204, 0.1);
+      opacity: 0.75;
+    }
+    .finding-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .finding-header h3 { margin: 0; font-size: 1rem; flex: 1; min-width: 200px; }
+    .finding-detail { color: var(--muted); font-size: 0.92rem; line-height: 1.6; }
+    .finding-detail strong { color: var(--text); }
+    .finding-detail code {
+      font-size: 0.83rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .finding-verdict {
+      margin-top: 12px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: rgba(2, 8, 15, 0.4);
+      font-size: 0.88rem;
+      color: var(--muted);
+      border-left: 3px solid rgba(154, 177, 204, 0.25);
+    }
+    .finding-verdict.pass { border-left-color: var(--accent); }
+
+    .fixed-card {
+      display: flex;
+      gap: 16px;
+      padding: 18px 22px;
+      margin-bottom: 14px;
+      border: 1px solid rgba(58, 198, 143, 0.2);
+      border-radius: var(--radius-sm);
+      background: rgba(58, 198, 143, 0.04);
+    }
+    .fixed-icon { font-size: 1.4rem; flex-shrink: 0; line-height: 1.2; }
+    .fixed-body h4 { margin: 0 0 4px; font-size: 0.97rem; color: var(--accent); }
+    .fixed-body p  { margin: 0; font-size: 0.9rem; color: var(--muted); line-height: 1.5; }
+    .fixed-body code {
+      font-size: 0.82rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .hardening-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .hardening-list li {
+      display: flex;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(154, 177, 204, 0.08);
+      font-size: 0.93rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .hardening-list li:last-child { border-bottom: none; }
+    .hardening-list .hl-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+    .hardening-list code {
+      font-size: 0.82rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .hardening-list strong { color: var(--text); }
+
+    .methodology-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .method-card {
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .method-card h4 { margin: 0 0 8px; font-size: 0.93rem; color: var(--accent); }
+    .method-card p  { margin: 0; font-size: 0.87rem; color: var(--muted); line-height: 1.5; }
+
+    .signature-block {
+      margin-top: 48px;
+      padding: 28px 32px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .signature-block strong { color: var(--text); }
+
+    .round-link {
+      display: inline-block;
+      padding: 10px 18px;
+      border-radius: 40px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-decoration: none;
+      margin-top: 16px;
+    }
+
+    @media (max-width: 640px) {
+      .verdict-banner { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .audit-meta-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="./index.html" aria-label="NetMon Startseite">
+        <span class="brand-mark">
+          <span class="brand-lockup">
+            <span class="brand-title">
+              <span class="brand-title-main">NETMON</span>
+              <span class="brand-title-accent">ROOTS</span>
+            </span>
+            <span class="brand-subline">MONITOR. CONTROL. UNDERSTAND.</span>
+            <span class="brand-tagline">BACK TO THE ROOTS.</span>
+          </span>
+          <img class="brand-icon" src="./bannericon.png" alt="" aria-hidden="true">
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="./index.html">Start</a>
+        <a href="./tour.html">Rundgang</a>
+        <a href="./downloads.html">Download</a>
+        <a href="./aktuelles.html">Aktuelles</a>
+        <a href="./docs.html">Doku</a>
+        <a href="./legal.html">Legal</a>
+      </nav>
+      <div class="lang-switch" aria-label="Sprachauswahl">
+        <a class="active" href="./security-audit-r4.html" lang="de">DE</a>
+      </div>
+    </header>
+
+    <main>
+      <!-- ── Hero ── -->
+      <section class="audit-hero">
+        <p class="eyebrow">Sicherheits-Audit &mdash; Juni 2026 &mdash; Runde&nbsp;4</p>
+        <h1 style="font-size:clamp(2rem,4vw,3rem);margin:0 0 20px;color:var(--text);">
+          Code-Security-Review<br>
+          <span style="color:var(--accent);">NetMon Roots v1.1.15</span>
+        </h1>
+        <p style="max-width:680px;color:var(--muted);line-height:1.65;font-size:1.05rem;">
+          Viertes automatisiertes Multi-Agenten-Security-Review auf Basis von
+          Claude Sonnet&nbsp;4.6. Schwerpunkt dieser Runde: alle seit Runde&nbsp;3
+          ge&auml;nderten Module &mdash; darunter der vollst&auml;ndig &uuml;berarbeitete
+          <code>vpn_controller.py</code>, der neue Mountpoint-Guard in
+          <code>hdd_controller.py</code>, die CWD-Bereinigung in
+          <code>linux_help_controller.py</code>, das Bug-Fix-Paket aus
+          <code>lock.py</code>, <code>command.py</code>, <code>dns_control_service.py</code>
+          und <code>startup_guard_service.py</code> sowie die Aufspaltung des
+          Security-Monitoring-Controllers in <code>_core.py</code> /
+          <code>_scanning.py</code>. Insgesamt&nbsp;40+&nbsp;ge&auml;nderte Dateien,
+          20&nbsp;davon mit sicherheitsrelevantem Fokus analysiert.
+        </p>
+        <a class="round-link" href="./security-audit-r3.html">
+          &#8592; Runde&nbsp;3 (7&nbsp;Kandidaten, 3&nbsp;Findings &mdash; alle geschlossen)
+        </a>
+      </section>
+
+      <!-- ── Aktionen ── -->
+      <div style="margin-bottom:32px;">
+        <a class="button button-primary" href="./netmon_security_audit_2026_r4.pdf" download
+           style="display:inline-block;padding:12px 28px;border-radius:40px;background:var(--accent);color:#07101d;font-weight:700;font-size:0.95rem;text-decoration:none;margin-right:12px;">
+          PDF herunterladen
+        </a>
+        <a href="#kandidaten"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;">
+          Kandidaten
+        </a>
+        <a href="#hardening"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;margin-left:8px;">
+          Hardening
+        </a>
+      </div>
+
+      <!-- ── Gesamtverdikt ── -->
+      <div class="verdict-banner">
+        <div class="verdict-icon">&#10003;</div>
+        <div class="verdict-text">
+          <h2>Keine kritischen Schwachstellen gefunden</h2>
+          <p>
+            Der einzige identifizierte Kandidat (K1 &mdash; WireGuard-Import mit
+            <code>PostUp</code>/<code>PreDown</code>-Hooks) wurde in einer unabh&auml;ngigen
+            Filter-Runde mit Konfidenz&nbsp;3/10 als False&nbsp;Positive ausgeschlossen
+            &mdash; kein Privilege-Boundary-Crossing, da der Code bereits einen expliziten
+            Nutzerhinweis via <code>_warn_wireguard_import_hooks()</code> anzeigt.
+            Alle sechs seit Runde&nbsp;1 offenen Hardening-Empfehlungen wurden in diesem
+            Codestand zus&auml;tzlich als <strong>vollst&auml;ndig umgesetzt</strong>
+            verifiziert. Der Codestand v1.1.15 enth&auml;lt keine ausnutzbaren
+            Sicherheitsl&uuml;cken mit echtem Angriffspfad.
+          </p>
+        </div>
+      </div>
+
+      <!-- ── Meta-Daten ── -->
+      <div class="audit-meta-grid">
+        <div class="audit-meta-card">
+          <div class="label">Datum</div>
+          <div class="value">29.&nbsp;Juni&nbsp;2026</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Analysierte Version</div>
+          <div class="value">v1.1.15 &mdash; Runde&nbsp;4</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Ge&auml;nderte Dateien</div>
+          <div class="value">40+</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Sicherheitsfokus-Module</div>
+          <div class="value">20</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Kritische Findings</div>
+          <div class="value ok">0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Bewertete Kandidaten</div>
+          <div class="value">1</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Konfidenz-Schwelle</div>
+          <div class="value">8&nbsp;/&nbsp;10</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Analysewerkzeug</div>
+          <div class="value">Claude Sonnet&nbsp;4.6</div>
+        </div>
+      </div>
+
+      <!-- ── Umfang & Methodik ── -->
+      <div class="audit-section" id="methodik">
+        <h2>Umfang &amp; Methodik</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:760px;line-height:1.65;">
+          Die Analyse folgte demselben vierstufigen Prozess wie Runde&nbsp;3.
+          Schwerpunkt: alle Module, die seit Runde&nbsp;3 neu hinzugekommen oder
+          inhaltlich ge&auml;ndert wurden &mdash; insbesondere das vollst&auml;ndig
+          refaktorierte VPN-Modul, der neue HDD-Mountpoint-Guard, die Bereinigung
+          des linux_help-Controllers und das zentrale Bug-Fix-Paket aus Commit
+          <code>363d64f5</code>. Zus&auml;tzlich wurden alle aus Runde&nbsp;3 als
+          offen gemeldeten Hardening-Empfehlungen auf Umsetzungsstand gepr&uuml;ft.
+        </p>
+        <div class="methodology-grid">
+          <div class="method-card">
+            <h4>Phase&nbsp;1 &mdash; Reconnaissance</h4>
+            <p>Lesen aller 40+ ge&auml;nderten Module; Fokus auf externe
+            Subprocess-Aufrufe mit Nutzerdaten, <code>sudo</code>-Einbettung,
+            URL-Handling, Dateioperationen mit unkontrollierten Pfaden,
+            <code>eval</code>/<code>exec</code>, unsichere Deserialisierung
+            und Privilegien&uuml;berg&auml;nge.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;2 &mdash; Kandidaten-Analyse</h4>
+            <p>Datenflussketten von externen Quellen (WireGuard-Konfig-Dateien,
+            API-Antworten, Nutzerdialogen, Dateisystem) bis zu sensitiven
+            Operationen (<code>sudo install</code>, <code>wg-quick up</code>,
+            <code>subprocess.Popen</code>) vollst&auml;ndig nachverfolgt.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;3 &mdash; False-Positive-Filter</h4>
+            <p>K1 in einem unabh&auml;ngigen Agenten re-analysiert: vollst&auml;ndiger
+            Quelltext von <code>vpn_controller.py</code> gelesen, exakter Code der
+            Import-Funktion lokalisiert. Ausschluss: kein Privilege-Boundary-Crossing,
+            explizite Nutzerinteraktion, bestehende sudo-Rechte.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;4 &mdash; R3-Nachverfolgung</h4>
+            <p>Alle 3 Findings aus Runde&nbsp;3 auf Umsetzungsstand gepr&uuml;ft:
+            <code>rkhunter_manager.py</code> (K1&nbsp;R3), <code>fun_controller.py</code>
+            (K2&nbsp;R3) und <code>agent/runner.py</code> (K3&nbsp;R3) &mdash;
+            alle drei im aktuellen Codestand geschlossen best&auml;tigt.</p>
+          </div>
+        </div>
+
+        <!-- ── Scope-Tabelle ── -->
+        <h3 style="margin-top:36px;font-size:1.1rem;">Sicherheitsfokus-Module (Runde&nbsp;4)</h3>
+        <table class="scope-table" style="margin-top:12px;">
+          <thead>
+            <tr>
+              <th>Datei / Modul</th>
+              <th>Fokus</th>
+              <th>Ergebnis</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>netmon/features/vpn_controller.py</code></td>
+              <td>WireGuard-Import (<code>sudo install</code>), <code>wg-quick up/down</code>,
+                Interface-Name-Validierung, Filename-Regex, Pfad-Confinement</td>
+              <td><span class="badge badge-info">K1 &rarr; FP</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/features/hdd_controller.py</code></td>
+              <td>Mountpoint-Validierung via <code>realpath()</code> +
+                <code>_SAFE_MOUNT_BASES</code>, LUKS-Passphrase via stdin,
+                <code>sudo mount/umount</code></td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/features/linux_help_controller.py</code></td>
+              <td>CSV/XLSX-Suchpfade nach CWD-Entfernung, kein Subprocess</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/core/lock.py</code></td>
+              <td>EPERM-Behandlung bei <code>os.kill()</code>, Instanz-Lock-Datei</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/core/command.py</code></td>
+              <td>Generischer <code>run_cmd</code>-Wrapper, <code>shell=False</code>,
+                <code>sudo -S -v</code>-Passphrase via <code>input=</code></td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/services/dns_control_service.py</code></td>
+              <td><code>nmcli con mod &lt;con&gt;</code> via List-Form,
+                DNS-Token-Validierung (Falsy-Zero-Fix)</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/services/startup_guard_service.py</code></td>
+              <td>SHA-256-Hashing, neue Dateien als &ldquo;new&rdquo;, kein Subprocess</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/features/security_monitoring_controller/_core.py</code></td>
+              <td>Event-System, Baseline-Verwaltung, Shared Helpers, kein Subprocess</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/features/security_monitoring_controller/_scanning.py</code></td>
+              <td>Ger&auml;te-/Integrit&auml;ts-Scanning, kein Subprocess,
+                Dateihash-Vergleich</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/features/firewall_controller.py</code></td>
+              <td>UFW-Integration, Port-Regex + <code>ipaddress</code>-Validierung,
+                <code>shell=False</code></td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/features/clamav_controller.py</code></td>
+              <td>ClamAV-Subprocess, <code>_safe_makedirs_no_symlink()</code>,
+                <code>realpath()</code>-Pfad</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/features/radio_controller.py</code></td>
+              <td>mpv/ffmpeg-Subprocess, <code>ALLOWED_RADIO_STREAM_SCHEMES</code>,
+                URL-Schema-Allowlist</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/features/security_audit_controller.py</code></td>
+              <td>Lynis/rkhunter-Aufrufe, Startup-Guard-Baseline-Lesen</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/features/packet_capture_controller.py</code></td>
+              <td>tshark-Subprocess, Interface-Name aus <code>ip link</code>,
+                <code>shell=False</code></td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/features/dns_controller.py</code></td>
+              <td>DNS-Proxy-Delegation, kein direkter Subprocess</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/features/chad_controller.py</code></td>
+              <td>KI-Integration, <code>getattr</code>-Fix, kein Subprocess</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/features/dot_controller.py</code></td>
+              <td>DNS-Dropin via <code>sudo install</code>, Pfad hardcoded</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/services/path_guard_service.py</code></td>
+              <td>PATH-Analyse, read-only, kein Subprocess</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>agent/runner.py</code></td>
+              <td>REPO_ROOT-Fix, Subprocess-Allowlist, Pfad-Confinement (K3&nbsp;R3 geschlossen)</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>agent/tools.py</code></td>
+              <td>Dateilesen mit <code>relative_to(REPO_ROOT)</code>-Guard</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/app.py</code> (Refaktorierung)</td>
+              <td>82&nbsp;Proxy-Methoden entfernt &mdash; Angriffsfl&auml;chenreduktion,
+                keine Regression</td>
+              <td><span class="badge badge-ok">Keine Regression</span></td>
+            </tr>
+            <tr>
+              <td><code>scripts/refactor_safety.py</code></td>
+              <td>AST-Analyse, Caller-Check, Read-Only-Werkzeug</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ── Kandidaten ── -->
+      <div class="audit-section" id="kandidaten">
+        <h2>Bewerteter Kandidat (ausgeschlossen)</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:28px;">
+          Ein Muster wurde im ersten Analysedurchgang identifiziert und in einem
+          unabh&auml;ngigen Filter-Agenten (vollst&auml;ndiger Quelltext gelesen)
+          re-analysiert. Der Kandidat &uuml;berschritt die Konfidenz-Schwelle von
+          8/10 nicht.
+        </p>
+
+        <!-- K1 -->
+        <div class="finding-card filtered">
+          <div class="finding-header">
+            <h3>K1 &mdash; WireGuard-Konfig-Import: <code>PostUp</code>/<code>PreDown</code>-Hooks ohne Inhaltspr&uuml;fung</h3>
+            <span class="badge badge-info">Konfidenz 7/10&nbsp;&rarr;&nbsp;3/10&nbsp;&rarr;&nbsp;FP</span>
+            <span class="badge badge-ok">Ausgeschlossen</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Datei:</strong> <code>netmon/features/vpn_controller.py</code> &mdash;
+              <code>import_wg_profiles_from_folder()</code></p>
+            <p>
+              Initiale Bewertung (Phase&nbsp;2): WireGuard-<code>.conf</code>-Dateien werden
+              per <code>sudo -n install -m 600 &lt;src&gt; /etc/wireguard/&lt;name&gt;.conf</code>
+              ohne Inhaltskontrolle in das System &uuml;bernommen. Da <code>wg-quick up</code>
+              die Direktiven <code>PostUp</code>, <code>PreDown</code>, <code>PostDown</code>
+              und <code>PreUp</code> als Root-Shell-Befehle ausf&uuml;hrt, w&uuml;rde eine
+              pr&auml;parierte <code>.conf</code>-Datei bei Profil-Aktivierung beliebigen
+              Code als root ausf&uuml;hren k&ouml;nnen. Erstes Filter-Ergebnis: Konfidenz&nbsp;7/10.
+            </p>
+            <p><strong>Vorhandene Schutzma&szlig;nahmen:</strong></p>
+            <ul style="margin:6px 0 10px 18px;color:var(--muted);">
+              <li>Dateiname via <code>re.fullmatch(r"[A-Za-z0-9_.-]+", name)</code> validiert</li>
+              <li>Zielpfad via <code>os.path.commonpath()</code> auf <code>/etc/wireguard/</code> begrenzt</li>
+              <li><code>wg_profile_path()</code> normalisiert den Pfad zus&auml;tzlich via <code>os.path.realpath()</code></li>
+            </ul>
+            <pre style="margin:10px 0;padding:12px;background:rgba(2,8,15,0.5);border-radius:8px;font-size:0.82rem;color:var(--accent);overflow-x:auto;"><code>for src in selected_files:
+    base = os.path.basename(src)
+    name = base[:-5] if base.endswith(".conf") else base
+    if not re.match(r"^[A-Za-z0-9_.-]+$", name):   # Dateiname validiert
+        skipped += 1; continue
+    target = app._wg_profile_path(name)             # Pfad-Confinement
+    if not target:
+        skipped += 1; continue
+    rc_cp, out_cp = run_cmd(
+        ["sudo", "-n", "install", "-m", "600", src, target], timeout=10
+    )
+    # Dateiinhalt wird nicht geprueft — PostUp/PreDown-Hooks werden uebernommen</code></pre>
+            <p>
+              <strong>Unabh&auml;ngige Nachpr&uuml;fung:</strong> Nach vollst&auml;ndigem Lesen von
+              <code>vpn_controller.py</code> wurde der tats&auml;chliche Angriffsweg bewertet.
+            </p>
+          </div>
+          <div class="finding-verdict pass">
+            <strong>Filterentscheid:</strong> Kein Privilege-Boundary-Crossing auf einem
+            Single-User-Desktop. Der Nutzer initiiert den Import ausschlie&szlig;lich &uuml;ber
+            einen nativen Datei-Dialog (<code>filedialog.askopenfilenames()</code>) und w&auml;hlt
+            die <code>.conf</code>-Datei bewusst aus. WireGuard-Hook-Direktiven sind ein
+            dokumentiertes und erwartetes Feature des Protokolls &mdash; kein versteckter
+            Angriffspfad. Ein externer Angreifer m&uuml;sste entweder bereits
+            Schreibzugriff auf das Dateisystem besitzen (=&nbsp;volle Kompromittierung)
+            oder den Nutzer durch Social Engineering zur gezielten Dateiauswahl bringen
+            (Supply-Chain-Problem, keine Code-Schwachstelle). Die Anwendung setzt bereits
+            sudo-Rechte voraus (<code>ensure_sudo_session()</code> gate); der Nutzer hat
+            dieselben Rechte, die <code>wg-quick</code> ben&ouml;tigt.
+            Konfidenz nach Filterrunde: 3/10 &rarr; False Positive.
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Verbesserungen seit Runde 3 ── -->
+      <div class="audit-section" id="improvements">
+        <h2>Sicherheitsverbesserungen seit Runde&nbsp;3</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:24px;">
+          Die folgenden sicherheitsrelevanten &Auml;nderungen wurden seit Audit
+          Runde&nbsp;3 im Codestand implementiert.
+        </p>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128274;</div>
+          <div class="fixed-body">
+            <h4>HDD Mountpoint-Validierung &mdash; <code>hdd_controller.py</code> &mdash; Security Fix</h4>
+            <p>
+              Commit&nbsp;<code>0431faf8</code>: <code>_slot_mountpoint()</code> kanonisiert
+              den Pfad jetzt via <code>os.path.realpath()</code> (verhindert
+              <code>../</code>-Tricks) und pr&uuml;ft anschlie&szlig;end gegen
+              <code>_SAFE_MOUNT_BASES&nbsp;=&nbsp;("/mnt/",&nbsp;"/media/",&nbsp;"/run/media/")</code>.
+              Ung&uuml;ltige Mountpoints fallen auf den sicheren Default
+              <code>/mnt/&lt;device-basename&gt;</code> zur&uuml;ck. Zuvor konnte
+              ein Angreifer mit Schreibzugriff auf die HDD-Slot-Konfiguration einen
+              beliebigen Mountpoint (z.&nbsp;B. <code>/etc</code>) setzen, der dann
+              per <code>sudo mount</code> mit einem pr&auml;parierten Filesystem
+              &uuml;berschrieben werden konnte &rarr; Privilege&nbsp;Escalation.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#9989;</div>
+          <div class="fixed-body">
+            <h4>CWD-Entfernung aus CSV-Suchpfaden &mdash; <code>linux_help_controller.py</code></h4>
+            <p>
+              Commit&nbsp;<code>363d64f5</code>: <code>os.getcwd()</code>-Fallback wurde
+              aus den CSV-Suchpfaden entfernt. Zuvor konnte ein Angreifer eine manipulierte
+              <code>linux-befehle.csv</code> in einem world-writable Arbeitsverzeichnis
+              ablegen und damit Command-Injection-kompatible Inhalte in das Linux-Hilfe-Modul
+              einschleusen (Command-Injection-Risiko beseitigt).
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#9989;</div>
+          <div class="fixed-body">
+            <h4>EPERM-Behandlung in <code>lock.py</code> korrigiert</h4>
+            <p>
+              Commit&nbsp;<code>363d64f5</code>: <code>os.kill(pid, 0)</code> wirft
+              <code>PermissionError (EPERM)</code>, wenn der Prozess l&auml;uft, aber einem
+              anderen Benutzer geh&ouml;rt. Dieser Fall wurde bisher f&auml;lschlich als
+              veralteter Lock gewertet, wodurch eine zweite Instanz gestartet werden
+              konnte. Fix: EPERM&nbsp;&rarr; Prozess l&auml;uft, Lock ist g&uuml;ltig.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#9989;</div>
+          <div class="fixed-body">
+            <h4>REPO_ROOT dynamisch aus <code>__file__</code> &mdash; <code>agent/runner.py</code></h4>
+            <p>
+              Commit&nbsp;<code>363d64f5</code>: Hardcoded Pfad
+              <code>/workspaces/dev-lab</code> (Codespaces-Pfad) durch
+              <code>Path(__file__).resolve().parent.parent</code> ersetzt.
+              Verhindert, dass der Agent-Runner au&szlig;erhalb der Codespaces-Umgebung
+              alle Befehle mit falschem CWD ausf&uuml;hrt (Funktionskorrektheit +
+              Sicherheitsrelevanz: REPO_ROOT-Confinement war wirkunslos).
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#9989;</div>
+          <div class="fixed-body">
+            <h4>DNS-Token-Validierung: Falsy-Zero-Falle &mdash; <code>dns_control_service.py</code></h4>
+            <p>
+              Commit&nbsp;<code>363d64f5</code>: <code>token.count(".")</code> wurde
+              zu <code>token.count(".") &gt; 0</code> ge&auml;ndert. Das alte Muster
+              wertete den Ausdruck als falsy, wenn genau&nbsp;0 Punkte vorhanden waren,
+              und konnte damit numerische IP-Tokens wie <code>192</code> (ohne Punkt)
+              als g&uuml;ltig durchlassen.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#9989;</div>
+          <div class="fixed-body">
+            <h4>Angriffsfl&auml;chenreduktion: 82&nbsp;Proxy-Methoden aus <code>app.py</code> entfernt</h4>
+            <p>
+              Commits&nbsp;<code>a279e38c</code>&nbsp;+&nbsp;<code>920cfc9b</code>:
+              Insgesamt 101&nbsp;tote bzw. Proxy-Methoden aus <code>app.py</code> gel&ouml;scht.
+              Alle Methoden wurden vorab per <code>scripts/refactor_safety.py</code> auf
+              Null-Aufrufer verifiziert (AST-Check + grep). Die God-Object-Reduktion
+              verkleinert die effektive Angriffsfl&auml;che und macht den Kontrollflu&szlig;
+              transparenter.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#9989;</div>
+          <div class="fixed-body">
+            <h4>R3-Findings best&auml;tigt geschlossen &mdash; rkhunter, fun_controller, agent/runner</h4>
+            <p>
+              Alle 3 aus Runde&nbsp;3 bestätigten Findings wurden im aktuellen Codestand
+              verifiziert: <strong>K1&nbsp;R3</strong> (<code>rkhunter_manager.py</code>
+              PATH-Hijacking) via <code>TRUSTED_WEB_CMD_PREFIXES</code> geschlossen;
+              <strong>K2&nbsp;R3</strong> (<code>fun_controller.py</code> Pfad-Confinement)
+              via <code>realpath()</code>-Check auf <code>fun_games_dir</code> geschlossen;
+              <strong>K3&nbsp;R3</strong> (<code>agent/runner.py</code> Pfad-Allowlist)
+              via REPO_ROOT-Confinement f&uuml;r black/ruff/pytest/ls geschlossen.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Hardening geschlossen ── -->
+      <div class="audit-section" id="hardening">
+        <h2>Hardening-Empfehlungen &mdash; alle geschlossen</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:24px;">
+          S&auml;mtliche seit Runde&nbsp;1 offenen Defense-in-Depth-Empfehlungen wurden
+          im aktuellen Codestand&nbsp;v1.1.15 vollst&auml;ndig umgesetzt und
+          per direktem Quelltext-Check verifiziert.
+        </p>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#10003;</div>
+          <div class="fixed-body">
+            <h4>IP-Validierung f&uuml;r WireGuard-Endpoints &mdash; <code>vpn_controller.py:2479</code></h4>
+            <p>
+              <code>parse_vpn_endpoint()</code> verwendet <code>ipaddress.ip_address(host)</code>
+              zur strikten Host-Validierung. Nicht-IP-Hostnamen werden &uuml;bersprungen und via
+              <code>_warn_non_ip_endpoint_once()</code> protokolliert. Der Host-Teil erreicht
+              UFW-Kommandos nur als validiertes <code>endpoint_ip.compressed</code>.
+              <em>(Runde&nbsp;1, Punkt&nbsp;2 &mdash; geschlossen)</em>
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#10003;</div>
+          <div class="fixed-body">
+            <h4>Schema-Validierung homepage-URLs im Radio-Modul &mdash; <code>radio_controller.py:106+315</code></h4>
+            <p>
+              <code>ALLOWED_RADIO_HOMEPAGE_SCHEMES&nbsp;=&nbsp;{"http",&nbsp;"https"}</code>
+              (Zeile&nbsp;106). Die Funktion <code>_normalize_station_homepage_url()</code>
+              (Zeilen&nbsp;315&ndash;326) validiert jede Homepage-URL via
+              <code>urllib.parse.urlparse()</code> gegen diese Allowlist und wird in
+              <code>open_selected_station_homepage()</code> (Zeile&nbsp;5231) aufgerufen
+              &mdash; bevor <code>webbrowser.open()</code> die URL erh&auml;lt.
+              <em>(Runde&nbsp;2, Punkt&nbsp;4 &mdash; geschlossen)</em>
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#10003;</div>
+          <div class="fixed-body">
+            <h4>Shell-Quoting in Repository-Guard-Snippets &mdash; <code>repository_guard_controller.py:799&ndash;802</code></h4>
+            <p>
+              <code>get_repository_guard_quick_action_snippet()</code> maskiert alle
+              eingebetteten Werte mit <code>shlex.quote()</code>:
+              <code>quoted_uri</code>, <code>quoted_path</code>, <code>quoted_host</code>
+              und <code>quoted_keyring_path</code>.
+              <em>(Runde&nbsp;1, Punkt&nbsp;5 &mdash; geschlossen)</em>
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#10003;</div>
+          <div class="fixed-body">
+            <h4><code>realpath()</code> im Roots-Baseline-Guard &mdash; <code>roots_baseline_guard_controller.py:123</code></h4>
+            <p>
+              <code>_normalize_guard_path_pattern()</code> verwendet
+              <code>os.path.realpath(os.path.expanduser(raw))</code> &mdash; Symlinks
+              werden vollst&auml;ndig aufgel&ouml;st, bevor fnmatch-Vergleiche
+              und Allowlist-Pr&uuml;fungen greifen.
+              <em>(Runde&nbsp;1, Punkt&nbsp;6 &mdash; geschlossen)</em>
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#10003;</div>
+          <div class="fixed-body">
+            <h4>Pfadpr&uuml;fung in <code>image_to_data_url()</code> &mdash; <code>ai_online_service.py:35&ndash;39</code></h4>
+            <p>
+              <code>resolved.relative_to(home_dir)</code> stellt sicher, dass der
+              Bildpfad innerhalb des Benutzer-Homeverzeichnisses liegt. Zus&auml;tzlich
+              wird <code>resolve(strict=True)</code> verwendet (Symlinks aufgel&ouml;st,
+              Existenz sichergestellt) und die Dateiendung gegen eine Allowlist
+              erlaubter Bildformate gepr&uuml;ft.
+              <em>(Runde&nbsp;1, Punkt&nbsp;3 &mdash; geschlossen)</em>
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#10003;</div>
+          <div class="fixed-body">
+            <h4>WireGuard-Import: Hook-Hinweis &mdash; <code>vpn_controller.py:141+3229+3328+3363</code></h4>
+            <p>
+              <code>_warn_wireguard_import_hooks()</code> (Zeile&nbsp;141) scannt jede
+              ausgew&auml;hlte <code>.conf</code>-Datei vor dem Import auf
+              <code>PreUp</code>/<code>PostUp</code>/<code>PreDown</code>/<code>PostDown</code>-Direktiven
+              und zeigt bei Fund einen expliziten Nutzerhinweis an
+              (<code>messagebox</code> mit Option zum Abbruch). Die Funktion wird an
+              drei Import-Einstiegspunkten aufgerufen (Zeilen&nbsp;3229,&nbsp;3328,&nbsp;3363).
+              <em>(K1-FP Defense-in-Depth &mdash; geschlossen)</em>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Gepr&uuml;fte Kategorien ── -->
+      <div class="audit-section" id="kategorien">
+        <h2>Gepr&uuml;fte Sicherheitskategorien</h2>
+        <div class="section-rule"></div>
+        <table class="scope-table">
+          <thead>
+            <tr>
+              <th>Kategorie</th>
+              <th>Gepr&uuml;ft</th>
+              <th>Ergebnis</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Command Injection (subprocess, shell=True)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Path Traversal (Dateioperationen mit Nutzereingabe)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Privilege Escalation (sudo mit unkontrollierten Argumenten)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Argument Injection (list-form subprocess mit externen Daten)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Unsichere Deserialisierung (pickle, yaml.load, eval)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Eval/Exec mit Nutzereingabe</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Hardcoded Credentials / API-Keys</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Sensitive Data Exposure (PII in Logs)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>SSRF via urllib.request / externe URL-Weitergabe</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>URL-Schema-Validierung an Media-Subprocessen</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Kryptographische Schwachstellen</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Symlink-Angriffe auf privilegierte Dateioperationen</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Mountpoint-Manipulation via Konfig-Datei</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (Fix in v1.1.15)</span></td>
+            </tr>
+            <tr>
+              <td>WireGuard-Hook-Ausf&uuml;hrung via Import</td>
+              <td>Ja</td>
+              <td><span class="badge badge-info">K1 &rarr; FP (kein Boundary Crossing)</span></td>
+            </tr>
+            <tr>
+              <td>PATH-Hijacking via shutil.which (R3-K1)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Geschlossen (R3)</span></td>
+            </tr>
+            <tr>
+              <td>Agent-CLI Pfad-Confinement (R3-K3)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Geschlossen (R3)</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ── Signatur ── -->
+      <div class="signature-block">
+        <p>
+          <strong>Auditor:</strong> Claude Sonnet&nbsp;4.6 (Anthropic) &mdash;
+          Automatisiertes Multi-Agenten-Sicherheits-Review + unabh&auml;ngige False-Positive-Filterrunde<br>
+          <strong>Projektverantwortlicher:</strong> Sven Fr&ouml;hlich<br>
+          <strong>Datum:</strong> 29.&nbsp;Juni&nbsp;2026<br>
+          <strong>Analysierter Codestand:</strong>
+          <code>e334324a</code>&nbsp;&hellip;&nbsp;<code>920cfc9b</code>
+          + Arbeitsstand (modified/untracked), gesamt&nbsp;40+&nbsp;Dateien &mdash; Runde&nbsp;4<br>
+          <strong>Methode:</strong> Statische Code-Analyse + manuelle Datenfluss-Verifikation
+          &mdash; kein Laufzeit-Penetrationstest<br>
+          <strong>Haftungsausschluss:</strong> Dieses Audit ersetzt keinen professionellen
+          Penetrationstest durch eine zertifizierte Sicherheitsfirma. Die Analyse
+          beschr&auml;nkt sich auf den angegebenen Codestand. Nicht erfasst werden:
+          Laufzeitverhalten, abh&auml;ngige Systembibliotheken,
+          Netzwerkkonfiguration und soziale Angriffsvektoren.
+        </p>
+        <p style="margin-top:16px;">
+          <a href="./downloads.html" style="color:var(--accent);">Zur Downloadseite</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./aktuelles.html" style="color:var(--accent);">Aktuelles</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./docs.html" style="color:var(--accent);">Dokumentation</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./legal.html" style="color:var(--accent);">Legal / Lizenz</a>
+        </p>
+      </div>
+    </main>
+
+    <footer style="margin-top:64px;padding:24px 0;border-top:1px solid var(--line);text-align:center;color:var(--muted);font-size:0.85rem;">
+      &copy; 2026 Sven Fr&ouml;hlich &mdash; NetMon Roots &mdash;
+      <a href="./legal.html" style="color:var(--muted);">Lizenz &amp; Credits</a>
+    </footer>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -366,6 +366,17 @@ def _speedtest_internal_debug_message(result, history_size: int) -> str:
     return f"Speedtest intern: tool={result.get('tool','-')} history={history_size}"
 
 
+def configured_speedtest_server_id(app) -> str:
+    server_var = getattr(app, "speedtest_server_id_var", None)
+    if server_var is not None:
+        try:
+            return str(server_var.get() or "").strip()
+        except Exception:
+            pass
+    settings = getattr(app, "settings", {}) or {}
+    return str(settings.get("speedtest_server_id", "") or "").strip()
+
+
 def show_speedtest_history(app):
     history = _speedtest_history_window(app)
     for message in _speedtest_history_messages(history):
@@ -382,12 +393,21 @@ def speedtest_async(
     has_cmd_fn,
 ):
     def job():
+        server_id = configured_speedtest_server_id(app)
         app.log_safe(_speedtest_status_message("started"))
-        result, err = run_speedtest_fn(run_cmd_fn, has_cmd_fn, timeout=120)
+        result, err = run_speedtest_fn(
+            run_cmd_fn,
+            has_cmd_fn,
+            timeout=120,
+            server_id=server_id,
+        )
         if err:
             for message in _speedtest_failure_messages(err):
                 app.log_safe(message)
             return
+
+        if server_id and isinstance(result, dict) and not result.get("server_id"):
+            result["server_id"] = server_id
 
         append_speedtest_history(app, result)
         call_in_ui_thread(app, lambda r=dict(result): update_speedtest_panel(app, r))

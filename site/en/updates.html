@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetMonRoots | Updates, status, and current notes</title>
+  <meta
+    name="description"
+    content="Central page for current notes, status updates, known topics, and maintenance-oriented communication around NetMon."
+  >
+  <link rel="icon" type="image/png" href="../favicon.png">
+  <link rel="apple-touch-icon" href="../favicon.png">
+  <link rel="canonical" href="https://netmonroots.com/en/updates.html">
+  <link rel="alternate" hreflang="de" href="https://netmonroots.com/aktuelles.html">
+  <link rel="alternate" hreflang="en" href="https://netmonroots.com/en/updates.html">
+  <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/aktuelles.html">
+  <meta property="og:title" content="NetMonRoots | Updates, status, and current notes">
+  <meta property="og:description" content="Central page for current notes, status updates, known topics, and maintenance-oriented communication around NetMon.">
+  <meta property="og:url" content="https://netmonroots.com/en/updates.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NetMon Roots">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:locale:alternate" content="de_DE">
+  <meta property="og:image" content="https://netmonroots.com/favicon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="NetMonRoots | Updates, status, and current notes">
+  <meta name="twitter:description" content="Central page for current notes, status updates, known topics, and maintenance-oriented communication around NetMon.">
+  <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body class="downloads-page updates-page">
+  <div class="page-shell docs-page downloads-page-shell">
+    <header class="topbar">
+      <a class="brand" href="./index.html" aria-label="NetMon home page">
+        <span class="brand-mark">
+          <span class="brand-lockup">
+            <span class="brand-title">
+              <span class="brand-title-main">NETMON</span>
+              <span class="brand-title-accent">ROOTS</span>
+            </span>
+            <span class="brand-subline">MONITOR. CONTROL. UNDERSTAND.</span>
+            <span class="brand-tagline">BACK TO THE ROOTS.</span>
+          </span>
+          <img class="brand-icon" src="../bannericon.png" alt="" aria-hidden="true">
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="./index.html">Home</a>
+        <a href="./downloads.html">Download</a>
+        <a href="./updates.html">Updates</a>
+        <a href="./tour.html">Tour</a>
+        <a href="./docs.html">Docs</a>
+        <a href="./security-audit.html">Audit</a>
+        <a href="./legal.html">Legal</a>
+      </nav>
+      <div class="lang-switch" aria-label="Language switcher">
+        <a href="../aktuelles.html" lang="de">DE</a>
+        <a class="active" href="./updates.html" lang="en">EN</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Current status</p>
+        </div>
+        <div class="download-layout">
+          <article class="download-card featured">
+            <p class="download-label">Status</p>
+            <h3>NetMon 1.1.15 is the current build.</h3>
+            <p>The version check in the About section works cleanly and automatically points to the download page when a newer website version is available. This page serves as the central place for approvals, test notes, and ongoing maintenance updates.</p>
+            <div class="inline-actions">
+              <a class="button button-primary" href="./downloads.html">Go to download page</a>
+              <a class="button button-secondary" href="./docs.html">Open documentation</a>
+            </div>
+          </article>
+          <article class="download-card">
+            <p class="download-label">Important note</p>
+            <h3>NetMon is still being checked on multiple Linux systems.</h3>
+            <p>If differences or problems appear on individual distributions, we document them here before issuing a broad approval. This keeps status and known topics visible in one place.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="status">
+        <div class="section-heading">
+          <p class="eyebrow">Approvals and tests</p>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>Zorin OS approved</h3>
+            <p>The current core functions were tested successfully on Zorin. This includes launch, the diagnostics path, and the revised LUKS mount workflow.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Linux Mint in the test lab</h3>
+            <p>Initial tests on Mint are positive. A broad approval is still pending because more checks are scheduled in the test lab.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Note for Mint tests</h3>
+            <p>Before system changes, mount and unmount checks, or uninstall tests on Mint, a Timeshift backup should be created first.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Resolved issues</p>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>LUKS mounting revised</h3>
+            <p>The earlier problem with mounting encrypted LUKS partitions was reworked in version 1.1.14. The mount path now behaves more reliably and follows the tested system behaviour more closely.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Installed build hardened</h3>
+            <p>The package path was additionally hardened so that behaviour differences between the dev lab and the installed system are reduced. LUKS handling and desktop mount tooling were improved in particular.</p>
+          </article>
+          <article class="faq-card">
+            <h3>About version check</h3>
+            <p>The online check for the current version now runs cleanly. If the website offers a newer version, NetMon can forward directly to the download page.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Download and verification</p>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>New package</h3>
+            <p>An updated <code>.deb</code> package is provided for version 1.1.15. It includes the latest LUKS-mounting work, the About version-check improvements, and the current recovery baseline.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Hash and signature</h3>
+            <p>Updated SHA256 checksums and a refreshed Minisign signature will be published alongside the package so downloads can be verified before installation.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Recommendation</h3>
+            <p>Please use the verification steps on the download page whenever possible and review this page before test installations.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="version-note">
+          <p><strong>Status date:</strong> <code>2026-06-29</code></p>
+          <p><strong>Current build:</strong> <code>1.1.15</code></p>
+          <p><strong>Next focus:</strong> Additional distribution tests and a clean assessment of possible differences between Zorin, Mint, and other Debian-/Ubuntu-based systems.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <a href="./impressum.html">Imprint</a>
+    </footer>
+  </div>
+  <script src="../app.js"></script>
+</body>
+</html>

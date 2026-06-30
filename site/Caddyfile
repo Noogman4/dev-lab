@@ -1,0 +1,28 @@
+{
+	email admin@netmonroots.com
+}
+
+netmon-roots.com, www.netmon-roots.com {
+	redir https://netmonroots.com{uri} permanent
+}
+
+netmon-roots.app, www.netmon-roots.app {
+	redir https://netmonroots.com{uri} permanent
+}
+
+www.netmonroots.com {
+	redir https://netmonroots.com{uri} permanent
+}
+
+netmonroots.com {
+	root * /srv/netmonroots
+	file_server
+	try_files {path} {path}/ /site/index.html
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+}

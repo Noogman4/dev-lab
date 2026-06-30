@@ -276,8 +276,7 @@ def _packet_capture_completion_failure_messages(
     interface: str, return_code: int
 ) -> tuple[str, str]:
     return (
-        "Hinweis: Capture wurde mit Fehler beendet. Fehlende Rechte für "
-        "tshark/dumpcap sind häufig die Ursache.",
+        "Hinweis: Capture wurde mit Fehler beendet. Fehlende Rechte für tshark/dumpcap sind häufig die Ursache.",
         f"Packet Capture fehlgeschlagen ({interface}, rc={return_code}).",
     )
 
@@ -446,19 +445,19 @@ def choose_packet_capture_file(app):
     initial_file = _packet_capture_initial_file_name(current_path, generated_path)
     chosen = filedialog.asksaveasfilename(
         parent=app,
-        title="Capture-Datei auswählen",
+        title=app.tr("packet_capture_file_dialog_title", "Choose capture file"),
         initialdir=initial_dir,
         initialfile=initial_file,
         defaultextension=".pcapng",
         filetypes=[
             ("Packet Capture", "*.pcapng *.pcap"),
-            ("Alle Dateien", "*.*"),
+            ("All files", "*.*"),
         ],
     )
     if chosen:
         _app_var_set(app, "packet_capture_file_var", chosen)
         app.packet_capture_output_path = chosen
-        append_packet_capture_output(app, f"Capture-Datei gesetzt: {chosen}")
+        append_packet_capture_output(app, f"Capture file set: {chosen}")
 
 
 def refresh_packet_capture_interfaces(app):
@@ -478,7 +477,7 @@ def refresh_packet_capture_interfaces(app):
                     interfaces.append(name)
                     details.append(raw)
         elif app._looks_like_dumpcap_permission_issue(out):
-            app.packet_capture_status_var.set("Berechtigung fehlt")
+            app.packet_capture_status_var.set("permission missing")
             append_packet_capture_output(
                 app,
                 _packet_capture_dumpcap_permission_message(),
@@ -520,12 +519,12 @@ def refresh_packet_capture_interfaces(app):
         _app_var_set(app, "packet_capture_interface_var", preferred)
     if unique:
         summary = _packet_capture_interfaces_ready_message(unique)
-        _app_var_set(app, "packet_capture_status_var", "Interfaces bereit")
+        _app_var_set(app, "packet_capture_status_var", "interfaces ready")
         append_packet_capture_output(app, summary, replace=True)
         if details:
             append_packet_capture_output(app, "\n".join(details))
     else:
-        _app_var_set(app, "packet_capture_status_var", "Keine Interfaces gefunden")
+        _app_var_set(app, "packet_capture_status_var", "no interfaces found")
         append_packet_capture_output(
             app,
             _packet_capture_no_interfaces_message(),
@@ -615,7 +614,7 @@ def packet_capture_start_async(app):
             guard_message,
             replace=True,
         )
-        _app_var_set(app, "packet_capture_status_var", "Interface fehlt")
+        _app_var_set(app, "packet_capture_status_var", "interface missing")
         return
     output_file = str(_app_var_get(app, "packet_capture_file_var", "") or "").strip()
     if not output_file:
@@ -635,7 +634,7 @@ def packet_capture_start_async(app):
             _packet_capture_missing_tool_message(),
             replace=True,
         )
-        _app_var_set(app, "packet_capture_status_var", "Tool fehlt")
+        _app_var_set(app, "packet_capture_status_var", "tool missing")
         app.log(_packet_capture_missing_tool_log_message())
         app.show_wireshark_install_hint()
         return
@@ -654,7 +653,7 @@ def packet_capture_start_async(app):
     app.packet_capture_cancel_requested = False
     app.packet_capture_started_at = time.time()
     app.packet_capture_output_path = output_file
-    _app_var_set(app, "packet_capture_status_var", "läuft")
+    _app_var_set(app, "packet_capture_status_var", "running")
     _app_var_set(app, "packet_capture_runtime_var", "0s")
     _app_var_set(app, "packet_capture_packets_var", "-")
     _app_var_set(app, "packet_capture_size_var", "-")
@@ -713,7 +712,7 @@ def packet_capture_start_async(app):
                     if app._looks_like_dumpcap_permission_issue(details):
                         app.show_dumpcap_permission_hint()
                 else:
-                    app.log(_packet_capture_state_log_message("gestoppt", interface))
+                    app.log(_packet_capture_state_log_message("stopped", interface))
                 packet_capture_show_file_info(app)
                 packet_capture_update_runtime(app)
 
@@ -724,7 +723,7 @@ def packet_capture_start_async(app):
             def finish_error(message=error_text):
                 app.packet_capture_active_process = None
                 app.packet_capture_running = False
-                _app_var_set(app, "packet_capture_status_var", "Fehler")
+                _app_var_set(app, "packet_capture_status_var", "error")
                 packet_capture_set_running_state(app, False)
                 output_message, log_message = _packet_capture_start_failure_messages(
                     message
@@ -753,7 +752,7 @@ def packet_capture_stop(app):
     proc = app.packet_capture_active_process
     if proc is None:
         app.packet_capture_running = False
-        _app_var_set(app, "packet_capture_status_var", "gestoppt")
+        _app_var_set(app, "packet_capture_status_var", "stopped")
         packet_capture_set_running_state(app, False)
         return
     try:
@@ -776,13 +775,13 @@ def packet_capture_stop(app):
 def open_packet_capture_in_wireshark(app):
     if callable(getattr(app, "wireshark_launch_blocked", None)) and app.wireshark_launch_blocked():
         message = (
-            "Wireshark-Start ist in NetMon gesperrt.\n"
-            "Hinweis: Diese Option blockiert nur NetMon-intern. "
-            "Systemweit muessen Rechte oder Pakete separat angepasst werden."
+            "Wireshark launch is blocked in NetMon.\n"
+            "Note: this option only blocks it inside NetMon. "
+            "System-wide permissions or packages must be adjusted separately."
         )
         append_packet_capture_output(app, message)
         try:
-            app.log("Wireshark-Start aus NetMon blockiert.")
+            app.log("Wireshark launch from NetMon blocked.")
         except Exception:
             pass
         return

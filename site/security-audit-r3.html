@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetMon Security Audit 2026 — Runde 3 (rev.)</title>
+  <style>
+    :root {
+      --blue-dark: #16263a;
+      --blue-mid:  #1a3552;
+      --accent:    #2563eb;
+      --accent-lt: #dbeafe;
+      --red:       #b91c1c;
+      --red-lt:    #fef2f2;
+      --amber:     #b45309;
+      --amber-lt:  #fffbeb;
+      --green:     #15803d;
+      --green-lt:  #f0fdf4;
+      --muted:     #5f6368;
+      --line:      #d9e1e7;
+      --bg:        #f5f7fa;
+      --card:      #ffffff;
+      --mono:      "JetBrains Mono", "Fira Mono", "Cascadia Code", ui-monospace, monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: #202124;
+      line-height: 1.6;
+    }
+
+    /* ── Header ── */
+    .site-header {
+      background: var(--blue-dark);
+      color: #fff;
+      padding: 48px 0 36px;
+      text-align: center;
+    }
+    .site-header .eyebrow {
+      font-size: .75rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: #9db5cc;
+      margin-bottom: 10px;
+    }
+    .site-header h1 {
+      font-size: clamp(1.6rem, 4vw, 2.6rem);
+      font-weight: 700;
+      letter-spacing: -.02em;
+      margin-bottom: 8px;
+    }
+    .site-header .subtitle {
+      font-size: 1rem;
+      color: #9db5cc;
+    }
+
+    /* ── Verdict banner ── */
+    .verdict-banner {
+      text-align: center;
+      padding: 18px 24px;
+      font-weight: 700;
+      font-size: 1rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .verdict-banner.warn  { background: var(--amber-lt); color: var(--amber); border-bottom: 3px solid var(--amber); }
+    .verdict-banner.crit  { background: var(--red-lt);   color: var(--red);   border-bottom: 3px solid var(--red); }
+    .verdict-banner.clean { background: var(--green-lt); color: var(--green); border-bottom: 3px solid var(--green); }
+
+    /* ── Layout ── */
+    .container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+    .section    { padding: 48px 0 32px; }
+    .section + .section { border-top: 1px solid var(--line); }
+
+    h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--blue-dark);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h2::before {
+      content: "";
+      display: inline-block;
+      width: 4px;
+      height: 1.2em;
+      background: var(--accent);
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+    p { margin-bottom: 12px; color: #3c4043; }
+    p:last-child { margin-bottom: 0; }
+
+    /* ── Meta grid ── */
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+    .meta-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .meta-card .label { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 4px; }
+    .meta-card .value { font-size: 1.15rem; font-weight: 700; color: var(--blue-dark); }
+    .meta-card .value.red   { color: var(--red); }
+    .meta-card .value.amber { color: var(--amber); }
+    .meta-card .value.green { color: var(--green); }
+
+    /* ── Finding cards ── */
+    .finding-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .finding-card .card-head {
+      padding: 16px 20px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .finding-card .card-title { font-weight: 700; font-size: 1rem; color: var(--blue-dark); }
+    .finding-card .card-file  { font-size: .8rem; color: var(--muted); font-family: var(--mono); margin-top: 3px; }
+    .finding-card .card-body  { padding: 16px 20px; }
+    .finding-card .card-body p { font-size: .92rem; }
+
+    .badge {
+      display: inline-block;
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: 3px 9px;
+      border-radius: 4px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .badge.high   { background: #fecaca; color: var(--red); }
+    .badge.medium { background: #fed7aa; color: #92400e; }
+    .badge.low    { background: #fef9c3; color: #854d0e; }
+    .badge.fp     { background: #e0e7ef; color: var(--muted); }
+    .badge.conf   { background: var(--accent-lt); color: var(--accent); margin-left: 6px; }
+
+    .finding-card.high   { border-left: 4px solid var(--red); }
+    .finding-card.medium { border-left: 4px solid #f97316; }
+    .finding-card.filtered { border-left: 4px solid #cbd5e1; opacity: .85; }
+
+    /* ── Flow diagram ── */
+    .flow {
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 12px 16px;
+      font-family: var(--mono);
+      font-size: .8rem;
+      color: #374151;
+      white-space: pre-wrap;
+      margin: 12px 0;
+    }
+
+    /* ── Code snippet ── */
+    .code-block {
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 6px;
+      padding: 14px 16px;
+      font-family: var(--mono);
+      font-size: .78rem;
+      line-height: 1.55;
+      overflow-x: auto;
+      margin: 12px 0;
+    }
+    .code-block .hl { color: #f87171; font-weight: 700; }
+    .code-block .cm { color: #64748b; }
+    .code-block .ok { color: #86efac; }
+
+    /* ── Filter verdict ── */
+    .filter-verdict {
+      background: var(--green-lt);
+      border: 1px solid #bbf7d0;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: .88rem;
+      color: var(--green);
+      margin-top: 10px;
+    }
+    .filter-verdict.warn {
+      background: var(--amber-lt);
+      border-color: #fcd34d;
+      color: var(--amber);
+    }
+    .filter-verdict.danger {
+      background: var(--red-lt);
+      border-color: #fca5a5;
+      color: var(--red);
+    }
+
+    /* ── Fix box ── */
+    .fix-box {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: .88rem;
+      color: #1d4ed8;
+      margin-top: 10px;
+    }
+
+    /* ── Phase list ── */
+    .phase-list { list-style: none; padding: 0; }
+    .phase-list li {
+      display: flex;
+      gap: 14px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+      font-size: .92rem;
+    }
+    .phase-list li:last-child { border-bottom: none; }
+    .phase-num {
+      flex-shrink: 0;
+      width: 26px;
+      height: 26px;
+      background: var(--blue-dark);
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .75rem;
+      font-weight: 700;
+    }
+
+    /* ── Improvements ── */
+    .improvement-card {
+      background: var(--green-lt);
+      border: 1px solid #bbf7d0;
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-bottom: 12px;
+      font-size: .92rem;
+    }
+    .improvement-card strong { color: var(--green); display: block; margin-bottom: 4px; }
+
+    /* ── Hardening list ── */
+    .hardening-list { list-style: none; padding: 0; counter-reset: harden; }
+    .hardening-list li {
+      counter-increment: harden;
+      display: flex;
+      gap: 14px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--line);
+      font-size: .92rem;
+    }
+    .hardening-list li:last-child { border-bottom: none; }
+    .hardening-list li::before {
+      content: counter(harden);
+      flex-shrink: 0;
+      width: 26px;
+      height: 26px;
+      background: #f1f5f9;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .75rem;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    /* ── Footer ── */
+    footer {
+      background: var(--blue-dark);
+      color: #9db5cc;
+      text-align: center;
+      padding: 28px 16px;
+      font-size: .82rem;
+      margin-top: 60px;
+    }
+    footer a { color: #60a5fa; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+    .footer-links { margin-top: 10px; display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
+
+    /* ── Scope table ── */
+    .scope-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    .scope-table th {
+      background: #eef3f7;
+      color: var(--blue-dark);
+      font-weight: 700;
+      text-align: left;
+      padding: 9px 12px;
+      border: 1px solid var(--line);
+    }
+    .scope-table td {
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      vertical-align: top;
+      color: #3c4043;
+    }
+    .scope-table tr:nth-child(even) td { background: #f8fafc; }
+    .scope-table td:first-child { font-family: var(--mono); font-size: .78rem; }
+    .ok-cell  { color: var(--green); font-weight: 600; }
+    .hit-cell { color: var(--red);   font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header class="site-header">
+  <div class="eyebrow">Sicherheits-Audit · Runde 3 (rev.) · Juni 2026</div>
+  <h1>NetMon Roots v1.1.14</h1>
+  <p class="subtitle">Statische Code-Analyse · 3 Findings bestätigt · alle geschlossen im aktuellen Codestand</p>
+</header>
+
+<div class="verdict-banner clean">
+  3 Findings bestätigt · K1 HIGH, K2/K3 MEDIUM · alle nachgezogen und geschlossen
+</div>
+
+<!-- ── MAIN ── -->
+<main class="container">
+
+  <!-- Meta -->
+  <section class="section">
+    <div class="meta-grid">
+      <div class="meta-card">
+        <div class="label">Datum</div>
+        <div class="value">28. Juni 2026</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Analysierte Version</div>
+        <div class="value">v1.1.14 · Runde 3</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Bestätigte Findings</div>
+        <div class="value green">3</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Bewertete Kandidaten</div>
+        <div class="value">7</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Konfidenz-Schwelle</div>
+        <div class="value">≥ 8 / 10</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Severity</div>
+        <div class="value green">1 HIGH + 2 MEDIUM (geschlossen)</div>
+      </div>
+    </div>
+
+    <h2>Zusammenfassung</h2>
+    <p>
+      Die dritte statische Sicherheitsanalyse des NetMon-Arbeitsstands v1.1.14 durch ein
+      Multi-Agenten-System (Claude Sonnet 4.6) mit anschließender manueller Verifikation
+      bestätigte in Runde 3 insgesamt <strong>3 Findings</strong>: PATH-Hijacking in
+      <code>rkhunter_manager.py</code> (HIGH), Pfad-Konfinement im lokalen Agent-Runner
+      (MEDIUM) und fehlende Launcher-Pfadbegrenzung im Fun-Controller (MEDIUM).
+      Alle drei Punkte sind im aktuellen Codestand inzwischen geschlossen.
+    </p>
+    <p>
+      <strong>K1 (geschlossen):</strong> <code>rkhunter_manager.py</code> begrenzt
+      <code>WEB_CMD</code> jetzt auf Trusted Prefixes unter <code>/usr/bin/</code>,
+      <code>/bin/</code> und <code>/usr/local/bin/</code>. User-kontrollierte
+      PATH-Treffer wie <code>~/.local/bin/wget</code> werden verworfen.
+    </p>
+    <p>
+      <strong>K2 (geschlossen):</strong> <code>fun_controller.py</code> startet jetzt
+      nur noch validierte Python-Launcher innerhalb von <code>fun_games_dir</code>.
+      Der Pfad wird via <code>realpath()</code> und Managed-Path-Check begrenzt.
+    </p>
+    <p>
+      <strong>K3 (geschlossen):</strong> <code>agent/runner.py</code> prueft jetzt die
+      Pfadargumente fuer <code>black</code>, <code>ruff</code>, <code>pytest</code> und
+      <code>ls</code> zusaetzlich gegen <code>REPO_ROOT</code>. Absolute oder relative
+      Ziele ausserhalb des Repositories werden abgelehnt.
+    </p>
+  </section>
+
+  <!-- Methodik -->
+  <section class="section">
+    <h2>Methodik</h2>
+    <ul class="phase-list">
+      <li>
+        <span class="phase-num">1</span>
+        <div>
+          <strong>Reconnaissance</strong> — Alle neuen und geänderten Module (25+) gelesen;
+          Fokus auf neue Controller (<code>rkhunter_manager.py</code>, <code>coordinator.py</code>,
+          <code>links_controller.py</code>, <code>fun_controller.py</code>), neue Services
+          (<code>lang_service.py</code>, <code>process_guard_service.py</code>,
+          <code>repository_guard_service.py</code>) und neue UI-Tabs.
+        </div>
+      </li>
+      <li>
+        <span class="phase-num">2</span>
+        <div>
+          <strong>Kandidaten-Analyse</strong> — Datenflussketten von externen Quellen
+          (PATH-Umgebung, Dateisystem, LLM-Input) bis zu sensitiven Operationen
+          (<code>sudo</code>-Calls, <code>subprocess.Popen</code>, Dateioperationen) nachverfolgt.
+        </div>
+      </li>
+      <li>
+        <span class="phase-num">3</span>
+        <div>
+          <strong>False-Positive-Filter</strong> — Jeder Kandidat in unabhängigen Agenten
+          re-analysiert. Ausschluss: DoS, Single-User-Desktop ohne Privilege-Boundary-Crossing,
+          <code>stdout/stderr=DEVNULL</code>-Isolation, Browser-Sandbox.
+          Konfidenz-Schwelle: ≥&nbsp;8/10.
+        </div>
+      </li>
+      <li>
+        <span class="phase-num">4</span>
+        <div>
+          <strong>Manuelle Verifikation</strong> — Alle 3 bestätigten Findings durch direktes
+          Lesen der Quelldateien verifiziert: Datenfluss Zeile für Zeile nachvollzogen,
+          Mitigationen geprüft.
+        </div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- Scope -->
+  <section class="section">
+    <h2>Analysierte Module (Runde 3)</h2>
+    <table class="scope-table">
+      <thead>
+        <tr><th>Datei / Modul</th><th>Fokus</th><th>Ergebnis</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>netmon/core/rkhunter_manager.py</td><td>rkhunter-Konfigurationsreparatur, shutil.which, sudo install</td><td class="ok-cell">Finding K1 geschlossen</td></tr>
+        <tr><td>netmon/features/fun_controller.py</td><td>Spieleordner-Scan, subprocess.Popen python3</td><td class="ok-cell">Finding K2 geschlossen</td></tr>
+        <tr><td>agent/runner.py</td><td>Agent-CLI-Allowlist, black/ruff/pytest/ls Pfadrestriktion</td><td class="ok-cell">Finding K3 geschlossen</td></tr>
+        <tr><td>netmon/core/tooling.py</td><td>importlib-Modul-Loading aus sys.path</td><td class="ok-cell">Ausgeschlossen K4</td></tr>
+        <tr><td>netmon/services/lang_service.py</td><td>lang_code-Pfad-Traversal, json.load</td><td class="ok-cell">Ausgeschlossen K5</td></tr>
+        <tr><td>netmon/ui/tabs/cleanup_assistant_tab.py</td><td>TOCTOU-Race vor shutil.rmtree</td><td class="ok-cell">Ausgeschlossen K6</td></tr>
+        <tr><td>netmon/features/links_controller.py</td><td>.desktop-Exec-Parsing, xdg-open</td><td class="ok-cell">Ausgeschlossen K7</td></tr>
+        <tr><td>netmon/core/coordinator.py + state.py</td><td>Zustandsverwaltung, makedirs</td><td class="ok-cell">Kein Finding</td></tr>
+        <tr><td>netmon/core/support_bundle.py + diagnostics.py</td><td>Dateioperationen, Subprocess</td><td class="ok-cell">Kein Finding</td></tr>
+        <tr><td>netmon/features/process_guard_controller.py</td><td>UI-Zustandsmanagement</td><td class="ok-cell">Kein Finding</td></tr>
+        <tr><td>netmon/features/repository_guard_controller.py</td><td>Snippet-Generierung, shlex.quote</td><td class="ok-cell">Kein Finding</td></tr>
+        <tr><td>netmon/features/roots_baseline_guard_controller.py</td><td>sudo cat/sha256sum mit Pfad-Allowlist</td><td class="ok-cell">Kein Finding</td></tr>
+        <tr><td>netmon/services/process_guard_service.py</td><td>Read-Only-Analyse</td><td class="ok-cell">Kein Finding</td></tr>
+        <tr><td>netmon/services/repository_guard_service.py</td><td>APT-Source-Parsing, flatpak-Subprocess</td><td class="ok-cell">Kein Finding</td></tr>
+        <tr><td>netmon/services/network_helpers.py</td><td>is_safe_trace_target, normalize_external_url</td><td class="ok-cell">Kein Finding</td></tr>
+        <tr><td>netmon/services/startup_guard_service.py</td><td>.desktop/.service SHA256-Lesen</td><td class="ok-cell">Kein Finding</td></tr>
+        <tr><td>netmon/netmon_security_parser.py + _store.py</td><td>In-Memory-Analyse</td><td class="ok-cell">Kein Finding</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Bestätigte Findings -->
+  <section class="section">
+    <h2>Bestätigte Findings</h2>
+
+    <!-- K1 geschlossen -->
+    <div class="finding-card high">
+      <div class="card-head">
+        <div>
+          <div class="card-title">K1 — PATH-Hijacking in rkhunter_manager</div>
+          <div class="card-file">netmon/core/rkhunter_manager.py · Zeilen 11–23, 141</div>
+        </div>
+        <div>
+          <span class="badge high">HIGH</span>
+          <span class="badge conf">Konfidenz 9/10 · geschlossen</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <p>
+          <strong>Bestätigtes Finding:</strong> <code>_preferred_web_cmd()</code> konnte
+          user-kontrollierte PATH-Treffer wie <code>~/.local/bin/wget</code> ungefiltert
+          nach <code>WEB_CMD=...</code> in die <code>rkhunter</code>-Konfiguration
+          uebernehmen. Ein nachfolgendes <code>rkhunter --update</code> haette diese
+          Binary mit Root-Rechten ausgefuehrt.
+        </p>
+        <p>
+          <strong>Fix:</strong> Der aktuelle Codestand begrenzt die Rueckgabe jetzt auf
+          Trusted Prefixes unter <code>/usr/bin/</code>, <code>/bin/</code> und
+          <code>/usr/local/bin/</code>. Untrusted Treffer werden verworfen; falls nur
+          solche Kandidaten vorhanden sind, bleibt <code>WEB_CMD</code> leer.
+        </p>
+        <div class="code-block"><span class="cm"># rkhunter_manager.py — aktueller Stand</span>
+<span class="ok">TRUSTED_WEB_CMD_PREFIXES = ("/usr/bin/", "/bin/", "/usr/local/bin/")</span>
+
+def _preferred_web_cmd():
+    for candidate in ("wget", "curl"):
+        resolved = shutil.which(candidate)
+        <span class="ok">if resolved and any(</span>
+            <span class="ok">str(resolved).startswith(prefix)</span>
+            <span class="ok">for prefix in TRUSTED_WEB_CMD_PREFIXES</span>
+        <span class="ok">):</span>
+            return resolved
+    return ""</div>
+        <div class="fix-box">
+          GESCHLOSSEN — Trusted-Prefix-Allowlist verhindert PATH-Hijacking und moegliche
+          Privilege Escalation ueber user-kontrollierte Binaries.
+        </div>
+      </div>
+    </div>
+
+    <!-- K2 geschlossen -->
+    <div class="finding-card medium">
+      <div class="card-head">
+        <div>
+          <div class="card-title">K2 — Fun-Launcher startet Python-Dateien ohne Pfad-Confinement</div>
+          <div class="card-file">netmon/features/fun_controller.py · Zeilen 55–79, 82–111, 266–291</div>
+        </div>
+        <div>
+          <span class="badge medium">MEDIUM</span>
+          <span class="badge conf">Konfidenz 8/10 · geschlossen</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <p>
+          <strong>Bestätigtes Finding:</strong> Der Fun-Launcher konnte Python-Dateien
+          ueber <code>subprocess.Popen(["python3", game["path"]])</code> starten,
+          ohne den Launcher-Pfad selbst gegen den verwalteten Spieleordner zu
+          begrenzen.
+        </p>
+        <p>
+          <strong>Fix:</strong> Der aktuelle Codestand akzeptiert nur noch `.py`-Dateien
+          innerhalb von <code>fun_games_dir</code>. Der Pfad wird via
+          <code>realpath()</code> gegen den Spieleordner geprueft und bei verfuegbarem
+          App-Kontext zusaetzlich mit <code>_is_safe_netmon_managed_path()</code>
+          abgesichert.
+        </p>
+        <div class="fix-box">
+          GESCHLOSSEN — ausserhalb des verwalteten Spielebereichs liegende Launcher
+          werden nicht mehr gestartet.
+        </div>
+      </div>
+    </div>
+
+    <!-- K3 geschlossen -->
+    <div class="finding-card medium">
+      <div class="card-head">
+        <div>
+          <div class="card-title">K3 — Agent-CLI: black/ruff ohne Pfad-Allowlist schreiben beliebige Dateien</div>
+          <div class="card-file">agent/runner.py · Zeilen 18–60</div>
+        </div>
+        <div>
+          <span class="badge medium">MEDIUM</span>
+          <span class="badge conf">Konfidenz 9/10 · geschlossen</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <p>
+          <strong>Bestätigtes Finding:</strong> Der lokale Agent-Runner liess
+          absolute oder relative Pfadargumente an <code>black</code>,
+          <code>ruff</code>, <code>pytest</code> und <code>ls</code> durch,
+          solange nur der Basisbefehl auf der Allowlist stand.
+        </p>
+        <div class="flow">LLM-Prompt-Injection / CLI-Argument mit absolutem Pfad
+  → run_command("black /home/user/.bashrc")
+  → parts[0] = "black"  → Allowlist-Check BESTANDEN           [Zeile 31]
+  → parts[1] = "/home/user/.bashrc"  → KEIN Pfad-Check
+  → subprocess.run(["black", "/home/user/.bashrc"], cwd=REPO_ROOT)
+  → black schreibt /home/user/.bashrc außerhalb REPO_ROOT um   ← Live-Test bestätigt</div>
+        <p>
+          <code>run_command()</code> pruefte urspruenglich nur <code>parts[0]</code>
+          gegen die Allowlist. <code>black</code>, <code>ruff</code>, <code>pytest</code>
+          und <code>ls</code> konnten dadurch absolute oder relative Pfade ausserhalb
+          von <code>REPO_ROOT</code> erreichen.
+        </p>
+        <div class="fix-box">
+          GESCHLOSSEN — Pfadargumente werden jetzt auf <code>REPO_ROOT</code> begrenzt.
+          Das gilt fuer <code>black</code>, <code>ruff</code>, <code>pytest</code> und
+          <code>ls</code>, inklusive <code>pytest</code>-Node-IDs wie
+          <code>tests/test_x.py::test_name</code>.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Ausgeschlossene Kandidaten -->
+  <section class="section">
+    <h2>Ausgeschlossene Kandidaten</h2>
+
+    <!-- K4 -->
+    <div class="finding-card filtered">
+      <div class="card-head">
+        <div>
+          <div class="card-title">K4 — importlib-Modul-Loading aus sys.path (tooling.py)</div>
+          <div class="card-file">netmon/core/tooling.py · Zeilen 47–81</div>
+        </div>
+        <div>
+          <span class="badge fp">Ausgeschlossen</span>
+          <span class="badge conf">Konfidenz 7/10 → FP</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <p>
+          <code>load_speedtest_module_from_file()</code> sucht <code>netmon/modules/speedtest.py</code>
+          via <code>sys.path</code> (enthält <code>""</code> = CWD). Bei PYTHONPATH-Injektion oder
+          Ausführung aus einem beschreibbaren Verzeichnis könnte eine böswillige Datei geladen werden.
+        </p>
+        <div class="filter-verdict">
+          AUSGESCHLOSSEN — Angriff erfordert Kontrolle über Umgebungsvariablen (PYTHONPATH)
+          oder CWD vor dem Prozessstart. Ein Angreifer mit dieser Fähigkeit hätte bereits
+          vollständige Codeausführung als derselbe Benutzer ohne diesen Umweg.
+        </div>
+      </div>
+    </div>
+
+    <!-- K5 -->
+    <div class="finding-card filtered">
+      <div class="card-head">
+        <div>
+          <div class="card-title">K5 — lang_code-Pfad-Traversal in LangService (lang_service.py)</div>
+          <div class="card-file">netmon/services/lang_service.py · Zeile 12</div>
+        </div>
+        <div>
+          <span class="badge fp">Ausgeschlossen</span>
+          <span class="badge conf">Konfidenz 7/10 → FP</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <p>
+          <code>os.path.join(base_path, f"{lang_code}.json")</code> — ein Angreifer der
+          <code>settings["language"]</code> auf <code>../../etc/passwd</code> setzen kann,
+          könnte beliebige JSON-parsierbare Dateien lesen.
+        </p>
+        <div class="filter-verdict">
+          AUSGESCHLOSSEN — Nur lesend (json.load), auf JSON-parsierbare Dateien beschränkt.
+          Erfordert Schreibzugriff auf die Settings-Datei im Benutzerverzeichnis (gleiche
+          Privilege-Ebene). Die Settings-Datei ist bereits vom Benutzer lesbar und schreibbar.
+        </div>
+      </div>
+    </div>
+
+    <!-- K6 -->
+    <div class="finding-card filtered">
+      <div class="card-head">
+        <div>
+          <div class="card-title">K6 — TOCTOU-Race vor shutil.rmtree (cleanup_assistant_tab.py)</div>
+          <div class="card-file">netmon/ui/tabs/cleanup_assistant_tab.py · Zeilen 2307–2464</div>
+        </div>
+        <div>
+          <span class="badge fp">Ausgeschlossen</span>
+          <span class="badge conf">Konfidenz 7/10 → FP</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <p>
+          <code>lstat()</code>-Check (Symlink-sicher) und nachfolgendes <code>shutil.rmtree()</code>
+          sind nicht atomar — ein Symlink könnte dazwischen gesetzt werden.
+        </p>
+        <div class="filter-verdict">
+          AUSGESCHLOSSEN — Python 3.12+ schützt <code>shutil.rmtree</code> gegen Symlinks
+          per <code>NotADirectoryError</code>. Race-Window extrem eng; erfordert präzise
+          Timing-Koordination durch denselben Benutzer. Als Defense-in-Depth-Empfehlung
+          notiert (siehe Abschnitt 6).
+        </div>
+      </div>
+    </div>
+
+    <!-- K7 -->
+    <div class="finding-card filtered">
+      <div class="card-head">
+        <div>
+          <div class="card-title">K7 — .desktop-Exec-Parsing via links_controller.py</div>
+          <div class="card-file">netmon/features/links_controller.py · Zeilen 804–813, 882–894</div>
+        </div>
+        <div>
+          <span class="badge fp">Ausgeschlossen</span>
+          <span class="badge conf">Konfidenz 7/10 → FP</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <p>
+          <code>parse_desktop_entry()</code> liest <code>Exec=</code>-Zeilen aus
+          <code>~/.local/share/applications/*.desktop</code>; Exec-Pfad wird via
+          <code>subprocess.Popen</code> ausgeführt.
+        </p>
+        <div class="filter-verdict">
+          AUSGESCHLOSSEN — <code>~/.local/share/applications/</code> ist das Standard-XDG-Verzeichnis
+          für benutzerinstallierte Anwendungen; das Ausführen von Binaries aus <code>Exec=</code>-Zeilen
+          ist das erwartete Verhalten von Desktop-Umgebungen. Kein Privilege-Boundary-Crossing —
+          gleicher Benutzer.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Verbesserungen -->
+  <section class="section">
+    <h2>Sicherheitsverbesserungen seit Runde 2</h2>
+    <div class="improvement-card">
+      <strong>URL-Schema-Validierung Radio-Modul (bereits implementiert, Runde 2 bestätigt)</strong>
+      <code>ALLOWED_RADIO_STREAM_SCHEMES = {"http", "https", "rtsp", "rtmp"}</code> in
+      <code>_normalize_station_stream_url()</code> — verhindert SSRF via mpv/urllib.request.
+    </div>
+    <div class="improvement-card">
+      <strong>ClamAV Tempdir Symlink-Schutz (seit Runde 1)</strong>
+      <code>_safe_makedirs_no_symlink()</code> prüft via <code>os.lstat()</code> vor Verzeichnisanlage
+      auf Symlinks — wirft <code>RuntimeError</code>.
+    </div>
+    <div class="improvement-card">
+      <strong>82 Proxy-Methoden aus app.py entfernt (Runde 2)</strong>
+      Angriffsfläche reduziert; alle via <code>refactor_safety.py</code> auf Null-Aufrufer verifiziert.
+    </div>
+    <div class="improvement-card">
+      <strong>HDD-Mountpoint-Validierung (Runde 2)</strong>
+      <code>_slot_mountpoint()</code> mit <code>os.path.realpath()</code> + <code>_SAFE_MOUNT_BASES</code>-Allowlist —
+      verhindert Privilege-Escalation via präpariertes Filesystem.
+    </div>
+    <div class="improvement-card">
+      <strong>rkhunter WEB_CMD: Trusted-Prefix-Allowlist aktiv</strong>
+      <code>TRUSTED_WEB_CMD_PREFIXES = ("/usr/bin/", "/bin/", "/usr/local/bin/")</code> in
+      <code>_preferred_web_cmd()</code> (Zeile 16–26) — verhindert PATH-Hijacking via <code>~/.local/bin</code>.
+    </div>
+    <div class="improvement-card">
+      <strong>Agent-Runner: Repo-Pfad-Confinement</strong>
+      <code>black</code>, <code>ruff</code>, <code>pytest</code> und <code>ls</code>
+      pruefen Pfadargumente jetzt gegen <code>REPO_ROOT</code>.
+    </div>
+    <div class="improvement-card">
+      <strong>Fun-Launcher: Launcher-Pfade auf Spieleordner begrenzt</strong>
+      Nur noch validierte Python-Launcher innerhalb von <code>fun_games_dir</code>
+      werden gestartet.
+    </div>
+    <div class="improvement-card">
+      <strong>WireGuard Interface-Name-Validierung (neu, Runde 3)</strong>
+      <code>wg_profile_path()</code> validiert Interface-Namen via <code>re.fullmatch(r'[A-Za-z0-9_.-]+', ...)</code>
+      und <code>os.path.commonpath()</code>-Confinement auf <code>/etc/wireguard</code>.
+    </div>
+    <div class="improvement-card">
+      <strong>roots_baseline_guard: sudo-Calls mit Pfad-Allowlist abgesichert</strong>
+      <code>_is_allowed_guard_path(path)</code> mit <code>os.path.realpath()</code>-Normalisierung
+      gegen <code>ROOTS_GUARD_DEFAULT_AREA_PATHS</code> — verhindert sudo-cat auf beliebige Pfade.
+    </div>
+  </section>
+
+  <!-- Hardening -->
+  <section class="section">
+    <h2>Hardening-Empfehlungen</h2>
+    <p>
+      Die bestätigten Findings aus Runde 3 sind geschlossen. Offen bleiben nur
+      zusätzliche Defense-in-Depth-Maßnahmen ohne unmittelbaren Exploitpfad:
+    </p>
+    <ul class="hardening-list">
+      <li><div><strong>TOCTOU cleanup_assistant_tab.py:</strong>
+        <code>shutil.rmtree</code> nach <code>lstat()</code>-Check atomar gestalten —
+        z.&nbsp;B. <code>os.open(path, O_NOFOLLOW)</code> vor Löschoperation.
+      </div></li>
+      <li><div><strong>lang_service.py lang_code-Sanitierung:</strong>
+        <code>lang_code</code> mit Regex <code>^[a-z]{2}(_[A-Z]{2})?$</code> validieren
+        bevor <code>os.path.join()</code> aufgerufen wird.
+      </div></li>
+      <li><div><strong>state.py get_netmon_documents_subdir:</strong>
+        Jedes <code>part</code>-Argument auf <code>os.path.basename()</code> normalisieren
+        oder auf <code>../-</code>Freiheit prüfen vor <code>os.makedirs()</code>.
+      </div></li>
+      <li><div><strong>WireGuard wg-quick Interface-Name:</strong>
+        <code>wg show interfaces</code>-Output gegen
+        <code>re.fullmatch(r'[A-Za-z0-9_.-]{1,15}', iface)</code> validieren
+        vor Weitergabe an <code>sudo wg-quick down</code>.
+      </div></li>
+    </ul>
+  </section>
+
+</main>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div>NetMon Roots Security Audit — Runde 3 · Juni 2026</div>
+  <div>Analysiert mit Claude Sonnet 4.6 (Anthropic) · Projektverantwortlicher: Sven Froehlich</div>
+  <div class="footer-links">
+    <a href="./netmon_security_audit_2026_r3.pdf">PDF herunterladen</a>
+    <a href="./security-audit-r2.html">Runde 2</a>
+    <a href="./security-audit-r1.html">Runde 1</a>
+  </div>
+</footer>
+
+</body>
+</html>

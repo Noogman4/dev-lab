@@ -514,21 +514,21 @@ def format_ufw_status_grouped(
 
     metadata = metadata or []
     sections = [
-        "Firewall-Status",
-        f"Aktiv: {status_label}",
+        "Firewall status",
+        f"Active: {status_label}",
         f"Default IN: {default_in}",
         f"Default OUT: {default_out}",
     ]
     if metadata:
         sections.append("")
-        sections.append("Metadaten")
+        sections.append("Metadata")
         for item in metadata:
             sections.append(f"- {item}")
 
     sections.extend(
         [
             "",
-            "=== INTERFACE REGELN (IPv4) ===",
+            "=== INTERFACE RULES (IPv4) ===",
             *format_ufw_rule_lines(by_cat(v4_rules, "interface")),
             "",
             "=== STANDARD PORTS (IPv4) ===",
@@ -544,7 +544,7 @@ def format_ufw_status_grouped(
         sections.extend(
             [
                 "",
-                "=== SONSTIGES (IPv4) ===",
+                "=== OTHER (IPv4) ===",
                 *format_ufw_rule_lines(v4_other),
             ]
         )
@@ -552,7 +552,7 @@ def format_ufw_status_grouped(
     sections.extend(
         [
             "",
-            "=== INTERFACE REGELN (IPv6) ===",
+            "=== INTERFACE RULES (IPv6) ===",
             *format_ufw_rule_lines(by_cat(v6_rules, "interface")),
             "",
             "=== STANDARD PORTS (IPv6) ===",
@@ -568,7 +568,7 @@ def format_ufw_status_grouped(
         sections.extend(
             [
                 "",
-                "=== SONSTIGES (IPv6) ===",
+                "=== OTHER (IPv6) ===",
                 *format_ufw_rule_lines(v6_other),
             ]
         )
@@ -950,6 +950,39 @@ def killswitch_on_sync(app, refresh_ui=True):
                 )
             )
             return False
+
+        non_ip_endpoints = []
+        collector = _instance_override(app, "collect_non_ip_endpoint_profiles")
+        if callable(collector):
+            try:
+                non_ip_endpoints = list(collector(referenced_profiles) or [])
+            except Exception:
+                non_ip_endpoints = []
+        if non_ip_endpoints:
+            detail_lines = [
+                f"- {item.get('profile')}: {item.get('host')}"
+                for item in non_ip_endpoints
+                if item.get("profile") and item.get("host")
+            ]
+            warning_text = app.tr(
+                "killswitch_warn_non_ip_endpoints",
+                "Einige WireGuard-Profile nutzen Hostnamen statt fester IP-Adressen.\n"
+                "Für die UFW-Handshake-Regeln des Killswitch werden diese Endpoints nicht übernommen.\n\n"
+                "Betroffene Profile:\n{details}\n\n"
+                "Empfehlung: feste Endpoint-IP verwenden, wenn der Killswitch diese Verbindung absichern soll.",
+            ).format(details="\n".join(detail_lines) or "-")
+            try:
+                messagebox.showwarning(
+                    app.tr(
+                        "killswitch_warn_non_ip_endpoints_title",
+                        "Killswitch-Hinweis zu WireGuard-Endpoints",
+                    ),
+                    warning_text,
+                    parent=app,
+                )
+            except Exception:
+                pass
+            app.log_safe(warning_text)
 
         network_service = _network_service_for(app)
         with app.ufw_lock:
@@ -2233,8 +2266,11 @@ def apply_add_firewall_rule(app):
 
     preview_text = "\n".join(validation["commands"])
     if not messagebox.askyesno(
-        "Firewall-Regel anwenden",
-        "Soll diese Firewall-Regel wirklich angewendet werden?\n\n" + preview_text,
+        app.tr("firewall_rule_apply_title", "Firewall-Regel anwenden"),
+        app.tr(
+            "firewall_rule_apply_confirm",
+            "Soll diese Firewall-Regel wirklich angewendet werden?\n\n{preview}",
+        ).format(preview=preview_text),
         parent=_app_value(app, "add_firewall_rule_dialog", app),
     ):
         try:
@@ -2254,7 +2290,12 @@ def apply_add_firewall_rule(app):
         except Exception:
             pass
     _app_var_set(
-        app, "add_firewall_rule_status_var", "Firewall-Regel wird angewendet..."
+        app,
+        "add_firewall_rule_status_var",
+        app.tr(
+            "firewall_rule_apply_status_running",
+            "Firewall-Regel wird angewendet...",
+        ),
     )
     if status_label is not None:
         try:
@@ -2279,7 +2320,10 @@ def apply_add_firewall_rule(app):
                 _app_var_set(
                     app,
                     "add_firewall_rule_status_var",
-                    "Firewall-Regel konnte nicht angewendet werden.",
+                    app.tr(
+                        "firewall_rule_apply_status_failed",
+                        "Firewall-Regel konnte nicht angewendet werden.",
+                    ),
                 )
                 if status_label is not None:
                     try:
@@ -2296,8 +2340,11 @@ def apply_add_firewall_rule(app):
                     for command, out in failed
                 )
                 messagebox.showerror(
-                    "Firewall-Regel",
-                    "Firewall-Regel konnte nicht angewendet werden.\n\n" + details,
+                    app.tr("firewall_rule_dialog_title", "Firewall-Regel"),
+                    app.tr(
+                        "firewall_rule_apply_error",
+                        "Firewall-Regel konnte nicht angewendet werden.\n\n{details}",
+                    ).format(details=details),
                     parent=_firewall_dialog_parent(app),
                 )
                 try:
@@ -2326,9 +2373,17 @@ def apply_add_firewall_rule(app):
                 info_lines = [f"{rule_count} Firewall-{rule_word} angewendet.", ""]
                 info_lines.extend(summary_lines)
                 if comment_text:
-                    info_lines.extend(["", "Kommentar: " + comment_text])
+                    info_lines.extend(
+                        [
+                            "",
+                            app.tr(
+                                "firewall_rule_comment_prefix",
+                                "Kommentar: {comment}",
+                            ).format(comment=comment_text),
+                        ]
+                    )
                 messagebox.showinfo(
-                    "Firewall-Regel",
+                    app.tr("firewall_rule_dialog_title", "Firewall-Regel"),
                     "\n".join(info_lines),
                     parent=getattr(app, "add_firewall_rule_dialog", app),
                 )
@@ -2363,8 +2418,11 @@ def remove_selected_firewall_rule(app):
     selection = table.selection()
     if not selection:
         messagebox.showwarning(
-            "Firewall-Regel entfernen",
-            "Bitte zuerst eine Firewall-Regel in der Tabelle auswählen.",
+            app.tr("firewall_rule_remove_title", "Firewall-Regel entfernen"),
+            app.tr(
+                "firewall_rule_remove_select_first",
+                "Bitte zuerst eine Firewall-Regel in der Tabelle auswählen.",
+            ),
             parent=app,
         )
         return False
@@ -2373,8 +2431,11 @@ def remove_selected_firewall_rule(app):
     meta = _firewall_rule_row_meta(app).get(row_id)
     if not meta:
         messagebox.showerror(
-            "Firewall-Regel entfernen",
-            "Die ausgewählte Regel konnte nicht eindeutig gelesen werden.",
+            app.tr("firewall_rule_remove_title", "Firewall-Regel entfernen"),
+            app.tr(
+                "firewall_rule_remove_read_error",
+                "Die ausgewählte Regel konnte nicht eindeutig gelesen werden.",
+            ),
             parent=app,
         )
         return False
@@ -2389,10 +2450,11 @@ def remove_selected_firewall_rule(app):
         warning = ""
 
     if not messagebox.askyesno(
-        "Firewall-Regel entfernen",
-        "Soll diese Firewall-Regel wirklich entfernt werden?\n\n"
-        + summary_multiline
-        + warning,
+        app.tr("firewall_rule_remove_title", "Firewall-Regel entfernen"),
+        app.tr(
+            "firewall_rule_remove_confirm",
+            "Soll diese Firewall-Regel wirklich entfernt werden?\n\n{summary}{warning}",
+        ).format(summary=summary_multiline, warning=warning),
         parent=app,
     ):
         try:
@@ -2415,8 +2477,11 @@ def remove_selected_firewall_rule(app):
 
             def _status_failed():
                 messagebox.showerror(
-                    "Firewall-Regel entfernen",
-                    "UFW status numbered konnte nicht gelesen werden.",
+                    app.tr("firewall_rule_remove_title", "Firewall-Regel entfernen"),
+                    app.tr(
+                        "firewall_rule_remove_status_unreadable",
+                        "UFW status numbered konnte nicht gelesen werden.",
+                    ),
                     parent=app,
                 )
                 try:
@@ -2441,7 +2506,7 @@ def remove_selected_firewall_rule(app):
 
         def _ambiguous_or_missing(message):
             messagebox.showerror(
-                "Firewall-Regel entfernen",
+                app.tr("firewall_rule_remove_title", "Firewall-Regel entfernen"),
                 message,
                 parent=app,
             )
@@ -2483,9 +2548,13 @@ def remove_selected_firewall_rule(app):
         def done():
             if rc_delete != 0:
                 messagebox.showerror(
-                    "Firewall-Regel entfernen",
-                    "Firewall-Regel konnte nicht entfernt werden.\n\n"
-                    + (str(out_delete or "").strip() or "Unbekannter Fehler"),
+                    app.tr("firewall_rule_remove_title", "Firewall-Regel entfernen"),
+                    app.tr(
+                        "firewall_rule_remove_failed",
+                        "Firewall-Regel konnte nicht entfernt werden.\n\n{error}",
+                    ).format(
+                        error=(str(out_delete or "").strip() or "Unbekannter Fehler")
+                    ),
                     parent=app,
                 )
                 try:
@@ -2502,8 +2571,11 @@ def remove_selected_firewall_rule(app):
                 pass
             try:
                 messagebox.showinfo(
-                    "Firewall-Regel entfernen",
-                    "Firewall-Regel entfernt.\n\n" + summary_multiline,
+                    app.tr("firewall_rule_remove_title", "Firewall-Regel entfernen"),
+                    app.tr(
+                        "firewall_rule_remove_success",
+                        "Firewall-Regel entfernt.\n\n{summary}",
+                    ).format(summary=summary_multiline),
                     parent=app,
                 )
             except Exception:

@@ -42,6 +42,46 @@ class DNSControlService:
         self.dot_dropin_path = dot_dropin_path
         self.dot_dropin_dir = dot_dropin_dir
 
+    @staticmethod
+    def _translate_policy_warning(warning: str, tr=None) -> str:
+        text = str(warning or "").strip()
+
+        def _tr(key: str, fallback: str) -> str:
+            if callable(tr):
+                try:
+                    return tr(key, fallback)
+                except Exception:
+                    return fallback
+            return fallback
+
+        mapping = {
+            "VPN ist aktiv, aber zusätzlich wurden öffentliche/globale DNS-Server erkannt.": _tr(
+                "dns_warning_vpn_with_global_dns",
+                "VPN ist aktiv, aber zusätzlich wurden öffentliche/globale DNS-Server erkannt.",
+            ),
+            "NetMon DoT-Drop-in erzwingt globale DNS-Server trotz aktivem VPN-DNS.": _tr(
+                "dns_warning_dot_dropin_forces_global_dns",
+                "NetMon DoT-Drop-in erzwingt globale DNS-Server trotz aktivem VPN-DNS.",
+            ),
+            "Docker/veth-Interfaces wurden erkannt. Diese erzeugen zusätzliche DNS-Kontexte, werden aber von DNS-Control ignoriert.": _tr(
+                "dns_warning_docker_veth_ignored",
+                "Docker/veth-Interfaces wurden erkannt. Diese erzeugen zusätzliche DNS-Kontexte, werden aber von DNS-Control ignoriert.",
+            ),
+            "DNSSEC ist strikt aktiv, obwohl VPN-DNS erkannt wurde.": _tr(
+                "dns_warning_dnssec_strict_with_vpn_dns",
+                "DNSSEC ist strikt aktiv, obwohl VPN-DNS erkannt wurde.",
+            ),
+            "Mehrere DNS-Quellen sind gleichzeitig sichtbar.": _tr(
+                "dns_warning_multiple_dns_sources",
+                "Mehrere DNS-Quellen sind gleichzeitig sichtbar.",
+            ),
+            "DoT ist aktiv, während VPN-DNS genutzt wird. Das ist nicht automatisch falsch, sollte aber bewusst geprüft werden.": _tr(
+                "dns_warning_dot_active_with_vpn_dns",
+                "DoT ist aktiv, während VPN-DNS genutzt wird. Das ist nicht automatisch falsch, sollte aber bewusst geprüft werden.",
+            ),
+        }
+        return mapping.get(text, text)
+
     def read_resolvectl_status(self, timeout: int = 8) -> tuple[int, str]:
         return self.run_cmd(["resolvectl", "status"], timeout=timeout)
 
@@ -501,7 +541,15 @@ class DNSControlService:
             "resolver_label": resolver_label,
         }
 
-    def build_dns_health_report(self, resolvectl_output: str) -> str:
+    def build_dns_health_report(self, resolvectl_output: str, tr=None) -> str:
+        def _tr(key: str, fallback: str) -> str:
+            if callable(tr):
+                try:
+                    return tr(key, fallback)
+                except Exception:
+                    return fallback
+            return fallback
+
         evaluation = self.evaluate_dns_policy(resolvectl_output=resolvectl_output)
         active_dns = list(evaluation.get("active_dns") or [])
         primary_dns = active_dns[0] if active_dns else ""
@@ -513,41 +561,70 @@ class DNSControlService:
         conflict = bool(evaluation.get("conflict"))
         warnings = list(evaluation.get("warnings") or [])
 
-        lines = ["=== DNS Health Check ===", ""]
+        lines = [_tr("dns_health_report_title", "=== DNS Health Check ==="), ""]
 
         if primary_dns:
-            lines.append(f"✔ Aktiver DNS-Server: {primary_dns}")
+            lines.append(
+                _tr("dns_health_primary_dns", "✔ Active DNS server: {dns}").format(
+                    dns=primary_dns
+                )
+            )
         else:
-            lines.append("✖ Kein aktiver DNS-Server erkannt")
+            lines.append(
+                _tr("dns_health_no_primary_dns", "✖ No active DNS server detected")
+            )
 
         if fallback_dns:
-            lines.append(f"✔ Fallback DNS: {fallback_dns}")
+            lines.append(
+                _tr("dns_health_fallback_dns", "✔ Fallback DNS: {dns}").format(
+                    dns=fallback_dns
+                )
+            )
 
         lines.append(
-            "✔ DNS-over-TLS: aktiv" if dot_active else "✖ DNS-over-TLS nicht aktiv"
+            _tr("dns_health_dot_active", "✔ DNS-over-TLS: active")
+            if dot_active
+            else _tr("dns_health_dot_inactive", "✖ DNS-over-TLS not active")
         )
 
         if evaluation.get("dnssec_strict"):
-            lines.append("✔ DNSSEC: aktiv (Strict Mode)")
+            lines.append(_tr("dns_health_dnssec_strict", "✔ DNSSEC: active (Strict Mode)"))
         elif evaluation.get("dnssec_allow_downgrade"):
-            lines.append("○ DNSSEC: aktiv (Fallback möglich)")
+            lines.append(
+                _tr(
+                    "dns_health_dnssec_fallback",
+                    "○ DNSSEC: active (fallback possible)",
+                )
+            )
         else:
-            lines.append("✖ DNSSEC nicht verfügbar")
+            lines.append(_tr("dns_health_dnssec_unavailable", "✖ DNSSEC unavailable"))
 
-        lines.extend(["", "=== Ergebnis ==="])
+        lines.extend(["", _tr("result_section_title", "=== Result ===")])
         if primary_dns and dot_active and dnssec_active and not conflict:
-            lines.append("✔ DNS-Konfiguration stabil")
-            lines.append("✔ Keine Auffälligkeiten erkannt")
+            lines.append(
+                _tr("dns_health_result_stable", "✔ DNS configuration stable")
+            )
+            lines.append(
+                _tr("dns_health_result_no_issues", "✔ No anomalies detected")
+            )
         else:
             if conflict:
-                lines.append("✖ DNS-Konfiguration auffällig")
-                lines.append("✖ Möglicher DNS-Konflikt erkannt")
+                lines.append(
+                    _tr("dns_health_result_conflict", "✖ DNS-Konfiguration auffällig")
+                )
+                lines.append(
+                    _tr("dns_health_result_conflict_hint", "✖ Möglicher DNS-Konflikt erkannt")
+                )
             else:
-                lines.append("✖ DNS-Konfiguration eingeschränkt")
+                lines.append(
+                    _tr("dns_health_result_limited", "✖ DNS configuration limited")
+                )
                 if warnings:
-                    lines.append(f"✖ {warnings[0]}")
+                    lines.append(
+                        f"✖ {self._translate_policy_warning(warnings[0], tr=tr)}"
+                    )
                 else:
-                    lines.append("✖ Auffälligkeiten erkannt")
+                    lines.append(_tr("dns_health_result_issues", "✖ Anomalies detected"))
         return "\n".join(lines).rstrip()
 
     def build_dns_leak_check_result(
@@ -556,7 +633,16 @@ class DNSControlService:
         resolvectl_output: str,
         dns_servers: list[str],
         public_ip: str,
+        tr=None,
     ) -> str:
+        def _tr(key: str, fallback: str) -> str:
+            if callable(tr):
+                try:
+                    return tr(key, fallback)
+                except Exception:
+                    return fallback
+            return fallback
+
         evaluation = self.evaluate_dns_policy(resolvectl_output=resolvectl_output)
         leak = bool(evaluation["leak"])
         only_vpn_dns = bool(evaluation["only_vpn_dns"])
@@ -564,60 +650,91 @@ class DNSControlService:
 
         if evaluation["vpn_active"]:
             if leak:
-                risk = "hoch"
-                status = "Leak erkannt / öffentlicher DNS zusätzlich aktiv"
+                risk = _tr("dns_leak_risk_high", "high")
+                status = _tr(
+                    "dns_leak_status_leak_detected",
+                    "Leak detected / public DNS additionally active",
+                )
             elif only_vpn_dns:
-                risk = "niedrig"
-                status = "OK / VPN-DNS exklusiv aktiv"
+                risk = _tr("dns_leak_risk_low", "low")
+                status = _tr(
+                    "dns_leak_status_vpn_only",
+                    "OK / VPN DNS exclusively active",
+                )
             elif multiple_dns_sources:
-                risk = "mittel"
-                status = "Leak möglich / Konfigurationskonflikt"
+                risk = _tr("dns_leak_risk_medium", "medium")
+                status = _tr(
+                    "dns_leak_status_conflict",
+                    "Leak possible / configuration conflict",
+                )
             else:
-                risk = "niedrig"
-                status = "OK / leak-frei"
+                risk = _tr("dns_leak_risk_low", "low")
+                status = _tr("dns_leak_status_ok", "OK / leak-free")
         else:
-            risk = "niedrig"
-            status = "VPN nicht aktiv"
+            risk = _tr("dns_leak_risk_low", "low")
+            status = _tr("dns_leak_status_vpn_inactive", "VPN not active")
 
         lines = [
-            "=== DNS Leak Check ===",
+            _tr("dns_leak_report_title", "=== DNS Leak Check ==="),
             "",
-            f"Öffentliche IP: {public_ip or 'unbekannt'}",
-            f"VPN erkannt: {'JA' if evaluation['vpn_active'] else 'NEIN'}",
+            _tr("dns_leak_public_ip", "Public IP: {ip}").format(
+                ip=public_ip or _tr("dns_leak_unknown", "unknown")
+            ),
+            _tr("dns_leak_vpn_detected", "VPN detected: {value}").format(
+                value=(
+                    _tr("dns_leak_yes", "YES")
+                    if evaluation["vpn_active"]
+                    else _tr("dns_leak_no", "NO")
+                )
+            ),
             "",
-            "DNS Server:",
+            _tr("dns_leak_dns_servers", "DNS servers:"),
         ]
         if dns_servers:
             for dns in dns_servers:
                 lines.append(f"- {dns}")
         else:
-            lines.append("- Keine DNS-Server erkannt")
+            lines.append(f"- {_tr('dns_leak_no_dns_servers', 'No DNS servers detected')}")
 
         lines.extend(
             [
                 "",
-                f"Leak erkannt: {'JA' if leak else 'NEIN'}",
-                f"Status: {status}",
-                f"Risiko: {risk}",
+                _tr("dns_leak_detected", "Leak detected: {value}").format(
+                    value=_tr("dns_leak_yes", "YES") if leak else _tr("dns_leak_no", "NO")
+                ),
+                _tr("dns_leak_status_line", "Status: {status}").format(status=status),
+                _tr("dns_leak_risk_line", "Risk: {risk}").format(risk=risk),
                 "",
             ]
         )
 
         if evaluation["global_dns"]:
-            lines.append("Auffälligkeiten:")
+            lines.append(_tr("dns_leak_findings", "Findings:"))
             for dns in evaluation["global_dns"]:
-                lines.append(f"- Öffentlicher DNS erkannt: {dns}")
+                lines.append(
+                    _tr("dns_leak_public_dns_detected", "Public DNS detected: {dns}").format(
+                        dns=dns
+                    )
+                )
             lines.append("")
 
-        lines.append("Empfehlung:")
+        lines.append(_tr("dns_leak_recommendation", "Recommendation:"))
         if leak:
-            lines.append("- VPN-DNS erzwingen")
-            lines.append("- systemd-resolved prüfen")
-            lines.append("- Globales/User-DNS entfernen")
+            lines.append(f"- {_tr('dns_leak_action_enforce_vpn_dns', 'Enforce VPN DNS')}")
+            lines.append(
+                f"- {_tr('dns_leak_action_check_resolved', 'Check systemd-resolved')}"
+            )
+            lines.append(
+                f"- {_tr('dns_leak_action_remove_global_dns', 'Remove global/user DNS')}"
+            )
         elif only_vpn_dns:
-            lines.append("- VPN-DNS aktiv, keine Aktion nötig")
+            lines.append(
+                f"- {_tr('dns_leak_action_none_needed', 'VPN DNS active, no action needed')}"
+            )
         elif not evaluation["vpn_active"]:
-            lines.append("- VPN nicht aktiv; kein VPN-Leak zu bewerten")
+            lines.append(
+                f"- {_tr('dns_leak_action_vpn_inactive', 'VPN not active; no VPN leak to assess')}"
+            )
         else:
             lines.append(f"- {evaluation['recommendation']}")
 

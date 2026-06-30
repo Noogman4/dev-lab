@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 import os
 import subprocess
 import threading
@@ -59,6 +58,30 @@ def _ensure_games_dir(app):
     return path
 
 
+def _is_allowed_game_launcher_path(app, path: str) -> bool:
+    games_dir = _ensure_games_dir(app)
+    raw_path = str(path or "").strip()
+    if not games_dir or not raw_path:
+        return False
+    try:
+        games_root = os.path.realpath(os.path.expanduser(games_dir))
+        candidate = os.path.realpath(os.path.expanduser(raw_path))
+    except Exception:
+        return False
+    if not candidate.endswith(".py") or os.path.basename(candidate) == "__init__.py":
+        return False
+    if candidate != games_root and not candidate.startswith(games_root + os.sep):
+        return False
+    safe_path_check = getattr(app, "_is_safe_netmon_managed_path", None)
+    if callable(safe_path_check):
+        try:
+            if not safe_path_check(games_root):
+                return False
+        except Exception:
+            return False
+    return os.path.isfile(candidate)
+
+
 def _selected_game_id(app):
     table = _app_value(app, "fun_games_table")
     if table is None:
@@ -102,6 +125,8 @@ def discover_fun_games(app):
             if not filename.endswith(".py") or filename == "__init__.py":
                 continue
             path = os.path.join(root, filename)
+            if not _is_allowed_game_launcher_path(app, path):
+                continue
             game_id = os.path.relpath(path, games_dir).replace(os.sep, "::")
             rows.append(
                 {
@@ -272,11 +297,15 @@ def start_selected_game(app):
     if not _fun_dep_enabled(app, "python3"):
         _set_fun_status(app, "fun_status_python_missing", "Python fehlt")
         return False
+    game_path = str(game.get("path", "") or "").strip()
+    if not _is_allowed_game_launcher_path(app, game_path):
+        _set_fun_status(app, "fun_status_start_failed", "Start fehlgeschlagen: {error}", error="unsicherer Spielpfad")
+        return False
 
     try:
         proc = subprocess.Popen(
-            ["python3", game["path"]],
-            cwd=os.path.dirname(game["path"]),
+            ["python3", game_path],
+            cwd=os.path.dirname(game_path),
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,

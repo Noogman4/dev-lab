@@ -196,7 +196,10 @@ class StartupGuardService:
         for path, current_entry in current_map.items():
             baseline_entry = baseline_map.get(path)
             if baseline_entry is None:
-                new_entries.append(current_entry)
+                if self.is_trusted(current_entry, trustlist_data):
+                    trusted_entries.append(current_entry)
+                else:
+                    new_entries.append(current_entry)
                 continue
             changed = any(
                 baseline_entry.get(field) != current_entry.get(field)

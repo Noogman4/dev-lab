@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>netmon.desktop</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>NetMon</name>
+  <summary>Linux network, security, VPN, radio, and diagnostics desktop</summary>
+  <developer id="com.netmonroots">
+    <name>NetMon Roots</name>
+  </developer>
+  <launchable type="desktop-id">netmon.desktop</launchable>
+  <url type="homepage">https://netmonroots.com/</url>
+  <description>
+    <p>
+      NetMon provides DNS control, firewall tools, VPN slots, security checks,
+      diagnostics, packet capture, and radio functions in one Linux desktop application.
+    </p>
+    <p>
+      The application is intended for Debian- and Ubuntu-based systems and focuses on
+      practical network visibility, guided actions, and local troubleshooting workflows.
+    </p>
+  </description>
+  <categories>
+    <category>Network</category>
+    <category>System</category>
+    <category>Security</category>
+  </categories>
+</component>

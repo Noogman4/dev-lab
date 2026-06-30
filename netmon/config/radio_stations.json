@@ -1,0 +1,30 @@
+[
+  {
+    "id": "soma-groove-salad",
+    "name": "SomaFM Groove Salad",
+    "url": "https://ice2.somafm.com/groovesalad-128-mp3",
+    "category": "Ambient",
+    "custom": false
+  },
+  {
+    "id": "soma-drone-zone",
+    "name": "SomaFM Drone Zone",
+    "url": "https://ice2.somafm.com/dronezone-128-mp3",
+    "category": "Downtempo",
+    "custom": false
+  },
+  {
+    "id": "bbc-world-service",
+    "name": "BBC World Service",
+    "url": "https://stream.live.vc.bbcmedia.co.uk/bbc_world_service",
+    "category": "News",
+    "custom": false
+  },
+  {
+    "id": "nightride-fm",
+    "name": "Nightride FM",
+    "url": "https://stream.nightride.fm/nightride.mp3",
+    "category": "Synthwave",
+    "custom": false
+  }
+]

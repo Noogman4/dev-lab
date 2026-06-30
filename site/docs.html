@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetMonRoots | Doku, FAQ und Projektstand</title>
+  <meta
+    name="description"
+    content="Dokumentationsseite fuer NetMon mit HTML-/PDF-Handbuch, FAQ, Projektstand und Hinweisen fuer lokale Tests."
+  >
+  <link rel="icon" type="image/png" href="./favicon.png">
+  <link rel="apple-touch-icon" href="./favicon.png">
+  <link rel="canonical" href="https://netmonroots.com/docs.html">
+  <link rel="alternate" hreflang="de" href="https://netmonroots.com/docs.html">
+  <link rel="alternate" hreflang="en" href="https://netmonroots.com/en/docs.html">
+  <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/docs.html">
+  <meta property="og:title" content="NetMonRoots | Doku, FAQ und Projektstand">
+  <meta property="og:description" content="Dokumentationsseite fuer NetMon mit HTML-/PDF-Handbuch, FAQ, Projektstand und Hinweisen fuer lokale Tests.">
+  <meta property="og:url" content="https://netmonroots.com/docs.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NetMon Roots">
+  <meta property="og:locale" content="de_DE">
+  <meta property="og:locale:alternate" content="en_US">
+  <meta property="og:image" content="https://netmonroots.com/favicon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="NetMonRoots | Doku, FAQ und Projektstand">
+  <meta name="twitter:description" content="Dokumentationsseite fuer NetMon mit HTML-/PDF-Handbuch, FAQ, Projektstand und Hinweisen fuer lokale Tests.">
+  <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="page-shell docs-page">
+    <header class="topbar">
+      <a class="brand" href="./index.html" aria-label="NetMon Startseite">
+        <span class="brand-mark">
+          <span class="brand-lockup">
+            <span class="brand-title">
+              <span class="brand-title-main">NETMON</span>
+              <span class="brand-title-accent">ROOTS</span>
+            </span>
+            <span class="brand-subline">MONITOR. CONTROL. UNDERSTAND.</span>
+            <span class="brand-tagline">BACK TO THE ROOTS.</span>
+          </span>
+          <img class="brand-icon" src="./bannericon.png" alt="" aria-hidden="true">
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="./index.html">Start</a>
+        <a href="./tour.html">Rundgang</a>
+        <a href="./downloads.html">Download</a>
+        <a href="./aktuelles.html">Aktuelles</a>
+        <a href="./security-audit.html">Audit</a>
+        <a href="#docs">Doku</a>
+        <a href="#faq">FAQ</a>
+        <a href="#verify">Verifikation</a>
+        <a href="#versions">Versionen</a>
+        <a href="./legal.html">Legal</a>
+      </nav>
+      <div class="lang-switch" aria-label="Sprachauswahl">
+        <a class="active" href="./docs.html" lang="de">DE</a>
+        <a href="./en/docs.html" lang="en">EN</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="section" id="docs">
+        <div class="section-heading">
+          <p class="eyebrow">Handbuch</p>
+          <h2>Gebautes Handbuch im Repo</h2>
+        </div>
+        <div class="version-note">
+          <p><strong>Projektstatus:</strong> Hinweise zu bekannten Auffaelligkeiten werden zentral auf <a href="./aktuelles.html">Aktuelles</a> gepflegt.</p>
+        </div>
+        <div class="download-layout">
+          <article class="download-card featured">
+            <p class="download-label">HTML</p>
+            <h3>NetMon Dokumentation 1.1.15</h3>
+            <p>Direkt lesbar im Browser, inklusive Architektur-, User-Guide- und Security-Abschnitten.</p>
+            <a class="button button-primary" href="/dist/docs/netmon_dokumentation_1.1.15.html">HTML oeffnen</a>
+          </article>
+          <article class="download-card">
+            <p class="download-label">PDF</p>
+            <h3>PDF Export 1.1.15</h3>
+            <p>Geeignet fuer Offline-Ablage oder Versand als Dokumentationsstand.</p>
+            <a class="button button-secondary" href="/dist/docs/netmon_dokumentation_1.1.15.pdf">PDF laden</a>
+          </article>
+          <article class="download-card">
+            <p class="download-label">Security Audit</p>
+            <h3>Sicherheits-Audit 2026</h3>
+            <p>Aktueller Auditstand: Runde 4 fuer NetMon v1.1.15. Kein kritisches Finding. PDF + HTML verfuegbar.</p>
+            <div class="inline-actions">
+              <a class="button button-primary" href="./security-audit.html">HTML oeffnen</a>
+              <a class="button button-secondary" href="./netmon_security_audit_2026_r4.pdf">PDF laden</a>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">KI-Anbindung</p>
+          <h2>Onlineanalyse optional, Prompt-Workflow lokal kontrollierbar.</h2>
+        </div>
+        <div class="trust-grid docs-trust-grid">
+          <article class="trust-card trust-card-primary">
+            <p class="download-label">API-Key</p>
+            <h3>Externe Analyse nur bei Bedarf</h3>
+            <p>NetMon aktiviert die Onlineanalyse nur dann, wenn ein gueltiger API-Key gesetzt ist. Ohne Key bleibt der lokale Workflow erhalten.</p>
+          </article>
+          <article class="trust-card">
+            <span class="trust-dot"></span>
+            <h3>Prompts kopierbar</h3>
+            <p>Analyse- und Support-Prompts koennen direkt aus NetMon uebernommen und in externe Chats eingefuegt werden.</p>
+          </article>
+          <article class="trust-card">
+            <span class="trust-dot"></span>
+            <h3>Lokale Kontrolle</h3>
+            <p>Der Nutzer entscheidet, ob Daten lokal bleiben oder gezielt fuer eine externe KI-Auswertung verwendet werden.</p>
+          </article>
+          <article class="trust-card">
+            <span class="trust-dot"></span>
+            <h3>Umgebungsvariable</h3>
+            <p><code>OPENAI_API_KEY</code> ist der vorgesehene Einstiegspunkt fuer die Aktivierung der Onlineanalyse.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Sicherheitsaudit</p>
+          <h2>Ein aktueller Audit-Bericht liegt als HTML und PDF vor.</h2>
+        </div>
+        <div class="download-layout">
+          <article class="download-card featured">
+            <p class="download-label">Audit 2026</p>
+            <h3>NetMon Sicherheits-Audit</h3>
+            <p>Die aktuelle statische Analyse des NetMon-Quellcodes ist direkt im Webbereich hinterlegt und ohne Zusatztool lesbar.</p>
+            <div class="inline-actions">
+              <a class="button button-primary" href="./security-audit.html">HTML-Bericht</a>
+              <a class="button button-secondary" href="./netmon_security_audit_2026.pdf">PDF-Bericht</a>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="faq">
+        <div class="section-heading">
+          <p class="eyebrow">Kurzantworten</p>
+          <h2>Die wichtigsten lokalen Hinweise</h2>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>Gibt es KI-Anbindung?</h3>
+            <p>Ja. NetMon unterstuetzt optionale Onlineanalyse ueber API-Key sowie lokale Prompt-Erzeugung.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Kann ich Prompts extern nutzen?</h3>
+            <p>Ja. Erzeugte Prompts koennen kopiert und in externe Chats eingefuegt werden.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Wie starte ich NetMon ohne GUI?</h3>
+            <p><code>python -m netmon --headless</code></p>
+          </article>
+          <article class="faq-card">
+            <h3>Wie teste ich nur den GUI-Start?</h3>
+            <p><code>python -m netmon --headless-smoke</code></p>
+          </article>
+          <article class="faq-card">
+            <h3>Wo liegen Diagnoseberichte?</h3>
+            <p>Unter <code>~/Documents/NetMon/diagnostics</code> oder <code>~/Dokumente/NetMon/diagnostics</code>.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Wofuer braucht NetMon sudo?</h3>
+            <p>Vor allem fuer DNS-, Firewall-, WireGuard-, Packet-Capture- und Cleanup-Aktionen.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Wie aktiviere ich Onlineanalyse?</h3>
+            <p>Den API-Key als <code>OPENAI_API_KEY</code> setzen; ohne Key bleibt die Onlineanalyse deaktiviert.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Welche Features stechen heraus?</h3>
+            <p>DNS Guard, Security-Guards, Supportpakete, WireGuard-Slots, Linux-Hilfe mit Glossar, Linkblock, Theme Studio und der geloeste Radio-Player.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Gibt es Linux-Hilfe in der App?</h3>
+            <p>Ja. NetMon bringt eine erweiterbare Hilfe mit rund 700 Linux-Befehlen und IT-Fachbegriffen mit.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Gibt es einen Linkblock?</h3>
+            <p>Ja. Buttons koennen frei beschriftet und mit internen oder externen Links belegt werden.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Gibt es Theme Studio und Funbereich?</h3>
+            <p>Ja. NetMon bietet Theme Studio, Radio, Visualizer und einen kleinen Bereich zur Entspannung.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Gibt es schon finale Screenshots?</h3>
+            <p>Noch nicht im Repo. Die Website markiert Screenshots daher aktuell bewusst als naechsten Ausbauschritt.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="versions">
+        <div class="section-heading">
+          <p class="eyebrow">Versionen</p>
+          <h2>Download- und Dokumentationsstand sauber getrennt</h2>
+        </div>
+        <div class="version-note">
+          <p><strong>Debian-Paket:</strong> Im Repository vorhanden bis <code>1.1.15</code>.</p>
+          <p><strong>Gebautes Handbuch:</strong> Aktuell als <code>1.1.15</code> vorhanden.</p>
+          <p><strong>Changelog:</strong> Enthaltene Eintraege dokumentieren Stand <code>2026-06-29</code> fuer Version <code>1.1.15</code>.</p>
+        </div>
+        <div class="inline-actions">
+          <a class="button button-primary" href="/dist/netmon_1.1.15_all.deb">1.1.15 .deb</a>
+          <a class="button button-secondary" href="/docs/CHANGELOG.md">Changelog im Repo</a>
+        </div>
+      </section>
+
+      <section class="section" id="verify">
+        <div class="section-heading">
+          <p class="eyebrow">Hash und Verifikation</p>
+          <h2>Integritaetspruefung ohne proprietaeres Zusatztool.</h2>
+        </div>
+        <div class="trust-grid docs-trust-grid">
+          <article class="trust-card trust-card-primary">
+            <p class="download-label">Vertrauensmodell</p>
+            <h3>Drei Ebenen</h3>
+            <p>Download, Hash-Pruefung und optional Signatur-Pruefung bauen bewusst aufeinander auf.</p>
+          </article>
+          <article class="trust-card">
+            <span class="trust-dot"></span>
+            <h3>1. Artefakt laden</h3>
+            <p>`.deb`, Doku und `SHA256SUMS` aus derselben Release-Flaeche holen.</p>
+          </article>
+          <article class="trust-card">
+            <span class="trust-dot"></span>
+            <h3>2. Hash pruefen</h3>
+            <p><code>sha256sum -c</code> gegen die mitgelieferten Summen ausfuehren.</p>
+          </article>
+          <article class="trust-card">
+            <span class="trust-dot"></span>
+            <h3>3. Signatur pruefen</h3>
+            <p>Falls vorhanden, `SHA256SUMS.minisig` mit dem Public Key verifizieren.</p>
+          </article>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>Welche Datei lade ich fuer Hashes?</h3>
+            <p><a href="/dist/SHA256SUMS"><code>/dist/SHA256SUMS</code></a></p>
+          </article>
+          <article class="faq-card">
+            <h3>Gibt es ein Verifier-Skript?</h3>
+            <p><a href="/verify/verify_netmon_download.sh"><code>/verify/verify_netmon_download.sh</code></a></p>
+          </article>
+          <article class="faq-card">
+            <h3>Minisign-Unterstuetzung?</h3>
+            <p>Ja. Signierte Releases koennen zusaetzlich ueber <code>SHA256SUMS.minisig</code> und den Public Key geprueft werden.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Standardkommando?</h3>
+            <p><code>sha256sum -c SHA256SUMS</code></p>
+            <pre><code>cd /tmp/netmon-download
+sha256sum -c SHA256SUMS</code></pre>
+          </article>
+          <article class="faq-card">
+            <h3>Signierte Releases?</h3>
+            <p>Optional ueber <code>SHA256SUMS.minisig</code> plus Minisign-Public-Key.</p>
+            <pre><code>bash verify_netmon_signature.sh \
+  netmonroots.minisign.pub \
+  SHA256SUMS.minisig \
+  SHA256SUMS</code></pre>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <a href="./impressum.html">Impressum</a>
+    </footer>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>

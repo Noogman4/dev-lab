@@ -1,0 +1,37 @@
+RewriteEngine On
+
+# Schluessel fuer Downloadzaehler
+SetEnv NETMON_STATS_TOKEN dExB7cCXgDYUwaq1jPN
+
+# Redirect secondary domains to the canonical HTTPS domain.
+RewriteCond %{HTTP_HOST} ^www\.netmonroots\.com$ [NC,OR]
+RewriteCond %{HTTP_HOST} ^netmon-roots\.com$ [NC,OR]
+RewriteCond %{HTTP_HOST} ^www\.netmon-roots\.com$ [NC,OR]
+RewriteCond %{HTTP_HOST} ^netmon-roots\.app$ [NC,OR]
+RewriteCond %{HTTP_HOST} ^www\.netmon-roots\.app$ [NC]
+RewriteRule ^ https://netmonroots.com%{REQUEST_URI} [L,R=301]
+
+# Force HTTPS for the canonical host.
+RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP_HOST} ^(www\.)?netmonroots\.com$ [NC]
+RewriteRule ^ https://netmonroots.com%{REQUEST_URI} [L,R=301]
+
+# Force the root URL to the actual landing page.
+RewriteRule ^$ /index.html [L]
+
+DirectoryIndex index.html
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+</IfModule>
+
+<Files "download-stats.php">
+  <IfModule mod_headers.c>
+    Header always set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    Header always set Pragma "no-cache"
+    Header always set Expires "0"
+  </IfModule>
+</Files>

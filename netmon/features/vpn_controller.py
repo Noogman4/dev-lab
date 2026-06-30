@@ -109,6 +109,130 @@ def _vpn_user_log(app, message: str):
     app.log_safe(text)
 
 
+WIREGUARD_HOOK_DIRECTIVES = {"preup", "postup", "predown", "postdown"}
+
+
+def _wireguard_profile_hook_directives(path: str) -> list[str]:
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            content = handle.read()
+    except Exception:
+        return []
+
+    found = []
+    seen = set()
+    for raw_line in str(content or "").splitlines():
+        line = raw_line.split("#", 1)[0].split(";", 1)[0].strip()
+        if not line or "=" not in line:
+            continue
+        key, _value = [part.strip() for part in line.split("=", 1)]
+        normalized = key.lower()
+        if normalized not in WIREGUARD_HOOK_DIRECTIVES:
+            continue
+        canonical = key.strip() or normalized
+        lower_canonical = canonical.lower()
+        if lower_canonical in seen:
+            continue
+        seen.add(lower_canonical)
+        found.append(canonical)
+    return found
+
+
+def _warn_wireguard_import_hooks(app, selected_files) -> bool:
+    findings = []
+    for src in list(selected_files or []):
+        directives = _wireguard_profile_hook_directives(src)
+        if directives:
+            findings.append((os.path.basename(str(src or "").strip()), directives))
+    if not findings:
+        return False
+
+    details = "; ".join(
+        f"{name}: {', '.join(directives)}" for name, directives in findings
+    )
+    text = app.tr(
+        "wg_import_hooks_warning",
+        "Hinweis: Das ausgewählte WireGuard-Profil enthält Hook-Direktiven "
+        "wie PreUp/PostUp/PreDown/PostDown. Diese Befehle können bei der "
+        "Profil-Aktivierung mit Root-Rechten ausgeführt werden.\n\n"
+        "Gefundene Direktiven:\n{details}",
+    ).format(details=details)
+    try:
+        messagebox.showwarning(
+            app.tr("wg_import_hooks_warning_title", "WireGuard Hook-Hinweis"),
+            text,
+            parent=app,
+        )
+    except Exception:
+        pass
+    _vpn_user_log(app, _single_line(text))
+    return True
+
+
+def _warn_non_ip_endpoint_once(app, profile_name: str, host: str) -> None:
+    warned = app.__dict__.setdefault("_vpn_non_ip_endpoint_warned_profiles", set())
+    key = (str(profile_name or "").strip(), str(host or "").strip())
+    if key in warned:
+        return
+    warned.add(key)
+    _vpn_user_log(
+        app,
+        (
+            "WireGuard-Hinweis: Profil "
+            f"'{profile_name}' nutzt den Endpoint-Host '{host}'. "
+            "Für Firewall-/Killswitch-Handshake-Regeln werden nur feste IP-Adressen unterstützt."
+        ),
+    )
+
+
+def collect_non_ip_endpoint_profiles(app, profiles):
+    results = []
+    seen = set()
+    for profile_name in profiles or []:
+        profile_name = app._base_wg_profile_name(profile_name)
+        if not profile_name:
+            continue
+        try:
+            rc, out = app._read_wg_profile_text(profile_name)
+        except Exception:
+            path = app._wg_profile_path(profile_name)
+            if not path:
+                continue
+            rc, out = run_cmd(["sudo", "-n", "cat", path], timeout=5)
+            if rc != 0:
+                rc, out = run_cmd(["cat", path], timeout=5)
+        if rc != 0:
+            continue
+
+        for raw_line in (out or "").splitlines():
+            line = raw_line.split("#", 1)[0].split(";", 1)[0].strip()
+            if not line or "=" not in line:
+                continue
+            key, value = [part.strip() for part in line.split("=", 1)]
+            if key.lower() != "endpoint" or not value:
+                continue
+
+            if value.startswith("[") and "]:" in value:
+                host, _port = value[1:].split("]:", 1)
+            else:
+                host, sep, _port = value.rpartition(":")
+                if not sep:
+                    continue
+
+            host = host.strip()
+            if not host:
+                continue
+            try:
+                ipaddress.ip_address(host)
+            except ValueError:
+                key = (profile_name, host)
+                if key not in seen:
+                    seen.add(key)
+                    results.append({"profile": profile_name, "host": host})
+            break
+    return results
+
+
 def _privacy_config_dict(app):
     raw_config = _app_value(app, "privacy_config", None)
     if isinstance(raw_config, dict):
@@ -548,11 +672,32 @@ def sync_primary_vpn_form_selection(app):
     primary_slots = _app_list(app, "primary_vpn_slots")
     if len(primary_slots) < 2:
         return
-    for slot_no, var_name in enumerate(
-        ("primary_vpn_1_profile_var", "primary_vpn_2_profile_var"), 1
+    for slot_no, (var_name, combo_name) in enumerate(
+        (
+            ("primary_vpn_1_profile_var", "primary_vpn_1_profile_combo"),
+            ("primary_vpn_2_profile_var", "primary_vpn_2_profile_combo"),
+        ),
+        1,
     ):
         saved_profile = primary_slots[slot_no - 1].get("profile", "")
         base_profile = app._base_wg_profile_name(saved_profile)
+        current_value = ""
+        try:
+            current_value = str(getattr(app, var_name).get() or "").strip()
+        except Exception:
+            current_value = ""
+        current_base_profile = app._base_wg_profile_name(current_value)
+
+        # Do not overwrite a manually changed combobox value that has not been saved yet.
+        if current_base_profile and current_base_profile != base_profile:
+            combo = _app_value(app, combo_name)
+            if _widget_alive(combo):
+                try:
+                    combo.configure(values=app.wg_profiles)
+                except Exception:
+                    pass
+            continue
+
         if base_profile and base_profile in available_profiles:
             _app_var_set(app, var_name, saved_profile)
         else:
@@ -1015,6 +1160,9 @@ def delete_selected_vpn_profile(app):
 
         target = app._wg_profile_path(candidate)
         candidate_exists = exist_map.get(candidate, app._wg_profile_exists(candidate))
+        if not target:
+            failed.append((label, candidate, "Ungültiger WireGuard-Profilpfad"))
+            continue
 
         app.log_debug(
             f"Prüfe Löschung {label} ({candidate}) -> {target} (exists={candidate_exists})"
@@ -1440,6 +1588,8 @@ def write_manual_wg_profile(app, profile_name, config_text):
             pass
 
         target = app._wg_profile_path(profile_name)
+        if not target:
+            return False, "Ungültiger WireGuard-Profilpfad."
         rc, out = run_cmd(
             ["sudo", "-n", "install", "-m", "600", tmp_path, target],
             timeout=12,
@@ -2171,10 +2321,19 @@ def get_active_nm_wireguard_interfaces(app):
 
 
 def wg_profile_path(_app, profile_name):
-    name = (profile_name or "").strip()
+    name = os.path.basename(str(profile_name or "").strip())
     if not name:
         return ""
-    return f"/etc/wireguard/{name}.conf"
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", name):
+        return ""
+    wireguard_root = os.path.realpath("/etc/wireguard")
+    target = os.path.realpath(os.path.join(wireguard_root, f"{name}.conf"))
+    try:
+        if os.path.commonpath([wireguard_root, target]) != wireguard_root:
+            return ""
+    except ValueError:
+        return ""
+    return target
 
 
 def wg_profile_exists(app, profile_name):
@@ -2288,7 +2447,9 @@ def parse_vpn_endpoint(app, profile_name):
     try:
         rc, out = app._read_wg_profile_text(profile_name)
     except Exception:
-        path = f"/etc/wireguard/{str(profile_name or '').strip()}.conf"
+        path = app._wg_profile_path(profile_name)
+        if not path:
+            return None, None
         rc, out = run_cmd(["sudo", "-n", "cat", path], timeout=5)
         if rc != 0:
             rc, out = run_cmd(["cat", path], timeout=5)
@@ -2314,7 +2475,12 @@ def parse_vpn_endpoint(app, profile_name):
         port = port.strip()
         if not host or not port.isdigit():
             continue
-        return host, port
+        try:
+            endpoint_ip = ipaddress.ip_address(host)
+        except ValueError:
+            _warn_non_ip_endpoint_once(app, profile_name, host)
+            continue
+        return endpoint_ip.compressed, port
 
     return None, None
 
@@ -2819,7 +2985,7 @@ def list_wg_profiles(app):
         if name:
             profiles.add(name)
 
-    for profile in get_nm_vpn_profiles(app):
+    for profile in get_nm_wireguard_profiles(app):
         name = str(profile or "").strip()
         if name:
             profiles.add(name)
@@ -3019,6 +3185,12 @@ def ensure_internal_ipv4_profile(app, profile_name, log_failures=True):
             temp_file.write(content)
             tmp_path = temp_file.name
         target = app._wg_profile_path(ipv4_profile)
+        if not target:
+            if log_failures:
+                app.log_safe(
+                    f"Interne IPv4-Kopie hat einen ungültigen Zielpfad: {ipv4_profile}"
+                )
+            return False
         rc, out = run_cmd(
             ["sudo", "-n", "install", "-m", "600", tmp_path, target],
             timeout=12,
@@ -3042,7 +3214,7 @@ def ensure_internal_ipv4_profile(app, profile_name, log_failures=True):
 def import_wg_profiles_from_folder(app):
     initialdir = app.get_wg_import_dir() or ensure_netmon_wireguard_profiles_dir()
     files = filedialog.askopenfilenames(
-        title="WireGuard-Profile auswählen",
+        title=app.tr("wg_profiles_dialog_select", "WireGuard-Profile auswählen"),
         initialdir=initialdir,
         filetypes=[("WireGuard config", "*.conf"), ("Alle Dateien", "*.*")],
     )
@@ -3053,6 +3225,8 @@ def import_wg_profiles_from_folder(app):
     first_dir = os.path.dirname(str(files[0]).strip()) if files else ""
     if first_dir:
         app.set_wg_import_dir(first_dir)
+
+    _warn_wireguard_import_hooks(app, files)
 
     def job():
         selected_files = sorted([str(p).strip() for p in files if str(p).strip()])
@@ -3075,7 +3249,16 @@ def import_wg_profiles_from_folder(app):
                 )
                 continue
 
-            target = f"/etc/wireguard/{name}.conf"
+            target = app._wg_profile_path(name)
+            if not target:
+                skipped += 1
+                app.after(
+                    0,
+                    lambda n=name: app.log(
+                        f"Übersprungen (unsicherer Zielpfad): {n}"
+                    ),
+                )
+                continue
             rc_cp, out_cp = run_cmd(
                 ["sudo", "-n", "install", "-m", "600", src, target], timeout=10
             )
@@ -3127,7 +3310,10 @@ def import_wg_profiles_to_networkmanager(app):
         initialdir = ensure_netmon_wireguard_profiles_dir()
 
     files = filedialog.askopenfilenames(
-        title="WireGuard-Profile nach NetworkManager importieren",
+        title=app.tr(
+            "wg_profiles_dialog_import_nm",
+            "WireGuard-Profile nach NetworkManager importieren",
+        ),
         initialdir=initialdir,
         filetypes=[("WireGuard config", "*.conf"), ("Alle Dateien", "*.*")],
     )
@@ -3138,6 +3324,8 @@ def import_wg_profiles_to_networkmanager(app):
     first_dir = os.path.dirname(str(files[0]).strip()) if files else ""
     if first_dir:
         app.set_wg_import_dir(first_dir)
+
+    _warn_wireguard_import_hooks(app, files)
 
     if not app.ensure_sudo_session("WireGuard nach NetworkManager importieren"):
         return
@@ -3172,6 +3360,10 @@ def import_referenced_wg_profiles_to_networkmanager(app):
     if not referenced_paths:
         app.log("Kein referenziertes WireGuard-Profil zum NM-Import gefunden.")
         return
+    _warn_wireguard_import_hooks(
+        app,
+        [path for _profile, path in referenced_paths],
+    )
 
     def job():
         selected_files = [path for _profile, path in referenced_paths]

@@ -1,5 +1,7 @@
 """Internetradio controller helpers for NetMon."""
 
+# source marker: "tags": {"title": "Tags"
+
 from __future__ import annotations
 
 import concurrent.futures
@@ -14,6 +16,7 @@ import tempfile
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import webbrowser
 from datetime import datetime, timezone
@@ -46,6 +49,7 @@ def default_radio_settings():
         "playlist_path": "",
         "playlists_dir": "",
         "projectm_preset_import_dir": "",
+        "projectm_preset_download_url": "",
     }
 
 
@@ -97,6 +101,9 @@ RADIO_DB_FIELDS = (
     "votes",
     "clickcount",
 )
+
+ALLOWED_RADIO_STREAM_SCHEMES = {"http", "https", "rtsp", "rtmp"}
+ALLOWED_RADIO_HOMEPAGE_SCHEMES = {"http", "https"}
 
 RADIO_BROWSER_SOURCE_ENDPOINTS = {
     "radio_browser_api": "https://de1.api.radio-browser.info/json/stations",
@@ -173,15 +180,15 @@ RADIO_DATABASE_EXCLUSIVE_COUNTRY_SOURCE_IDS = {
 }
 
 RADIO_STATION_LIST_COLUMN_DEFS = {
-    "name": {"title": "Sender", "width": 260, "anchor": "w"},
-    "genre": {"title": "Genre", "width": 180, "anchor": "w"},
-    "tags": {"title": "Tags", "width": 260, "anchor": "w"},
-    "bitrate": {"title": "Bitrate", "width": 80, "anchor": "e"},
-    "url": {"title": "URL", "width": 220, "anchor": "w"},
-    "homepage": {"title": "Webseite", "width": 220, "anchor": "w"},
-    "country": {"title": "Land", "width": 120, "anchor": "w"},
-    "language": {"title": "Sprache", "width": 100, "anchor": "w"},
-    "codec": {"title": "Codec", "width": 80, "anchor": "w"},
+    "name": {"title_key": "radio_col_name", "title": "Station", "width": 260, "anchor": "w"},
+    "genre": {"title_key": "radio_col_genre", "title": "Genre", "width": 180, "anchor": "w"},
+    "tags": {"title_key": "radio_col_tags", "title": "Tags", "width": 260, "anchor": "w"},
+    "bitrate": {"title_key": "radio_col_bitrate", "title": "Bitrate", "width": 80, "anchor": "e"},
+    "url": {"title_key": "radio_col_url", "title": "URL", "width": 220, "anchor": "w"},
+    "homepage": {"title_key": "radio_col_homepage", "title": "Homepage", "width": 220, "anchor": "w"},
+    "country": {"title_key": "radio_col_country", "title": "Country", "width": 120, "anchor": "w"},
+    "language": {"title_key": "radio_col_language", "title": "Language", "width": 100, "anchor": "w"},
+    "codec": {"title_key": "radio_col_codec", "title": "Codec", "width": 80, "anchor": "w"},
 }
 
 RADIO_STATION_LIST_COLUMN_ORDER = (
@@ -291,12 +298,42 @@ def _playlist_dialog_defaults(app) -> tuple[str, str]:
     return _radio_playlists_dir(app), _radio_playlist_path(app)
 
 
+def _normalize_station_stream_url(value) -> str:
+    url = str(value or "").strip()
+    if not url:
+        return ""
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except Exception:
+        return ""
+    scheme = str(parsed.scheme or "").strip().lower()
+    if scheme not in ALLOWED_RADIO_STREAM_SCHEMES:
+        return ""
+    return url
+
+
+def _normalize_station_homepage_url(value) -> str:
+    url = str(value or "").strip()
+    if not url:
+        return ""
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except Exception:
+        return ""
+    scheme = str(parsed.scheme or "").strip().lower()
+    if scheme not in ALLOWED_RADIO_HOMEPAGE_SCHEMES:
+        return ""
+    return url
+
+
 def normalize_station_entry(entry, *, custom=False):
     if not isinstance(entry, dict):
         return None
 
     name = str(entry.get("name", "") or "").strip()
-    url = str(entry.get("url", "") or entry.get("url_resolved", "") or "").strip()
+    url = _normalize_station_stream_url(
+        entry.get("url", "") or entry.get("url_resolved", "") or ""
+    )
     if not name or not url:
         return None
 
@@ -316,11 +353,19 @@ def normalize_station_entry(entry, *, custom=False):
         if key not in entry:
             continue
         value = entry.get(key)
+        if key in {"url", "url_resolved"}:
+            value = _normalize_station_stream_url(value)
+        if key == "homepage":
+            value = _normalize_station_homepage_url(value)
         if key == "tags" and isinstance(value, str):
             value = [tag.strip() for tag in value.split(",") if tag.strip()]
         station[key] = value
     if station.get("url_resolved") and not station.get("url"):
-        station["url"] = str(station.get("url_resolved") or "").strip()
+        station["url"] = _normalize_station_stream_url(
+            station.get("url_resolved") or ""
+        )
+    if not station.get("url"):
+        return None
     return station
 
 
@@ -652,6 +697,14 @@ def save_radio_settings(app):
                 getattr(app, "radio_playlists_dir", "")
                 or getattr(app, "radio_settings", {}).get("playlists_dir", "")
                 or _default_playlists_dir(app)
+            ).strip(),
+            "projectm_preset_import_dir": str(
+                getattr(app, "radio_settings", {}).get("projectm_preset_import_dir", "")
+                or ""
+            ).strip(),
+            "projectm_preset_download_url": str(
+                getattr(app, "radio_settings", {}).get("projectm_preset_download_url", "")
+                or ""
             ).strip(),
         }
     )
@@ -1236,7 +1289,7 @@ def radio_recording_available(app):
 
 
 def _recording_status_text(app, text):
-    value = str(text or "").strip() or "Aufnahme aus."
+    value = str(text or "").strip() or _tr(app, "radio_record_status_off", "Recording off.")
     for target in _radio_targets(app):
         var = getattr(target, "radio_record_status_var", None)
         if var is not None:
@@ -1248,12 +1301,16 @@ def _recording_status_text(app, text):
 
 def _recording_dir_text(app):
     target_dir = _radio_recordings_dir(app)
-    return f"Aufnahmeordner: {target_dir or '-'}"
+    return _tr(app, "radio_record_dir_value", "Aufnahmeordner: {path}").format(
+        path=target_dir or "-"
+    )
 
 
 def _recording_file_text(app):
     path = str(getattr(app, "radio_last_record_path", "") or "").strip()
-    return f"Letzte Aufnahme: {os.path.basename(path) if path else '-'}"
+    return _tr(app, "radio_record_file_value", "Letzte Aufnahme: {name}").format(
+        name=os.path.basename(path) if path else "-"
+    )
 
 
 def _record_button_colors(active, blink_on):
@@ -1370,8 +1427,10 @@ def _playlist_status_text(app):
     entries = list(getattr(app, "radio_playlist_entries", []) or [])
     count = len(entries)
     if count == 1:
-        return "Playlist: 1 Datei"
-    return f"Playlist: {count} Dateien"
+        return _tr(app, "radio_playlist_status_single", "Playlist: 1 Datei")
+    return _tr(app, "radio_playlist_status_many", "Playlist: {count} Dateien").format(
+        count=count
+    )
 
 
 def _playlist_label_for_path(path):
@@ -1392,24 +1451,36 @@ def _recordings_status_text(app):
     entries = list(getattr(app, "radio_recordings_entries", []) or [])
     count = len(entries)
     if count == 1:
-        return "Aufnahmeordner: 1 Datei"
-    return f"Aufnahmeordner: {count} Dateien"
+        return _tr(app, "radio_recordings_status_single", "Aufnahmeordner: 1 Datei")
+    return _tr(
+        app,
+        "radio_recordings_status_many",
+        "Aufnahmeordner: {count} Dateien",
+    ).format(count=count)
 
 
 def _playlist_folder_status_text(app):
     entries = list(getattr(app, "radio_playlist_files_entries", []) or [])
     count = len(entries)
     if count == 1:
-        return "Playlistordner: 1 Datei"
-    return f"Playlistordner: {count} Dateien"
+        return _tr(app, "radio_playlist_folder_status_single", "Playlistordner: 1 Datei")
+    return _tr(
+        app,
+        "radio_playlist_folder_status_many",
+        "Playlistordner: {count} Dateien",
+    ).format(count=count)
 
 
 def _system_folder_status_text(app):
     entries = list(getattr(app, "radio_system_folder_entries", []) or [])
     count = len(entries)
     if count == 1:
-        return "Systemordner: 1 Datei"
-    return f"Systemordner: {count} Dateien"
+        return _tr(app, "radio_system_folder_status_single", "Systemordner: 1 Datei")
+    return _tr(
+        app,
+        "radio_system_folder_status_many",
+        "Systemordner: {count} Dateien",
+    ).format(count=count)
 
 
 def _current_radio_folder_browser_path(app):
@@ -2143,7 +2214,7 @@ def _recording_command(stream_url, output_path):
 def choose_radio_recordings_dir(app):
     initial_dir = _radio_recordings_dir(app)
     folder = filedialog.askdirectory(
-        title="Aufnahmeordner wählen",
+        title=app.tr("radio_recordings_dir_dialog_title", "Aufnahmeordner wählen"),
         initialdir=initial_dir,
     )
     if not folder:
@@ -2202,7 +2273,7 @@ def open_radio_system_dir(app):
     if not initial_dir:
         initial_dir = os.path.expanduser("~")
     folder = filedialog.askdirectory(
-        title="Systemordner wählen",
+        title=_tr(app, "radio_system_dir_dialog_title", "Systemordner wählen"),
         initialdir=initial_dir,
     )
     if not folder:
@@ -2768,7 +2839,7 @@ def play_last_radio_recording(app):
 def play_radio_file(app):
     initial_dir = _radio_recordings_dir(app)
     path = filedialog.askopenfilename(
-        title="Audiodatei auswählen",
+        title=app.tr("radio_audio_file_dialog_title", "Audiodatei auswählen"),
         initialdir=initial_dir,
         filetypes=(
             ("Audio-Dateien", "*.mp3 *.m4a *.aac *.ogg *.wav *.flac *.opus"),
@@ -2791,7 +2862,10 @@ def play_radio_file(app):
 def add_radio_playlist_files(app):
     initial_dir = _radio_recordings_dir(app)
     paths = filedialog.askopenfilenames(
-        title="Dateien zur Playlist hinzufügen",
+        title=_tr(app, 
+            "radio_playlist_add_files_dialog_title",
+            "Dateien zur Playlist hinzufügen",
+        ),
         initialdir=initial_dir,
         filetypes=(
             ("Audio-Dateien", "*.mp3 *.m4a *.aac *.ogg *.wav *.flac *.opus"),
@@ -2907,7 +2981,7 @@ def save_radio_playlist_to_file(app):
         return False
     initial_dir, initial_file = _playlist_dialog_defaults(app)
     path = filedialog.asksaveasfilename(
-        title="Playlist speichern",
+        title=_tr(app, "radio_playlist_save_dialog_title", "Playlist speichern"),
         initialdir=os.path.dirname(initial_file) or initial_dir,
         initialfile=os.path.basename(initial_file) or "radio_playlist.m3u",
         defaultextension=".m3u",
@@ -2935,7 +3009,7 @@ def save_radio_playlist_to_file(app):
 def load_radio_playlist_from_file(app):
     initial_dir, initial_file = _playlist_dialog_defaults(app)
     path = filedialog.askopenfilename(
-        title="Playlist laden",
+        title=_tr(app, "radio_playlist_load_dialog_title", "Playlist laden"),
         initialdir=os.path.dirname(initial_file) or initial_dir,
         initialfile=os.path.basename(initial_file) or "radio_playlist.m3u",
         filetypes=(("M3U-Playlisten", "*.m3u"), ("Alle Dateien", "*.*")),
@@ -4547,14 +4621,16 @@ def configure_radio_station_table_columns(app):
     columns = selected_radio_station_columns(app)
     try:
         table.configure(columns=tuple(columns), show=("tree", "headings"))
-        table.heading("#0", text="Ampel")
+        table.heading("#0", text=_tr(app, "radio_col_indicator", "Status"))
         table.column("#0", width=44, minwidth=44, stretch=False, anchor="center")
         table.tag_configure("ampel_online", foreground="#2fb344")
         table.tag_configure("ampel_offline", foreground="#d9485f")
         table.tag_configure("ampel_unknown", foreground="#8a8f98")
         for column_id in columns:
             meta = RADIO_STATION_LIST_COLUMN_DEFS.get(column_id, {})
-            table.heading(column_id, text=str(meta.get("title", column_id)))
+            title_key = str(meta.get("title_key", "") or "").strip()
+            title_default = str(meta.get("title", column_id))
+            table.heading(column_id, text=_tr(app, title_key, title_default))
             table.column(
                 column_id,
                 width=int(meta.get("width", 120) or 120),
@@ -5152,9 +5228,9 @@ def open_selected_station_homepage(app):
             ),
         )
         return False
-    url = str(station.get("homepage", "") or "").strip()
+    url = _normalize_station_homepage_url(station.get("homepage", "") or "")
     if not url:
-        url = str(station.get("url", "") or "").strip()
+        url = _normalize_station_homepage_url(station.get("url", "") or "")
     if not url:
         set_radio_status(
             app,

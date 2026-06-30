@@ -1,0 +1,23 @@
+RewriteEngine On
+
+# Redirect secondary domains to the canonical HTTPS domain.
+RewriteCond %{HTTP_HOST} ^www\.netmonroots\.com$ [NC,OR]
+RewriteCond %{HTTP_HOST} ^netmon-roots\.com$ [NC,OR]
+RewriteCond %{HTTP_HOST} ^www\.netmon-roots\.com$ [NC,OR]
+RewriteCond %{HTTP_HOST} ^netmon-roots\.app$ [NC,OR]
+RewriteCond %{HTTP_HOST} ^www\.netmon-roots\.app$ [NC]
+RewriteRule ^ https://netmonroots.com%{REQUEST_URI} [L,R=301]
+
+# Force HTTPS for the canonical host as soon as a valid certificate is active.
+RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP_HOST} ^(www\.)?netmonroots\.com$ [NC]
+RewriteRule ^ https://netmonroots.com%{REQUEST_URI} [L,R=301]
+
+DirectoryIndex index.html
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+</IfModule>

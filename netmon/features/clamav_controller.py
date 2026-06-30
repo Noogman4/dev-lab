@@ -7,6 +7,7 @@ import os
 import re
 import signal
 import shutil
+import stat
 import subprocess
 import tempfile
 import threading
@@ -65,6 +66,24 @@ def _clamav_runtime_state(app):
 
 def _clamav_findings_path(app) -> str:
     return str(getattr(app, "clamav_findings_path", "") or "").strip()
+
+
+def _safe_makedirs_no_symlink(path: str) -> None:
+    target = os.path.abspath(str(path or "").strip())
+    if not target:
+        raise ValueError("empty path")
+
+    current = os.path.sep
+    for part in [item for item in target.split(os.path.sep) if item]:
+        current = os.path.join(current, part)
+        if os.path.lexists(current):
+            entry = os.lstat(current)
+            if stat.S_ISLNK(entry.st_mode):
+                raise RuntimeError(f"Symlink path component not allowed: {current}")
+            if not stat.S_ISDIR(entry.st_mode):
+                raise RuntimeError(f"Non-directory path component not allowed: {current}")
+            continue
+        os.mkdir(current, 0o700)
 
 
 def update_clamav_panel(
@@ -1082,7 +1101,7 @@ def security_clamav_update_async(app):
                 user_log_file = os.path.join(
                     user_tmp, f"netmon-freshclam-{user_tag}.log"
                 )
-                os.makedirs(user_db_dir, exist_ok=True)
+                _safe_makedirs_no_symlink(user_db_dir)
                 with tempfile.NamedTemporaryFile(
                     "w",
                     delete=False,
@@ -1390,7 +1409,10 @@ def security_clamav_folder_scan_async(app):
         return
 
     selected = filedialog.askdirectory(
-        title="Ordner für ClamAV-Scan auswählen",
+        title=app.tr(
+            "clamav_scan_folder_dialog_title",
+            "Ordner für ClamAV-Scan auswählen",
+        ),
         initialdir=os.path.expanduser("~"),
         mustexist=True,
     )
@@ -1723,8 +1745,11 @@ def quarantine_clamav_findings_async(app):
 
     app._log_clamav_quarantine_preview(open_findings, label="Vorschau")
     if not messagebox.askyesno(
-        "ClamAV Quarantäne",
-        f"{len(open_findings)} offene Datei(en) in Quarantäne verschieben?",
+        app.tr("clamav_quarantine_title", "ClamAV Quarantäne"),
+        app.tr(
+            "clamav_quarantine_confirm",
+            "{count} offene Datei(en) in Quarantäne verschieben?",
+        ).format(count=len(open_findings)),
         parent=app,
     ):
         app.log("ClamAV-Quarantäne abgebrochen.")
@@ -1740,7 +1765,7 @@ def quarantine_clamav_findings_async(app):
         try:
             app.log_safe("ClamAV-Quarantäne gestartet...")
             try:
-                os.makedirs(app.clamav_quarantine_dir, exist_ok=True)
+                _safe_makedirs_no_symlink(app.clamav_quarantine_dir)
             except Exception as exc:
                 update_clamav_panel_safe(
                     app,
@@ -1850,7 +1875,10 @@ def quarantine_selected_clamav_findings_async(app):
 
     selected = app._clamav_select_items_dialog(
         open_findings,
-        title="ClamAV: Funde zur Quarantäne auswählen",
+        title=app.tr(
+            "clamav_quarantine_select_title",
+            "ClamAV: Funde zur Quarantäne auswählen",
+        ),
         mode="found",
     )
     if selected is None:
@@ -1861,8 +1889,14 @@ def quarantine_selected_clamav_findings_async(app):
 
     app._log_clamav_quarantine_preview(selected, label="Vorschau (Auswahl)")
     if not messagebox.askyesno(
-        "ClamAV Quarantäne (Auswahl)",
-        f"{len(selected)} ausgewählte Datei(en) in Quarantäne verschieben?",
+        app.tr(
+            "clamav_quarantine_selected_title",
+            "ClamAV Quarantäne (Auswahl)",
+        ),
+        app.tr(
+            "clamav_quarantine_selected_confirm",
+            "{count} ausgewählte Datei(en) in Quarantäne verschieben?",
+        ).format(count=len(selected)),
         parent=app,
     ):
         app.log("ClamAV-Quarantäne (Auswahl) abgebrochen.")
@@ -1878,7 +1912,7 @@ def quarantine_selected_clamav_findings_async(app):
         try:
             app.log_safe("ClamAV-Quarantäne (Auswahl) gestartet...")
             try:
-                os.makedirs(app.clamav_quarantine_dir, exist_ok=True)
+                _safe_makedirs_no_symlink(app.clamav_quarantine_dir)
             except Exception as exc:
                 update_clamav_panel_safe(
                     app,
@@ -1997,8 +2031,11 @@ def restore_clamav_quarantine_async(app):
 
     app._log_clamav_restore_preview(quarantined, label="Vorschau")
     if not messagebox.askyesno(
-        "ClamAV Wiederherstellung",
-        f"{len(quarantined)} Quarantäne-Datei(en) wiederherstellen?",
+        app.tr("clamav_restore_title", "ClamAV Wiederherstellung"),
+        app.tr(
+            "clamav_restore_confirm",
+            "{count} Quarantäne-Datei(en) wiederherstellen?",
+        ).format(count=len(quarantined)),
         parent=app,
     ):
         app.log("ClamAV-Wiederherstellung abgebrochen.")
@@ -2140,7 +2177,10 @@ def restore_selected_clamav_quarantine_async(app):
 
     selected = app._clamav_select_items_dialog(
         quarantined,
-        title="ClamAV: Quarantäne-Dateien zur Wiederherstellung auswählen",
+        title=app.tr(
+            "clamav_restore_select_title",
+            "ClamAV: Quarantäne-Dateien zur Wiederherstellung auswählen",
+        ),
         mode="quarantine",
     )
     if selected is None:
@@ -2151,8 +2191,14 @@ def restore_selected_clamav_quarantine_async(app):
 
     app._log_clamav_restore_preview(selected, label="Vorschau (Auswahl)")
     if not messagebox.askyesno(
-        "ClamAV Wiederherstellung (Auswahl)",
-        f"{len(selected)} ausgewählte Quarantäne-Datei(en) wiederherstellen?",
+        app.tr(
+            "clamav_restore_selected_title",
+            "ClamAV Wiederherstellung (Auswahl)",
+        ),
+        app.tr(
+            "clamav_restore_selected_confirm",
+            "{count} ausgewählte Quarantäne-Datei(en) wiederherstellen?",
+        ).format(count=len(selected)),
         parent=app,
     ):
         app.log("ClamAV-Wiederherstellung (Auswahl) abgebrochen.")

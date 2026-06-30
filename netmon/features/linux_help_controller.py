@@ -39,10 +39,10 @@ LINUX_HELP_EXPORT_FIELDS = [
     "risk",
 ]
 RISK_UI = {
-    "safe": ("🟢 Sicher", "green"),
-    "caution": ("🟡 Admin", "#d8a106"),
-    "danger": ("🔴 Gefährlich", "red"),
-    "unknown": ("⚪ Unbekannt", "gray"),
+    "safe": ("linux_help_risk_safe", "🟢 Safe", "green"),
+    "caution": ("linux_help_risk_caution", "🟡 Admin", "#d8a106"),
+    "danger": ("linux_help_risk_danger", "🔴 Dangerous", "red"),
+    "unknown": ("linux_help_risk_unknown_label", "⚪ Unknown", "gray"),
 }
 SOURCE_FIELD_ALIASES = {
     "category": ("category", "kategorie"),
@@ -80,10 +80,53 @@ SOURCE_FIELD_ALIASES = {
     "risk": ("risk", "risiko", "risk_level", "risk level"),
 }
 RISK_DIALOG_CHOICES = (
-    ("🟢 Sicher", "safe"),
-    ("🟡 Admin", "caution"),
-    ("🔴 Gefährlich", "danger"),
+    ("linux_help_risk_safe", "🟢 Safe", "safe"),
+    ("linux_help_risk_caution", "🟡 Admin", "caution"),
+    ("linux_help_risk_danger", "🔴 Dangerous", "danger"),
 )
+
+
+def _tr(app, key: str, fallback: str) -> str:
+    translate = getattr(app, "tr", None)
+    if callable(translate):
+        try:
+            return str(translate(key, fallback))
+        except Exception:
+            return fallback
+    return fallback
+
+
+def _linux_help_all_categories_label(app) -> str:
+    return _tr(app, "linux_help_all_categories", "All categories")
+
+
+def _linux_help_all_sources_label(app) -> str:
+    return _tr(app, "linux_help_source_both", "Both")
+
+
+def _linux_help_all_risks_label(app) -> str:
+    return _tr(app, "linux_help_all_risks", "All risks")
+
+
+def _risk_label(app, risk_key: str) -> str:
+    key, fallback, _color = RISK_UI.get(risk_key, RISK_UI["unknown"])
+    return _tr(app, key, fallback)
+
+
+def _source_label(app, source_key: str) -> str:
+    mapping = {
+        "command": ("linux_help_source_commands", "Commands"),
+        "glossary": ("linux_help_source_glossary", "Glossary"),
+    }
+    key, fallback = mapping.get(source_key, ("linux_help_source_unknown", "Unknown"))
+    return _tr(app, key, fallback)
+
+
+def _risk_dialog_choices_for_app(app):
+    return [
+        (_tr(app, key, fallback), risk_key)
+        for key, fallback, risk_key in RISK_DIALOG_CHOICES
+    ]
 
 
 def _app_value(app, name: str, default=None):
@@ -308,6 +351,19 @@ def _derive_linux_help_tags(item) -> str:
     return linux_help_tag_text(derived)
 
 
+def _glossary_category(item) -> str:
+    tags = item.get("tags")
+    if isinstance(tags, (list, tuple, set)):
+        tag_values = [str(tag).strip() for tag in tags if str(tag).strip()]
+    else:
+        tag_values = [
+            part.strip() for part in re.split(r"[;,|]", str(tags or "")) if part.strip()
+        ]
+    if tag_values:
+        return tag_values[0].title()
+    return "Glossary"
+
+
 def _bool_from_raw(value, default=True):
     if value is None or value == "":
         return bool(default)
@@ -353,26 +409,23 @@ def _normalize_risk_value(value):
     return text
 
 
-def _risk_storage_to_dialog_label(value):
+def _risk_storage_to_dialog_label(app, value):
     normalized = _normalize_risk_value(value)
-    for label, key in RISK_DIALOG_CHOICES:
+    for label, key in _risk_dialog_choices_for_app(app):
         if key == normalized:
             return label
-    return RISK_DIALOG_CHOICES[1][0]
+    return _risk_dialog_choices_for_app(app)[1][0]
 
 
-def _risk_dialog_label_to_storage(value):
+def _risk_dialog_label_to_storage(app, value):
     label = str(value or "").strip()
-    for option_label, key in RISK_DIALOG_CHOICES:
+    for option_label, key in _risk_dialog_choices_for_app(app):
         if label == option_label:
             return key
     return _normalize_risk_value(value) or "caution"
 
 
 def _selected_linux_help_id(app) -> str:
-    command_id = str(_app_value(app, "linux_help_selected_id", "") or "").strip()
-    if command_id:
-        return command_id
     tree = _app_value(app, "linux_help_tree")
     if tree is not None:
         try:
@@ -390,6 +443,9 @@ def _selected_linux_help_id(app) -> str:
         visible_ids = list(_app_value(app, "linux_help_visible_command_ids", []) or [])
         if 0 <= idx < len(visible_ids):
             return str(visible_ids[idx] or "").strip()
+    command_id = str(_app_value(app, "linux_help_selected_id", "") or "").strip()
+    if command_id:
+        return command_id
     return ""
 
 
@@ -409,7 +465,7 @@ def _resolve_linux_help_item(app, command_id=None):
 
 
 def _set_chad_direct_prompt_safe(app, title, prompt):
-    direct_prompt_setter = _app_value(app, "set_chad_direct_prompt")
+    direct_prompt_setter = getattr(app, "set_chad_direct_prompt", None)
     if callable(direct_prompt_setter):
         direct_prompt_setter(title, prompt)
         return True
@@ -420,58 +476,90 @@ def _get_selected_linux_help_item(app):
     return _resolve_linux_help_item(app)
 
 
+def _is_glossary_item(item) -> bool:
+    return str((item or {}).get("entry_type") or "").strip().lower() == "glossary"
+
+
+def _linux_help_source_value(app):
+    label = str(_app_var_get(app, "linux_help_source_var", "") or "").strip()
+    return {
+        _tr(app, "linux_help_source_commands", "Commands"): "command",
+        _tr(app, "linux_help_source_glossary", "Glossary"): "glossary",
+        _tr(app, "linux_help_source_both", "Both"): "both",
+    }.get(label, "both")
+
+
 def _linux_help_chad_title(item) -> str:
     entry = dict(item or {})
+    if _is_glossary_item(entry):
+        return f"Explain glossary term: {entry.get('name') or 'Unknown'}"
     return (
-        f"Linux-Befehl erklären: "
-        f"{entry.get('name') or entry.get('cmd') or 'Unbekannt'}"
+        f"Explain Linux command: {entry.get('name') or entry.get('cmd') or 'Unknown'}"
     )
 
 
 def build_linux_help_chad_prompt(app, item):
     entry = dict(item or {})
-    risk_label, _fill = RISK_UI.get(
+    if _is_glossary_item(entry):
+        lines = [
+            "Please explain the following IT/Linux glossary term for beginners in clear, well-structured English.",
+            "",
+            "Important requirements for your answer:",
+            "- Start with a simple definition.",
+            "- Explain why the term matters in Linux or IT practice.",
+            "- Use the stored example and expand it in plain language.",
+            "- Mention 2 or 3 related concepts beginners should learn next.",
+            "",
+            "Glossary data from NetMon:",
+            f"Term: {entry.get('name') or '–'}",
+            f"Category: {entry.get('category') or '–'}",
+            f"Short description: {entry.get('info') or '–'}",
+            f"Example: {entry.get('example') or '–'}",
+            f"Tags: {str(entry.get('tags') or '–').strip() or '–'}",
+            f"Related terms: {str(entry.get('related') or '–').strip() or '–'}",
+        ]
+        return "\n".join(lines).strip()
+    _risk_key, risk_label, _fill = RISK_UI.get(
         str(entry.get("risk") or "").strip().lower(),
         RISK_UI["unknown"],
     )
     root_text = (
-        app.tr("label_yes", "Ja")
+        app.tr("label_yes", "Yes")
         if entry.get("root_required")
-        else app.tr("label_no", "Nein")
+        else app.tr("label_no", "No")
     )
     tags = str(entry.get("tags") or "–").strip() or "–"
     explanation = (
         str(entry.get("explanation") or "").strip()
-        or "Keine Zusatz-Erklärung hinterlegt."
+        or "No additional explanation stored."
     )
     warning_text = (
-        str(entry.get("warning_text") or "").strip()
-        or "Kein zusätzlicher Hinweis hinterlegt."
+        str(entry.get("warning_text") or "").strip() or "No additional warning stored."
     )
     lines = [
-        "Bitte erkläre den folgenden Linux-Befehl für Anfänger sehr verständlich und sauber strukturiert auf Deutsch.",
+        "Please explain the following Linux command for beginners in clear, well-structured English.",
         "",
-        "Wichtige Anforderungen an deine Antwort:",
-        "- Schreibe anfängerfreundlich, ohne Vorwissen vorauszusetzen.",
-        "- Erkläre zuerst kurz, wofür der Befehl gedacht ist.",
-        "- Zerlege danach die Syntax und die wichtigsten Bestandteile.",
-        "- Erkläre das Beispiel Schritt für Schritt.",
-        "- Nenne typische Anwendungsfälle im Alltag.",
-        "- Weise klar auf Risiken, Root-Bedarf und mögliche Fehler hin.",
-        "- Gib am Ende 3 sichere Einsteiger-Tipps oder Varianten.",
-        "- Nutze eine ruhige, verständliche Sprache statt unnötig technischer Begriffe.",
+        "Important requirements for your answer:",
+        "- Write in a beginner-friendly way without assuming prior knowledge.",
+        "- Start with a short explanation of what the command is used for.",
+        "- Then break down the syntax and the most important parts.",
+        "- Explain the example step by step.",
+        "- Mention typical real-world use cases.",
+        "- Clearly point out risks, root requirements, and common mistakes.",
+        "- End with 3 safe beginner tips or variants.",
+        "- Use calm, clear language instead of unnecessary jargon.",
         "",
-        "Befehlsdaten aus NetMon:",
-        f"Befehl: {entry.get('name') or entry.get('cmd') or '–'}",
-        f"Kategorie: {entry.get('category') or '–'}",
-        f"Kommando: {entry.get('cmd') or '–'}",
-        f"Kurzbeschreibung: {entry.get('info') or '–'}",
+        "Command data from NetMon:",
+        f"Command name: {entry.get('name') or entry.get('cmd') or '–'}",
+        f"Category: {entry.get('category') or '–'}",
+        f"Command: {entry.get('cmd') or '–'}",
+        f"Short description: {entry.get('info') or '–'}",
         f"Syntax: {entry.get('syntax') or entry.get('cmd') or '–'}",
-        f"Beispiel: {entry.get('example') or entry.get('cmd') or '–'}",
-        f"Erklärung/Hinweis aus Datenbank: {explanation}",
-        f"Zusätzlicher Warnhinweis: {warning_text}",
-        f"Root nötig: {root_text}",
-        f"Risiko-Ampel: {risk_label}",
+        f"Example: {entry.get('example') or entry.get('cmd') or '–'}",
+        f"Database explanation/note: {explanation}",
+        f"Additional warning: {warning_text}",
+        f"Root required: {root_text}",
+        f"Risk level: {risk_label}",
         f"Tags: {tags}",
     ]
     return "\n".join(lines).strip()
@@ -489,7 +577,7 @@ def _iter_source_rows(path):
     extension = os.path.splitext(str(path or ""))[1].lower()
     if extension == ".xlsx":
         if load_workbook is None:
-            raise RuntimeError("XLSX-Import benötigt openpyxl.")
+            raise RuntimeError("XLSX import requires openpyxl.")
         workbook = load_workbook(path, read_only=True, data_only=True)
         try:
             sheet = workbook.active
@@ -525,6 +613,7 @@ def normalize_linux_help_entry(app, raw, existing_ids=None):
     )
     normalized = {
         "id": linux_help_make_id(item, existing_ids=existing_ids),
+        "entry_type": "command",
         "category": category,
         "name": name,
         "info": info,
@@ -539,6 +628,63 @@ def normalize_linux_help_entry(app, raw, existing_ids=None):
         "enabled": enabled,
     }
     return normalized
+
+
+def normalize_linux_help_glossary_entry(app, raw, existing_ids=None):
+    item = dict(raw or {})
+    term = str(item.get("term") or item.get("name") or "").strip() or "Glossary entry"
+    short = str(item.get("short") or item.get("info") or "").strip()
+    explanation = str(item.get("explanation") or short).strip()
+    warning_text = str(item.get("warning_text") or "").strip()
+    related = item.get("related") or []
+    related_text = (
+        linux_help_tag_text(related)
+        if isinstance(related, (list, tuple, set))
+        else linux_help_tag_text(str(related or ""))
+    )
+    return {
+        "id": linux_help_make_id(
+            {"id": item.get("id") or term, "name": term}, existing_ids=existing_ids
+        ),
+        "entry_type": "glossary",
+        "category": str(item.get("category") or "").strip() or _glossary_category(item),
+        "name": term,
+        "info": short,
+        "cmd": "",
+        "syntax": "",
+        "example": str(item.get("example") or "").strip(),
+        "explanation": explanation,
+        "warning_text": warning_text,
+        "tags": linux_help_tag_text(item.get("tags")),
+        "risk": "unknown",
+        "root_required": False,
+        "enabled": _bool_from_raw(item.get("enabled"), default=True),
+        "related": related_text,
+    }
+
+
+def _serialize_linux_help_glossary_entry(item):
+    entry = dict(item or {})
+    return {
+        "id": str(entry.get("id") or "").strip(),
+        "term": str(entry.get("name") or entry.get("term") or "").strip(),
+        "short": str(entry.get("info") or entry.get("short") or "").strip(),
+        "example": str(entry.get("example") or "").strip(),
+        "tags": [
+            part.strip()
+            for part in str(entry.get("tags") or "").split(",")
+            if part.strip()
+        ],
+        "related": [
+            part.strip()
+            for part in str(entry.get("related") or "").split(",")
+            if part.strip()
+        ],
+        "explanation": str(entry.get("explanation") or "").strip(),
+        "warning_text": str(entry.get("warning_text") or "").strip(),
+        "enabled": bool(entry.get("enabled", True)),
+        "category": str(entry.get("category") or "").strip(),
+    }
 
 
 def rebuild_linux_help_indexes(app):
@@ -559,6 +705,104 @@ def rebuild_linux_help_indexes(app):
     app.linux_help_commands = active_entries
     app.linux_help_categories = categories
     app.linux_help_commands_by_category = commands_by_category
+    glossary_categories = set(
+        (_app_value(app, "linux_help_glossary_by_category", {}) or {}).keys()
+    )
+    app.linux_help_combined_categories = sorted(
+        set(categories).union(glossary_categories),
+        key=str.lower,
+    )
+
+
+def rebuild_linux_help_glossary_indexes(app):
+    glossary_entries = list(_app_value(app, "linux_help_glossary", []) or [])
+    glossary_entries.sort(
+        key=lambda item: (
+            item.get("category", "").lower(),
+            item.get("name", "").lower(),
+        )
+    )
+    categories = sorted(
+        {item.get("category", "Glossary") for item in glossary_entries},
+        key=str.lower,
+    )
+    glossary_by_category = {category: [] for category in categories}
+    for item in glossary_entries:
+        glossary_by_category.setdefault(item["category"], []).append(item)
+    app.linux_help_glossary = glossary_entries
+    app.linux_help_glossary_by_category = glossary_by_category
+    app.linux_help_combined_categories = sorted(
+        set(_app_value(app, "linux_help_categories", []) or []).union(categories),
+        key=str.lower,
+    )
+
+
+def load_linux_help_glossary(app):
+    path = str(_app_value(app, "linux_help_glossary_path", "") or "").strip()
+    seed_path = str(_app_value(app, "linux_help_glossary_seed_path", "") or "").strip()
+    source_path = path if path and os.path.isfile(path) else seed_path
+    if not source_path or not os.path.isfile(source_path):
+        app.linux_help_glossary = []
+        app.linux_help_glossary_by_category = {}
+        app.linux_help_combined_categories = list(
+            _app_value(app, "linux_help_categories", []) or []
+        )
+        return []
+    with open(source_path, "r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    entries = payload.get("entries") if isinstance(payload, dict) else []
+    seen_ids = set(
+        item.get("id") for item in (_app_value(app, "linux_help_data", []) or [])
+    )
+    glossary = []
+    for raw in entries if isinstance(entries, list) else []:
+        normalized = normalize_linux_help_glossary_entry(
+            app, raw, existing_ids=seen_ids
+        )
+        seen_ids.add(normalized["id"])
+        glossary.append(normalized)
+    app.linux_help_glossary = glossary
+    rebuild_linux_help_glossary_indexes(app)
+    if source_path == seed_path and path:
+        save_linux_help_glossary(app, update_status=False)
+    return glossary
+
+
+def save_linux_help_glossary(app, update_status=True):
+    payload = {
+        "name": "IT-Lexikon fuer Linux Hilfe",
+        "version": "0.1.0",
+        "language": "de",
+        "entries": [
+            _serialize_linux_help_glossary_entry(item)
+            for item in (_app_value(app, "linux_help_glossary", []) or [])
+            if item.get("enabled", True)
+        ],
+    }
+    ok, err = safe_write_json(
+        app.linux_help_glossary_path,
+        payload,
+        indent=2,
+        ensure_ascii=False,
+    )
+    if not ok:
+        if update_status:
+            app.linux_help_status_var.set(
+                app.tr(
+                    "linux_help_status_glossary_save_failed",
+                    "Linux help: glossary save failed.",
+                )
+            )
+        update_linux_help_notes(app, None, extra_error=str(err))
+        return False
+    if update_status:
+        app.linux_help_status_var.set(
+            app.tr(
+                "linux_help_status_glossary_saved_count",
+                "Linux help: {count} glossary entries saved.",
+            ).format(count=len(_app_value(app, "linux_help_glossary", []) or []))
+        )
+    return True
 
 
 def import_linux_help_csv(app, path):
@@ -625,11 +869,13 @@ def load_linux_help_data(app):
             seen_ids.add(normalized["id"])
             app.linux_help_data.append(normalized)
         rebuild_linux_help_indexes(app)
+        load_linux_help_glossary(app)
         set_linux_help_dirty(app, False)
         return app.linux_help_data
 
     commands = import_linux_help_csv(app, linux_help_csv_path())
     save_linux_help_data(app, update_status=False)
+    load_linux_help_glossary(app)
     set_linux_help_dirty(app, False)
     return commands
 
@@ -645,7 +891,7 @@ def save_linux_help_data(app, update_status=True):
         app.linux_help_status_var.set(
             app.tr(
                 "linux_help_status_save_failed",
-                "Linux Hilfe: Speichern fehlgeschlagen.",
+                "Linux help: save failed.",
             )
         )
         update_linux_help_notes(app, None, extra_error=str(err))
@@ -655,26 +901,52 @@ def save_linux_help_data(app, update_status=True):
         app.linux_help_status_var.set(
             app.tr(
                 "linux_help_status_saved_count",
-                "Linux Hilfe: {count} Einträge gespeichert.",
+                "Linux help: {count} entries saved.",
             ).format(count=len(app.linux_help_data))
         )
     return True
 
 
 def get_linux_help_categories(app):
+    combined = _app_value(app, "linux_help_combined_categories")
+    if combined:
+        return list(combined)
     return list(app.linux_help_categories)
 
 
 def get_linux_help_commands_for_category(app, category):
     name = str(category or "").strip()
-    if not name or name == "Alle Kategorien":
-        return list(app.linux_help_commands)
-    return list(app.linux_help_commands_by_category.get(name, []))
+    source_mode = _linux_help_source_value(app)
+    command_items = []
+    glossary_items = []
+    if source_mode in {"command", "both"}:
+        if not name or name == _linux_help_all_categories_label(app):
+            command_items = list(app.linux_help_commands)
+        else:
+            command_items = list(app.linux_help_commands_by_category.get(name, []))
+    if source_mode in {"glossary", "both"}:
+        glossary_by_category = (
+            _app_value(app, "linux_help_glossary_by_category", {}) or {}
+        )
+        if not name or name == _linux_help_all_categories_label(app):
+            glossary_items = list(_app_value(app, "linux_help_glossary", []) or [])
+        else:
+            glossary_items = list(glossary_by_category.get(name, []))
+    items = [*command_items, *glossary_items]
+    items.sort(
+        key=lambda item: (
+            item.get("category", "").lower(),
+            item.get("name", "").lower(),
+        )
+    )
+    return items
 
 
 def get_linux_help_command_by_id(app, command_id):
     target = str(command_id or "").strip()
-    data = _app_value(app, "linux_help_data", []) or []
+    data = list(_app_value(app, "linux_help_data", []) or []) + list(
+        _app_value(app, "linux_help_glossary", []) or []
+    )
     for item in data:
         if item.get("id") == target:
             return item
@@ -682,7 +954,10 @@ def get_linux_help_command_by_id(app, command_id):
 
 
 def sync_linux_help_form_categories(app):
-    categories = ["Alle Kategorien", *get_linux_help_categories(app)]
+    categories = [
+        _linux_help_all_categories_label(app),
+        *get_linux_help_categories(app),
+    ]
     category_combo = _app_value(app, "linux_help_category_combo")
     if category_combo is not None:
         category_combo["values"] = categories
@@ -708,7 +983,10 @@ def set_linux_help_risk_light(app, risk):
     dot = _app_value(app, "linux_help_risk_dot")
     if canvas is None or dot is None:
         return
-    _label, fill = RISK_UI.get((risk or "").strip().lower(), RISK_UI["unknown"])
+    _risk_key, _label, fill = RISK_UI.get(
+        (risk or "").strip().lower(),
+        RISK_UI["unknown"],
+    )
     canvas.itemconfigure(dot, fill=fill)
 
 
@@ -719,55 +997,79 @@ def update_linux_help_notes(app, item=None, extra_error=""):
     if not item:
         body = app.tr(
             "linux_help_notes_empty",
-            "Waehle oben einen Linux-Befehl aus, um hier Erklaerungen, Hinweise und Beispiele zu sehen.",
+            "Select a Linux command or glossary term above to view explanations, notes, and examples here.",
         )
         if extra_error:
-            body = f"{body}\n\nFehler: {extra_error}"
+            body = f"{body}\n\nError: {extra_error}"
         _set_text_widget_content(widget, body)
         return
 
-    risk_label, _fill = RISK_UI.get(
-        str(item.get("risk") or "").strip().lower(),
-        RISK_UI["unknown"],
-    )
-    lines = [
-        f"{app.tr('linux_help_label_command_name', 'Befehl')}: {item.get('name') or item.get('cmd') or '–'}",
-        f"{app.tr('label_category', 'Kategorie')}: {item.get('category') or '–'}",
-        f"{app.tr('linux_help_col_risk', 'Risiko')}: {risk_label}",
-        f"{app.tr('linux_help_label_root_required', 'Root nötig')}: "
-        + (
-            app.tr("label_yes", "Ja")
-            if item.get("root_required")
-            else app.tr("label_no", "Nein")
-        ),
-        f"{app.tr('linux_help_label_tags', 'Tags')}: {item.get('tags') or '–'}",
-        "",
-        f"{app.tr('linux_help_col_command', 'Befehl')}: {item.get('cmd') or '–'}",
-        f"{app.tr('linux_help_label_syntax', 'Syntax')}: {item.get('syntax') or item.get('cmd') or '–'}",
-        f"{app.tr('linux_help_label_example', 'Beispiel')}: {item.get('example') or item.get('cmd') or '–'}",
-        "",
-        f"{app.tr('linux_help_label_description', 'Beschreibung')}:",
-        item.get("info") or "–",
-        "",
-        f"{app.tr('linux_help_label_explanation_text', 'Erklärung')}:",
-        item.get("explanation") or item.get("info") or "–",
-        "",
-        f"{app.tr('linux_help_label_warning_text', 'Hinweis')}:",
-        item.get("warning_text")
-        or app.tr(
-            "linux_help_note_display_only",
-            "Dieser Eintrag dient als NetMon-Nachschlagewerk und kann bei Bedarf ins Terminal gesendet werden.",
-        ),
-    ]
+    if _is_glossary_item(item):
+        lines = [
+            f"{app.tr('linux_help_label_term', 'Term')}: {item.get('name') or '–'}",
+            f"{app.tr('label_category', 'Category')}: {item.get('category') or '–'}",
+            f"{app.tr('linux_help_col_source', 'Source')}: {_source_label(app, 'glossary')}",
+            f"{app.tr('linux_help_label_tags', 'Tags')}: {item.get('tags') or '–'}",
+            "",
+            f"{app.tr('linux_help_label_description', 'Description')}:",
+            item.get("info") or "–",
+            "",
+            f"{app.tr('linux_help_label_example', 'Example')}:",
+            item.get("example") or "–",
+            "",
+            f"{app.tr('linux_help_label_related', 'Related terms')}:",
+            item.get("related") or "–",
+            "",
+            f"{app.tr('linux_help_label_note_readonly', 'Note')}:",
+            app.tr(
+                "linux_help_note_glossary_readonly",
+                "This glossary entry is read-only reference content and cannot be sent to the terminal.",
+            ),
+        ]
+    else:
+        _risk_key, risk_label, _fill = RISK_UI.get(
+            str(item.get("risk") or "").strip().lower(),
+            RISK_UI["unknown"],
+        )
+        lines = [
+            f"{app.tr('linux_help_label_command_name', 'Command name')}: {item.get('name') or item.get('cmd') or '–'}",
+            f"{app.tr('label_category', 'Category')}: {item.get('category') or '–'}",
+            f"{app.tr('linux_help_col_source', 'Source')}: {_source_label(app, 'command')}",
+            f"{app.tr('linux_help_col_risk', 'Risk')}: {risk_label}",
+            f"{app.tr('linux_help_label_root_required', 'Root required')}: "
+            + (
+                app.tr("label_yes", "Yes")
+                if item.get("root_required")
+                else app.tr("label_no", "No")
+            ),
+            f"{app.tr('linux_help_label_tags', 'Tags')}: {item.get('tags') or '–'}",
+            "",
+            f"{app.tr('linux_help_col_command', 'Command')}: {item.get('cmd') or '–'}",
+            f"{app.tr('linux_help_label_syntax', 'Syntax')}: {item.get('syntax') or item.get('cmd') or '–'}",
+            f"{app.tr('linux_help_label_example', 'Example')}: {item.get('example') or item.get('cmd') or '–'}",
+            "",
+            f"{app.tr('linux_help_label_description', 'Description')}:",
+            item.get("info") or "–",
+            "",
+            f"{app.tr('linux_help_label_explanation_text', 'Explanation')}:",
+            item.get("explanation") or item.get("info") or "–",
+            "",
+            f"{app.tr('linux_help_label_warning_text', 'Note')}:",
+            item.get("warning_text")
+            or app.tr(
+                "linux_help_note_display_only",
+                "This entry acts as NetMon reference data and can be sent to the terminal when needed.",
+            ),
+        ]
     _set_text_widget_content(widget, "\n".join(lines))
 
 
 def _risk_filter_value(app):
     label = str(_app_var_get(app, "linux_help_risk_filter_var", "") or "").strip()
     return {
-        "🟢 Sicher": "safe",
-        "🟡 Admin": "caution",
-        "🔴 Gefährlich": "danger",
+        _tr(app, "linux_help_risk_safe", "🟢 Safe"): "safe",
+        _tr(app, "linux_help_risk_caution", "🟡 Admin"): "caution",
+        _tr(app, "linux_help_risk_danger", "🔴 Dangerous"): "danger",
     }.get(label, "")
 
 
@@ -789,8 +1091,9 @@ def _matches_linux_help_query(item, query):
 
 def clear_linux_help_filters(app):
     _app_var_set(app, "linux_help_search_var", "")
-    _app_var_set(app, "linux_help_category_var", "Alle Kategorien")
-    _app_var_set(app, "linux_help_risk_filter_var", "Alle Risiken")
+    _app_var_set(app, "linux_help_category_var", _linux_help_all_categories_label(app))
+    _app_var_set(app, "linux_help_source_var", _linux_help_all_sources_label(app))
+    _app_var_set(app, "linux_help_risk_filter_var", _linux_help_all_risks_label(app))
     refresh_linux_help_list(app)
 
 
@@ -799,12 +1102,11 @@ def refresh_linux_help_list(app, category=None):
         category or _app_var_get(app, "linux_help_category_var", "") or ""
     ).strip()
     if not category_name:
-        category_name = "Alle Kategorien"
-    if (
-        category_name != "Alle Kategorien"
-        and category_name not in app.linux_help_categories
-    ):
-        category_name = "Alle Kategorien"
+        category_name = _linux_help_all_categories_label(app)
+    if category_name != _linux_help_all_categories_label(
+        app
+    ) and category_name not in get_linux_help_categories(app):
+        category_name = _linux_help_all_categories_label(app)
     _app_var_set(app, "linux_help_category_var", category_name)
 
     commands = list(get_linux_help_commands_for_category(app, category_name))
@@ -823,7 +1125,10 @@ def refresh_linux_help_list(app, category=None):
     if tree is not None:
         tree.delete(*tree.get_children())
         for item in commands:
-            risk_label, _fill = RISK_UI.get(item.get("risk"), RISK_UI["unknown"])
+            _risk_key, risk_label, _fill = RISK_UI.get(
+                item.get("risk"),
+                RISK_UI["unknown"],
+            )
             tree.insert(
                 "",
                 "end",
@@ -831,8 +1136,15 @@ def refresh_linux_help_list(app, category=None):
                 text=item.get("name") or item.get("cmd") or "–",
                 values=(
                     item.get("category") or "–",
+                    _source_label(
+                        app, "glossary" if _is_glossary_item(item) else "command"
+                    ),
                     risk_label,
-                    "Ja" if item.get("root_required") else "Nein",
+                    (
+                        _tr(app, "label_yes", "Yes")
+                        if item.get("root_required")
+                        else _tr(app, "label_no", "No")
+                    ),
                     item.get("tags") or "–",
                     item.get("info") or "–",
                 ),
@@ -848,14 +1160,14 @@ def refresh_linux_help_list(app, category=None):
     _app_var_set(
         app,
         "linux_help_command_var",
-        app.tr("linux_help_no_command_selected", "Kein Befehl ausgewählt."),
+        app.tr("linux_help_no_command_selected", "No command selected."),
     )
     _app_var_set(
         app,
         "linux_help_desc_var",
         app.tr(
             "linux_help_select_left_hint",
-            "Wähle oben einen Befehl aus, um Syntax, Beschreibung, Tags und Risiken zu sehen.",
+            "Select a command above to view syntax, description, tags and risks.",
         ),
     )
     _app_var_set(app, "linux_help_detail_syntax_var", "–")
@@ -863,9 +1175,13 @@ def refresh_linux_help_list(app, category=None):
     _app_var_set(app, "linux_help_detail_root_var", "–")
     _app_var_set(app, "linux_help_detail_tags_var", "–")
     _app_var_set(
-        app, "linux_help_risk_var", app.tr("linux_help_risk_unknown", "Risiko: –")
+        app, "linux_help_risk_var", app.tr("linux_help_risk_unknown", "Risk: -")
     )
-    _app_var_set(app, "linux_help_risk_badge_var", "⚪ Unbekannt")
+    _app_var_set(
+        app,
+        "linux_help_risk_badge_var",
+        app.tr("linux_help_risk_unknown_label", "⚪ Unknown"),
+    )
     set_linux_help_risk_light(app, "unknown")
     set_linux_help_form_from_entry(app, None)
     update_linux_help_notes(app, None)
@@ -892,21 +1208,36 @@ def on_linux_help_select(app, _event=None):
 
     app.linux_help_selected_id = command_id
     risk = str(item.get("risk") or "").strip().lower()
-    risk_label, _fill = RISK_UI.get(risk, RISK_UI["unknown"])
+    _risk_key, risk_label, _fill = RISK_UI.get(risk, RISK_UI["unknown"])
 
     _app_var_set(app, "linux_help_detail_name_var", item.get("name") or "–")
     _app_var_set(app, "linux_help_detail_category_var", item.get("category") or "–")
-    _app_var_set(app, "linux_help_command_var", item.get("cmd") or "–")
+    _app_var_set(
+        app,
+        "linux_help_command_var",
+        item.get("cmd")
+        or (
+            app.tr("linux_help_glossary_no_command", "No terminal command")
+            if _is_glossary_item(item)
+            else "–"
+        ),
+    )
     _app_var_set(
         app,
         "linux_help_desc_var",
         item.get("info")
-        or app.tr("linux_help_no_description", "Keine Beschreibung vorhanden."),
+        or app.tr("linux_help_no_description", "No description available."),
     )
     _app_var_set(
         app,
         "linux_help_detail_syntax_var",
-        item.get("syntax") or item.get("cmd") or "–",
+        item.get("syntax")
+        or item.get("cmd")
+        or (
+            app.tr("linux_help_glossary_not_applicable", "Not applicable")
+            if _is_glossary_item(item)
+            else "–"
+        ),
     )
     _app_var_set(
         app,
@@ -917,16 +1248,20 @@ def on_linux_help_select(app, _event=None):
         app,
         "linux_help_detail_root_var",
         (
-            app.tr("label_yes", "Ja")
-            if item.get("root_required")
-            else app.tr("label_no", "Nein")
+            app.tr("linux_help_glossary_not_applicable", "Not applicable")
+            if _is_glossary_item(item)
+            else (
+                app.tr("label_yes", "Yes")
+                if item.get("root_required")
+                else app.tr("label_no", "No")
+            )
         ),
     )
     _app_var_set(app, "linux_help_detail_tags_var", item.get("tags") or "–")
     _app_var_set(app, "linux_help_risk_var", risk_label)
     _app_var_set(app, "linux_help_risk_badge_var", risk_label)
     set_linux_help_risk_light(app, risk)
-    set_linux_help_form_from_entry(app, item)
+    set_linux_help_form_from_entry(app, None if _is_glossary_item(item) else item)
     update_linux_help_notes(app, item)
 
 
@@ -979,20 +1314,35 @@ def linux_help_apply_form_to_entry(app, mark_dirty=True):
 
 
 def linux_help_new_entry(app):
-    base = {
-        "category": app.linux_help_category_var.get() or "Allgemein",
-        "name": "Neuer Befehl",
-        "info": "Neue Kurzbeschreibung",
-        "cmd": "",
-        "syntax": "",
-        "example": "",
-        "tags": "",
-        "root_required": False,
-        "explanation": "",
-        "warning_text": "",
-        "risk": "caution",
-        "enabled": True,
-    }
+    if _linux_help_source_value(app) == "glossary":
+        base = {
+            "entry_type": "glossary",
+            "category": app.linux_help_category_var.get() or "Glossary",
+            "name": "New term",
+            "info": "Short definition",
+            "example": "",
+            "tags": "",
+            "related": "",
+            "explanation": "",
+            "warning_text": "",
+            "enabled": True,
+        }
+    else:
+        base = {
+            "entry_type": "command",
+            "category": app.linux_help_category_var.get() or "General",
+            "name": "New command",
+            "info": "New short description",
+            "cmd": "",
+            "syntax": "",
+            "example": "",
+            "tags": "",
+            "root_required": False,
+            "explanation": "",
+            "warning_text": "",
+            "risk": "caution",
+            "enabled": True,
+        }
     open_linux_help_entry_dialog(app, item=base, is_new=True)
 
 
@@ -1001,7 +1351,7 @@ def linux_help_edit_selected(app):
         app.linux_help_status_var.set(
             app.tr(
                 "linux_help_status_select_entry_first",
-                "Linux Hilfe: Bitte zuerst einen Eintrag auswählen.",
+                "Linux help: please select an entry first.",
             )
         )
         return
@@ -1017,36 +1367,57 @@ def linux_help_delete_selected(app):
         app.linux_help_status_var.set(
             app.tr(
                 "linux_help_status_select_entry_first",
-                "Linux Hilfe: Bitte zuerst einen Eintrag auswählen.",
+                "Linux help: please select an entry first.",
             )
         )
         return
     if messagebox is not None:
         confirmed = messagebox.askyesno(
-            app.tr("linux_help_delete_title", "Eintrag löschen"),
+            app.tr("linux_help_delete_title", "Delete entry"),
             app.tr(
-                "linux_help_delete_confirm",
-                "Soll der ausgewählte Linux-Befehl wirklich gelöscht werden?",
+                (
+                    "linux_help_delete_confirm_glossary"
+                    if _is_glossary_item(target)
+                    else "linux_help_delete_confirm"
+                ),
+                "Delete the selected glossary entry now?"
+                if _is_glossary_item(target)
+                else "Delete the selected Linux command now?",
             ),
             parent=app,
         )
         if not confirmed:
             return
-    app.linux_help_data = [
-        item
-        for item in app.linux_help_data
-        if item.get("id") != app.linux_help_selected_id
-    ]
+    if _is_glossary_item(target):
+        app.linux_help_glossary = [
+            item
+            for item in app.linux_help_glossary
+            if item.get("id") != app.linux_help_selected_id
+        ]
+        rebuild_linux_help_glossary_indexes(app)
+        save_linux_help_glossary(app, update_status=False)
+    else:
+        app.linux_help_data = [
+            item
+            for item in app.linux_help_data
+            if item.get("id") != app.linux_help_selected_id
+        ]
+        rebuild_linux_help_indexes(app)
+        save_linux_help_data(app, update_status=False)
     app.linux_help_selected_id = ""
-    rebuild_linux_help_indexes(app)
     sync_linux_help_form_categories(app)
     refresh_linux_help_list(app)
     set_linux_help_dirty(app, True)
-    save_linux_help_data(app, update_status=False)
     app.linux_help_status_var.set(
         app.tr(
-            "linux_help_status_entry_deleted",
-            "Linux Hilfe: Eintrag gelöscht.",
+            (
+                "linux_help_status_glossary_deleted"
+                if _is_glossary_item(target)
+                else "linux_help_status_entry_deleted"
+            ),
+            "Linux help: glossary entry deleted."
+            if _is_glossary_item(target)
+            else "Linux help: entry deleted.",
         )
     )
 
@@ -1060,11 +1431,24 @@ def open_linux_help_entry_dialog(app, item=None, is_new=False):
             pass
 
     base = dict(item or {})
+    is_glossary = _is_glossary_item(base) or str(
+        base.get("entry_type") or ""
+    ).strip().lower() == "glossary"
     dialog = tk.Toplevel(app)
     dialog.title(
-        app.tr("linux_help_dialog_title_new", "Linux-Befehl anlegen")
+        app.tr(
+            "linux_help_dialog_title_new_glossary"
+            if is_new and is_glossary
+            else "linux_help_dialog_title_new",
+            "Create glossary term" if is_new and is_glossary else "Create Linux command",
+        )
         if is_new
-        else app.tr("linux_help_dialog_title_edit", "Linux-Befehl bearbeiten")
+        else app.tr(
+            "linux_help_dialog_title_edit_glossary"
+            if is_glossary
+            else "linux_help_dialog_title_edit",
+            "Edit glossary term" if is_glossary else "Edit Linux command",
+        )
     )
     dialog.transient(app)
     dialog.resizable(True, True)
@@ -1073,14 +1457,15 @@ def open_linux_help_entry_dialog(app, item=None, is_new=False):
     dialog.rowconfigure(0, weight=1)
     app.linux_help_entry_dialog = dialog
 
-    category_var = tk.StringVar(value=base.get("category") or "Allgemein")
+    category_var = tk.StringVar(value=base.get("category") or "General")
     name_var = tk.StringVar(value=base.get("name") or "")
     info_var = tk.StringVar(value=base.get("info") or "")
     cmd_var = tk.StringVar(value=base.get("cmd") or "")
     syntax_var = tk.StringVar(value=base.get("syntax") or base.get("cmd") or "")
     example_var = tk.StringVar(value=base.get("example") or "")
     tags_var = tk.StringVar(value=base.get("tags") or "")
-    risk_var = tk.StringVar(value=_risk_storage_to_dialog_label(base.get("risk")))
+    related_var = tk.StringVar(value=base.get("related") or "")
+    risk_var = tk.StringVar(value=_risk_storage_to_dialog_label(app, base.get("risk")))
     root_var = tk.BooleanVar(value=bool(base.get("root_required")))
     enabled_var = tk.BooleanVar(value=bool(base.get("enabled", True)))
 
@@ -1091,14 +1476,14 @@ def open_linux_help_entry_dialog(app, item=None, is_new=False):
 
     form = ttk.LabelFrame(
         shell,
-        text=app.tr("linux_help_dialog_group", "Eintrag bearbeiten"),
+        text=app.tr("linux_help_dialog_group", "Edit entry"),
         padding=10,
     )
     form.grid(row=0, column=0, sticky="ew")
     form.columnconfigure(1, weight=1)
     form.columnconfigure(3, weight=1)
 
-    ttk.Label(form, text=app.tr("label_category", "Kategorie")).grid(
+    ttk.Label(form, text=app.tr("label_category", "Category")).grid(
         row=0, column=0, sticky="w", padx=(0, 8), pady=(0, 6)
     )
     category_combo = ttk.Combobox(
@@ -1108,70 +1493,100 @@ def open_linux_help_entry_dialog(app, item=None, is_new=False):
     )
     category_combo.grid(row=0, column=1, sticky="ew", pady=(0, 6))
 
-    ttk.Label(form, text=app.tr("linux_help_label_command_name", "Befehl")).grid(
+    ttk.Label(
+        form,
+        text=app.tr(
+            "linux_help_label_term" if is_glossary else "linux_help_label_command_name",
+            "Term" if is_glossary else "Command name",
+        ),
+    ).grid(
         row=0, column=2, sticky="w", padx=(12, 8), pady=(0, 6)
     )
     ttk.Entry(form, textvariable=name_var).grid(
         row=0, column=3, sticky="ew", pady=(0, 6)
     )
 
-    ttk.Label(form, text=app.tr("linux_help_label_description", "Beschreibung")).grid(
+    ttk.Label(form, text=app.tr("linux_help_label_description", "Description")).grid(
         row=1, column=0, sticky="w", padx=(0, 8), pady=(0, 6)
     )
     ttk.Entry(form, textvariable=info_var).grid(
         row=1, column=1, columnspan=3, sticky="ew", pady=(0, 6)
     )
 
-    ttk.Label(form, text=app.tr("linux_help_col_command", "Befehl")).grid(
-        row=2, column=0, sticky="w", padx=(0, 8), pady=(0, 6)
-    )
-    ttk.Entry(form, textvariable=cmd_var).grid(
-        row=2, column=1, columnspan=3, sticky="ew", pady=(0, 6)
-    )
+    if is_glossary:
+        ttk.Label(form, text=app.tr("linux_help_label_example", "Example")).grid(
+            row=2, column=0, sticky="w", padx=(0, 8), pady=(0, 6)
+        )
+        ttk.Entry(form, textvariable=example_var).grid(
+            row=2, column=1, columnspan=3, sticky="ew", pady=(0, 6)
+        )
 
-    ttk.Label(form, text=app.tr("linux_help_label_syntax", "Syntax")).grid(
-        row=3, column=0, sticky="w", padx=(0, 8), pady=(0, 6)
-    )
-    ttk.Entry(form, textvariable=syntax_var).grid(
-        row=3, column=1, columnspan=3, sticky="ew", pady=(0, 6)
-    )
+        ttk.Label(form, text=app.tr("linux_help_label_tags", "Tags")).grid(
+            row=3, column=0, sticky="w", padx=(0, 8), pady=(0, 6)
+        )
+        ttk.Entry(form, textvariable=tags_var).grid(
+            row=3, column=1, sticky="ew", pady=(0, 6)
+        )
+        ttk.Label(form, text=app.tr("linux_help_label_related", "Related terms")).grid(
+            row=3, column=2, sticky="w", padx=(12, 8), pady=(0, 6)
+        )
+        ttk.Entry(form, textvariable=related_var).grid(
+            row=3, column=3, sticky="ew", pady=(0, 6)
+        )
+    else:
+        ttk.Label(form, text=app.tr("linux_help_col_command", "Command")).grid(
+            row=2, column=0, sticky="w", padx=(0, 8), pady=(0, 6)
+        )
+        ttk.Entry(form, textvariable=cmd_var).grid(
+            row=2, column=1, columnspan=3, sticky="ew", pady=(0, 6)
+        )
 
-    ttk.Label(form, text=app.tr("linux_help_label_example", "Beispiel")).grid(
-        row=4, column=0, sticky="w", padx=(0, 8), pady=(0, 6)
-    )
-    ttk.Entry(form, textvariable=example_var).grid(
-        row=4, column=1, columnspan=3, sticky="ew", pady=(0, 6)
-    )
+        ttk.Label(form, text=app.tr("linux_help_label_syntax", "Syntax")).grid(
+            row=3, column=0, sticky="w", padx=(0, 8), pady=(0, 6)
+        )
+        ttk.Entry(form, textvariable=syntax_var).grid(
+            row=3, column=1, columnspan=3, sticky="ew", pady=(0, 6)
+        )
 
-    ttk.Label(form, text=app.tr("linux_help_label_tags", "Tags")).grid(
-        row=5, column=0, sticky="w", padx=(0, 8), pady=(0, 6)
-    )
-    ttk.Entry(form, textvariable=tags_var).grid(
-        row=5, column=1, sticky="ew", pady=(0, 6)
-    )
+        ttk.Label(form, text=app.tr("linux_help_label_example", "Example")).grid(
+            row=4, column=0, sticky="w", padx=(0, 8), pady=(0, 6)
+        )
+        ttk.Entry(form, textvariable=example_var).grid(
+            row=4, column=1, columnspan=3, sticky="ew", pady=(0, 6)
+        )
 
-    ttk.Label(form, text=app.tr("linux_help_label_risk_filter", "Risiko")).grid(
-        row=5, column=2, sticky="w", padx=(12, 8), pady=(0, 6)
-    )
-    ttk.Combobox(
-        form,
-        textvariable=risk_var,
-        values=[label for label, _key in RISK_DIALOG_CHOICES],
-        state="readonly",
-    ).grid(row=5, column=3, sticky="ew", pady=(0, 6))
+        ttk.Label(form, text=app.tr("linux_help_label_tags", "Tags")).grid(
+            row=5, column=0, sticky="w", padx=(0, 8), pady=(0, 6)
+        )
+        ttk.Entry(form, textvariable=tags_var).grid(
+            row=5, column=1, sticky="ew", pady=(0, 6)
+        )
+
+        ttk.Label(form, text=app.tr("linux_help_label_risk_filter", "Risk")).grid(
+            row=5, column=2, sticky="w", padx=(12, 8), pady=(0, 6)
+        )
+        ttk.Combobox(
+            form,
+            textvariable=risk_var,
+            values=[label for label, _key in _risk_dialog_choices_for_app(app)],
+            state="readonly",
+        ).grid(row=5, column=3, sticky="ew", pady=(0, 6))
 
     flags_row = ttk.Frame(form)
-    flags_row.grid(row=6, column=0, columnspan=4, sticky="w", pady=(2, 0))
+    flags_row.grid(
+        row=4 if is_glossary else 6, column=0, columnspan=4, sticky="w", pady=(2, 0)
+    )
+    if not is_glossary:
+        ttk.Checkbutton(
+            flags_row,
+            text=app.tr("linux_help_label_root_required", "Root required"),
+            variable=root_var,
+        ).pack(side="left")
     ttk.Checkbutton(
         flags_row,
-        text=app.tr("linux_help_label_root_required", "Root nötig"),
-        variable=root_var,
-    ).pack(side="left")
-    ttk.Checkbutton(
-        flags_row,
-        text=app.tr("label_enabled", "Aktiv"),
+        text=app.tr("label_enabled", "Enabled"),
         variable=enabled_var,
-    ).pack(side="left", padx=(14, 0))
+    ).pack(side="left", padx=(14 if not is_glossary else 0, 0))
 
     editors = ttk.Frame(shell)
     editors.grid(row=1, column=0, sticky="nsew", pady=(10, 0))
@@ -1181,7 +1596,7 @@ def open_linux_help_entry_dialog(app, item=None, is_new=False):
 
     explanation_frame = ttk.LabelFrame(
         editors,
-        text=app.tr("linux_help_label_explanation_text", "Erklärung"),
+        text=app.tr("linux_help_label_explanation_text", "Explanation"),
         padding=8,
     )
     explanation_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
@@ -1193,7 +1608,7 @@ def open_linux_help_entry_dialog(app, item=None, is_new=False):
 
     warning_frame = ttk.LabelFrame(
         editors,
-        text=app.tr("linux_help_label_warning_text", "Hinweis"),
+        text=app.tr("linux_help_label_warning_text", "Note"),
         padding=8,
     )
     warning_frame.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
@@ -1217,28 +1632,36 @@ def open_linux_help_entry_dialog(app, item=None, is_new=False):
     def _save_dialog():
         raw = {
             "id": base.get("id", ""),
-            "category": (category_var.get() or "").strip() or "Allgemein",
+            "entry_type": "glossary" if is_glossary else "command",
+            "category": (category_var.get() or "").strip() or "General",
             "name": (name_var.get() or "").strip(),
             "info": (info_var.get() or "").strip(),
             "cmd": (cmd_var.get() or "").strip(),
             "syntax": (syntax_var.get() or "").strip(),
             "example": (example_var.get() or "").strip(),
             "tags": (tags_var.get() or "").strip(),
-            "risk": _risk_dialog_label_to_storage(risk_var.get()),
+            "related": (related_var.get() or "").strip(),
+            "risk": _risk_dialog_label_to_storage(app, risk_var.get()),
             "root_required": bool(root_var.get()),
             "enabled": bool(enabled_var.get()),
             "explanation": explanation_text.get("1.0", "end").strip(),
             "warning_text": warning_text.get("1.0", "end").strip(),
         }
-        if not raw["name"] or not raw["cmd"]:
+        if (not is_glossary and (not raw["name"] or not raw["cmd"])) or (
+            is_glossary and not raw["name"]
+        ):
             if messagebox is not None:
                 messagebox.showwarning(
+                    app.tr("linux_help_dialog_validation_title", "Incomplete input"),
                     app.tr(
-                        "linux_help_dialog_validation_title", "Eingabe unvollständig"
-                    ),
-                    app.tr(
-                        "linux_help_dialog_validation_body",
-                        "Bitte mindestens Name und Befehl ausfüllen.",
+                        (
+                            "linux_help_dialog_validation_body_glossary"
+                            if is_glossary
+                            else "linux_help_dialog_validation_body"
+                        ),
+                        "Please fill at least the glossary term."
+                        if is_glossary
+                        else "Please fill at least name and command.",
                     ),
                     parent=dialog,
                 )
@@ -1248,18 +1671,30 @@ def open_linux_help_entry_dialog(app, item=None, is_new=False):
         )
         existing_ids = {
             item.get("id")
-            for item in app.linux_help_data
+            for item in [*app.linux_help_data, *app.linux_help_glossary]
             if item is not target and item.get("id")
         }
-        normalized = normalize_linux_help_entry(app, raw, existing_ids=existing_ids)
+        normalized = (
+            normalize_linux_help_glossary_entry(app, raw, existing_ids=existing_ids)
+            if is_glossary
+            else normalize_linux_help_entry(app, raw, existing_ids=existing_ids)
+        )
         if target is None:
-            app.linux_help_data.append(normalized)
+            if is_glossary:
+                app.linux_help_glossary.append(normalized)
+            else:
+                app.linux_help_data.append(normalized)
         else:
             target.clear()
             target.update(normalized)
-        rebuild_linux_help_indexes(app)
+        if is_glossary:
+            rebuild_linux_help_glossary_indexes(app)
+            save_linux_help_glossary(app, update_status=False)
+        else:
+            rebuild_linux_help_indexes(app)
+            save_linux_help_data(app, update_status=False)
         sync_linux_help_form_categories(app)
-        app.linux_help_category_var.set("Alle Kategorien")
+        app.linux_help_category_var.set(_linux_help_all_categories_label(app))
         refresh_linux_help_list(app)
         if hasattr(app, "linux_help_tree") and app.linux_help_tree is not None:
             try:
@@ -1270,23 +1705,28 @@ def open_linux_help_entry_dialog(app, item=None, is_new=False):
         app.linux_help_selected_id = normalized["id"]
         on_linux_help_select(app)
         set_linux_help_dirty(app, True)
-        save_linux_help_data(app, update_status=False)
         app.linux_help_status_var.set(
             app.tr(
-                "linux_help_status_entry_saved",
-                "Linux Hilfe: Eintrag gespeichert.",
+                (
+                    "linux_help_status_glossary_saved"
+                    if is_glossary
+                    else "linux_help_status_entry_saved"
+                ),
+                "Linux help: glossary entry saved."
+                if is_glossary
+                else "Linux help: entry saved.",
             )
         )
         _close_dialog()
 
     ttk.Button(
         buttons,
-        text=app.tr("btn_cancel", "Abbrechen"),
+        text=app.tr("btn_cancel", "Cancel"),
         command=_close_dialog,
     ).pack(side="right")
     ttk.Button(
         buttons,
-        text=app.tr("btn_save", "Speichern"),
+        text=app.tr("btn_save", "Save"),
         command=_save_dialog,
     ).pack(side="right", padx=(0, 8))
 
@@ -1305,7 +1745,7 @@ def copy_linux_help_chad_prompt(app):
         app.linux_help_status_var.set(
             app.tr(
                 "linux_help_status_no_command_selected",
-                "Linux Hilfe: Kein Befehl ausgewählt.",
+                "Linux help: no command selected.",
             )
         )
         return False
@@ -1314,7 +1754,7 @@ def copy_linux_help_chad_prompt(app):
     app.linux_help_status_var.set(
         app.tr(
             "linux_help_status_prompt_copied",
-            "Linux Hilfe: Chad-Prompt wurde in die Zwischenablage kopiert.",
+            "Linux help: Chad prompt copied to clipboard.",
         )
     )
     return True
@@ -1326,7 +1766,7 @@ def send_linux_help_to_chad(app):
         app.linux_help_status_var.set(
             app.tr(
                 "linux_help_status_no_command_selected",
-                "Linux Hilfe: Kein Befehl ausgewählt.",
+                "Linux help: no command selected.",
             )
         )
         return False
@@ -1335,17 +1775,21 @@ def send_linux_help_to_chad(app):
         app.chad_online_result = ""
         try:
             app.chad_analysis_source_var.set(
-                f"{app.tr('chad_label_source_prefix', 'Quelle')}: {title}"
+                f"{app.tr('chad_label_source_prefix', 'Source')}: {title}"
             )
             app.chad_analysis_status_var.set(
-                app.tr("chad_status_analysis_prepared", "Analyse vorbereitet.")
+                app.tr("chad_status_analysis_prepared", "Analysis prepared.")
             )
         except Exception:
             pass
     app.linux_help_status_var.set(
         app.tr(
-            "linux_help_status_sent_to_chad",
-            "Linux Hilfe: Befehl wurde an Chad zur Erklärung übergeben.",
+            (
+                "linux_help_status_sent_to_chad_glossary"
+                if _is_glossary_item(item)
+                else "linux_help_status_sent_to_chad"
+            ),
+            "Linux help: entry handed to Chad for explanation.",
         )
     )
     return True
@@ -1371,18 +1815,21 @@ def show_linux_help_tree_menu(app, event):
         return
     menu = tk.Menu(app, tearoff=0)
     menu.add_command(
-        label=app.tr("linux_help_menu_send_chad", "An Chad senden"),
+        label=app.tr("linux_help_menu_send_chad", "Send to Chad"),
         command=lambda: send_linux_help_to_chad(app),
     )
     menu.add_command(
-        label=app.tr("linux_help_menu_copy_prompt", "Als Prompt kopieren"),
+        label=app.tr("linux_help_menu_copy_prompt", "Copy as prompt"),
         command=lambda: copy_linux_help_chad_prompt(app),
     )
     menu.add_separator()
     menu.add_command(
-        label=app.tr("btn_edit", "Bearbeiten"),
+        label=app.tr("btn_edit", "Edit"),
         command=app.linux_help_edit_selected,
     )
+    show_fn = getattr(app, "_show_context_menu", None)
+    if callable(show_fn):
+        return show_fn(menu, event)
     try:
         menu.tk_popup(event.x_root, event.y_root)
     finally:
@@ -1390,6 +1837,7 @@ def show_linux_help_tree_menu(app, event):
             menu.grab_release()
         except Exception:
             pass
+    return "break"
 
 
 def linux_help_import_csv_dialog(app):
@@ -1397,14 +1845,12 @@ def linux_help_import_csv_dialog(app):
         return
     path = filedialog.askopenfilename(
         parent=app,
-        title=app.tr(
-            "linux_help_import_csv_title", "Linux-Befehlsdatenbank importieren"
-        ),
+        title=app.tr("linux_help_import_csv_title", "Import Linux command database"),
         filetypes=[
-            (app.tr("filetype_data", "Datenbanken"), "*.csv *.xlsx"),
-            (app.tr("filetype_csv", "CSV-Dateien"), "*.csv"),
-            (app.tr("filetype_excel", "Excel-Dateien"), "*.xlsx"),
-            (app.tr("filetype_all", "Alle Dateien"), "*.*"),
+            (app.tr("filetype_data", "Databases"), "*.csv *.xlsx"),
+            (app.tr("filetype_csv", "CSV files"), "*.csv"),
+            (app.tr("filetype_excel", "Excel files"), "*.xlsx"),
+            (app.tr("filetype_all", "All files"), "*.*"),
         ],
         initialfile=os.path.basename(linux_help_csv_path()),
     )
@@ -1414,21 +1860,22 @@ def linux_help_import_csv_dialog(app):
     try:
         commands = import_linux_help_csv(app, path)
         sync_linux_help_form_categories(app)
-        app.linux_help_category_var.set("Alle Kategorien")
-        app.linux_help_risk_filter_var.set("Alle Risiken")
+        app.linux_help_category_var.set(_linux_help_all_categories_label(app))
+        app.linux_help_source_var.set(_linux_help_all_sources_label(app))
+        app.linux_help_risk_filter_var.set(_linux_help_all_risks_label(app))
         refresh_linux_help_list(app)
         save_linux_help_data(app, update_status=False)
         app.linux_help_status_var.set(
             app.tr(
                 "linux_help_status_imported_count",
-                "Linux Hilfe: {count} Einträge importiert.",
+                "Linux help: {count} entries imported.",
             ).format(count=len(commands))
         )
     except Exception as exc:
         app.linux_help_status_var.set(
             app.tr(
                 "linux_help_status_import_failed",
-                "Linux Hilfe: Import fehlgeschlagen.",
+                "Linux help: import failed.",
             )
         )
         update_linux_help_notes(app, None, extra_error=str(exc))
@@ -1439,11 +1886,11 @@ def linux_help_export_csv_dialog(app):
         return
     path = filedialog.asksaveasfilename(
         parent=app,
-        title=app.tr("linux_help_export_csv_title", "Linux-Datenbank exportieren"),
+        title=app.tr("linux_help_export_csv_title", "Export Linux database"),
         defaultextension=".csv",
         filetypes=[
-            (app.tr("filetype_csv", "CSV-Dateien"), "*.csv"),
-            (app.tr("filetype_all", "Alle Dateien"), "*.*"),
+            (app.tr("filetype_csv", "CSV files"), "*.csv"),
+            (app.tr("filetype_all", "All files"), "*.*"),
         ],
         initialfile="linux_befehlsdatenbank_export.csv",
     )
@@ -1451,7 +1898,7 @@ def linux_help_export_csv_dialog(app):
         return
     export_linux_help_csv(app, path)
     app.linux_help_status_var.set(
-        app.tr("linux_help_status_exported", "Linux Hilfe: CSV exportiert.")
+        app.tr("linux_help_status_exported", "Linux help: CSV exported.")
     )
 
 
@@ -1470,21 +1917,27 @@ def reload_linux_help_data(app):
         app.linux_help_status_var.set(
             app.tr(
                 "linux_help_status_load_failed",
-                "Linux Hilfe: Daten konnten nicht geladen werden.",
+                "Linux help: data could not be loaded.",
             )
         )
         update_linux_help_notes(app, None, extra_error=str(exc))
         return
 
     sync_linux_help_form_categories(app)
-    app.linux_help_category_var.set("Alle Kategorien")
-    app.linux_help_risk_filter_var.set("Alle Risiken")
+    app.linux_help_category_var.set(_linux_help_all_categories_label(app))
+    app.linux_help_source_var.set(_linux_help_all_sources_label(app))
+    app.linux_help_risk_filter_var.set(_linux_help_all_risks_label(app))
     refresh_linux_help_list(app)
     app.linux_help_status_var.set(
         app.tr(
             "linux_help_status_loaded_count",
-            "Linux Hilfe: {count} Einträge geladen.",
+            "Linux help: {count} commands loaded.",
         ).format(count=len(commands))
+        + " | "
+        + app.tr(
+            "linux_help_status_loaded_glossary_count",
+            "{count} glossary entries loaded.",
+        ).format(count=len(_app_value(app, "linux_help_glossary", []) or []))
     )
 
 
@@ -1494,7 +1947,15 @@ def send_linux_help_command_to_terminal(app):
         app.linux_help_status_var.set(
             app.tr(
                 "linux_help_status_no_command_selected",
-                "Linux Hilfe: Kein Befehl ausgewählt.",
+                "Linux help: no command selected.",
+            )
+        )
+        return False
+    if _is_glossary_item(item):
+        app.linux_help_status_var.set(
+            app.tr(
+                "linux_help_status_glossary_no_terminal",
+                "Linux help: glossary entries cannot be sent to the terminal.",
             )
         )
         return False
@@ -1502,7 +1963,7 @@ def send_linux_help_command_to_terminal(app):
         app.linux_help_status_var.set(
             app.tr(
                 "linux_help_status_entry_disabled",
-                "Linux Hilfe: Dieser Eintrag ist deaktiviert und kann nicht gesendet werden.",
+                "Linux help: this entry is disabled and cannot be sent.",
             )
         )
         return False
@@ -1513,7 +1974,7 @@ def send_linux_help_command_to_terminal(app):
         app.linux_help_status_var.set(
             app.tr(
                 "linux_help_status_terminal_not_possible",
-                "Linux Hilfe: Terminalversand nicht möglich ({reason})",
+                "Linux help: terminal send not possible ({reason})",
             ).format(reason=reason)
         )
         return False
@@ -1525,10 +1986,10 @@ def send_linux_help_command_to_terminal(app):
     }
     if requires_confirmation and messagebox is not None:
         confirmed = messagebox.askyesno(
-            app.tr("linux_help_confirm_send_title", "Befehl an Terminal senden"),
+            app.tr("linux_help_confirm_send_title", "Send command to terminal"),
             app.tr(
                 "linux_help_confirm_send_prompt",
-                "Dieser Befehl verändert möglicherweise Systemzustände.\n\nTrotzdem ins Terminal senden?",
+                "This command may change system state.\n\nSend it to the terminal anyway?",
             ),
             parent=app,
         )
@@ -1536,7 +1997,7 @@ def send_linux_help_command_to_terminal(app):
             app.linux_help_status_var.set(
                 app.tr(
                     "linux_help_status_terminal_cancelled",
-                    "Linux Hilfe: Versand an Terminal abgebrochen.",
+                    "Linux help: terminal send canceled.",
                 )
             )
             return False
@@ -1546,7 +2007,7 @@ def send_linux_help_command_to_terminal(app):
         app.linux_help_status_var.set(
             app.tr(
                 "linux_help_status_terminal_failed",
-                "Linux Hilfe: Terminal konnte nicht gestartet werden.",
+                "Linux help: terminal could not be started.",
             )
         )
         return False
@@ -1554,7 +2015,7 @@ def send_linux_help_command_to_terminal(app):
     app.linux_help_status_var.set(
         app.tr(
             "linux_help_status_sent_to_terminal",
-            "Linux Hilfe: Befehl wurde an ein externes Terminal gesendet.",
+            "Linux help: command was sent to an external terminal.",
         )
     )
     if hasattr(app, "log"):
@@ -1562,7 +2023,7 @@ def send_linux_help_command_to_terminal(app):
             app.log(
                 app.tr(
                     "linux_help_log_command_sent",
-                    "Linux-Hilfe: Befehl an Terminal gesendet",
+                    "Linux help: command sent to terminal",
                 )
             )
         except Exception:
@@ -1576,12 +2037,12 @@ def send_linux_help_command_to_terminal(app):
             "\n".join(
                 [
                     f"{app.tr('linux_help_label_name', 'Name')}: {item.get('name') or '–'}",
-                    f"{app.tr('linux_help_label_command_name', 'Befehl')}: {cmd}",
+                    f"{app.tr('linux_help_label_command_name', 'Command name')}: {cmd}",
                     f"Terminal: {terminal_name}",
                     "",
                     app.tr(
                         "linux_help_terminal_note_sent",
-                        "Der Befehl wurde an ein externes Terminal übergeben.",
+                        "Command was sent to an external terminal.",
                     ),
                 ]
             ),

@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetMonRoots | Security Audit 2026</title>
+  <meta
+    name="description"
+    content="Independent security audit summary for the NetMon source code (branch main, June 2026). No critical security issue found."
+  >
+  <link rel="icon" type="image/png" href="../favicon.png">
+  <link rel="apple-touch-icon" href="../favicon.png">
+  <link rel="canonical" href="https://netmonroots.com/en/security-audit.html">
+  <link rel="alternate" hreflang="de" href="https://netmonroots.com/security-audit.html">
+  <link rel="alternate" hreflang="en" href="https://netmonroots.com/en/security-audit.html">
+  <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/security-audit.html">
+  <meta property="og:title" content="NetMonRoots | Security Audit 2026">
+  <meta property="og:description" content="Independent security audit summary for the NetMon source code (branch main, June 2026). No critical security issue found.">
+  <meta property="og:url" content="https://netmonroots.com/en/security-audit.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NetMon Roots">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:locale:alternate" content="de_DE">
+  <meta property="og:image" content="https://netmonroots.com/favicon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="NetMonRoots | Security Audit 2026">
+  <meta name="twitter:description" content="Independent security audit summary for the NetMon source code (branch main, June 2026). No critical security issue found.">
+  <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    .audit-hero { padding: 64px 0 48px; }
+    .audit-hero .eyebrow { color: var(--accent); }
+    .verdict-banner {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 28px 32px;
+      margin: 40px 0;
+      border: 1px solid rgba(114, 240, 182, 0.4);
+      border-radius: var(--radius-sm);
+      background: rgba(58, 198, 143, 0.08);
+    }
+    .verdict-icon { font-size: 2.8rem; flex-shrink: 0; line-height: 1; }
+    .verdict-text h2 { margin: 0 0 6px; font-size: 1.4rem; color: var(--accent); }
+    .verdict-text p { margin: 0; color: var(--muted); font-size: 0.97rem; line-height: 1.55; }
+    .audit-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 32px 0;
+    }
+    .audit-meta-card,
+    .audit-card {
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .audit-meta-card .label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .audit-meta-card .value {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .audit-meta-card .value.ok { color: var(--accent); }
+    .audit-section { margin-top: 56px; }
+    .audit-section h2 { font-size: 1.55rem; margin-bottom: 6px; color: var(--text); }
+    .audit-section .section-rule {
+      height: 1px;
+      background: var(--line);
+      margin-bottom: 28px;
+    }
+    .audit-card p,
+    .audit-card li,
+    .signature-block p {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .audit-card ul {
+      margin: 14px 0 0;
+      padding-left: 18px;
+    }
+    .signature-block {
+      margin-top: 56px;
+      padding: 22px 24px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .signature-block code {
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="./index.html" aria-label="NetMon home page">
+        <span class="brand-mark">
+          <span class="brand-lockup">
+            <span class="brand-title">
+              <span class="brand-title-main">NETMON</span>
+              <span class="brand-title-accent">ROOTS</span>
+            </span>
+            <span class="brand-subline">MONITOR. CONTROL. UNDERSTAND.</span>
+            <span class="brand-tagline">BACK TO THE ROOTS.</span>
+          </span>
+          <img class="brand-icon" src="../bannericon.png" alt="" aria-hidden="true">
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="./index.html">Home</a>
+        <a href="./tour.html">Tour</a>
+        <a href="./downloads.html">Download</a>
+        <a href="./updates.html">Updates</a>
+        <a href="./docs.html">Docs</a>
+        <a href="./legal.html">Legal</a>
+      </nav>
+      <div class="lang-switch" aria-label="Language switcher">
+        <a href="../security-audit.html" lang="de">DE</a>
+        <a class="active" href="./security-audit.html" lang="en">EN</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="audit-hero">
+        <p class="eyebrow">Security Audit — June 2026</p>
+        <h1 style="font-size:clamp(2rem,4vw,3rem);margin:0 0 20px;color:var(--text);">
+          Code Security Review<br>
+          <span style="color:var(--accent);">NetMon Roots v1.1.11</span>
+        </h1>
+        <p style="max-width:680px;color:var(--muted);line-height:1.65;font-size:1.05rem;">
+          Static security review of the relevant NetMon branch diff by an automated
+          multi-agent workflow based on Claude Sonnet 4.6. The goal was to identify
+          exploitable weaknesses in the changed code.
+        </p>
+      </section>
+
+      <div style="margin-bottom:32px;">
+        <a class="button button-primary" href="../netmon_security_audit_2026.pdf" download>Download PDF</a>
+        <a class="button button-secondary" href="#summary">Summary</a>
+        <a class="button button-secondary" href="#hardening">Hardening</a>
+      </div>
+
+      <div class="verdict-banner" id="summary">
+        <div class="verdict-icon">&#10003;</div>
+        <div class="verdict-text">
+          <h2>No critical vulnerabilities found</h2>
+          <p>
+            The reviewed code did not produce a critical, confirmed attack path.
+            The current audit state reports zero critical findings in scope.
+          </p>
+        </div>
+      </div>
+
+      <div class="audit-meta-grid">
+        <div class="audit-meta-card">
+          <div class="label">Date</div>
+          <div class="value">June 21, 2026</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Reviewed version</div>
+          <div class="value">v1.1.11 — branch main</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Changed files</div>
+          <div class="value">60+</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Commits in scope</div>
+          <div class="value">10</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Critical findings</div>
+          <div class="value ok">0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Method</div>
+          <div class="value">Static analysis</div>
+        </div>
+      </div>
+
+      <div class="audit-section">
+        <h2>Scope and method</h2>
+        <div class="section-rule"></div>
+        <div class="audit-card">
+          <p>
+            The review followed a staged process: diff inspection, candidate extraction,
+            focused security validation, and false-positive filtering. The audit focused on
+            subprocess usage, file/path handling, privilege boundaries, configuration flow,
+            service logic, and API-connected components.
+          </p>
+          <ul>
+            <li>Command execution and subprocess safety</li>
+            <li>Path handling and traversal-related risks</li>
+            <li>Privilege escalation via sudo-using workflows</li>
+            <li>Security-sensitive service and controller logic</li>
+            <li>AI-connected file and prompt handling</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="audit-section">
+        <h2>Reviewed candidate classes</h2>
+        <div class="section-rule"></div>
+        <div class="audit-card">
+          <p>
+            The German full report lists candidate classes in detail. For the English web
+            mirror, the outcome is summarized: reviewed candidates did not cross the threshold
+            for a confirmed exploit path in the audited scope.
+          </p>
+          <ul>
+            <li>Git subprocess passthrough patterns</li>
+            <li>WireGuard endpoint handling in firewall workflows</li>
+            <li>Firewall rule forms with intentionally broad options</li>
+            <li>Predictable temporary-path handling in AV-related logic</li>
+            <li>Image/file path use in AI-connected helper functions</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="audit-section">
+        <h2>Issues already fixed during the audit period</h2>
+        <div class="section-rule"></div>
+        <div class="audit-card">
+          <ul>
+            <li>Mountpoint path validation hardening in HDD-related workflows</li>
+            <li>Removal of risky current-working-directory fallback in Linux help import flow</li>
+            <li>PID lock handling fix for EPERM-related false stale-lock behavior</li>
+            <li>DNS token validation edge-case fix</li>
+            <li>Startup Guard baseline visibility fix for newly introduced files</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="audit-section" id="hardening">
+        <h2>Hardening recommendations</h2>
+        <div class="section-rule"></div>
+        <div class="audit-card">
+          <ul>
+            <li>Add a stricter subcommand allowlist if LLM output ever reaches command execution paths.</li>
+            <li>Validate WireGuard endpoint host values more aggressively before embedding them in UFW-related workflows.</li>
+            <li>Optionally narrow AI image helper inputs to known file classes and expected directories.</li>
+            <li>Further harden temporary-directory handling against symlink-based local misuse.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="signature-block">
+        <p>
+          <strong>Auditor:</strong> Claude Sonnet 4.6 (Anthropic) — automated multi-agent security review<br>
+          <strong>Project owner:</strong> Sven Froehlich<br>
+          <strong>Date:</strong> June 21, 2026<br>
+          <strong>Commit range:</strong> <code>e334324a</code> … <code>920cfc9b</code><br>
+          <strong>Method:</strong> Static code analysis — no runtime penetration test
+        </p>
+        <p style="margin-top:16px;">
+          <a href="./downloads.html" style="color:var(--accent);">Download page</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./updates.html" style="color:var(--accent);">Updates</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./docs.html" style="color:var(--accent);">Documentation</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./legal.html" style="color:var(--accent);">Legal</a>
+        </p>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <a href="./legal.html">License & Credits</a>
+    </footer>
+  </div>
+  <script src="../app.js"></script>
+</body>
+</html>

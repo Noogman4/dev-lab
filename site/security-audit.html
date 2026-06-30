@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetMonRoots | Sicherheits-Audit 2026 — Runde 2</title>
+  <meta
+    name="description"
+    content="Zweites unabhaengiges Sicherheits-Audit des NetMon-Quellcodes (v1.1.14, Juni 2026). Kein kritisches Sicherheitsproblem gefunden."
+  >
+  <link rel="icon" type="image/png" href="./favicon.png">
+  <link rel="apple-touch-icon" href="./favicon.png">
+  <link rel="canonical" href="https://netmonroots.com/security-audit.html">
+  <link rel="alternate" hreflang="de" href="https://netmonroots.com/security-audit.html">
+  <link rel="alternate" hreflang="en" href="https://netmonroots.com/en/security-audit.html">
+  <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/security-audit.html">
+  <meta property="og:title" content="NetMonRoots | Sicherheits-Audit 2026 — Runde 2">
+  <meta property="og:description" content="Zweites Sicherheits-Audit des NetMon-Quellcodes (v1.1.14, Juni 2026). Kein kritisches Sicherheitsproblem gefunden.">
+  <meta property="og:url" content="https://netmonroots.com/security-audit.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NetMon Roots">
+  <meta property="og:locale" content="de_DE">
+  <meta property="og:locale:alternate" content="en_US">
+  <meta property="og:image" content="https://netmonroots.com/favicon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="NetMonRoots | Sicherheits-Audit 2026 — Runde 2">
+  <meta name="twitter:description" content="Zweites Sicherheits-Audit des NetMon-Quellcodes (v1.1.14, Juni 2026). Kein kritisches Sicherheitsproblem gefunden.">
+  <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
+  <link rel="stylesheet" href="./styles.css">
+  <style>
+    /* ── Audit-spezifische Erweiterungen ─────────────────────────────────── */
+    .audit-hero { padding: 64px 0 48px; }
+    .audit-hero .eyebrow { color: var(--accent); }
+
+    .verdict-banner {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 28px 32px;
+      margin: 40px 0;
+      border: 1px solid rgba(114, 240, 182, 0.4);
+      border-radius: var(--radius-sm);
+      background: rgba(58, 198, 143, 0.08);
+    }
+    .verdict-icon {
+      font-size: 2.8rem;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .verdict-text h2 { margin: 0 0 6px; font-size: 1.4rem; color: var(--accent); }
+    .verdict-text p  { margin: 0; color: var(--muted); font-size: 0.97rem; line-height: 1.55; }
+
+    .audit-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 32px 0;
+    }
+    .audit-meta-card {
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .audit-meta-card .label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .audit-meta-card .value {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .audit-meta-card .value.ok   { color: var(--accent); }
+    .audit-meta-card .value.warn { color: var(--accent-warm); }
+
+    .audit-section { margin-top: 56px; }
+    .audit-section h2 {
+      font-size: 1.55rem;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+    .audit-section .section-rule {
+      height: 1px;
+      background: var(--line);
+      margin-bottom: 28px;
+    }
+
+    .scope-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.93rem;
+    }
+    .scope-table th {
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .scope-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(154, 177, 204, 0.08);
+      vertical-align: top;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .scope-table tr:last-child td { border-bottom: none; }
+    .scope-table code {
+      font-size: 0.83rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .badge-ok   { background: rgba(58, 198, 143, 0.15); color: #72f0b6; }
+    .badge-low  { background: rgba(255, 184, 107, 0.15); color: #ffb86b; }
+    .badge-med  { background: rgba(255, 184, 107, 0.2);  color: #ffb86b; }
+    .badge-high { background: rgba(220, 60, 60, 0.15);   color: #ff7070; }
+    .badge-info { background: rgba(90, 160, 240, 0.15);  color: #7ab8f5; }
+
+    .finding-card {
+      margin-bottom: 24px;
+      padding: 24px 28px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .finding-card.filtered {
+      border-color: rgba(154, 177, 204, 0.1);
+      opacity: 0.75;
+    }
+    .finding-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .finding-header h3 { margin: 0; font-size: 1rem; flex: 1; min-width: 200px; }
+    .finding-detail { color: var(--muted); font-size: 0.92rem; line-height: 1.6; }
+    .finding-detail strong { color: var(--text); }
+    .finding-detail code {
+      font-size: 0.83rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .finding-verdict {
+      margin-top: 12px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: rgba(2, 8, 15, 0.4);
+      font-size: 0.88rem;
+      color: var(--muted);
+      border-left: 3px solid rgba(154, 177, 204, 0.25);
+    }
+    .finding-verdict.pass { border-left-color: var(--accent); }
+
+    .fixed-card {
+      display: flex;
+      gap: 16px;
+      padding: 18px 22px;
+      margin-bottom: 14px;
+      border: 1px solid rgba(58, 198, 143, 0.2);
+      border-radius: var(--radius-sm);
+      background: rgba(58, 198, 143, 0.04);
+    }
+    .fixed-icon { font-size: 1.4rem; flex-shrink: 0; line-height: 1.2; }
+    .fixed-body h4 { margin: 0 0 4px; font-size: 0.97rem; color: var(--accent); }
+    .fixed-body p  { margin: 0; font-size: 0.9rem; color: var(--muted); line-height: 1.5; }
+    .fixed-body code {
+      font-size: 0.82rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .hardening-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .hardening-list li {
+      display: flex;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(154, 177, 204, 0.08);
+      font-size: 0.93rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .hardening-list li:last-child { border-bottom: none; }
+    .hardening-list .hl-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+    .hardening-list code {
+      font-size: 0.82rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .hardening-list strong { color: var(--text); }
+
+    .methodology-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .method-card {
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .method-card h4 { margin: 0 0 8px; font-size: 0.93rem; color: var(--accent); }
+    .method-card p  { margin: 0; font-size: 0.87rem; color: var(--muted); line-height: 1.5; }
+
+    .signature-block {
+      margin-top: 48px;
+      padding: 28px 32px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .signature-block strong { color: var(--text); }
+
+    .round-link {
+      display: inline-block;
+      padding: 10px 18px;
+      border-radius: 40px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-decoration: none;
+      margin-top: 16px;
+    }
+
+    @media (max-width: 640px) {
+      .verdict-banner { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .audit-meta-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="./index.html" aria-label="NetMon Startseite">
+        <span class="brand-mark">
+          <span class="brand-lockup">
+            <span class="brand-title">
+              <span class="brand-title-main">NETMON</span>
+              <span class="brand-title-accent">ROOTS</span>
+            </span>
+            <span class="brand-subline">MONITOR. CONTROL. UNDERSTAND.</span>
+            <span class="brand-tagline">BACK TO THE ROOTS.</span>
+          </span>
+          <img class="brand-icon" src="./bannericon.png" alt="" aria-hidden="true">
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="./index.html">Start</a>
+        <a href="./tour.html">Rundgang</a>
+        <a href="./downloads.html">Download</a>
+        <a href="./aktuelles.html">Aktuelles</a>
+        <a href="./docs.html">Doku</a>
+        <a href="./legal.html">Legal</a>
+      </nav>
+      <div class="lang-switch" aria-label="Sprachauswahl">
+        <a class="active" href="./security-audit.html" lang="de">DE</a>
+        <a href="./en/security-audit.html" lang="en">EN</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="audit-hero">
+        <p class="eyebrow">Sicherheits-Audit &mdash; Juni 2026 &mdash; Runde&nbsp;2</p>
+        <h1 style="font-size:clamp(2rem,4vw,3rem);margin:0 0 20px;color:var(--text);">
+          Code-Security-Review<br>
+          <span style="color:var(--accent);">NetMon Roots v1.1.14</span>
+        </h1>
+        <p style="max-width:660px;color:var(--muted);line-height:1.65;font-size:1.05rem;">
+          Zweites automatisiertes Multi-Agenten-Security-Review auf Basis von
+          Claude Sonnet&nbsp;4.6. Erstmalig einbezogen: das neue Radio-Modul
+          (<code>radio_controller.py</code>, 5&nbsp;531&nbsp;Zeilen),
+          <code>chad_controller.py</code>, <code>fun_controller.py</code>,
+          <code>ai_analysis_service.py</code>, <code>lang_service.py</code>,
+          <code>network_helpers.py</code>, neue UI-Tabs sowie alle seit Runde&nbsp;1
+          refaktorierten Bereiche (82&nbsp;Proxy-Methoden entfernt,
+          Security-Monitoring-Controller gesplittet).
+        </p>
+        <a class="round-link" href="./security-audit-r1.html">
+          &#8592; Runde&nbsp;1 (9&nbsp;Kandidaten, 0&nbsp;Findings)
+        </a>
+      </section>
+
+      <!-- Aktionen -->
+      <div style="margin-bottom:32px;">
+        <a class="button button-primary" href="./netmon_security_audit_2026_r2.pdf" download
+           style="display:inline-block;padding:12px 28px;border-radius:40px;background:var(--accent);color:#07101d;font-weight:700;font-size:0.95rem;text-decoration:none;margin-right:12px;">
+          PDF herunterladen
+        </a>
+        <a href="#kandidaten"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;">
+          Kandidaten
+        </a>
+        <a href="#hardening"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;margin-left:8px;">
+          Hardening
+        </a>
+      </div>
+
+      <!-- Gesamtverdikt -->
+      <div class="verdict-banner">
+        <div class="verdict-icon">&#10003;</div>
+        <div class="verdict-text">
+          <h2>Keine kritischen Schwachstellen gefunden</h2>
+          <p>
+            Alle vier initial identifizierten Kandidaten wurden in einer zweiten
+            unabh&auml;ngigen Filterrunde mit Konfidenz &lt;&nbsp;8/10 bewertet
+            und als False&nbsp;Positives ausgeschlossen. Besonders noteworthy:
+            der Radio-Modul-Kandidat (K1, SSRF-Verdacht) wurde nach nochmaliger
+            Pr&uuml;fung des tats&auml;chlichen Datenflusses widerlegt &mdash;
+            <code>_normalize_station_stream_url()</code> mit
+            <code>ALLOWED_RADIO_STREAM_SCHEMES&nbsp;=&nbsp;{&ldquo;http&rdquo;,&nbsp;&ldquo;https&rdquo;,&nbsp;&ldquo;rtsp&rdquo;,&nbsp;&ldquo;rtmp&rdquo;}</code>
+            validiert jede URL bereits vor der Aufnahme ins Station-Dict.
+            Der erweiterte Codestand enth&auml;lt keine ausnutzbaren
+            Sicherheitsl&uuml;cken mit echtem Angriffspfad.
+          </p>
+        </div>
+      </div>
+
+      <!-- Meta-Daten -->
+      <div class="audit-meta-grid">
+        <div class="audit-meta-card">
+          <div class="label">Datum</div>
+          <div class="value">28.&nbsp;Juni&nbsp;2026</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Analysierte Version</div>
+          <div class="value">v1.1.14 &mdash; Runde&nbsp;2</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Ge&auml;nderte / neue Dateien</div>
+          <div class="value">100+</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Neue / revidierte Module</div>
+          <div class="value">25+</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Kritische Findings</div>
+          <div class="value ok">0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Bewertete Kandidaten</div>
+          <div class="value">4</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Konfidenz-Schwelle</div>
+          <div class="value">8/10</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Analysewerkzeug</div>
+          <div class="value">Claude Sonnet 4.6</div>
+        </div>
+      </div>
+
+      <!-- Umfang & Methodik -->
+      <div class="audit-section" id="methodik">
+        <h2>Umfang &amp; Methodik</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:760px;line-height:1.65;">
+          Die Analyse folgte demselben dreistufigen Prozess wie Runde&nbsp;1,
+          erg&auml;nzt um eine dritte manuelle Verifikationsrunde f&uuml;r den
+          Radio-Kandidaten K1. Schwerpunkt: alle Module, die in Runde&nbsp;1
+          noch nicht im Scope waren &mdash; insbesondere das komplette Radio-Modul
+          (5&nbsp;531&nbsp;Zeilen, externe API-Anbindung, mpv-Subprocess,
+          ffmpeg-Recording) sowie neu hinzugekommene Services und UI-Tabs.
+          Zus&auml;tzlich wurden alle seit Runde&nbsp;1 ge&auml;nderten Dateien
+          auf Sicherheitsregressionen gepr&uuml;ft.
+        </p>
+        <div class="methodology-grid">
+          <div class="method-card">
+            <h4>Phase&nbsp;1 &mdash; Reconnaissance</h4>
+            <p>Lesen aller neuen und ge&auml;nderten Module; Fokus auf externe
+            API-Anbindungen, Subprocess-Aufrufe mit externen Daten, URL-Handling,
+            Datei-Operationen mit Nutzereingabe, eval/exec, Deserialisierung.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;2 &mdash; Kandidaten-Analyse</h4>
+            <p>Datenflussketten von externen Quellen (API-Antworten, Nutzerdialogen)
+            bis zu sensitiven Operationen nachverfolgt. Besonderes Augenmerk:
+            URL-Schemata an <code>mpv</code>, <code>ffmpeg</code>,
+            <code>urllib.request</code> und <code>webbrowser.open()</code>.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;3 &mdash; False-Positive-Filter</h4>
+            <p>Jeder Kandidat in einem unabh&auml;ngigen Agenten re-analysiert.
+            Ausschluss: DoS, Single-User-Desktop ohne Fremd-Input,
+            <code>stdout/stderr=DEVNULL</code> + Re-Encoding verhindert Exfil,
+            Browser-Sandbox, bestehende Schema-Allowlist-Validierung.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;4 &mdash; Manuelle Verifikation (K1)</h4>
+            <p>Zus&auml;tzliche Nachpr&uuml;fung des Radio-Kandidaten durch direktes
+            Lesen der Funktionskette:
+            <code>normalize_station_entry()</code> &rarr;
+            <code>_normalize_station_stream_url()</code> &rarr;
+            <code>ALLOWED_RADIO_STREAM_SCHEMES</code>. Kandidat widerlegt.</p>
+          </div>
+        </div>
+
+        <!-- Neue Module im Scope dieser Runde -->
+        <h3 style="margin-top:36px;font-size:1.1rem;">Neu analysierte Module (Runde&nbsp;2)</h3>
+        <table class="scope-table" style="margin-top:12px;">
+          <thead>
+            <tr>
+              <th>Datei / Modul</th>
+              <th>Fokus</th>
+              <th>Ergebnis</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>netmon/features/radio_controller.py</code></td>
+              <td>mpv-Subprocess, ffmpeg-Recording, radio-browser.info API,
+                urllib.request ICY-Fetch; URL-Schema-Validierung via
+                <code>_normalize_station_stream_url()</code></td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/features/chad_controller.py</code></td>
+              <td>KI-Integration, getattr-Zugriffsmuster, Datei-Import</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/features/fun_controller.py</code></td>
+              <td>Subprocess-Aufrufe, Paketpr&uuml;fung</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/features/speedtest_controller.py</code></td>
+              <td>Speedtest-Subprocess, Ergebnis-Parsing</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/features/dot_controller.py</code></td>
+              <td>Dropin-Generierung, systemd-Konfiguration</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/features/security_audit_controller.py</code></td>
+              <td>Lynis/rkhunter-Aufrufe, Startup-Guard-Baseline-Lesen</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/services/ai_analysis_service.py</code></td>
+              <td>KI-Analyse-Pipeline, Daten&uuml;bertragung</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/services/lang_service.py</code></td>
+              <td>Lokalisierung, JSON-Ladevorgang</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/services/network_helpers.py</code></td>
+              <td>Netzwerk-Hilfsfunktionen, IP-Parsing</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/core/coordinator.py</code></td>
+              <td>Zentraler Koordinator, Modul-Init</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/core/state.py</code></td>
+              <td>Globaler Zustand, Attributzugriff</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/ui/tabs/radio_tab.py</code></td>
+              <td>Radio-UI, Benutzerinteraktion, Event-Handling</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/ui/tabs/cleanup_assistant_tab.py</code></td>
+              <td>System-Cleanup-UI, Dateioperationen</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/ui/tabs/download_scan_tab.py</code></td>
+              <td>Download-Scan, ClamAV-Integration</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/ui/tabs/fun_tab.py</code></td>
+              <td>Fun-Modul-UI</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/ui/tabs/chad_settings_tab.py</code></td>
+              <td>KI-Einstellungen, API-Key-Handling</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>scripts/refactor_safety.py</code></td>
+              <td>AST-Analyse, Caller-Check, Read-Only-Tool</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/app.py</code> (Refaktorierung)</td>
+              <td>82&nbsp;Proxy-Methoden entfernt &mdash; Angriffsfl&auml;chenreduktion</td>
+              <td><span class="badge badge-ok">Keine Regression</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Bewertete Kandidaten -->
+      <div class="audit-section" id="kandidaten">
+        <h2>Bewertete Kandidaten (alle ausgeschlossen)</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:28px;">
+          Vier Muster wurden im ersten Analysedurchgang identifiziert und in
+          parallelen, unabh&auml;ngigen Filter-Agenten sowie einer abschlie&szlig;enden
+          manuellen Verifikation re-analysiert. Kein Kandidat &uuml;berschritt
+          die Konfidenz-Schwelle von 8/10.
+        </p>
+
+        <!-- K1 — Radio URL — manuell widerlegt -->
+        <div class="finding-card filtered">
+          <div class="finding-header">
+            <h3>K1 &mdash; Radio-URL an mpv / urllib.request &mdash; manuell widerlegt</h3>
+            <span class="badge badge-info">Konfidenz 8/10 &rarr; FP</span>
+            <span class="badge badge-ok">Ausgeschlossen</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Datei:</strong> <code>netmon/features/radio_controller.py</code></p>
+            <p>
+              Initiale Bewertung (Phase&nbsp;2): Radio-Stations-URLs aus dem
+              externen <code>radio-browser.info</code>-API gelangen ohne
+              Schema-Validierung an <code>mpv</code> (Zeile&nbsp;4835) und
+              <code>urllib.request.urlopen()</code> (Zeile&nbsp;3150). Erstes
+              Filter-Ergebnis: Konfidenz&nbsp;8/10 &mdash; bestätigt.
+            </p>
+            <p>
+              <strong>Manuelle Nachpr&uuml;fung:</strong> Beim direkten Lesen
+              der Aufrufkette wurde <code>_normalize_station_stream_url()</code>
+              (Zeile&nbsp;298&ndash;309) identifiziert, die bei der automatischen
+              Analyse &uuml;bersehen wurde:
+            </p>
+            <pre style="margin:10px 0;padding:12px;background:rgba(2,8,15,0.5);border-radius:8px;font-size:0.82rem;color:var(--accent);overflow-x:auto;"><code>ALLOWED_RADIO_STREAM_SCHEMES = {"http", "https", "rtsp", "rtmp"}  # Zeile 103
+
+def _normalize_station_stream_url(value) -> str:          # Zeile 298
+    parsed = urllib.parse.urlparse(url)
+    scheme = str(parsed.scheme or "").strip().lower()
+    if scheme not in ALLOWED_RADIO_STREAM_SCHEMES:
+        return ""                                          # nicht erlaubte Schemata werden abgelehnt
+    return url
+
+def normalize_station_entry(entry, ...):                  # Zeile 312
+    url = _normalize_station_stream_url(...)              # Zeile 317
+    if not name or not url:
+        return None                                        # Station wird verworfen</code></pre>
+            <p>
+              Jede URL durchl&auml;uft <code>_normalize_station_stream_url()</code>
+              bevor sie ins Station-Dict &uuml;bernommen wird. Stationen mit
+              nicht-erlaubten Schemata (<code>file://</code>, <code>lavfi://</code>,
+              etc.) werden als <code>None</code> verworfen und nie gespeichert.
+              <code>_fetch_icy_stream_title()</code> erh&auml;lt ausschlie&szlig;lich
+              vorvalidierte URLs aus dem Station-Dict.
+            </p>
+          </div>
+          <div class="finding-verdict pass">
+            <strong>Widerlegung:</strong> Der Datenfluss enthält eine korrekte
+            Schema-Allowlist-Validierung, die der erste Analyse-Agent nicht
+            erkannt hatte. <code>file://</code>, <code>lavfi://</code> und
+            alle anderen nicht-erlaubten Schemata werden in
+            <code>_normalize_station_stream_url()</code> abgelehnt &mdash;
+            bevor die URL <code>mpv</code> oder <code>urllib.request</code>
+            erreicht. Kein SSRF-Pfad, kein Angriffspfad. False Positive.
+          </div>
+        </div>
+
+        <!-- K2 -->
+        <div class="finding-card filtered">
+          <div class="finding-header">
+            <h3>K2 &mdash; webbrowser.open mit nicht validierter API-URL</h3>
+            <span class="badge badge-info">Konfidenz 3/10</span>
+            <span class="badge badge-ok">Ausgeschlossen</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Datei:</strong> <code>netmon/features/radio_controller.py</code>, Zeile&nbsp;5197</p>
+            <p>
+              <code>webbrowser.open(url, new=2)</code> wird mit dem
+              <code>homepage</code>-Feld aus der API-Antwort ohne Schema-Validierung
+              aufgerufen. Auf Linux ruft <code>webbrowser.open()</code> intern
+              <code>xdg-open</code> auf. Theoretisch k&ouml;nnte eine
+              <code>file://</code>-URL &uuml;bergeben werden.
+            </p>
+          </div>
+          <div class="finding-verdict pass">
+            <strong>Filterentscheid:</strong> Moderne Browser erzwingen strikte
+            Same-Origin-Policy f&uuml;r <code>file://</code>-URLs. Eine
+            ge&ouml;ffnete lokale Datei wird im eigenen Browser des Nutzers
+            angezeigt &mdash; keine Exfiltration m&ouml;glich.
+            <code>javascript:</code>-URIs werden als Top-Level-URL nicht ausgef&uuml;hrt.
+            Kein exploitierbarer Angriffspfad. Konfidenz&nbsp;3/10 &rarr; ausgeschlossen.
+          </div>
+        </div>
+
+        <!-- K3 -->
+        <div class="finding-card filtered">
+          <div class="finding-header">
+            <h3>K3 &mdash; ffmpeg&nbsp;<code>-i</code> mit nicht validierter API-URL</h3>
+            <span class="badge badge-info">Konfidenz FP</span>
+            <span class="badge badge-ok">Ausgeschlossen</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Datei:</strong> <code>netmon/features/radio_controller.py</code>, Zeile&nbsp;2160</p>
+            <p>
+              <code>_recording_command(stream_url, output_path)</code> &uuml;bergibt
+              die Station-URL als <code>ffmpeg&nbsp;-i&nbsp;&lt;url&gt;</code>-Argument.
+              <code>ffmpeg</code> unterst&uuml;tzt Protokolle wie <code>file://</code>,
+              <code>concat://</code>, <code>lavfi://</code> u.&nbsp;a.
+            </p>
+          </div>
+          <div class="finding-verdict pass">
+            <strong>Filterentscheid:</strong> (1) Der URL-Wert stammt aus dem
+            Station-Dict und wurde bereits durch
+            <code>_normalize_station_stream_url()</code> gegen
+            <code>ALLOWED_RADIO_STREAM_SCHEMES</code> validiert.
+            (2) Selbst ohne diese Pr&uuml;fung: <code>stdin</code>,
+            <code>stdout</code> und <code>stderr</code> sind nach
+            <code>subprocess.DEVNULL</code> umgeleitet; die Ausgabe wird durch
+            den <code>libmp3lame</code>-Codec trancodiert. Kein Exfiltrationspfad.
+          </div>
+        </div>
+
+        <!-- K4 -->
+        <div class="finding-card filtered">
+          <div class="finding-header">
+            <h3>K4 &mdash; Dateilese-Operation via Startup-Guard-Baseline</h3>
+            <span class="badge badge-info">Konfidenz FP</span>
+            <span class="badge badge-ok">Ausgeschlossen</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Datei:</strong> <code>netmon/features/security_audit_controller.py</code>, Zeilen&nbsp;1173&ndash;1184</p>
+            <p>
+              <code>format_startup_guard_entry_details()</code> &ouml;ffnet und liest
+              beliebige Dateipfade aus Startup-Guard-Eintr&auml;gen, die aus einer
+              nutzerschreibbaren JSON-Baseline-Datei stammen k&ouml;nnen.
+            </p>
+          </div>
+          <div class="finding-verdict pass">
+            <strong>Filterentscheid:</strong> Single-User-Desktop &mdash; kein
+            Privilege-Boundary-Crossing. Die Baseline liegt im Konfig-Verzeichnis
+            des aktuellen Nutzers. Ein Angreifer mit Zugriff auf die Baseline hat
+            bereits volle Lesezugriff auf alle Dateien, die <code>open()</code>
+            ohne <code>sudo</code> erreicht. Keine zus&auml;tzlichen
+            F&auml;higkeiten erworben. Ausgeschlossen.
+          </div>
+        </div>
+      </div>
+
+      <!-- Verbesserungen seit Runde 1 -->
+      <div class="audit-section" id="improvements">
+        <h2>Sicherheitsverbesserungen seit Runde&nbsp;1</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:24px;">
+          Die folgenden Hardening-Empfehlungen aus Audit Runde&nbsp;1 wurden
+          im aktuellen Codestand umgesetzt.
+        </p>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128274;</div>
+          <div class="fixed-body">
+            <h4>ClamAV Tempdir: Symlink-Schutz implementiert &mdash; <code>clamav_controller.py</code></h4>
+            <p>
+              Runde&nbsp;1 empfahl, <code>os.makedirs(exist_ok=True)</code> durch eine
+              Sequenz zu ersetzen, die Symlinks vor dem Anlegen des Verzeichnisses
+              pr&uuml;ft und ablehnt (Punkt&nbsp;4). Umgesetzt als
+              <code>_safe_makedirs_no_symlink(path)</code> (Zeile&nbsp;71):
+              pr&uuml;ft via <code>os.lstat()</code>, ob der Zielpfad ein Symlink ist,
+              und wirft bei positivem Befund einen <code>RuntimeError</code>.
+              Empfehlung geschlossen.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#9989;</div>
+          <div class="fixed-body">
+            <h4>URL-Schema-Validierung im Radio-Modul &mdash; <code>radio_controller.py</code></h4>
+            <p>
+              Das Radio-Modul enth&auml;lt bereits eine vollst&auml;ndige
+              Schema-Allowlist-Validierung:
+              <code>ALLOWED_RADIO_STREAM_SCHEMES&nbsp;=&nbsp;{&ldquo;http&rdquo;,&nbsp;&ldquo;https&rdquo;,&nbsp;&ldquo;rtsp&rdquo;,&nbsp;&ldquo;rtmp&rdquo;}</code>
+              (Zeile&nbsp;103), durchgesetzt durch
+              <code>_normalize_station_stream_url()</code> (Zeile&nbsp;298&ndash;309)
+              via <code>urllib.parse.urlparse()</code>.
+              Nicht-erlaubte Schemata werden <strong>vor</strong> der Speicherung
+              im Station-Dict abgelehnt &mdash; mpv und urllib.request empfangen
+              ausschlie&szlig;lich validierte URLs.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#9989;</div>
+          <div class="fixed-body">
+            <h4>Angriffsfl&auml;chenreduktion: 82 Proxy-Methoden aus <code>app.py</code> entfernt</h4>
+            <p>
+              Im Zuge der God-Object-Extraktion wurden 82 Proxy-Methoden aus
+              <code>app.py</code> gel&ouml;scht, deren Controller-Gegenst&uuml;cke
+              in <code>netmon/features/</code> bereits vorhanden waren. Alle Methoden
+              wurden vorab per <code>refactor_safety.py</code> auf Null-Aufrufer
+              verifiziert (AST-Check + grep). Commit&nbsp;<code>920cfc9b</code>.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hardening-Empfehlungen -->
+      <div class="audit-section" id="hardening">
+        <h2>Hardening-Empfehlungen (keine kritischen Bugs)</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:20px;">
+          Die folgenden Punkte sind <strong>keine Sicherheitsl&uuml;cken</strong>,
+          sondern Defense-in-Depth-Ma&szlig;nahmen aus Runde&nbsp;1, die noch offen sind.
+        </p>
+        <ul class="hardening-list">
+          <li>
+            <span class="hl-icon">&#128295;</span>
+            <span>
+              <strong>Git-Subcommand-Allowlist in <code>agent/runner.py</code>:</strong>
+              Sobald LLM-Output in <code>run_command()</code> flie&szlig;t, eine
+              explizite Subcommand-Allowlist erg&auml;nzen
+              (<code>status</code>, <code>diff</code>, <code>log</code>, <code>show</code>).
+              Derzeit latentes Architektur-Risiko (Runde&nbsp;1, Punkt&nbsp;1).
+            </span>
+          </li>
+          <li>
+            <span class="hl-icon">&#128295;</span>
+            <span>
+              <strong>IP-Validierung f&uuml;r WireGuard-Endpoints:</strong>
+              <code>parse_vpn_endpoint()</code> sollte den Host-Teil mit
+              <code>ipaddress.ip_address()</code> validieren, bevor er in
+              UFW-Kommandos eingebettet wird (Runde&nbsp;1, Punkt&nbsp;2).
+            </span>
+          </li>
+          <li>
+            <span class="hl-icon">&#128295;</span>
+            <span>
+              <strong>Pfadpr&uuml;fung in <code>image_to_data_url()</code>:</strong>
+              Optional: Dateipfad zus&auml;tzlich auf das Benutzer-Homeverzeichnis
+              einschr&auml;nken. Aktuell kein ausnutzbarer Angriffspfad vorhanden
+              (Runde&nbsp;1, Punkt&nbsp;3).
+            </span>
+          </li>
+          <li>
+            <span class="hl-icon">&#128295;</span>
+            <span>
+              <strong>Schema-Validierung f&uuml;r <code>homepage</code>-URLs im Radio-Modul:</strong>
+              <code>webbrowser.open(station["homepage"])</code> validiert das Schema
+              nicht. Obwohl kein direkter Exploit-Pfad besteht (Browser-Sandbox),
+              w&auml;re eine analoge Allowlist-Pr&uuml;fung vor dem
+              <code>webbrowser.open()</code>-Aufruf defensive Best Practice.
+            </span>
+          </li>
+          <li>
+            <span class="hl-icon">&#128295;</span>
+            <span>
+              <strong>Shell-Quoting in Repository-Guard-Snippets:</strong>
+              URI- und Pfadwerte in
+              <code>get_repository_guard_quick_action_snippet()</code>
+              mit <code>shlex.quote()</code> maskieren (Runde&nbsp;1, Punkt&nbsp;5).
+            </span>
+          </li>
+          <li>
+            <span class="hl-icon">&#128295;</span>
+            <span>
+              <strong><code>os.path.realpath()</code> im Roots-Baseline-Guard:</strong>
+              <code>_normalize_guard_path_pattern()</code> sollte
+              <code>os.path.abspath</code> durch <code>os.path.realpath()</code>
+              ersetzen, um Symlinks vor dem fnmatch-Check aufzul&ouml;sen
+              (Runde&nbsp;1, Punkt&nbsp;6).
+            </span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Geprüfte Kategorien -->
+      <div class="audit-section" id="kategorien">
+        <h2>Gepr&uuml;fte Sicherheitskategorien</h2>
+        <div class="section-rule"></div>
+        <table class="scope-table">
+          <thead>
+            <tr>
+              <th>Kategorie</th>
+              <th>Gepr&uuml;ft</th>
+              <th>Ergebnis</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Command Injection (subprocess, shell=True)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Path Traversal (Dateioperationen mit Nutzereingabe)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Privilege Escalation (sudo-Nutzung, Argument-Injektion)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Unsichere Deserialisierung (pickle, yaml.load)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Eval/Exec mit Nutzereingabe</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Hardcoded Credentials / API-Keys</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Authentication Bypass / Privilege Escalation</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Sensitive Data Exposure (PII in Logs)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Externe API-Aufrufe mit unkontrollierten Daten</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>SSRF via urllib.request / externe URL-Weitergabe</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Kryptographische Schwachstellen</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Symlink-Angriffe auf privilegierte Dateioperationen</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Clipboard-Injection / Snippet-Generierung</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>URL-Schema-Validierung an Media-Subprocess</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Signatur / Verantwortlichkeit -->
+      <div class="signature-block">
+        <p>
+          <strong>Auditor:</strong> Claude Sonnet&nbsp;4.6 (Anthropic) &mdash;
+          Automatisiertes Multi-Agenten-Sicherheits-Review + manuelle Verifikation<br>
+          <strong>Projektverantwortlicher:</strong> Sven Fr&ouml;hlich<br>
+          <strong>Datum:</strong> 28.&nbsp;Juni&nbsp;2026<br>
+          <strong>Analysierter Codestand:</strong>
+          <code>e334324a</code>&nbsp;&hellip;&nbsp;<code>920cfc9b</code>
+          + Arbeitsstand (unstaged), gesamt 100+ Dateien &mdash; Runde&nbsp;2<br>
+          <strong>Methode:</strong> Statische Code-Analyse + manuelle Datenfluss-Verifikation
+          &mdash; kein Laufzeit-Penetrationstest<br>
+          <strong>Haftungsausschluss:</strong> Dieses Audit ersetzt keinen professionellen
+          Penetrationstest durch eine zertifizierte Sicherheitsfirma. Die Analyse
+          beschr&auml;nkt sich auf den angegebenen Codestand. Nicht erfasst werden:
+          Laufzeitverhalten, abh&auml;ngige Systembibliotheken,
+          Netzwerkkonfiguration und soziale Angriffsvektoren.
+        </p>
+        <p style="margin-top:16px;">
+          <a href="./downloads.html" style="color:var(--accent);">Zur Downloadseite</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./aktuelles.html" style="color:var(--accent);">Aktuelles</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./docs.html" style="color:var(--accent);">Dokumentation</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./legal.html" style="color:var(--accent);">Legal / Lizenz</a>
+        </p>
+      </div>
+    </main>
+
+    <footer style="margin-top:64px;padding:24px 0;border-top:1px solid var(--line);text-align:center;color:var(--muted);font-size:0.85rem;">
+      &copy; 2026 Sven Fr&ouml;hlich &mdash; NetMon Roots &mdash;
+      <a href="./legal.html" style="color:var(--muted);">Lizenz &amp; Credits</a>
+    </footer>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -12,34 +12,88 @@ def build_log_tab(app):
 
     log_bar = ttk.Frame(app.tab_log)
     log_bar.pack(fill="x", pady=(0, 8))
-    ttk.Button(
+    app.btn_log_clear = ttk.Button(
         log_bar,
-        text=app.tr("btn_clear_log", "Log leeren"),
+        text=app.tr("btn_clear_log", "Clear log"),
         command=app.clear_log,
-    ).pack(side="right")
-    btn_log_chad = ttk.Button(
+    )
+    app.btn_log_clear.pack(side="right")
+    app.btn_log_chad = ttk.Button(
         log_bar,
-        text=app.tr("btn_analyze_with_chad", "Analyse mit Chad"),
+        text=app.tr("btn_analyze_with_chad", "Analyze with Chad"),
         command=app.prepare_log_selection_chad_analysis,
     )
-    btn_log_chad.pack(side="left")
+    app.btn_log_chad.pack(side="left")
     app.add_tooltip(
-        btn_log_chad,
-        "Bereitet nur den aktuell markierten Log-Text lokal für den Chad Analyse-Tab vor.",
+        app.btn_log_chad,
+        app.tr(
+            "tooltip_log_chad_selected",
+            "Prepares only the currently selected log text locally for the Chad analysis tab.",
+        ),
     )
-    btn_preflight_recheck = ttk.Button(
+    app.log_overlay_controls = tk.Frame(
+        log_bar, bg="#ffffff", bd=0, highlightthickness=0
+    )
+    app.log_overlay_controls.pack(side="left", padx=(8, 0))
+
+    app.btn_log_overlay_load = ttk.Button(
+        app.log_overlay_controls,
+        text=app.tr("log_overlay_select_image", "Select image"),
+        command=app.choose_log_overlay_image,
+    )
+    app.btn_log_overlay_load.pack(side="left")
+    app.add_tooltip(
+        app.btn_log_overlay_load,
+        app.tr(
+            "tooltip_log_overlay_select_image",
+            "Opens the selection area for overlay images and keeps it open until you close it manually.",
+        ),
+    )
+
+    app.log_overlay_toggle_text = tk.StringVar(
+        value=app.tr("log_overlay_button_image", "Bild")
+    )
+    app.btn_log_overlay_toggle = ttk.Button(
+        app.log_overlay_controls,
+        textvariable=app.log_overlay_toggle_text,
+        command=app.toggle_log_overlay,
+    )
+    app.btn_log_overlay_toggle.pack(side="left", padx=(6, 0))
+    app.add_tooltip(
+        app.btn_log_overlay_toggle,
+        app.tr(
+            "tooltip_log_overlay_toggle",
+            "Switches between the normal log and the full image overlay.",
+        ),
+    )
+
+    app.btn_preflight_recheck = ttk.Button(
         log_bar,
-        text=app.tr("btn_preflight_recheck", "Preflight neu prüfen"),
+        text=app.tr("btn_preflight_recheck", "Re-run preflight"),
         command=app.preflight_recheck,
     )
-    btn_preflight_recheck.pack(side="right", padx=(0, 8))
+    app.btn_preflight_recheck.pack(side="right", padx=(0, 8))
     app.add_tooltip(
-        btn_preflight_recheck,
-        "Führt die Tool-Erkennung erneut aus und aktualisiert aktivierte Buttons sofort.",
+        app.btn_preflight_recheck,
+        app.tr(
+            "tooltip_preflight_recheck",
+            "Runs tool detection again and refreshes enabled buttons immediately.",
+        ),
     )
+    app.btn_dependency_installer = ttk.Button(
+        log_bar,
+        textvariable=app.dep_installer_button_var,
+        command=app.open_dependency_installer,
+    )
+    app.btn_dependency_installer.pack(side="right", padx=(0, 8))
 
     app.log_view_frame = tk.Frame(app.tab_log, bg="#ffffff", highlightthickness=0)
     app.log_view_frame.pack(fill="both", expand=True)
+    app.log_view_frame.grid_rowconfigure(0, weight=1)
+    app.log_view_frame.grid_columnconfigure(0, weight=1)
+
+    log_scroll_y = ttk.Scrollbar(app.log_view_frame, orient="vertical")
+    log_scroll_x = ttk.Scrollbar(app.log_view_frame, orient="horizontal")
 
     app.text = tk.Text(
         app.log_view_frame,
@@ -48,13 +102,19 @@ def build_log_tab(app):
         foreground="#000000",
         background="#ffffff",
         insertbackground="#000000",
+        yscrollcommand=log_scroll_y.set,
+        xscrollcommand=log_scroll_x.set,
     )
-    app.text.pack(fill="both", expand=True)
+    app.text.grid(row=0, column=0, sticky="nsew")
+    log_scroll_y.config(command=app.text.yview)
+    log_scroll_x.config(command=app.text.xview)
+    log_scroll_y.grid(row=0, column=1, sticky="ns")
+    log_scroll_x.grid(row=1, column=0, sticky="ew")
     app.text.configure(cursor="xterm")
     app.text.bind("<Key>", lambda _e: "break")
     app.text.bind("<<Paste>>", lambda _e: "break")
     app.text.bind("<<Cut>>", lambda _e: "break")
-    app.attach_chad_context_menu(app.text, "Log Analyse")
+    app.attach_chad_context_menu(app.text, "Log analysis")
 
     app.log_overlay_frame = tk.Frame(
         app.log_view_frame, bg="#111111", highlightthickness=0
@@ -81,20 +141,6 @@ def build_log_tab(app):
         font=("TkDefaultFont", 10, "bold"),
     )
 
-    app.log_overlay_controls = tk.Frame(app.log_view_frame, bg="#000000", bd=0)
-    app.log_overlay_controls.place(relx=1.0, rely=1.0, x=-10, y=-10, anchor="se")
-
-    app.btn_log_overlay_load = ttk.Button(
-        app.log_overlay_controls,
-        text="Bild auswählen",
-        command=app.choose_log_overlay_image,
-    )
-    app.btn_log_overlay_load.pack(side="left")
-    app.add_tooltip(
-        app.btn_log_overlay_load,
-        "Öffnet den Auswahlbereich für Overlay-Bilder und lässt ihn bis zum manuellen Schließen geöffnet.",
-    )
-
     app.log_overlay_picker_frame = tk.Frame(
         app.log_view_frame,
         bg="#0f0f0f",
@@ -103,7 +149,7 @@ def build_log_tab(app):
     )
     app.log_overlay_picker_title = tk.Label(
         app.log_overlay_picker_frame,
-        text="Bild für Overlay auswählen",
+        text=app.tr("log_overlay_picker_title", "Select image for overlay"),
         fg="#e6e6e6",
         bg="#0f0f0f",
         anchor="w",
@@ -137,7 +183,7 @@ def build_log_tab(app):
 
     app.btn_log_overlay_picker_folder = ttk.Button(
         app.log_overlay_picker_actions,
-        text="Ordner...",
+        text=app.tr("log_overlay_picker_folder", "Folder..."),
         command=app._choose_log_overlay_folder,
     )
     app.btn_log_overlay_picker_folder.pack(side="left")
@@ -160,22 +206,10 @@ def build_log_tab(app):
 
     app.btn_log_overlay_picker_close = ttk.Button(
         app.log_overlay_picker_actions,
-        text="Auswahl schließen",
+        text=app.tr("log_overlay_picker_close", "Close selection"),
         command=app.close_log_overlay_picker,
     )
     app.btn_log_overlay_picker_close.pack(side="right")
-
-    app.log_overlay_toggle_text = tk.StringVar(value="Bild")
-    app.btn_log_overlay_toggle = ttk.Button(
-        app.log_overlay_controls,
-        textvariable=app.log_overlay_toggle_text,
-        command=app.toggle_log_overlay,
-    )
-    app.btn_log_overlay_toggle.pack(side="left", padx=(6, 0))
-    app.add_tooltip(
-        app.btn_log_overlay_toggle,
-        "Schaltet zwischen normalem Log und vollständiger Bild-Überlagerung um.",
-    )
 
     app.log_view_frame.bind("<Configure>", app._on_log_overlay_resize)
     app._restore_log_overlay_from_config()

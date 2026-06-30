@@ -25,15 +25,18 @@ def build_hdd_tab(app):
     top_line.pack(fill="x")
     for col, weight in [(0, 0), (1, 0), (2, 0), (3, 1), (4, 0)]:
         top_line.columnconfigure(col, weight=weight)
-    btn_hdd_scan = ttk.Button(
+    app.btn_hdd_scan = ttk.Button(
         top_line,
         text=app.tr("hdd_btn_scan", "Festplatten einlesen"),
         command=app.scan_hdds_async,
     )
-    btn_hdd_scan.grid(row=0, column=0, sticky="w")
+    app.btn_hdd_scan.grid(row=0, column=0, sticky="w")
     app.add_tooltip(
-        btn_hdd_scan,
-        "Liest erkannte Festplatten neu ein und aktualisiert die Liste.",
+        app.btn_hdd_scan,
+        app.tr(
+            "tooltip_hdd_scan",
+            "Liest erkannte Festplatten neu ein und aktualisiert die Liste.",
+        ),
     )
     app.hdd_slot_choice = tk.StringVar(value="1")
     ttk.Label(top_line, text=app.tr("label_slot", "Slot:")).grid(
@@ -57,25 +60,33 @@ def build_hdd_tab(app):
     app.hdd_name_entry.bind("<FocusIn>", app.on_hdd_name_focus_in)
     app.hdd_name_entry.bind("<FocusOut>", app.on_hdd_name_focus_out)
     app.hdd_custom_name_var.trace_add("write", app.on_hdd_name_changed)
-    assign_btn = ttk.Button(
+    app.btn_hdd_assign = ttk.Button(
         top_line,
         text=app.tr("btn_apply_assignment", "Zuordnung übernehmen"),
         command=app.assign_selected_disk_to_slot,
     )
-    assign_btn.grid(row=0, column=5, sticky="e", padx=(8, 0))
+    app.btn_hdd_assign.grid(row=0, column=5, sticky="e", padx=(8, 0))
     app.add_tooltip(
-        assign_btn,
-        "Ordnet die ausgewählte Festplatte dem gewählten Slot zu.",
+        app.btn_hdd_assign,
+        app.tr(
+            "tooltip_hdd_assign",
+            "Ordnet die ausgewählte Festplatte dem gewählten Slot zu.",
+        ),
     )
-    btn_hdd_clear_assign = ttk.Button(
+    app.btn_hdd_clear_assign = ttk.Button(
         top_line,
         text=app.tr("btn_clear_assignment", "Zuordnung aufheben"),
         command=lambda: app.clear_slot_assignment(confirm=True),
     )
-    btn_hdd_clear_assign.grid(row=1, column=5, sticky="e", padx=(8, 0), pady=(6, 0))
+    app.btn_hdd_clear_assign.grid(
+        row=1, column=5, sticky="e", padx=(8, 0), pady=(6, 0)
+    )
     app.add_tooltip(
-        btn_hdd_clear_assign,
-        "Entfernt die Zuordnung des gewählten Slots.",
+        app.btn_hdd_clear_assign,
+        app.tr(
+            "tooltip_hdd_clear_assign",
+            "Entfernt die Zuordnung des gewählten Slots.",
+        ),
     )
 
     app.hdd_table = ttk.Treeview(
@@ -105,7 +116,26 @@ def build_hdd_tab(app):
         app.hdd_table.column(col, width=width, anchor=anchor)
     app.hdd_table.pack(fill="x", pady=(8, 0))
     app.hdd_table.bind("<<TreeviewSelect>>", app.on_hdd_table_select)
-
+    app.hdd_info_auto_mount_var = tk.BooleanVar(value=False)
+    app.hdd_info_auto_mount_hint_var = tk.StringVar(value="")
+    auto_mount_row = ttk.Frame(app.tab_hdd)
+    auto_mount_row.pack(fill="x", pady=(8, 4))
+    app.hdd_info_auto_mount_check = ttk.Checkbutton(
+        auto_mount_row,
+        text=app.tr(
+            "hdd_check_auto_mount",
+            "Bei NetMon-Start automatisch mounten",
+        ),
+        variable=app.hdd_info_auto_mount_var,
+        command=app.on_hdd_auto_mount_toggle,
+    )
+    app.hdd_info_auto_mount_check.pack(side="left")
+    app.hdd_info_auto_mount_hint_label = ttk.Label(
+        auto_mount_row,
+        textvariable=app.hdd_info_auto_mount_hint_var,
+        foreground="#8a6d3b",
+    )
+    app.hdd_info_auto_mount_hint_label.pack(side="left", padx=(10, 0))
     app.hdd_info_text = tk.Text(app.tab_hdd, wrap="word", height=12)
     app.hdd_info_text.pack(fill="both", expand=True)
     app.hdd_usage_canvas = tk.Canvas(

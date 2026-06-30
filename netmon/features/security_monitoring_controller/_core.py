@@ -359,6 +359,20 @@ def _security_reporting_context(app) -> dict:
     }
 
 
+def _security_summary_context(app) -> dict:
+    context = _security_reporting_context(app)
+    return {
+        "aggregated": dict(context.get("aggregated") or {}),
+        "filter_mode": str(context.get("filter_mode") or "all"),
+        "monitoring_active": bool(context.get("monitoring_active", False)),
+        "logging_level": str(context.get("logging_level") or "-"),
+        "last_alarm": str(context.get("last_alarm") or "–"),
+        "integrity_baseline": dict(context.get("integrity_baseline") or {}),
+        "device_baseline": dict(context.get("device_baseline") or {}),
+        "input_access_baseline": dict(context.get("input_access_baseline") or {}),
+    }
+
+
 
 def _security_baseline_payload(app, timestamp: str) -> dict:
     return {**_security_baseline_state(app), "ts": timestamp}
@@ -873,7 +887,11 @@ def security_update_status(app, color):
 
 
 def security_open_tab(app):
-    app._select_security_tab(app.tab_security)
+    target_tab = getattr(app, "tab_firewall", None) or getattr(
+        app, "tab_security", None
+    )
+    if target_tab is not None:
+        app._select_security_tab(target_tab)
     _refresh_connected_devices_safe(app)
 
 

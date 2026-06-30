@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetMonRoots | Aktuelles, Status und Hinweise</title>
+  <meta
+    name="description"
+    content="Zentrale Seite fuer aktuelle Hinweise, Statusmeldungen, bekannte Themen und laufende Pflegehinweise rund um NetMon."
+  >
+  <link rel="icon" type="image/png" href="./favicon.png">
+  <link rel="apple-touch-icon" href="./favicon.png">
+  <link rel="canonical" href="https://netmonroots.com/aktuelles.html">
+  <link rel="alternate" hreflang="de" href="https://netmonroots.com/aktuelles.html">
+  <link rel="alternate" hreflang="en" href="https://netmonroots.com/en/updates.html">
+  <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/aktuelles.html">
+  <meta property="og:title" content="NetMonRoots | Aktuelles, Status und Hinweise">
+  <meta property="og:description" content="Zentrale Seite fuer aktuelle Hinweise, Statusmeldungen, bekannte Themen und laufende Pflegehinweise rund um NetMon.">
+  <meta property="og:url" content="https://netmonroots.com/aktuelles.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NetMon Roots">
+  <meta property="og:locale" content="de_DE">
+  <meta property="og:locale:alternate" content="en_US">
+  <meta property="og:image" content="https://netmonroots.com/favicon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="NetMonRoots | Aktuelles, Status und Hinweise">
+  <meta name="twitter:description" content="Zentrale Seite fuer aktuelle Hinweise, Statusmeldungen, bekannte Themen und laufende Pflegehinweise rund um NetMon.">
+  <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body class="downloads-page updates-page">
+  <div class="page-shell docs-page downloads-page-shell">
+    <header class="topbar">
+      <a class="brand" href="./index.html" aria-label="NetMon Startseite">
+        <span class="brand-mark">
+          <span class="brand-lockup">
+            <span class="brand-title">
+              <span class="brand-title-main">NETMON</span>
+              <span class="brand-title-accent">ROOTS</span>
+            </span>
+            <span class="brand-subline">MONITOR. CONTROL. UNDERSTAND.</span>
+            <span class="brand-tagline">BACK TO THE ROOTS.</span>
+          </span>
+          <img class="brand-icon" src="./bannericon.png" alt="" aria-hidden="true">
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="./index.html">Start</a>
+        <a href="./downloads.html">Download</a>
+        <a href="./aktuelles.html">Aktuelles</a>
+        <a href="./tour.html">Rundgang</a>
+        <a href="./docs.html">Doku</a>
+        <a href="./security-audit.html">Audit</a>
+        <a href="./legal.html">Legal</a>
+      </nav>
+      <div class="lang-switch" aria-label="Sprachauswahl">
+        <a class="active" href="./aktuelles.html" lang="de">DE</a>
+        <a href="./en/updates.html" lang="en">EN</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Aktueller Stand</p>
+        </div>
+        <div class="download-layout">
+          <article class="download-card featured">
+            <p class="download-label">Status</p>
+            <h3>NetMon 1.1.15 ist der aktuelle Build.</h3>
+            <p>Die Versionspruefung im About-Bereich arbeitet sauber und verweist bei neueren Website-Versionen automatisch auf die Downloadseite. Diese Seite dient als zentrale Stelle fuer Freigaben, Testhinweise und laufende Pflege-Updates.</p>
+            <div class="inline-actions">
+              <a class="button button-primary" href="./downloads.html">Zur Downloadseite</a>
+              <a class="button button-secondary" href="./docs.html">Zur Dokumentation</a>
+            </div>
+          </article>
+          <article class="download-card">
+            <p class="download-label">Wichtiger Hinweis</p>
+            <h3>NetMon wird weiter auf mehreren Linux-Systemen geprueft.</h3>
+            <p>Wenn auf einzelnen Distributionen Unterschiede oder Probleme auftreten, dokumentieren wir diese hier, bevor eine allgemeine Freigabe erfolgt. So bleiben Status und bekannte Themen zentral sichtbar.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="status">
+        <div class="section-heading">
+          <p class="eyebrow">Freigaben und Tests</p>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>Zorin OS freigegeben</h3>
+            <p>Die aktuellen Kernfunktionen wurden unter Zorin erfolgreich geprueft. Dazu gehoeren Start, Diagnosepfad und der ueberarbeitete LUKS-Mount-Workflow.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Linux Mint im Testlabor</h3>
+            <p>Erste Tests unter Mint verlaufen positiv. Eine allgemeine Freigabe erfolgt jedoch noch nicht, da weitere Pruefungen im Testlabor ausstehen.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Hinweis fuer Mint-Tests</h3>
+            <p>Vor Systemeingriffen, Mount-/Unmount-Tests oder Deinstallationsversuchen sollte unter Mint zunaechst ein Timeshift-Backup angelegt werden.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Behobene Probleme</p>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>LUKS-Mounting ueberarbeitet</h3>
+            <p>Das fruehere Problem beim Einbinden verschluesselter LUKS-Partitionen wurde in Version 1.1.14 ueberarbeitet. Der Mount-Pfad arbeitet jetzt stabiler und orientiert sich am getesteten Systemverhalten.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Installierter Build gehaertet</h3>
+            <p>Der Paketpfad wurde zusaetzlich abgesichert, damit sich das Verhalten zwischen Dev-Lab und installiertem System weniger unterscheidet. Besonders der Umgang mit LUKS- und Desktop-Mount-Tools wurde verbessert.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Versionspruefung im About-Bereich</h3>
+            <p>Die Online-Pruefung der aktuellen Versionsnummer laeuft sauber durch. Bei einer neueren Website-Version kann NetMon direkt auf die Downloadseite weiterleiten.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Download und Verifikation</p>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>Neues Paket</h3>
+            <p>Fuer Version 1.1.15 wird ein aktuelles <code>.deb</code>-Paket bereitgestellt. Damit sind die neuesten Aenderungen am LUKS-Mounting, an der Versionspruefung und am Recovery-Stand enthalten.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Hash und Signatur</h3>
+            <p>Parallel dazu werden neue SHA256-Pruefsummen und eine aktualisierte Minisign-Signatur bereitgestellt, damit Downloads vor der Installation geprueft werden koennen.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Empfehlung</h3>
+            <p>Bitte vor der Installation nach Moeglichkeit die Verifikation auf der Downloadseite verwenden und vor Testinstallationen aktuelle Hinweise auf dieser Seite beachten.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="version-note">
+          <p><strong>Stand:</strong> <code>2026-06-29</code></p>
+          <p><strong>Aktueller Build:</strong> <code>1.1.15</code></p>
+          <p><strong>Naechster Fokus:</strong> Weitere Distributionstests und die saubere Bewertung moeglicher Unterschiede zwischen Zorin, Mint und weiteren Debian-/Ubuntu-basierten Systemen.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <a href="./impressum.html">Impressum</a>
+    </footer>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>

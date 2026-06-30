@@ -2,18 +2,87 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import os
+import threading
+import time
+from datetime import datetime
+from tkinter import messagebox
+
+try:
+    import psutil
+except ModuleNotFoundError:
+    psutil = None
+
+try:
+    from netmon.core.utils import call_in_ui_thread
+except ModuleNotFoundError:
+    from core.utils import call_in_ui_thread
+
+try:
+    from netmon.config.constants import (
+        HDD_SLOT_CONFIG_FILE,
+        LINK_SLOT_CONFIG_FILE,
+        PRIMARY_VPN_SLOT_CONFIG_FILE,
+        PRIVACY_CONFIG_FILE,
+        VPN_SLOT_CONFIG_FILE,
+    )
+except ModuleNotFoundError:
+    from config.constants import (
+        HDD_SLOT_CONFIG_FILE,
+        LINK_SLOT_CONFIG_FILE,
+        PRIMARY_VPN_SLOT_CONFIG_FILE,
+        PRIVACY_CONFIG_FILE,
+        VPN_SLOT_CONFIG_FILE,
+    )
+
 from ._core import (
-    _app_callback, _app_logger, _app_tr, _append_device_change_event,
-    _append_input_access_change_event, _append_integrity_change_event, _current_security_baseline_payload, _device_baseline,
-    _device_type, _device_type_mapping, _input_access_baseline, _input_access_processes,
-    _input_access_scan_error_message, _input_access_sorted_process_items, _input_access_whitelist_status, _integrity_baseline,
-    _integrity_entry, _integrity_scan_state, _mapping_path_sets, _normalized_device_name,
-    _refresh_connected_devices_safe, _refresh_security_log_level_safe, _refresh_security_table_callback_safe, _save_security_baseline_callback_safe,
-    _security_baseline_exists, _security_baseline_path, _security_export_blocks_for_app, _security_export_target,
-    _security_export_write_blocks, _security_monitoring_log_message, _security_scan_log_message, _store_device_baseline,
-    _store_input_access_baseline, _store_integrity_baseline, _write_security_baseline, security_integrity_ignore_path,
+    _app_callback,
+    _app_logger,
+    _app_tr,
+    _append_device_change_event,
+    _append_input_access_change_event,
+    _append_integrity_change_event,
+    _current_security_baseline_payload,
+    _device_baseline,
+    _device_type,
+    _device_type_mapping,
+    _input_access_baseline,
+    _input_access_processes,
+    _input_access_scan_error_message,
+    _input_access_sorted_process_items,
+    _input_access_whitelist_status,
+    _integrity_baseline,
+    _integrity_entry,
+    _integrity_scan_state,
+    _mapping_path_sets,
+    _normalized_device_name,
+    _refresh_connected_devices_safe,
+    _refresh_security_log_level_safe,
+    _refresh_security_table_callback_safe,
+    _save_security_baseline_callback_safe,
+    _security_baseline_exists,
+    _security_baseline_path,
+    _security_export_blocks_for_app,
+    _security_export_target,
+    _security_export_write_blocks,
+    _security_monitoring_log_message,
+    _security_scan_log_message,
+    _store_device_baseline,
+    _store_input_access_baseline,
+    _store_integrity_baseline,
+    _write_security_baseline,
+    security_integrity_ignore_path,
 )
 
+
+def _ui_call_or_after(app, callback) -> None:
+    after = getattr(app, "after", None)
+    if after is not None:
+        after(0, callback)
+        return
+    call_in_ui_thread(app, callback)
 
 
 def hash_file_sha256(path):
@@ -846,13 +915,21 @@ def _finish_security_poll_cycle(app, color: str, harmless_rst_events) -> None:
 def _finish_security_scan_now(app, new_events, color: str) -> None:
     _append_unique_security_events(app, new_events)
     if new_events:
-        app.log_safe(f"Security-Scan: {len(new_events)} neue Events")
+        app.log_safe(
+            _app_tr(
+                app,
+                "security_scan_new_events",
+                "Security-Scan: {count} neue Events",
+            ).format(count=len(new_events))
+        )
     app._refresh_security_table_safe()
     refresh_devices = _app_callback(app, "refresh_connected_device_table")
     if refresh_devices is not None:
-        call_in_ui_thread(app, refresh_devices)
+        _ui_call_or_after(app, refresh_devices)
     if hasattr(app, "_security_update_status"):
-        call_in_ui_thread(app, lambda current=color: app._security_update_status(current))
+        _ui_call_or_after(
+            app, lambda current=color: app._security_update_status(current)
+        )
 
 
 def _mark_security_scan_running(app) -> bool:
@@ -895,7 +972,7 @@ def _run_security_poll_job(app) -> None:
     def done():
         _finish_security_poll_cycle(app, color, harmless_rst_events)
 
-    call_in_ui_thread(app, done)
+    _ui_call_or_after(app, done)
 
 
 def security_poll_async(app):
@@ -1017,22 +1094,42 @@ def security_scan_now(app):
 
 
 def _finish_security_input_access_scan(app, events) -> None:
-    _append_unique_security_events(app, events)
-    if events:
-        app.log_safe(f"Input-Zugriffscheck: {len(events)} neue Events")
-    app._refresh_security_table_safe()
+    _finish_security_single_scan(
+        app,
+        label="Input-Zugriffscheck",
+        events=events,
+        color=("yellow" if events else "green"),
+        alarm_text=("Datei-/Geräte-Änderung" if events else None),
+        refresh_input_access=True,
+    )
 
 
 def _run_security_input_access_scan_job(app) -> None:
     events = []
+    feedback_message = "Keine Input-Access-Änderungen gefunden."
     try:
         events.extend(app.scan_input_access_changes())
+        if events:
+            feedback_message = (
+                f"{len(events)} Input-Access-Änderung(en) erkannt."
+            )
     except Exception as exc:
         app.log_safe(f"Input-Zugriffscheck fehlgeschlagen: {exc}")
+        feedback_message = f"Input-Zugriffscheck fehlgeschlagen: {exc}"
     finally:
         app.security_scan_running = False
 
     _finish_security_input_access_scan(app, events)
+    feedback_cb = _app_callback(app, "show_security_guards_scan_feedback")
+    if feedback_cb is not None:
+        call_in_ui_thread(
+            app,
+            lambda: feedback_cb(
+                "Input-Access-Änderungen scannen",
+                feedback_message,
+                events,
+            ),
+        )
 
 
 def security_input_access_scan(app):
@@ -1041,5 +1138,215 @@ def security_input_access_scan(app):
 
     def job():
         _run_security_input_access_scan_job(app)
+
+    _start_security_scan_thread(job)
+
+
+def _finish_security_single_scan(
+    app,
+    *,
+    label: str,
+    events,
+    color: str,
+    alarm_text: str | None = None,
+    refresh_devices: bool = False,
+    refresh_input_access: bool = False,
+) -> None:
+    _append_unique_security_events(app, events)
+    if alarm_text is not None:
+        app.security_last_alarm = alarm_text
+    app.log_safe(
+        f"{label}: {len(list(events or []))} neue Events"
+        if events
+        else f"{label}: keine neuen Events"
+    )
+    app._refresh_security_table_safe()
+    if refresh_devices:
+        refresh_devices_cb = _app_callback(app, "refresh_connected_device_table")
+        if refresh_devices_cb is not None:
+            call_in_ui_thread(app, refresh_devices_cb)
+    if refresh_input_access:
+        refresh_input_cb = _app_callback(app, "refresh_input_access_table")
+        if refresh_input_cb is not None:
+            call_in_ui_thread(app, lambda: refresh_input_cb(log_result=False))
+    if hasattr(app, "_security_update_status"):
+        call_in_ui_thread(
+            app, lambda current=color: app._security_update_status(current)
+        )
+
+
+def _run_security_ufw_scan_job(app) -> None:
+    events = []
+    color = "green"
+    alarm_text = None
+    feedback_message = "Keine neuen UFW-Log-Events gefunden."
+    try:
+        events = _scan_ufw_security_events(app)
+        if any(
+            event.get("external") and event.get("type") == "UFW BLOCK"
+            for event in events
+        ):
+            color = "yellow"
+            alarm_text = "Neue BLOCK-Events"
+        if events:
+            feedback_message = f"{len(events)} neue UFW-Log-Events gefunden."
+    except Exception as exc:
+        app.log_safe(f"UFW-Log-Scan fehlgeschlagen: {exc}")
+        feedback_message = f"UFW-Log-Scan fehlgeschlagen: {exc}"
+    finally:
+        app.security_scan_running = False
+    _finish_security_single_scan(
+        app,
+        label="UFW-Log-Scan",
+        events=events,
+        color=color,
+        alarm_text=alarm_text,
+    )
+    feedback_cb = _app_callback(app, "show_firewall_security_scan_feedback")
+    if feedback_cb is not None:
+        call_in_ui_thread(
+            app,
+            lambda: feedback_cb("UFW-Log-Events einlesen", feedback_message),
+        )
+
+
+def security_ufw_scan(app):
+    if not _begin_security_scan(app):
+        return
+
+    def job():
+        _run_security_ufw_scan_job(app)
+
+    _start_security_scan_thread(job)
+
+
+def _run_security_portscan_scan_job(app) -> None:
+    events = []
+    color = "green"
+    alarm_text = None
+    feedback_message = "Keine neuen Portscan-Findings erkannt."
+    try:
+        events = _scan_portscan_findings(app)
+        if events:
+            color = "red"
+            alarm_text = "Portscan-Verdacht"
+            feedback_message = f"{len(events)} neue Portscan-Findings erkannt."
+    except Exception as exc:
+        app.log_safe(f"Portscan-Erkennung fehlgeschlagen: {exc}")
+        feedback_message = f"Portscan-Erkennung fehlgeschlagen: {exc}"
+    finally:
+        app.security_scan_running = False
+    _finish_security_single_scan(
+        app,
+        label="Portscan-Erkennung",
+        events=events,
+        color=color,
+        alarm_text=alarm_text,
+    )
+    feedback_cb = _app_callback(app, "show_firewall_security_scan_feedback")
+    if feedback_cb is not None:
+        call_in_ui_thread(
+            app,
+            lambda: feedback_cb("Portscan-Findings erkennen", feedback_message),
+        )
+
+
+def security_portscan_scan(app):
+    if not _begin_security_scan(app):
+        return
+
+    def job():
+        _run_security_portscan_scan_job(app)
+
+    _start_security_scan_thread(job)
+
+
+def _run_security_integrity_scan_job(app) -> None:
+    events = []
+    color = "green"
+    alarm_text = None
+    feedback_message = "Keine Integrity-Änderungen gefunden."
+    try:
+        events = list(app.scan_integrity_changes() or [])
+        if events:
+            color = "yellow"
+            alarm_text = "Datei-/Geräte-Änderung"
+            feedback_message = f"{len(events)} Integrity-Änderung(en) erkannt."
+    except Exception as exc:
+        app.log_safe(f"Integrity-Scan fehlgeschlagen: {exc}")
+        feedback_message = f"Integrity-Scan fehlgeschlagen: {exc}"
+    finally:
+        app.security_scan_running = False
+    _finish_security_single_scan(
+        app,
+        label="Integrity-Scan",
+        events=events,
+        color=color,
+        alarm_text=alarm_text,
+    )
+    feedback_cb = _app_callback(app, "show_security_guards_scan_feedback")
+    if feedback_cb is not None:
+        call_in_ui_thread(
+            app,
+            lambda: feedback_cb(
+                "Integrity-Änderungen scannen",
+                feedback_message,
+                events,
+            ),
+        )
+
+
+def security_integrity_scan(app):
+    if not _begin_security_scan(app):
+        return
+
+    def job():
+        _run_security_integrity_scan_job(app)
+
+    _start_security_scan_thread(job)
+
+
+def _run_security_device_scan_job(app) -> None:
+    events = []
+    color = "green"
+    alarm_text = None
+    feedback_message = "Keine Device-Änderungen gefunden."
+    try:
+        events = list(app.scan_device_changes() or [])
+        if events:
+            color = "yellow"
+            alarm_text = "Datei-/Geräte-Änderung"
+            feedback_message = f"{len(events)} Device-Änderung(en) erkannt."
+    except Exception as exc:
+        app.log_safe(f"Device-Scan fehlgeschlagen: {exc}")
+        feedback_message = f"Device-Scan fehlgeschlagen: {exc}"
+    finally:
+        app.security_scan_running = False
+    _finish_security_single_scan(
+        app,
+        label="Device-Scan",
+        events=events,
+        color=color,
+        alarm_text=alarm_text,
+        refresh_devices=True,
+    )
+    feedback_cb = _app_callback(app, "show_security_guards_scan_feedback")
+    if feedback_cb is not None:
+        call_in_ui_thread(
+            app,
+            lambda: feedback_cb(
+                "Device-Änderungen scannen",
+                feedback_message,
+                events,
+            ),
+        )
+
+
+def security_device_scan(app):
+    if not _begin_security_scan(app):
+        return
+
+    def job():
+        _run_security_device_scan_job(app)
 
     _start_security_scan_thread(job)

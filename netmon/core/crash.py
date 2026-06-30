@@ -9,23 +9,47 @@ import traceback
 from datetime import datetime
 
 from netmon.config.constants import NETMON_APP_VERSION
+from netmon.core.diagnostics import (
+    current_os_label,
+    diagnostic_reports_dir,
+    write_diagnostic_report,
+)
 
-CRASH_LOG_PATH = "/tmp/netmon_crash.log"
+CRASH_LOG_PATH = os.path.join(diagnostic_reports_dir(), "crash.log")
 
 
-def _append_crash_dump(origin, exc_type, exc_value, exc_tb):
+def _append_crash_dump(origin, exc_type, exc_value, exc_tb, *, context=None):
+    diagnostic_path = ""
+    try:
+        diagnostic_path = write_diagnostic_report(
+            kind="crash",
+            title=f"NetMon crash: {origin}",
+            exc=exc_value,
+            context={
+                "origin": str(origin or ""),
+                "thread_name": threading.current_thread().name,
+                **dict(context or {}),
+            },
+        )
+    except Exception:
+        diagnostic_path = ""
+
     try:
         with open(CRASH_LOG_PATH, "a", encoding="utf-8") as f:
             f.write("\n" + "=" * 80 + "\n")
             f.write(f"{datetime.now().isoformat()} | origin={origin}\n")
             f.write(f"netmon_version={NETMON_APP_VERSION}\n")
+            f.write(f"os={current_os_label()}\n")
             f.write(f"python={sys.version}\n")
             f.write(f"argv={sys.argv!r}\n")
             f.write(f"cwd={os.getcwd()}\n\n")
+            if diagnostic_path:
+                f.write(f"diagnostic_report={diagnostic_path}\n\n")
             traceback.print_exception(exc_type, exc_value, exc_tb, file=f)
             f.write("=" * 80 + "\n")
     except Exception:
         pass
+    return diagnostic_path
 
 
 def _install_global_crash_hooks():

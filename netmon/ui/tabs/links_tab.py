@@ -11,6 +11,14 @@ except ModuleNotFoundError:
     from config.constants import LINK_SLOT_COUNT
 
 
+def _app_value(app, name: str, default=None):
+    return app.__dict__.get(name, default)
+
+
+def _list_value(value):
+    return list(value or [])
+
+
 def build_links_tab(app):
     app.tab_links = ttk.Frame(app.system_nb, padding=10)
     app.system_nb.add(app.tab_links, text=app.tr("system_tab_links", "Links"))
@@ -94,54 +102,66 @@ def build_links_tab(app):
     app.link_system_combo = ttk.Combobox(
         app.link_system_frame,
         textvariable=app.link_system_app_var,
-        values=app.desktop_app_labels,
+        values=_list_value(_app_value(app, "desktop_app_labels", [])),
         state="readonly",
     )
     app.link_system_combo.grid(row=0, column=0, sticky="ew")
     app.link_system_combo.bind("<<ComboboxSelected>>", app.on_systemlink_app_select)
 
-    btn_link_refresh_programs = ttk.Button(
+    app.btn_link_refresh_programs = ttk.Button(
         app.link_system_frame,
         text=app.tr("btn_refresh", "Aktualisieren"),
         command=app.refresh_desktop_app_entries,
     )
-    btn_link_refresh_programs.grid(row=0, column=1, sticky="w", padx=(8, 0))
+    app.btn_link_refresh_programs.grid(row=0, column=1, sticky="w", padx=(8, 0))
     app.add_tooltip(
-        btn_link_refresh_programs,
-        "Liest installierte Programme (.desktop) neu ein und aktualisiert die Auswahlliste.",
+        app.btn_link_refresh_programs,
+        app.tr(
+            "tooltip_links_refresh_programs",
+            "Liest installierte Programme (.desktop) neu ein und aktualisiert die Auswahlliste.",
+        ),
     )
 
     link_btns = ttk.Frame(link_manage)
     link_btns.pack(fill="x", pady=(8, 0))
-    btn_link_apply = ttk.Button(
+    app.btn_link_apply = ttk.Button(
         link_btns,
         text=app.tr("btn_apply_assignment", "Zuordnung übernehmen"),
         command=app.assign_link_slot,
     )
-    btn_link_apply.pack(side="left")
+    app.btn_link_apply.pack(side="left")
     app.add_tooltip(
-        btn_link_apply,
-        "Speichert die aktuelle Link-Zuordnung für den gewählten Slot.",
+        app.btn_link_apply,
+        app.tr(
+            "tooltip_links_apply",
+            "Speichert die aktuelle Link-Zuordnung für den gewählten Slot.",
+        ),
     )
-    btn_link_clear = ttk.Button(
+    app.btn_link_clear = ttk.Button(
         link_btns,
         text=app.tr("btn_clear_assignment", "Zuordnung aufheben"),
         command=lambda: app.clear_link_slot(confirm=True),
     )
-    btn_link_clear.pack(side="left", padx=(8, 0))
+    app.btn_link_clear.pack(side="left", padx=(8, 0))
     app.add_tooltip(
-        btn_link_clear,
-        "Entfernt die Konfiguration des gewählten Link-Slots.",
+        app.btn_link_clear,
+        app.tr(
+            "tooltip_links_clear",
+            "Entfernt die Konfiguration des gewählten Link-Slots.",
+        ),
     )
-    btn_link_test = ttk.Button(
+    app.btn_link_test = ttk.Button(
         link_btns,
         text=app.tr("links_btn_test", "Link testen"),
         command=app.test_link_slot,
     )
-    btn_link_test.pack(side="left", padx=(8, 0))
+    app.btn_link_test.pack(side="left", padx=(8, 0))
     app.add_tooltip(
-        btn_link_test,
-        "Testet den aktuell eingestellten Link mit den Formulardaten.",
+        app.btn_link_test,
+        app.tr(
+            "tooltip_links_test",
+            "Testet den aktuell eingestellten Link mit den Formulardaten.",
+        ),
     )
 
     link_table_wrap = ttk.Frame(app.tab_links)

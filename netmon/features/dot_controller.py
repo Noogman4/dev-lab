@@ -60,6 +60,16 @@ def _app_callback(app, name):
     return callback if callable(callback) else None
 
 
+def _tr(app, key, fallback):
+    callback = _app_callback(app, "tr")
+    if callback is None:
+        return fallback
+    try:
+        return callback(key, fallback)
+    except Exception:
+        return fallback
+
+
 def _preferred_dnssec_mode(app):
     callback = _app_callback(app, "get_preferred_dnssec_mode")
     if callback is None:
@@ -83,44 +93,72 @@ def _confirm_dot_activation(app, action_label):
 
 def _dot_status_text(app, ok):
     if _app_value(app, "dot_vpn_conflict"):
-        return "DoT: aktiv, aber VPN-Konflikt"
+        return _tr(app, "dot_state_active_vpn_conflict", "DoT: aktiv, aber VPN-Konflikt")
     if ok is True:
-        return "DoT: aktiv / Test ok"
+        return _tr(app, "dot_state_active_test_ok", "DoT: aktiv / Test ok")
     if ok is None and app.dot_enabled:
-        return "DoT: aktiv"
+        return _tr(app, "dot_state_active", "DoT: aktiv")
     if ok is False and app.dot_enabled:
-        return "DoT: aktiv, aber Test fehlgeschlagen"
+        return _tr(app, "dot_state_active_test_failed", "DoT: aktiv, aber Test fehlgeschlagen")
     if ok is False:
-        return "DoT: deaktiviert"
-    return "DoT: unbekannt"
+        return _tr(app, "dot_state_disabled", "DoT: deaktiviert")
+    return _tr(app, "dot_state_unknown", "DoT: unbekannt")
 
 
-def _dot_profile_text(profile: str) -> str:
-    return f"Profil: {(profile or '').strip() or '–'}"
-
-
-def _dot_server_text(servers) -> str:
-    return "Server: " + (", ".join(servers or []) if servers else "–")
-
-
-def _dot_mode_text(mode: str) -> str:
-    return "Modus: " + ((mode or "").strip() or "–")
-
-
-def _dot_last_test_text(timestamp: float) -> str:
-    return "Letzter Test: " + datetime.fromtimestamp(timestamp).strftime(
-        "%Y-%m-%d %H:%M:%S"
+def _dot_profile_text(app_or_profile, profile: str | None = None) -> str:
+    app = app_or_profile if profile is not None else None
+    profile_value = app_or_profile if profile is None else profile
+    return _tr(app, "dns_profile_value", "Profil: {value}").format(
+        value=(profile_value or "").strip() or "–"
     )
 
 
-def _dot_test_hint_text(status: dict) -> str:
-    if not isinstance(status, dict):
+def _dot_server_text(app_or_servers, servers=None) -> str:
+    app = app_or_servers if servers is not None else None
+    server_list = app_or_servers if servers is None else servers
+    return _tr(app, "dns_server_value", "Server: {value}").format(
+        value=", ".join(server_list or []) if server_list else "–"
+    )
+
+
+def _dot_mode_text(app_or_mode, mode: str | None = None) -> str:
+    app = app_or_mode if mode is not None else None
+    mode_value = app_or_mode if mode is None else mode
+    return _tr(app, "dot_mode_value", "Modus: {value}").format(
+        value=((mode_value or "").strip() or "–")
+    )
+
+
+def _dot_last_test_text(app_or_timestamp, timestamp: float | None = None) -> str:
+    app = app_or_timestamp if timestamp is not None else None
+    ts_value = app_or_timestamp if timestamp is None else timestamp
+    return _tr(app, "dot_last_test_value", "Letzter Test: {value}").format(
+        value=datetime.fromtimestamp(ts_value).strftime("%Y-%m-%d %H:%M:%S")
+    )
+
+
+def _dot_test_hint_text(app_or_status, status: dict | None = None) -> str:
+    app = app_or_status if status is not None else None
+    status_value = app_or_status if status is None else status
+    if not isinstance(status_value, dict):
         return ""
-    text = str(status.get("text") or "")
-    if not status.get("enabled"):
+    if not status_value.get("enabled"):
         return ""
-    if "Test: unklar" in text or "Test: fehlgeschlagen" in text:
-        return "Hinweis: Für den DoT-Test Killswitch kurz AUS schalten."
+    text = str(status_value.get("text") or "")
+    ok_value = status_value.get("ok")
+    unclear_or_failed = ok_value is not True and (
+        not text
+        or "Test: unklar" in text
+        or "Test: fehlgeschlagen" in text
+        or "Timeout" in text
+        or "timeout" in text
+    )
+    if unclear_or_failed:
+        return _tr(
+            app,
+            "dot_test_hint_killswitch_off",
+            "Hinweis: Für den DoT-Test Killswitch kurz AUS schalten.",
+        )
     return ""
 
 
@@ -179,10 +217,14 @@ def set_dot_state(
     profile_text = (profile or "").strip() or "–"
     if profile_text != "–":
         _app_var_set(app, "dot_choice", profile_text)
-    _app_var_set(app, "dot_profile_var", _dot_profile_text(profile_text))
-    _app_var_set(app, "dot_server_var", _dot_server_text(servers))
-    _app_var_set(app, "dot_mode_var", _dot_mode_text(mode))
-    _app_var_set(app, "dot_last_test_var", _dot_last_test_text(app.dot_last_test_ts))
+    _app_var_set(app, "dot_profile_var", _dot_profile_text(app, profile_text))
+    _app_var_set(app, "dot_server_var", _dot_server_text(app, servers))
+    _app_var_set(app, "dot_mode_var", _dot_mode_text(app, mode))
+    _app_var_set(
+        app,
+        "dot_last_test_var",
+        _dot_last_test_text(app, app.dot_last_test_ts),
+    )
 
     _app_var_set(app, "dot_status_var", _dot_status_text(app, ok))
 
@@ -439,16 +481,28 @@ def dot_preflight():
     }
 
 
-def dot_tls_probe(server, hostname, timeout=4):
+def dot_tls_probe(server, hostname, timeout=4, app=None):
     if not server or not hostname:
-        return None, "TLS-Probe übersprungen (Servername fehlt)."
+        return None, _tr(
+            app,
+            "dot_tls_probe_skipped_missing_hostname",
+            "TLS probe skipped (missing server name).",
+        )
     try:
         context = ssl.create_default_context()
         with socket.create_connection((server, 853), timeout=timeout) as sock:
             with context.wrap_socket(sock, server_hostname=hostname):
-                return True, f"TLS-Verbindung zu {server}:853 erfolgreich."
+                return True, _tr(
+                    app,
+                    "dot_tls_probe_connection_success",
+                    "TLS connection to {server}:853 successful.",
+                ).format(server=server)
     except Exception as exc:
-        return False, f"TLS-Verbindung zu {server}:853 fehlgeschlagen: {exc}"
+        return False, _tr(
+            app,
+            "dot_tls_probe_connection_failed",
+            "TLS connection to {server}:853 failed: {detail}",
+        ).format(server=server, detail=exc)
 
 
 def _is_timeout_result(text: str) -> bool:
@@ -482,7 +536,12 @@ def collect_dot_status(app, run_test=False):
     enabled = (bool(dropin_text.strip()) and dropin_cfg["enabled"]) or (
         resolvectl_dot_state == "active"
     )
-    summary_lines = ["=== DNS over TLS Status ===", "Resolver: systemd-resolved"]
+    summary_lines = [
+        _tr(app, "dot_status_heading", "=== DNS over TLS Status ==="),
+        _tr(app, "dot_resolver_value", "Resolver: {value}").format(
+            value="systemd-resolved"
+        ),
+    ]
 
     status_available = preflight["checks"].get("systemctl") and preflight["checks"].get(
         "resolvectl"
@@ -491,9 +550,13 @@ def collect_dot_status(app, run_test=False):
     if not status_available:
         summary_lines.extend(
             [
-                "DNS over TLS ist auf diesem System aktuell nicht verfügbar.",
+                _tr(
+                    app,
+                    "dot_status_not_available",
+                    "DNS over TLS is currently not available on this system.",
+                ),
                 "",
-                "Benötigt werden:",
+                _tr(app, "dot_requirements_heading", "Required:"),
                 "- systemd-resolved",
                 "- resolvectl",
             ]
@@ -510,28 +573,76 @@ def collect_dot_status(app, run_test=False):
         }
 
     summary_lines.append(
-        f"systemd-resolved: {preflight['resolved_state'] or 'unbekannt'}"
-    )
-    summary_lines.append(f"Profil: {profile_name or '–'}")
-    summary_lines.append(f"Server: {', '.join(servers) if servers else '–'}")
-    summary_lines.append(f"DNS over TLS: {'aktiviert' if enabled else 'deaktiviert'}")
-    summary_lines.append(f"Modus: {mode or '–'}")
-    summary_lines.append(
-        f"NetMon DoT Drop-in: {'vorhanden' if dropin_text.strip() else 'nicht vorhanden'}"
+        _tr(app, "dot_resolved_state_value", "systemd-resolved: {value}").format(
+            value=preflight["resolved_state"] or _tr(app, "dns_value_unknown", "unknown")
+        )
     )
     summary_lines.append(
-        f"Globale DNS-Erzwingung: {'JA' if dropin_conflict else 'NEIN'}"
+        _tr(app, "dns_profile_value", "Profil: {value}").format(
+            value=profile_name or "–"
+        )
     )
-    summary_lines.append(f"VPN aktiv: {'JA' if vpn_active else 'NEIN'}")
+    summary_lines.append(
+        _tr(app, "dns_server_value", "Server: {value}").format(
+            value=", ".join(servers) if servers else "–"
+        )
+    )
+    summary_lines.append(
+        _tr(app, "dot_status_enabled_value", "DNS over TLS: {value}").format(
+            value=_tr(app, "value_enabled", "enabled")
+            if enabled
+            else _tr(app, "value_disabled", "disabled")
+        )
+    )
+    summary_lines.append(
+        _tr(app, "dot_mode_value", "Modus: {value}").format(value=mode or "–")
+    )
+    summary_lines.append(
+        _tr(app, "dot_dropin_value", "NetMon DoT drop-in: {value}").format(
+            value=_tr(app, "value_present", "present")
+            if dropin_text.strip()
+            else _tr(app, "value_not_present", "not present")
+        )
+    )
+    summary_lines.append(
+        _tr(app, "dns_control_report_global_enforcement", "Global DNS enforcement: {value}").format(
+            value=_tr(app, "value_yes", "YES")
+            if dropin_conflict
+            else _tr(app, "value_no", "NO")
+        )
+    )
+    summary_lines.append(
+        _tr(app, "dns_control_report_vpn_active", "VPN active: {value}").format(
+            value=_tr(app, "value_yes", "YES")
+            if vpn_active
+            else _tr(app, "value_no", "NO")
+        )
+    )
     if vpn_conflict:
         summary_lines.append("")
-        summary_lines.append("Bewertung: DNS-Leak-Risiko durch DoT/VPN-Konflikt")
         summary_lines.append(
-            "Empfehlung: DoT-Drop-in entfernen oder VPN-DNS bevorzugen."
+            _tr(
+                app,
+                "dot_conflict_assessment",
+                "Assessment: DNS leak risk due to DoT/VPN conflict",
+            )
+        )
+        summary_lines.append(
+            _tr(
+                app,
+                "dot_conflict_recommendation",
+                "Recommendation: remove the DoT drop-in or prefer VPN DNS.",
+            )
         )
 
     if not preflight["resolved_active"]:
-        summary_lines.append("Hinweis: systemd-resolved läuft aktuell nicht.")
+        summary_lines.append(
+            _tr(
+                app,
+                "dot_resolved_inactive_note",
+                "Note: systemd-resolved is currently not running.",
+            )
+        )
         return {
             "ok": None,
             "enabled": enabled,
@@ -567,25 +678,35 @@ def collect_dot_status(app, run_test=False):
         if vpn_conflict:
             final_ok = None
         if final_ok is True:
-            summary_lines.append("Test: erfolgreich")
+            summary_lines.append(_tr(app, "dot_test_success", "Test: erfolgreich"))
         elif final_ok is None:
-            summary_lines.append("Test: unklar")
+            summary_lines.append(_tr(app, "dot_test_unclear", "Test: unklar"))
         else:
-            summary_lines.append("Test: fehlgeschlagen")
+            summary_lines.append(_tr(app, "dot_test_failed", "Test: fehlgeschlagen"))
         if query_ok:
-            summary_lines.append("Resolver-Abfrage: OK")
+            summary_lines.append(_tr(app, "dot_resolver_query_ok", "Resolver-Abfrage: OK"))
         elif query_timeout:
-            summary_lines.append("Resolver-Abfrage: Timeout")
+            summary_lines.append(
+                _tr(app, "dot_resolver_query_timeout", "Resolver-Abfrage: Timeout")
+            )
         else:
-            summary_lines.append("Resolver-Abfrage: fehlgeschlagen")
+            summary_lines.append(
+                _tr(app, "dot_resolver_query_failed", "Resolver-Abfrage: fehlgeschlagen")
+            )
         if tls_ok is None:
-            summary_lines.append("TLS-Probe: übersprungen")
+            summary_lines.append(_tr(app, "dot_tls_probe_skipped", "TLS-Probe: übersprungen"))
         elif tls_timeout:
-            summary_lines.append("TLS-Probe: Timeout")
+            summary_lines.append(_tr(app, "dot_tls_probe_timeout", "TLS-Probe: Timeout"))
         else:
-            summary_lines.append(f"TLS-Probe: {'OK' if tls_ok else 'fehlgeschlagen'}")
+            summary_lines.append(
+                _tr(app, "dot_tls_probe_value", "TLS-Probe: {value}").format(
+                    value="OK" if tls_ok else _tr(app, "value_failed", "fehlgeschlagen")
+                )
+            )
         if tls_detail:
-            summary_lines.append(f"Hinweis: {tls_detail}")
+            summary_lines.append(
+                _tr(app, "note_value", "Note: {value}").format(value=tls_detail)
+            )
     else:
         if enabled and preflight["resolved_active"]:
             final_ok = True
@@ -596,17 +717,33 @@ def collect_dot_status(app, run_test=False):
         if vpn_conflict:
             final_ok = None
         if enabled:
-            summary_lines.append("Test: nicht durchgeführt")
+            summary_lines.append(
+                _tr(app, "dot_test_not_run", "Test: not run")
+            )
         else:
-            summary_lines.append("Test: nicht möglich (DoT nicht aktiv)")
+            summary_lines.append(
+                _tr(
+                    app,
+                    "dot_test_not_possible_inactive",
+                    "Test: not possible (DoT inactive)",
+                )
+            )
 
     if resolvectl_dns:
         summary_lines.append("")
-        summary_lines.append("---- resolvectl dns ----")
+        summary_lines.append(
+            _tr(app, "dot_resolvectl_dns_heading", "---- resolvectl dns ----")
+        )
         summary_lines.append(resolvectl_dns.strip())
     if run_test and query_out:
         summary_lines.append("")
-        summary_lines.append("---- resolvectl query example.com ----")
+        summary_lines.append(
+            _tr(
+                app,
+                "dot_resolvectl_query_heading",
+                "---- resolvectl query example.com ----",
+            )
+        )
         summary_lines.append(query_out.strip())
 
     return {
@@ -638,7 +775,7 @@ def show_dot_status_result(
         app.nb.select(app.tab_dns)
     if show_output:
         app.update_dns_output(status.get("text", ""), append=append)
-    _app_var_set(app, "dot_test_hint_var", _dot_test_hint_text(status))
+    _app_var_set(app, "dot_test_hint_var", "" if startup else _dot_test_hint_text(app, status))
     set_dot_state(
         app,
         status.get("ok"),
@@ -652,7 +789,9 @@ def show_dot_status_result(
     if emit_chad_warning and status.get("vpn_conflict"):
         app.append_to_chad_output("DNS Warnung", dot_leak_conflict_warning_text())
     if startup:
-        app.dot_last_test_var.set("Letzter Test: Startprüfung")
+        app.dot_last_test_var.set(
+            _tr(app, "dot_last_test_startup", "Letzter Test: Startprüfung")
+        )
     app.update_dns_controls_state_safe()
 
 
@@ -704,11 +843,14 @@ def show_dot_status_async(app, startup=False):
             error_text = str(exc)
 
             def fail():
-                app.dot_status_var.set("DoT: unbekannt")
+                app.dot_status_var.set(app.tr("dot_state_unknown", "DoT: unknown"))
                 app.dot_last_test_var.set(
-                    "Letzter Test: Startprüfung fehlgeschlagen"
+                    app.tr(
+                        "dot_last_test_startup_failed",
+                        "Last test: startup check failed",
+                    )
                     if startup
-                    else "Letzter Test: fehlgeschlagen"
+                    else app.tr("dot_last_test_failed", "Last test: failed")
                 )
                 _app_var_set(app, "dot_test_hint_var", "")
                 app.dot_last_test_ok = None
@@ -883,7 +1025,10 @@ def disable_dot_async(app):
     app.dot_running = True
     app.nb.select(app.tab_dns)
     app.update_dns_output(
-        "=== DNS over TLS ===\nStatus: Deaktivierung läuft\n",
+        app.tr(
+            "dot_disable_running_output",
+            "=== DNS over TLS ===\nStatus: disabling\n",
+        ),
         append=False,
     )
     app.log_safe("DoT-Deaktivierung gestartet")
@@ -920,10 +1065,16 @@ def disable_dot_async(app):
                         "vpn_conflict": False,
                         "text": "\n".join(
                             [
-                                "=== DNS over TLS ===",
-                                "Aktion: deaktivieren",
-                                "Ergebnis: erfolgreich",
-                                "Hinweis: NetMon-Drop-in entfernt und systemd-resolved neu gestartet.",
+                                app.tr("dot_output_heading", "=== DNS over TLS ==="),
+                                app.tr("dot_action_disable", "Action: disable"),
+                                app.tr(
+                                    "dot_result_success",
+                                    "Result: successful",
+                                ),
+                                app.tr(
+                                    "dot_disable_success_note",
+                                    "Note: NetMon drop-in removed and systemd-resolved restarted.",
+                                ),
                             ]
                         ),
                     },
@@ -945,10 +1096,15 @@ def disable_dot_async(app):
                         "vpn_conflict": False,
                         "text": "\n".join(
                             [
-                                "=== DNS over TLS ===",
-                                "Aktion: deaktivieren",
-                                "Ergebnis: fehlgeschlagen",
-                                f"Details: {e}",
+                                app.tr("dot_output_heading", "=== DNS over TLS ==="),
+                                app.tr("dot_action_disable", "Action: disable"),
+                                app.tr(
+                                    "dot_result_failed",
+                                    "Result: failed",
+                                ),
+                                app.tr("details_value", "Details: {value}").format(
+                                    value=e
+                                ),
                             ]
                         ),
                     },
@@ -967,7 +1123,7 @@ def test_dot_async(app):
         return
     app.dot_running = True
     app.nb.select(app.tab_dns)
-    app.dot_status_var.set("DoT-Test läuft")
+    app.dot_status_var.set(app.tr("dot_test_running_state", "DoT test running"))
     _app_var_set(app, "dot_test_hint_var", "")
     app.update_dns_output(
         "=== DNS over TLS ===\nStatus: Test läuft\n",

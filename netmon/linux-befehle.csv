@@ -1,0 +1,71 @@
+category,name,info,cmd
+Dateien,ls,Dateien im Ordner anzeigen,ls -la
+Dateien,pwd,Aktuellen Pfad anzeigen,pwd
+Dateien,cd,In Ordner wechseln,cd /pfad/zum/ordner
+Dateien,tree,Ordnerstruktur anzeigen,tree
+Dateien,cp,Datei kopieren,cp QUELLE ZIEL
+Dateien,mv,Datei verschieben/umbenennen,mv ALT NEU
+Dateien,rm,Datei löschen (VORSICHT),rm DATEI
+Dateien,mkdir,Ordner erstellen,mkdir ORDNER
+Dateien,rmdir,Leeren Ordner löschen,rmdir ORDNER
+Dateien,touch,Leere Datei erstellen,touch DATEI
+Dateien,stat,Dateiinformationen anzeigen,stat DATEI
+Dateien,file,Dateityp anzeigen,file DATEI
+
+Rechte,chmod,Dateirechte ändern,chmod 755 DATEI
+Rechte,chown,Besitzer ändern,sudo chown USER:GRUPPE DATEI
+Rechte,chgrp,Gruppe ändern,sudo chgrp GRUPPE DATEI
+Rechte,umask,Standardrechte anzeigen,umask
+
+System,whoami,Angemeldeten Benutzer anzeigen,whoami
+System,id,Benutzer- und Gruppeninfos,id
+System,uname,Systeminformationen anzeigen,uname -a
+System,hostname,Hostname anzeigen,hostname
+System,uptime,Laufzeit des Systems,uptime
+System,date,Datum und Uhrzeit anzeigen,date
+System,df,Festplattenbelegung anzeigen,df -h
+System,du,Ordnergröße anzeigen,du -sh *
+System,free,RAM-Auslastung anzeigen,free -h
+System,lsblk,Blockgeräte anzeigen,lsblk
+System,top,Prozesse live anzeigen,top
+System,htop,Prozessanzeige (komfortabel),htop
+System,reboot,System neu starten,sudo reboot
+System,shutdown,System herunterfahren,sudo shutdown now
+
+Prozesse,ps,Prozesse anzeigen,ps aux
+Prozesse,kill,Prozess beenden,kill PID
+Prozesse,killall,Prozess nach Name beenden,killall NAME
+Prozesse,bg,Prozess im Hintergrund fortsetzen,bg
+Prozesse,fg,Prozess in Vordergrund holen,fg
+
+Netzwerk,ip a,Netzwerkschnittstellen anzeigen,ip a
+Netzwerk,ip r,Routen anzeigen,ip r
+Netzwerk,ping,Netzwerkverbindung testen,ping -c 4 1.1.1.1
+Netzwerk,ss,Offene Ports anzeigen,ss -tulpn
+Netzwerk,netstat,Netzwerkstatistik anzeigen,netstat -tulpn
+Netzwerk,curl,URL abrufen,curl https://example.com
+Netzwerk,wget,Datei herunterladen,wget URL
+
+Archive,tar packen,Ordner packen (tar),tar -cvf archiv.tar ORDNER
+Archive,tar entpacken,Archiv entpacken,tar -xvf archiv.tar
+Archive,gzip,Datei komprimieren,gzip DATEI
+Archive,gunzip,Datei entpacken,gunzip DATEI.gz
+Archive,zip,Zip-Archiv erstellen,zip -r archiv.zip ORDNER
+Archive,unzip,Zip-Archiv entpacken,unzip archiv.zip
+
+Suche,find,Dateien suchen,find . -name DATEI
+Suche,locate,Schnelle Dateisuche,locate DATEI
+Suche,grep,Text in Dateien suchen,grep -R "TEXT" .
+Suche,history,Befehlsverlauf anzeigen,history
+
+Paketverwaltung,apt update,Paketlisten aktualisieren,sudo apt update
+Paketverwaltung,apt upgrade,System aktualisieren,sudo apt upgrade
+Paketverwaltung,apt install,Paket installieren,sudo apt install PAKET
+Paketverwaltung,apt remove,Paket entfernen,sudo apt remove PAKET
+Paketverwaltung,apt search,Paket suchen,apt search NAME
+
+Shell,clear,Terminal leeren,clear
+Shell,alias,Befehl aliasieren,alias ll='ls -la'
+Shell,unalias,Alias entfernen,unalias ll
+Shell,env,Umgebungsvariablen anzeigen,env
+Shell,export,Variable setzen,export NAME=WERT

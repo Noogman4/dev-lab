@@ -46,7 +46,7 @@ def log_chad_error(app, source: str, error_text: str):
         return
     if len(msg) > 1200:
         msg = msg[:1200].rstrip() + " ..."
-    app.log_safe(f"Chad {source} Fehler: {msg}")
+    app.log_safe(f"Chad {source} error: {msg}")
 
 
 def _app_value(app, name: str, default=None):
@@ -73,6 +73,16 @@ def _app_var_set(app, name: str, value) -> bool:
     except Exception:
         return False
     return True
+
+
+def _tr(app, key: str, fallback: str) -> str:
+    callback = getattr(app, "tr", None)
+    if not callable(callback):
+        return fallback
+    try:
+        return callback(key, fallback)
+    except Exception:
+        return fallback
 
 
 def _set_var(app, name: str, value):
@@ -120,21 +130,37 @@ def _set_widget_state(widget, state: str):
 def _get_online_service_model_name(app) -> str:
     service = _app_value(app, "ai_online_service")
     if service is None:
-        return "Noch kein Modell aktiv"
+        return _tr(
+            app,
+            "chad_settings_status_no_model_active",
+            "Noch kein Modell aktiv",
+        )
     model = str(getattr(service, "default_model", "") or "").strip()
     if model:
         return model
     if getattr(service, "is_available", None) and service.is_available():
         return "gpt-4.1-mini"
-    return "Noch kein Modell aktiv"
+    return _tr(
+        app,
+        "chad_settings_status_no_model_active",
+        "Noch kein Modell aktiv",
+    )
 
 
 def _get_online_service_usage_text(app) -> str:
     service = _app_value(app, "ai_online_service")
     if service is None:
-        return "Noch nicht verfügbar"
+        return _tr(
+            app,
+            "chad_settings_status_not_available",
+            "Noch nicht verfügbar",
+        )
     text = str(getattr(service, "last_usage_text", "") or "").strip()
-    return text or "Noch nicht verfügbar"
+    return text or _tr(
+        app,
+        "chad_settings_status_not_available",
+        "Noch nicht verfügbar",
+    )
 
 
 def refresh_chad_runtime_status(app):
@@ -148,7 +174,9 @@ def refresh_chad_runtime_status(app):
     _set_var(
         app,
         "chad_settings_api_status_var",
-        "Verbunden" if available else "Nicht verbunden",
+        _tr(app, "chad_settings_status_connected", "Verbunden")
+        if available
+        else _tr(app, "chad_settings_status_disconnected", "Getrennt"),
     )
     _set_var(app, "chad_settings_model_var", _get_online_service_model_name(app))
 
@@ -233,7 +261,7 @@ def _update_chad_summary_indicator(app, state_text: str):
         return
     color = "#2e7d32"
     low = str(state_text or "").strip().lower()
-    if "krit" in low or "fehler" in low:
+    if "krit" in low or "fehler" in low or "critical" in low or "error" in low:
         color = "#b71c1c"
     elif "warn" in low:
         color = "#b26a00"
@@ -255,11 +283,15 @@ def update_chad_summary_from_result(
     if status_override:
         summary_state = str(status_override)
     elif critical > 0:
-        summary_state = "Kritisch"
+        summary_state = _tr(app, "chad_settings_summary_critical", "Kritisch")
     elif warnings > 0:
-        summary_state = "Warnungen vorhanden"
+        summary_state = _tr(
+            app,
+            "chad_settings_summary_warnings_present",
+            "Warnungen vorhanden",
+        )
     else:
-        summary_state = "Unauffällig"
+        summary_state = _tr(app, "chad_settings_summary_ok", "Unauffällig")
 
     _set_var(app, "chad_settings_summary_state_var", summary_state)
     _set_var(app, "chad_settings_summary_critical_var", str(critical))
@@ -273,7 +305,10 @@ def update_chad_summary_from_result(
         0,
         {
             "timestamp": datetime.now().strftime("%d.%m.%Y %H:%M"),
-            "analysis_type": str(analysis_title or "Analyse").strip() or "Analyse",
+            "analysis_type": str(
+                analysis_title or _tr(app, "chad_analysis_label_default", "Analyse")
+            ).strip()
+            or _tr(app, "chad_analysis_label_default", "Analyse"),
             "status": summary_state,
             "warnings": str(warnings),
             "critical": str(critical),
@@ -504,14 +539,15 @@ def is_chad_enabled(app) -> bool:
     return bool(_app_var_get(app, "chad_enabled_var", True))
 
 
-def ensure_chad_enabled(app, message: str = "Chad-Anbindung ist deaktiviert."):
+def ensure_chad_enabled(app, message: str = "Chad integration is disabled."):
     if is_chad_enabled(app):
         return True
     try:
         app.chad_analysis_status_var.set(
             message
-            if message != "Chad-Anbindung ist deaktiviert."
-            else app.tr(
+            if message != "Chad integration is disabled."
+            else _tr(
+                app,
                 "chad_status_disabled",
                 "Chad-Anbindung ist deaktiviert.",
             )
@@ -526,15 +562,15 @@ def show_chad_activation_required_popup(app):
         app.chad_analysis_status_var.set(
             app.tr(
                 "chad_status_activate_first",
-                "Bitte vorher Chad aktivieren.",
+                "Please enable Chad first.",
             )
         )
     except Exception:
         pass
     try:
         messagebox.showinfo(
-            app.tr("chad_popup_disabled_title", "Chad deaktiviert"),
-            app.tr("chad_status_activate_first", "Bitte vorher Chad aktivieren."),
+            app.tr("chad_popup_disabled_title", "Chad disabled"),
+            app.tr("chad_status_activate_first", "Please enable Chad first."),
             parent=app,
         )
     except Exception:
@@ -546,13 +582,21 @@ def _update_chad_dev_filter_status(app):
         _app_var_set(
             app,
             "chad_dev_filter_status_var",
-            "Dev-Umgebungsfilter aktiv: VS Code-, Codex- und Docker-Standardhinweise werden minimiert.",
+            _tr(
+                app,
+                "chad_dev_filter_status_on",
+                "Dev-Umgebungsfilter aktiv: Standardhinweise zu VS Code, Codex und Docker werden minimiert.",
+            ),
         )
         return
     _app_var_set(
         app,
         "chad_dev_filter_status_var",
-        "Dev-Umgebungsfilter aus: alle Hinweise werden unverändert angezeigt.",
+        _tr(
+            app,
+            "chad_dev_filter_status_off",
+            "Dev-Umgebungsfilter aus: alle Hinweise werden unverändert angezeigt.",
+        ),
     )
 
 
@@ -595,26 +639,28 @@ def update_chad_controls_state(app):
     if enabled:
         try:
             app.chad_chat_status_var.set(
-                app.tr("chad_status_chat_ready", "Chat bereit.")
+                _tr(app, "chad_status_chat_ready", "Chat bereit.")
             )
         except Exception:
             pass
     else:
         try:
             app.chad_chat_status_var.set(
-                app.tr(
+                _tr(
+                    app,
                     "chad_status_chat_disabled",
                     "Chad-Anbindung deaktiviert.",
                 )
             )
             app.chad_online_status_var.set(
-                app.tr(
+                _tr(
+                    app,
                     "chad_online_status_disabled",
                     "Online-Analyse: deaktiviert",
                 )
             )
             app.chad_analysis_status_var.set(
-                app.tr("chad_status_disabled", "Chad-Anbindung ist deaktiviert.")
+                _tr(app, "chad_status_disabled", "Chad-Anbindung ist deaktiviert.")
             )
         except Exception:
             pass
@@ -779,13 +825,15 @@ def filter_chad_analysis_input(app, raw_text: str) -> str:
     filtered_text = "\n".join(compact_lines).strip()
     if filtered_text:
         if removed_count > 0:
-            filtered_text += f"\n\nHinweis: {removed_count} lokale Info-/Rauschzeile(n) wurden vor der Chad-Analyse ausgeblendet."
+            filtered_text += (
+                f"\n\nHinweis: {removed_count} lokale Info-/Rauschzeile(n) wurden vor der Chad Analyse ausgeblendet."
+            )
         return filtered_text
 
     return (
-        "Hinweis: Standardrauschen aus Entwicklungsumgebung, normalen Systemdiensten oder "
-        "bekannten harmlosen Prozessen wurde vor der Chad-Analyse ausgeblendet. Keine "
-        "weiteren relevanten Zeilen übrig."
+        "Hinweis: Standardrauschen aus der Entwicklungsumgebung, normale Systemdienste "
+        "oder bekannte harmlose Prozesse wurden vor der Chad Analyse ausgeblendet. "
+        "Es bleiben keine weiteren relevanten Zeilen übrig."
     )
 
 
@@ -795,8 +843,8 @@ def _build_chad_prompt_overrides(app) -> str:
 
     if analysis_mode == "beginner":
         parts.append(
-            "Analysemodus Anfänger: erkläre Zusammenhänge ruhig, verständlich und mit "
-            "wenig Fachjargon. Zeige klar, warum etwas relevant ist."
+            "Analysemodus Anfänger: erkläre Zusammenhänge ruhig, klar und mit wenig "
+            "Fachjargon. Zeige deutlich, warum etwas wichtig ist."
         )
     elif analysis_mode == "expert":
         parts.append(
@@ -811,15 +859,14 @@ def _build_chad_prompt_overrides(app) -> str:
 
     if _should_ignore_dev_environment_noise(app):
         parts.append(
-            "Hinweis für die Bewertung: VS Code-, Codex-, Dev-Container- und Docker-"
-            "bezogene Prozesse, Pfade, Sockets und temporäre Dateien sollen nicht"
-            " automatisch als verdächtig gewertet werden. Zeige dazu nur dann Warnungen,"
-            " wenn es konkrete zusätzliche Risikomerkmale gibt."
+            "Bewertungshinweis: VS Code-, Codex-, Dev-Container- und Docker-bezogene Prozesse, "
+            "Pfade, Sockets und temporäre Dateien sollen nicht automatisch als verdächtig "
+            "gewertet werden. Zeige Warnungen nur bei konkreten zusätzlichen Risikosignalen."
         )
 
     if _get_bool_setting(app, "chad_filter_hide_normal_services_var"):
         parts.append(
-            "Normale Systemdienste ohne zusätzliche Risikohinweise sollen weitgehend "
+            "Normale Systemdienste ohne zusätzliche Risikosignale sollen weitgehend "
             "ausgeblendet und nicht unnötig kommentiert werden."
         )
 
@@ -831,94 +878,82 @@ def _build_chad_prompt_overrides(app) -> str:
 
     if _get_bool_setting(app, "chad_filter_relevant_var", True):
         parts.append(
-            "Konzentriere dich auf die sicherheits- oder betriebsrelevanten Auffälligkeiten "
-            "und lasse nebensächliches Rauschen möglichst weg."
+            "Fokussiere auf sicherheitsrelevante oder betrieblich relevante Funde und "
+            "blende Nebengeräusche nach Möglichkeit aus."
         )
 
     if _get_bool_setting(app, "chad_filter_critical_var"):
         parts.append(
-            "Hebe nur kritische oder klar hochriskante Warnungen hervor. Mittel- und "
-            "Niedrigrisiko nur kurz erwähnen, wenn sie für das Gesamtbild wichtig sind."
+            "Zeige nur kritische oder klar hochriskante Warnungen deutlich an. Mittlere "
+            "und niedrige Risiken nur kurz erwähnen, wenn sie für das Gesamtbild wichtig sind."
         )
 
     if _get_bool_setting(app, "chad_filter_recommendations_var", True):
         parts.append(
-            "Gib zu relevanten Funden klare Handlungsempfehlungen und nächste sinnvolle "
-            "Prüfschritte an."
+            "Gib klare Handlungsempfehlungen und sinnvolle nächste Prüfschritte für "
+            "relevante Funde."
         )
     else:
         parts.append(
-            "Fokussiere dich auf die Bewertung und vermeide längere Maßnahmenlisten."
+            "Fokussiere auf die Bewertung und vermeide lange Maßnahmenlisten."
         )
 
     if _get_bool_setting(app, "chad_filter_beginner_var"):
         parts.append(
-            "Erkläre wichtige Begriffe und Risiken anfängerfreundlich und ohne unnötigen "
-            "Jargon."
+            "Erkläre wichtige Begriffe und Risiken anfängerfreundlich ohne unnötigen Fachjargon."
         )
 
     if _get_bool_setting(app, "chad_filter_rawdata_var"):
         parts.append(
-            "Hänge zu wichtigen Befunden kurze relevante Rohdaten-Ausschnitte oder "
-            "Belegzeilen an."
+            "Füge wichtige Rohdaten oder Belegzeilen nur kurz und relevant bei."
         )
     else:
         parts.append(
-            "Wiederhole keine langen Rohdatenblöcke. Nutze nur kurze Belege, wenn sie für "
-            "die Begründung nötig sind."
+            "Zeige keine langen Rohdatenblöcke. Nutze nur kurze Belegzeilen, wenn sie die "
+            "Bewertung stützen."
         )
 
     if _get_bool_setting(app, "chad_filter_technical_var", True):
         parts.append(
-            "Technische Details dürfen genannt werden, wenn sie zur Einordnung oder "
-            "Prüfung hilfreich sind."
+            "Technische Details dürfen enthalten sein, wenn sie bei Einordnung oder Prüfung helfen."
         )
     else:
         parts.append(
-            "Halte technische Details knapp und konzentriere dich stärker auf die praktische "
-            "Bedeutung."
+            "Halte technische Details knapp und fokussiere stärker auf die praktische Bedeutung."
         )
 
     focus_items = []
     if _get_bool_setting(app, "chad_focus_security_var", True):
         focus_items.append(
-            "Sicherheitsanalyse: priorisiere Schwachstellen, Angriffsindikatoren und "
-            "missbräuchliches Verhalten."
+            "Sicherheitsanalyse: priorisiere Schwachstellen, Angriffsindikatoren und missbräuchliches Verhalten."
         )
     if _get_bool_setting(app, "chad_focus_dns_var", True):
         focus_items.append(
-            "DNS Analyse: achte besonders auf Resolver-Konflikte, Manipulationshinweise, "
-            "DNS-Leaks und ungewöhnliche Namensauflösung."
+            "DNS Analyse: achte besonders auf Resolver-Konflikte, Manipulationssignale, DNS-Leaks und ungewöhnliche Namensauflösung."
         )
     if _get_bool_setting(app, "chad_focus_network_var", True):
         focus_items.append(
-            "Netzwerkanalyse: priorisiere auffällige Verbindungen, externe Kommunikation, "
-            "Ports und Kommunikationsmuster."
+            "Netzwerkanalyse: priorisiere verdächtige Verbindungen, externe Kommunikation, Ports und Verkehrsmuster."
         )
     if _get_bool_setting(app, "chad_focus_process_var", True):
         focus_items.append(
-            "Prozessanalyse: bewerte Prozesse, Eltern-Kind-Beziehungen, Binärpfade und "
-            "auffälliges Laufzeitverhalten genauer."
+            "Prozessanalyse: bewerte Prozesse, Eltern-Kind-Beziehungen, Binärpfade und verdächtiges Laufzeitverhalten genauer."
         )
     if _get_bool_setting(app, "chad_focus_firewall_var", True):
         focus_items.append(
-            "Firewall Analyse: beachte Firewall-Regeln, Block-Events und Lücken in der "
-            "Abschirmung besonders stark."
+            "Firewall Analyse: achte besonders auf Firewall-Regeln, Blockereignisse und Lücken in der Netzisolation."
         )
     if _get_bool_setting(app, "chad_focus_performance_var"):
         focus_items.append(
-            "Performance Analyse: nenne auch Leistungsengpässe, Ressourcenverbrauch und "
-            "Systemlast, wenn sie relevant sind."
+            "Performance Analyse: nenne auch Leistungsengpässe, Ressourcennutzung und Systemlast, wenn sie relevant sind."
         )
     if _get_bool_setting(app, "chad_focus_optimization_var"):
         focus_items.append(
-            "Systemoptimierung: gib bei Bedarf Hinweise zur Stabilisierung, Bereinigung und "
-            "sinnvollen Optimierung des Systems."
+            "Systemoptimierung: gib bei Bedarf Hinweise zu Stabilisierung, Aufräumen und sinnvoller Optimierung."
         )
     if _get_bool_setting(app, "chad_focus_rootkit_var"):
         focus_items.append(
-            "Rootkit Hinweise priorisieren: hebe versteckte Prozesse, Hooking, Persistenz und "
-            "Rootkit-typische Muster besonders deutlich hervor."
+            "Rootkit Hinweise priorisieren: hebe versteckte Prozesse, Hooking, Persistenz und rootkit-typische Muster besonders deutlich hervor."
         )
 
     if focus_items:
@@ -927,33 +962,27 @@ def _build_chad_prompt_overrides(app) -> str:
     answer_items = []
     if _get_bool_setting(app, "chad_answer_short_var"):
         answer_items.append(
-            "Kurze Antworten bevorzugen: halte die Antwort kompakt und vermeide unnötige "
-            "Ausschmückungen."
+            "Kurze Antworten bevorzugen: halte die Antwort kompakt und vermeide unnötige Ausschmückung."
         )
     if _get_bool_setting(app, "chad_answer_detailed_var", True):
         answer_items.append(
-            "Ausführliche Analyse: liefere bei relevanten Funden genügend Kontext für eine "
-            "solide Einordnung."
+            "Ausführliche Analyse: liefere genug Kontext zu relevanten Funden für eine belastbare Bewertung."
         )
     if _get_bool_setting(app, "chad_answer_step_var", True):
         answer_items.append(
-            "Schritt-für-Schritt-Erklärungen: strukturiere Bewertung und nächste Schritte in "
-            "klarer Reihenfolge."
+            "Schritt-für-Schritt-Erklärungen: strukturiere Bewertung und nächste Schritte in klarer Reihenfolge."
         )
     if _get_bool_setting(app, "chad_answer_linux_help_var", True):
         answer_items.append(
-            "Linux-Befehle erklären: erläutere vorgeschlagene Befehle kurz in Zweck und "
-            "Wirkung."
+            "Linux-Befehle erklären: erläutere Zweck und Wirkung empfohlener Befehle kurz."
         )
     if _get_bool_setting(app, "chad_answer_risk_var", True):
         answer_items.append(
-            "Risiko-Einstufung anzeigen: nenne zu wichtigen Funden eine erkennbare Risiko-"
-            "Bewertung oder Priorität."
+            "Risiko-Einstufung anzeigen: gib wichtigen Funden eine erkennbare Risikostufe oder Priorität."
         )
     if _get_bool_setting(app, "chad_answer_recommendations_var", True):
         answer_items.append(
-            "Empfehlungen priorisieren: beginne mit den wirksamsten oder dringendsten "
-            "Maßnahmen."
+            "Empfehlungen priorisieren: beginne mit den wirksamsten oder dringendsten Maßnahmen."
         )
 
     if answer_items:
@@ -985,10 +1014,10 @@ def _apply_prepared_chad_analysis(app, title: str, prompt: str):
     app.chad_analysis_current_prompt = cleaned_prompt
     app.chad_online_result = ""
     app.chad_analysis_source_var.set(
-        f"{app.tr('chad_label_source_prefix', 'Quelle')}: {title}"
+        f"{_tr(app, 'chad_label_source_prefix', 'Quelle')}: {title}"
     )
     app.chad_analysis_status_var.set(
-        app.tr("chad_status_analysis_prepared", "Analyse vorbereitet.")
+        _tr(app, "chad_status_analysis_prepared", "Analyse vorbereitet.")
     )
     mark_chad_status_event(app, analysis_title=f"Vorbereitet: {title}")
     append_to_chad_output(app, title, cleaned_prompt)
@@ -1020,7 +1049,7 @@ def copy_chad_analysis_to_clipboard(app):
         app.chad_analysis_status_var.set(
             app.tr(
                 "chad_status_analysis_copied",
-                "Analyse in Zwischenablage kopiert.",
+                "Analysis copied to clipboard.",
             )
         )
     except Exception:
@@ -1035,13 +1064,13 @@ def _get_chad_source_name(app) -> str:
         raw = str(source_var.get() or "")
     except Exception:
         return "Analyse"
-    cleaned = raw.replace("Quelle:", "").strip()
+    cleaned = raw.replace("Quelle:", "").replace("Source:", "").strip()
     return cleaned or "Analyse"
 
 
 def _safe_analysis_filename(source_name: str) -> str:
-    name = re.sub(r"[^A-Za-z0-9._-]+", "_", str(source_name or "Analyse").strip())
-    name = name.strip("._-") or "analyse"
+    name = re.sub(r"[^A-Za-z0-9._-]+", "_", str(source_name or "Analysis").strip())
+    name = name.strip("._-") or "analysis"
     stamp = datetime.now().strftime("%Y%m%d_%H%M")
     return f"netmon_chad_{name}_{stamp}"
 
@@ -1056,7 +1085,7 @@ def save_chad_analysis_to_file(app):
     ):
         try:
             app.chad_analysis_status_var.set(
-                app.tr("chad_status_no_analysis", "Keine Analyse vorhanden.")
+                _tr(app, "chad_status_no_analysis", "Keine Analyse verfügbar.")
             )
         except Exception:
             pass
@@ -1064,13 +1093,13 @@ def save_chad_analysis_to_file(app):
 
     source_name = _get_chad_source_name(app)
     path = filedialog.asksaveasfilename(
-        title=app.tr("chad_save_analysis_title", "Chad Analyse speichern"),
+        title=app.tr("chad_save_analysis_title", "Save Chad analysis"),
         defaultextension=".json",
         initialfile=_safe_analysis_filename(source_name) + ".json",
         filetypes=[
-            ("NetMon Chad Analyse", "*.json"),
-            ("Textdatei", "*.txt"),
-            (app.tr("chad_filetypes_all", "Alle Dateien"), "*.*"),
+            ("NetMon Chad Analysis", "*.json"),
+            ("Text file", "*.txt"),
+            (app.tr("chad_filetypes_all", "All files"), "*.*"),
         ],
     )
     if not path:
@@ -1086,25 +1115,29 @@ def save_chad_analysis_to_file(app):
             with open(path, "w", encoding="utf-8") as handle:
                 json.dump(payload, handle, indent=2, ensure_ascii=False)
         app.chad_analysis_status_var.set(
-            app.tr("chad_status_analysis_saved", "Analyse gespeichert.")
+            _tr(app, "chad_status_analysis_saved", "Analyse gespeichert.")
             + f" {os.path.basename(path)}"
         )
     except Exception as exc:
         app.chad_analysis_status_var.set(
-            f"Analyse konnte nicht gespeichert werden: {exc}"
+            _tr(
+                app,
+                "chad_status_analysis_save_failed",
+                "Analyse konnte nicht gespeichert werden: {error}",
+            ).format(error=exc)
         )
-        log_chad_error(app, "Speichern", str(exc))
+        log_chad_error(app, "Save", str(exc))
 
 
 def load_chad_analysis_from_file(app):
     if not ensure_chad_enabled(app):
         return
     path = filedialog.askopenfilename(
-        title=app.tr("chad_load_analysis_title", "Chad Analyse einlesen"),
+        title=app.tr("chad_load_analysis_title", "Load Chad analysis"),
         filetypes=[
-            ("NetMon Chad Analyse", "*.json"),
-            ("Textdatei", "*.txt"),
-            (app.tr("chad_filetypes_all", "Alle Dateien"), "*.*"),
+            ("NetMon Chad Analysis", "*.json"),
+            ("Text file", "*.txt"),
+            (app.tr("chad_filetypes_all", "All files"), "*.*"),
         ],
     )
     if not path:
@@ -1138,7 +1171,7 @@ def load_chad_analysis_from_file(app):
                 if transcript:
                     restored_entries = [
                         {
-                            "title": source_name or "Eingelesene Analyse",
+                            "title": source_name or "Loaded analysis",
                             "text": transcript,
                             "kind": "result",
                         }
@@ -1146,10 +1179,10 @@ def load_chad_analysis_from_file(app):
             app.chad_output_entries = restored_entries
             refresh_chad_output_view(app)
             app.chad_analysis_source_var.set(
-                f"{app.tr('chad_label_source_prefix', 'Quelle')}: {source_name or 'Eingelesene Analyse'}"
+                f"{_tr(app, 'chad_label_source_prefix', 'Quelle')}: {source_name or 'Geladene Analyse'}"
             )
             app.chad_analysis_status_var.set(
-                app.tr("chad_status_analysis_loaded", "Analyse eingelesen.")
+                _tr(app, "chad_status_analysis_loaded", "Analyse geladen.")
                 + f" {os.path.basename(path)}"
             )
         else:
@@ -1158,18 +1191,18 @@ def load_chad_analysis_from_file(app):
             if not loaded_text:
                 app.chad_analysis_status_var.set("Analyse-Datei ist leer.")
                 return
-            title = f"Eingelesene Analyse: {os.path.basename(path)}"
+            title = f"Geladene Analyse: {os.path.basename(path)}"
             set_chad_analysis(app, title, loaded_text)
             app.chad_analysis_status_var.set(
-                app.tr("chad_status_analysis_loaded", "Analyse eingelesen.")
+                _tr(app, "chad_status_analysis_loaded", "Analyse geladen.")
                 + f" {os.path.basename(path)}"
             )
         _select_chad_tab_safe(app)
     except Exception as exc:
         app.chad_analysis_status_var.set(
-            f"Analyse konnte nicht eingelesen werden: {exc}"
+            f"Analyse konnte nicht geladen werden: {exc}"
         )
-        log_chad_error(app, "Einlesen", str(exc))
+        log_chad_error(app, "Load", str(exc))
 
 
 def clear_chad_analysis(app):
@@ -1180,18 +1213,19 @@ def clear_chad_analysis(app):
     app.chad_chat_history = []
     app.chad_pending_files = []
     app.chad_analysis_source_var.set(
-        f"{app.tr('chad_label_source_prefix', 'Quelle')}: –"
+        f"{_tr(app, 'chad_label_source_prefix', 'Quelle')}: –"
     )
     app.chad_analysis_status_var.set(
-        app.tr(
+        _tr(
+            app,
             "chad_status_no_analysis_prepared",
             "Noch keine Analyse vorbereitet.",
         )
     )
     app.chad_online_status_var.set(
-        app.tr("chad_online_status_inactive", "Online-Analyse: inaktiv")
+        _tr(app, "chad_online_status_inactive", "Online-Analyse: inaktiv")
     )
-    app.chad_chat_status_var.set(app.tr("chad_status_chat_ready", "Chat bereit."))
+    app.chad_chat_status_var.set(_tr(app, "chad_status_chat_ready", "Chat bereit."))
     app.chad_output_entries = []
     refresh_chad_output_view(app)
     chat_input = _chad_chat_input_widget(app)
@@ -1227,7 +1261,7 @@ def open_ai_analysis_preview(app, title: str, raw_text: str):
     prompt = build_chad_analysis_prompt(app, title, raw_text)
 
     win = tk.Toplevel(app)
-    win.title(f"Analyse mit Chad - {title}")
+    win.title(f"Analyze with Chad - {title}")
     win.geometry("700x500")
 
     text = tk.Text(win, wrap="word")
@@ -1244,10 +1278,10 @@ def open_ai_analysis_preview(app, title: str, raw_text: str):
 
     ttk.Button(
         btn_frame,
-        text="In Zwischenablage kopieren",
+        text="Copy to clipboard",
         command=copy_to_clipboard,
     ).pack(side="left")
-    ttk.Button(btn_frame, text="Schließen", command=win.destroy).pack(side="right")
+    ttk.Button(btn_frame, text="Close", command=win.destroy).pack(side="right")
 
 
 def send_chad_chat_message(app):
@@ -1258,14 +1292,14 @@ def send_chad_chat_message(app):
     chat_input = _chad_chat_input_widget(app)
     if chat_input is None:
         app.chad_chat_status_var.set(
-            app.tr("chad_status_no_message", "Keine Nachricht eingegeben.")
+            app.tr("chad_status_no_message", "No message entered.")
         )
         return "break"
 
     text = chat_input.get("1.0", "end").strip()
     if not text:
         app.chad_chat_status_var.set(
-            app.tr("chad_status_no_message", "Keine Nachricht eingegeben.")
+            app.tr("chad_status_no_message", "No message entered.")
         )
         return "break"
 
@@ -1273,7 +1307,7 @@ def send_chad_chat_message(app):
     refresh_chad_runtime_status(app)
     if service is None or not service.is_available():
         app.chad_chat_status_var.set(
-            app.tr("chad_status_api_key_missing", "API-Key fehlt.")
+            app.tr("chad_status_api_key_missing", "API key missing.")
         )
         return "break"
 
@@ -1282,8 +1316,8 @@ def send_chad_chat_message(app):
     except Exception:
         pass
     app.chad_chat_history.append({"role": "user", "content": text})
-    append_to_chad_output(app, app.tr("chad_output_you", "Du"), text)
-    app.chad_chat_status_var.set(app.tr("chad_status_thinking", "Chad denkt..."))
+    append_to_chad_output(app, app.tr("chad_output_you", "You"), text)
+    app.chad_chat_status_var.set(app.tr("chad_status_thinking", "Chad is thinking..."))
     pending_files = list(app.chad_pending_files)
 
     def worker():
@@ -1297,7 +1331,7 @@ def send_chad_chat_message(app):
                 app.chad_pending_files = []
                 mark_chad_status_event(
                     app,
-                    analysis_title="Chat Antwort",
+                    analysis_title="Chat reply",
                     latency_ms=latency_ms,
                     tokens_text=_get_online_service_usage_text(app),
                 )
@@ -1306,7 +1340,7 @@ def send_chad_chat_message(app):
                     app, _format_chad_response_title(app, source_name), result
                 )
                 app.chad_chat_status_var.set(
-                    app.tr("chad_status_reply_received", "Antwort erhalten.")
+                    app.tr("chad_status_reply_received", "Reply received.")
                 )
             else:
                 app.chad_chat_status_var.set(result)
@@ -1332,7 +1366,7 @@ def add_current_analysis_to_chad_chat(app):
         app.chad_chat_status_var.set(
             app.tr(
                 "chad_status_no_current_analysis",
-                "Keine aktuelle Analyse vorhanden.",
+                "No current analysis available.",
             )
         )
         return
@@ -1340,7 +1374,7 @@ def add_current_analysis_to_chad_chat(app):
     text = (
         app.tr(
             "chad_context_from_analysis_prefix",
-            "Bitte nutze diese NetMon-Analyse als Kontext für die weitere Unterhaltung:\n\n",
+            "Please use this NetMon analysis as context for the rest of the conversation:\n\n",
         )
         + prompt
     )
@@ -1350,14 +1384,14 @@ def add_current_analysis_to_chad_chat(app):
         app,
         app.tr(
             "chad_output_analysis_context",
-            "Analyse als Kontext übernommen",
+            "Analysis added as context",
         ),
         prompt,
     )
     app.chad_chat_status_var.set(
         app.tr(
             "chad_status_analysis_added_to_chat",
-            "Aktuelle Analyse in Chat übernommen.",
+            "Current analysis added to chat.",
         )
     )
 
@@ -1369,7 +1403,7 @@ def run_chad_online_analysis(app):
 
     if not prompt:
         app.chad_analysis_status_var.set(
-            app.tr("chad_status_no_analysis", "Keine Analyse vorhanden.")
+            _tr(app, "chad_status_no_analysis", "Keine Analyse verfügbar.")
         )
         return
 
@@ -1377,23 +1411,25 @@ def run_chad_online_analysis(app):
     refresh_chad_runtime_status(app)
     if service is None or not service.is_available():
         app.chad_analysis_status_var.set(
-            app.tr("chad_status_api_key_missing", "API-Key fehlt.")
+            _tr(app, "chad_status_api_key_missing", "API-Schlüssel fehlt.")
         )
         app.chad_online_status_var.set(
-            app.tr("chad_online_status_inactive", "Online-Analyse: inaktiv")
+            _tr(app, "chad_online_status_inactive", "Online-Analyse: inaktiv")
         )
         return
 
     ok = app.confirm_chad_send(
-        app.tr("chad_confirm_online_title", "Online Analyse"),
-        app.tr(
+        _tr(app, "chad_confirm_online_title", "Online Analyse"),
+        _tr(
+            app,
             "chad_confirm_online_intro",
-            "Der Text und ggf. vorgemerkte Bilder werden an die OpenAI API gesendet.\nFortfahren?",
+            "Der Text und eventuell vorgemerkte Bilder werden an die OpenAI API gesendet.\nFortfahren?",
         ),
     )
     if not ok:
         app.chad_online_status_var.set(
-            app.tr(
+            _tr(
+                app,
                 "chad_online_status_cancelled",
                 "Online-Analyse: abgebrochen",
             )
@@ -1401,7 +1437,7 @@ def run_chad_online_analysis(app):
         return
 
     app.chad_online_status_var.set(
-        app.tr("chad_online_status_running", "Analyse läuft...")
+        _tr(app, "chad_online_status_running", "Analyse läuft...")
     )
     pending_files = list(app.chad_pending_files)
 
@@ -1434,18 +1470,18 @@ def run_chad_online_analysis(app):
                 app.chad_online_status_var.set(
                     app.tr(
                         "chad_online_status_done",
-                        "Analyse abgeschlossen.",
+                        "Analysis completed.",
                     )
                 )
             else:
                 app.chad_online_status_var.set(
                     app.tr(
                         "chad_online_status_error",
-                        "Fehler bei Analyse.",
+                        "Analysis error.",
                     )
                 )
                 app.chad_analysis_status_var.set(result)
-                log_chad_error(app, "Analyse", result)
+                log_chad_error(app, "Analysis", result)
 
         call_in_ui_thread(app, update_ui)
 
@@ -1456,7 +1492,7 @@ def extract_pdf_text_for_chad(app, path: str) -> str:
     if PyPDF2 is None:
         return app.tr(
             "chad_pdf_support_missing",
-            "PDF-Unterstützung fehlt: bitte python3-pypdf2 installieren.",
+            "PDF support missing: please install python3-pypdf2.",
         )
 
     try:
@@ -1469,7 +1505,7 @@ def extract_pdf_text_for_chad(app, path: str) -> str:
                     parts.append(
                         app.tr(
                             "chad_pdf_page_header",
-                            "--- Seite {idx} ---\n",
+                            "--- Page {idx} ---\n",
                         ).format(idx=idx)
                         + text.strip()
                     )
@@ -1477,14 +1513,14 @@ def extract_pdf_text_for_chad(app, path: str) -> str:
         if not parts:
             return app.tr(
                 "chad_pdf_no_text",
-                "PDF gelesen, aber kein extrahierbarer Text gefunden.",
+                "PDF read successfully, but no extractable text was found.",
             )
 
         return "\n\n".join(parts)
     except Exception as e:
         return app.tr(
             "chad_pdf_read_error",
-            "Fehler beim PDF-Lesen: {error}",
+            "Error while reading PDF: {error}",
         ).format(error=e)
 
 
@@ -1492,7 +1528,7 @@ def extract_docx_text_for_chad(app, path: str) -> str:
     if docx is None:
         return app.tr(
             "chad_docx_support_missing",
-            "DOCX-Unterstützung fehlt: bitte python3-docx installieren.",
+            "DOCX support missing: please install python3-docx.",
         )
 
     try:
@@ -1513,14 +1549,14 @@ def extract_docx_text_for_chad(app, path: str) -> str:
         if not parts:
             return app.tr(
                 "chad_docx_no_text",
-                "DOCX gelesen, aber kein Text gefunden.",
+                "DOCX read successfully, but no text was found.",
             )
 
         return "\n".join(parts)
     except Exception as e:
         return app.tr(
             "chad_docx_read_error",
-            "Fehler beim DOCX-Lesen: {error}",
+            "Error while reading DOCX: {error}",
         ).format(error=e)
 
 
@@ -1530,24 +1566,24 @@ def import_file_to_chad_chat(app):
     path = filedialog.askopenfilename(
         title=app.tr(
             "chad_file_dialog_title",
-            "Datei für Chad Analyse auswählen",
+            "Select file for Chad analysis",
         ),
         filetypes=[
             (
-                app.tr("chad_filetypes_supported", "Unterstützte Dateien"),
+                app.tr("chad_filetypes_supported", "Supported files"),
                 "*.txt *.log *.md *.csv *.json *.py *.conf *.ini *.yaml *.yml *.pdf *.docx *.png *.jpg *.jpeg *.webp",
             ),
             (
-                app.tr("chad_filetypes_text", "Textdateien"),
+                app.tr("chad_filetypes_text", "Text files"),
                 "*.txt *.log *.md *.csv *.json *.py *.conf *.ini *.yaml *.yml",
             ),
             ("PDF", "*.pdf"),
             ("Word DOCX", "*.docx"),
             (
-                app.tr("chad_filetypes_images", "Bilder"),
+                app.tr("chad_filetypes_images", "Images"),
                 "*.png *.jpg *.jpeg *.webp",
             ),
-            (app.tr("chad_filetypes_all", "Alle Dateien"), "*.*"),
+            (app.tr("chad_filetypes_all", "All files"), "*.*"),
         ],
     )
 
@@ -1555,18 +1591,18 @@ def import_file_to_chad_chat(app):
         return
 
     ok = messagebox.askyesno(
-        app.tr("chad_import_confirm_title", "Datei importieren"),
+        app.tr("chad_import_confirm_title", "Import file"),
         app.tr(
             "chad_import_confirm_body",
-            "Der Dateiinhalt wird lokal in den Chad-Chat übernommen.\n"
-            "Er wird erst an die API gesendet, wenn du danach aktiv sendest.\n\n"
-            "Fortfahren?",
+            "The file content will be imported locally into the Chad chat.\n"
+            "It will only be sent to the API when you actively send it afterwards.\n\n"
+            "Continue?",
         ),
         parent=app,
     )
     if not ok:
         app.chad_chat_status_var.set(
-            app.tr("chad_status_file_import_cancelled", "Dateiimport abgebrochen.")
+            app.tr("chad_status_file_import_cancelled", "File import cancelled.")
         )
         return
 
@@ -1577,27 +1613,27 @@ def import_file_to_chad_chat(app):
         ext = os.path.splitext(path)[1].lower()
         if size > max_size:
             messagebox.showwarning(
-                app.tr("chad_file_too_large_title", "Datei zu groß"),
+                app.tr("chad_file_too_large_title", "File too large"),
                 app.tr(
                     "chad_file_too_large_body",
-                    "Die Datei ist größer als 5 MB.\n"
-                    "Bitte erst kleinere Ausschnitte verwenden.",
+                    "The file is larger than 5 MB.\n"
+                    "Please use smaller excerpts first.",
                 ),
                 parent=app,
             )
             app.chad_chat_status_var.set(
-                app.tr("chad_status_file_too_large", "Datei zu groß für Import.")
+                app.tr("chad_status_file_too_large", "File too large for import.")
             )
             return
 
         if size > 500_000:
             ok = messagebox.askyesno(
-                app.tr("chad_large_file_title", "Große Datei"),
+                app.tr("chad_large_file_title", "Large file"),
                 app.tr(
                     "chad_large_file_body",
-                    "Die Datei ist {size_mb} MB groß.\n\n"
-                    "Das kann die Analyse verlangsamen.\n\n"
-                    "Trotzdem laden?",
+                    "The file is {size_mb} MB large.\n\n"
+                    "This can slow down the analysis.\n\n"
+                    "Load it anyway?",
                 ).format(size_mb=round(size / 1024 / 1024, 2)),
                 parent=app,
             )
@@ -1605,7 +1641,7 @@ def import_file_to_chad_chat(app):
                 app.chad_chat_status_var.set(
                     app.tr(
                         "chad_status_large_file_import_cancelled",
-                        "Import großer Datei abgebrochen.",
+                        "Large file import cancelled.",
                     )
                 )
                 return
@@ -1624,10 +1660,10 @@ def import_file_to_chad_chat(app):
             app.chad_pending_files.append(item)
             text = app.tr(
                 "chad_imported_image_body",
-                "Bild importiert: {filename}\n"
-                "Pfad: {path}\n"
-                "Größe: {size_mb} MB\n\n"
-                "Hinweis: Das Bild wurde für die nächste Online-Analyse vorgemerkt.",
+                "Image imported: {filename}\n"
+                "Path: {path}\n"
+                "Size: {size_mb} MB\n\n"
+                "Note: The image was queued for the next online analysis.",
             ).format(
                 filename=filename,
                 path=path,
@@ -1635,12 +1671,12 @@ def import_file_to_chad_chat(app):
             )
             append_to_chad_output(
                 app,
-                app.tr("chad_output_imported_image", "Importiertes Bild"),
+                app.tr("chad_output_imported_image", "Imported image"),
                 text,
             )
             app.chad_chat_status_var.set(
                 app.tr(
-                    "chad_status_image_imported", "Bild importiert: {filename}"
+                    "chad_status_image_imported", "Image imported: {filename}"
                 ).format(filename=filename)
             )
             return
@@ -1651,43 +1687,43 @@ def import_file_to_chad_chat(app):
             if "\x00" in content:
                 append_to_chad_output(
                     app,
-                    app.tr("chad_output_import_notice", "Import-Hinweis"),
+                    app.tr("chad_output_import_notice", "Import notice"),
                     app.tr(
                         "chad_binary_file_notice",
-                        "Die Datei {filename} wirkt wie eine Binärdatei und wurde nicht als Text übernommen.",
+                        "The file {filename} appears to be binary and was not imported as text.",
                     ).format(filename=filename),
                 )
                 app.chad_chat_status_var.set(
                     app.tr(
                         "chad_status_binary_file_skipped",
-                        "Datei wirkt binär und wurde nicht importiert.",
+                        "File appears to be binary and was not imported.",
                     )
                 )
                 return
 
         if content == app.tr(
             "chad_pdf_support_missing",
-            "PDF-Unterstützung fehlt: bitte python3-pypdf2 installieren.",
+            "PDF support missing: please install python3-pypdf2.",
         ) or content == app.tr(
             "chad_docx_support_missing",
-            "DOCX-Unterstützung fehlt: bitte python3-docx installieren.",
+            "DOCX support missing: please install python3-docx.",
         ):
             append_to_chad_output(
                 app,
-                app.tr("chad_output_import_notice", "Import-Hinweis"),
+                app.tr("chad_output_import_notice", "Import notice"),
                 content,
             )
             app.chad_chat_status_var.set(content)
             return
 
         if content.startswith(
-            app.tr("chad_pdf_read_error_prefix", "Fehler beim PDF-Lesen:")
+            app.tr("chad_pdf_read_error_prefix", "Error while reading PDF:")
         ) or content.startswith(
-            app.tr("chad_docx_read_error_prefix", "Fehler beim DOCX-Lesen:")
+            app.tr("chad_docx_read_error_prefix", "Error while reading DOCX:")
         ):
             append_to_chad_output(
                 app,
-                app.tr("chad_output_import_error", "Import-Fehler"),
+                app.tr("chad_output_import_error", "Import error"),
                 content,
             )
             app.chad_chat_status_var.set(content)
@@ -1697,20 +1733,20 @@ def import_file_to_chad_chat(app):
         if len(content) > max_chars:
             content = (
                 content[:60000]
-                + app.tr("chad_content_truncated_marker", "\n\n--- (gekürzt) ---\n\n")
+                + app.tr("chad_content_truncated_marker", "\n\n--- (truncated) ---\n\n")
                 + content[-60000:]
             )
 
         text = app.tr(
             "chad_imported_file_body",
-            "Datei importiert: {filename}\n"
-            "Pfad: {path}\n"
-            "Typ: {file_type}\n\n"
+            "File imported: {filename}\n"
+            "Path: {path}\n"
+            "Type: {file_type}\n\n"
             "{content}",
         ).format(
             filename=filename,
             path=path,
-            file_type=ext or app.tr("label_unknown", "unbekannt"),
+            file_type=ext or app.tr("label_unknown", "unknown"),
             content=content,
         )
 
@@ -1719,7 +1755,7 @@ def import_file_to_chad_chat(app):
                 "role": "user",
                 "content": app.tr(
                     "chad_context_from_import_prefix",
-                    "Bitte nutze diese importierte Datei als Kontext:\n\n",
+                    "Please use this imported file as context:\n\n",
                 )
                 + text,
             }
@@ -1727,19 +1763,19 @@ def import_file_to_chad_chat(app):
         if size > 500_000:
             append_to_chad_output(
                 app,
-                app.tr("chad_output_notice", "Hinweis"),
+                app.tr("chad_output_notice", "Notice"),
                 app.tr(
                     "chad_large_file_loaded_notice",
-                    "Große Datei geladen ({size_mb} MB). Inhalt ggf. gekürzt für bessere Verarbeitung.",
+                    "Large file loaded ({size_mb} MB). Content may be truncated for better processing.",
                 ).format(size_mb=round(size / 1024 / 1024, 2)),
             )
         append_to_chad_output(
             app,
-            app.tr("chad_output_imported_file", "Importierte Datei"),
+            app.tr("chad_output_imported_file", "Imported file"),
             text,
         )
         app.chad_chat_status_var.set(
-            app.tr("chad_status_file_imported", "Datei importiert: {filename}").format(
+            app.tr("chad_status_file_imported", "File imported: {filename}").format(
                 filename=filename
             )
         )
@@ -1747,6 +1783,6 @@ def import_file_to_chad_chat(app):
         app.chad_chat_status_var.set(
             app.tr(
                 "chad_status_file_import_error",
-                "Fehler beim Dateiimport: {error}",
+                "Error during file import: {error}",
             ).format(error=e)
         )
