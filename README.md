@@ -51,13 +51,17 @@ Designed for Linux users who want to monitor, diagnose, and secure their systems
 
 ## Screenshots
 
-> Main Window
+### Main Window
 
-> Security Monitoring
+![Main Window](site/screenshots/netmon-status-header-tour.png)
 
-> Radio Module
+### Security Monitoring
 
-(Add screenshots after the first public release.)
+![Security Monitoring](site/screenshots/netmon-security-firewall-tour.png)
+
+### Radio Module
+
+![Radio Module](site/screenshots/netmon-radio-projectm-tour.png)
 
 ---
 
