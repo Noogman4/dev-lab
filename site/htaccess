@@ -1,7 +1,9 @@
 RewriteEngine On
 
-# Schluessel fuer Downloadzaehler
-SetEnv NETMON_STATS_TOKEN dExB7cCXgDYUwaq1jPN
+# Statistik-Zugriffstoken nur serverseitig im Hosting setzen.
+# Keine echten Tokens im Repo speichern.
+# Beispiel auf dem Server:
+# SetEnv NETMON_STATS_TOKEN dein_langer_token
 
 # Redirect secondary domains to the canonical HTTPS domain.
 RewriteCond %{HTTP_HOST} ^www\.netmonroots\.com$ [NC,OR]

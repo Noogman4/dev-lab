@@ -52,6 +52,19 @@ require_file() {
   fi
 }
 
+ensure_no_embedded_stats_token() {
+  if grep -Eq 'stats_token"\s*=>\s*"[^"]+' "$ROOT_DIR/site/download-config.php"; then
+    echo "Unsicherer Build-Abbruch: site/download-config.php enthaelt einen fest eingebauten stats_token." >&2
+    echo "Bitte NETMON_STATS_TOKEN nur serverseitig setzen und keine Secrets ins Repo oder Upload-Bundle legen." >&2
+    exit 1
+  fi
+  if grep -Eq '^[[:space:]]*SetEnv[[:space:]]+NETMON_STATS_TOKEN[[:space:]]+[^#[:space:]]+' "$ROOT_DIR/site/.htaccess" "$ROOT_DIR/site/htaccess"; then
+    echo "Unsicherer Build-Abbruch: Eine htaccess-Vorlage enthaelt einen fest eingebauten NETMON_STATS_TOKEN." >&2
+    echo "Bitte Tokens nur serverseitig im Hosting setzen und nicht im Repo versionieren." >&2
+    exit 1
+  fi
+}
+
 require_file "$ROOT_DIR/site/index.html"
 require_file "$ROOT_DIR/site/latest-version.json"
 require_file "$ROOT_DIR/site/aktuelles.html"
@@ -105,6 +118,8 @@ require_file "$ROOT_DIR/tools/netmon.png"
 require_file "$ROOT_DIR/tools/netmon-radio.png"
 require_file "$ROOT_DIR/docs/CHANGELOG.md"
 require_file "$ROOT_DIR/scripts/verify_netmon_download.sh"
+
+ensure_no_embedded_stats_token
 
 rm -rf "$BUILD_DIR"
 mkdir -p "$DIST_DOCS_DIR" "$TOOLS_DIR" "$DOCS_DIR" "$VERIFY_DIR" "$EN_DIR" "$SCREENSHOTS_DIR" "$DATA_DIR"

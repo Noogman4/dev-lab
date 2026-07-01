@@ -2,10 +2,9 @@
 
 declare(strict_types=1);
 
+// Der Statistik-Token darf nicht im Repo oder Build-Artefakten stehen.
+// Produktive Deployments muessen NETMON_STATS_TOKEN serverseitig setzen.
 $statsToken = trim((string) getenv("NETMON_STATS_TOKEN"));
-if ($statsToken === "") {
-     $statsToken = "dExB7cCXgDYUwaq1jPN";
-}
 
 return [
     "stats_token" => $statsToken,

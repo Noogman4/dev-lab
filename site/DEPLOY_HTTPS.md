@@ -108,7 +108,7 @@ Fuer den Downloadzaehler wichtig:
 - `public_html/data/download-stats.json` muss fuer PHP schreibbar sein.
 - Bevorzugt den Token serverseitig als Umgebungsvariable `NETMON_STATS_TOKEN` setzen.
 - Beispiel per `.htaccess` auf dem Server: `SetEnv NETMON_STATS_TOKEN dein_langer_token`
-- Nur falls das auf dem Hosting nicht moeglich ist, den Platzhalter in `download-config.php` ersetzen.
+- Keine echten Tokens in `download-config.php`, Repo-`.htaccess`, Commits oder Upload-Zips speichern.
 - Aufruf danach: `https://netmonroots.com/download-stats.php?token=DEIN_TOKEN`
 
 Sie macht:

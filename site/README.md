@@ -20,7 +20,7 @@ Hinweis:
 - Die Download-Statistik (`download.php`, `download-stats.php`) benoetigt PHP.
 - Beim lokalen simplen HTTP-Test laufen die PHP-Seiten nicht automatisch mit.
 - Die Statistikseite ist per Token geschuetzt. Bevorzugt den Token serverseitig als Umgebungsvariable `NETMON_STATS_TOKEN` setzen.
-- Nur wenn das nicht moeglich ist, den Platzhalter in `site/download-config.php` ersetzen.
+- Keine echten Tokens in `site/download-config.php`, `.htaccess`, Commits oder Upload-Zips ablegen. Das Repo und die Build-Artefakte muessen secret-frei bleiben.
 
 Server stoppen:
 
@@ -85,6 +85,46 @@ Optional bei signierten Releases:
 - `dist/site-build/public_html/verify/netmonroots.minisign.pub`
 - `dist/site-build/public_html/verify/verify_netmon_signature.sh`
 - Maintainer-Doku: `docs/MINISIGN_RELEASES.md`
+
+## Nur Release-Dateien aktualisieren
+
+Wenn sich nur Paket, Doku, `SHA256SUMS`, `latest-version.json` oder die
+Download-/Doku-Seiten geaendert haben, reicht ein kleines Release-Update-Bundle:
+
+```bash
+make site-release-update
+```
+
+Danach liegen bereit:
+
+- `dist/site-release-update/public_html/`
+- `dist/site-release-update/netmonroots_release_update.zip`
+
+Dieses Bundle enthaelt nur:
+
+- `public_html/latest-version.json`
+- `public_html/download-config.php`
+- `public_html/downloads.html`
+- `public_html/docs.html`
+- `public_html/en/downloads.html`
+- `public_html/en/docs.html`
+- `public_html/dist/netmon_<version>_all.deb`
+- `public_html/dist/SHA256SUMS`
+- `public_html/dist/docs/netmon_dokumentation_<version>.pdf`
+- `public_html/dist/docs/netmon_dokumentation_<version>.html`
+- `public_html/verify/verify_netmon_download.sh`
+- optional `public_html/dist/SHA256SUMS.minisig`
+- optional `public_html/verify/netmonroots.minisign.pub`
+- `public_html/verify/verify_netmon_signature.sh`
+
+Das ist fuer neue `.deb`-Builds und Signaturen deutlich leichter als ein kompletter
+Website-Reupload.
+
+Wichtig:
+
+- Vor dem Upload pruefen, dass `public_html/download-config.php` keinen fest eingebauten Token enthaelt.
+- Zugriffstoken immer nur serverseitig setzen, zum Beispiel per cPanel-Umgebungsvariable oder Apache-`SetEnv`.
+- Die Build-Skripte brechen absichtlich ab, wenn in `site/download-config.php` noch ein harter `stats_token` gefunden wird.
 
 ## Download verifizieren
 
