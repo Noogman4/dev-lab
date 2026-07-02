@@ -171,8 +171,12 @@ def set_linux_help_dirty(app, dirty=True):
 
 def linux_help_csv_candidates():
     return [
+        os.path.join(
+            NETMON_REPO_ROOT, "tools", "netmon-linux-befehlsdatenbank-v1.csv"
+        ),
         os.path.join(NETMON_REPO_ROOT, "netmon", "linux-befehle.csv"),
         os.path.join(NETMON_REPO_ROOT, "netmon", "linux-befehle.xlsx"),
+        os.path.join(NETMON_REPO_ROOT, "netmon", "netmon-linux-befehlsdatenbank-v1.csv"),
         os.path.join(NETMON_REPO_ROOT, "linux-befehle.csv"),
         os.path.join(NETMON_REPO_ROOT, "linux-befehle.xlsx"),
     ]

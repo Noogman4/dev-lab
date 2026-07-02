@@ -5384,6 +5384,15 @@ class App(TkBase):
         self.check_keyring_availability()
         self.load_ai_config()
 
+        try:
+            if self.settings.get("auto_log_clear", False):
+                self._clear_runtime_log_file()
+                self.clear_log()
+            else:
+                self._load_runtime_log_into_widget()
+        except Exception:
+            pass
+
         self.log(self.tr("log_startup", "Start."))
         self.setup_sudo_auth()
         self.refresh_wg_profiles()
@@ -11171,15 +11180,101 @@ class App(TkBase):
 
     def log(self, msg):
         msg = self._translate_runtime_log_message(msg)
+        line = f"[{ts()}] {msg}"
+        try:
+            self._append_runtime_log_line(line)
+        except Exception:
+            pass
         text_widget = self.__dict__.get("text")
         if text_widget is not None:
             try:
-                text_widget.insert("end", f"[{ts()}] {msg}\n")
+                text_widget.insert("end", line + "\n")
                 text_widget.see("end")
                 return
             except Exception:
                 pass
-        print(f"[{ts()}] {msg}")
+        print(line)
+
+    def _runtime_log_path(self):
+        base = str(getattr(self, "netmon_state_dir", "") or "").strip()
+        if not base:
+            return ""
+        return os.path.join(base, "logs", "runtime.log")
+
+    def _runtime_log_documents_path(self):
+        try:
+            base = str(get_netmon_documents_subdir("Logs") or "").strip()
+        except Exception:
+            base = ""
+        if not base:
+            return ""
+        return os.path.join(base, "runtime.log")
+
+    def _runtime_log_paths(self):
+        paths = []
+        for candidate in (
+            self._runtime_log_documents_path(),
+            self._runtime_log_path(),
+        ):
+            candidate = str(candidate or "").strip()
+            if candidate and candidate not in paths:
+                paths.append(candidate)
+        return paths
+
+    def _append_runtime_log_line(self, line: str):
+        paths = self._runtime_log_paths()
+        if not paths:
+            return False
+        wrote = False
+        for path in paths:
+            try:
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "a", encoding="utf-8") as fh:
+                    fh.write(str(line or "").rstrip() + "\n")
+                wrote = True
+            except Exception:
+                pass
+        return wrote
+
+    def _clear_runtime_log_file(self):
+        paths = self._runtime_log_paths()
+        if not paths:
+            return False
+        cleared = False
+        for path in paths:
+            try:
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write("")
+                cleared = True
+            except Exception:
+                pass
+        return cleared
+
+    def _load_runtime_log_into_widget(self):
+        text_widget = self.__dict__.get("text")
+        path = ""
+        for candidate in self._runtime_log_paths():
+            if candidate and os.path.isfile(candidate):
+                path = candidate
+                break
+        if text_widget is None or not path:
+            return False
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                lines = fh.readlines()
+        except Exception:
+            return False
+        if not lines:
+            return False
+        tail = lines[-2000:]
+        try:
+            text_widget.delete("1.0", "end")
+            text_widget.insert("1.0", "".join(tail))
+            text_widget.see("end")
+            return True
+        except Exception:
+            return False
 
     def log_debug(self, msg):
         if self.__dict__.get("debug_mode", False):
@@ -11194,10 +11289,106 @@ class App(TkBase):
             text = str(msg or "").rstrip()
             if not text:
                 return
+            line = f"[{ts()}] {text}"
             entries = self.__dict__.setdefault("_network_debug_entries", [])
-            entries.append(f"[{ts()}] {text}")
+            entries.append(line)
             if len(entries) > 500:
                 del entries[:-500]
+            try:
+                log_path = self._network_debug_log_path()
+                if log_path:
+                    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+                    with open(log_path, "a", encoding="utf-8") as fh:
+                        fh.write(line + "\n")
+            except Exception:
+                pass
+
+    def _network_debug_log_path(self):
+        base = str(getattr(self, "netmon_state_dir", "") or "").strip()
+        if not base:
+            return ""
+        return os.path.join(base, "logs", "network_debug.log")
+
+    def open_network_debug_log_file(self):
+        path = self._network_debug_log_path()
+        if not path:
+            try:
+                self.log_safe("Netzwerk-Debug-Logpfad nicht verfügbar.")
+            except Exception:
+                pass
+            return False
+        if not os.path.exists(path):
+            try:
+                self.log_safe(
+                    self.tr(
+                        "network_debug_log_not_ready",
+                        "Noch keine Netzwerk-Debugdaten vorhanden. Bitte erst Debug-Logging aktivieren und eine Netzwerkaktion ausführen.",
+                    )
+                )
+            except Exception:
+                pass
+            try:
+                messagebox.showinfo(
+                    self.tr(
+                        "network_debug_log_open_title",
+                        "Netzwerk-Debug-Log öffnen",
+                    ),
+                    self.tr(
+                        "network_debug_log_not_ready_dialog",
+                        "Es sind noch keine Netzwerk-Debugdaten vorhanden.\n\nBitte aktiviere erst das erweiterte Netzwerk-Debug-Logging und führe danach eine Netzwerkaktion aus, zum Beispiel DNS/DoT, VPN, Internet Aus/An oder Netzwerk-Reset.",
+                    ),
+                    parent=self,
+                )
+            except Exception:
+                pass
+            return False
+        opened = self._open_path_with_xdg_open(path, label="Netzwerk-Debug-Log")
+        if opened:
+            try:
+                self.log_safe(
+                    self.tr(
+                        "network_debug_log_opened",
+                        "Netzwerk-Debug-Log geöffnet: {path}",
+                    ).format(path=path)
+                )
+            except Exception:
+                pass
+        return bool(opened)
+
+    def clear_network_debug_log_file(self):
+        path = self._network_debug_log_path()
+        try:
+            self.__dict__["_network_debug_entries"] = []
+        except Exception:
+            pass
+        if not path:
+            try:
+                self.log_safe("Netzwerk-Debug-Logpfad nicht verfügbar.")
+            except Exception:
+                pass
+            return False
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write("")
+            self.log_safe(
+                self.tr(
+                    "network_debug_log_cleared",
+                    "Netzwerk-Debug-Log geleert: {path}",
+                ).format(path=path)
+            )
+            return True
+        except Exception as exc:
+            try:
+                self.log_safe(
+                    self.tr(
+                        "network_debug_log_clear_failed",
+                        "Netzwerk-Debug-Log konnte nicht geleert werden: {error}",
+                    ).format(error=exc)
+                )
+            except Exception:
+                pass
+            return False
 
     def log_safe(self, msg):
         if threading.current_thread() is threading.main_thread():
@@ -13632,7 +13823,14 @@ class App(TkBase):
         self.after(0, self._refresh_security_table)
 
     def clear_log(self):
-        self.text.delete("1.0", "end")
+        try:
+            self.text.delete("1.0", "end")
+        except Exception:
+            pass
+        try:
+            self._clear_runtime_log_file()
+        except Exception:
+            pass
 
     def copy_log_selection(self, _event=None):
         try:
@@ -20809,12 +21007,6 @@ class App(TkBase):
             persist=False,
         )
 
-        if self.settings.get("auto_log_clear", False):
-            try:
-                self.clear_log()
-            except Exception:
-                pass
-
         if self.settings.get("dns_guard_enabled", True):
             self.after(50, lambda: self.set_dns_guard_enabled(True))
 
@@ -22391,7 +22583,23 @@ class App(TkBase):
                 "Enable advanced network debug logging",
             ),
             variable=self.var_debug_network_logging,
-        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
+        ttk.Button(
+            logging_group,
+            text=self.tr(
+                "settings_open_network_debug_log",
+                "Netzwerk-Debug-Log öffnen",
+            ),
+            command=self.open_network_debug_log_file,
+        ).grid(row=1, column=1, sticky="w", padx=(8, 0), pady=(4, 0))
+        ttk.Button(
+            logging_group,
+            text=self.tr(
+                "settings_clear_network_debug_log",
+                "Log-Datei leeren",
+            ),
+            command=self.clear_network_debug_log_file,
+        ).grid(row=1, column=2, sticky="w", padx=(8, 0), pady=(4, 0))
 
         ttk.Label(
             logging_group,

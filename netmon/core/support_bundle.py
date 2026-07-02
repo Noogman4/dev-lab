@@ -15,7 +15,7 @@ from netmon.core.diagnostics import (
     latest_diagnostic_report_path,
     redact_diagnostic_value,
 )
-from netmon.core.state import get_netmon_documents_dir
+from netmon.core.state import get_netmon_documents_dir, get_netmon_documents_subdir, get_netmon_state_dir
 
 
 def support_packages_dir() -> str:
@@ -37,10 +37,15 @@ def support_package_path(*, moment: datetime | None = None) -> str:
 
 def support_bundle_inputs() -> list[str]:
     diagnostics_dir = diagnostic_reports_dir()
+    runtime_logs_dir = get_netmon_documents_subdir("Logs")
+    state_logs_dir = os.path.join(get_netmon_state_dir(), "logs")
     candidates = [
         latest_diagnostic_report_path(),
         os.path.join(diagnostics_dir, "startup_error.log"),
         os.path.join(diagnostics_dir, "crash.log"),
+        os.path.join(runtime_logs_dir, "runtime.log"),
+        os.path.join(state_logs_dir, "runtime.log"),
+        os.path.join(state_logs_dir, "network_debug.log"),
     ]
     seen = set()
     files = []

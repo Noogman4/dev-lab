@@ -1,0 +1,3127 @@
+{
+  "name": "IT-Lexikon fuer Linux Hilfe",
+  "version": "0.1.0",
+  "created": "2026-06-14",
+  "language": "de",
+  "schema": {
+    "id": "string",
+    "term": "string",
+    "short": "string",
+    "example": "string",
+    "tags": "array<string>",
+    "related": "array<string>"
+  },
+  "entries": [
+    {
+      "id": "it_0001",
+      "term": "Algorithmus",
+      "short": "Eine Schritt-für-Schritt-Anleitung zur Lösung eines Problems.",
+      "example": "Ein Sortieralgorithmus ordnet eine Liste von Zahlen.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0002",
+      "term": "Anweisung",
+      "short": "Ein einzelner Befehl im Programmcode.",
+      "example": "print('Hallo') ist eine Anweisung in Python.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0003",
+      "term": "Ausdruck",
+      "short": "Code, der zu einem Wert ausgewertet wird.",
+      "example": "2 + 3 ist ein Ausdruck mit dem Ergebnis 5.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0004",
+      "term": "Variable",
+      "short": "Ein benannter Speicherplatz für einen Wert.",
+      "example": "name = 'Sven' speichert Text in der Variable name.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0005",
+      "term": "Konstante",
+      "short": "Ein Wert, der während der Programmlaufzeit nicht geändert werden soll.",
+      "example": "MAX_USERS = 100 kann als Konstante dienen.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0006",
+      "term": "Datentyp",
+      "short": "Eine Kategorie von Werten, zum Beispiel Text, Zahl oder Wahr/Falsch.",
+      "example": "int, str, bool und float sind Datentypen in Python.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0007",
+      "term": "String",
+      "short": "Eine Zeichenkette, also Text.",
+      "example": "'NetMon' ist ein String.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0008",
+      "term": "Integer",
+      "short": "Eine ganze Zahl ohne Nachkommastellen.",
+      "example": "42 ist ein Integer.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0009",
+      "term": "Float",
+      "short": "Eine Zahl mit Nachkommastellen.",
+      "example": "3.14 ist ein Float.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0010",
+      "term": "Boolean",
+      "short": "Ein Wahrheitswert: true/false beziehungsweise True/False.",
+      "example": "is_admin = False speichert einen Boolean.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0011",
+      "term": "Null",
+      "short": "Ein spezieller Wert für 'kein Wert'.",
+      "example": "In Python heißt dieser Wert None.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0012",
+      "term": "Operator",
+      "short": "Ein Symbol oder Schlüsselwort, das eine Operation ausführt.",
+      "example": "+ addiert, == vergleicht, and verknüpft Bedingungen.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0013",
+      "term": "Operand",
+      "short": "Ein Wert, auf den ein Operator angewendet wird.",
+      "example": "Bei 2 + 3 sind 2 und 3 Operanden.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0014",
+      "term": "Bedingung",
+      "short": "Ein Ausdruck, der entscheidet, ob Code ausgeführt wird.",
+      "example": "if alter >= 18 prüft eine Bedingung.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0015",
+      "term": "Schleife",
+      "short": "Ein Codeblock, der mehrfach ausgeführt wird.",
+      "example": "for und while sind typische Schleifen.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0016",
+      "term": "Iteration",
+      "short": "Ein einzelner Durchlauf einer Schleife.",
+      "example": "Beim Durchlaufen einer Liste ist jedes Element eine Iteration.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0017",
+      "term": "Funktion",
+      "short": "Ein wiederverwendbarer Codeblock mit Namen.",
+      "example": "def check_dns(): definiert eine Funktion.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0018",
+      "term": "Parameter",
+      "short": "Eine Eingabevariable einer Funktion.",
+      "example": "def greet(name): name ist ein Parameter.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0019",
+      "term": "Argument",
+      "short": "Ein konkreter Wert, der an eine Funktion übergeben wird.",
+      "example": "greet('Sven') übergibt 'Sven' als Argument.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0020",
+      "term": "Rückgabewert",
+      "short": "Der Wert, den eine Funktion zurückliefert.",
+      "example": "return True gibt True zurück.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0021",
+      "term": "Scope",
+      "short": "Der Gültigkeitsbereich einer Variable.",
+      "example": "Eine Variable in einer Funktion ist meist nur dort sichtbar.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0022",
+      "term": "Kommentar",
+      "short": "Text im Code, der nicht ausgeführt wird.",
+      "example": "# Erklärung in Python.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0023",
+      "term": "Syntax",
+      "short": "Die formalen Schreibregeln einer Programmiersprache.",
+      "example": "Ein fehlender Doppelpunkt nach if verursacht einen Syntaxfehler.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0024",
+      "term": "Semantik",
+      "short": "Die Bedeutung von Code.",
+      "example": "Syntaktisch gültiger Code kann trotzdem logisch falsch sein.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0025",
+      "term": "Fehler",
+      "short": "Ein Problem im Programm.",
+      "example": "Ein Tippfehler im Variablennamen kann einen Fehler auslösen.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0026",
+      "term": "Bug",
+      "short": "Ein Programmfehler, der falsches Verhalten verursacht.",
+      "example": "Ein Button startet versehentlich zwei Prozesse.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0027",
+      "term": "Debugging",
+      "short": "Das Suchen und Beheben von Fehlern.",
+      "example": "Mit print-Ausgaben oder Debugger findet man die Fehlerstelle.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0028",
+      "term": "Refactoring",
+      "short": "Verbessern der Code-Struktur, ohne das Verhalten zu ändern.",
+      "example": "Eine lange Funktion wird in kleinere Funktionen aufgeteilt.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0029",
+      "term": "Codebase",
+      "short": "Die gesamte Quellcode-Sammlung eines Projekts.",
+      "example": "NetMon hat eine Codebase aus Python-Dateien.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0030",
+      "term": "Quellcode",
+      "short": "Der vom Menschen geschriebene Programmcode.",
+      "example": "Eine .py-Datei enthält Python-Quellcode.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0031",
+      "term": "Runtime",
+      "short": "Die Laufzeitumgebung oder die Zeit, in der ein Programm läuft.",
+      "example": "Python Runtime führt Python-Code aus.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0032",
+      "term": "Build",
+      "short": "Der Vorgang oder das Ergebnis, bei dem Software erzeugt wird.",
+      "example": "Aus Quellcode wird ein installierbares Paket gebaut.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0033",
+      "term": "Deployment",
+      "short": "Das Bereitstellen einer Software auf einem Zielsystem.",
+      "example": "Eine neue Version wird auf einem Server veröffentlicht.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0034",
+      "term": "Release",
+      "short": "Eine veröffentlichte Version einer Software.",
+      "example": "Version 1.0.0 ist ein Release.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0035",
+      "term": "Version",
+      "short": "Eine Kennzeichnung eines Softwarestands.",
+      "example": "1.2.3 ist eine typische Versionsnummer.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0036",
+      "term": "Changelog",
+      "short": "Eine Liste der Änderungen zwischen Versionen.",
+      "example": "Ein Changelog erklärt, was in NetMon geändert wurde.",
+      "tags": [
+        "grundlagen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0037",
+      "term": "Array",
+      "short": "Eine geordnete Sammlung von Werten.",
+      "example": "In vielen Sprachen ist ein Array eine Liste mit festen oder dynamischen Elementen.",
+      "tags": [
+        "datenstrukturen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0038",
+      "term": "Liste",
+      "short": "Eine geordnete, meist veränderbare Sammlung.",
+      "example": "Python: ports = [80, 443, 53].",
+      "tags": [
+        "datenstrukturen",
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0039",
+      "term": "Tuple",
+      "short": "Eine geordnete, meist unveränderbare Sammlung.",
+      "example": "Python: point = (10, 20).",
+      "tags": [
+        "datenstrukturen",
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0040",
+      "term": "Dictionary",
+      "short": "Eine Sammlung aus Schlüssel-Wert-Paaren.",
+      "example": "Python: {'dns': '1.1.1.1'}.",
+      "tags": [
+        "datenstrukturen",
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0041",
+      "term": "Map",
+      "short": "Eine Schlüssel-Wert-Struktur ähnlich einem Dictionary.",
+      "example": "Eine Map kann Benutzernamen IDs zuordnen.",
+      "tags": [
+        "datenstrukturen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0042",
+      "term": "Set",
+      "short": "Eine Sammlung eindeutiger Werte.",
+      "example": "Ein Set entfernt doppelte Einträge automatisch.",
+      "tags": [
+        "datenstrukturen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0043",
+      "term": "Stack",
+      "short": "Datenstruktur nach dem Prinzip Last In, First Out.",
+      "example": "Der zuletzt abgelegte Wert wird zuerst wieder entnommen.",
+      "tags": [
+        "datenstrukturen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0044",
+      "term": "Queue",
+      "short": "Datenstruktur nach dem Prinzip First In, First Out.",
+      "example": "Der zuerst eingereihte Auftrag wird zuerst bearbeitet.",
+      "tags": [
+        "datenstrukturen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0045",
+      "term": "Baum",
+      "short": "Hierarchische Datenstruktur mit Knoten.",
+      "example": "Dateisysteme lassen sich als Baum darstellen.",
+      "tags": [
+        "datenstrukturen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0046",
+      "term": "Knoten",
+      "short": "Ein Element in einer Datenstruktur wie Baum oder Graph.",
+      "example": "Ein Ordner kann ein Knoten im Dateibaum sein.",
+      "tags": [
+        "datenstrukturen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0047",
+      "term": "Graph",
+      "short": "Datenstruktur aus Knoten und Verbindungen.",
+      "example": "Netzwerke lassen sich als Graph modellieren.",
+      "tags": [
+        "datenstrukturen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0048",
+      "term": "Hash",
+      "short": "Ein berechneter Kurz-Wert aus Daten.",
+      "example": "Ein Hash kann prüfen, ob eine Datei verändert wurde.",
+      "tags": [
+        "datenstrukturen",
+        "sicherheit"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0049",
+      "term": "Index",
+      "short": "Eine Position oder Suchstruktur für schnelleren Zugriff.",
+      "example": "Listen beginnen in Python bei Index 0.",
+      "tags": [
+        "datenstrukturen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0050",
+      "term": "Pointer",
+      "short": "Eine Speicheradresse beziehungsweise Referenz auf Daten.",
+      "example": "In C zeigt ein Pointer auf einen Speicherbereich.",
+      "tags": [
+        "datenstrukturen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0051",
+      "term": "Referenz",
+      "short": "Ein Verweis auf ein Objekt oder eine Speicherstelle.",
+      "example": "Mehrere Variablen können auf dasselbe Objekt zeigen.",
+      "tags": [
+        "datenstrukturen"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0052",
+      "term": "Klasse",
+      "short": "Eine Vorlage für Objekte mit Eigenschaften und Methoden.",
+      "example": "class Window: definiert eine Klasse.",
+      "tags": [
+        "oop"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0053",
+      "term": "Objekt",
+      "short": "Eine konkrete Instanz einer Klasse.",
+      "example": "Ein einzelnes Fenster kann ein Objekt der Klasse Window sein.",
+      "tags": [
+        "oop"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0054",
+      "term": "Instanz",
+      "short": "Ein erzeugtes Objekt einer Klasse.",
+      "example": "window = Window() erstellt eine Instanz.",
+      "tags": [
+        "oop"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0055",
+      "term": "Methode",
+      "short": "Eine Funktion, die zu einer Klasse oder einem Objekt gehört.",
+      "example": "button.click() ruft eine Methode auf.",
+      "tags": [
+        "oop"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0056",
+      "term": "Attribut",
+      "short": "Eine Eigenschaft eines Objekts.",
+      "example": "window.title ist ein Attribut.",
+      "tags": [
+        "oop"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0057",
+      "term": "Konstruktor",
+      "short": "Eine spezielle Methode zum Erzeugen und Initialisieren eines Objekts.",
+      "example": "__init__ ist der Konstruktor in Python.",
+      "tags": [
+        "oop",
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0058",
+      "term": "Vererbung",
+      "short": "Eine Klasse übernimmt Eigenschaften und Methoden einer anderen Klasse.",
+      "example": "Ein AdminUser kann von User erben.",
+      "tags": [
+        "oop"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0059",
+      "term": "Polymorphismus",
+      "short": "Verschiedene Objekte können über dieselbe Schnittstelle unterschiedlich reagieren.",
+      "example": "Mehrere Widget-Typen haben eine draw()-Methode.",
+      "tags": [
+        "oop"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0060",
+      "term": "Kapselung",
+      "short": "Interne Details werden verborgen und über klare Methoden zugänglich gemacht.",
+      "example": "Ein Objekt ändert seinen Zustand nur über Methoden.",
+      "tags": [
+        "oop"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0061",
+      "term": "Interface",
+      "short": "Eine definierte Schnittstelle, die beschreibt, welche Methoden vorhanden sein müssen.",
+      "example": "Ein Plugin-Interface legt Funktionen fest, die ein Plugin anbieten muss.",
+      "tags": [
+        "oop",
+        "architektur"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0062",
+      "term": "Abstraktion",
+      "short": "Vereinfachte Darstellung eines komplexen Sachverhalts.",
+      "example": "Eine Klasse NetworkScanner versteckt Details des Scans.",
+      "tags": [
+        "oop",
+        "architektur"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0063",
+      "term": "Mixin",
+      "short": "Eine Zusatzklasse, die wiederverwendbare Funktionalität bereitstellt.",
+      "example": "Ein LoggingMixin ergänzt Logging-Funktionen.",
+      "tags": [
+        "oop",
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0064",
+      "term": "GUI",
+      "short": "Graphical User Interface: eine grafische Benutzeroberfläche.",
+      "example": "Fenster, Buttons und Menüs von NetMon sind GUI-Elemente.",
+      "tags": [
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0065",
+      "term": "CLI",
+      "short": "Command Line Interface: Bedienung über Terminalbefehle.",
+      "example": "ping 8.8.8.8 wird in der CLI ausgeführt.",
+      "tags": [
+        "terminal",
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0066",
+      "term": "TUI",
+      "short": "Text User Interface: textbasierte Oberfläche im Terminal.",
+      "example": "htop ist ein TUI-Programm.",
+      "tags": [
+        "terminal",
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0067",
+      "term": "Widget",
+      "short": "Ein einzelnes GUI-Element.",
+      "example": "Button, Label, Textfeld und Checkbox sind Widgets.",
+      "tags": [
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0068",
+      "term": "Button",
+      "short": "Ein anklickbares GUI-Element.",
+      "example": "Ein Start-Button kann einen Scan auslösen.",
+      "tags": [
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0069",
+      "term": "Label",
+      "short": "Ein GUI-Element zur Anzeige von Text.",
+      "example": "Ein Label zeigt den Status 'Verbunden' an.",
+      "tags": [
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0070",
+      "term": "Textfeld",
+      "short": "Ein Eingabefeld für Text.",
+      "example": "Ein Nutzer gibt eine IP-Adresse in ein Textfeld ein.",
+      "tags": [
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0071",
+      "term": "Checkbox",
+      "short": "Ein GUI-Element für An/Aus-Auswahl.",
+      "example": "Eine Checkbox aktiviert DNS Guard.",
+      "tags": [
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0072",
+      "term": "Radiobutton",
+      "short": "Ein GUI-Element für genau eine Auswahl aus mehreren Optionen.",
+      "example": "IPv4 oder IPv6 kann per Radiobutton gewählt werden.",
+      "tags": [
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0073",
+      "term": "Dropdown",
+      "short": "Eine ausklappbare Auswahlliste.",
+      "example": "Ein Dropdown wählt ein Netzwerkinterface.",
+      "tags": [
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0074",
+      "term": "Dialog",
+      "short": "Ein kleines Fenster für Rückfragen oder Hinweise.",
+      "example": "Ein Warn-Dialog fragt vor Paketmitschnitt nach.",
+      "tags": [
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0075",
+      "term": "Modal",
+      "short": "Ein Dialog, der zuerst geschlossen werden muss, bevor man weiterarbeiten kann.",
+      "example": "Eine Sicherheitsabfrage kann modal sein.",
+      "tags": [
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0076",
+      "term": "Event",
+      "short": "Ein Ereignis, auf das ein Programm reagieren kann.",
+      "example": "Ein Mausklick löst ein Event aus.",
+      "tags": [
+        "gui",
+        "programmierung"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0077",
+      "term": "Event Loop",
+      "short": "Die Hauptschleife einer GUI, die Ereignisse verarbeitet.",
+      "example": "mainloop() hält ein GUI-Programm aktiv.",
+      "tags": [
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0078",
+      "term": "Callback",
+      "short": "Eine Funktion, die bei einem Ereignis aufgerufen wird.",
+      "example": "Beim Klick auf einen Button startet ein Callback.",
+      "tags": [
+        "gui",
+        "programmierung"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0079",
+      "term": "Layout",
+      "short": "Die Anordnung von GUI-Elementen.",
+      "example": "Buttons können in Reihen oder Spalten angeordnet werden.",
+      "tags": [
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0080",
+      "term": "Frame",
+      "short": "Ein Container für andere GUI-Elemente.",
+      "example": "Ein Frame gruppiert Netzwerk-Einstellungen.",
+      "tags": [
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0081",
+      "term": "Canvas",
+      "short": "Eine Zeichenfläche in einer GUI.",
+      "example": "Ein Canvas kann Diagramme oder Statusgrafiken anzeigen.",
+      "tags": [
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0082",
+      "term": "Tooltip",
+      "short": "Ein kleiner Hilfetext beim Überfahren mit der Maus.",
+      "example": "Ein Tooltip erklärt, was ein Button macht.",
+      "tags": [
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0083",
+      "term": "Theme",
+      "short": "Das optische Erscheinungsbild einer Anwendung.",
+      "example": "Dark Mode ist ein Theme.",
+      "tags": [
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0084",
+      "term": "Responsive Design",
+      "short": "Eine Oberfläche passt sich an verschiedene Größen an.",
+      "example": "Ein Fenster bleibt auch bei kleiner Breite nutzbar.",
+      "tags": [
+        "gui",
+        "web"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0085",
+      "term": "Python",
+      "short": "Eine beliebte, gut lesbare Programmiersprache.",
+      "example": "NetMon kann mit Python und Tkinter gebaut werden.",
+      "tags": [
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0086",
+      "term": "Modul",
+      "short": "Eine Datei oder Einheit mit wiederverwendbarem Code.",
+      "example": "dns_utils.py kann ein Modul sein.",
+      "tags": [
+        "python",
+        "architektur"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0087",
+      "term": "Paket",
+      "short": "Eine Sammlung von Modulen.",
+      "example": "Ein Python-Paket enthält meist eine __init__.py.",
+      "tags": [
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0088",
+      "term": "Import",
+      "short": "Das Einbinden von Code aus einem Modul.",
+      "example": "import os bindet das os-Modul ein.",
+      "tags": [
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0089",
+      "term": "pip",
+      "short": "Der Paketmanager für Python-Pakete.",
+      "example": "pip install requests installiert requests.",
+      "tags": [
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0090",
+      "term": "venv",
+      "short": "Eine virtuelle Python-Umgebung für Projektabhängigkeiten.",
+      "example": "python -m venv .venv erstellt eine isolierte Umgebung.",
+      "tags": [
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0091",
+      "term": "Exception",
+      "short": "Eine Ausnahme, also ein Laufzeitproblem, das abgefangen werden kann.",
+      "example": "try/except behandelt Exceptions.",
+      "tags": [
+        "python",
+        "fehler"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0092",
+      "term": "Traceback",
+      "short": "Die Fehlerausgabe, die zeigt, wo ein Fehler entstanden ist.",
+      "example": "Ein Traceback zeigt Datei, Zeile und Fehlertyp.",
+      "tags": [
+        "python",
+        "fehler"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0093",
+      "term": "Decorator",
+      "short": "Eine Funktion, die eine andere Funktion erweitert.",
+      "example": "@staticmethod ist ein Decorator.",
+      "tags": [
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0094",
+      "term": "Generator",
+      "short": "Eine Funktion, die Werte nach und nach liefert.",
+      "example": "yield erzeugt einen Generator.",
+      "tags": [
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0095",
+      "term": "List Comprehension",
+      "short": "Kurze Schreibweise zum Erzeugen von Listen.",
+      "example": "[x*x for x in nums] erzeugt Quadrate.",
+      "tags": [
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0096",
+      "term": "Docstring",
+      "short": "Ein Dokumentationstext direkt in Funktion, Klasse oder Modul.",
+      "example": "Ein Docstring erklärt Zweck und Parameter.",
+      "tags": [
+        "python",
+        "dokumentation"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0097",
+      "term": "Type Hint",
+      "short": "Eine Typangabe im Python-Code.",
+      "example": "def add(a: int, b: int) -> int nutzt Type Hints.",
+      "tags": [
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0098",
+      "term": "PEP 8",
+      "short": "Ein Styleguide für gut lesbaren Python-Code.",
+      "example": "PEP 8 empfiehlt klare Namen und Einrückung.",
+      "tags": [
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0099",
+      "term": "Tkinter",
+      "short": "Eine Standardbibliothek für einfache Python-GUIs.",
+      "example": "Tkinter kann Fenster und Buttons erstellen.",
+      "tags": [
+        "python",
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0100",
+      "term": "PyQt",
+      "short": "Ein Python-Toolkit für umfangreiche GUIs.",
+      "example": "PyQt eignet sich für komplexere Desktop-Anwendungen.",
+      "tags": [
+        "python",
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0101",
+      "term": "subprocess",
+      "short": "Ein Python-Modul zum Starten externer Programme.",
+      "example": "subprocess.run(['ping', '-c', '1', '1.1.1.1']) startet ping.",
+      "tags": [
+        "python",
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0102",
+      "term": "pathlib",
+      "short": "Ein Python-Modul für moderne Pfadverarbeitung.",
+      "example": "Path.home() liefert das Home-Verzeichnis.",
+      "tags": [
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0103",
+      "term": "logging",
+      "short": "Ein Python-Modul für strukturierte Log-Ausgaben.",
+      "example": "logging.info('Start') schreibt eine Info-Meldung.",
+      "tags": [
+        "python",
+        "debugging"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0104",
+      "term": "Linux",
+      "short": "Ein freies Betriebssystem beziehungsweise Betriebssystem-Kern mit vielen Distributionen.",
+      "example": "Zorin OS basiert auf Linux.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0105",
+      "term": "Distribution",
+      "short": "Eine Linux-Variante mit Kernel, Programmen und Paketverwaltung.",
+      "example": "Ubuntu, Debian und Zorin sind Distributionen.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0106",
+      "term": "Kernel",
+      "short": "Der zentrale Teil des Betriebssystems.",
+      "example": "Der Kernel verwaltet Hardware, Prozesse und Speicher.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0107",
+      "term": "Shell",
+      "short": "Ein Programm zur Eingabe von Befehlen.",
+      "example": "Bash ist eine bekannte Shell.",
+      "tags": [
+        "linux",
+        "terminal"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0108",
+      "term": "Terminal",
+      "short": "Eine Oberfläche zur Nutzung der Shell.",
+      "example": "Im Terminal startet man Programme per Befehl.",
+      "tags": [
+        "linux",
+        "terminal"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0109",
+      "term": "Bash",
+      "short": "Eine weit verbreitete Linux-Shell.",
+      "example": "Bash führt Shell-Skripte aus.",
+      "tags": [
+        "linux",
+        "terminal"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0110",
+      "term": "sudo",
+      "short": "Befehl zum Ausführen mit Administratorrechten.",
+      "example": "sudo apt update aktualisiert Paketlisten.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0111",
+      "term": "Root",
+      "short": "Der Administrator-Benutzer unter Linux.",
+      "example": "Root darf fast alles am System ändern.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0112",
+      "term": "Dateirechte",
+      "short": "Regeln, wer Dateien lesen, schreiben oder ausführen darf.",
+      "example": "chmod 755 script.sh setzt Rechte.",
+      "tags": [
+        "linux",
+        "sicherheit"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0113",
+      "term": "chmod",
+      "short": "Linux-Befehl zum Ändern von Dateirechten.",
+      "example": "chmod +x start.sh macht ein Skript ausführbar.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0114",
+      "term": "chown",
+      "short": "Linux-Befehl zum Ändern des Besitzers einer Datei.",
+      "example": "chown user:user file.txt ändert Eigentümer und Gruppe.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0115",
+      "term": "Prozess",
+      "short": "Ein laufendes Programm.",
+      "example": "ps zeigt laufende Prozesse.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0116",
+      "term": "PID",
+      "short": "Process ID: eindeutige Nummer eines laufenden Prozesses.",
+      "example": "kill 1234 beendet den Prozess mit PID 1234.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0117",
+      "term": "Daemon",
+      "short": "Ein Hintergrunddienst unter Unix/Linux.",
+      "example": "systemd startet und verwaltet Daemons.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0118",
+      "term": "systemd",
+      "short": "Ein System- und Dienstmanager vieler Linux-Distributionen.",
+      "example": "systemctl status ssh zeigt den Dienststatus.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0119",
+      "term": "Service",
+      "short": "Ein verwalteter Hintergrunddienst.",
+      "example": "NetworkManager ist ein Service.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0120",
+      "term": "Logdatei",
+      "short": "Eine Datei mit Ereignis- und Fehlerprotokollen.",
+      "example": "/var/log enthält viele Logdateien.",
+      "tags": [
+        "linux",
+        "debugging"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0121",
+      "term": "syslog",
+      "short": "Ein klassisches Linux-Protokollsystem.",
+      "example": "Systemmeldungen können im syslog landen.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0122",
+      "term": "Journal",
+      "short": "Das systemd-Protokollsystem.",
+      "example": "journalctl zeigt Logs aus dem Journal.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0123",
+      "term": "Paketmanager",
+      "short": "Werkzeug zum Installieren und Aktualisieren von Software.",
+      "example": "apt ist ein Paketmanager.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0124",
+      "term": "APT",
+      "short": "Paketverwaltung für Debian, Ubuntu und Zorin.",
+      "example": "apt install curl installiert curl.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0125",
+      "term": "DEB",
+      "short": "Paketformat für Debian-basierte Systeme.",
+      "example": "NetMon könnte später als .deb verteilt werden.",
+      "tags": [
+        "linux",
+        "paketierung"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0126",
+      "term": "Repository",
+      "short": "Eine Softwarequelle für Pakete oder Code.",
+      "example": "apt nutzt Paket-Repositories.",
+      "tags": [
+        "linux",
+        "git"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0127",
+      "term": "Lockfile",
+      "short": "Eine Sperrdatei, die parallele Starts verhindern kann.",
+      "example": "NetMon kann per Lockfile Single-Instance erzwingen.",
+      "tags": [
+        "linux",
+        "programmierung"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0128",
+      "term": "Cron",
+      "short": "Zeitgesteuerter Aufgabenplaner unter Unix/Linux.",
+      "example": "cron startet Skripte zu festen Zeiten.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0129",
+      "term": "Socket",
+      "short": "Kommunikationsendpunkt für Netzwerk- oder Prozesskommunikation.",
+      "example": "Ein Programm kann über einen Socket Daten senden.",
+      "tags": [
+        "linux",
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0130",
+      "term": "Pipe",
+      "short": "Verbindung zwischen Programmen zur Datenweitergabe.",
+      "example": "ls | grep py nutzt eine Pipe.",
+      "tags": [
+        "linux",
+        "terminal"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0131",
+      "term": "Umgebungsvariable",
+      "short": "Eine Variable des Betriebssystems für Prozesse.",
+      "example": "PATH enthält Suchpfade für Programme.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0132",
+      "term": "PATH",
+      "short": "Umgebungsvariable mit Verzeichnissen für ausführbare Programme.",
+      "example": "Wenn ein Befehl nicht gefunden wird, fehlt er oft im PATH.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0133",
+      "term": "Home-Verzeichnis",
+      "short": "Persönliches Benutzerverzeichnis.",
+      "example": "/home/sven ist ein typisches Home-Verzeichnis.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0134",
+      "term": "Mount",
+      "short": "Das Einhängen eines Dateisystems.",
+      "example": "Ein USB-Stick wird in das Dateisystem gemountet.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0135",
+      "term": "Symlink",
+      "short": "Ein symbolischer Link auf Datei oder Ordner.",
+      "example": "Ein Symlink wirkt wie eine Verknüpfung.",
+      "tags": [
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0136",
+      "term": "Shebang",
+      "short": "Erste Skriptzeile, die den Interpreter angibt.",
+      "example": "#!/usr/bin/env python3 ist ein Shebang.",
+      "tags": [
+        "linux",
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0137",
+      "term": "Exit-Code",
+      "short": "Rückgabecode eines Programms.",
+      "example": "0 bedeutet meistens Erfolg, andere Werte Fehler.",
+      "tags": [
+        "linux",
+        "debugging"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0138",
+      "term": "Netzwerk",
+      "short": "Verbund von Geräten, die Daten austauschen.",
+      "example": "Router, PC und Smartphone bilden ein Heimnetz.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0139",
+      "term": "IP-Adresse",
+      "short": "Adresse eines Geräts in einem Netzwerk.",
+      "example": "192.168.1.10 ist eine private IPv4-Adresse.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0140",
+      "term": "IPv4",
+      "short": "Älteres IP-Adressformat mit 32 Bit.",
+      "example": "192.168.0.1 ist IPv4.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0141",
+      "term": "IPv6",
+      "short": "Neueres IP-Adressformat mit 128 Bit.",
+      "example": "2001:db8::1 ist IPv6.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0142",
+      "term": "Port",
+      "short": "Nummer für einen Dienst auf einem Gerät.",
+      "example": "Port 80 ist häufig HTTP.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0143",
+      "term": "TCP",
+      "short": "Zuverlässiges Transportprotokoll mit Verbindungsaufbau.",
+      "example": "Webseiten über HTTPS nutzen TCP.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0144",
+      "term": "UDP",
+      "short": "Schnelles Transportprotokoll ohne garantierte Zustellung.",
+      "example": "DNS nutzt oft UDP.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0145",
+      "term": "HTTP",
+      "short": "Protokoll zur Übertragung von Webseiten und APIs.",
+      "example": "http://example.com nutzt HTTP.",
+      "tags": [
+        "netzwerk",
+        "web"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0146",
+      "term": "HTTPS",
+      "short": "Verschlüsseltes HTTP über TLS.",
+      "example": "https:// schützt Verbindung und Inhalt besser.",
+      "tags": [
+        "netzwerk",
+        "web",
+        "sicherheit"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0147",
+      "term": "TLS",
+      "short": "Verschlüsselungsprotokoll für sichere Verbindungen.",
+      "example": "HTTPS verwendet TLS.",
+      "tags": [
+        "netzwerk",
+        "sicherheit"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0148",
+      "term": "DNS",
+      "short": "Domain Name System: übersetzt Namen in IP-Adressen.",
+      "example": "example.com wird zu einer IP-Adresse aufgelöst.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0149",
+      "term": "Resolver",
+      "short": "Komponente, die DNS-Anfragen auflöst.",
+      "example": "Ein DNS-Resolver fragt DNS-Server ab.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0150",
+      "term": "Gateway",
+      "short": "Übergang zu einem anderen Netzwerk.",
+      "example": "Der Router ist meist das Standard-Gateway.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0151",
+      "term": "Router",
+      "short": "Gerät, das Datenpakete zwischen Netzwerken weiterleitet.",
+      "example": "Der Heimrouter verbindet LAN und Internet.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0152",
+      "term": "Subnetz",
+      "short": "Ein Teilbereich eines IP-Netzwerks.",
+      "example": "192.168.1.0/24 ist ein Subnetz.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0153",
+      "term": "CIDR",
+      "short": "Schreibweise für IP-Netze mit Präfixlänge.",
+      "example": "192.168.1.0/24 nutzt CIDR.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0154",
+      "term": "MAC-Adresse",
+      "short": "Hardwareadresse einer Netzwerkschnittstelle.",
+      "example": "Eine Netzwerkkarte hat eine MAC-Adresse.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0155",
+      "term": "ARP",
+      "short": "Protokoll zum Zuordnen von IPv4-Adressen zu MAC-Adressen.",
+      "example": "ARP findet die MAC-Adresse im lokalen Netz.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0156",
+      "term": "DHCP",
+      "short": "Protokoll zur automatischen Vergabe von IP-Adressen.",
+      "example": "Der Router vergibt per DHCP eine IP.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0157",
+      "term": "Ping",
+      "short": "Werkzeug zum Prüfen der Erreichbarkeit per ICMP.",
+      "example": "ping 1.1.1.1 testet Verbindung.",
+      "tags": [
+        "netzwerk",
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0158",
+      "term": "Traceroute",
+      "short": "Werkzeug zum Anzeigen des Wegs zu einem Ziel.",
+      "example": "traceroute example.com zeigt Zwischenstationen.",
+      "tags": [
+        "netzwerk",
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0159",
+      "term": "Firewall",
+      "short": "System zum Erlauben oder Blockieren von Netzwerkverkehr.",
+      "example": "Eine Firewall kann eingehende Ports sperren.",
+      "tags": [
+        "netzwerk",
+        "sicherheit"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0160",
+      "term": "NAT",
+      "short": "Network Address Translation: Übersetzung privater zu öffentlichen IP-Adressen.",
+      "example": "Der Router nutzt NAT für mehrere Heimgeräte.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0161",
+      "term": "VPN",
+      "short": "Virtual Private Network: verschlüsselte Verbindung über ein anderes Netzwerk.",
+      "example": "Ein VPN kann externen Zugriff auf ein Heimnetz ermöglichen.",
+      "tags": [
+        "netzwerk",
+        "sicherheit"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0162",
+      "term": "Proxy",
+      "short": "Zwischenstation für Anfragen.",
+      "example": "Ein HTTP-Proxy leitet Webanfragen weiter.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0163",
+      "term": "Packet",
+      "short": "Ein Datenpaket im Netzwerk.",
+      "example": "Netzwerkdaten werden in Pakete zerlegt.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0164",
+      "term": "Packet Capture",
+      "short": "Mitschneiden von Netzwerkpaketen.",
+      "example": "Wireshark kann Packet Capture durchführen.",
+      "tags": [
+        "netzwerk",
+        "sicherheit"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0165",
+      "term": "Wireshark",
+      "short": "Werkzeug zur Analyse von Netzwerkpaketen.",
+      "example": "Wireshark zeigt Details von Netzwerkverkehr.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0166",
+      "term": "tshark",
+      "short": "Kommandozeilen-Version von Wireshark.",
+      "example": "tshark kann Mitschnitte im Terminal auswerten.",
+      "tags": [
+        "netzwerk",
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0167",
+      "term": "Hostname",
+      "short": "Der Name eines Geräts im Netzwerk.",
+      "example": "laptop-sven kann ein Hostname sein.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0168",
+      "term": "localhost",
+      "short": "Der eigene Rechner.",
+      "example": "127.0.0.1 steht meist für localhost.",
+      "tags": [
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0169",
+      "term": "API",
+      "short": "Application Programming Interface: eine Schnittstelle für Programme.",
+      "example": "Eine Wetter-App ruft Daten über eine API ab.",
+      "tags": [
+        "api",
+        "web"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0170",
+      "term": "REST",
+      "short": "Ein verbreiteter Stil für Web-APIs.",
+      "example": "GET /users ruft Benutzer über eine REST-API ab.",
+      "tags": [
+        "api",
+        "web"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0171",
+      "term": "Endpoint",
+      "short": "Eine konkrete Adresse einer API-Funktion.",
+      "example": "/api/status kann ein Endpoint sein.",
+      "tags": [
+        "api",
+        "web"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0172",
+      "term": "Request",
+      "short": "Eine Anfrage an Server, API oder Dienst.",
+      "example": "Der Browser sendet einen Request an eine Webseite.",
+      "tags": [
+        "api",
+        "web"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0173",
+      "term": "Response",
+      "short": "Die Antwort auf eine Anfrage.",
+      "example": "Eine API liefert eine JSON-Response.",
+      "tags": [
+        "api",
+        "web"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0174",
+      "term": "Statuscode",
+      "short": "HTTP-Code, der das Ergebnis einer Anfrage beschreibt.",
+      "example": "200 heißt OK, 404 heißt nicht gefunden.",
+      "tags": [
+        "web",
+        "api"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0175",
+      "term": "JSON",
+      "short": "Textformat für strukturierte Daten.",
+      "example": "{\"name\": \"NetMon\"} ist JSON.",
+      "tags": [
+        "datenformat",
+        "api"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0176",
+      "term": "YAML",
+      "short": "Lesbares Datenformat für Konfigurationen.",
+      "example": "docker-compose.yml nutzt YAML.",
+      "tags": [
+        "datenformat"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0177",
+      "term": "XML",
+      "short": "Markup-Datenformat mit Tags.",
+      "example": "<name>NetMon</name> ist XML.",
+      "tags": [
+        "datenformat"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0178",
+      "term": "HTML",
+      "short": "Markup-Sprache für Webseitenstruktur.",
+      "example": "<button>Start</button> erzeugt einen Button.",
+      "tags": [
+        "web"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0179",
+      "term": "CSS",
+      "short": "Sprache zur Gestaltung von Webseiten.",
+      "example": "CSS legt Farben, Abstände und Schriftgrößen fest.",
+      "tags": [
+        "web"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0180",
+      "term": "JavaScript",
+      "short": "Programmiersprache für Webbrowser und Server.",
+      "example": "JavaScript reagiert auf Klicks im Browser.",
+      "tags": [
+        "web"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0181",
+      "term": "Frontend",
+      "short": "Der sichtbare Teil einer Anwendung.",
+      "example": "Buttons und Formularfelder gehören zum Frontend.",
+      "tags": [
+        "web",
+        "architektur"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0182",
+      "term": "Backend",
+      "short": "Der Hintergrundteil einer Anwendung.",
+      "example": "Datenbankzugriff und API-Logik laufen im Backend.",
+      "tags": [
+        "web",
+        "architektur"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0183",
+      "term": "Client",
+      "short": "Ein Programm, das Anfragen stellt.",
+      "example": "Ein Browser ist ein Web-Client.",
+      "tags": [
+        "web",
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0184",
+      "term": "Server",
+      "short": "Ein Programm oder Rechner, der Dienste bereitstellt.",
+      "example": "Ein Webserver liefert Webseiten aus.",
+      "tags": [
+        "web",
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0185",
+      "term": "CORS",
+      "short": "Browser-Sicherheitsmechanismus für Anfragen zwischen unterschiedlichen Domains.",
+      "example": "Eine API muss CORS erlauben, wenn ein anderes Frontend darauf zugreift.",
+      "tags": [
+        "web",
+        "sicherheit"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0186",
+      "term": "Cookie",
+      "short": "Kleine Datenmenge, die eine Webseite im Browser speichern kann.",
+      "example": "Cookies können Login-Sitzungen speichern.",
+      "tags": [
+        "web"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0187",
+      "term": "Session",
+      "short": "Eine zusammenhängende Nutzungssitzung.",
+      "example": "Nach Login wird oft eine Session erstellt.",
+      "tags": [
+        "web",
+        "sicherheit"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0188",
+      "term": "Token",
+      "short": "Ein digitaler Nachweis für Zugriff oder Identität.",
+      "example": "Ein API-Token erlaubt Zugriff auf eine API.",
+      "tags": [
+        "api",
+        "sicherheit"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0189",
+      "term": "OAuth",
+      "short": "Standard zur Autorisierung zwischen Diensten.",
+      "example": "Mit OAuth kann eine App Zugriff auf ein Konto erhalten.",
+      "tags": [
+        "api",
+        "sicherheit"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0190",
+      "term": "Webhook",
+      "short": "Eine automatische HTTP-Benachrichtigung bei Ereignissen.",
+      "example": "Ein Dienst sendet einen Webhook, wenn ein Build fertig ist.",
+      "tags": [
+        "api",
+        "web"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0191",
+      "term": "Datenbank",
+      "short": "System zur strukturierten Speicherung und Abfrage von Daten.",
+      "example": "Eine App speichert Einstellungen in einer Datenbank.",
+      "tags": [
+        "datenbank"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0192",
+      "term": "SQL",
+      "short": "Sprache zum Abfragen und Verändern relationaler Datenbanken.",
+      "example": "SELECT * FROM users ist SQL.",
+      "tags": [
+        "datenbank"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0193",
+      "term": "SQLite",
+      "short": "Kleine dateibasierte SQL-Datenbank.",
+      "example": "SQLite eignet sich gut für Desktop-Programme.",
+      "tags": [
+        "datenbank"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0194",
+      "term": "Tabelle",
+      "short": "Struktur mit Zeilen und Spalten in relationalen Datenbanken.",
+      "example": "Eine Tabelle stations kann Radiosender speichern.",
+      "tags": [
+        "datenbank"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0195",
+      "term": "Zeile",
+      "short": "Ein einzelner Datensatz in einer Tabelle.",
+      "example": "Ein Radiosender kann eine Zeile sein.",
+      "tags": [
+        "datenbank"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0196",
+      "term": "Spalte",
+      "short": "Ein Feldtyp in einer Tabelle.",
+      "example": "name und url können Spalten sein.",
+      "tags": [
+        "datenbank"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0197",
+      "term": "Primärschlüssel",
+      "short": "Eindeutiger Bezeichner eines Datensatzes.",
+      "example": "id ist oft ein Primärschlüssel.",
+      "tags": [
+        "datenbank"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0198",
+      "term": "Fremdschlüssel",
+      "short": "Verweis auf einen Datensatz in einer anderen Tabelle.",
+      "example": "user_id kann auf users.id zeigen.",
+      "tags": [
+        "datenbank"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0199",
+      "term": "Index Datenbank",
+      "short": "Suchstruktur zur Beschleunigung von Abfragen.",
+      "example": "Ein Index auf name macht Suche schneller.",
+      "tags": [
+        "datenbank"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0200",
+      "term": "Query",
+      "short": "Eine Datenbankabfrage.",
+      "example": "SELECT name FROM stations ist eine Query.",
+      "tags": [
+        "datenbank"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0201",
+      "term": "Migration",
+      "short": "Geplante Änderung der Datenbankstruktur.",
+      "example": "Eine Migration fügt eine neue Spalte hinzu.",
+      "tags": [
+        "datenbank"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0202",
+      "term": "Transaktion",
+      "short": "Gruppe von Datenbankoperationen, die gemeinsam erfolgreich sein müssen.",
+      "example": "Bei Fehler wird eine Transaktion zurückgerollt.",
+      "tags": [
+        "datenbank"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0203",
+      "term": "NoSQL",
+      "short": "Datenbanken ohne klassisches relationales Tabellenmodell.",
+      "example": "Dokumentdatenbanken speichern JSON-ähnliche Dokumente.",
+      "tags": [
+        "datenbank"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0204",
+      "term": "ORM",
+      "short": "Objekt-relationales Mapping zwischen Codeobjekten und Datenbanktabellen.",
+      "example": "Ein ORM speichert Python-Objekte in SQL-Tabellen.",
+      "tags": [
+        "datenbank",
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0205",
+      "term": "Git",
+      "short": "Versionskontrollsystem für Quellcode.",
+      "example": "Git speichert Änderungen am Projektverlauf.",
+      "tags": [
+        "git"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0206",
+      "term": "Repository Git",
+      "short": "Ein Git-Projektverzeichnis mit Versionshistorie.",
+      "example": "Ein NetMon-Repo enthält Code und Historie.",
+      "tags": [
+        "git"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0207",
+      "term": "Commit",
+      "short": "Ein gespeicherter Änderungsstand in Git.",
+      "example": "Ein Commit beschreibt eine abgeschlossene Änderung.",
+      "tags": [
+        "git"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0208",
+      "term": "Branch",
+      "short": "Ein Entwicklungszweig in Git.",
+      "example": "feature/dns-guard kann ein Branch sein.",
+      "tags": [
+        "git"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0209",
+      "term": "Merge",
+      "short": "Das Zusammenführen von Branches.",
+      "example": "Ein Feature-Branch wird in main gemergt.",
+      "tags": [
+        "git"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0210",
+      "term": "Pull",
+      "short": "Änderungen aus einem entfernten Repository holen.",
+      "example": "git pull aktualisiert den lokalen Stand.",
+      "tags": [
+        "git"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0211",
+      "term": "Push",
+      "short": "Lokale Änderungen in ein entferntes Repository senden.",
+      "example": "git push lädt Commits hoch.",
+      "tags": [
+        "git"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0212",
+      "term": "Clone",
+      "short": "Ein Repository lokal kopieren.",
+      "example": "git clone lädt ein Projekt herunter.",
+      "tags": [
+        "git"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0213",
+      "term": "Fork",
+      "short": "Eigene Kopie eines fremden Repositories.",
+      "example": "Ein Fork erlaubt unabhängige Änderungen.",
+      "tags": [
+        "git"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0214",
+      "term": "Pull Request",
+      "short": "Vorschlag, Änderungen in ein Projekt zu übernehmen.",
+      "example": "Ein Pull Request wird geprüft und gemergt.",
+      "tags": [
+        "git"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0215",
+      "term": "Conflict",
+      "short": "Widerspruch beim Zusammenführen von Änderungen.",
+      "example": "Ein Merge Conflict muss manuell gelöst werden.",
+      "tags": [
+        "git"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0216",
+      "term": "Tag",
+      "short": "Markierung eines bestimmten Git-Stands.",
+      "example": "v1.0.0 kann ein Release-Tag sein.",
+      "tags": [
+        "git"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0217",
+      "term": "Staging",
+      "short": "Auswahl der Änderungen für den nächsten Commit.",
+      "example": "git add legt Dateien in die Staging Area.",
+      "tags": [
+        "git"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0218",
+      "term": "Architektur",
+      "short": "Die Grundstruktur einer Software.",
+      "example": "NetMon kann in GUI, Netzwerklogik und Konfiguration aufgeteilt werden.",
+      "tags": [
+        "architektur"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0219",
+      "term": "Modularisierung",
+      "short": "Aufteilung in kleinere, austauschbare Teile.",
+      "example": "DNS-Code liegt in einem eigenen Modul.",
+      "tags": [
+        "architektur"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0220",
+      "term": "MVC",
+      "short": "Architekturmuster mit Model, View und Controller.",
+      "example": "View zeigt Daten, Controller reagiert auf Eingaben.",
+      "tags": [
+        "architektur",
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0221",
+      "term": "Plugin",
+      "short": "Erweiterung, die eine Anwendung um Funktionen ergänzt.",
+      "example": "Ein Radio-Modul könnte als Plugin gedacht werden.",
+      "tags": [
+        "architektur"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0222",
+      "term": "Dependency",
+      "short": "Eine Abhängigkeit, die ein Projekt benötigt.",
+      "example": "requests kann eine Dependency sein.",
+      "tags": [
+        "architektur",
+        "paketierung"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0223",
+      "term": "Dependency Injection",
+      "short": "Abhängigkeiten werden von außen übergeben statt intern erstellt.",
+      "example": "Ein Logger wird an eine Klasse übergeben.",
+      "tags": [
+        "architektur"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0224",
+      "term": "Singleton",
+      "short": "Entwurfsmuster mit genau einer Instanz.",
+      "example": "Ein ConfigManager kann als Singleton umgesetzt werden.",
+      "tags": [
+        "architektur"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0225",
+      "term": "Factory",
+      "short": "Entwurfsmuster zum Erzeugen von Objekten.",
+      "example": "Eine Factory erstellt passende Scanner-Objekte.",
+      "tags": [
+        "architektur"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0226",
+      "term": "Observer",
+      "short": "Entwurfsmuster zur Benachrichtigung bei Änderungen.",
+      "example": "Die GUI aktualisiert sich, wenn ein Status sich ändert.",
+      "tags": [
+        "architektur",
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0227",
+      "term": "State",
+      "short": "Zustand eines Programms oder Objekts.",
+      "example": "NetMon kann im Zustand 'scannt' oder 'bereit' sein.",
+      "tags": [
+        "architektur"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0228",
+      "term": "Config",
+      "short": "Konfiguration einer Anwendung.",
+      "example": "Eine Config-Datei speichert DNS-Server und Optionen.",
+      "tags": [
+        "architektur"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0229",
+      "term": "Feature Flag",
+      "short": "Schalter zum Aktivieren oder Deaktivieren einer Funktion.",
+      "example": "Pro-Modus kann per Feature Flag aktiviert werden.",
+      "tags": [
+        "architektur"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0230",
+      "term": "Cache",
+      "short": "Zwischenspeicher für schnelleren Zugriff.",
+      "example": "Ein DNS-Cache speichert kürzlich aufgelöste Namen.",
+      "tags": [
+        "architektur",
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0231",
+      "term": "Queue Worker",
+      "short": "Hintergrundarbeiter, der Aufgaben aus einer Warteschlange abarbeitet.",
+      "example": "Ein Worker verarbeitet Netzwerkchecks nacheinander.",
+      "tags": [
+        "architektur"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0232",
+      "term": "Authentifizierung",
+      "short": "Prüfung, wer jemand ist.",
+      "example": "Login mit Passwort ist Authentifizierung.",
+      "tags": [
+        "sicherheit"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0233",
+      "term": "Autorisierung",
+      "short": "Prüfung, was jemand tun darf.",
+      "example": "Nur Admins dürfen Einstellungen ändern.",
+      "tags": [
+        "sicherheit"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0234",
+      "term": "Verschlüsselung",
+      "short": "Umwandlung von Daten, damit Unbefugte sie nicht lesen können.",
+      "example": "TLS verschlüsselt Webverbindungen.",
+      "tags": [
+        "sicherheit"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0235",
+      "term": "Hashing",
+      "short": "Einweg-Berechnung eines Prüfwerts aus Daten.",
+      "example": "Passwörter werden besser gehasht als im Klartext gespeichert.",
+      "tags": [
+        "sicherheit"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0236",
+      "term": "Salt",
+      "short": "Zusatzwert beim Hashing, um Angriffe zu erschweren.",
+      "example": "Ein Passwort-Hash sollte einen Salt nutzen.",
+      "tags": [
+        "sicherheit"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0237",
+      "term": "Firewall-Regel",
+      "short": "Eine einzelne Erlaubnis- oder Sperrregel.",
+      "example": "Blockiere ausgehend Port 53 außer zum erlaubten DNS.",
+      "tags": [
+        "sicherheit",
+        "netzwerk"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0238",
+      "term": "Privilege Escalation",
+      "short": "Ausweitung von Rechten.",
+      "example": "Ein Programm bekommt unbeabsichtigt Root-Rechte.",
+      "tags": [
+        "sicherheit",
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0239",
+      "term": "Least Privilege",
+      "short": "Prinzip: nur die minimal nötigen Rechte vergeben.",
+      "example": "NetMon sollte Root nur nutzen, wenn es nötig ist.",
+      "tags": [
+        "sicherheit",
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0240",
+      "term": "Sandbox",
+      "short": "Isolierte Umgebung für Programme.",
+      "example": "Eine Sandbox begrenzt mögliche Schäden.",
+      "tags": [
+        "sicherheit"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0241",
+      "term": "Injection",
+      "short": "Angriff, bei dem fremde Befehle eingeschleust werden.",
+      "example": "SQL Injection kann Datenbankbefehle manipulieren.",
+      "tags": [
+        "sicherheit"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0242",
+      "term": "Input Validation",
+      "short": "Prüfung von Benutzereingaben.",
+      "example": "Eine IP-Adresse wird vor Nutzung validiert.",
+      "tags": [
+        "sicherheit",
+        "programmierung"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0243",
+      "term": "Escaping",
+      "short": "Sicheres Entschärfen spezieller Zeichen.",
+      "example": "Shell-Argumente müssen korrekt escaped werden.",
+      "tags": [
+        "sicherheit"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0244",
+      "term": "Secrets",
+      "short": "Geheime Werte wie API-Schlüssel oder Passwörter.",
+      "example": "Secrets gehören nicht öffentlich ins Git-Repo.",
+      "tags": [
+        "sicherheit"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0245",
+      "term": "Keyring",
+      "short": "Sicherer Speicher für Zugangsdaten.",
+      "example": "Linux kann Passwörter im Keyring speichern.",
+      "tags": [
+        "sicherheit",
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0246",
+      "term": "Test",
+      "short": "Prüfung, ob Code erwartetes Verhalten zeigt.",
+      "example": "Ein Test prüft, ob DNS-Erkennung funktioniert.",
+      "tags": [
+        "testing"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0247",
+      "term": "Unit Test",
+      "short": "Test einer kleinen Codeeinheit.",
+      "example": "Eine Funktion wird isoliert getestet.",
+      "tags": [
+        "testing"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0248",
+      "term": "Integrationstest",
+      "short": "Test mehrerer zusammenarbeitender Komponenten.",
+      "example": "GUI und Netzwerkmodul werden zusammen getestet.",
+      "tags": [
+        "testing"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0249",
+      "term": "End-to-End-Test",
+      "short": "Test eines vollständigen Ablaufs aus Nutzersicht.",
+      "example": "Starten, Scannen, Ergebnis anzeigen.",
+      "tags": [
+        "testing"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0250",
+      "term": "Mock",
+      "short": "Ersatzobjekt für Tests.",
+      "example": "Ein Netzwerkaufruf wird durch einen Mock ersetzt.",
+      "tags": [
+        "testing"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0251",
+      "term": "Fixture",
+      "short": "Vorbereitete Testdaten oder Testumgebung.",
+      "example": "Eine Fixture erstellt temporäre Dateien.",
+      "tags": [
+        "testing"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0252",
+      "term": "Assertion",
+      "short": "Prüfbehauptung in einem Test.",
+      "example": "assert result == True prüft das Ergebnis.",
+      "tags": [
+        "testing"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0253",
+      "term": "Regression",
+      "short": "Ein Fehler, der nach Änderungen wieder auftritt.",
+      "example": "Ein bereits behobener Bug taucht erneut auf.",
+      "tags": [
+        "testing"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0254",
+      "term": "Linting",
+      "short": "Automatische Prüfung von Code-Stil und einfachen Fehlern.",
+      "example": "ruff oder flake8 können Python-Code linten.",
+      "tags": [
+        "testing",
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0255",
+      "term": "Formatter",
+      "short": "Werkzeug zur automatischen Code-Formatierung.",
+      "example": "black formatiert Python-Code.",
+      "tags": [
+        "testing",
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0256",
+      "term": "Code Review",
+      "short": "Prüfung von Code durch eine andere Person.",
+      "example": "Ein Review findet Fehler und verbessert Lesbarkeit.",
+      "tags": [
+        "testing"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0257",
+      "term": "CI",
+      "short": "Continuous Integration: automatische Tests bei Änderungen.",
+      "example": "GitHub Actions kann Tests bei jedem Push ausführen.",
+      "tags": [
+        "testing"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0258",
+      "term": "Coverage",
+      "short": "Messung, welcher Code durch Tests ausgeführt wird.",
+      "example": "80 Prozent Coverage heißt nicht automatisch fehlerfrei.",
+      "tags": [
+        "testing"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0259",
+      "term": "Thread",
+      "short": "Ein Ausführungsstrang innerhalb eines Prozesses.",
+      "example": "Ein Thread kann im Hintergrund scannen, während die GUI reagiert.",
+      "tags": [
+        "concurrency"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0260",
+      "term": "Multithreading",
+      "short": "Mehrere Threads laufen scheinbar gleichzeitig.",
+      "example": "GUI und Netzwerkprüfung können getrennte Threads nutzen.",
+      "tags": [
+        "concurrency"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0261",
+      "term": "Process Fork",
+      "short": "Erzeugen eines neuen Prozesses.",
+      "example": "Unter Linux kann fork einen Prozess kopieren.",
+      "tags": [
+        "concurrency",
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0262",
+      "term": "Async",
+      "short": "Asynchrone Programmierung ohne dauerhaftes Blockieren.",
+      "example": "asyncio kann viele Netzwerkaufgaben effizient verwalten.",
+      "tags": [
+        "concurrency",
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0263",
+      "term": "Await",
+      "short": "Warten auf ein asynchrones Ergebnis.",
+      "example": "await fetch() wartet, ohne alles zu blockieren.",
+      "tags": [
+        "concurrency",
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0264",
+      "term": "Race Condition",
+      "short": "Fehler durch ungünstige zeitliche Reihenfolge paralleler Abläufe.",
+      "example": "Zwei Threads schreiben gleichzeitig dieselbe Datei.",
+      "tags": [
+        "concurrency"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0265",
+      "term": "Deadlock",
+      "short": "Zustand, in dem Prozesse oder Threads gegenseitig aufeinander warten.",
+      "example": "Thread A wartet auf B, B wartet auf A.",
+      "tags": [
+        "concurrency"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0266",
+      "term": "Mutex",
+      "short": "Sperre für exklusiven Zugriff auf eine Ressource.",
+      "example": "Ein Mutex schützt gemeinsame Daten.",
+      "tags": [
+        "concurrency"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0267",
+      "term": "Semaphore",
+      "short": "Zählerbasierte Sperre für begrenzten gleichzeitigen Zugriff.",
+      "example": "Nur drei Downloads gleichzeitig erlaubt.",
+      "tags": [
+        "concurrency"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0268",
+      "term": "Blocking",
+      "short": "Ein Vorgang hält die weitere Ausführung auf.",
+      "example": "Ein langer Ping kann die GUI blockieren.",
+      "tags": [
+        "concurrency",
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0269",
+      "term": "Nonblocking",
+      "short": "Ein Vorgang blockiert die weitere Ausführung nicht.",
+      "example": "Ein Hintergrundthread hält die GUI reaktionsfähig.",
+      "tags": [
+        "concurrency",
+        "gui"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0270",
+      "term": "Paketierung",
+      "short": "Software in ein installierbares Format bringen.",
+      "example": "NetMon kann als .deb paketiert werden.",
+      "tags": [
+        "paketierung"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0271",
+      "term": "Installer",
+      "short": "Programm oder Paket zur Installation von Software.",
+      "example": "Ein .deb-Paket dient als Installer unter Debian-Systemen.",
+      "tags": [
+        "paketierung"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0272",
+      "term": "Abhängigkeiten",
+      "short": "Externe Pakete oder Programme, die benötigt werden.",
+      "example": "Wireshark wäre eine optionale Abhängigkeit für Paketmitschnitt.",
+      "tags": [
+        "paketierung"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0273",
+      "term": "Manifest",
+      "short": "Datei mit Metadaten über ein Paket oder Projekt.",
+      "example": "pyproject.toml kann Projektmetadaten enthalten.",
+      "tags": [
+        "paketierung"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0274",
+      "term": "pyproject.toml",
+      "short": "Moderne Python-Projektdatei für Build- und Paketinformationen.",
+      "example": "Darin stehen Name, Version und Abhängigkeiten.",
+      "tags": [
+        "paketierung",
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0275",
+      "term": "Wheel",
+      "short": "Binäres Python-Paketformat.",
+      "example": "Eine .whl-Datei kann per pip installiert werden.",
+      "tags": [
+        "paketierung",
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0276",
+      "term": "AppImage",
+      "short": "Linux-Paketformat für portable Anwendungen.",
+      "example": "Eine AppImage-Datei kann oft direkt gestartet werden.",
+      "tags": [
+        "paketierung",
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0277",
+      "term": "Flatpak",
+      "short": "Linux-Paketformat mit Sandbox-Ansatz.",
+      "example": "Flatpak verteilt Desktop-Apps distroübergreifend.",
+      "tags": [
+        "paketierung",
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0278",
+      "term": "Snap",
+      "short": "Paketformat von Canonical für Linux-Apps.",
+      "example": "Snap-Pakete laufen auf vielen Distributionen.",
+      "tags": [
+        "paketierung",
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0279",
+      "term": "Postinst",
+      "short": "Debian-Skript, das nach der Installation läuft.",
+      "example": "postinst kann Services einrichten.",
+      "tags": [
+        "paketierung",
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0280",
+      "term": "Preinst",
+      "short": "Debian-Skript, das vor der Installation läuft.",
+      "example": "preinst bereitet Installation vor.",
+      "tags": [
+        "paketierung",
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0281",
+      "term": "Postrm",
+      "short": "Debian-Skript, das nach dem Entfernen läuft.",
+      "example": "postrm kann alte Dateien bereinigen.",
+      "tags": [
+        "paketierung",
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0282",
+      "term": "Dokumentation",
+      "short": "Erklärungen zur Nutzung oder Entwicklung einer Software.",
+      "example": "Eine README erklärt Installation und Start.",
+      "tags": [
+        "dokumentation"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0283",
+      "term": "README",
+      "short": "Startdokument eines Projekts.",
+      "example": "README.md enthält Überblick und Anleitung.",
+      "tags": [
+        "dokumentation"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0284",
+      "term": "Markdown",
+      "short": "Einfache Auszeichnungssprache für Textdokumente.",
+      "example": "# Überschrift erstellt eine Überschrift.",
+      "tags": [
+        "dokumentation"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0285",
+      "term": "Docstring Python",
+      "short": "Dokumentation direkt im Python-Code.",
+      "example": "Eine Funktion beschreibt ihre Parameter im Docstring.",
+      "tags": [
+        "dokumentation",
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0286",
+      "term": "Glossar",
+      "short": "Nachschlagewerk mit Begriffserklärungen.",
+      "example": "Dieses IT-Lexikon ist ein Glossar.",
+      "tags": [
+        "dokumentation"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0287",
+      "term": "FAQ",
+      "short": "Frequently Asked Questions: häufige Fragen und Antworten.",
+      "example": "Eine FAQ erklärt typische Probleme.",
+      "tags": [
+        "dokumentation"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0288",
+      "term": "How-to",
+      "short": "Schritt-für-Schritt-Anleitung für eine Aufgabe.",
+      "example": "Ein How-to erklärt das Erstellen eines .deb-Pakets.",
+      "tags": [
+        "dokumentation"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0289",
+      "term": "Tutorial",
+      "short": "Lernanleitung mit Beispielen.",
+      "example": "Ein Tutorial führt in Tkinter ein.",
+      "tags": [
+        "dokumentation"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0290",
+      "term": "Manpage",
+      "short": "Klassische Linux-Hilfeseite für Befehle.",
+      "example": "man systemctl zeigt die Manpage.",
+      "tags": [
+        "dokumentation",
+        "linux"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0291",
+      "term": "Compiler",
+      "short": "Programm, das Quellcode in Maschinencode oder Zwischencode übersetzt.",
+      "example": "C-Code wird oft kompiliert.",
+      "tags": [
+        "werkzeuge"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0292",
+      "term": "Interpreter",
+      "short": "Programm, das Code direkt ausführt.",
+      "example": "Python nutzt einen Interpreter.",
+      "tags": [
+        "werkzeuge",
+        "python"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0293",
+      "term": "Transpiler",
+      "short": "Werkzeug, das Code von einer Sprache in eine andere übersetzt.",
+      "example": "TypeScript wird zu JavaScript transpiliert.",
+      "tags": [
+        "werkzeuge",
+        "web"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0294",
+      "term": "IDE",
+      "short": "Integrierte Entwicklungsumgebung.",
+      "example": "VS Code oder PyCharm helfen beim Programmieren.",
+      "tags": [
+        "werkzeuge"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0295",
+      "term": "Editor",
+      "short": "Programm zum Bearbeiten von Text oder Code.",
+      "example": "VS Code, Nano und Vim sind Editoren.",
+      "tags": [
+        "werkzeuge"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0296",
+      "term": "Debugger",
+      "short": "Werkzeug zum schrittweisen Untersuchen eines Programms.",
+      "example": "Ein Debugger kann Variablen während der Ausführung zeigen.",
+      "tags": [
+        "werkzeuge"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0297",
+      "term": "Breakpoint",
+      "short": "Haltepunkt im Debugger.",
+      "example": "Der Code stoppt an einem Breakpoint.",
+      "tags": [
+        "debugging",
+        "werkzeuge"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0298",
+      "term": "Profiling",
+      "short": "Messen, welche Codeteile Zeit oder Speicher verbrauchen.",
+      "example": "Profiling findet langsame Funktionen.",
+      "tags": [
+        "werkzeuge",
+        "performance"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0299",
+      "term": "Benchmark",
+      "short": "Leistungsmessung unter vergleichbaren Bedingungen.",
+      "example": "Ein Benchmark vergleicht zwei Scanner-Methoden.",
+      "tags": [
+        "performance"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0300",
+      "term": "Performance",
+      "short": "Leistung und Geschwindigkeit einer Software.",
+      "example": "Eine GUI sollte nicht durch lange Checks einfrieren.",
+      "tags": [
+        "performance"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0301",
+      "term": "Memory Leak",
+      "short": "Speicher wird nicht mehr freigegeben.",
+      "example": "Ein Programm verbraucht mit der Zeit immer mehr RAM.",
+      "tags": [
+        "performance"
+      ],
+      "related": []
+    },
+    {
+      "id": "it_0302",
+      "term": "Garbage Collection",
+      "short": "Automatische Speicherbereinigung.",
+      "example": "Python räumt nicht mehr benötigte Objekte automatisch auf.",
+      "tags": [
+        "performance",
+        "python"
+      ],
+      "related": []
+    }
+  ]
+}
