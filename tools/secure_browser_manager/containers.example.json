@@ -1,0 +1,57 @@
+{
+"default_source_firefox_dir": "/opt/netmon-browser/firefox",
+  "containers": [
+    {
+      "name": "firefox-GitHub",
+      "path": "/home/happy/Programme/firefox-GitHub",
+      "homepage_url": "https://github.com",
+      "new_tab_url": "about:blank",
+      "menu_name": "NetMon Secure Browser – GitHub",
+      "allowed_domains": [
+        "github.com",
+        "githubusercontent.com",
+        "githubassets.com"
+      ],
+      "notes": "Getrennter Browser fuer GitHub, Releases und Repository-Arbeit."
+    },
+    {
+      "name": "firefox-OpenAI",
+      "path": "/home/happy/Programme/firefox-OpenAI",
+      "homepage_url": "https://chatgpt.com",
+      "new_tab_url": "about:blank",
+      "menu_name": "NetMon Secure Browser – OpenAI",
+      "allowed_domains": [
+        "chatgpt.com",
+        "openai.com",
+        "platform.openai.com",
+        "auth.openai.com"
+      ],
+      "notes": "Getrennter Browser fuer ChatGPT, OpenAI-Doku und API-Konsole."
+    },
+    {
+      "name": "firefox-NameCom",
+      "path": "/home/happy/Programme/firefox-NameCom",
+      "homepage_url": "https://name.com",
+      "new_tab_url": "about:blank",
+      "menu_name": "NetMon Secure Browser – Name.com",
+      "allowed_domains": [
+        "name.com",
+        "www.name.com"
+      ],
+      "notes": "Getrennter Browser fuer Domainverwaltung bei Name.com."
+    },
+    {
+      "name": "firefox-cPanel",
+      "path": "/home/happy/Programme/firefox-cPanel",
+      "homepage_url": "https://cpanel.netmonroots.com",
+      "new_tab_url": "about:blank",
+      "menu_name": "NetMon Secure Browser – cPanel",
+      "allowed_domains": [
+        "netmonroots.com",
+        "cpanel.netmonroots.com",
+        "netmonroots.com:2083"
+      ],
+      "notes": "Getrennter Browser fuer Hosting- und cPanel-Zugriffe."
+    }
+  ]
+}
