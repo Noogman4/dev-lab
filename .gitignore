@@ -38,3 +38,7 @@ logs/
 # local workspace files
 *.code-workspace
 *.save
+
+# pending third-party preset packs
+tools/mdpresets/
+tools/MD2 Presets Edited for projectM 4.x/
