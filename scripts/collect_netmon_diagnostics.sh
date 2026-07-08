@@ -38,12 +38,10 @@ run_section() {
     printf '\n'
 } >"$output_path"
 
-run_section "Docker Containers" docker ps -a
-run_section "Docker Inspect" sh -c 'ids="$(docker ps -aq 2>/dev/null)"; if [ -n "$ids" ]; then docker inspect $ids; else echo "No containers found."; fi'
 run_section "Processes (ps -eo ...)" ps -eo pid,ppid,user,stat,comm,args --width 300
 run_section "Processes (ps -efww)" ps -efww
 run_section "Listening Sockets" ss -tulpn
-run_section "Kernel Journal (filtered)" sh -c "journalctl -k -b --no-pager | grep -Ei 'error|warn|fail|denied|oom|segfault|amdgpu|nvidia|docker|veth|iptables|ufw' || true"
+run_section "Kernel Journal (filtered)" sh -c "journalctl -k -b --no-pager | grep -Ei 'error|warn|fail|denied|oom|segfault|amdgpu|nvidia|veth|iptables|ufw' || true"
 run_section "Kernel Journal (full boot)" journalctl -k -b --no-pager
 run_section "Kernel Ring Buffer (last 300)" sh -c 'dmesg -T | tail -n 300'
 

@@ -587,6 +587,7 @@ try:
     from netmon.ui.tabs.links_tab import build_links_tab
     from netmon.ui.tabs.log_tab import build_log_tab
     from netmon.ui.tabs.radio_tab import build_radio_tab
+    from netmon.ui.tabs.secure_browser_tab import build_secure_browser_tab
     from netmon.ui.tabs.security_tabs import (
         build_security_tabs,
         build_startup_guard_tab,
@@ -608,6 +609,7 @@ except ModuleNotFoundError:
     from ui.tabs.cleanup_assistant_tab import build_cleanup_assistant_tab
     from ui.tabs.log_tab import build_log_tab
     from ui.tabs.radio_tab import build_radio_tab
+    from ui.tabs.secure_browser_tab import build_secure_browser_tab
     from ui.tabs.fun_tab import build_fun_tab
     from ui.tabs.dns_tab import build_dns_tab
     from ui.tabs.download_scan_tab import (
@@ -5347,6 +5349,7 @@ class App(TkBase):
 
         build_chad_tab(self)
         build_chad_settings_tab_ui(self)
+        build_secure_browser_tab(self)
 
         self.nb.add(self.tab_system_main, text=self.tr("tab_system", "System"))
         self.nb.add(self.tab_tools, text=self.tr("tab_tools", "Tools"))
@@ -21007,6 +21010,9 @@ class App(TkBase):
             persist=False,
         )
 
+        if self.settings.get("auto_log_clear", False):
+            self.after(10, self.clear_log)
+
         if self.settings.get("dns_guard_enabled", True):
             self.after(50, lambda: self.set_dns_guard_enabled(True))
 
@@ -34858,6 +34864,44 @@ class App(TkBase):
             return host.strip(), port.strip()
         return text, ""
 
+    def _parse_firewall_listener_cgroup(self, process_info):
+        match = re.search(r"\bcgroup:([^\s]+)", str(process_info or ""))
+        if not match:
+            return ""
+        return match.group(1).strip()
+
+    def _is_netmon_app_scope(self, cgroup_value):
+        scope_name = str(cgroup_value or "").strip().rsplit("/", 1)[-1]
+        return (
+            scope_name.startswith("app-gnome-netmon-")
+            and scope_name.endswith(".scope")
+        )
+
+    def _is_netmon_listener(self, listener):
+        process_name = str(listener.get("process") or "").strip().lower()
+        cgroup_value = str(listener.get("cgroup") or "").strip()
+        pid_value = str(listener.get("pid") or "").strip()
+        if process_name in {"netmon", "python", "python3"} and pid_value == str(
+            os.getpid()
+        ):
+            return True
+        if "netmon" in process_name:
+            return True
+        return self._is_netmon_app_scope(cgroup_value)
+
+    def _describe_firewall_listener_owner(self, listener):
+        cgroup_value = str(listener.get("cgroup") or "").strip()
+        pid_value = str(listener.get("pid") or "").strip() or "-"
+        if self._is_netmon_app_scope(cgroup_value):
+            scope_name = cgroup_value.rsplit("/", 1)[-1]
+            return f"NetMon app scope ({scope_name}, PID {pid_value})"
+        if self._is_netmon_listener(listener):
+            return f"NetMon process (PID {pid_value})"
+        if cgroup_value:
+            scope_name = cgroup_value.rsplit("/", 1)[-1]
+            return f"cgroup {scope_name}"
+        return ""
+
     def _classify_firewall_listener_scope(self, host):
         text = str(host or "").strip().lower()
         if not text:
@@ -34884,12 +34928,16 @@ class App(TkBase):
         text = str(line or "").strip()
         if not text:
             return None
-        parts = re.split(r"\s+", text, maxsplit=6)
-        if len(parts) < 5:
+        match = re.match(
+            r"^(?P<proto>\S+)\s+(?P<state>\S+)\s+\S+\s+\S+\s+"
+            r"(?P<local>\S+)\s+(?P<remote>\S+)(?:\s+(?P<extra>.*))?$",
+            text,
+        )
+        if not match:
             return None
-        proto = parts[0].lower()
-        local = parts[4] if len(parts) > 4 else ""
-        process_info = parts[6] if len(parts) > 6 else ""
+        proto = match.group("proto").lower()
+        local = match.group("local") or ""
+        process_info = match.group("extra") or ""
         host, port = self._parse_firewall_listener_address(local)
         if not port.isdigit():
             return None
@@ -34903,12 +34951,16 @@ class App(TkBase):
         pid_match = re.search(r"\bpid=(\d+)\b", process_info)
         if pid_match:
             process_pid = pid_match.group(1)
+        cgroup_value = self._parse_firewall_listener_cgroup(process_info)
+        if self._is_netmon_app_scope(cgroup_value):
+            process_name = "NetMon"
         return {
             "proto": proto,
             "host": host or "-",
             "port": int(port),
             "process": process_name or "-",
             "pid": process_pid,
+            "cgroup": cgroup_value,
             "scope": self._classify_firewall_listener_scope(host),
         }
 
@@ -34997,6 +35049,21 @@ class App(TkBase):
         allowed = self._listener_matches_firewall_rule(listener, rules)
         process_name = str(listener.get("process") or "-").strip() or "-"
         port_value = int(listener.get("port") or 0)
+        proto_value = str(listener.get("proto") or "").strip().lower()
+
+        if self._is_netmon_listener(listener):
+            kind_label = "UDP-Port" if proto_value == "udp" else "Port"
+            if scope == "external":
+                return {
+                    "firewall": "self",
+                    "rating": f"{kind_label} gehoert zu NetMon selbst, pruefen ob Bindung auf alle Interfaces noetig ist",
+                    "priority": "check",
+                }
+            return {
+                "firewall": "self",
+                "rating": "gehoert zu NetMon selbst",
+                "priority": "ok",
+            }
 
         if scope == "local only":
             return {
@@ -35129,6 +35196,7 @@ class App(TkBase):
 
         listener_rows = []
         listener_cmds = [
+            ["ss", "-lntupeH"],
             ["ss", "-lntupH"],
             ["ss", "-lntuH"],
         ]
@@ -35153,6 +35221,9 @@ class App(TkBase):
                 parsed_listener["firewall"] = str(assessment.get("firewall") or "-")
                 parsed_listener["rating"] = str(assessment.get("rating") or "-")
                 parsed_listener["priority"] = str(assessment.get("priority") or "check")
+                parsed_listener["owner_note"] = self._describe_firewall_listener_owner(
+                    parsed_listener
+                )
                 listener_rows.append(parsed_listener)
             break
 
@@ -35186,6 +35257,9 @@ class App(TkBase):
         )
         warn_count = sum(
             1 for item in listener_rows if str(item.get("priority") or "") == "warn"
+        )
+        self_listener_count = sum(
+            1 for item in listener_rows if self._is_netmon_listener(item)
         )
 
         summary_lines = [
@@ -35260,6 +35334,10 @@ class App(TkBase):
                 self.tr("firewall_transparency_notable", "Notable: {count}").format(
                     count=warn_count
                 ),
+                self.tr(
+                    "firewall_transparency_self_listeners",
+                    "NetMon own listeners: {count}",
+                ).format(count=self_listener_count),
             ]
         )
         notable = [
@@ -35418,6 +35496,9 @@ class App(TkBase):
                     scope = str(item.get("scope") or "").strip()
                     if scope:
                         bind_label = f"{bind_label} ({scope})"
+                    owner_note = str(item.get("owner_note") or "").strip()
+                    if owner_note:
+                        bind_label = f"{bind_label} | {owner_note}"
                     listeners_table.insert(
                         "",
                         "end",
@@ -35485,6 +35566,7 @@ class App(TkBase):
                             str(item.get("host") or "-"),
                             str(item.get("firewall") or "-"),
                             str(item.get("rating") or "-"),
+                            str(item.get("owner_note") or "-"),
                         ]
                     )
                 )

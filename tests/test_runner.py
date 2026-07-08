@@ -57,3 +57,28 @@ def test_run_command_rejects_black_path_outside_repo() -> None:
 def test_run_command_rejects_pytest_nodeid_outside_repo() -> None:
     with pytest.raises(ValueError, match="Pfad ausserhalb des Repositories nicht erlaubt"):
         run_command("pytest ../outside.py::test_example")
+
+
+def test_run_command_rejects_pytest_flag_value_outside_repo() -> None:
+    with pytest.raises(ValueError, match="Pfad ausserhalb des Repositories nicht erlaubt"):
+        run_command("pytest --junitxml=/etc/passwd tests/test_runner.py")
+
+
+def test_run_command_rejects_ruff_flag_value_outside_repo() -> None:
+    with pytest.raises(ValueError, match="Pfad ausserhalb des Repositories nicht erlaubt"):
+        run_command("ruff check . --output-file=/tmp/../etc/evil.txt")
+
+
+def test_run_command_allows_flag_value_inside_repo(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _run(*args, **kwargs):
+        return type(
+            "CompletedProcess",
+            (),
+            {"returncode": 0, "stdout": "", "stderr": ""},
+        )()
+
+    monkeypatch.setattr("agent.runner.subprocess.run", _run)
+
+    output = run_command("pytest --junitxml=report.xml tests/test_runner.py")
+
+    assert "exit_code=0" in output

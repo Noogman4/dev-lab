@@ -1,8 +1,59 @@
 {
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
   "python.testing.pytestEnabled": true,
   "python.testing.unittestEnabled": false,
   "python.testing.pytestArgs": ["tests"],
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "ms-python.black-formatter",
-  "python.analysis.extraPaths": ["."]
+  "python.analysis.extraPaths": [
+    "."
+  ],
+  "git.autorefresh": false,
+  "explorer.excludeGitIgnore": true,
+  "files.watcherExclude": {
+    "**/.git/**": true,
+    "**/.venv/**": true,
+    "**/.venv.bak-*/**": true,
+    "**/venv/**": true,
+    "**/.release-venv/**": true,
+    "**/.release-venv2/**": true,
+    "**/__pycache__/**": true,
+    "**/.pytest_cache/**": true,
+    "**/.ruff_cache/**": true,
+    "dist/**": true,
+    "backups/**": true,
+    "logs/**": true,
+    "site/screenshots/**": true,
+    "tools/Log-Pics/**": true,
+    "tools/mdpresets/52kpresets/**": true,
+    "tools/MD2 Presets Edited for projectM 4.x/**": true,
+    "docs/netmon-review-baseline.md": true
+  },
+  "search.exclude": {
+    "**/.git": true,
+    "**/.venv": true,
+    "**/.venv.bak-*": true,
+    "**/venv": true,
+    "**/.release-venv": true,
+    "**/.release-venv2": true,
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.ruff_cache": true,
+    "dist": true,
+    "backups": true,
+    "logs": true,
+    "site/screenshots": true,
+    "tools/Log-Pics": true,
+    "tools/mdpresets/52kpresets": true,
+    "tools/MD2 Presets Edited for projectM 4.x": true,
+    "docs/netmon-review-baseline.md": true
+  },
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.ruff_cache": true,
+    "docs/netmon-review-baseline.md": true
+  },
+  "makefile.configureOnOpen": false,
+  "remote.autoForwardPortsFallback": 0
 }

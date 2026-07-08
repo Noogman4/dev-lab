@@ -109,7 +109,7 @@ for cmd in git python3 pytest ruff black rg jq lsblk findmnt mount umount udisks
 done
 
 section "Empfohlen"
-for cmd in make curl shellcheck docker docker-compose cryptsetup; do
+for cmd in make curl shellcheck cryptsetup; do
   if ! check_cmd "$cmd"; then
     missing_recommended=$((missing_recommended + 1))
   fi
@@ -132,25 +132,11 @@ if sudo -n true >/dev/null 2>&1; then
 else
   warn "sudo -n benoetigt Passwort oder ist nicht erlaubt"
 fi
-if groups 2>/dev/null | grep -qw docker; then
-  ok "User ist in Gruppe docker"
-else
-  warn "User ist nicht in Gruppe docker"
-fi
-
 section "Mount und Storage"
 if findmnt -rn -o TARGET / >/dev/null 2>&1; then
   root_target="$(findmnt -rn -o TARGET / | head -n1)"
   root_source="$(findmnt -rn -o SOURCE / | head -n1)"
   printf "Root: %s auf %s\n" "${root_source:-?}" "${root_target:-?}"
-fi
-if have docker; then
-  docker_root="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || true)"
-  if [ -n "$docker_root" ]; then
-    printf "DockerRootDir: %s\n" "$docker_root"
-  else
-    warn "DockerRootDir nicht lesbar (docker evtl. nicht aktiv oder Rechte fehlen)"
-  fi
 fi
 
 section "Projektbefehle"
@@ -175,11 +161,9 @@ printf -- "- Fuer Codex besonders wichtig: rg, pytest, ruff, black, jq, lsblk, f
 printf -- "- Fuer weniger Reibung: kernel.unprivileged_userns_clone=1\n"
 printf -- "- Python-Standard: .venv im Projekt und Tests lokal startbar\n"
 printf -- "- Wenn apply_patch scheitert: docs/CODEX_PATCH_WORKFLOW.md nutzen und nach jeder Aenderung lint/tests laufen lassen\n"
-printf -- "- Docker am besten auf schneller, stabil verbundener SSD\n"
-
 section "Install-Vorschlag Debian oder Zorin"
 printf '%s\n' 'sudo apt update'
-printf '%s\n' 'sudo apt install -y git python3 python3-venv python3-pip python3-pytest ruff black ripgrep jq util-linux udisks2 make curl cryptsetup shellcheck docker.io docker-compose'
+printf '%s\n' 'sudo apt install -y git python3 python3-venv python3-pip python3-pytest ruff black ripgrep jq util-linux udisks2 make curl cryptsetup shellcheck'
 
 if [ "$missing_required" -eq 0 ]; then
   section "Ergebnis"

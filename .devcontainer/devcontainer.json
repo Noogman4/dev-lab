@@ -1,16 +1,20 @@
 {
-  "name": "dev-lab-python",
-  "image": "mcr.microsoft.com/devcontainers/python:1-3.11-bookworm",
+  "name": "dev-lab-python-secure",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
   "customizations": {
     "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "/home/vscode/.venvs/dev-lab/bin/python"
+      },
       "extensions": [
         "ms-python.python",
         "ms-python.vscode-pylance",
-        "ms-azuretools.vscode-docker",
+        "ms-python.black-formatter",
+        "charliermarsh.ruff",
         "github.vscode-github-actions"
       ]
     }
   },
-  "postCreateCommand": "python -m pip install --upgrade pip",
+  "postCreateCommand": "bash .devcontainer/setup-python-env.sh",
   "remoteUser": "vscode"
 }

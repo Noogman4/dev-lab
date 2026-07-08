@@ -1369,6 +1369,7 @@ def clear_manual_wireguard_form(app):
     app.manual_wg_profile_name_var.set("")
     app.manual_wg_private_key_var.set("")
     app.manual_wg_public_key_var.set("")
+    app.manual_wg_preshared_key_var.set("")
     app.manual_wg_endpoint_var.set("")
     app.manual_wg_address_var.set("")
     app.manual_wg_allowed_ips_var.set("0.0.0.0/0")
@@ -1417,6 +1418,7 @@ def manual_wireguard_error_widget_name(_app, error_text):
         ("Profilname", "manual_wg_profile_name_entry"),
         ("Private Key", "manual_wg_private_key_entry"),
         ("Public Key", "manual_wg_public_key_entry"),
+        ("Preshared Key", "manual_wg_preshared_key_entry"),
         ("Endpoint", "manual_wg_endpoint_entry"),
         ("Address", "manual_wg_address_entry"),
         ("Allowed IP", "manual_wg_allowed_ips_entry"),
@@ -1459,6 +1461,9 @@ def validate_manual_wireguard_form(app):
     profile = (app.manual_wg_profile_name_var.get() or "").strip()
     private_key_raw = app.manual_wg_private_key_var.get() or ""
     public_key_raw = app.manual_wg_public_key_var.get() or ""
+    preshared_key_var = app.__dict__.get("manual_wg_preshared_key_var")
+    preshared_key_raw = preshared_key_var.get() if preshared_key_var is not None else ""
+    preshared_key_raw = preshared_key_raw or ""
     endpoint = (app.manual_wg_endpoint_var.get() or "").strip()
     address_raw = (app.manual_wg_address_var.get() or "").strip()
     allowed_ips_raw = (app.manual_wg_allowed_ips_var.get() or "").strip()
@@ -1485,6 +1490,13 @@ def validate_manual_wireguard_form(app):
     )
     if public_key_err:
         return None, public_key_err
+    preshared_key = ""
+    if preshared_key_raw.strip():
+        preshared_key, preshared_key_err = app._validate_wireguard_key_value(
+            preshared_key_raw, "Preshared Key"
+        )
+        if preshared_key_err:
+            return None, preshared_key_err
 
     endpoint_host, endpoint_port, endpoint_err = app._parse_manual_wireguard_endpoint(
         endpoint
@@ -1541,6 +1553,7 @@ def validate_manual_wireguard_form(app):
         "profile": profile,
         "private_key": private_key,
         "public_key": public_key,
+        "preshared_key": preshared_key,
         "endpoint": normalized_endpoint,
         "address": ", ".join(address_values),
         "allowed_ips": ", ".join(allowed_ips),
@@ -1567,6 +1580,8 @@ def build_manual_wireguard_config_text(_app, payload):
             f"Endpoint = {payload['endpoint']}",
         ]
     )
+    if payload.get("preshared_key"):
+        lines.append(f"PresharedKey = {payload['preshared_key']}")
     if payload.get("keepalive"):
         lines.append(f"PersistentKeepalive = {payload['keepalive']}")
 

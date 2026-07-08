@@ -2,6 +2,7 @@ import inspect
 
 import netmon.app as app_module
 from netmon.app import App
+from netmon.services.network_helpers import parse_ss_lines
 
 
 class DummyConnTable:
@@ -86,6 +87,19 @@ def test_analyze_connections_with_chad_uses_formatted_text():
     assert calls
     assert calls[0][0] == "Verbindungen Analyse"
     assert "Proto: tcp" in calls[0][1]
+
+
+def test_parse_ss_lines_detects_netmon_from_gnome_app_scope():
+    rows = parse_ss_lines(
+        "udp UNCONN 0 0 0.0.0.0:58452 0.0.0.0:* "
+        "uid:1000 ino:12345 sk:1 cgroup:/user.slice/user-1000.slice/"
+        "user@1000.service/app.slice/app-gnome-netmon-123456.scope <->"
+    )
+
+    assert rows[0]["proto"] == "udp"
+    assert rows[0]["local"] == "0.0.0.0:58452"
+    assert rows[0]["proc"] == "NetMon"
+    assert rows[0]["cgroup"].endswith("app-gnome-netmon-123456.scope")
 
 
 def test_attach_connections_context_menu_source_matches_shared_actions():
