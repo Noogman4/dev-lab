@@ -7,6 +7,7 @@
       "homepage_url": "https://github.com",
       "new_tab_url": "about:blank",
       "menu_name": "NetMon Secure Browser – GitHub",
+      "icon_mode": "favicon",
       "allowed_domains": [
         "github.com",
         "githubusercontent.com",
@@ -20,6 +21,7 @@
       "homepage_url": "https://chatgpt.com",
       "new_tab_url": "about:blank",
       "menu_name": "NetMon Secure Browser – OpenAI",
+      "icon_mode": "favicon",
       "allowed_domains": [
         "chatgpt.com",
         "openai.com",
@@ -34,6 +36,7 @@
       "homepage_url": "https://name.com",
       "new_tab_url": "about:blank",
       "menu_name": "NetMon Secure Browser – Name.com",
+      "icon_mode": "favicon",
       "allowed_domains": [
         "name.com",
         "www.name.com"
@@ -46,12 +49,55 @@
       "homepage_url": "https://cpanel.netmonroots.com",
       "new_tab_url": "about:blank",
       "menu_name": "NetMon Secure Browser – cPanel",
+      "icon_mode": "favicon",
       "allowed_domains": [
         "netmonroots.com",
         "cpanel.netmonroots.com",
         "netmonroots.com:2083"
       ],
       "notes": "Getrennter Browser fuer Hosting- und cPanel-Zugriffe."
+    },
+    {
+      "name": "firefox-Amazon",
+      "path": "/home/happy/Programme/firefox-Amazon",
+      "homepage_url": "https://www.amazon.de",
+      "new_tab_url": "about:blank",
+      "menu_name": "NetMon Secure Browser – Amazon",
+      "icon_mode": "favicon",
+      "allowed_domains": [
+        "amazon.de",
+        "amazon.com",
+        "media-amazon.com",
+        "ssl-images-amazon.com"
+      ],
+      "notes": "Getrennter Browser fuer Amazon-Konto, Bestellungen und Zahlungsablaeufe."
+    },
+    {
+      "name": "firefox-Netflix",
+      "path": "/home/happy/Programme/firefox-Netflix",
+      "homepage_url": "https://www.netflix.com",
+      "new_tab_url": "about:blank",
+      "menu_name": "NetMon Secure Browser – Netflix",
+      "icon_mode": "favicon",
+      "allowed_domains": [
+        "netflix.com",
+        "nflxvideo.net",
+        "nflximg.net"
+      ],
+      "notes": "Getrennter Browser fuer Netflix und Streaming-Sitzungen."
+    },
+    {
+      "name": "firefox-SparkasseUlm",
+      "path": "/home/happy/Programme/firefox-SparkasseUlm",
+      "homepage_url": "https://www.sparkasse-ulm.de",
+      "new_tab_url": "about:blank",
+      "menu_name": "NetMon Secure Browser – Sparkasse Ulm",
+      "icon_mode": "favicon",
+      "allowed_domains": [
+        "sparkasse-ulm.de",
+        "www.sparkasse-ulm.de"
+      ],
+      "notes": "Getrennter Browser fuer Sparkasse-Ulm.de und Online-Banking-Zugriffe."
     }
   ]
 }

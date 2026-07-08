@@ -1,0 +1,12 @@
+[
+  {
+    "slot": 1,
+    "custom_name": "Proton CH",
+    "profile": "proton"
+  },
+  {
+    "slot": 2,
+    "custom_name": "Proton DE",
+    "profile": "proton-de"
+  }
+]

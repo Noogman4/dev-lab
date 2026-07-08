@@ -1,0 +1,137 @@
+[
+  {
+    "slot": 1,
+    "custom_name": "Disk Analyzer",
+    "link_type": "Systemlink",
+    "target": "desktop:org.gnome.baobab",
+    "app_name": "Disk Usage Analyzer",
+    "desktop_id": "org.gnome.baobab",
+    "desktop_file": "/usr/share/applications/org.gnome.baobab.desktop"
+  },
+  {
+    "slot": 2,
+    "custom_name": "Disks",
+    "link_type": "Systemlink",
+    "target": "desktop:org.gnome.DiskUtility",
+    "app_name": "Disks",
+    "desktop_id": "org.gnome.DiskUtility",
+    "desktop_file": "/usr/share/applications/org.gnome.DiskUtility.desktop"
+  },
+  {
+    "slot": 3,
+    "custom_name": "Firewall",
+    "link_type": "Systemlink",
+    "target": "desktop:gufw",
+    "app_name": "Firewall Configuration",
+    "desktop_id": "gufw",
+    "desktop_file": "/usr/share/applications/gufw.desktop"
+  },
+  {
+    "slot": 4,
+    "custom_name": "Visual Studio Code",
+    "link_type": "Systemlink",
+    "target": "desktop:code",
+    "app_name": "Visual Studio Code",
+    "desktop_id": "code",
+    "desktop_file": "/usr/share/applications/code.desktop"
+  },
+  {
+    "slot": 5,
+    "custom_name": "Timeshift",
+    "link_type": "Systemlink",
+    "target": "desktop:timeshift-gtk",
+    "app_name": "Timeshift",
+    "desktop_id": "timeshift-gtk",
+    "desktop_file": "/usr/share/applications/timeshift-gtk.desktop"
+  },
+  {
+    "slot": 6,
+    "custom_name": "Logs",
+    "link_type": "Systemlink",
+    "target": "desktop:org.gnome.Logs",
+    "app_name": "Logs",
+    "desktop_id": "org.gnome.Logs",
+    "desktop_file": "/usr/share/applications/org.gnome.Logs.desktop"
+  },
+  {
+    "slot": 7,
+    "custom_name": "Software",
+    "link_type": "Systemlink",
+    "target": "desktop:org.gnome.Software",
+    "app_name": "Software",
+    "desktop_id": "org.gnome.Software",
+    "desktop_file": "/usr/share/applications/org.gnome.Software.desktop"
+  },
+  {
+    "slot": 8,
+    "custom_name": "SystemMonitor",
+    "link_type": "Systemlink",
+    "target": "desktop:org.gnome.SystemMonitor",
+    "app_name": "System Monitor",
+    "desktop_id": "org.gnome.SystemMonitor",
+    "desktop_file": "/usr/share/applications/org.gnome.SystemMonitor.desktop"
+  },
+  {
+    "slot": 9,
+    "custom_name": "PasswordsKeys",
+    "link_type": "Systemlink",
+    "target": "desktop:org.gnome.seahorse.Application",
+    "app_name": "Passwords and Keys",
+    "desktop_id": "org.gnome.seahorse.Application",
+    "desktop_file": "/usr/share/applications/org.gnome.seahorse.Application.desktop"
+  },
+  {
+    "slot": 10,
+    "custom_name": "Zorin Appearance",
+    "link_type": "Systemlink",
+    "target": "desktop:zorin-appearance",
+    "app_name": "Zorin Appearance",
+    "desktop_id": "zorin-appearance",
+    "desktop_file": "/usr/share/applications/zorin-appearance.desktop"
+  },
+  {
+    "slot": 11,
+    "custom_name": "Network Configuration",
+    "link_type": "Systemlink",
+    "target": "desktop:nm-connection-editor",
+    "app_name": "Advanced Network Configuration",
+    "desktop_id": "nm-connection-editor",
+    "desktop_file": "/usr/share/applications/nm-connection-editor.desktop"
+  },
+  {
+    "slot": 12,
+    "custom_name": "Startup Apps",
+    "link_type": "Systemlink",
+    "target": "desktop:gnome-session-properties",
+    "app_name": "Startup Applications",
+    "desktop_id": "gnome-session-properties",
+    "desktop_file": "/usr/share/applications/gnome-session-properties.desktop"
+  },
+  {
+    "slot": 13,
+    "custom_name": "ChatGPT",
+    "link_type": "Externer Link",
+    "target": "www.Chatgpt.com",
+    "app_name": "",
+    "desktop_id": "",
+    "desktop_file": ""
+  },
+  {
+    "slot": 14,
+    "custom_name": "Text Editor",
+    "link_type": "Systemlink",
+    "target": "desktop:org.gnome.TextEditor",
+    "app_name": "Text Editor",
+    "desktop_id": "org.gnome.TextEditor",
+    "desktop_file": "/usr/share/applications/org.gnome.TextEditor.desktop"
+  },
+  {
+    "slot": 15,
+    "custom_name": "Einstellungen",
+    "link_type": "Systemlink",
+    "target": "desktop:org.gnome.Settings",
+    "app_name": "Settings",
+    "desktop_id": "org.gnome.Settings",
+    "desktop_file": "/usr/share/applications/org.gnome.Settings.desktop"
+  }
+]

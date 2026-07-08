@@ -1,0 +1,47 @@
+[
+  {
+    "path": "/home/happy/Downloads/eicar.txt",
+    "signature": "Eicar-Test-Signature",
+    "timestamp": "2026-04-05 00:22:03",
+    "scan_type": "folder_scan",
+    "status": "restored",
+    "quarantine_path": "/home/happy/.netmon_quarantine/eicar__quarantine__2026-04-05_002245.txt",
+    "quarantine_timestamp": "2026-04-05 00:22:45"
+  },
+  {
+    "path": "/home/happy/Downloads/eicar.txt",
+    "signature": "Eicar-Test-Signature",
+    "timestamp": "2026-04-05 01:04:33",
+    "scan_type": "folder_scan",
+    "status": "restored",
+    "quarantine_path": "/home/happy/.netmon_quarantine/eicar__quarantine__2026-04-05_011504.txt",
+    "quarantine_timestamp": "2026-04-05 01:15:04"
+  },
+  {
+    "path": "/home/happy/Downloads/eicar.txt",
+    "signature": "Eicar-Test-Signature",
+    "timestamp": "2026-04-05 01:43:15",
+    "scan_type": "folder_scan",
+    "status": "restored",
+    "quarantine_path": "/home/happy/.netmon_quarantine/eicar__quarantine__2026-04-05_014350.txt",
+    "quarantine_timestamp": "2026-04-05 01:43:50"
+  },
+  {
+    "path": "/home/happy/Downloads/eicar.txt",
+    "signature": "Eicar-Test-Signature",
+    "timestamp": "2026-04-05 01:57:05",
+    "scan_type": "folder_scan",
+    "status": "restored",
+    "quarantine_path": "/home/happy/.netmon_quarantine/eicar__quarantine__2026-04-05_021108.txt",
+    "quarantine_timestamp": "2026-04-05 02:11:08"
+  },
+  {
+    "path": "/home/happy/Downloads/eicar.txt",
+    "signature": "Eicar-Test-Signature",
+    "timestamp": "2026-04-05 02:12:53",
+    "scan_type": "folder_scan",
+    "status": "quarantine",
+    "quarantine_path": "/home/happy/.netmon_quarantine/eicar__quarantine__2026-04-05_023041.txt",
+    "quarantine_timestamp": "2026-04-05 02:30:41"
+  }
+]

@@ -52,6 +52,9 @@ Die Beispielkonfiguration legt diese Container an:
 - `firefox-OpenAI`
 - `firefox-NameCom`
 - `firefox-cPanel`
+- `firefox-Amazon`
+- `firefox-Netflix`
+- `firefox-SparkasseUlm`
 
 Jeder neue Container enthaelt:
 
@@ -67,8 +70,13 @@ Jeder neue Container enthaelt:
 Zusaetzlich wird beim Erstellen mit `--apply` ein Startmenue-Eintrag unter
 `~/.local/share/applications/` angelegt. Der Dateiname folgt dem Schema
 `netmon-secure-browser-<containername-klein>.desktop`. Bestehende
-Menueeintraege werden vor dem Ueberschreiben erst unter
-`~/.local/share/applications/browser-container-builder-backups/` gesichert.
+Menueeintraege werden bei Bedarf direkt ersetzt oder entfernt.
+
+Optional kann jeder Container mit `icon_mode: "favicon"` ein lokales
+Domain-Favicon unter `icons/favicon.*` erhalten. Im Dry-Run wird nur angezeigt,
+welche Favicon-URL versucht wuerde. Der Download passiert erst mit `--apply`.
+Bei Fehlern faellt der Manager auf das Firefox-Standardicon des Containers
+zurueck.
 
 Standardstart:
 

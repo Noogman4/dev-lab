@@ -1,0 +1,27 @@
+[
+  {
+    "slot": 1,
+    "custom_name": "Irland",
+    "profile": "Irland"
+  },
+  {
+    "slot": 2,
+    "custom_name": "USA",
+    "profile": "USA"
+  },
+  {
+    "slot": 3,
+    "custom_name": "NL",
+    "profile": "NL"
+  },
+  {
+    "slot": 4,
+    "custom_name": "",
+    "profile": ""
+  },
+  {
+    "slot": 5,
+    "custom_name": "",
+    "profile": ""
+  }
+]

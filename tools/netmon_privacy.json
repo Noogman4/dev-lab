@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "autostart": true,
+  "disable_ipv6": true,
+  "enable_killswitch": true,
+  "vpn_profile": "proton",
+  "dns_profile": "System (DHCP/auto)",
+  "wg_import_dir": "/home/happy/Downloads"
+}
