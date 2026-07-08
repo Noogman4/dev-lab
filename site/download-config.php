@@ -12,8 +12,8 @@ return [
     "max_recent_events" => 200,
     "downloads" => [
         "netmon-deb" => [
-            "label" => "NetMon 1.1.15 package (.deb)",
-            "target" => "/dist/netmon_1.1.15_all.deb",
+            "label" => "NetMon 1.1.16 package (.deb)",
+            "target" => "/dist/netmon_1.1.16_all.deb",
         ],
         "sha256sums" => [
             "label" => "SHA256SUMS",
@@ -24,16 +24,16 @@ return [
             "target" => "/dist/SHA256SUMS.minisig",
         ],
         "docs-html" => [
-            "label" => "NetMon documentation HTML 1.1.15",
-            "target" => "/dist/docs/netmon_dokumentation_1.1.15.html",
+            "label" => "NetMon documentation HTML 1.1.16",
+            "target" => "/dist/docs/netmon_dokumentation_1.1.16.html",
         ],
         "docs-pdf" => [
-            "label" => "NetMon documentation PDF 1.1.15",
-            "target" => "/dist/docs/netmon_dokumentation_1.1.15.pdf",
+            "label" => "NetMon documentation PDF 1.1.16",
+            "target" => "/dist/docs/netmon_dokumentation_1.1.16.pdf",
         ],
         "audit-pdf" => [
             "label" => "NetMon security audit PDF 2026",
-            "target" => "/netmon_security_audit_2026_r4.pdf",
+            "target" => "/netmon_security_audit_2026_r6.pdf",
         ],
         "verify-download-script" => [
             "label" => "Download verification script",

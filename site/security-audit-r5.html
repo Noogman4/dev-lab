@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 5</title>
+  <meta
+    name="description"
+    content="Fuenftes unabhaengiges Sicherheits-Audit des NetMon-Quellcodes (v1.1.16, Juli 2026). 3 Findings im neuen Secure-Browser-Manager-Modul identifiziert und noch in derselben Runde behoben."
+  >
+  <link rel="icon" type="image/png" href="./favicon.png">
+  <link rel="apple-touch-icon" href="./favicon.png">
+  <link rel="canonical" href="https://netmonroots.com/security-audit.html">
+  <link rel="alternate" hreflang="de" href="https://netmonroots.com/security-audit.html">
+  <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/security-audit.html">
+  <meta property="og:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 5">
+  <meta property="og:description" content="Fuenftes Sicherheits-Audit des NetMon-Quellcodes (v1.1.16, Juli 2026). 3 Findings im neuen Secure-Browser-Manager-Modul identifiziert und noch in derselben Runde behoben.">
+  <meta property="og:url" content="https://netmonroots.com/security-audit.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NetMon Roots">
+  <meta property="og:locale" content="de_DE">
+  <meta property="og:image" content="https://netmonroots.com/favicon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 5">
+  <meta name="twitter:description" content="Fuenftes Sicherheits-Audit des NetMon-Quellcodes (v1.1.16, Juli 2026). 3 Findings im neuen Secure-Browser-Manager-Modul identifiziert und noch in derselben Runde behoben.">
+  <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
+  <link rel="stylesheet" href="./styles.css">
+  <style>
+    /* ── Audit-spezifische Erweiterungen ─────────────────────────────────── */
+    .audit-hero { padding: 64px 0 48px; }
+    .audit-hero .eyebrow { color: var(--accent); }
+
+    .verdict-banner {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 28px 32px;
+      margin: 40px 0;
+      border: 1px solid rgba(114, 240, 182, 0.4);
+      border-radius: var(--radius-sm);
+      background: rgba(58, 198, 143, 0.08);
+    }
+    .verdict-icon {
+      font-size: 2.8rem;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .verdict-text h2 { margin: 0 0 6px; font-size: 1.4rem; color: var(--accent); }
+    .verdict-text p  { margin: 0; color: var(--muted); font-size: 0.97rem; line-height: 1.55; }
+
+    .audit-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 32px 0;
+    }
+    .audit-meta-card {
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .audit-meta-card .label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .audit-meta-card .value {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .audit-meta-card .value.ok   { color: var(--accent); }
+    .audit-meta-card .value.warn { color: var(--accent-warm); }
+
+    .audit-section { margin-top: 56px; }
+    .audit-section h2 {
+      font-size: 1.55rem;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+    .audit-section .section-rule {
+      height: 1px;
+      background: var(--line);
+      margin-bottom: 28px;
+    }
+
+    .scope-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.93rem;
+    }
+    .scope-table th {
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .scope-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(154, 177, 204, 0.08);
+      vertical-align: top;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .scope-table tr:last-child td { border-bottom: none; }
+    .scope-table code {
+      font-size: 0.83rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .badge-ok   { background: rgba(58, 198, 143, 0.15); color: #72f0b6; }
+    .badge-low  { background: rgba(255, 184, 107, 0.15); color: #ffb86b; }
+    .badge-med  { background: rgba(255, 184, 107, 0.2);  color: #ffb86b; }
+    .badge-high { background: rgba(220, 60, 60, 0.15);   color: #ff7070; }
+    .badge-info { background: rgba(90, 160, 240, 0.15);  color: #7ab8f5; }
+
+    .finding-card {
+      margin-bottom: 24px;
+      padding: 24px 28px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .finding-card.filtered {
+      border-color: rgba(154, 177, 204, 0.1);
+      opacity: 0.75;
+    }
+    .finding-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .finding-header h3 { margin: 0; font-size: 1rem; flex: 1; min-width: 200px; }
+    .finding-detail { color: var(--muted); font-size: 0.92rem; line-height: 1.6; }
+    .finding-detail strong { color: var(--text); }
+    .finding-detail code {
+      font-size: 0.83rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .finding-verdict {
+      margin-top: 12px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: rgba(2, 8, 15, 0.4);
+      font-size: 0.88rem;
+      color: var(--muted);
+      border-left: 3px solid rgba(154, 177, 204, 0.25);
+    }
+    .finding-verdict.pass { border-left-color: var(--accent); }
+
+    .fixed-card {
+      display: flex;
+      gap: 16px;
+      padding: 18px 22px;
+      margin-bottom: 14px;
+      border: 1px solid rgba(58, 198, 143, 0.2);
+      border-radius: var(--radius-sm);
+      background: rgba(58, 198, 143, 0.04);
+    }
+    .fixed-icon { font-size: 1.4rem; flex-shrink: 0; line-height: 1.2; }
+    .fixed-body h4 { margin: 0 0 4px; font-size: 0.97rem; color: var(--accent); }
+    .fixed-body p  { margin: 0; font-size: 0.9rem; color: var(--muted); line-height: 1.5; }
+    .fixed-body code {
+      font-size: 0.82rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .hardening-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .hardening-list li {
+      display: flex;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(154, 177, 204, 0.08);
+      font-size: 0.93rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .hardening-list li:last-child { border-bottom: none; }
+    .hardening-list .hl-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+    .hardening-list code {
+      font-size: 0.82rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .hardening-list strong { color: var(--text); }
+
+    .methodology-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .method-card {
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .method-card h4 { margin: 0 0 8px; font-size: 0.93rem; color: var(--accent); }
+    .method-card p  { margin: 0; font-size: 0.87rem; color: var(--muted); line-height: 1.5; }
+
+    .signature-block {
+      margin-top: 48px;
+      padding: 28px 32px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .signature-block strong { color: var(--text); }
+
+    .round-link {
+      display: inline-block;
+      padding: 10px 18px;
+      border-radius: 40px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-decoration: none;
+      margin-top: 16px;
+    }
+
+    @media (max-width: 640px) {
+      .verdict-banner { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .audit-meta-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="./index.html" aria-label="NetMon Startseite">
+        <span class="brand-mark">
+          <span class="brand-lockup">
+            <span class="brand-title">
+              <span class="brand-title-main">NETMON</span>
+              <span class="brand-title-accent">ROOTS</span>
+            </span>
+            <span class="brand-subline">MONITOR. CONTROL. UNDERSTAND.</span>
+            <span class="brand-tagline">BACK TO THE ROOTS.</span>
+          </span>
+          <img class="brand-icon" src="./bannericon.png" alt="" aria-hidden="true">
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="./index.html">Start</a>
+        <a href="./tour.html">Rundgang</a>
+        <a href="./downloads.html">Download</a>
+        <a href="./aktuelles.html">Aktuelles</a>
+        <a href="./docs.html">Doku</a>
+        <a href="./legal.html">Legal</a>
+      </nav>
+      <div class="lang-switch" aria-label="Sprachauswahl">
+        <a class="active" href="./security-audit.html" lang="de">DE</a>
+      </div>
+    </header>
+
+    <main>
+      <!-- ── Hero ── -->
+      <section class="audit-hero">
+        <p class="eyebrow">Sicherheits-Audit &mdash; Juli 2026 &mdash; Runde&nbsp;5</p>
+        <h1 style="font-size:clamp(2rem,4vw,3rem);margin:0 0 20px;color:var(--text);">
+          Code-Security-Review<br>
+          <span style="color:var(--accent);">NetMon Roots v1.1.16</span>
+        </h1>
+        <p style="max-width:680px;color:var(--muted);line-height:1.65;font-size:1.05rem;">
+          F&uuml;nftes automatisiertes Security-Review auf Basis von
+          Claude Sonnet&nbsp;5. Schwerpunkt dieser Runde: das neue
+          <strong>Secure&nbsp;Browser&nbsp;Manager</strong>-Feature &mdash; sowohl das
+          eigenst&auml;ndige Prototyp-Werkzeug
+          <code>tools/secure_browser_manager/browser_container_builder.py</code>
+          als auch das integrierte App-Modul
+          <code>netmon/modules/secure_browser/</code> (<code>manager.py</code>,
+          <code>service.py</code>, <code>ui.py</code>) &mdash; dazu die
+          H&auml;rtung von <code>agent/runner.py</code> und <code>agent/tools.py</code>,
+          die WireGuard-Preshared-Key-Erg&auml;nzung in <code>vpn_controller.py</code>
+          sowie die cgroup-basierte Selbst-Erkennung in der Firewall-Transparenz
+          (<code>app.py</code>, <code>network_helpers.py</code>). Anders als in
+          Runde&nbsp;4 wurden diesmal <strong>3&nbsp;echte Findings best&auml;tigt</strong>
+          &mdash; alle drei wurden noch in dieser Runde gepatcht und per
+          Exploit-Reproduktion sowie automatisierten Tests verifiziert.
+        </p>
+        <a class="round-link" href="./security-audit-r4.html">
+          &#8592; Runde&nbsp;4 (1&nbsp;Kandidat &mdash; False Positive, 0&nbsp;Findings)
+        </a>
+      </section>
+
+      <!-- ── Aktionen ── -->
+      <div style="margin-bottom:32px;">
+        <a class="button button-primary" href="./netmon_security_audit_2026_r5.pdf" download
+           style="display:inline-block;padding:12px 28px;border-radius:40px;background:var(--accent);color:#07101d;font-weight:700;font-size:0.95rem;text-decoration:none;margin-right:12px;">
+          PDF herunterladen
+        </a>
+        <a href="#kandidaten"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;">
+          Kandidaten
+        </a>
+        <a href="#hardening"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;margin-left:8px;">
+          Hardening
+        </a>
+      </div>
+
+      <!-- ── Gesamtverdikt ── -->
+      <div class="verdict-banner">
+        <div class="verdict-icon">&#10003;</div>
+        <div class="verdict-text">
+          <h2>0 offene Findings &mdash; 3 Findings gefunden und noch in dieser Runde behoben</h2>
+          <p>
+            Anders als in Runde&nbsp;4 identifizierte diese Runde <strong>3 best&auml;tigte
+            Schwachstellen</strong> im brandneuen Secure&nbsp;Browser&nbsp;Manager-Feature:
+            fehlende Namensvalidierung mit Pfad-Escape-Potenzial (K1), fehlendes Escaping
+            beim Erzeugen von Firefox-<code>user.js</code>-Pr&auml;ferenzen (K2) und fehlende
+            Zeilenumbruch-Bereinigung in <code>.desktop</code>-Launcher-Feldern (K3).
+            Alle drei wurden <strong>noch in derselben Sitzung gepatcht</strong>, per
+            Exploit-Reproduktionsskript verifiziert und gegen die bestehenden
+            121&nbsp;automatisierten Tests (54&nbsp;+&nbsp;67) regressionsgetestet &mdash;
+            alle bestanden. Keine der drei L&uuml;cken war remote oder ohne lokale
+            Mitwirkung des Nutzers (Namenseingabe bzw. Import einer manipulierten
+            <code>containers.json</code>) ausnutzbar. Der Codestand v1.1.16 enth&auml;lt
+            nach den Fixes keine offenen ausnutzbaren Sicherheitsl&uuml;cken.
+          </p>
+        </div>
+      </div>
+
+      <!-- ── Meta-Daten ── -->
+      <div class="audit-meta-grid">
+        <div class="audit-meta-card">
+          <div class="label">Datum</div>
+          <div class="value">05.&nbsp;Juli&nbsp;2026</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Analysierte Version</div>
+          <div class="value">v1.1.16 &mdash; Runde&nbsp;5</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Ge&auml;nderte/neue Dateien</div>
+          <div class="value">~13</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Sicherheitsfokus-Module</div>
+          <div class="value">12</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Offene Findings</div>
+          <div class="value ok">0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Bewertete Kandidaten</div>
+          <div class="value warn">3 (alle behoben)</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Konfidenz-Schwelle</div>
+          <div class="value">7&nbsp;/&nbsp;10</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Analysewerkzeug</div>
+          <div class="value">Claude Sonnet&nbsp;5</div>
+        </div>
+      </div>
+
+      <!-- ── Umfang & Methodik ── -->
+      <div class="audit-section" id="methodik">
+        <h2>Umfang &amp; Methodik</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:760px;line-height:1.65;">
+          Schwerpunkt dieser Runde war ausschlie&szlig;lich das neue Secure&nbsp;Browser&nbsp;Manager-
+          Feature (Commit <code>9baa6284</code> + aktueller Arbeitsstand), da alle
+          &uuml;brigen Module aus Runde&nbsp;4 unver&auml;ndert geblieben sind. Zus&auml;tzlich
+          wurden alle kleineren Diffs seit Runde&nbsp;4 (<code>agent/runner.py</code>,
+          <code>agent/tools.py</code>, <code>vpn_controller.py</code>,
+          <code>network_helpers.py</code>, <code>app.py</code>, <code>log_tab.py</code>,
+          <code>tools/netmon.py</code>) sowie Commit <code>9d660ae3</code>
+          (Runtime-Log-Persistenz) gepr&uuml;ft.
+        </p>
+        <div class="methodology-grid">
+          <div class="method-card">
+            <h4>Phase&nbsp;1 &mdash; Reconnaissance</h4>
+            <p>Vollst&auml;ndiges Lesen von <code>netmon/modules/secure_browser/*.py</code>
+            (manager/service/ui/models), <code>secure_browser_tab.py</code> und
+            <code>browser_container_builder.py</code>; Abgleich gegen die im
+            README dokumentierten Sicherheitsgarantien (Dry-Run-Default,
+            kein <code>sudo</code>, kein Schreiben nach
+            <code>~/.mozilla/firefox</code>).</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;2 &mdash; Kandidaten-Analyse</h4>
+            <p>Dedizierter Sub-Agent verfolgte Datenflussketten von
+            Nutzereingaben (Containername, Homepage-URL, <code>containers.json</code>)
+            bis zu Dateisystem-Operationen (<code>mkdir</code>, <code>copytree</code>,
+            <code>.desktop</code>-Erzeugung). 4&nbsp;Kandidaten mit Konfidenz&nbsp;7&ndash;8/10
+            identifiziert, davon 2 mit identischer Ursache zusammengefasst.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;3 &mdash; Fix &amp; Exploit-Verifikation</h4>
+            <p>Alle 3 bestandenen Kandidaten direkt am Quelltext nachvollzogen
+            (kein False Positive), Patches implementiert und mit einem
+            Reproduktionsskript verifiziert: Pfad-Escape-Name wird jetzt
+            abgelehnt, injizierte Anf&uuml;hrungszeichen in <code>user.js</code>
+            werden korrekt escaped.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;4 &mdash; Regressionscheck</h4>
+            <p>Bestehende Testsuiten erneut ausgef&uuml;hrt:
+            <code>tests/test_browser_container_builder.py</code> (54&nbsp;Tests) und
+            <code>tests/test_secure_browser_module.py</code> (67&nbsp;Tests) &mdash;
+            alle 121 weiterhin gr&uuml;n nach den Fixes.</p>
+          </div>
+        </div>
+
+        <!-- ── Scope-Tabelle ── -->
+        <h3 style="margin-top:36px;font-size:1.1rem;">Sicherheitsfokus-Module (Runde&nbsp;5)</h3>
+        <table class="scope-table" style="margin-top:12px;">
+          <thead>
+            <tr>
+              <th>Datei / Modul</th>
+              <th>Fokus</th>
+              <th>Ergebnis</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>netmon/modules/secure_browser/manager.py</code></td>
+              <td>Containername-/Pfad-Ableitung, Dry-Run-Vorschau, Apply-Freigabe
+                mit Best&auml;tigungscode</td>
+              <td><span class="badge badge-med">K1 &rarr; behoben</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/modules/secure_browser/service.py</code></td>
+              <td>Subprocess-Delegation an <code>browser_container_builder.py</code>
+                (List-Form, <code>shell=False</code>), Backup-/Log-Rendering</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/modules/secure_browser/ui.py</code> + <code>secure_browser_tab.py</code></td>
+              <td>Tkinter-Formulare, Eingabe-Weiterleitung an <code>manager.py</code></td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>tools/secure_browser_manager/browser_container_builder.py</code></td>
+              <td>Containername-Validierung, Zielpfad-Aufbau, <code>user.js</code>-
+                Generierung, <code>.desktop</code>-Launcher-Erzeugung</td>
+              <td><span class="badge badge-med">K1&thinsp;+&thinsp;K2&thinsp;+&thinsp;K3 &rarr; behoben</span></td>
+            </tr>
+            <tr>
+              <td><code>tools/secure_browser_manager/containers.example.json</code></td>
+              <td>Konfig-Schema (<code>name</code>, <code>path</code>, <code>homepage_url</code> &hellip;)</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>agent/runner.py</code></td>
+              <td><code>python</code>/<code>cat</code> aus Allowlist entfernt,
+                <code>git</code>-Subcommand-Allowlist, Repo-Confinement f&uuml;r
+                Pfadargumente</td>
+              <td><span class="badge badge-ok">Kein Finding (H&auml;rtung)</span></td>
+            </tr>
+            <tr>
+              <td><code>agent/tools.py</code></td>
+              <td><code>_ensure_repo_path()</code>-Guard f&uuml;r <code>list_files</code>/<code>read_file</code></td>
+              <td><span class="badge badge-ok">Kein Finding (H&auml;rtung)</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/features/vpn_controller.py</code></td>
+              <td>Neues Preshared-Key-Feld, Validierung via
+                <code>_validate_wireguard_key_value()</code> (Base64, strikt)</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/app.py</code> + <code>netmon/services/network_helpers.py</code></td>
+              <td>cgroup-basierte Selbst-Erkennung eigener Listener in der
+                Firewall-Transparenz (<code>ss -lntupeH</code>)</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/ui/tabs/log_tab.py</code></td>
+              <td>Checkbox &bdquo;Log automatisch leeren&ldquo;, nutzt bestehende
+                Einstellung <code>auto_log_clear</code></td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>tools/netmon.py</code></td>
+              <td><code>sys.path</code>-Bereinigung vor Neueintrag von
+                <code>NETMON_REPO_ROOT</code> (verhindert veraltete/doppelte Eintr&auml;ge)</td>
+              <td><span class="badge badge-ok">Kein Finding (H&auml;rtung)</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/app.py</code> (Commit <code>9d660ae3</code>)</td>
+              <td>Runtime-Log-Persistenz &mdash; Pfade ausschlie&szlig;lich aus
+                internem <code>netmon_state_dir</code> abgeleitet, keine Nutzereingabe</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="color:var(--muted);font-size:0.85rem;max-width:760px;line-height:1.6;margin-top:14px;">
+          Au&szlig;erhalb des Scopes: mehrere unversionierte Dateikopien unter
+          <code>tools/</code> (z.&nbsp;B. <code>netmon_ops.py</code>,
+          <code>netmon_network_service.py</code>) sind byteidentische bzw. triviale
+          Duplikate der bereits gepr&uuml;ften Module in <code>netmon/</code> und
+          nicht Teil der ausgelieferten Anwendung &mdash; keine eigenst&auml;ndige
+          Analyse erforderlich.
+        </p>
+      </div>
+
+      <!-- ── Kandidaten ── -->
+      <div class="audit-section" id="kandidaten">
+        <h2>Best&auml;tigte Findings (alle in dieser Runde behoben)</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:28px;">
+          Ein dedizierter Sub-Agent analysierte das neue Secure&nbsp;Browser&nbsp;Manager-Feature
+          vollst&auml;ndig (Quelltext, nicht nur Diff). Alle drei Kandidaten wurden am
+          Code bestätigt (kein False Positive) und noch in dieser Runde gepatcht.
+          Ein Reproduktionsskript belegt sowohl die urspr&uuml;ngliche Ausnutzbarkeit
+          als auch die Wirksamkeit des jeweiligen Fixes.
+        </p>
+
+        <!-- K1 -->
+        <div class="finding-card">
+          <div class="finding-header">
+            <h3>K1 &mdash; Fehlende Namensvalidierung: Pfad-Escape beim Anlegen von Browser-Containern</h3>
+            <span class="badge badge-med">Medium</span>
+            <span class="badge badge-ok">Behoben</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Datei:</strong> <code>tools/secure_browser_manager/browser_container_builder.py</code>
+              &mdash; <code>validate_config_payload()</code> (Zielverzeichnis + Menu-Datei);
+              betrifft transitiv auch <code>netmon/modules/secure_browser/manager.py</code>,
+              das Container-Erstellung per Subprocess an genau dieses Skript delegiert.</p>
+            <p>
+              Das Feld <code>name</code> eines Container-Eintrags (aus <code>containers.json</code>
+              oder aus dem Namensfeld im NetMon-UI-Dialog) wurde nur auf &bdquo;nicht leer&ldquo;
+              gepr&uuml;ft, aber nicht auf ein sicheres Zeichenset. Sowohl das Zielverzeichnis
+              (<code>base_dir&nbsp;/&nbsp;name</code>) als auch der Dateiname des generierten
+              <code>.desktop</code>-Men&uuml;eintrags (<code>get_menu_filename()</code>) wurden
+              direkt aus diesem String abgeleitet &mdash; ohne Zeichensatzpr&uuml;fung und ohne
+              Confinement-Check gegen das Basisverzeichnis.
+            </p>
+            <pre style="margin:10px 0;padding:12px;background:rgba(2,8,15,0.5);border-radius:8px;font-size:0.82rem;color:var(--accent);overflow-x:auto;"><code># vorher:
+name = entry.get("name")
+if not isinstance(name, str) or not name.strip():
+    raise ValueError("Each container entry requires a non-empty 'name'.")
+# ... path = base_dir / name  -&gt; "../../../../.config/autostart/x" entkommt base_dir</code></pre>
+            <p>
+              <strong>Exploit-Szenario:</strong> Ein Container-Name wie
+              <code>../../../../.config/autostart/update-check</code> &mdash; per Copy&amp;Paste
+              in das Namensfeld oder &uuml;ber eine geteilte/importierte
+              <code>containers.json</code> &mdash; verschiebt den erzeugten
+              <code>.desktop</code>-Eintrag aus <code>~/.local/share/applications</code>
+              in <code>~/.config/autostart</code>, wo er beim n&auml;chsten Login automatisch
+              ausgef&uuml;hrt wird (Persistenzmechanismus). Gleiches Muster erlaubt beliebige
+              Verzeichnisanlage/-kopie au&szlig;erhalb des vorgesehenen Container-Basisverzeichnisses.
+            </p>
+          </div>
+          <div class="finding-verdict pass">
+            <strong>Fix:</strong> <code>CONTAINER_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")</code>
+            in <code>validate_config_payload()</code> erg&auml;nzt &mdash; Namen mit <code>/</code>
+            oder <code>..</code> werden mit klarer Fehlermeldung abgelehnt, bevor irgendein
+            Pfad daraus gebildet wird. Da sowohl das eigenst&auml;ndige CLI-Tool als auch das
+            NetMon-UI-Modul Container-Erstellung &uuml;ber denselben <code>load_config()</code>-Pfad
+            abwickeln, schlie&szlig;t ein einziger Fixpunkt beide Einstiegspfade. Mit
+            Reproduktionsskript verifiziert: Escape-Name wird jetzt abgelehnt, ein regul&auml;rer
+            Name wie <code>firefox-GitHub</code> funktioniert unver&auml;ndert. Alle
+            54&nbsp;bestehenden Tests weiterhin gr&uuml;n.
+          </div>
+        </div>
+
+        <!-- K2 -->
+        <div class="finding-card">
+          <div class="finding-header">
+            <h3>K2 &mdash; Firefox-<code>user.js</code>-Pr&auml;ferenz-Injection via Homepage-/Neue-Tab-URL</h3>
+            <span class="badge badge-med">Medium</span>
+            <span class="badge badge-ok">Behoben</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Datei:</strong> <code>tools/secure_browser_manager/browser_container_builder.py</code>
+              &mdash; <code>build_user_js_content()</code></p>
+            <p>
+              <code>homepage_url</code> und <code>new_tab_url</code> wurden per f-string
+              direkt in <code>user_pref("...", "{value}");</code>-Zeilen eingesetzt, ohne
+              Anf&uuml;hrungszeichen zu escapen. Firefox interpretiert <code>user.js</code>
+              als JS-&auml;hnliche Anweisungsfolge &mdash; ein Wert mit eingebettetem
+              <code>"</code> beendet den String vorzeitig und h&auml;ngt beliebige weitere
+              <code>user_pref(...)</code>-Aufrufe an.
+            </p>
+            <pre style="margin:10px 0;padding:12px;background:rgba(2,8,15,0.5);border-radius:8px;font-size:0.82rem;color:var(--accent);overflow-x:auto;"><code># Beispielwert fuer homepage_url:
+https://example.com");user_pref("network.proxy.type",1);//
+# ergab vor dem Fix:
+user_pref("browser.startup.homepage", "https://example.com");user_pref("network.proxy.type",1);//");</code></pre>
+            <p>
+              <strong>Auswirkung:</strong> Da diese Pr&auml;ferenzdatei genau die Isolations-
+              und Telemetrie-H&auml;rtung setzt, die den &bdquo;Secure&ldquo;-Anspruch des
+              Containers ausmacht (u.&nbsp;a. <code>dom.security.https_only_mode</code>,
+              <code>network.cookie.cookieBehavior</code>), h&auml;tte eine manipulierte URL
+              &mdash; z.&nbsp;B. aus einer geteilten Konfiguration &mdash; genau diese
+              Schutzeinstellungen des neu erzeugten Containers untergraben k&ouml;nnen.
+            </p>
+          </div>
+          <div class="finding-verdict pass">
+            <strong>Fix:</strong> Beide Werte werden jetzt mit <code>json.dumps()</code>
+            kodiert (<code>user_pref("browser.startup.homepage", {json.dumps(homepage_url)});</code>),
+            was Anf&uuml;hrungszeichen, Backslashes und Steuerzeichen korrekt escaped.
+            Mit Reproduktionsskript verifiziert: derselbe Angriffswert erzeugt jetzt eine
+            einzelne, harmlose <code>user_pref</code>-Zeile ohne injizierte Folgeanweisung.
+          </div>
+        </div>
+
+        <!-- K3 -->
+        <div class="finding-card">
+          <div class="finding-header">
+            <h3>K3 &mdash; Fehlende Zeilenumbruch-Bereinigung in <code>.desktop</code>-Launcher-Feldern</h3>
+            <span class="badge badge-low">Low</span>
+            <span class="badge badge-ok">Behoben</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Datei:</strong> <code>tools/secure_browser_manager/browser_container_builder.py</code>
+              &mdash; <code>build_launcher_content()</code>, <code>build_existing_launcher_content()</code>,
+              <code>build_menu_launcher_content()</code></p>
+            <p>
+              <code>Name=</code>/<code>Comment=</code>-Zeilen in generierten
+              <code>.desktop</code>-Dateien wurden direkt aus <code>spec.name</code> bzw.
+              <code>menu_name</code> gebildet, ohne eingebettete Zeilenumbr&uuml;che zu
+              entfernen. Ein Wert mit <code>\n</code> (z.&nbsp;B. via importierter Konfig
+              oder Zwischenablage-Einf&uuml;gen in ein Tk-Eingabefeld) h&auml;tte zus&auml;tzliche
+              Desktop-Entry-Schl&uuml;ssel einschleusen k&ouml;nnen; da manche Parser bei
+              doppelten Schl&uuml;sseln den zuletzt gelesenen Wert &uuml;bernehmen, ist ein
+              zweiter, injizierter <code>Exec=</code>-Eintrag implementierungsabh&auml;ngig
+              nicht auszuschlie&szlig;en.
+            </p>
+          </div>
+          <div class="finding-verdict pass">
+            <strong>Fix:</strong> Neue Hilfsfunktion <code>_desktop_field()</code> entfernt
+            <code>\r</code>/<code>\n</code> aus <code>name</code>/<code>menu_name</code>, bevor
+            sie in <code>Name=</code>/<code>Comment=</code> eingesetzt werden &mdash; an allen
+            drei Launcher-Erzeugungsstellen angewendet.
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Verbesserungen seit Runde 4 ── -->
+      <div class="audit-section" id="improvements">
+        <h2>Sicherheitsverbesserungen seit Runde&nbsp;4</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:24px;">
+          Zus&auml;tzlich zu den drei in dieser Runde behobenen Findings (K1&ndash;K3, siehe
+          oben) wurden folgende H&auml;rtungsma&szlig;nahmen seit Runde&nbsp;4 umgesetzt.
+        </p>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128274;</div>
+          <div class="fixed-body">
+            <h4>Agent-Runner-Allowlist verkleinert &mdash; <code>agent/runner.py</code></h4>
+            <p>
+              <code>python</code> und <code>cat</code> wurden aus
+              <code>ALLOWED_BASE_COMMANDS</code> entfernt &mdash; beide erlaubten dem
+              Coding-Agenten zuvor beliebigen Code auszuf&uuml;hren bzw. beliebige
+              Dateien zu lesen, sobald ein Pfadargument zul&auml;ssig war. Neu:
+              <code>ALLOWED_GIT_SUBCOMMANDS&nbsp;=&nbsp;{"status","diff","log","show"}</code>
+              begrenzt <code>git</code> auf reine Lesebefehle, und
+              <code>_validate_repo_confined_arguments()</code> erzwingt f&uuml;r
+              <code>black</code>/<code>ruff</code>/<code>pytest</code>/<code>ls</code>,
+              dass alle Pfadargumente nach <code>resolve()</code> innerhalb von
+              <code>REPO_ROOT</code> liegen.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#9989;</div>
+          <div class="fixed-body">
+            <h4>Repo-Confinement f&uuml;r Datei-Tools &mdash; <code>agent/tools.py</code></h4>
+            <p>
+              Neue Hilfsfunktion <code>_ensure_repo_path()</code> pr&uuml;ft in
+              <code>list_files()</code> und <code>read_file()</code>, dass der
+              aufgel&ouml;ste Pfad via <code>relative_to(REPO_ROOT)</code> innerhalb
+              des Repositories bleibt, statt wie zuvor jeden aufgel&ouml;sten Pfad
+              kommentarlos zu akzeptieren.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#9989;</div>
+          <div class="fixed-body">
+            <h4><code>sys.path</code>-Bereinigung &mdash; <code>tools/netmon.py</code></h4>
+            <p>
+              Statt nur zu pr&uuml;fen, ob <code>NETMON_REPO_ROOT</code> irgendwo in
+              <code>sys.path</code> vorkommt, werden jetzt zuerst alle Eintr&auml;ge
+              entfernt, die auf denselben Pfad aufl&ouml;sen, bevor der Pfad an Position&nbsp;0
+              neu eingef&uuml;gt wird. Verhindert, dass ein anderweitig bereits vorhandener
+              (z.&nbsp;B. relativer oder veralteter) Eintrag Vorrang vor dem echten
+              Repository-Root bekommt und dadurch Module aus einem falschen Verzeichnis
+              importiert werden.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#9989;</div>
+          <div class="fixed-body">
+            <h4>Transparenz: Eigene Listener in der Firewall-Ansicht erkennbar</h4>
+            <p>
+              <code>app.py</code> + <code>network_helpers.py</code>: <code>ss -lntupeH</code>
+              (mit cgroup-Ausgabe) erg&auml;nzt bestehende <code>ss</code>-Aufrufe als
+              erste Variante; <code>_is_netmon_listener()</code> und
+              <code>_is_netmon_app_scope()</code> erkennen anhand von Prozessname, PID
+              und systemd-Scope (<code>app-gnome-netmon-*.scope</code>), ob ein offener
+              Port zu NetMon selbst geh&ouml;rt, und kennzeichnen ihn in der
+              Firewall-Transparenz-Tabelle entsprechend &mdash; erleichtert Nutzern die
+              Unterscheidung zwischen eigenen und fremden Listenern.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#9989;</div>
+          <div class="fixed-body">
+            <h4>Versions-Bump auf v1.1.16</h4>
+            <p>
+              <code>netmon/config/constants.py</code>: <code>NETMON_APP_VERSION</code>
+              von <code>1.1.15</code> auf <code>1.1.16</code> angehoben, passend zum
+              in dieser Runde ver&ouml;ffentlichten Codestand
+              (<code>site/latest-version.json</code> bereits synchronisiert).
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Hardening geschlossen ── -->
+      <div class="audit-section" id="hardening">
+        <h2>Hardening-Empfehlungen</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:24px;">
+          S&auml;mtliche seit Runde&nbsp;1 dokumentierten Defense-in-Depth-Empfehlungen
+          bleiben im Codestand&nbsp;v1.1.16 unver&auml;ndert umgesetzt (per Quelltext-Check
+          erneut stichprobenartig gepr&uuml;ft). Eine neue, nicht-dringende Empfehlung
+          kommt in dieser Runde hinzu.
+        </p>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#10003;</div>
+          <div class="fixed-body">
+            <h4>IP-Validierung f&uuml;r WireGuard-Endpoints &mdash; <code>vpn_controller.py:2479</code></h4>
+            <p>
+              <code>parse_vpn_endpoint()</code> verwendet <code>ipaddress.ip_address(host)</code>
+              zur strikten Host-Validierung. Nicht-IP-Hostnamen werden &uuml;bersprungen und via
+              <code>_warn_non_ip_endpoint_once()</code> protokolliert. Der Host-Teil erreicht
+              UFW-Kommandos nur als validiertes <code>endpoint_ip.compressed</code>.
+              <em>(Runde&nbsp;1, Punkt&nbsp;2 &mdash; geschlossen)</em>
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#10003;</div>
+          <div class="fixed-body">
+            <h4>Schema-Validierung homepage-URLs im Radio-Modul &mdash; <code>radio_controller.py:106+315</code></h4>
+            <p>
+              <code>ALLOWED_RADIO_HOMEPAGE_SCHEMES&nbsp;=&nbsp;{"http",&nbsp;"https"}</code>
+              (Zeile&nbsp;106). Die Funktion <code>_normalize_station_homepage_url()</code>
+              (Zeilen&nbsp;315&ndash;326) validiert jede Homepage-URL via
+              <code>urllib.parse.urlparse()</code> gegen diese Allowlist und wird in
+              <code>open_selected_station_homepage()</code> (Zeile&nbsp;5231) aufgerufen
+              &mdash; bevor <code>webbrowser.open()</code> die URL erh&auml;lt.
+              <em>(Runde&nbsp;2, Punkt&nbsp;4 &mdash; geschlossen)</em>
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#10003;</div>
+          <div class="fixed-body">
+            <h4>Shell-Quoting in Repository-Guard-Snippets &mdash; <code>repository_guard_controller.py:799&ndash;802</code></h4>
+            <p>
+              <code>get_repository_guard_quick_action_snippet()</code> maskiert alle
+              eingebetteten Werte mit <code>shlex.quote()</code>:
+              <code>quoted_uri</code>, <code>quoted_path</code>, <code>quoted_host</code>
+              und <code>quoted_keyring_path</code>.
+              <em>(Runde&nbsp;1, Punkt&nbsp;5 &mdash; geschlossen)</em>
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#10003;</div>
+          <div class="fixed-body">
+            <h4><code>realpath()</code> im Roots-Baseline-Guard &mdash; <code>roots_baseline_guard_controller.py:123</code></h4>
+            <p>
+              <code>_normalize_guard_path_pattern()</code> verwendet
+              <code>os.path.realpath(os.path.expanduser(raw))</code> &mdash; Symlinks
+              werden vollst&auml;ndig aufgel&ouml;st, bevor fnmatch-Vergleiche
+              und Allowlist-Pr&uuml;fungen greifen.
+              <em>(Runde&nbsp;1, Punkt&nbsp;6 &mdash; geschlossen)</em>
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#10003;</div>
+          <div class="fixed-body">
+            <h4>Pfadpr&uuml;fung in <code>image_to_data_url()</code> &mdash; <code>ai_online_service.py:35&ndash;39</code></h4>
+            <p>
+              <code>resolved.relative_to(home_dir)</code> stellt sicher, dass der
+              Bildpfad innerhalb des Benutzer-Homeverzeichnisses liegt. Zus&auml;tzlich
+              wird <code>resolve(strict=True)</code> verwendet (Symlinks aufgel&ouml;st,
+              Existenz sichergestellt) und die Dateiendung gegen eine Allowlist
+              erlaubter Bildformate gepr&uuml;ft.
+              <em>(Runde&nbsp;1, Punkt&nbsp;3 &mdash; geschlossen)</em>
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#10003;</div>
+          <div class="fixed-body">
+            <h4>WireGuard-Import: Hook-Hinweis &mdash; <code>vpn_controller.py:141+3229+3328+3363</code></h4>
+            <p>
+              <code>_warn_wireguard_import_hooks()</code> (Zeile&nbsp;141) scannt jede
+              ausgew&auml;hlte <code>.conf</code>-Datei vor dem Import auf
+              <code>PreUp</code>/<code>PostUp</code>/<code>PreDown</code>/<code>PostDown</code>-Direktiven
+              und zeigt bei Fund einen expliziten Nutzerhinweis an
+              (<code>messagebox</code> mit Option zum Abbruch). Die Funktion wird an
+              drei Import-Einstiegspunkten aufgerufen (Zeilen&nbsp;3229,&nbsp;3328,&nbsp;3363).
+              <em>(K1-FP Defense-in-Depth &mdash; geschlossen)</em>
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card" style="border-color:rgba(255,184,107,0.35);background:rgba(255,184,107,0.05);">
+          <div class="fixed-icon">&#8226;</div>
+          <div class="fixed-body">
+            <h4>Offen f&uuml;r Runde&nbsp;6: Client-seitige Namensvalidierung im Secure-Browser-Dialog</h4>
+            <p>
+              Die Durchsetzung von K1 (Namens-Charset) sitzt aktuell ausschlie&szlig;lich
+              in <code>browser_container_builder.py</code> (Subprocess-Ebene) &mdash; funktional
+              korrekt und ausreichend, aber ein ung&uuml;ltiger Name f&uuml;hrt im NetMon-UI-Dialog
+              derzeit erst nach dem Subprocess-Aufruf zu einer Fehlermeldung statt zu
+              sofortigem Inline-Feedback im Formular. Empfehlung: dieselbe
+              <code>CONTAINER_NAME_PATTERN</code>-Pr&uuml;fung zus&auml;tzlich in
+              <code>manager.py::_resolve_create_inputs()</code> spiegeln, rein f&uuml;r
+              bessere UX &mdash; keine sicherheitskritische L&uuml;cke, da der Schreibpfad
+              bereits fail-closed ist.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Gepr&uuml;fte Kategorien ── -->
+      <div class="audit-section" id="kategorien">
+        <h2>Gepr&uuml;fte Sicherheitskategorien</h2>
+        <div class="section-rule"></div>
+        <table class="scope-table">
+          <thead>
+            <tr>
+              <th>Kategorie</th>
+              <th>Gepr&uuml;ft</th>
+              <th>Ergebnis</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Command Injection (subprocess, shell=True)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Path Traversal (Dateioperationen mit Nutzereingabe)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-med">K1 &rarr; behoben (Secure Browser Manager)</span></td>
+            </tr>
+            <tr>
+              <td>Privilege Escalation (sudo mit unkontrollierten Argumenten)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Argument Injection (list-form subprocess mit externen Daten)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Unsichere Deserialisierung (pickle, yaml.load, eval)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Eval/Exec mit Nutzereingabe</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Hardcoded Credentials / API-Keys</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Sensitive Data Exposure (PII in Logs)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>SSRF via urllib.request / externe URL-Weitergabe</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>URL-Schema-Validierung an Media-Subprocessen</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Kryptographische Schwachstellen</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Symlink-Angriffe auf privilegierte Dateioperationen</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Mountpoint-Manipulation via Konfig-Datei</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (Fix in v1.1.15)</span></td>
+            </tr>
+            <tr>
+              <td>WireGuard-Hook-Ausf&uuml;hrung via Import</td>
+              <td>Ja</td>
+              <td><span class="badge badge-info">K1 R4 &rarr; FP (kein Boundary Crossing)</span></td>
+            </tr>
+            <tr>
+              <td>Desktop-Entry-Injection (<code>.desktop</code> Name=/Comment=)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-low">K3 &rarr; behoben (Secure Browser Manager)</span></td>
+            </tr>
+            <tr>
+              <td>Firefox <code>user.js</code>/Preference-Injection</td>
+              <td>Ja</td>
+              <td><span class="badge badge-med">K2 &rarr; behoben (Secure Browser Manager)</span></td>
+            </tr>
+            <tr>
+              <td>Agent-Runner Command-/Pfad-Allowlist</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Geh&auml;rtet (agent/runner.py, agent/tools.py)</span></td>
+            </tr>
+            <tr>
+              <td>PATH-Hijacking via shutil.which (R3-K1)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Geschlossen (R3)</span></td>
+            </tr>
+            <tr>
+              <td>Agent-CLI Pfad-Confinement (R3-K3)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Geschlossen (R3)</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ── Signatur ── -->
+      <div class="signature-block">
+        <p>
+          <strong>Auditor:</strong> Claude Sonnet&nbsp;5 (Anthropic) &mdash;
+          Dedizierter Sub-Agent-Review + manuelle Fix-Verifikation per Exploit-Reproduktionsskript<br>
+          <strong>Projektverantwortlicher:</strong> Sven Fr&ouml;hlich<br>
+          <strong>Datum:</strong> 05.&nbsp;Juli&nbsp;2026<br>
+          <strong>Analysierter Codestand:</strong>
+          <code>920cfc9b</code> + Arbeitsstand (Secure Browser Manager, modified/untracked),
+          ~13&nbsp;Dateien &mdash; Runde&nbsp;5<br>
+          <strong>Methode:</strong> Statische Code-Analyse + manuelle Datenfluss-Verifikation
+          + Regressionstests (121/121 automatisierte Tests bestanden nach den Fixes)
+          &mdash; kein Laufzeit-Penetrationstest<br>
+          <strong>Haftungsausschluss:</strong> Dieses Audit ersetzt keinen professionellen
+          Penetrationstest durch eine zertifizierte Sicherheitsfirma. Die Analyse
+          beschr&auml;nkt sich auf den angegebenen Codestand. Nicht erfasst werden:
+          Laufzeitverhalten, abh&auml;ngige Systembibliotheken,
+          Netzwerkkonfiguration und soziale Angriffsvektoren.
+        </p>
+        <p style="margin-top:16px;">
+          <a href="./downloads.html" style="color:var(--accent);">Zur Downloadseite</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./aktuelles.html" style="color:var(--accent);">Aktuelles</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./docs.html" style="color:var(--accent);">Dokumentation</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./legal.html" style="color:var(--accent);">Legal / Lizenz</a>
+        </p>
+      </div>
+    </main>
+
+    <footer style="margin-top:64px;padding:24px 0;border-top:1px solid var(--line);text-align:center;color:var(--muted);font-size:0.85rem;">
+      &copy; 2026 Sven Fr&ouml;hlich &mdash; NetMon Roots &mdash;
+      <a href="./legal.html" style="color:var(--muted);">Lizenz &amp; Credits</a>
+      &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+      <a href="https://github.com/Noogman4/dev-lab" target="_blank" rel="noopener noreferrer" style="color:var(--muted);">GitHub</a>
+    </footer>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PKG_VERSION="${NETMON_RELEASE_VERSION:-1.1.15}"
+PKG_VERSION="${NETMON_RELEASE_VERSION:-1.1.16}"
 DOCS_VERSION="${NETMON_DOCS_VERSION:-$PKG_VERSION}"
 BUILD_DIR="$ROOT_DIR/dist/site-release-update"
 PUBLIC_DIR="$BUILD_DIR/public_html"

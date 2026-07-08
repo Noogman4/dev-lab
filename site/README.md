@@ -2,6 +2,12 @@
 
 ## Lokal testen
 
+Wichtig:
+
+- Fuer Build, Website und lokale NetMon-Entwicklung ist kein Docker-Setup mehr vorgesehen.
+- Die aktuelle Repo-Grundlinie setzt auf Host + `.venv` oder optional den gehaerteten
+  Standard-Devcontainer ohne Docker-Socket-Mount.
+
 Im Repo-Wurzelverzeichnis:
 
 ```bash
@@ -63,7 +69,7 @@ Zusaetzlich enthalten:
 - `dist/site-build/public_html/legal.html`
 - `dist/site-build/public_html/impressum.html`
 - `dist/site-build/public_html/security-audit.html`
-- `dist/site-build/public_html/security-audit-r4.html`
+- `dist/site-build/public_html/security-audit-r6.html`
 - `dist/site-build/public_html/favicon.png`
 - `dist/site-build/public_html/download.php`
 - `dist/site-build/public_html/download-stats.php`
@@ -73,7 +79,7 @@ Zusaetzlich enthalten:
 - `dist/site-build/public_html/en/`
 - `dist/site-build/public_html/screenshots/`
 - `dist/site-build/public_html/netmon_security_audit_2026.pdf`
-- `dist/site-build/public_html/netmon_security_audit_2026_r4.pdf`
+- `dist/site-build/public_html/netmon_security_audit_2026_r6.pdf`
 - `dist/site-build/public_html/LICENSE.txt`
 - `dist/site-build/public_html/THIRD_PARTY_NOTICES.md`
 - `dist/site-build/public_html/dist/SHA256SUMS`
@@ -155,11 +161,11 @@ make site-print-minisign
 - Startseite laedt ohne fehlende Styles oder Bilder.
 - Sprachumschalter `DE / EN` funktioniert auf Start-, Download-, Doku-, Rundgang-, Legal-, Impressum- und Audit-Seite.
 - Navigation und Sprachumschalter funktionieren auch auf `Aktuelles` bzw. `Updates`.
-- Download-Link zeigt auf `dist/netmon_1.1.15_all.deb`.
+- Download-Link zeigt auf `dist/netmon_1.1.16_all.deb`.
 - `latest-version.json` liegt im Build und passt zum aktuellen Website-/Paketstand.
 - Doku-Links fuer PDF und HTML funktionieren.
 - Rundgang-Bilder oeffnen per Klick in der Lightbox.
-- Security-Audit ist als HTML und PDF erreichbar; der aktuelle Release-Stand zeigt auf Runde 4 fuer `1.1.15`.
+- Security-Audit ist als HTML und PDF erreichbar; der aktuelle Release-Stand zeigt auf Runde 6 fuer `1.1.16`.
 - `robots.txt` und `sitemap.xml` liegen im Build unter `public_html/`.
 - `download.php` und `download-stats.php` liegen im Build unter `public_html/`.
 - Seite bleibt auch bei schmalem Browserfenster lesbar.
@@ -174,7 +180,7 @@ make site-print-minisign
 - `site/docs.html`: Doku, FAQ, AI- und Betriebsinfos
 - `site/tour.html`: Rundgang mit Screenshots und Lightbox
 - `site/security-audit.html`: historische Webfassung eines frueheren Audits
-- `site/security-audit-r4.html`: aktuelle Webfassung des Audits fuer `1.1.15`
+- `site/security-audit-r6.html`: Build-Zielalias der aktuellen Audit-Webfassung fuer `1.1.16`
 - `site/legal.html`: Drittlizenzen und Lizenzhinweise
 - `site/impressum.html`: Anbieterangaben
 - `site/en/`: englische Spiegel-Seiten inklusive `updates.html`

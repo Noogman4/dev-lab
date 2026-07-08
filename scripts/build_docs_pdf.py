@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS_DIR = ROOT / "docs"
-DEFAULT_VERSION = "1.1.15"
+DEFAULT_VERSION = "1.1.16"
 DEFAULT_DOCS = [
     "README.md",
     "USER_GUIDE.md",
