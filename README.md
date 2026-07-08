@@ -1,6 +1,6 @@
 # NetMon Roots
 
-**NetMon Roots** is an all-in-one Linux network and security toolkit that combines network diagnostics, DNS management, firewall control, VPN support, security monitoring, AI-assisted analysis, and system utilities in a single graphical application.
+**NetMon Roots** is an all-in-one Linux network and security toolkit that combines network diagnostics, DNS management, firewall control, VPN support, security monitoring, AI-assisted analysis, radio features, and system utilities in a single graphical application.
 
 Designed for Linux users who want to monitor, diagnose, and secure their systems from one central interface.
 
@@ -14,7 +14,7 @@ Designed for Linux users who want to monitor, diagnose, and secure their systems
 * Connection monitoring
 * Routing information
 * Trace and analysis tools
-* Packet Capture support
+* Packet capture support
 
 ### Security
 
@@ -45,7 +45,7 @@ Designed for Linux users who want to monitor, diagnose, and secure their systems
 * Linux Help
 * Cleanup Assistant
 * HDD, Link and VPN Slot Management
-* Support Package Export
+* Support package export
 
 ---
 
@@ -76,20 +76,30 @@ or from the GitHub Releases page.
 Install the package:
 
 ```bash
-sudo dpkg -i netmon_1.1.15_all.deb
+sudo dpkg -i netmon_1.1.16_all.deb
 sudo apt -f install
+```
+
+For local development:
+
+```bash
+python3 -m venv .venv
+./.venv/bin/pip install -r requirements.txt
+./.venv/bin/python -m netmon --headless
+./.venv/bin/python -m netmon
 ```
 
 ---
 
 ## Documentation
 
-Complete documentation is available in:
+Repository documentation is available under `docs/`, especially:
 
-* USER_GUIDE.md
-* DEVELOPER_GUIDE.md
-* CONFIGURATION.md
-* CHANGELOG.md
+* [docs/USER_GUIDE.md](docs/USER_GUIDE.md)
+* [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md)
+* [docs/CONFIGURATION.md](docs/CONFIGURATION.md)
+* [docs/CHANGELOG.md](docs/CHANGELOG.md)
+* [docs/SECURITY.md](docs/SECURITY.md)
 
 ---
 
@@ -123,7 +133,7 @@ Additional distributions are continuously being evaluated.
 
 Licensed under **GPL-3.0-or-later**.
 
-See the **LICENSE** file for details.
+See the `LICENSE` and `THIRD_PARTY_NOTICES.md` files for details.
 
 ---
 
