@@ -6,7 +6,7 @@ The current supported public release line is:
 
 | Version | Supported |
 | --- | --- |
-| `1.1.15` | Yes |
+| `1.1.16` | Yes |
 | older releases | No |
 
 Security fixes are prepared against the current maintained release line first.

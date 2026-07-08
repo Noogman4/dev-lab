@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PKG_NAME="netmon"
-PKG_VERSION="1.1.15"
-DOCS_VERSION="1.1.15"
+PKG_VERSION="1.1.16"
+DOCS_VERSION="1.1.16"
 PKG_ARCH="all"
 MAINTAINER="Mr. Happy <netmon.proglab@protonmail.ch>"
 
@@ -95,6 +95,7 @@ copy_file_if_exists "$ROOT_DIR/tools/it_lexikon_linux_hilfe.json" "$TOOLS_ROOT/i
 copy_file_if_exists "$ROOT_DIR/tools/netmon_roots_banner.png" "$TOOLS_ROOT/netmon_roots_banner.png"
 copy_file_if_exists "$ROOT_DIR/tools/netmon_roots_splash.png" "$TOOLS_ROOT/netmon_roots_splash.png"
 copy_file_if_exists "$ROOT_DIR/tools/netmon_roots_startup.png" "$TOOLS_ROOT/netmon_roots_startup.png"
+copy_tree_if_exists "$ROOT_DIR/tools/secure_browser_manager" "$TOOLS_ROOT/secure_browser_manager"
 
 # Seed images for log overlay.
 copy_tree_if_exists "$ROOT_DIR/tools/Log-Pics" "$APP_ROOT/assets/log-pics"
