@@ -2,7 +2,7 @@
 
 Diese Datei beschreibt die Soll-Struktur fuer `netmon` als `.deb` auf Basis des aktuellen Repository-Stands.
 
-Aktueller dokumentierter Paketstand: `1.1.16`.
+Aktueller dokumentierter Paketstand: `1.1.17`.
 
 ## Ziel
 
@@ -155,7 +155,7 @@ Diese Komponenten sind optional oder eher Zusatzfunktionen:
 
 Der aktuelle Builder in `scripts/build_netmon_deb.sh` sollte von einer Datei-fuer-Datei-Auswahl auf eine bewusst gepflegte Paketliste umgestellt werden.
 
-Stand `1.1.16`:
+Stand `1.1.17`:
 
 - `scripts/build_netmon_deb.sh` liefert bereits eine explizite Datei-/Ordnerliste.
 - `udisks2` und `cryptsetup` sind fuer den installierten LUKS-/Mount-Pfad als `Depends` hinterlegt.

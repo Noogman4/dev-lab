@@ -1,6 +1,6 @@
 """Pure constants shared across NetMon modules."""
 
-NETMON_APP_VERSION = "1.1.16"
+NETMON_APP_VERSION = "1.1.17"
 
 VPN_CH = "proton"
 VPN_DE = "proton-de"

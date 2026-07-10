@@ -20,13 +20,14 @@ def test_download_scan_tab_source_contains_startup_checkbox():
     assert 'text="Temp-Ordner aktivieren"' in source
     assert 'text="Temp-Ordner deaktivieren"' in source
     assert 'text="Temp-Ordner öffnen"' in source
+    assert 'text="Pfad kopieren"' in source
     assert 'text="Temp-Ordner leeren"' in source
     assert "command=self.disable_download_scan_temp_folder" in source
-    assert (
-        'text="Vor-Quarantäne bei NetMon-Start automatisch aktivieren"' in source
-    )
+    assert 'text="Vor-Quarantäne bei NetMon-Start automatisch aktivieren"' in source
     assert "variable=self.download_scan_prequarantine_startup_var" in source
     assert "command=self.on_download_scan_prequarantine_startup_toggle" in source
+    assert "temp_manage_btns = ttk.Frame(temp_btns)" in source
+    assert "temp_access_btns = ttk.Frame(temp_btns)" in source
 
 
 def test_prepare_download_scan_startup_state_only_prepares_when_enabled():
@@ -93,9 +94,9 @@ def test_disable_download_scan_temp_folder_updates_status_and_result():
     app = App.__new__(App)
 
     calls = []
-    app._disable_download_scan_secure_mount = lambda interactive=False: calls.append(
-        ("disable", interactive)
-    ) or True
+    app._disable_download_scan_secure_mount = (
+        lambda interactive=False: calls.append(("disable", interactive)) or True
+    )
     app._set_download_scan_status = lambda **kwargs: calls.append(("status", kwargs))
     app._update_download_scan_result_text = lambda message: calls.append(
         ("result", message)
@@ -116,3 +117,45 @@ def test_disable_download_scan_temp_folder_updates_status_and_result():
         },
     )
     assert calls[2][0] == "result"
+
+
+def test_copy_download_scan_temp_folder_path_updates_clipboard_and_status():
+    app = App.__new__(App)
+    app._normalized_download_scan_temp_dir = lambda: "/tmp/netmon-download-scan"
+
+    clipboard = {}
+    calls = []
+    app.clipboard_clear = lambda: clipboard.__setitem__("text", "")
+    app.clipboard_append = lambda text: clipboard.__setitem__("text", text)
+    app._set_download_scan_status = lambda **kwargs: calls.append(("status", kwargs))
+    app.log_safe = lambda message: calls.append(("log", message))
+
+    result = app.copy_download_scan_temp_folder_path()
+
+    assert result is True
+    assert clipboard["text"] == "/tmp/netmon-download-scan"
+    assert calls == [
+        (
+            "status",
+            {
+                "result": "Temp-Ordner-Pfad kopiert",
+                "log_message": "Temp-Ordner-Pfad kopiert: /tmp/netmon-download-scan",
+            },
+        )
+    ]
+
+
+def test_copy_download_scan_temp_folder_path_logs_copy_failure():
+    app = App.__new__(App)
+    app._normalized_download_scan_temp_dir = lambda: "/tmp/netmon-download-scan"
+
+    calls = []
+    app.clipboard_clear = lambda: None
+    app.clipboard_append = lambda _text: (_ for _ in ()).throw(RuntimeError("kaputt"))
+    app._set_download_scan_status = lambda **kwargs: calls.append(("status", kwargs))
+    app.log_safe = lambda message: calls.append(("log", message))
+
+    result = app.copy_download_scan_temp_folder_path()
+
+    assert result is False
+    assert calls == [("log", "Temp-Ordner-Pfad konnte nicht kopiert werden: kaputt")]

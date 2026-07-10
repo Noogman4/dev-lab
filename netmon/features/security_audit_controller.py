@@ -48,9 +48,13 @@ def _lynis_summary_text(app_or_mode, mode: str | None = None) -> str:
     app = app_or_mode if mode is not None else None
     mode = app_or_mode if mode is None else mode
     return (
-        _tr(app, "lynis_summary_running_quick", "Quick Scan wird ausgeführt ...")
+        _tr(app, "lynis_summary_running_quick", "Schnellaudit wird ausgeführt ...")
         if mode == "quick"
-        else _tr(app, "lynis_summary_running_full", "Full Security Scan wird ausgeführt ...")
+        else _tr(
+            app,
+            "lynis_summary_running_full",
+            "Vollständiger Sicherheitsscan wird ausgeführt ...",
+        )
     )
 
 
@@ -61,18 +65,20 @@ def _lynis_start_log_message(app_or_mode, mode: str | None = None) -> str:
         _tr(
             app,
             "lynis_log_quick_started",
-            "Lynis Quick Scan gestartet (ohne root)",
+            "Lynis Schnellaudit gestartet (ohne root)",
         )
         if mode == "quick"
         else _tr(
             app,
             "lynis_log_full_started",
-            "Lynis Full Scan gestartet (sudo erforderlich)",
+            "Lynis Vollscan gestartet (sudo erforderlich)",
         )
     )
 
 
-def _lynis_finish_log_message(app_or_mode, mode: str | None = None, rc: int | None = None) -> str:
+def _lynis_finish_log_message(
+    app_or_mode, mode: str | None = None, rc: int | None = None
+) -> str:
     if rc is None:
         app = None
         rc = mode
@@ -80,26 +86,26 @@ def _lynis_finish_log_message(app_or_mode, mode: str | None = None, rc: int | No
     else:
         app = app_or_mode
     label = (
-        _tr(app, "lynis_mode_quick", "Quick")
+        _tr(app, "lynis_mode_quick", "Schnellaudit")
         if mode == "quick"
-        else _tr(app, "lynis_mode_full", "Full")
+        else _tr(app, "lynis_mode_full", "Vollscan")
     )
     if rc == 0:
         return _tr(
             app,
             "lynis_log_finished",
-            "Lynis {label} Scan abgeschlossen.",
+            "Lynis {label} abgeschlossen.",
         ).format(label=label)
     if rc == 124:
         return _tr(
             app,
             "lynis_log_timeout",
-            "Lynis {label} Scan Timeout (rc=124).",
+            "Lynis {label} Timeout (rc=124).",
         ).format(label=label)
     return _tr(
         app,
         "lynis_log_failed",
-        "Lynis {label} Scan fehlgeschlagen (rc={rc}).",
+        "Lynis {label} fehlgeschlagen (rc={rc}).",
     ).format(label=label, rc=rc)
 
 
@@ -127,7 +133,7 @@ def clear_lynis_output(app):
         _app_var_set(
             app,
             "lynis_summary_var",
-            app.tr("lynis_summary_default", "No audit executed yet."),
+            app.tr("lynis_summary_default", "Noch kein Audit ausgeführt."),
         )
 
 
@@ -139,7 +145,9 @@ def update_lynis_output(app, text: str, *, append: bool = False, normalize_outpu
     _set_text_widget_content(widget, clean_text, append=append)
 
 
-def extract_lynis_issues_and_recommendations(app, text: str, *, normalize_output_fn) -> str:
+def extract_lynis_issues_and_recommendations(
+    app, text: str, *, normalize_output_fn
+) -> str:
     text = normalize_output_fn(text)
 
     keep_keywords = [
@@ -176,26 +184,21 @@ def extract_lynis_issues_and_recommendations(app, text: str, *, normalize_output
             lines.append(line)
 
     if not lines:
-        return (
-            app.tr(
-                "lynis_issues_header_empty",
-                "=== Lynis Probleme & Empfehlungen ===\n\nKeine klaren Probleme oder Empfehlungen gefunden.",
-            )
+        return app.tr(
+            "lynis_issues_header_empty",
+            "=== Lynis Probleme & Empfehlungen ===\n\nKeine klaren Probleme oder Empfehlungen gefunden.",
         )
 
-    return (
-        app.tr(
-            "lynis_issues_header",
-            "=== Lynis Probleme & Empfehlungen ===\n\n",
-        )
-        + "\n".join(lines)
-    )
+    return app.tr(
+        "lynis_issues_header",
+        "=== Lynis Probleme & Empfehlungen ===\n\n",
+    ) + "\n".join(lines)
 
 
 def show_lynis_issues_only(app, *, normalize_output_fn):
     text = _app_value(app, "lynis_last_output", "") or ""
     if not text.strip():
-        app.log(app.tr("lynis_log_no_output", "Lynis: No output available."))
+        app.log(app.tr("lynis_log_no_output", "Lynis: Keine Ausgabe vorhanden."))
         return
 
     filtered = extract_lynis_issues_and_recommendations(
@@ -217,7 +220,7 @@ def show_lynis_full_output(app):
 def analyze_lynis_issues_with_chad(app, *, normalize_output_fn):
     text = _app_value(app, "lynis_last_output", "") or ""
     if not text.strip():
-        app.log(app.tr("lynis_log_no_output", "Lynis: No output available."))
+        app.log(app.tr("lynis_log_no_output", "Lynis: Keine Ausgabe vorhanden."))
         return
 
     filtered = extract_lynis_issues_and_recommendations(
@@ -290,9 +293,7 @@ def set_lynis_buttons_state(app, enabled: bool):
 def finish_lynis_audit(app, rc, out, *, mode: str = "quick", normalize_output_fn):
     app.lynis_running = False
     app.lynis_active_process = None
-    clean_output = normalize_output_fn(
-        out or app.tr("lynis_output_none", "No output.")
-    )
+    clean_output = normalize_output_fn(out or app.tr("lynis_output_none", "No output."))
     app.lynis_last_output = clean_output
     timed_out = rc == 124
     _app_var_set(
@@ -333,12 +334,10 @@ def lynis_scan_worker(
     rc, out = runner(cmd, timeout=timeout)
     clean = normalize_output_fn(out)
     if rc == 124:
-        timeout_note = (
-            app.tr(
-                "lynis_timeout_note",
-                "Scan stopped after {timeout}s (timeout).\nNote: Full scans can take longer depending on the system.",
-            ).format(timeout=timeout)
-        )
+        timeout_note = app.tr(
+            "lynis_timeout_note",
+            "Scan stopped after {timeout}s (timeout).\nNote: Full scans can take longer depending on the system.",
+        ).format(timeout=timeout)
         clean = normalize_output_fn(
             f"{timeout_note}\n\n{clean}" if clean else timeout_note
         )
@@ -412,17 +411,17 @@ def run_lynis_quick(app):
         timeout=120,
         header=app.tr(
             "lynis_header_quick",
-            "=== Lynis Quick Scan (eingeschränkt) ===",
+            "=== Lynis Schnellaudit (eingeschränkt) ===",
         ),
     )
 
 
 def run_lynis_full(app):
     messagebox.showinfo(
-        app.tr("lynis_full_info_title", "Lynis Full Scan"),
+        app.tr("lynis_full_info_title", "Lynis Vollscan"),
         app.tr(
             "lynis_full_info_body",
-            "This scan requires administrator privileges (sudo).\n\nIt performs a full security audit.",
+            "Dieser Scan benötigt Administratorrechte (sudo).\n\nEr führt eine vollständige Sicherheitsprüfung durch.",
         ),
         parent=app,
     )
@@ -434,7 +433,7 @@ def run_lynis_full(app):
         timeout=600,
         header=app.tr(
             "lynis_header_full",
-            "=== Lynis Full Security Scan (sudo) ===",
+            "=== Lynis Vollständiger Sicherheitsscan (sudo) ===",
         ),
     )
 
@@ -550,12 +549,12 @@ def finish_rkhunter_update(
             (
                 app.tr("rkhunter_status_ready", "ready")
                 if rc == 0
-                else app.tr("rkhunter_status_update_error", "update error (rc={rc})").format(rc=rc)
+                else app.tr(
+                    "rkhunter_status_update_error", "update error (rc={rc})"
+                ).format(rc=rc)
             ),
         )
-    app.update_rkhunter_output(
-        out or app.tr("rkhunter_output_none", "No output.")
-    )
+    app.update_rkhunter_output(out or app.tr("rkhunter_output_none", "No output."))
     if app._looks_like_rkhunter_web_cmd_issue(out):
         _app_var_set(
             app,
@@ -597,14 +596,18 @@ def finish_rkhunter_update(
             (
                 app.tr("rkhunter_summary_updated", "rkhunter data set updated.")
                 if rc == 0
-                else app.tr("rkhunter_summary_update_finished_rc", "update finished (rc={rc}).").format(rc=rc)
+                else app.tr(
+                    "rkhunter_summary_update_finished_rc", "update finished (rc={rc})."
+                ).format(rc=rc)
             ),
         )
     _set_rkhunter_action_buttons_state(app, True)
     app.log_safe(
         app.tr("rkhunter_log_update_finished", "rkhunter update completed.")
         if rc == 0
-        else app.tr("rkhunter_log_update_failed", "rkhunter update failed (rc={rc}).").format(rc=rc)
+        else app.tr(
+            "rkhunter_log_update_failed", "rkhunter update failed (rc={rc})."
+        ).format(rc=rc)
     )
 
 
@@ -619,11 +622,17 @@ def rkhunter_update_async(
     is_rkhunter_installed_fn,
 ):
     if app.rkhunter_running or app.rkhunter_updating:
-        app.log_safe(app.tr("rkhunter_log_already_running", "rkhunter is already running."))
+        app.log_safe(
+            app.tr("rkhunter_log_already_running", "rkhunter is already running.")
+        )
         app.open_rkhunter_tab()
         return
     if not is_rkhunter_installed_fn():
-        _app_var_set(app, "rkhunter_status_var", app.tr("rkhunter_status_not_installed", "not installed"))
+        _app_var_set(
+            app,
+            "rkhunter_status_var",
+            app.tr("rkhunter_status_not_installed", "not installed"),
+        )
         _app_var_set(
             app,
             "rkhunter_summary_var",
@@ -642,7 +651,11 @@ def rkhunter_update_async(
         app.open_rkhunter_tab()
         return
     if not app.ensure_sudo_session("rkhunter Update"):
-        _app_var_set(app, "rkhunter_status_var", app.tr("rkhunter_status_sudo_cancelled", "sudo canceled"))
+        _app_var_set(
+            app,
+            "rkhunter_status_var",
+            app.tr("rkhunter_status_sudo_cancelled", "sudo canceled"),
+        )
         _app_var_set(
             app,
             "rkhunter_summary_var",
@@ -663,10 +676,20 @@ def rkhunter_update_async(
     app.rkhunter_updating = True
     app.rkhunter_active_process = "thread"
     app._set_rkhunter_repair_available(False)
-    _app_var_set(app, "rkhunter_status_var", app.tr("rkhunter_status_update_running", "update running"))
-    _app_var_set(app, "rkhunter_summary_var", app.tr("rkhunter_summary_update_running", "rkhunter update is running ..."))
+    _app_var_set(
+        app,
+        "rkhunter_status_var",
+        app.tr("rkhunter_status_update_running", "update running"),
+    )
+    _app_var_set(
+        app,
+        "rkhunter_summary_var",
+        app.tr("rkhunter_summary_update_running", "rkhunter update is running ..."),
+    )
     app.open_rkhunter_tab()
-    app.update_rkhunter_output(app.tr("rkhunter_output_update_starting", "Starting rkhunter update..."))
+    app.update_rkhunter_output(
+        app.tr("rkhunter_output_update_starting", "Starting rkhunter update...")
+    )
     _set_rkhunter_action_buttons_state(app, False)
     app.log_safe(app.tr("rkhunter_log_update_started", "rkhunter update started."))
     threading.Thread(target=app._rkhunter_update_worker, daemon=True).start()
@@ -678,7 +701,11 @@ def finish_rkhunter_repair(
     if backup_rc != 0:
         app.rkhunter_updating = False
         app.rkhunter_active_process = None
-        _app_var_set(app, "rkhunter_status_var", app.tr("rkhunter_status_repair_error", "repair error"))
+        _app_var_set(
+            app,
+            "rkhunter_status_var",
+            app.tr("rkhunter_status_repair_error", "repair error"),
+        )
         _app_var_set(
             app,
             "rkhunter_summary_var",
@@ -705,7 +732,11 @@ def finish_rkhunter_repair(
     if repair_rc != 0:
         app.rkhunter_updating = False
         app.rkhunter_active_process = None
-        _app_var_set(app, "rkhunter_status_var", app.tr("rkhunter_status_repair_error", "repair error"))
+        _app_var_set(
+            app,
+            "rkhunter_status_var",
+            app.tr("rkhunter_status_repair_error", "repair error"),
+        )
         _app_var_set(
             app,
             "rkhunter_summary_var",
@@ -735,9 +766,24 @@ def finish_rkhunter_repair(
         ).format(backup_path=backup_path),
         append=False,
     )
-    _app_var_set(app, "rkhunter_summary_var", app.tr("rkhunter_summary_repair_success", "rkhunter update configuration repaired"))
-    _app_var_set(app, "rkhunter_status_var", app.tr("rkhunter_status_retry_update_running", "retry update running"))
-    app.log_safe(app.tr("rkhunter_log_repair_retry", "rkhunter configuration repaired, update will be started again."))
+    _app_var_set(
+        app,
+        "rkhunter_summary_var",
+        app.tr(
+            "rkhunter_summary_repair_success", "rkhunter update configuration repaired"
+        ),
+    )
+    _app_var_set(
+        app,
+        "rkhunter_status_var",
+        app.tr("rkhunter_status_retry_update_running", "retry update running"),
+    )
+    app.log_safe(
+        app.tr(
+            "rkhunter_log_repair_retry",
+            "rkhunter configuration repaired, update will be started again.",
+        )
+    )
     threading.Thread(target=app._rkhunter_update_worker, daemon=True).start()
 
 
@@ -763,11 +809,17 @@ def rkhunter_repair_update_async(
     is_rkhunter_installed_fn,
 ):
     if app.rkhunter_running or app.rkhunter_updating:
-        app.log_safe(app.tr("rkhunter_log_already_running", "rkhunter is already running."))
+        app.log_safe(
+            app.tr("rkhunter_log_already_running", "rkhunter is already running.")
+        )
         app.open_rkhunter_tab()
         return
     if not is_rkhunter_installed_fn():
-        _app_var_set(app, "rkhunter_status_var", app.tr("rkhunter_status_not_installed", "not installed"))
+        _app_var_set(
+            app,
+            "rkhunter_status_var",
+            app.tr("rkhunter_status_not_installed", "not installed"),
+        )
         _app_var_set(
             app,
             "rkhunter_summary_var",
@@ -780,7 +832,11 @@ def rkhunter_repair_update_async(
         app.open_rkhunter_tab()
         return
     if not app.ensure_sudo_session("rkhunter Repair"):
-        _app_var_set(app, "rkhunter_status_var", app.tr("rkhunter_status_sudo_cancelled", "sudo canceled"))
+        _app_var_set(
+            app,
+            "rkhunter_status_var",
+            app.tr("rkhunter_status_sudo_cancelled", "sudo canceled"),
+        )
         _app_var_set(
             app,
             "rkhunter_summary_var",
@@ -800,7 +856,11 @@ def rkhunter_repair_update_async(
 
     app.rkhunter_updating = True
     app.rkhunter_active_process = "thread"
-    _app_var_set(app, "rkhunter_status_var", app.tr("rkhunter_status_repair_running", "repair running"))
+    _app_var_set(
+        app,
+        "rkhunter_status_var",
+        app.tr("rkhunter_status_repair_running", "repair running"),
+    )
     _app_var_set(
         app,
         "rkhunter_summary_var",
@@ -827,7 +887,11 @@ def finish_rkhunter_scan(app, rc, out):
     app.rkhunter_running = False
     app.rkhunter_active_process = None
     if app._looks_like_rkhunter_web_cmd_issue(out):
-        _app_var_set(app, "rkhunter_status_var", app.tr("rkhunter_status_config_error", "config error"))
+        _app_var_set(
+            app,
+            "rkhunter_status_var",
+            app.tr("rkhunter_status_config_error", "config error"),
+        )
     else:
         _app_var_set(
             app,
@@ -835,7 +899,9 @@ def finish_rkhunter_scan(app, rc, out):
             (
                 app.tr("rkhunter_status_finished", "finished")
                 if rc == 0
-                else app.tr("rkhunter_status_error_warning", "error / warning (rc={rc})").format(rc=rc)
+                else app.tr(
+                    "rkhunter_status_error_warning", "error / warning (rc={rc})"
+                ).format(rc=rc)
             ),
         )
     app.update_rkhunter_output(out or app.tr("rkhunter_output_none", "No output."))
@@ -855,7 +921,10 @@ def finish_rkhunter_scan(app, rc, out):
     app.log_safe(
         app.tr("rkhunter_log_scan_finished", "rkhunter scan completed.")
         if rc == 0
-        else app.tr("rkhunter_log_scan_warning", "rkhunter scan finished with a warning / notice.")
+        else app.tr(
+            "rkhunter_log_scan_warning",
+            "rkhunter scan finished with a warning / notice.",
+        )
     )
 
 
@@ -873,11 +942,17 @@ def rkhunter_scan_async(
     is_rkhunter_installed_fn,
 ):
     if app.rkhunter_running or app.rkhunter_updating:
-        app.log_safe(app.tr("rkhunter_log_already_running", "rkhunter is already running."))
+        app.log_safe(
+            app.tr("rkhunter_log_already_running", "rkhunter is already running.")
+        )
         app.open_rkhunter_tab()
         return
     if not is_rkhunter_installed_fn():
-        _app_var_set(app, "rkhunter_status_var", app.tr("rkhunter_status_not_installed", "not installed"))
+        _app_var_set(
+            app,
+            "rkhunter_status_var",
+            app.tr("rkhunter_status_not_installed", "not installed"),
+        )
         _app_var_set(
             app,
             "rkhunter_summary_var",
@@ -896,7 +971,11 @@ def rkhunter_scan_async(
         app.open_rkhunter_tab()
         return
     if not app.ensure_sudo_session("rkhunter Scan"):
-        _app_var_set(app, "rkhunter_status_var", app.tr("rkhunter_status_sudo_cancelled", "sudo canceled"))
+        _app_var_set(
+            app,
+            "rkhunter_status_var",
+            app.tr("rkhunter_status_sudo_cancelled", "sudo canceled"),
+        )
         _app_var_set(
             app,
             "rkhunter_summary_var",
@@ -916,11 +995,24 @@ def rkhunter_scan_async(
 
     app.rkhunter_running = True
     app.rkhunter_active_process = "thread"
-    _app_var_set(app, "rkhunter_status_var", app.tr("rkhunter_status_scan_running", "scan running"))
-    _app_var_set(app, "rkhunter_summary_var", app.tr("rkhunter_summary_scan_running", "rkhunter scan is running ..."))
+    _app_var_set(
+        app,
+        "rkhunter_status_var",
+        app.tr("rkhunter_status_scan_running", "scan running"),
+    )
+    _app_var_set(
+        app,
+        "rkhunter_summary_var",
+        app.tr("rkhunter_summary_scan_running", "rkhunter scan is running ..."),
+    )
     app.open_rkhunter_tab()
     app.clear_rkhunter_output()
-    app.update_rkhunter_output(app.tr("rkhunter_output_scan_started", "rkhunter scan started. Output will follow ..."))
+    app.update_rkhunter_output(
+        app.tr(
+            "rkhunter_output_scan_started",
+            "rkhunter scan started. Output will follow ...",
+        )
+    )
     _set_rkhunter_action_buttons_state(app, False)
     app.log_safe(app.tr("rkhunter_log_scan_started", "rkhunter scan started."))
     threading.Thread(target=app._rkhunter_scan_worker, daemon=True).start()
@@ -1047,20 +1139,20 @@ def render_startup_guard_result(app, result: dict, current_count: int) -> str:
     lines = [
         app.tr("startup_guard_report_title", "=== Startup Guard Prüfung ==="),
         "",
-        app.tr("startup_guard_report_current_entries", "Current entries: {count}").format(
-            count=current_count
-        ),
+        app.tr(
+            "startup_guard_report_current_entries", "Current entries: {count}"
+        ).format(count=current_count),
         "",
         app.tr("startup_guard_report_new_entries", "New entries:"),
     ]
     if new_entries:
         lines.extend(format_startup_guard_entry(entry) for entry in new_entries)
     else:
-        lines.append(
-            app.tr("startup_guard_report_no_new_entries", "- No new entries.")
-        )
+        lines.append(app.tr("startup_guard_report_no_new_entries", "- No new entries."))
 
-    lines.extend(["", app.tr("startup_guard_report_removed_entries", "Removed entries:")])
+    lines.extend(
+        ["", app.tr("startup_guard_report_removed_entries", "Removed entries:")]
+    )
     if removed_entries:
         lines.extend(format_startup_guard_entry(entry) for entry in removed_entries)
     else:
@@ -1068,7 +1160,9 @@ def render_startup_guard_result(app, result: dict, current_count: int) -> str:
             app.tr("startup_guard_report_no_removed_entries", "- No removed entries.")
         )
 
-    lines.extend(["", app.tr("startup_guard_report_changed_entries", "Changed entries:")])
+    lines.extend(
+        ["", app.tr("startup_guard_report_changed_entries", "Changed entries:")]
+    )
     if changed_entries:
         for item in changed_entries:
             before = item.get("before") or {}
@@ -1371,7 +1465,10 @@ def startup_guard_remove_selected_trusted(app):
 def startup_guard_show_trustlist(app):
     trustlist = _startup_guard_trustlist(app)
     trusted = dict(trustlist.get("trusted") or {})
-    lines = [app.tr("startup_guard_trustlist_title", "=== Startup Guard Trust List ==="), ""]
+    lines = [
+        app.tr("startup_guard_trustlist_title", "=== Startup Guard Trust List ==="),
+        "",
+    ]
 
     if not trusted:
         lines.append(
@@ -1394,9 +1491,9 @@ def startup_guard_show_trustlist(app):
                 )
             )
             lines.append(
-                app.tr("startup_guard_trustlist_marked", "  Marked: {timestamp}").format(
-                    timestamp=item.get("trusted_at", "-")
-                )
+                app.tr(
+                    "startup_guard_trustlist_marked", "  Marked: {timestamp}"
+                ).format(timestamp=item.get("trusted_at", "-"))
             )
             lines.append("")
 
@@ -1752,9 +1849,7 @@ def startup_guard_check(app):
                         "Startup Guard: Fehler",
                     ),
                 )
-                app.log(
-                    f"Startup Guard: Prüfung fehlgeschlagen: {error}"
-                )
+                app.log(f"Startup Guard: Prüfung fehlgeschlagen: {error}")
                 return
             app.startup_guard_last_result = result
             app.startup_guard_status_var.set(
@@ -1805,35 +1900,119 @@ def format_path_guard_result(result: dict) -> str:
     return _format_path_guard_result(None, result)
 
 
+def _path_guard_text(
+    app, key: str, default_de: str, default_en: str | None = None
+) -> str:
+    if app is None:
+        return default_en if default_en is not None else default_de
+    return app.tr(key, default_de)
+
+
 def _translate_path_guard_issue(app, text: str) -> str:
     raw = str(text or "").strip()
     mapping = {
-        "PATH-Verzeichnis ist für alle beschreibbar.": "PATH directory is writable by everyone.",
-        "PATH-Verzeichnis ist gruppenbeschreibbar.": "PATH directory is group-writable.",
-        "Ungewöhnlicher PATH-Eintrag steht sehr weit vorne.": "Unusual PATH entry appears very early in PATH.",
-        "Üblicher User-Bin-Pfad im PATH.": "Common user bin path is present in PATH.",
-        "Verdächtige PATH-Manipulation im Shell-Profil.": "Suspicious PATH manipulation in shell profile.",
-        "Übliche User-Bin-Pfade werden eingebunden.": "Common user bin paths are being added.",
-        "/snap/bin steht im PATH, existiert aber nicht.": "/snap/bin is in PATH but does not exist.",
+        "PATH-Verzeichnis ist für alle beschreibbar.": (
+            "path_guard_issue_world_writable",
+            "PATH-Verzeichnis ist für alle beschreibbar.",
+            "PATH directory is writable by everyone.",
+        ),
+        "PATH-Verzeichnis ist gruppenbeschreibbar.": (
+            "path_guard_issue_group_writable",
+            "PATH-Verzeichnis ist gruppenbeschreibbar.",
+            "PATH directory is group-writable.",
+        ),
+        "Ungewöhnlicher PATH-Eintrag steht sehr weit vorne.": (
+            "path_guard_issue_unusual_early",
+            "Ungewöhnlicher PATH-Eintrag steht sehr weit vorne.",
+            "Unusual PATH entry appears very early in PATH.",
+        ),
+        "Üblicher User-Bin-Pfad im PATH.": (
+            "path_guard_issue_user_bin_present",
+            "Üblicher User-Bin-Pfad im PATH.",
+            "Common user bin path is present in PATH.",
+        ),
+        "Verdächtige PATH-Manipulation im Shell-Profil.": (
+            "path_guard_issue_shell_profile_suspicious",
+            "Verdächtige PATH-Manipulation im Shell-Profil.",
+            "Suspicious PATH manipulation in shell profile.",
+        ),
+        "Übliche User-Bin-Pfade werden eingebunden.": (
+            "path_guard_issue_user_bins_added",
+            "Übliche User-Bin-Pfade werden eingebunden.",
+            "Common user bin paths are being added.",
+        ),
+        "/snap/bin steht im PATH, existiert aber nicht.": (
+            "path_guard_issue_snap_missing",
+            "/snap/bin steht im PATH, existiert aber nicht.",
+            "/snap/bin is in PATH but does not exist.",
+        ),
     }
     if raw.startswith("Rechte konnten nicht geprüft werden:"):
         detail = raw.split(":", 1)[1].strip()
-        return f"Permissions could not be checked: {detail}"
+        return _path_guard_text(
+            app,
+            "path_guard_issue_permissions_unknown",
+            "Rechte konnten nicht geprüft werden: {detail}",
+            "Permissions could not be checked: {detail}",
+        ).format(detail=detail)
     if raw.startswith("Datei konnte nicht gelesen werden:"):
         detail = raw.split(":", 1)[1].strip()
-        return f"File could not be read: {detail}"
-    return mapping.get(raw, raw)
+        return _path_guard_text(
+            app,
+            "path_guard_issue_file_unreadable",
+            "Datei konnte nicht gelesen werden: {detail}",
+            "File could not be read: {detail}",
+        ).format(detail=detail)
+    if raw in mapping:
+        key, default_de, default_en = mapping[raw]
+        return _path_guard_text(app, key, default_de, default_en)
+    return raw
 
 
 def _translate_path_guard_risk(app, risk: str) -> str:
     raw = str(risk or "").strip().lower()
     mapping = {
-        "hoch": "high",
-        "mittel": "medium",
-        "niedrig": "low",
-        "unbekannt": "unknown",
+        "hoch": (
+            "path_guard_risk_high",
+            "hoch",
+            "high",
+        ),
+        "mittel": (
+            "path_guard_risk_medium",
+            "mittel",
+            "medium",
+        ),
+        "niedrig": (
+            "path_guard_risk_low",
+            "niedrig",
+            "low",
+        ),
+        "unbekannt": (
+            "path_guard_risk_unknown",
+            "unbekannt",
+            "unknown",
+        ),
     }
-    return mapping.get(raw, raw or "-")
+    if raw in mapping:
+        key, default_de, default_en = mapping[raw]
+        return _path_guard_text(app, key, default_de, default_en)
+    return raw or "-"
+
+
+def _translate_path_guard_severity(app, severity: str) -> str:
+    raw = str(severity or "").strip().lower()
+    mapping = {
+        "high": ("path_guard_severity_high", "hoch", "high"),
+        "medium": ("path_guard_severity_medium", "mittel", "medium"),
+        "low": ("path_guard_severity_low", "niedrig", "low"),
+        "info": ("path_guard_severity_info", "info", "info"),
+        "ok": ("path_guard_severity_ok", "ok", "ok"),
+        "unknown": ("path_guard_severity_unknown", "unbekannt", "unknown"),
+    }
+    if raw in mapping:
+        key, default_de, default_en = mapping[raw]
+        return _path_guard_text(app, key, default_de, default_en)
+    return raw or "-"
 
 
 def _format_path_guard_result(app, result: dict) -> str:
@@ -1841,19 +2020,61 @@ def _format_path_guard_result(app, result: dict) -> str:
     hints = []
     suspicious_found = False
 
-    lines.append("=== PATH Guard Check ===")
+    lines.append(
+        _path_guard_text(
+            app,
+            "path_guard_report_title",
+            "=== PATH Guard Prüfung ===",
+            "=== PATH Guard Check ===",
+        )
+    )
     lines.append("")
-    lines.append(f"Risk: {_translate_path_guard_risk(app, result.get('risk', '-'))}")
-    lines.append(f"High: {result.get('counts', {}).get('high', 0)}")
-    lines.append(f"Medium: {result.get('counts', {}).get('medium', 0)}")
+    lines.append(
+        _path_guard_text(
+            app,
+            "path_guard_report_risk",
+            "Risiko: {value}",
+            "Risk: {value}",
+        ).format(value=_translate_path_guard_risk(app, result.get("risk", "-")))
+    )
+    lines.append(
+        _path_guard_text(
+            app,
+            "path_guard_report_high_count",
+            "Hoch: {count}",
+            "High: {count}",
+        ).format(count=result.get("counts", {}).get("high", 0))
+    )
+    lines.append(
+        _path_guard_text(
+            app,
+            "path_guard_report_medium_count",
+            "Mittel: {count}",
+            "Medium: {count}",
+        ).format(count=result.get("counts", {}).get("medium", 0))
+    )
     lines.append("")
 
-    lines.append("Current PATH:")
+    lines.append(
+        _path_guard_text(
+            app,
+            "path_guard_report_current_path",
+            "Aktueller PATH:",
+            "Current PATH:",
+        )
+    )
     for idx, entry in enumerate(result.get("path_entries", []), start=1):
         lines.append(f"{idx}. {entry}")
 
     lines.append("")
-    lines.append("PATH entries:")
+    lines.append(
+        _path_guard_text(
+            app,
+            "path_guard_report_path_entries",
+            "PATH-Einträge:",
+            "PATH entries:",
+        )
+    )
     relevant_path_findings = False
     for item in result.get("path_findings", []):
         sev = item.get("severity", "ok")
@@ -1866,41 +2087,97 @@ def _format_path_guard_result(app, result: dict) -> str:
                 if "/snap/bin" in issue:
                     hints.append(_translate_path_guard_issue(app, issue))
                 elif "User-Bin-Pfad" in issue:
-                    hints.append(f"{entry} is included in PATH as a user bin path.")
+                    hints.append(
+                        _path_guard_text(
+                            app,
+                            "path_guard_hint_user_bin_entry",
+                            "{entry} ist als User-Bin-Pfad im PATH enthalten.",
+                            "{entry} is included in PATH as a user bin path.",
+                        ).format(entry=entry)
+                    )
             continue
         relevant_path_findings = True
         suspicious_found = True
-        lines.append(f"- [{sev.upper()}] {entry}")
+        lines.append(f"- [{_translate_path_guard_severity(app, sev).upper()}] {entry}")
         for issue in issues:
             lines.append(f"  - {_translate_path_guard_issue(app, issue)}")
     if not relevant_path_findings:
-        lines.append("- No suspicious PATH entries detected.")
+        lines.append(
+            _path_guard_text(
+                app,
+                "path_guard_report_no_suspicious_entries",
+                "- Keine auffälligen PATH-Einträge erkannt.",
+                "- No suspicious PATH entries detected.",
+            )
+        )
 
     lines.append("")
-    lines.append("Shell profiles:")
+    lines.append(
+        _path_guard_text(
+            app,
+            "path_guard_report_shell_profiles",
+            "Shell-Profile:",
+            "Shell profiles:",
+        )
+    )
     for profile in result.get("profile_findings", []):
         path = profile.get("path", "-")
         exists = profile.get("exists", False)
         severity = profile.get("severity", "ok")
         matches = profile.get("matches", [])
         lines.append(
-            f"- {path} ({'present' if exists else 'not present'}, {severity})"
+            _path_guard_text(
+                app,
+                "path_guard_report_profile_status",
+                "- {path} ({presence}, {severity})",
+                "- {path} ({presence}, {severity})",
+            ).format(
+                path=path,
+                presence=_path_guard_text(
+                    app,
+                    (
+                        "path_guard_presence_present"
+                        if exists
+                        else "path_guard_presence_missing"
+                    ),
+                    "vorhanden" if exists else "nicht vorhanden",
+                    "present" if exists else "not present",
+                ),
+                severity=_translate_path_guard_severity(app, severity),
+            )
         )
         for match in matches:
             if match.get("severity") == "info":
                 text = str(match.get("text") or "")
                 if "$HOME/.local/bin" in text or "~/.local/bin" in text:
                     hints.append(
-                        "~/.local/bin is added via .profile/.bashrc. This is common."
+                        _path_guard_text(
+                            app,
+                            "path_guard_hint_local_bin_common",
+                            "~/.local/bin wird über .profile/.bashrc ergänzt. Das ist üblich.",
+                            "~/.local/bin is added via .profile/.bashrc. This is common.",
+                        )
                     )
                 if "$HOME/bin" in text or "~/bin" in text:
                     hints.append(
-                        "~/bin is added via .profile/.bashrc. This is common."
+                        _path_guard_text(
+                            app,
+                            "path_guard_hint_home_bin_common",
+                            "~/bin wird über .profile/.bashrc ergänzt. Das ist üblich.",
+                            "~/bin is added via .profile/.bashrc. This is common.",
+                        )
                     )
                 continue
             if match.get("severity") in {"medium", "high"}:
                 suspicious_found = True
-            lines.append(f"  Line {match.get('line')}: {match.get('text')}")
+            lines.append(
+                _path_guard_text(
+                    app,
+                    "path_guard_report_profile_line",
+                    "  Zeile {line}: {text}",
+                    "  Line {line}: {text}",
+                ).format(line=match.get("line"), text=match.get("text"))
+            )
             for issue in match.get("issues", []):
                 lines.append(f"    - {_translate_path_guard_issue(app, issue)}")
 
@@ -1915,15 +2192,36 @@ def _format_path_guard_result(app, result: dict) -> str:
 
     if unique_hints:
         lines.append("")
-        lines.append("Notes:")
+        lines.append(
+            _path_guard_text(
+                app,
+                "path_guard_report_notes",
+                "Hinweise:",
+                "Notes:",
+            )
+        )
         for hint in unique_hints:
             lines.append(f"- {hint}")
 
     lines.append("")
     if suspicious_found:
-        lines.append("Suspicious PATH manipulations should be reviewed.")
+        lines.append(
+            _path_guard_text(
+                app,
+                "path_guard_report_review_needed",
+                "Auffällige PATH-Manipulationen sollten geprüft werden.",
+                "Suspicious PATH manipulations should be reviewed.",
+            )
+        )
     else:
-        lines.append("No suspicious PATH manipulation detected.")
+        lines.append(
+            _path_guard_text(
+                app,
+                "path_guard_report_none_detected",
+                "Keine auffällige PATH-Manipulation erkannt.",
+                "No suspicious PATH manipulation detected.",
+            )
+        )
 
     return "\n".join(lines)
 
@@ -1957,7 +2255,7 @@ def run_path_guard_check(app):
     try:
         open_tab = _app_value(app, "_open_security_menu_target_tab")
         if callable(open_tab):
-            open_tab("guards")
+            open_tab("path_guard")
         service = _app_value(app, "path_guard_service")
         if service is None:
             app.set_path_guard_light("unknown", "PATH Guard: Service nicht verfügbar.")
@@ -1977,7 +2275,9 @@ def run_path_guard_check(app):
         else:
             app.set_path_guard_light("unknown", "PATH Guard: Risiko unbekannt")
 
-        detail_widget = _app_value(app, "security_detail")
+        detail_widget = _app_value(app, "path_guard_detail") or _app_value(
+            app, "security_detail"
+        )
         if detail_widget is not None:
             detail_widget.configure(state="normal")
             detail_widget.delete("1.0", "end")

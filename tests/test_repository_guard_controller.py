@@ -702,7 +702,7 @@ def test_repository_guard_source_filter_status_text_maps_known_modes():
         repository_guard_controller._repository_guard_source_filter_status_text(
             "trusted"
         )
-        == "Quellenfilter: nur Trusted Hosts"
+        == "Quellenfilter: nur vertraute Hosts"
     )
     assert (
         repository_guard_controller._repository_guard_source_filter_status_text(
@@ -730,12 +730,12 @@ def test_repository_guard_finding_filter_status_text_maps_known_modes():
 def test_repository_guard_filter_choice_text_prefers_matching_label():
     assert (
         repository_guard_controller._repository_guard_filter_choice_text(
-            {"all": "Alle", "trusted": "Trusted Hosts"},
+            {"all": "Alle", "trusted": "Vertraute Hosts"},
             " trusted ",
             default_key="all",
             default_label="Alle",
         )
-        == "Trusted Hosts"
+        == "Vertraute Hosts"
     )
 
 
@@ -754,14 +754,14 @@ def test_repository_guard_filter_choice_text_falls_back_to_default_label():
 def test_repository_guard_empty_trustlist_message_matches_expected_text():
     assert (
         repository_guard_controller._repository_guard_empty_trustlist_message()
-        == "Keine Trusted Hosts gespeichert."
+        == "Keine vertrauten Hosts gespeichert."
     )
 
 
-def test_repository_guard_empty_trustlist_message_mentions_trusted_hosts():
+def test_repository_guard_empty_trustlist_message_mentions_vertraute_hosts():
     message = repository_guard_controller._repository_guard_empty_trustlist_message()
 
-    assert "Trusted Hosts" in message
+    assert "vertrauten Hosts" in message
 
 
 def test_repository_guard_status_light_color_maps_known_states():
@@ -805,7 +805,7 @@ def test_apply_repository_guard_filter_status_sets_source_vars():
 
     assert (
         app.repository_guard_source_filter_status_var.value
-        == "Quellenfilter: nur Trusted Hosts"
+        == "Quellenfilter: nur vertraute Hosts"
     )
     assert app.repository_guard_source_filter_choice_var.value == "Trusted Hosts"
 

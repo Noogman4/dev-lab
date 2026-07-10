@@ -503,30 +503,30 @@ def build_repository_guard_tab(app):
     )
 
     app.repository_guard_status_var = tk.StringVar(
-        value=app.tr("repository_guard_status_not_checked", "Status: Not checked")
+        value=app.tr("repository_guard_status_not_checked", "Status: Nicht geprüft")
     )
     app.repository_guard_scan_status_var = tk.StringVar(
         value=app.tr(
             "repository_guard_scan_unavailable",
-            "Repository scan: not available yet",
+            "Repository-Scan: Noch nicht verfügbar",
         )
     )
     app.repository_guard_summary_var = tk.StringVar(
         value=app.tr(
             "repository_guard_summary_empty",
-            "Sources: 0 | Findings: 0 | Warnings: 0 | Errors: 0",
+            "Quellen: 0 | Befunde: 0 | Warnungen: 0 | Fehler: 0",
         )
     )
     app.repository_guard_source_filter_status_var = tk.StringVar(
         value=app.tr(
             "repository_guard_source_filter_all",
-            "Source filter: all",
+            "Quellenfilter: alle",
         )
     )
     app.repository_guard_finding_filter_status_var = tk.StringVar(
         value=app.tr(
             "repository_guard_finding_filter_relevant",
-            "Finding filter: relevant",
+            "Befundfilter: relevant",
         )
     )
     app.repository_guard_source_filter_choice_var = tk.StringVar(
@@ -563,13 +563,14 @@ def build_repository_guard_tab(app):
         app.repository_guard_pane,
         text=app.tr(
             "repository_guard_group_checks",
-            "Planned analysis areas",
+            "Geplante Analysebereiche",
         ),
         padding=8,
     )
     action_frame = ttk.LabelFrame(
         app.repository_guard_pane,
         text=app.tr("repository_guard_group_actions", "Preparation"),
+
         padding=8,
     )
 
@@ -625,6 +626,7 @@ def build_repository_guard_tab(app):
     app.btn_repository_guard_scan = ttk.Button(
         top_actions_row,
         text=app.tr("repository_guard_btn_scan", "Repository scan"),
+
         command=app.run_repository_guard_scan,
     )
     app.btn_repository_guard_scan.pack(side="left")
@@ -632,7 +634,7 @@ def build_repository_guard_tab(app):
         app.btn_repository_guard_scan,
         app.tr(
             "repository_guard_btn_scan_tooltip",
-            "Reads local APT repository sources and evaluates initial findings.",
+            "Liest lokale APT-Paketquellen ein und bewertet erste Auffälligkeiten.",
         ),
     )
 
@@ -648,7 +650,7 @@ def build_repository_guard_tab(app):
         app.btn_repository_guard_baseline,
         app.tr(
             "repository_guard_btn_baseline_tooltip",
-            "Saves the currently detected source state as a new comparison baseline.",
+            "Speichert den aktuell erkannten Quellenzustand als neue Vergleichs-Baseline.",
         ),
     )
     app.btn_repository_guard_reset_baseline = ttk.Button(
@@ -661,7 +663,7 @@ def build_repository_guard_tab(app):
         app.btn_repository_guard_reset_baseline,
         app.tr(
             "repository_guard_btn_reset_baseline_tooltip",
-            "Removes the saved Repository Guard baseline and stops comparisons with the old reference state.",
+            "Entfernt die gespeicherte Repository-Guard-Baseline und beendet Vergleiche mit dem alten Referenzstand.",
         ),
     )
     app.btn_repository_guard_clear = ttk.Button(
@@ -674,7 +676,7 @@ def build_repository_guard_tab(app):
         app.btn_repository_guard_clear,
         app.tr(
             "repository_guard_btn_clear_tooltip",
-            "Clears the current Repository Guard view and resets selection, filter status, and details.",
+            "Leert die aktuelle Repository-Guard-Ansicht und setzt Auswahl, Filterstatus und Details zurück.",
         ),
     )
     app.btn_repository_guard_copy = ttk.Button(
@@ -687,7 +689,7 @@ def build_repository_guard_tab(app):
         app.btn_repository_guard_copy,
         app.tr(
             "repository_guard_btn_copy_tooltip",
-            "Copies the current Repository Guard summary including the detail view to the clipboard.",
+            "Kopiert die aktuelle Repository-Guard-Zusammenfassung inklusive Detailansicht in die Zwischenablage.",
         ),
     )
     app.btn_repository_guard_export = ttk.Button(
@@ -700,7 +702,7 @@ def build_repository_guard_tab(app):
         app.btn_repository_guard_export,
         app.tr(
             "repository_guard_btn_export_tooltip",
-            "Exports the current result as JSON or text.",
+            "Exportiert das aktuelle Ergebnis als JSON oder Text.",
         ),
     )
 
@@ -710,7 +712,7 @@ def build_repository_guard_tab(app):
         source_filter_row,
         text=app.tr(
             "repository_guard_source_filter_label",
-            "Sources:",
+            "Quellen:",
         ),
     ).pack(side="left")
     source_filter_options = [
@@ -720,10 +722,10 @@ def build_repository_guard_tab(app):
         ("active", app.tr("repository_guard_source_filter_btn_active", "Active")),
         (
             "third_party",
-            app.tr("repository_guard_source_filter_btn_third_party", "Third-party"),
+            app.tr("repository_guard_source_filter_btn_third_party", "Drittquellen"),
         ),
-        ("trusted", app.tr("repository_guard_source_filter_btn_trusted", "Trusted")),
-        ("review", app.tr("repository_guard_source_filter_btn_review", "Needs review")),
+        ("trusted", app.tr("repository_guard_source_filter_btn_trusted", "Vertraut")),
+        ("review", app.tr("repository_guard_source_filter_btn_review", "Prüfbedarf")),
     ]
     app.repository_guard_source_filter_labels = {
         mode: label for mode, label in source_filter_options
@@ -753,14 +755,14 @@ def build_repository_guard_tab(app):
         app.repository_guard_source_filter_combo,
         app.tr(
             "repository_guard_source_filter_combo_tooltip",
-            "Selects which sources are shown in the upper results view.",
+            "Wählt aus, welche Quellen in der oberen Ergebnisansicht angezeigt werden.",
         ),
     )
     ttk.Label(
         source_filter_row,
         text=app.tr(
             "repository_guard_finding_filter_label",
-            "Findings:",
+            "Befunde:",
         ),
     ).pack(side="left", padx=(16, 0))
     finding_filter_options = [
@@ -805,7 +807,7 @@ def build_repository_guard_tab(app):
         app.repository_guard_finding_filter_combo,
         app.tr(
             "repository_guard_finding_filter_combo_tooltip",
-            "Wählt aus, welche Findings im mittleren Ergebnisfenster angezeigt werden.",
+            "Wählt aus, welche Befunde im mittleren Ergebnisfenster angezeigt werden.",
         ),
     )
 
@@ -835,14 +837,14 @@ def build_repository_guard_tab(app):
         xscrollcommand=info_scroll_x.set,
     )
     for col, title, width, anchor in [
-        ("state", app.tr("repository_guard_col_state", "State"), 90, "center"),
-        ("type", app.tr("repository_guard_col_type", "Type"), 80, "center"),
-        ("trust", "Trust", 95, "center"),
+        ("state", app.tr("repository_guard_col_state", "Status"), 90, "center"),
+        ("type", app.tr("repository_guard_col_type", "Typ"), 80, "center"),
+        ("trust", app.tr("repository_guard_trust_label", "Vertrauen").rstrip(":"), 95, "center"),
         ("host", "Host", 180, "w"),
         ("suite", "Suite", 110, "w"),
-        ("components", app.tr("repository_guard_col_components", "Components"), 180, "w"),
+        ("components", app.tr("repository_guard_col_components", "Komponenten"), 180, "w"),
         ("uri", "URI", 300, "w"),
-        ("file", app.tr("repository_guard_col_file", "File"), 300, "w"),
+        ("file", app.tr("repository_guard_col_file", "Datei"), 300, "w"),
     ]:
         app.repository_guard_sources_tree.heading(col, text=title)
         app.repository_guard_sources_tree.column(col, width=width, anchor=anchor)
@@ -872,9 +874,9 @@ def build_repository_guard_tab(app):
         xscrollcommand=checks_scroll_x.set,
     )
     for col, title, width, anchor in [
-        ("severity", app.tr("repository_guard_col_severity", "Severity"), 100, "center"),
+        ("severity", app.tr("repository_guard_col_severity", "Schwere"), 100, "center"),
         ("code", "Code", 220, "w"),
-        ("summary", app.tr("repository_guard_col_summary", "Summary"), 520, "w"),
+        ("summary", app.tr("repository_guard_col_summary", "Zusammenfassung"), 520, "w"),
     ]:
         app.repository_guard_findings_tree.heading(col, text=title)
         app.repository_guard_findings_tree.column(col, width=width, anchor=anchor)
@@ -891,7 +893,7 @@ def build_repository_guard_tab(app):
         info_frame,
         text=app.tr(
             "repository_guard_sources_hint",
-            "Detected package sources will appear here after a repository scan.",
+            "Erfasste Paketquellen erscheinen hier nach einem Repository-Scan.",
         ),
         justify="left",
     ).pack(anchor="w", pady=(6, 0))
@@ -900,7 +902,7 @@ def build_repository_guard_tab(app):
         checks_frame,
         text=app.tr(
             "repository_guard_findings_hint",
-            "Evaluated findings will appear here after the scan.",
+            "Bewertete Befunde erscheinen hier nach dem Scan.",
         ),
         justify="left",
     ).pack(anchor="w", pady=(6, 0))
@@ -912,7 +914,7 @@ def build_repository_guard_tab(app):
         action_frame,
         text=app.tr(
             "repository_guard_placeholder_intro",
-            "V1 currently reads local APT .list sources and evaluates initial signals.",
+            "V1 liest aktuell lokale APT-.list-Quellen ein und bewertet erste Signale.",
         ),
         justify="left",
     ).grid(row=0, column=0, sticky="w")
@@ -938,7 +940,7 @@ def build_repository_guard_tab(app):
     )
     app.btn_repository_guard_remove_trusted = ttk.Button(
         trust_row,
-        text=app.tr("repository_guard_btn_remove_trusted", "Trust entfernen"),
+        text=app.tr("repository_guard_btn_remove_trusted", "Vertrauen entfernen"),
         command=app.remove_selected_repository_guard_trusted,
     )
     app.btn_repository_guard_remove_trusted.pack(side="left", padx=(8, 0))
@@ -951,7 +953,7 @@ def build_repository_guard_tab(app):
     )
     app.btn_repository_guard_show_trustlist = ttk.Button(
         trust_row,
-        text=app.tr("repository_guard_btn_show_trustlist", "Trustlist anzeigen"),
+        text=app.tr("repository_guard_btn_show_trustlist", "Vertrauensliste anzeigen"),
         command=app.show_repository_guard_trustlist,
     )
     app.btn_repository_guard_show_trustlist.pack(side="left", padx=(8, 0))
@@ -964,7 +966,7 @@ def build_repository_guard_tab(app):
     )
     app.btn_repository_guard_reset_trustlist = ttk.Button(
         trust_row,
-        text=app.tr("repository_guard_btn_reset_trustlist", "Trustlist zurücksetzen"),
+        text=app.tr("repository_guard_btn_reset_trustlist", "Vertrauensliste zurücksetzen"),
         command=app.reset_repository_guard_trustlist,
     )
     app.btn_repository_guard_reset_trustlist.pack(side="left", padx=(8, 0))
@@ -2369,8 +2371,14 @@ def build_security_tabs(app):
         ),
     ).pack(anchor="w", pady=(0, 8))
 
+    app.tab_path_guard = ttk.Frame(app.security_nb, padding=10)
+    app.security_nb.add(
+        app.tab_path_guard,
+        text=app.tr("security_tab_path_guard", "PATH-Guard"),
+    )
+
     path_guard_frame = ttk.LabelFrame(
-        security_overview,
+        app.tab_path_guard,
         text=app.tr("path_guard_group_title", "PATH Guard"),
         padding=6,
     )
@@ -2408,6 +2416,38 @@ def build_security_tabs(app):
         path_guard_frame,
         textvariable=app.path_guard_status_var,
     ).pack(side="left", padx=(12, 0))
+
+    app.path_guard_pane = ttk.Panedwindow(
+        app.tab_path_guard,
+        orient="vertical",
+    )
+    app.path_guard_pane.pack(fill="both", expand=True)
+
+    path_guard_detail_frame = ttk.LabelFrame(
+        app.path_guard_pane,
+        text=app.tr("path_guard_group_details", "Details"),
+        padding=6,
+    )
+    app.path_guard_pane.add(path_guard_detail_frame, weight=1)
+    path_guard_detail_frame.columnconfigure(0, weight=1)
+    path_guard_detail_frame.rowconfigure(0, weight=1)
+
+    app.path_guard_detail = tk.Text(
+        path_guard_detail_frame,
+        wrap="word",
+        height=18,
+    )
+    app.path_guard_detail.grid(row=0, column=0, sticky="nsew")
+    app.path_guard_detail.insert(
+        "1.0",
+        app.tr(
+            "path_guard_details_placeholder",
+            "PATH-Guard-Details erscheinen hier.\n",
+        ),
+    )
+    app.path_guard_detail.configure(state="disabled")
+    app.attach_selection_copy_shortcuts(app.path_guard_detail, "text")
+    app.attach_text_context_menu(app.path_guard_detail)
 
     app.tab_process_guard = ttk.Frame(app.security_nb, padding=10)
     app.security_nb.add(

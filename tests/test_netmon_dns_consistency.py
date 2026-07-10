@@ -235,6 +235,7 @@ def test_on_light_click_routes_to_matching_tabs():
     app.tab_dns = object()
     app.tab_conn = object()
     app.tab_security = object()
+    app.tab_path_guard = object()
     app.tab_system = object()
     app.tab_vpn_slots = object()
     app._select_system_tab = lambda tab: events.append(("system", tab))
@@ -264,7 +265,7 @@ def test_on_light_click_routes_to_matching_tabs():
         ("security", app.tab_security),
         ("security", app.tab_security),
         ("security", app.tab_security),
-        ("security", app.tab_security),
+        ("security", app.tab_path_guard),
         ("system", app.tab_vpn_slots),
         ("system", app.tab_system),
         ("select", app.tab_dns),

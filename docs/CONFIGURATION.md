@@ -63,7 +63,7 @@
 
 ## Standardwerte
 
-- App-Version laut `netmon/config/constants.py`: `1.1.16`
+- App-Version laut `netmon/config/constants.py`: `1.1.17`
 - Theme-Startwert: `light` als bevorzugtes Theme in `App.__init__`.
 - Chad-Startmodell: `gpt-4.1-mini`.
 - DNS Guard startet mit `False` / inaktiv, mehrere Statusvariablen initialisieren auf Platzhaltertexte.

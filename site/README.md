@@ -161,7 +161,7 @@ make site-print-minisign
 - Startseite laedt ohne fehlende Styles oder Bilder.
 - Sprachumschalter `DE / EN` funktioniert auf Start-, Download-, Doku-, Rundgang-, Legal-, Impressum- und Audit-Seite.
 - Navigation und Sprachumschalter funktionieren auch auf `Aktuelles` bzw. `Updates`.
-- Download-Link zeigt auf `dist/netmon_1.1.16_all.deb`.
+- Download-Link zeigt auf `dist/netmon_1.1.17_all.deb`.
 - `latest-version.json` liegt im Build und passt zum aktuellen Website-/Paketstand.
 - Doku-Links fuer PDF und HTML funktionieren.
 - Rundgang-Bilder oeffnen per Klick in der Lightbox.

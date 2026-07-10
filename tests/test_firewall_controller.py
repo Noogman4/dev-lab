@@ -151,6 +151,7 @@ def test_parse_firewall_listener_line_recognizes_netmon_cgroup_scope():
 
 def test_build_firewall_listener_assessment_marks_netmon_scope_as_self_check():
     app = netmon.App.__new__(netmon.App)
+    app.lang = {}
 
     result = app._build_firewall_listener_assessment(
         {
@@ -188,8 +189,9 @@ def test_describe_firewall_listener_owner_uses_netmon_app_scope():
 
 def test_build_firewall_transparency_report_includes_owner_note():
     app = netmon.App.__new__(netmon.App)
+    app.lang = {}
     app._collect_firewall_transparency_snapshot = lambda: {
-        "summary_lines": ["UFW: active", "NetMon own listeners: 1"],
+        "summary_lines": ["UFW: active", "NetMon eigene Listener: 1"],
         "rules": [],
         "listeners": [
             {
@@ -206,5 +208,56 @@ def test_build_firewall_transparency_report_includes_owner_note():
 
     report = app.build_firewall_transparency_report()
 
-    assert "NetMon own listeners: 1" in report
+    assert "NetMon eigene Listener: 1" in report
     assert "NetMon app scope (app-gnome-netmon-999.scope, PID -)" in report
+
+
+def test_collect_firewall_transparency_snapshot_uses_german_defaults_for_ratings():
+    app = netmon.App.__new__(netmon.App)
+    app.lang = {}
+    app._read_ufw_status = lambda verbose=True: (1, "")
+    app._security_query_log_level = lambda: "LOW"
+    app.__dict__["port_reality_last_scan"] = {}
+
+    def fake_run_cmd(cmd, timeout=8):
+        return (
+            0,
+            "tcp LISTEN 0 0 127.0.0.53%lo:53 0.0.0.0:* uid:991 ino:1 sk:1",
+        )
+
+    original = netmon.run_cmd
+    netmon.run_cmd = fake_run_cmd
+    try:
+        snapshot = app._collect_firewall_transparency_snapshot()
+    finally:
+        netmon.run_cmd = original
+
+    assert snapshot["last_check"] == "Noch kein Check"
+    assert snapshot["listeners"][0]["rating"] == "nur lokal gebunden"
+
+
+def test_collect_firewall_transparency_snapshot_uses_english_translations_when_loaded():
+    app = netmon.App.__new__(netmon.App)
+    app.lang = {
+        "firewall_listener_last_check_none": "No check yet",
+        "firewall_listener_rating_local_only": "bound locally only",
+    }
+    app._read_ufw_status = lambda verbose=True: (1, "")
+    app._security_query_log_level = lambda: "LOW"
+    app.__dict__["port_reality_last_scan"] = {}
+
+    def fake_run_cmd(cmd, timeout=8):
+        return (
+            0,
+            "tcp LISTEN 0 0 127.0.0.53%lo:53 0.0.0.0:* uid:991 ino:1 sk:1",
+        )
+
+    original = netmon.run_cmd
+    netmon.run_cmd = fake_run_cmd
+    try:
+        snapshot = app._collect_firewall_transparency_snapshot()
+    finally:
+        netmon.run_cmd = original
+
+    assert snapshot["last_check"] == "No check yet"
+    assert snapshot["listeners"][0]["rating"] == "bound locally only"

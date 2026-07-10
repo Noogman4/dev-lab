@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PKG_VERSION="1.1.16"
-DOCS_VERSION="1.1.16"
+PKG_VERSION="1.1.17"
+DOCS_VERSION="1.1.17"
 CURRENT_AUDIT_HTML="security-audit.html"
 CURRENT_AUDIT_VERSIONED_HTML="security-audit-r6.html"
 BUILD_DIR="$ROOT_DIR/dist/site-build"

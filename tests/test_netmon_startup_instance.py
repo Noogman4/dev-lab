@@ -53,6 +53,52 @@ def test_activate_startup_log_view_skips_overlay_without_image():
     assert calls == []
 
 
+def test_log_uses_full_runtime_timestamp(monkeypatch):
+    app = netmon_app.App.__new__(netmon_app.App)
+    app.settings = {"language": "de"}
+    written = []
+    app._append_runtime_log_line = written.append
+
+    class DummyText:
+        def __init__(self):
+            self.lines = []
+
+        def insert(self, _pos, text):
+            self.lines.append(text)
+
+        def see(self, _pos):
+            return None
+
+    app.text = DummyText()
+
+    monkeypatch.setattr(
+        netmon_app,
+        "runtime_log_timestamp",
+        lambda: "2026-07-10 22:08:24",
+    )
+
+    app.log("DNS Guard: OK")
+
+    assert written == ["[2026-07-10 22:08:24] DNS Guard: OK"]
+    assert app.text.lines == ["[2026-07-10 22:08:24] DNS Guard: OK\n"]
+
+
+def test_log_network_debug_uses_full_runtime_timestamp(monkeypatch):
+    app = netmon_app.App.__new__(netmon_app.App)
+    app.debug_network_logging = True
+    app.netmon_state_dir = ""
+
+    monkeypatch.setattr(
+        netmon_app,
+        "runtime_log_timestamp",
+        lambda: "2026-07-10 22:08:24",
+    )
+
+    app.log_network_debug("debug entry")
+
+    assert app._network_debug_entries == ["[2026-07-10 22:08:24] debug entry"]
+
+
 def test_acquire_and_release_netmon_instance_lock(tmp_path, monkeypatch):
     netmon_lock.release_netmon_instance_lock()
     monkeypatch.setattr(netmon_lock, "get_netmon_state_dir", lambda: str(tmp_path))
@@ -152,7 +198,9 @@ def test_detect_primary_monitor_bounds_prefers_primary_output(monkeypatch):
 
     monkeypatch.setenv("DISPLAY", ":0")
     monkeypatch.setattr(netmon_app, "has_cmd", lambda name: name == "xrandr")
-    monkeypatch.setattr(netmon_app.subprocess, "run", lambda *args, **kwargs: DummyResult())
+    monkeypatch.setattr(
+        netmon_app.subprocess, "run", lambda *args, **kwargs: DummyResult()
+    )
 
     assert netmon_app._detect_primary_monitor_bounds() == (0, 0, 2560, 1440)
 

@@ -76,7 +76,7 @@ or from the GitHub Releases page.
 Install the package:
 
 ```bash
-sudo dpkg -i netmon_1.1.16_all.deb
+sudo dpkg -i netmon_1.1.17_all.deb
 sudo apt -f install
 ```
 

@@ -454,3 +454,51 @@ def test_language_files_contain_selected_ui_keys():
     assert "tooltips" in de
     assert "tooltip_auto_c32cd8817665" in de["tooltips"]
     assert "tooltip_auto_c32cd8817665" in en["tooltips"]
+
+
+def test_language_files_have_matching_top_level_keys():
+    with open("netmon/lang/de.json", "r", encoding="utf-8") as handle:
+        de = json.load(handle)
+    with open("netmon/lang/en.json", "r", encoding="utf-8") as handle:
+        en = json.load(handle)
+
+    assert sorted(set(de) - set(en)) == []
+    assert sorted(set(en) - set(de)) == []
+
+
+def test_german_repository_guard_and_lynis_strings_do_not_use_known_english_ui_labels():
+    with open("netmon/lang/de.json", "r", encoding="utf-8") as handle:
+        de = json.load(handle)
+
+    assert de["lynis_btn_quick_scan"] == "Schnellaudit"
+    assert de["lynis_btn_full_scan"] == "Vollständiger Sicherheitsscan (sudo)"
+    assert de["settings_systemcheck_lynis"] == "Lynis Schnellaudit"
+    assert de["repository_guard_btn_scan"] == "Repository-Scan"
+    assert de["repository_guard_scan_unavailable"] == "Repository-Scan: Noch nicht verfügbar"
+    assert de["repository_guard_findings_hint"] == "Bewertete Befunde erscheinen hier nach dem Scan."
+    assert de["chad_status_repository_guard_findings_copied"] == "Repository-Guard-Befunde in Zwischenablage kopiert."
+    assert de["dns_group_control"] == "DNS-Steuerung"
+    assert de["dns_btn_health_check"] == "DNS-Health-Check"
+    assert de["dns_btn_leak_check"] == "DNS-Leak-Check"
+    assert de["dns_control_report_title"] == "=== DNS-Steuerung ==="
+    assert de["dns_leak_repair_title"] == "DNS-Leak-Reparatur"
+    assert de["theme_header_light"] == "Design: Hell"
+    assert de["theme_studio_default_profile_name"] == "Mein Design"
+    assert de["guided_tour_title_default"] == "NetMon-Tour"
+    assert de["tour_def_dns_title"] == "NetMon DNS-Tour"
+    assert de["tour_tab_title_dns"] == "NetMon DNS-Tab"
+    assert de["tour_tab_title_packet_capture"] == "NetMon Packet-Capture-Tab"
+    assert de["tour_tab_label_packet_capture"] == "Paketmitschnitt"
+    assert de["tour_launcher_radio_tab"] == "Radio-Tab"
+    assert de["tour_launcher_packet_capture"] == "Paketmitschnitt"
+    assert de["tour_tab_lynis_quick_body"].startswith("Der Schnelllauf")
+    assert de["dns_vpn_connected_skipped_no_sudo"].startswith("=== DNS-Steuerung ===")
+    assert de["security_tab_firewall"] == "Firewall"
+    assert de["security_tab_guards"] == "Devices"
+    assert de["security_tab_path_guard"] == "Path"
+    assert de["security_tab_startup_guard"] == "Autostart"
+    assert de["security_tab_roots_baseline_guard"] == "Roots"
+    assert de["security_tab_rkhunter"] == "Rootkithunter"
+    assert de["security_tab_process_guard"] == "Prozesse"
+    assert de["security_tab_repository_guard"] == "Repos"
+    assert de["security_tab_packet_capture"] == "Capture"

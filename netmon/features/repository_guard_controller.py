@@ -65,16 +65,41 @@ def _tr(app, key: str, fallback: str) -> str:
         return fallback
 
 
-def _repository_guard_trust_state_label(app_or_trust_state, trust_state: str | None = None) -> str:
+def _repo_text(
+    app,
+    key: str,
+    default_de: str,
+    default_en: str | None = None,
+) -> str:
+    if app is None:
+        return default_en if default_en is not None else default_de
+    return _tr(app, key, default_de)
+
+
+def _repository_guard_trust_state_label(
+    app_or_trust_state, trust_state: str | None = None
+) -> str:
     if trust_state is None:
         app = None
         trust_state = app_or_trust_state
     else:
         app = app_or_trust_state
     return {
-        "known": _tr(app, "repository_guard_trust_state_known", "bekannt") if app is not None else "bekannt",
-        "trusted": "trusted",
-        "review": _tr(app, "repository_guard_trust_state_review", "prüfen") if app is not None else "prüfen",
+        "known": (
+            _tr(app, "repository_guard_trust_state_known", "bekannt")
+            if app is not None
+            else "bekannt"
+        ),
+        "trusted": (
+            _tr(app, "repository_guard_trust_state_trusted", "vertraut")
+            if app is not None
+            else "vertraut"
+        ),
+        "review": (
+            _tr(app, "repository_guard_trust_state_review", "prüfen")
+            if app is not None
+            else "prüfen"
+        ),
     }.get(str(trust_state or "").strip().lower(), "-")
 
 
@@ -239,9 +264,9 @@ def show_repository_guard_result(app, result: dict):
                 "Repository Guard: unknown status",
             ),
         ),
-        scan_status=app.tr("repository_guard_last_scan", "Last scan: {timestamp}").format(
-            timestamp=checked_at
-        ),
+        scan_status=app.tr(
+            "repository_guard_last_scan", "Last scan: {timestamp}"
+        ).format(timestamp=checked_at),
     )
     _set_summary(
         app,
@@ -265,7 +290,7 @@ def show_repository_guard_result(app, result: dict):
 
     _set_detail_text(
         app,
-        format_repository_guard_result(result),
+        format_repository_guard_result(result, app),
     )
 
 
@@ -316,9 +341,11 @@ def refresh_repository_guard_sources_tree(app):
             "end",
             iid=iid,
             values=(
-                app.tr("repository_guard_source_state_active", "active")
-                if source.get("enabled", True)
-                else app.tr("repository_guard_source_state_disabled", "disabled"),
+                (
+                    app.tr("repository_guard_source_state_active", "active")
+                    if source.get("enabled", True)
+                    else app.tr("repository_guard_source_state_disabled", "disabled")
+                ),
                 source.get("repo_type", "-"),
                 _repository_guard_trust_state_label(app, source.get("trust_state")),
                 source.get("host", "-") or "-",
@@ -414,7 +441,7 @@ def on_repository_guard_source_select(app, _event=None):
         app.repository_guard_selected_source = None
         return
     app.repository_guard_selected_source = source
-    _set_detail_text(app, format_repository_guard_source_details(source))
+    _set_detail_text(app, format_repository_guard_source_details(source, app))
 
 
 def on_repository_guard_finding_select(app, _event=None):
@@ -432,7 +459,7 @@ def on_repository_guard_finding_select(app, _event=None):
     _set_detail_text(app, format_repository_guard_finding_details(app, finding))
 
 
-def format_repository_guard_result(result: dict) -> str:
+def format_repository_guard_result(result: dict, app=None) -> str:
     summary = dict(result.get("summary") or {})
     sources = list(result.get("sources") or [])
     active_sources = [item for item in sources if item.get("enabled", True)]
@@ -442,45 +469,174 @@ def format_repository_guard_result(result: dict) -> str:
         if str(item.get("origin_class") or "") == "unknown"
     ]
     lines = [
-        "=== Repository Guard ===",
+        _repo_text(
+            app,
+            "repository_guard_report_title",
+            "=== Repository Guard ===",
+            "=== Repository Guard ===",
+        ),
         "",
-        f"Status: {result.get('status', '-')}",
-        f"Checked at: {result.get('checked_at', '-')}",
-        f"Total sources: {summary.get('repositories_total', 0)}",
-        f"Active sources: {len(active_sources)}",
-        f"Active third-party sources: {len(third_party_active)}",
-        f"Trusted hosts active: {sum(1 for item in active_sources if item.get('trusted_host', False))}",
-        f"Findings: {summary.get('findings_total', 0)}",
-        f"Warnings: {summary.get('warning', 0)}",
-        f"Notices: {summary.get('notice', 0)}",
-        f"Errors: {summary.get('errors', 0)}",
-        f"Baseline changes: {_baseline_change_count(result)}",
+        _repo_text(app, "label_status", "Status:", "Status:")
+        + f" {result.get('status', '-')}",
+        _repo_text(
+            app,
+            "repository_guard_report_checked_at",
+            "Geprüft am:",
+            "Checked at:",
+        )
+        + f" {result.get('checked_at', '-')}",
+        _repo_text(
+            app,
+            "repository_guard_report_total_sources",
+            "Quellen gesamt: {count}",
+            "Total sources: {count}",
+        ).format(count=summary.get("repositories_total", 0)),
+        _repo_text(
+            app,
+            "repository_guard_report_active_sources",
+            "Quellen aktiv: {count}",
+            "Active sources: {count}",
+        ).format(count=len(active_sources)),
+        _repo_text(
+            app,
+            "repository_guard_report_third_party_active",
+            "Drittquellen aktiv: {count}",
+            "Third-party active: {count}",
+        ).format(count=len(third_party_active)),
+        _repo_text(
+            app,
+            "repository_guard_report_trusted_hosts_active",
+            "Vertraute Hosts aktiv: {count}",
+            "Trusted hosts active: {count}",
+        ).format(
+            count=sum(1 for item in active_sources if item.get("trusted_host", False))
+        ),
+        _repo_text(
+            app,
+            "repository_guard_report_findings",
+            "Befunde: {count}",
+            "Findings: {count}",
+        ).format(count=summary.get("findings_total", 0)),
+        _repo_text(
+            app,
+            "repository_guard_report_warnings",
+            "Warnungen: {count}",
+            "Warnings: {count}",
+        ).format(count=summary.get("warning", 0)),
+        _repo_text(
+            app,
+            "repository_guard_report_notices",
+            "Hinweise: {count}",
+            "Notices: {count}",
+        ).format(count=summary.get("notice", 0)),
+        _repo_text(
+            app,
+            "repository_guard_report_errors",
+            "Fehler: {count}",
+            "Errors: {count}",
+        ).format(count=summary.get("errors", 0)),
+        _repo_text(
+            app,
+            "repository_guard_report_baseline_changes",
+            "Baseline-Änderungen: {count}",
+            "Baseline changes: {count}",
+        ).format(count=_baseline_change_count(result)),
         "",
-        "Note:",
-        "APT .list, Deb822 .sources and Flatpak remotes are currently read locally.",
+        _repo_text(
+            app,
+            "repository_guard_report_note_header",
+            "Hinweis:",
+            "Note:",
+        ),
+        _repo_text(
+            app,
+            "repository_guard_report_note_body",
+            "APT-.list, Deb822-.sources und Flatpak-Remotes werden aktuell lokal eingelesen.",
+            "APT .list, Deb822 .sources, and Flatpak remotes are currently read locally.",
+        ),
     ]
     return "\n".join(lines)
 
 
-def format_repository_guard_source_details(source: dict) -> str:
+def format_repository_guard_source_details(source: dict, app=None) -> str:
     lines = [
-        "=== Repository-Quelle ===",
+        _repo_text(
+            app,
+            "repository_guard_source_details_title",
+            "=== Repository-Quelle ===",
+            "=== Repository Source ===",
+        ),
         "",
-        f"ID: {source.get('id', '-')}",
-        f"Aktiv: {'ja' if source.get('enabled', True) else 'nein'}",
-        f"Typ: {source.get('repo_type', '-')}",
+        f"{_repo_text(app, 'label_id', 'ID', 'ID')}: {source.get('id', '-')}",
+        _repo_text(
+            app,
+            "repository_guard_source_details_active",
+            "Aktiv: {value}",
+            "Active: {value}",
+        ).format(value="ja" if source.get("enabled", True) else "nein"),
+        _repo_text(
+            app,
+            "repository_guard_source_details_type",
+            "Typ: {value}",
+            "Type: {value}",
+        ).format(value=source.get("repo_type", "-")),
         f"URI: {source.get('uri', '-')}",
-        f"Host: {source.get('host', '-') or '-'}",
-        f"Trust: {_repository_guard_trust_state_label(source.get('trust_state'))}",
-        f"Suite: {source.get('suite', '-')}",
-        f"Format: {source.get('format', '-')}",
-        f"Komponenten: {', '.join(source.get('components', []) or ['-'])}",
-        f"Datei: {source.get('file_path', '-')}",
-        f"Zeile: {source.get('line_no', '-')}",
+        _repo_text(
+            app,
+            "repository_guard_source_details_host",
+            "Host: {value}",
+            "Host: {value}",
+        ).format(value=source.get("host", "-") or "-"),
+        _repo_text(
+            app,
+            "repository_guard_source_details_trust",
+            "Vertrauen: {value}",
+            "Trust: {value}",
+        ).format(value=_repository_guard_trust_state_label(app, source.get("trust_state"))),
+        _repo_text(
+            app,
+            "repository_guard_source_details_suite",
+            "Suite: {value}",
+            "Suite: {value}",
+        ).format(value=source.get("suite", "-")),
+        _repo_text(
+            app,
+            "repository_guard_source_details_format",
+            "Format: {value}",
+            "Format: {value}",
+        ).format(value=source.get("format", "-")),
+        _repo_text(
+            app,
+            "repository_guard_source_details_components",
+            "Komponenten: {value}",
+            "Components: {value}",
+        ).format(value=", ".join(source.get("components", []) or ["-"])),
+        _repo_text(
+            app,
+            "repository_guard_source_details_file",
+            "Datei: {value}",
+            "File: {value}",
+        ).format(value=source.get("file_path", "-")),
+        _repo_text(
+            app,
+            "repository_guard_source_details_line",
+            "Zeile: {value}",
+            "Line: {value}",
+        ).format(value=source.get("line_no", "-")),
         f"signed-by: {source.get('signed_by', '-') or '-'}",
-        f"Herkunft: {source.get('origin_class', '-')}",
+        _repo_text(
+            app,
+            "repository_guard_source_details_origin",
+            "Herkunft: {value}",
+            "Origin: {value}",
+        ).format(value=source.get("origin_class", "-")),
         "",
-        "Rohzeile:",
+        _repo_text(
+            app,
+            "repository_guard_source_details_raw_line",
+            "Rohzeile:",
+            "Raw line:",
+        ),
         source.get("raw_line", "-"),
     ]
     return "\n".join(lines)
@@ -491,35 +647,75 @@ def format_repository_guard_finding_details(app, finding: dict) -> str:
     source = _repository_guard_source_map(app).get(source_id)
 
     lines = [
-        "=== Repository Finding ===",
+        _repo_text(
+            app,
+            "repository_guard_finding_details_title",
+            "=== Repository-Befund ===",
+            "=== Repository Finding ===",
+        ),
         "",
-        f"Schwere: {str(finding.get('severity', '-')).upper()}",
-        f"Code: {finding.get('code', '-')}",
-        f"Titel: {finding.get('title', '-')}",
+        _repo_text(
+            app,
+            "repository_guard_finding_details_severity",
+            "Schwere: {value}",
+            "Severity: {value}",
+        ).format(value=str(finding.get("severity", "-")).upper()),
+        _repo_text(
+            app,
+            "repository_guard_finding_details_code",
+            "Code: {value}",
+            "Code: {value}",
+        ).format(value=finding.get("code", "-")),
+        _repo_text(
+            app,
+            "repository_guard_finding_details_label_title",
+            "Titel: {value}",
+            "Title: {value}",
+        ).format(value=finding.get("title", "-")),
         "",
-        f"Zusammenfassung: {finding.get('summary', '-')}",
+        _repo_text(
+            app,
+            "repository_guard_finding_details_summary",
+            "Zusammenfassung: {value}",
+            "Summary: {value}",
+        ).format(value=finding.get("summary", "-")),
     ]
     details = dict(finding.get("details") or {})
     if details:
-        lines.extend(["", "Details:"])
+        lines.extend(["", _repo_text(app, "btn_details", "Details", "Details") + ":"])
         for key in sorted(details):
             lines.append(f"- {key}: {details.get(key)}")
     recommendations = get_repository_guard_finding_recommendations(
         finding, source=source
     )
     if recommendations:
-        lines.extend(["", "Empfohlene Prüfung:"])
+        lines.extend(
+            [
+                "",
+                _repo_text(
+                    app,
+                    "repository_guard_finding_details_recommendations",
+                    "Empfohlene Prüfung:",
+                    "Recommended checks:",
+                ),
+            ]
+        )
         for item in recommendations:
             lines.append(f"- {item}")
     if source is not None:
         lines.extend(
             [
                 "",
-                "Zugehörige Quelle:",
-                f"- Typ: {source.get('repo_type', '-')}",
+                _repo_text(
+                    app,
+                    "repository_guard_finding_details_related_source",
+                    "Zugehörige Quelle:",
+                    "Related source:",
+                ),
+                f"- {_repo_text(app, 'repository_guard_col_type', 'Typ', 'Type')}: {source.get('repo_type', '-')}",
                 f"- URI: {source.get('uri', '-')}",
-                f"- Datei: {source.get('file_path', '-')}",
-                f"- Zeile: {source.get('line_no', '-')}",
+                f"- {_repo_text(app, 'repository_guard_col_file', 'Datei', 'File')}: {source.get('file_path', '-')}",
+                f"- {_repo_text(app, 'repository_guard_source_details_line', 'Zeile: {value}', 'Line: {value}').format(value=source.get('line_no', '-'))}",
             ]
         )
     return "\n".join(lines)
@@ -680,17 +876,17 @@ def clear_repository_guard_view(app):
 
     _set_status(
         app,
-        status=app.tr("repository_guard_status_not_checked", "Status: Not checked"),
+        status=app.tr("repository_guard_status_not_checked", "Status: Nicht geprüft"),
         scan_status=app.tr(
             "repository_guard_scan_unavailable",
-            "Repository scan: Not available yet",
+            "Repository-Scan: Noch nicht verfügbar",
         ),
     )
     _set_summary(
         app,
         app.tr(
             "repository_guard_summary_empty",
-            "Sources: 0 | Findings: 0 | Warnings: 0 | Errors: 0",
+            "Quellen: 0 | Funde: 0 | Warnungen: 0 | Fehler: 0",
         ),
     )
     update_repository_guard_filter_status_line(app)
@@ -701,7 +897,7 @@ def clear_repository_guard_view(app):
         app,
         app.tr(
             "repository_guard_detail_placeholder",
-            "Repository Guard details will appear here.\n",
+            "Repository-Guard-Details erscheinen hier.\n",
         ),
     )
     app.log("Repository Guard: Anzeige geleert.")
@@ -971,8 +1167,8 @@ def _repository_guard_source_filter_status_text(filter_mode: str) -> str:
         "apt": "Quellenfilter: nur APT",
         "flatpak": "Quellenfilter: nur Flatpak",
         "active": "Quellenfilter: nur aktiv",
-        "third_party": "Quellenfilter: nur Drittanbieter",
-        "trusted": "Quellenfilter: nur Trusted Hosts",
+        "third_party": "Quellenfilter: nur Drittquellen",
+        "trusted": "Quellenfilter: nur vertraute Hosts",
         "review": "Quellenfilter: nur prüfen",
     }.get(str(filter_mode or "all").strip().lower(), "Quellenfilter: alle")
 
@@ -983,7 +1179,7 @@ def _repository_guard_finding_filter_status_text(filter_mode: str) -> str:
         "relevant": "Finding-Filter: relevant",
         "baseline": "Finding-Filter: Baseline-Änderungen",
         "keyring": "Finding-Filter: Keyring-Probleme",
-        "review": "Finding-Filter: Drittanbieter-Prüfung",
+        "review": "Finding-Filter: Drittquellen-Prüfung",
         "warnings": "Finding-Filter: Warnungen + Fehler",
         "notices": "Finding-Filter: Hinweise + Info",
     }.get(str(filter_mode or "all").strip().lower(), "Finding-Filter: alle")
@@ -1250,7 +1446,7 @@ def _repository_guard_filter_choice_text(
 
 
 def _repository_guard_empty_trustlist_message() -> str:
-    return "Keine Trusted Hosts gespeichert."
+    return "Keine vertrauten Hosts gespeichert."
 
 
 def _repository_guard_trustlist_host_lines(host: str, item: dict) -> list[str]:

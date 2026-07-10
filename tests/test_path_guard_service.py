@@ -108,6 +108,7 @@ def test_run_check_keeps_normal_user_bins_and_missing_snap_low_risk(tmp_path):
 
 def test_format_path_guard_result_and_analyze_with_chad():
     app = App.__new__(App)
+    app.lang = {}
     calls = []
     result = {
         "path_entries": ["/tmp", "/usr/bin"],
@@ -141,15 +142,16 @@ def test_format_path_guard_result_and_analyze_with_chad():
     text = app.format_path_guard_result(result)
     app.analyze_path_guard_with_chad()
 
-    assert "=== PATH Guard Check ===" in text
-    assert "[HIGH] /tmp" in text
+    assert "=== PATH Guard Prüfung ===" in text
+    assert "[HOCH] /tmp" in text
     assert 'export PATH="/tmp:$PATH"' in text
     assert calls[0][0] == "PATH Guard Analyse"
-    assert "Risk: high" in calls[0][1]
+    assert "Risiko: hoch" in calls[0][1]
 
 
 def test_format_path_guard_result_shows_hints_for_normal_user_bins():
     app = App.__new__(App)
+    app.lang = {}
     result = {
         "path_entries": ["/snap/bin", "/usr/bin"],
         "path_findings": [
@@ -180,6 +182,57 @@ def test_format_path_guard_result_shows_hints_for_normal_user_bins():
 
     text = app.format_path_guard_result(result)
 
+    assert "Risiko: niedrig" in text
+    assert "Hinweise:" in text
+    assert "/snap/bin steht im PATH, existiert aber nicht." in text
+    assert "~/.local/bin wird über .profile/.bashrc ergänzt. Das ist üblich." in text
+    assert "~/bin wird über .profile/.bashrc ergänzt. Das ist üblich." in text
+    assert "Keine auffällige PATH-Manipulation erkannt." in text
+
+
+def test_format_path_guard_result_uses_english_translations_when_loaded():
+    app = App.__new__(App)
+    app.lang = {
+        "path_guard_report_title": "=== PATH Guard Check ===",
+        "path_guard_report_risk": "Risk: {value}",
+        "path_guard_report_notes": "Notes:",
+        "path_guard_report_none_detected": "No suspicious PATH manipulation detected.",
+        "path_guard_risk_low": "low",
+        "path_guard_issue_snap_missing": "/snap/bin is in PATH but does not exist.",
+        "path_guard_hint_local_bin_common": "~/.local/bin is added via .profile/.bashrc. This is common.",
+        "path_guard_hint_home_bin_common": "~/bin is added via .profile/.bashrc. This is common.",
+    }
+    result = {
+        "path_entries": ["/snap/bin", "/usr/bin"],
+        "path_findings": [
+            {
+                "entry": "/snap/bin",
+                "severity": "info",
+                "issues": ["/snap/bin steht im PATH, existiert aber nicht."],
+            }
+        ],
+        "profile_findings": [
+            {
+                "path": "/home/test/.bashrc",
+                "exists": True,
+                "severity": "info",
+                "matches": [
+                    {
+                        "line": 1,
+                        "text": 'export PATH="$HOME/bin:$HOME/.local/bin:$PATH"',
+                        "severity": "info",
+                        "issues": ["Übliche User-Bin-Pfade werden eingebunden."],
+                    }
+                ],
+            }
+        ],
+        "risk": "niedrig",
+        "counts": {"high": 0, "medium": 0},
+    }
+
+    text = app.format_path_guard_result(result)
+
+    assert "=== PATH Guard Check ===" in text
     assert "Risk: low" in text
     assert "Notes:" in text
     assert "/snap/bin is in PATH but does not exist." in text

@@ -2,6 +2,20 @@
 
 Automatisch aus der Git-Historie des Repositories erzeugt.
 
+## 2026-07-11 - Version 1.1.17
+
+- Deutsche und englische Sprachzuordnungen systematisch bereinigt; deutsche Presets zeigen in Firewall, PATH Guard, Lynis, Repository Guard und weiteren Security-Bereichen keine englischen Standardtexte mehr an.
+- Security-Untertabs neu und kompakt benannt: `Devices`, `Firewall`, `Path`, `Prozesse`/`Processes`, `Repos`, `Roots`, `Autostart`, `Rootkithunter` und `Capture`.
+- PATH Guard aus dem bisherigen Device-/Guard-Bereich in einen eigenen Security-Tab mit eigener Detailansicht verschoben; Ampel-, Menue-, Hilfe- und Tour-Navigation entsprechend angepasst.
+- PATH-Guard-Berichte, Risiken, Schweregrade, Hinweise und Shell-Profilbefunde vollstaendig sprachabhaengig formatiert.
+- Firewall-Bewertungen und Listener-Hinweise im deutschen Preset uebersetzt, englische Ausgaben bleiben ueber die englischen Sprachschluessel verfuegbar.
+- Lynis-Status, Scanbezeichnungen, Abschlussmeldungen, Hinweise und Ergebnisplatzhalter fuer beide Sprachen konsistent zugeordnet.
+- Repository-Guard-Oberflaeche, Berichte, Detailansichten, Filter, Vertrauensstatus und Befundtexte sprachabhaengig vereinheitlicht.
+- D-Scan um `Pfad kopieren` erweitert; der Temp-Ordner-Pfad kann direkt in die Zwischenablage uebernommen werden. Die zugehoerigen Aktionen sind in zwei funktionale Button-Reihen gegliedert.
+- Laufzeit- und Netzwerk-Debug-Logs verwenden jetzt vollstaendige Zeitstempel mit Datum, damit Eintraege ueber Tages- und Stundenwechsel chronologisch eindeutig bleiben.
+- Sprach-, Controller-, Routing- und UI-Tests fuer die korrigierten Ausgaben und neuen Bedienwege erweitert.
+- Paket-, App-, Dokumentations- und Downloadstand auf `1.1.17` angehoben.
+
 ## 2026-07-07 - Version 1.1.16
 
 - Release-Artefakte fuer den aktuellen Stand erneut gebaut.

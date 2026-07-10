@@ -1,6 +1,6 @@
 # NetMon
 
-Dokumentierter Paket- und App-Stand: `1.1.16`.
+Dokumentierter Paket- und App-Stand: `1.1.17`.
 
 NetMon ist eine Linux-GUI fuer Netzwerk-, DNS-, Firewall-, VPN-, Security-, Radio- und Hilfsfunktionen. Der Startpfad liegt in `netmon/main.py`, die Hauptoberflaeche in `netmon/app.py`, und die Funktionslogik ist in Controller-, Service- und Tab-Module aufgeteilt.
 
@@ -47,7 +47,7 @@ NetMon kombiniert klassische Netzwerk-Werkzeuge, DNS-/DoT-Steuerung, Firewall- u
 
 ### Debian-Paketstand
 
-- Aktueller Test-/Paketstand in diesem Repository: `1.1.16`
+- Aktueller Test-/Paketstand in diesem Repository: `1.1.17`
 - Build-Skript: `scripts/build_netmon_deb.sh`
 - Ergebnisdatei: `dist/netmon_<version>_all.deb`
 - Harte Laufzeitabhaengigkeiten im Paket: `udisks2`, `cryptsetup`
@@ -77,6 +77,11 @@ Wenn `tkinter` fehlt, meldet `netmon/main.py` explizit den Debian/Ubuntu-Hinweis
 3. Im Bereich `Settings` / `Theme Studio` Theme und Sprache pruefen.
 4. DNS-, Firewall- und Security-Bereiche nur mit passender Linux-Umgebung und ggf. `sudo` nutzen.
 5. Weitere Details: [USER_GUIDE.md](./USER_GUIDE.md), [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md), [CONFIGURATION.md](./CONFIGURATION.md)
+
+## Externes Testlabor
+
+- Fuer ein externes Linux-Testlabor auf `/media/happy/Work2/netmon-lab` siehe [LAB_WORKFLOW.md](./LAB_WORKFLOW.md).
+- Ein neuer Run-Ordner laesst sich mit `scripts/lab/init_test_run.sh` vorbereiten.
 
 ## Lizenz
 

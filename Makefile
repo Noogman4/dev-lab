@@ -58,7 +58,7 @@ site-release-update:
 	bash scripts/build_netmon_release_update_bundle.sh
 
 print-netmon-sha256:
-	sha256sum dist/netmon_1.1.16_all.deb
+	sha256sum dist/netmon_1.1.17_all.deb
 
 clean:
 	rm -rf $(VENV) .pytest_cache __pycache__
