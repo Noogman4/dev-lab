@@ -1,8 +1,8 @@
 # Firefox Browser Container Builder
 
 Dieses Repo enthaelt ein vorsichtiges Python-Werkzeug, das bestehende
-Firefox-Standalone-Installationen unter `/home/happy/Programme` erkennt,
-dokumentiert und neue getrennte Container vorbereitet.
+Firefox-Standalone-Installationen erkennt, dokumentiert und neue getrennte
+Container unter `Dokumente/NetMon/Secure Browser` vorbereitet.
 
 ## Sicherheitsregeln
 
@@ -10,7 +10,8 @@ dokumentiert und neue getrennte Container vorbereitet.
 - Echte Aenderungen passieren nur mit `--apply`.
 - Vor `--apply` wird zuerst der komplette Plan angezeigt.
 - Vor echten Aenderungen wird ein Backup unter
-  `/home/happy/Programme/browser-container-builder-backups/<timestamp>/` angelegt.
+  `Dokumente/NetMon/Secure Browser/browser-container-builder-backups/<timestamp>/`
+  angelegt.
 - Bestehende Zielordner fuehren zum Abbruch.
 - Es werden keine bestehenden Ordner geloescht oder ueberschrieben.
 - Es werden keine Schreibzugriffe nach `~/.mozilla/firefox` oder
@@ -133,7 +134,7 @@ python3 browser_container_builder.py --apply
 
 - Python 3.11+
 - vorhandenes Firefox-Quellverzeichnis fuer neue Container, z. B.
-  `/home/happy/Programme/firefox-base/firefox`
+  `/opt/netmon-browser/firefox`
 
 Wenn `default_source_firefox_dir` nicht gesetzt ist, versucht der Builder genau
 eine vorhandene standalone Firefox-Quelle aus dem Scan zu uebernehmen. Bei

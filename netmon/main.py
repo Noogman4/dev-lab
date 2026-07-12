@@ -580,6 +580,7 @@ def _temporary_app_smoke_patches(app_cls):
         "prepare_download_scan_workspace",
         "refresh_roots_baseline_guard_status",
         "setup_all_tab_tooltips",
+        "security_scan_now",
     )
     originals = {}
     for name in method_names:

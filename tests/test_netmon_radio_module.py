@@ -1569,7 +1569,7 @@ def test_app_header_source_contains_compact_radio_player():
     assert "textvariable=self.radio_volume_label_var" in source
     assert "self.radio_header_frame.grid_propagate(False)" in source
     assert "self.radio_header_frame.pack_propagate(False)" in source
-    assert "self.radio_header_frame.configure(width=300, height=126)" in source
+    assert "self.radio_header_frame.configure(width=300, height=138)" in source
     assert 'self.radio_header_frame.place(relx=0.5, y=8, anchor="n")' in source
     assert "self.radio_header_volume = ttk.Scale(" in source
     assert "length=160" in source

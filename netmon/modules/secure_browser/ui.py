@@ -33,6 +33,7 @@ MAINTENANCE_ACTIONS = [
     ("secure_browser_btn_refresh_existing", "Aktualisieren", "refresh_existing"),
     ("secure_browser_btn_repair_policy", "Reparieren", "repair_policy"),
     ("secure_browser_btn_inspect_launcher", "Launcher", "inspect_launcher"),
+    ("secure_browser_btn_cleanup_menu", "Menü bereinigen", "cleanup_menu"),
 ]
 
 STATUS_STYLE_MAP = {
@@ -46,7 +47,7 @@ STATUS_STYLE_MAP = {
 }
 
 
-def _bind_entry_clipboard_support(widget) -> None:
+def _bind_clipboard_support(widget) -> None:
     def handle_copy(_event=None):
         try:
             widget.event_generate("<<Copy>>")
@@ -72,6 +73,7 @@ def _bind_entry_clipboard_support(widget) -> None:
         menu_factory = getattr(tk, "Menu", None)
         if menu_factory is None:
             return "break"
+        menu = None
         try:
             menu = menu_factory(widget, tearoff=0)
             menu.add_command(label="Ausschneiden", command=handle_cut)
@@ -82,7 +84,8 @@ def _bind_entry_clipboard_support(widget) -> None:
             LOGGER.exception("Secure Browser clipboard menu failed")
         finally:
             try:
-                menu.grab_release()
+                if menu is not None:
+                    menu.grab_release()
             except Exception:
                 pass
         return "break"
@@ -131,7 +134,7 @@ def _prompt_url_with_context_menu(parent, title: str, prompt: str) -> str | None
 
         entry = ttk.Entry(content, width=56)
         entry.grid(row=1, column=0, sticky="ew", pady=(8, 0))
-        _bind_entry_clipboard_support(entry)
+        _bind_clipboard_support(entry)
         if hasattr(entry, "focus_set"):
             entry.focus_set()
 
@@ -153,9 +156,7 @@ def _prompt_url_with_context_menu(parent, title: str, prompt: str) -> str | None
         ttk.Button(button_row, text="OK", command=accept).grid(
             row=0, column=0, padx=(0, 8)
         )
-        ttk.Button(button_row, text="Abbrechen", command=cancel).grid(
-            row=0, column=1
-        )
+        ttk.Button(button_row, text="Abbrechen", command=cancel).grid(row=0, column=1)
 
         try:
             dialog.bind("<Return>", accept)
@@ -262,7 +263,9 @@ def create_secure_browser_tab(
     status_row = ttk.Frame(frame)
     status_row.grid(row=3, column=0, sticky="ew")
 
-    status_title = ttk.Label(status_row, text=T("secure_browser_label_status", "Status:"))
+    status_title = ttk.Label(
+        status_row, text=T("secure_browser_label_status", "Status:")
+    )
     status_title.grid(row=0, column=0, sticky="w", padx=(0, 8))
 
     status_badge = ttk.Label(
@@ -337,8 +340,9 @@ def create_secure_browser_tab(
         right_fields.columnconfigure(1, minsize=240)
 
     draft_name_label = ttk.Label(
-        left_fields, text=T("secure_browser_label_container_name", "Containername:")
-        , width=CREATE_LABEL_WIDTH
+        left_fields,
+        text=T("secure_browser_label_container_name", "Containername:"),
+        width=CREATE_LABEL_WIDTH,
     )
     draft_name_label.grid(row=0, column=0, sticky="w", padx=(0, 8), pady=(0, 0))
 
@@ -350,10 +354,12 @@ def create_secure_browser_tab(
         padx=(0, FIELD_PAD_X),
         pady=(0, 0),
     )
-    _bind_entry_clipboard_support(draft_name_entry)
+    _bind_clipboard_support(draft_name_entry)
 
     draft_homepage_label = ttk.Label(
-        right_fields, text=T("secure_browser_label_website", "Webseite:"), width=CREATE_LABEL_WIDTH
+        right_fields,
+        text=T("secure_browser_label_website", "Webseite:"),
+        width=CREATE_LABEL_WIDTH,
     )
     draft_homepage_label.grid(
         row=0,
@@ -371,14 +377,16 @@ def create_secure_browser_tab(
         padx=(0, FIELD_PAD_X),
         pady=(0, 0),
     )
-    _bind_entry_clipboard_support(draft_homepage_entry)
+    _bind_clipboard_support(draft_homepage_entry)
 
     draft_domains_label = ttk.Label(
         left_fields,
         text=T("secure_browser_label_domains", "Domains:"),
         width=CREATE_LABEL_WIDTH,
     )
-    draft_domains_label.grid(row=1, column=0, sticky="w", padx=(0, 8), pady=(ROW_PAD_Y, 0))
+    draft_domains_label.grid(
+        row=1, column=0, sticky="w", padx=(0, 8), pady=(ROW_PAD_Y, 0)
+    )
 
     draft_domains_entry = ttk.Entry(left_fields, width=CREATE_FIELD_WIDTH)
     draft_domains_entry.grid(
@@ -388,7 +396,7 @@ def create_secure_browser_tab(
         padx=(0, FIELD_PAD_X),
         pady=(ROW_PAD_Y, 0),
     )
-    _bind_entry_clipboard_support(draft_domains_entry)
+    _bind_clipboard_support(draft_domains_entry)
 
     draft_menu_label = ttk.Label(
         right_fields,
@@ -405,14 +413,16 @@ def create_secure_browser_tab(
         padx=(0, FIELD_PAD_X),
         pady=(ROW_PAD_Y, 0),
     )
-    _bind_entry_clipboard_support(draft_menu_entry)
+    _bind_clipboard_support(draft_menu_entry)
 
     draft_new_tab_label = ttk.Label(
         left_fields,
         text=T("secure_browser_label_new_tabs", "Neue Tabs:"),
         width=CREATE_LABEL_WIDTH,
     )
-    draft_new_tab_label.grid(row=2, column=0, sticky="w", padx=(0, 8), pady=(ROW_PAD_Y, 0))
+    draft_new_tab_label.grid(
+        row=2, column=0, sticky="w", padx=(0, 8), pady=(ROW_PAD_Y, 0)
+    )
 
     draft_new_tab_entry = ttk.Entry(left_fields, width=CREATE_FIELD_WIDTH)
     draft_new_tab_entry.grid(
@@ -422,14 +432,16 @@ def create_secure_browser_tab(
         padx=(0, FIELD_PAD_X),
         pady=(ROW_PAD_Y, 0),
     )
-    _bind_entry_clipboard_support(draft_new_tab_entry)
+    _bind_clipboard_support(draft_new_tab_entry)
 
     draft_icon_mode_label = ttk.Label(
         right_fields,
         text=T("secure_browser_label_icon_mode", "Icon-Modus:"),
         width=CREATE_LABEL_WIDTH,
     )
-    draft_icon_mode_label.grid(row=2, column=0, sticky="w", padx=(0, 8), pady=(ROW_PAD_Y, 0))
+    draft_icon_mode_label.grid(
+        row=2, column=0, sticky="w", padx=(0, 8), pady=(ROW_PAD_Y, 0)
+    )
 
     draft_icon_mode = ttk.Combobox(
         right_fields,
@@ -520,7 +532,9 @@ def create_secure_browser_tab(
 
     checkbutton_factory = getattr(ttk, "Checkbutton", ttk.Button)
     security_options_row = ttk.Frame(security_row)
-    security_options_row.grid(row=1, column=0, columnspan=3, sticky="w", pady=(ROW_PAD_Y, 0))
+    security_options_row.grid(
+        row=1, column=0, columnspan=3, sticky="w", pady=(ROW_PAD_Y, 0)
+    )
     if hasattr(security_options_row, "columnconfigure"):
         security_options_row.columnconfigure(0, minsize=240)
         security_options_row.columnconfigure(1, minsize=240)
@@ -535,9 +549,7 @@ def create_secure_browser_tab(
         variable=allow_password_manager_var,
         command=sync_profile_from_security_controls,
     )
-    draft_allow_password_manager.grid(
-        row=0, column=0, sticky="w", pady=(0, 0)
-    )
+    draft_allow_password_manager.grid(row=0, column=0, sticky="w", pady=(0, 0))
 
     draft_keep_cookies = checkbutton_factory(
         security_options_row,
@@ -692,6 +704,7 @@ def create_secure_browser_tab(
         font=("Courier", 10),
     )
     detail_text.grid(row=1, column=2, sticky="nsew", padx=(12, 0))
+    _bind_clipboard_support(detail_text)
     detail_scrollbar = scrollbar_factory(
         content_frame,
         orient="vertical",
@@ -704,6 +717,22 @@ def create_secure_browser_tab(
         LOGGER.exception("Secure Browser detail scrollbar binding failed")
     detail_text.insert("1.0", manager.render_preflight_text())
     detail_text.configure(state="disabled")
+
+    detail_clipboard_row = ttk.Frame(content_frame)
+    detail_clipboard_row.grid(row=2, column=2, sticky="e", pady=(8, 0))
+    detail_copy_button = ttk.Button(
+        detail_clipboard_row,
+        text=T("secure_browser_btn_copy_whitelist", "Kopieren"),
+        width=CREATE_BUTTON_WIDTH,
+    )
+    detail_copy_button.grid(row=0, column=0, padx=(0, 8))
+    detail_paste_button = ttk.Button(
+        detail_clipboard_row,
+        text=T("secure_browser_btn_paste_whitelist", "Einfügen"),
+        width=CREATE_BUTTON_WIDTH,
+        state="disabled",
+    )
+    detail_paste_button.grid(row=0, column=1)
 
     current_admin_action: str | None = None
     current_admin_target: str | None = None
@@ -723,6 +752,34 @@ def create_secure_browser_tab(
             except TypeError:
                 pass
         return getattr(widget, "text_content", "").rstrip()
+
+    def copy_detail_text() -> None:
+        try:
+            value = detail_text.get("sel.first", "sel.last")
+        except Exception:
+            value = get_text(detail_text)
+        if not value:
+            set_status("Blockiert: kein Text zum Kopieren")
+            return
+        try:
+            frame.clipboard_clear()
+            frame.clipboard_append(value)
+            set_status("OK: Whitelist kopiert")
+        except Exception as exc:
+            LOGGER.exception("Secure Browser detail copy failed")
+            set_status(f"Fehler: Kopieren fehlgeschlagen ({exc})")
+
+    def paste_detail_text() -> None:
+        if current_detail_mode != "policy_editor":
+            set_status("Blockiert: Bitte zuerst Whitelist öffnen")
+            return
+        try:
+            value = frame.clipboard_get()
+            detail_text.insert("insert", value)
+            set_status("Vorschau: Text eingefügt")
+        except Exception as exc:
+            LOGGER.exception("Secure Browser detail paste failed")
+            set_status(f"Fehler: Einfügen fehlgeschlagen ({exc})")
 
     def set_input_value(widget, value: str) -> None:
         if hasattr(widget, "set"):
@@ -784,7 +841,9 @@ def create_secure_browser_tab(
                     manager.RISK_FILTER_ALL,
                 )
                 if selected_container is not None:
-                    selected_risks = manager.service.derive_risk_hints(selected_container)
+                    selected_risks = manager.service.derive_risk_hints(
+                        selected_container
+                    )
             except Exception:
                 LOGGER.exception("Secure Browser action state refresh failed")
         needs_registration = False
@@ -804,6 +863,12 @@ def create_secure_browser_tab(
             "refresh_existing": has_selection or bool(manager.last_scan),
             "repair_policy": has_selection or bool(manager.last_scan),
         }
+        try:
+            detail_paste_button.configure(
+                state="normal" if current_detail_mode == "policy_editor" else "disabled"
+            )
+        except Exception:
+            pass
         for action, is_enabled in action_states.items():
             button = buttons.get(action)
             if button is None:
@@ -833,7 +898,9 @@ def create_secure_browser_tab(
                 manager.RISK_FILTER_ALL,
             )
             if container is None:
-                raise ValueError("Container nicht mehr in der letzten Inventur vorhanden.")
+                raise ValueError(
+                    "Container nicht mehr in der letzten Inventur vorhanden."
+                )
             policy_json = manager.service.read_policy_json(container)
         except Exception as exc:
             LOGGER.exception("Secure Browser policy editor failed")
@@ -1034,11 +1101,15 @@ def create_secure_browser_tab(
                 "",
                 manager.RISK_FILTER_ALL,
             )
+        except ValueError as exc:
+            set_status(f"Fehler: {exc}")
+            current_detail_mode = "policy_editor"
+            update_copy_buttons()
+            return
         except Exception as exc:
             LOGGER.exception("Secure Browser policy save failed")
-            set_text(detail_text, f"Fehler beim Speichern der Whitelist: {exc}")
-            set_status("Fehler: Whitelist")
-            current_detail_mode = "readonly"
+            set_status(f"Fehler: Whitelist konnte nicht gespeichert werden ({exc})")
+            current_detail_mode = "policy_editor"
             update_copy_buttons()
             return
         set_text(detail_text, output)
@@ -1073,10 +1144,15 @@ def create_secure_browser_tab(
                 get_text(detail_text),
                 value,
             )
+        except ValueError as exc:
+            set_status(f"Fehler: {exc}")
+            current_detail_mode = "policy_editor"
+            update_copy_buttons()
+            return
         except Exception as exc:
             LOGGER.exception("Secure Browser add whitelist exception failed")
-            set_text(detail_text, f"Whitelist-Ausnahme\n\nFehler: {exc}")
-            set_status("Fehler: Whitelist")
+            set_status(f"Fehler: Ausnahme konnte nicht ergänzt werden ({exc})")
+            current_detail_mode = "policy_editor"
             update_copy_buttons()
             return
         set_text(detail_text, updated, readonly=False)
@@ -1097,11 +1173,15 @@ def create_secure_browser_tab(
                 "",
                 manager.RISK_FILTER_ALL,
             )
+        except ValueError as exc:
+            set_status(f"Fehler: {exc}")
+            current_detail_mode = "policy_editor"
+            update_copy_buttons()
+            return
         except Exception as exc:
             LOGGER.exception("Secure Browser policy save after exception failed")
-            set_text(detail_text, f"Fehler beim Speichern der Whitelist: {exc}")
-            set_status("Fehler: Whitelist")
-            current_detail_mode = "readonly"
+            set_status(f"Fehler: Whitelist konnte nicht gespeichert werden ({exc})")
+            current_detail_mode = "policy_editor"
             update_copy_buttons()
             return
         set_text(detail_text, output)
@@ -1119,6 +1199,27 @@ def create_secure_browser_tab(
         )
         set_status("Vorschau: Menü bereinigen")
         update_copy_buttons()
+
+    def execute_cleanup_menu_direct() -> None:
+        nonlocal current_admin_action, current_admin_target
+        current_admin_action = "cleanup"
+        current_admin_target = None
+        confirmed = messagebox.askyesno(
+            "Menü bereinigen",
+            "Verwaiste oder doppelte Secure-Browser-Menüeinträge jetzt entfernen?",
+        )
+        if not confirmed:
+            set_status("Blockiert: Verwaltung abgebrochen")
+            return
+        try:
+            manager.execute_cleanup_menu_apply(manager.CLEANUP_CONFIRM_TOKEN)
+        except Exception as exc:
+            LOGGER.exception("Secure Browser cleanup menu failed")
+            set_text(detail_text, f"Fehler bei Verwaltungsaktion: {exc}")
+            set_status("Fehler: Verwaltung")
+            update_copy_buttons()
+            return
+        refresh_inventory_after_action()
 
     def execute_uninstall_direct() -> None:
         nonlocal current_admin_action, current_admin_target
@@ -1295,6 +1396,8 @@ def create_secure_browser_tab(
     draft_execute_button.configure(command=execute_apply)
     draft_remove_button.configure(command=execute_uninstall_direct)
     draft_inventory_button.configure(command=render_inventory)
+    detail_copy_button.configure(command=copy_detail_text)
+    detail_paste_button.configure(command=paste_detail_text)
     if hasattr(draft_inventory_button, "kwargs"):
         draft_inventory_button.kwargs["command"] = render_inventory
 
@@ -1309,6 +1412,8 @@ def create_secure_browser_tab(
             return execute_refresh_existing_direct
         if action == "repair_policy":
             return execute_repair_policy_direct
+        if action == "cleanup_menu":
+            return execute_cleanup_menu_direct
         if action == "edit_policy":
             return render_policy_editor
         if action == "add_policy_exception":
@@ -1334,6 +1439,7 @@ def create_secure_browser_tab(
                     "backup",
                     "refresh_existing",
                     "repair_policy",
+                    "cleanup_menu",
                     "edit_policy",
                 }
                 else "disabled"
@@ -1365,6 +1471,7 @@ def create_secure_browser_tab(
                     "backup",
                     "refresh_existing",
                     "repair_policy",
+                    "cleanup_menu",
                     "edit_policy",
                 }
                 else "disabled"
@@ -1411,5 +1518,7 @@ def create_secure_browser_tab(
     frame.secure_browser_container_list_scrollbar = container_list_scrollbar
     frame.secure_browser_detail_text = detail_text
     frame.secure_browser_detail_scrollbar = detail_scrollbar
+    frame.secure_browser_detail_copy_button = detail_copy_button
+    frame.secure_browser_detail_paste_button = detail_paste_button
     update_copy_buttons()
     return frame

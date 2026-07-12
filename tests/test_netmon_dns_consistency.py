@@ -2987,6 +2987,70 @@ def test_update_vpn_status_text_hides_ip_and_country_when_vpn_is_off():
     assert app.vpn_status_text_var.get() == "VPN: aus | IP: - | Land: -"
 
 
+def test_vpn_ip_country_refresh_is_debounced_and_forced_after_route_change():
+    app = netmon.App.__new__(netmon.App)
+    after_calls = []
+    refresh_calls = []
+    app.last_ip_ts = 123.0
+    app._vpn_ip_refresh_generation = 0
+    app.after = lambda delay, callback: after_calls.append((delay, callback))
+    app.ip_country_async = lambda force=False: refresh_calls.append(force)
+
+    app._schedule_vpn_ip_country_refresh(delay_ms=750)
+    app._schedule_vpn_ip_country_refresh(delay_ms=900)
+
+    assert app.last_ip_ts == 0.0
+    assert [delay for delay, _callback in after_calls] == [750, 900]
+
+    after_calls[0][1]()
+    after_calls[1][1]()
+
+    assert refresh_calls == [True]
+
+
+def test_forced_ip_country_refresh_waits_for_running_request(monkeypatch):
+    app = netmon.App.__new__(netmon.App)
+    thread_targets = []
+    after_calls = []
+
+    class CapturingThread:
+        def __init__(self, target=None, daemon=None):
+            self.target = target
+
+        def start(self):
+            thread_targets.append(self.target)
+
+    monkeypatch.setattr(netmon.threading, "Thread", CapturingThread)
+    monkeypatch.setattr(
+        netmon,
+        "run_cmd",
+        lambda _args, timeout=0: (0, "198.51.100.42"),
+    )
+
+    app.ip_country_running = False
+    app.last_ip_ts = 0.0
+    app.auto_external_checks = DummyVar(True)
+    app._fetch_country_from_ipinfo = lambda timeout_s=3: ("DE", "")
+    app._update_ip_country_ui = lambda: None
+    app.after = lambda delay, callback: after_calls.append((delay, callback))
+
+    app.ip_country_async(force=False)
+    app.ip_country_async(force=True)
+
+    assert len(thread_targets) == 1
+    assert app._ip_country_force_pending is True
+
+    thread_targets[0]()
+    assert app.ip_country_running is False
+
+    assert len(after_calls) == 2
+    pending_force_callback = after_calls[-1][1]
+    pending_force_callback()
+
+    assert len(thread_targets) == 2
+    assert app.ip_country_running is True
+
+
 def test_refresh_updates_vpn_status_text():
     app = netmon.App.__new__(netmon.App)
     colors = []

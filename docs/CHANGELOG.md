@@ -4,6 +4,26 @@ Automatisch aus der Git-Historie des Repositories erzeugt.
 
 ## 2026-07-11 - Version 1.1.17
 
+- Rechter Link-Slot-Bereich von 15 auf 20 frei beschreibbare interne oder externe Links erweitert; die fuenf neuen Buttons werden in Originalgroesse unten angehaengt und verschieben VPN-Slots sowie Security-Systemcheck entsprechend nach unten.
+- Bestehende Konfigurationen mit 15 Link-Slots bleiben erhalten und werden beim Laden automatisch um die leeren Slots 16 bis 20 ergaenzt.
+- Rechter VPN-Slot-Bereich von 5 auf 10 Slots erweitert; die neuen Slots 6 bis 10 werden in Originalgroesse unten angehaengt und verschieben nachfolgende Bereiche entsprechend nach unten.
+- Bestehende VPN-Slot-Konfigurationen bleiben erhalten und werden beim Laden automatisch um die leeren Slots 6 bis 10 ergaenzt.
+- Aktualisierter Paketbuild mit unveraenderter Versionsnummer `1.1.17` fuer die nachgezogenen VPN-, Status- und Tour-Korrekturen.
+- VPN-Profile lassen sich im VPN-Tab wieder direkt aus der markierten Tabellenzeile loeschen, auch wenn das Profilfeld im Formular leer ist.
+- Beim Loeschen eines WireGuard-Profils werden zugehoerige normale VPN-Slots, primaere VPN-Slots und die Privacy-VPN-Auswahl konsistent bereinigt.
+- VPN-Slots starten vorhandene Profile auch dann, wenn die zwischengespeicherte Profilliste noch nicht aktualisiert wurde.
+- Die VPN-Ampel aktualisiert nach einem erfolgreichen Profilwechsel die oeffentliche IP und das Exit-Land automatisch; der normale 60-Sekunden-Cache blockiert diesen Wechsel-Refresh nicht mehr.
+- Der Secure-Browser-Tab ist als eigene deutsche und englische Tour im Setup verfuegbar und wird automatisch in die volle Tour aufgenommen.
+- Die Secure-Browser-Tour erklaert Profiltrennung, Browser-Hardening, Domain-Whitelist, Cookie-Persistenz, Dry-Run und die Grenzen gegenueber IP-Sichtbarkeit, Fingerprinting und Kontoerkennung.
+- Neue Secure-Browser-Instanzen werden XDG-konform unter `Dokumente/NetMon/Secure Browser` angelegt; der Zielordner entsteht bei Bedarf automatisch und harte benutzerspezifische Pfade wurden entfernt.
+- Die nach abgeschlossener Browser-Migration nicht mehr benoetigte Legacy-Integration von `~/Programme` wurde aus Inventur, Verwaltung, Quellensuche und Deinstaller entfernt; Secure Browser verwenden ausschliesslich `Dokumente/NetMon/Secure Browser`.
+- Der Deinstaller fragt Secure Browser separat mit der sicheren Vorgabe `[y/N]` ab und schuetzt sie bei `N` auch vor der allgemeinen NetMon-Dokumentenbereinigung.
+- Secure-Browser-Menueeintraege zeigen nach Erstellung, Einbindung oder Aktualisierung nur noch den eigentlichen Namen wie `GitHub` oder `Sparkasse Ulm`; das stoerende Praefix `NetMon Secure Browser` bleibt auf technische Dateinamen und interne Kennungen beschraenkt.
+- Die Secure-Browser-Aktualisierung behaelt vorhandene lokale PNG-/ICO-Symbole bei fehlgeschlagenem Favicon-Download und bevorzugt kompatible Raster-Icons vor SVG-Dateien; dadurch bleiben unter anderem Chad- und cPanel-Menueicons erhalten.
+- Der mittlere Radio-/Uhrbereich im Kopf erhaelt eine groessere feste Hoehenreserve, damit die LCD-Uhr auch mit dem aktuellen Theme vollstaendig oberhalb der Haupttabs sichtbar bleibt.
+- Mitgelieferte Log-Pics werden bei der Paketinstallation unter `Documents/NetMon/Log-Pics` beziehungsweise `Dokumente/NetMon/Log-Pics` vorbereitet.
+- Debian-Paketlayout mit Lintian geprueft und auf `/usr/lib/netmon`, `/usr/share/netmon` sowie `/usr/share/doc/netmon` standardisiert.
+- Paket um Debian-Copyright, komprimierten Changelog, Manpages und `md5sums` ergaenzt; Dateirechte, Icon-Groesse und Paketbeschreibung korrigiert.
 - Deutsche und englische Sprachzuordnungen systematisch bereinigt; deutsche Presets zeigen in Firewall, PATH Guard, Lynis, Repository Guard und weiteren Security-Bereichen keine englischen Standardtexte mehr an.
 - Security-Untertabs neu und kompakt benannt: `Devices`, `Firewall`, `Path`, `Prozesse`/`Processes`, `Repos`, `Roots`, `Autostart`, `Rootkithunter` und `Capture`.
 - PATH Guard aus dem bisherigen Device-/Guard-Bereich in einen eigenen Security-Tab mit eigener Detailansicht verschoben; Ampel-, Menue-, Hilfe- und Tour-Navigation entsprechend angepasst.

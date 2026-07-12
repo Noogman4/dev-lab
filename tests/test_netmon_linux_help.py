@@ -323,20 +323,78 @@ def test_send_linux_help_to_chad_uses_direct_prompt_setter():
 
 
 def test_linux_help_chad_title_prefers_name_then_command():
+    app = netmon.App.__new__(netmon.App)
+    app.tr = lambda _key, default: default
+
     assert (
-        linux_help_controller._linux_help_chad_title({"name": "ls", "cmd": "ls -la"})
+        linux_help_controller._linux_help_chad_title(
+            app, {"name": "ls", "cmd": "ls -la"}
+        )
         == "Explain Linux command: ls"
     )
     assert (
-        linux_help_controller._linux_help_chad_title({"cmd": "ls -la"})
+        linux_help_controller._linux_help_chad_title(app, {"cmd": "ls -la"})
         == "Explain Linux command: ls -la"
     )
     assert (
         linux_help_controller._linux_help_chad_title(
+            app,
             {"name": "Algorithm", "entry_type": "glossary"}
         )
         == "Explain glossary term: Algorithm"
     )
+
+
+def test_build_linux_help_chad_prompt_uses_translated_german_labels():
+    app = netmon.App.__new__(netmon.App)
+    translations = {
+        "linux_help_prompt_command_intro": "Bitte erkläre den folgenden Linux-Befehl für Einsteiger in klarem, gut strukturiertem Deutsch.",
+        "linux_help_prompt_command_data_header": "Befehlsdaten aus NetMon:",
+        "linux_help_prompt_command_name": "Befehlsname: {value}",
+        "linux_help_prompt_category": "Kategorie: {value}",
+        "linux_help_prompt_command": "Befehl: {value}",
+        "linux_help_prompt_short_description": "Kurzbeschreibung: {value}",
+        "linux_help_prompt_syntax": "Syntax: {value}",
+        "linux_help_prompt_example": "Beispiel: {value}",
+        "linux_help_prompt_database_explanation": "Datenbank-Erklärung/Hinweis: {value}",
+        "linux_help_prompt_additional_warning": "Zusätzliche Warnung: {value}",
+        "linux_help_prompt_root_required": "Root erforderlich: {value}",
+        "linux_help_prompt_risk_level": "Risikostufe: {value}",
+        "linux_help_prompt_tags": "Tags: {value}",
+        "linux_help_prompt_requirements": "Wichtige Anforderungen an deine Antwort:",
+        "linux_help_prompt_command_req_1": "- Schreibe einsteigerfreundlich und setze kein Vorwissen voraus.",
+        "linux_help_prompt_command_req_2": "- Beginne mit einer kurzen Erklärung, wofür der Befehl verwendet wird.",
+        "linux_help_prompt_command_req_3": "- Zerlege dann die Syntax und die wichtigsten Bestandteile.",
+        "linux_help_prompt_command_req_4": "- Erkläre das Beispiel Schritt für Schritt.",
+        "linux_help_prompt_command_req_5": "- Nenne typische praktische Einsatzfälle.",
+        "linux_help_prompt_command_req_6": "- Weise klar auf Risiken, Root-Bedarf und häufige Fehler hin.",
+        "linux_help_prompt_command_req_7": "- Beende die Antwort mit 3 sicheren Tipps oder Varianten für Einsteiger.",
+        "linux_help_prompt_command_req_8": "- Verwende ruhige, klare Sprache statt unnötigem Fachjargon.",
+        "linux_help_prompt_no_additional_warning": "Keine zusätzliche Warnung gespeichert.",
+    }
+    app.tr = lambda key, default: translations.get(key, default)
+
+    prompt = linux_help_controller.build_linux_help_chad_prompt(
+        app,
+        {
+            "name": "ls",
+            "category": "Dateien",
+            "cmd": "ls -la",
+            "info": "Dateien anzeigen",
+            "syntax": "ls [OPTIONEN] [DATEI]",
+            "example": "ls -la",
+            "risk": "safe",
+            "root_required": False,
+            "tags": "bash",
+            "explanation": "Zeigt Dateien an.",
+            "warning_text": "",
+        },
+    )
+
+    assert "Bitte erkläre den folgenden Linux-Befehl" in prompt
+    assert "Befehlsdaten aus NetMon:" in prompt
+    assert "Befehlsname: ls" in prompt
+    assert "Root erforderlich: No" in prompt
 
 
 def test_selected_linux_help_chad_payload_returns_prompt_and_title():

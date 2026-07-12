@@ -493,12 +493,20 @@ def _linux_help_source_value(app):
     }.get(label, "both")
 
 
-def _linux_help_chad_title(item) -> str:
+def _linux_help_chad_title(app, item) -> str:
     entry = dict(item or {})
     if _is_glossary_item(entry):
-        return f"Explain glossary term: {entry.get('name') or 'Unknown'}"
+        return _tr(
+            app,
+            "linux_help_chad_title_glossary",
+            "Explain glossary term: {name}",
+        ).format(name=entry.get("name") or "Unknown")
     return (
-        f"Explain Linux command: {entry.get('name') or entry.get('cmd') or 'Unknown'}"
+        _tr(
+            app,
+            "linux_help_chad_title_command",
+            "Explain Linux command: {name}",
+        ).format(name=entry.get("name") or entry.get("cmd") or "Unknown")
     )
 
 
@@ -506,21 +514,65 @@ def build_linux_help_chad_prompt(app, item):
     entry = dict(item or {})
     if _is_glossary_item(entry):
         lines = [
-            "Please explain the following IT/Linux glossary term for beginners in clear, well-structured English.",
+            _tr(
+                app,
+                "linux_help_prompt_glossary_intro",
+                "Please explain the following IT/Linux glossary term for beginners in clear, well-structured English.",
+            ),
             "",
-            "Important requirements for your answer:",
-            "- Start with a simple definition.",
-            "- Explain why the term matters in Linux or IT practice.",
-            "- Use the stored example and expand it in plain language.",
-            "- Mention 2 or 3 related concepts beginners should learn next.",
+            _tr(
+                app,
+                "linux_help_prompt_requirements",
+                "Important requirements for your answer:",
+            ),
+            _tr(
+                app,
+                "linux_help_prompt_glossary_req_1",
+                "- Start with a simple definition.",
+            ),
+            _tr(
+                app,
+                "linux_help_prompt_glossary_req_2",
+                "- Explain why the term matters in Linux or IT practice.",
+            ),
+            _tr(
+                app,
+                "linux_help_prompt_glossary_req_3",
+                "- Use the stored example and expand it in plain language.",
+            ),
+            _tr(
+                app,
+                "linux_help_prompt_glossary_req_4",
+                "- Mention 2 or 3 related concepts beginners should learn next.",
+            ),
             "",
-            "Glossary data from NetMon:",
-            f"Term: {entry.get('name') or '–'}",
-            f"Category: {entry.get('category') or '–'}",
-            f"Short description: {entry.get('info') or '–'}",
-            f"Example: {entry.get('example') or '–'}",
-            f"Tags: {str(entry.get('tags') or '–').strip() or '–'}",
-            f"Related terms: {str(entry.get('related') or '–').strip() or '–'}",
+            _tr(
+                app,
+                "linux_help_prompt_glossary_data_header",
+                "Glossary data from NetMon:",
+            ),
+            _tr(app, "linux_help_prompt_glossary_term", "Term: {value}").format(
+                value=entry.get("name") or "–"
+            ),
+            _tr(app, "linux_help_prompt_category", "Category: {value}").format(
+                value=entry.get("category") or "–"
+            ),
+            _tr(
+                app,
+                "linux_help_prompt_short_description",
+                "Short description: {value}",
+            ).format(value=entry.get("info") or "–"),
+            _tr(app, "linux_help_prompt_example", "Example: {value}").format(
+                value=entry.get("example") or "–"
+            ),
+            _tr(app, "linux_help_prompt_tags", "Tags: {value}").format(
+                value=str(entry.get("tags") or "–").strip() or "–"
+            ),
+            _tr(
+                app,
+                "linux_help_prompt_glossary_related_terms",
+                "Related terms: {value}",
+            ).format(value=str(entry.get("related") or "–").strip() or "–"),
         ]
         return "\n".join(lines).strip()
     _risk_key, risk_label, _fill = RISK_UI.get(
@@ -535,36 +587,115 @@ def build_linux_help_chad_prompt(app, item):
     tags = str(entry.get("tags") or "–").strip() or "–"
     explanation = (
         str(entry.get("explanation") or "").strip()
-        or "No additional explanation stored."
+        or _tr(
+            app,
+            "linux_help_prompt_no_additional_explanation",
+            "No additional explanation stored.",
+        )
     )
     warning_text = (
-        str(entry.get("warning_text") or "").strip() or "No additional warning stored."
+        str(entry.get("warning_text") or "").strip()
+        or _tr(
+            app,
+            "linux_help_prompt_no_additional_warning",
+            "No additional warning stored.",
+        )
     )
     lines = [
-        "Please explain the following Linux command for beginners in clear, well-structured English.",
+        _tr(
+            app,
+            "linux_help_prompt_command_intro",
+            "Please explain the following Linux command for beginners in clear, well-structured English.",
+        ),
         "",
-        "Important requirements for your answer:",
-        "- Write in a beginner-friendly way without assuming prior knowledge.",
-        "- Start with a short explanation of what the command is used for.",
-        "- Then break down the syntax and the most important parts.",
-        "- Explain the example step by step.",
-        "- Mention typical real-world use cases.",
-        "- Clearly point out risks, root requirements, and common mistakes.",
-        "- End with 3 safe beginner tips or variants.",
-        "- Use calm, clear language instead of unnecessary jargon.",
+        _tr(
+            app,
+            "linux_help_prompt_requirements",
+            "Important requirements for your answer:",
+        ),
+        _tr(
+            app,
+            "linux_help_prompt_command_req_1",
+            "- Write in a beginner-friendly way without assuming prior knowledge.",
+        ),
+        _tr(
+            app,
+            "linux_help_prompt_command_req_2",
+            "- Start with a short explanation of what the command is used for.",
+        ),
+        _tr(
+            app,
+            "linux_help_prompt_command_req_3",
+            "- Then break down the syntax and the most important parts.",
+        ),
+        _tr(
+            app,
+            "linux_help_prompt_command_req_4",
+            "- Explain the example step by step.",
+        ),
+        _tr(
+            app,
+            "linux_help_prompt_command_req_5",
+            "- Mention typical real-world use cases.",
+        ),
+        _tr(
+            app,
+            "linux_help_prompt_command_req_6",
+            "- Clearly point out risks, root requirements, and common mistakes.",
+        ),
+        _tr(
+            app,
+            "linux_help_prompt_command_req_7",
+            "- End with 3 safe beginner tips or variants.",
+        ),
+        _tr(
+            app,
+            "linux_help_prompt_command_req_8",
+            "- Use calm, clear language instead of unnecessary jargon.",
+        ),
         "",
-        "Command data from NetMon:",
-        f"Command name: {entry.get('name') or entry.get('cmd') or '–'}",
-        f"Category: {entry.get('category') or '–'}",
-        f"Command: {entry.get('cmd') or '–'}",
-        f"Short description: {entry.get('info') or '–'}",
-        f"Syntax: {entry.get('syntax') or entry.get('cmd') or '–'}",
-        f"Example: {entry.get('example') or entry.get('cmd') or '–'}",
-        f"Database explanation/note: {explanation}",
-        f"Additional warning: {warning_text}",
-        f"Root required: {root_text}",
-        f"Risk level: {risk_label}",
-        f"Tags: {tags}",
+        _tr(
+            app,
+            "linux_help_prompt_command_data_header",
+            "Command data from NetMon:",
+        ),
+        _tr(app, "linux_help_prompt_command_name", "Command name: {value}").format(
+            value=entry.get("name") or entry.get("cmd") or "–"
+        ),
+        _tr(app, "linux_help_prompt_category", "Category: {value}").format(
+            value=entry.get("category") or "–"
+        ),
+        _tr(app, "linux_help_prompt_command", "Command: {value}").format(
+            value=entry.get("cmd") or "–"
+        ),
+        _tr(
+            app,
+            "linux_help_prompt_short_description",
+            "Short description: {value}",
+        ).format(value=entry.get("info") or "–"),
+        _tr(app, "linux_help_prompt_syntax", "Syntax: {value}").format(
+            value=entry.get("syntax") or entry.get("cmd") or "–"
+        ),
+        _tr(app, "linux_help_prompt_example", "Example: {value}").format(
+            value=entry.get("example") or entry.get("cmd") or "–"
+        ),
+        _tr(
+            app,
+            "linux_help_prompt_database_explanation",
+            "Database explanation/note: {value}",
+        ).format(value=explanation),
+        _tr(
+            app,
+            "linux_help_prompt_additional_warning",
+            "Additional warning: {value}",
+        ).format(value=warning_text),
+        _tr(app, "linux_help_prompt_root_required", "Root required: {value}").format(
+            value=root_text
+        ),
+        _tr(app, "linux_help_prompt_risk_level", "Risk level: {value}").format(
+            value=risk_label
+        ),
+        _tr(app, "linux_help_prompt_tags", "Tags: {value}").format(value=tags),
     ]
     return "\n".join(lines).strip()
 
@@ -574,7 +705,7 @@ def _selected_linux_help_chad_payload(app):
     if item is None:
         return None, "", ""
     prompt = build_linux_help_chad_prompt(app, item)
-    return item, _linux_help_chad_title(item), prompt
+    return item, _linux_help_chad_title(app, item), prompt
 
 
 def _iter_source_rows(path):

@@ -11,7 +11,6 @@ from .models import BrowserContainer
 
 from .service import SecureBrowserService
 
-
 LOGGER = logging.getLogger(__name__)
 
 COMMON_THIRD_LEVEL_SUFFIXES = {
@@ -23,6 +22,17 @@ COMMON_THIRD_LEVEL_SUFFIXES = {
     "com.au",
     "net.au",
     "org.au",
+}
+
+LOGIN_SUBDOMAIN_PREFIXES = {
+    "account",
+    "accounts",
+    "auth",
+    "id",
+    "login",
+    "secure",
+    "signin",
+    "sso",
 }
 
 
@@ -51,6 +61,7 @@ class SecureBrowserManager:
     VIEW_LAUNCHER = "Launcher"
     VIEW_ARTIFACTS = "Artefakte"
     POLICY_EDIT_CONFIRM_TOKEN = "SAVE"
+    WEBSITE_FILTER_BLOCK_PATTERN = "<all_urls>"
     CONTAINER_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
     CREATE_DOMAIN_BUNDLES = {
         "github.com": {
@@ -170,7 +181,9 @@ class SecureBrowserManager:
             LOGGER.exception("Secure Browser preflight failed")
             return "\n".join(
                 [
-                    self.T("secure_browser_preflight_title", "Secure-Browser-Preflight"),
+                    self.T(
+                        "secure_browser_preflight_title", "Secure-Browser-Preflight"
+                    ),
                     "",
                     f"- {self.T('secure_browser_preflight_status_label', 'Status')}: {self.T('secure_browser_preflight_status_error', 'Fehler')} ({exc})",
                     f"- {self.T('secure_browser_preflight_effect_label', 'Wirkung')}: {self.T('secure_browser_preflight_effect_no_changes', 'keine Änderungen ausgeführt')}",
@@ -240,7 +253,9 @@ class SecureBrowserManager:
         return lines
 
     def get_status_filter_options(self) -> list[str]:
-        statuses = sorted({container.status for container in self.last_scan if container.status})
+        statuses = sorted(
+            {container.status for container in self.last_scan if container.status}
+        )
         return [self.STATUS_FILTER_ALL, *statuses]
 
     def get_risk_filter_options(self) -> list[str]:
@@ -263,8 +278,7 @@ class SecureBrowserManager:
     @staticmethod
     def derive_menu_name(container_name: str) -> str:
         suffix = container_name.removeprefix("firefox-").replace("-", " ").strip()
-        suffix = suffix or "Browser"
-        return f"NetMon Secure Browser – {suffix}"
+        return suffix or "Browser"
 
     @staticmethod
     def normalize_website_url(website_url: str) -> str:
@@ -301,10 +315,10 @@ class SecureBrowserManager:
     @classmethod
     def _derive_known_bundle(cls, host_without_port: str) -> dict[str, object] | None:
         host = host_without_port.lower()
-        candidates = [
-            host,
-            host.removeprefix("www."),
-        ]
+        candidates = [host, host.removeprefix("www.")]
+        host_parts = [part for part in host.removeprefix("www.").split(".") if part]
+        if len(host_parts) > 2 and host_parts[0] in LOGIN_SUBDOMAIN_PREFIXES:
+            candidates.append(".".join(host_parts[1:]))
         for candidate in candidates:
             if candidate in cls.CREATE_DOMAIN_BUNDLES:
                 return dict(cls.CREATE_DOMAIN_BUNDLES[candidate])
@@ -337,6 +351,8 @@ class SecureBrowserManager:
         explicit_port = parsed.port
         host_base = host_without_port.removeprefix("www.")
         known_bundle = cls._derive_known_bundle(host_without_port)
+        if known_bundle and known_bundle.get("homepage_url"):
+            normalized_url = str(known_bundle["homepage_url"])
         slug = (
             str(known_bundle["slug"])
             if known_bundle and known_bundle.get("slug")
@@ -361,13 +377,14 @@ class SecureBrowserManager:
         display_name = (
             str(known_bundle["display_name"])
             if known_bundle and known_bundle.get("display_name")
-            else " ".join(part.capitalize() for part in slug.split("-") if part) or "Browser"
+            else " ".join(part.capitalize() for part in slug.split("-") if part)
+            or "Browser"
         )
         return {
             "homepage_url": normalized_url,
             "container_name": container_name,
             "allowed_domains": allowed_domains,
-            "menu_name": f"NetMon Secure Browser – {display_name}",
+            "menu_name": display_name,
             "security_profile": cls.CREATE_DEFAULT_SECURITY_PROFILE,
             "allow_password_manager": True,
             "keep_cookies": True,
@@ -460,25 +477,28 @@ class SecureBrowserManager:
         )
         if not menu_name.strip() and not explicit_name:
             normalized_menu_name = str(defaults["menu_name"])
-        normalized_new_tab_url = (new_tab_url or "").strip() or self.CREATE_DEFAULT_NEW_TAB
-        normalized_icon_mode = (icon_mode or "").strip() or self.CREATE_DEFAULT_ICON_MODE
+        normalized_new_tab_url = (
+            new_tab_url or ""
+        ).strip() or self.CREATE_DEFAULT_NEW_TAB
+        normalized_icon_mode = (
+            icon_mode or ""
+        ).strip() or self.CREATE_DEFAULT_ICON_MODE
         security = self.resolve_security_options(
-            (security_profile or "").strip()
-            or str(defaults["security_profile"]),
+            (security_profile or "").strip() or str(defaults["security_profile"]),
             allow_password_manager=allow_password_manager,
             keep_cookies=keep_cookies,
             enable_website_filter=enable_website_filter,
         )
         allowed_domains = [
-            item.strip()
-            for item in allowed_domains_raw.split(",")
-            if item.strip()
+            item.strip() for item in allowed_domains_raw.split(",") if item.strip()
         ]
         if not allowed_domains:
             allowed_domains = list(defaults["allowed_domains"])
         allowed_domains = self.normalize_allowed_domains(allowed_domains)
         if not allowed_domains:
-            allowed_domains = self.normalize_allowed_domains(list(defaults["allowed_domains"]))
+            allowed_domains = self.normalize_allowed_domains(
+                list(defaults["allowed_domains"])
+            )
         return {
             "name": normalized_name,
             "homepage": homepage,
@@ -587,7 +607,10 @@ class SecureBrowserManager:
             )
         )
         if count == 0:
-            return self.T("secure_browser_inventory_none", "Keine Secure-Browser-Container erkannt.")
+            return self.T(
+                "secure_browser_inventory_none",
+                "Keine Secure-Browser-Container erkannt.",
+            )
         if (
             search_query
             and status_filter
@@ -598,12 +621,20 @@ class SecureBrowserManager:
             return self.T(
                 "secure_browser_inventory_summary_status_risk_search",
                 "{count} von {total} Secure-Browser-Containern mit Status {status}, Filter {risk} passend zu '{query}' erkannt.",
-            ).format(count=count, total=total_count, status=status_filter, risk=risk_filter, query=search_query)
+            ).format(
+                count=count,
+                total=total_count,
+                status=status_filter,
+                risk=risk_filter,
+                query=search_query,
+            )
         if search_query and risk_filter and risk_filter != self.RISK_FILTER_ALL:
             return self.T(
                 "secure_browser_inventory_summary_risk_search",
                 "{count} von {total} Secure-Browser-Containern mit Filter {risk} passend zu '{query}' erkannt.",
-            ).format(count=count, total=total_count, risk=risk_filter, query=search_query)
+            ).format(
+                count=count, total=total_count, risk=risk_filter, query=search_query
+            )
         if risk_filter and risk_filter != self.RISK_FILTER_ALL:
             return self.T(
                 "secure_browser_inventory_summary_risk",
@@ -613,7 +644,9 @@ class SecureBrowserManager:
             return self.T(
                 "secure_browser_inventory_summary_status_search",
                 "{count} von {total} Secure-Browser-Containern mit Status {status} passend zu '{query}' erkannt.",
-            ).format(count=count, total=total_count, status=status_filter, query=search_query)
+            ).format(
+                count=count, total=total_count, status=status_filter, query=search_query
+            )
         if search_query:
             return self.T(
                 "secure_browser_inventory_summary_search",
@@ -650,10 +683,7 @@ class SecureBrowserManager:
             if any("Menüeintrag fehlt" in risk for risk in risks):
                 missing_menu_entries += 1
         parts = [f"Gesamt: {len(self.last_scan)}"]
-        parts.extend(
-            f"{status}: {counts[status]}"
-            for status in sorted(counts)
-        )
+        parts.extend(f"{status}: {counts[status]}" for status in sorted(counts))
         parts.extend(
             [
                 f"externe Profile: {external_profiles}",
@@ -661,7 +691,9 @@ class SecureBrowserManager:
                 f"fehlende Menüeinträge: {missing_menu_entries}",
             ]
         )
-        return self.T("secure_browser_inventory_metrics_prefix", "Kennzahlen: ") + " | ".join(parts)
+        return self.T(
+            "secure_browser_inventory_metrics_prefix", "Kennzahlen: "
+        ) + " | ".join(parts)
 
     @staticmethod
     def _render_hardening_summary_lines(
@@ -725,7 +757,10 @@ class SecureBrowserManager:
         if not normalized_name.startswith("firefox-"):
             warnings.append("Containername sollte mit 'firefox-' beginnen")
         parsed_homepage = urlparse(homepage)
-        if parsed_homepage.scheme not in {"http", "https"} or not parsed_homepage.netloc:
+        if (
+            parsed_homepage.scheme not in {"http", "https"}
+            or not parsed_homepage.netloc
+        ):
             warnings.append("Startseite ist keine gültige http(s)-URL")
         if normalized_new_tab_url != "about:blank":
             parsed_new_tab = urlparse(normalized_new_tab_url)
@@ -733,7 +768,9 @@ class SecureBrowserManager:
                 parsed_new_tab.scheme not in {"http", "https"}
                 or not parsed_new_tab.netloc
             ):
-                warnings.append("Neue-Tab-URL ist weder about:blank noch gültiges http(s)")
+                warnings.append(
+                    "Neue-Tab-URL ist weder about:blank noch gültiges http(s)"
+                )
         for domain in allowed_domains:
             host = domain.split(":", 1)[0].strip()
             if "." not in host:
@@ -1096,7 +1133,10 @@ class SecureBrowserManager:
             lines.extend(["", "stdout", "```text", stdout, "```"])
         if stderr:
             lines.extend(["", "stderr", "```text", stderr, "```"])
-        return "\n".join(lines)
+        rendered = "\n".join(lines)
+        if not result.get("ok"):
+            raise RuntimeError(rendered)
+        return rendered
 
     def render_register_existing_preview(
         self,
@@ -1348,7 +1388,8 @@ class SecureBrowserManager:
             not name
             or (confirmation or "").strip() != self.UNINSTALL_CONFIRM_TOKEN
             or "Container nicht gefunden:" in preview
-            or "Abbruch: Der Container ist nicht mehr in der aktuellen Inventur." in preview
+            or "Abbruch: Der Container ist nicht mehr in der aktuellen Inventur."
+            in preview
         ):
             return preview
         result = self.service.execute_uninstall_apply(container_name=name)
@@ -1356,7 +1397,9 @@ class SecureBrowserManager:
 
     def render_container_detail(self, container: BrowserContainer | None) -> str:
         if container is None:
-            return self.T("secure_browser_no_container_selected", "Kein Container ausgewählt.")
+            return self.T(
+                "secure_browser_no_container_selected", "Kein Container ausgewählt."
+            )
         domains = (
             ", ".join(container.allowed_domains)
             if container.allowed_domains
@@ -1388,7 +1431,9 @@ class SecureBrowserManager:
         risk_filter: str | None = None,
     ) -> str:
         if not container_name:
-            return self.T("secure_browser_no_container_selected", "Kein Container ausgewählt.")
+            return self.T(
+                "secure_browser_no_container_selected", "Kein Container ausgewählt."
+            )
         container = self.get_container_by_name(
             container_name,
             status_filter,
@@ -1416,7 +1461,10 @@ class SecureBrowserManager:
                 "",
                 self.T("secure_browser_section_launcher_check", "Launcher-Prüfung"),
                 "",
-                self.T("secure_browser_block_launcher_structured", "[launcher.desktop strukturiert]"),
+                self.T(
+                    "secure_browser_block_launcher_structured",
+                    "[launcher.desktop strukturiert]",
+                ),
                 *[
                     f"- {key}: {value}"
                     for key, value in launcher_info["launcher.desktop"].items()
@@ -1441,7 +1489,9 @@ class SecureBrowserManager:
         risk_filter: str | None = None,
     ) -> str:
         if not container_name:
-            return self.T("secure_browser_no_container_selected", "Kein Container ausgewählt.")
+            return self.T(
+                "secure_browser_no_container_selected", "Kein Container ausgewählt."
+            )
         container = self.get_container_by_name(
             container_name,
             status_filter,
@@ -1505,7 +1555,9 @@ class SecureBrowserManager:
         risk_filter: str | None = None,
     ) -> str:
         if not container_name:
-            return self.T("secure_browser_no_container_selected", "Kein Container ausgewählt.")
+            return self.T(
+                "secure_browser_no_container_selected", "Kein Container ausgewählt."
+            )
         container = self.get_container_by_name(
             container_name,
             status_filter,
@@ -1525,7 +1577,10 @@ class SecureBrowserManager:
                 "",
                 self.T("secure_browser_section_launcher_check", "Launcher-Prüfung"),
                 "",
-                self.T("secure_browser_block_launcher_structured", "[launcher.desktop strukturiert]"),
+                self.T(
+                    "secure_browser_block_launcher_structured",
+                    "[launcher.desktop strukturiert]",
+                ),
                 *[
                     f"- {key}: {value}"
                     for key, value in launcher_info["launcher.desktop"].items()
@@ -1533,7 +1588,10 @@ class SecureBrowserManager:
                 "",
                 *self._render_menu_entries_section(launcher_info),
                 "",
-                self.T("secure_browser_block_launcher_preview", "[launcher.desktop Vorschau]"),
+                self.T(
+                    "secure_browser_block_launcher_preview",
+                    "[launcher.desktop Vorschau]",
+                ),
                 artifacts["launcher.desktop"],
             ]
         )
@@ -1546,7 +1604,9 @@ class SecureBrowserManager:
         risk_filter: str | None = None,
     ) -> str:
         if not container_name:
-            return self.T("secure_browser_no_container_selected", "Kein Container ausgewählt.")
+            return self.T(
+                "secure_browser_no_container_selected", "Kein Container ausgewählt."
+            )
         container = self.get_container_by_name(
             container_name,
             status_filter,
@@ -1585,7 +1645,11 @@ class SecureBrowserManager:
         risk_filter: str | None = None,
     ) -> str:
         if not container_name:
-            raise ValueError(self.T("secure_browser_no_container_selected", "Kein Container ausgewählt."))
+            raise ValueError(
+                self.T(
+                    "secure_browser_no_container_selected", "Kein Container ausgewählt."
+                )
+            )
         container = self.get_container_by_name(
             container_name,
             status_filter,
@@ -1654,11 +1718,22 @@ class SecureBrowserManager:
         website_filter = policies.setdefault("WebsiteFilter", {})
         if not isinstance(website_filter, dict):
             raise ValueError("WebsiteFilter muss ein JSON-Objekt sein.")
-        block_list = website_filter.setdefault("Block", ["<all_urls>"])
+        block_list = website_filter.setdefault(
+            "Block", [self.WEBSITE_FILTER_BLOCK_PATTERN]
+        )
         if not isinstance(block_list, list):
             raise ValueError("WebsiteFilter.Block muss eine Liste sein.")
-        if "<all_urls>" not in block_list:
-            block_list.insert(0, "<all_urls>")
+        block_list[:] = [
+            (
+                self.WEBSITE_FILTER_BLOCK_PATTERN
+                if item in {"<all_urls>", "*://*/*"}
+                else item
+            )
+            for item in block_list
+        ]
+        block_list[:] = list(dict.fromkeys(block_list))
+        if self.WEBSITE_FILTER_BLOCK_PATTERN not in block_list:
+            block_list.insert(0, self.WEBSITE_FILTER_BLOCK_PATTERN)
         exceptions = website_filter.setdefault("Exceptions", [])
         if not isinstance(exceptions, list):
             raise ValueError("WebsiteFilter.Exceptions muss eine Liste sein.")
@@ -1747,7 +1822,10 @@ class SecureBrowserManager:
     def render_inventory_text(self) -> str:
         containers = self.scan_inventory()
         if not containers:
-            return self.T("secure_browser_inventory_none", "Keine Secure-Browser-Container erkannt.")
+            return self.T(
+                "secure_browser_inventory_none",
+                "Keine Secure-Browser-Container erkannt.",
+            )
         lines = []
         for container in containers:
             profile = self._format_profile_path(container)

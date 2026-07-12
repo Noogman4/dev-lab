@@ -3,10 +3,9 @@
   "containers": [
     {
       "name": "firefox-GitHub",
-      "path": "/home/happy/Programme/firefox-GitHub",
       "homepage_url": "https://github.com",
       "new_tab_url": "about:blank",
-      "menu_name": "NetMon Secure Browser – GitHub",
+      "menu_name": "GitHub",
       "icon_mode": "favicon",
       "allowed_domains": [
         "github.com",
@@ -17,10 +16,9 @@
     },
     {
       "name": "firefox-OpenAI",
-      "path": "/home/happy/Programme/firefox-OpenAI",
       "homepage_url": "https://chatgpt.com",
       "new_tab_url": "about:blank",
-      "menu_name": "NetMon Secure Browser – OpenAI",
+      "menu_name": "OpenAI",
       "icon_mode": "favicon",
       "allowed_domains": [
         "chatgpt.com",
@@ -32,10 +30,9 @@
     },
     {
       "name": "firefox-NameCom",
-      "path": "/home/happy/Programme/firefox-NameCom",
       "homepage_url": "https://name.com",
       "new_tab_url": "about:blank",
-      "menu_name": "NetMon Secure Browser – Name.com",
+      "menu_name": "Name.com",
       "icon_mode": "favicon",
       "allowed_domains": [
         "name.com",
@@ -45,10 +42,9 @@
     },
     {
       "name": "firefox-cPanel",
-      "path": "/home/happy/Programme/firefox-cPanel",
       "homepage_url": "https://cpanel.netmonroots.com",
       "new_tab_url": "about:blank",
-      "menu_name": "NetMon Secure Browser – cPanel",
+      "menu_name": "cPanel",
       "icon_mode": "favicon",
       "allowed_domains": [
         "netmonroots.com",
@@ -59,10 +55,9 @@
     },
     {
       "name": "firefox-Amazon",
-      "path": "/home/happy/Programme/firefox-Amazon",
       "homepage_url": "https://www.amazon.de",
       "new_tab_url": "about:blank",
-      "menu_name": "NetMon Secure Browser – Amazon",
+      "menu_name": "Amazon",
       "icon_mode": "favicon",
       "allowed_domains": [
         "amazon.de",
@@ -74,10 +69,9 @@
     },
     {
       "name": "firefox-Netflix",
-      "path": "/home/happy/Programme/firefox-Netflix",
       "homepage_url": "https://www.netflix.com",
       "new_tab_url": "about:blank",
-      "menu_name": "NetMon Secure Browser – Netflix",
+      "menu_name": "Netflix",
       "icon_mode": "favicon",
       "allowed_domains": [
         "netflix.com",
@@ -88,10 +82,9 @@
     },
     {
       "name": "firefox-SparkasseUlm",
-      "path": "/home/happy/Programme/firefox-SparkasseUlm",
       "homepage_url": "https://www.sparkasse-ulm.de",
       "new_tab_url": "about:blank",
-      "menu_name": "NetMon Secure Browser – Sparkasse Ulm",
+      "menu_name": "Sparkasse Ulm",
       "icon_mode": "favicon",
       "allowed_domains": [
         "sparkasse-ulm.de",

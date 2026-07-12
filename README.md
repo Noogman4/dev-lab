@@ -31,6 +31,7 @@ Designed for Linux users who want to monitor, diagnose, and secure their systems
 * ClamAV integration
 * Lynis integration
 * RKHunter integration
+* Secure Browser with isolated, hardened Firefox profiles per web service
 
 ### AI Analysis
 
@@ -46,6 +47,7 @@ Designed for Linux users who want to monitor, diagnose, and secure their systems
 * Cleanup Assistant
 * HDD, Link and VPN Slot Management
 * Support package export
+* Guided Setup tours in German and English, including Secure Browser privacy guidance
 
 ---
 

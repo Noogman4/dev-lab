@@ -2349,7 +2349,7 @@ class App(TkBase):
         self._theme_start_override = (
             str(start_theme).strip().lower() if str(start_theme or "").strip() else ""
         )
-        self._preferred_theme_name = "light"
+        self._preferred_theme_name = "dark"
 
         self.title(
             f"NetMon-Roots - Firewall, VPN, DNS, Trace    Version {NETMON_APP_VERSION}"
@@ -2481,6 +2481,8 @@ class App(TkBase):
 
         self.last_ip_ts = 0.0
         self.ip_country_running = False
+        self._ip_country_force_pending = False
+        self._vpn_ip_refresh_generation = 0
         self.public_ip = "–"
         self.country = "–"
 
@@ -2921,10 +2923,10 @@ class App(TkBase):
             value=bool(self.settings.get("start_dot", False))
         )
         self.var_theme_choice = tk.StringVar(
-            value=self._get_theme_display_name(self.settings.get("theme", "light"))
+            value=self._get_theme_display_name(self.settings.get("theme", "dark"))
         )
         self.var_theme_studio_base_theme = tk.StringVar(
-            value=self._get_theme_display_name(self.settings.get("theme", "light"))
+            value=self._get_theme_display_name(self.settings.get("theme", "dark"))
         )
         self.var_theme_studio_accent = tk.StringVar(
             value=str(self.settings.get("theme_custom_accent", "") or "").strip()
@@ -3449,6 +3451,7 @@ class App(TkBase):
         header.columnconfigure(0, weight=0, minsize=260)
         header.columnconfigure(1, weight=1)
         header.columnconfigure(2, weight=0, minsize=620)
+        header.rowconfigure(0, minsize=140)
 
         header_left = ttk.Frame(header)
         header_left.grid(row=0, column=0, sticky="nw")
@@ -3513,7 +3516,7 @@ class App(TkBase):
         self.radio_header_frame.pack_propagate(False)
         # Keep enough vertical room so the LCD clock remains visible
         # below the compact radio quick launcher controls.
-        self.radio_header_frame.configure(width=300, height=126)
+        self.radio_header_frame.configure(width=300, height=138)
         self.radio_header_frame.place(relx=0.5, y=8, anchor="n")
         self.radio_header_frame.columnconfigure(0, weight=1)
 
@@ -5378,7 +5381,7 @@ class App(TkBase):
         bottom.grid(row=2, column=0, columnspan=2, sticky="ew")
 
         initial_theme = (
-            self._theme_start_override or self._preferred_theme_name or "light"
+            self._theme_start_override or self._preferred_theme_name or "dark"
         )
         self.apply_theme(initial_theme, log_change=False, persist=False)
         if netmon_radio_core is not None:
@@ -6379,6 +6382,10 @@ class App(TkBase):
                         self.tr(
                             "tour_launcher_security_overview", "Security Übersicht"
                         ),
+                    ),
+                    (
+                        "tab-secure-browser",
+                        self.tr("tour_launcher_secure_browser", "Secure Browser"),
                     ),
                     ("tab-firewall", self.tr("tour_launcher_firewall", "Firewall")),
                     ("tab-guards", self.tr("tour_launcher_guards", "Guards")),
@@ -8424,6 +8431,107 @@ class App(TkBase):
                         "body": (
                             "Hier protokolliert NetMon Scans, Funde, Berichte "
                             "und mögliche Folgeaktionen wie Verschieben."
+                        ),
+                    },
+                ],
+            },
+            {
+                "id": "tab-secure-browser",
+                "tour_title": self.tr(
+                    "tour_tab_title_secure_browser", "NetMon Secure Browser Tour"
+                ),
+                "tab_title": self.tr("tour_tab_label_secure_browser", "Secure Browser"),
+                "tab_attr": "tab_secure_browser",
+                "selector": "top",
+                "description": self.tr(
+                    "tour_tab_desc_secure_browser",
+                    "Der Secure Browser erstellt für ausgewählte Webseiten getrennte, gehärtete Firefox-Instanzen mit eigenem Profil. Dadurch bleiben Cookies, Website-Speicher, Verlauf, Logins und Einstellungen voneinander getrennt, statt im normalen Alltagsbrowser zu einer gemeinsamen Online-Identität zusammenzulaufen.",
+                ),
+                "hint": self.tr(
+                    "tour_tab_hint_secure_browser",
+                    "Der größte Gewinn entsteht, wenn jede sensible oder stark verfolgte Webanwendung ausschließlich über ihre eigene Instanz geöffnet wird.",
+                ),
+                "detail_steps": [
+                    {
+                        "target": "tab_secure_browser",
+                        "title": self.tr(
+                            "tour_tab_secure_browser_gain_title",
+                            "Privatsphäregewinn durch die Installation",
+                        ),
+                        "body": self.tr(
+                            "tour_tab_secure_browser_gain_body",
+                            "Die Installation schafft eine technische Trennlinie zwischen Webdiensten. Eine Bank, ein Mailkonto, soziale Netzwerke oder andere sensible Seiten erhalten jeweils einen eigenen Browserzustand. Tracker und eingebettete Inhalte können dadurch nicht einfach auf den Cookie-, Login- und Speicherbestand deines normalen Browsers oder einer anderen Secure-Browser-Instanz zugreifen. Das reduziert vor allem dienstübergreifende Verknüpfung und unbeabsichtigte Vermischung von Identitäten.",
+                        ),
+                    },
+                    {
+                        "target": lambda: getattr(
+                            self.__dict__.get("tab_secure_browser"),
+                            "secure_browser_draft_security_profile",
+                            None,
+                        ),
+                        "title": self.tr(
+                            "tour_tab_secure_browser_hardening_title",
+                            "Gehärtete Browser-Einstellungen",
+                        ),
+                        "body": self.tr(
+                            "tour_tab_secure_browser_hardening_body",
+                            "Die erzeugte Instanz kann Telemetrie, Studies, Pocket, Sync, WebRTC, Formular- und Suchvorschläge sowie spekulative Netzwerkzugriffe deaktivieren. Strenger Inhalts- und Tracking-Schutz, HTTPS-Only und blockierte Drittanbieter-Cookies verkleinern zusätzliche Datenabflüsse. Sicherheitsprofile erlauben dabei eine bewusste Abstufung zwischen Kompatibilität und strenger Trennung.",
+                        ),
+                    },
+                    {
+                        "target": lambda: getattr(
+                            self.__dict__.get("tab_secure_browser"),
+                            "secure_browser_draft_enable_website_filter",
+                            None,
+                        ),
+                        "title": self.tr(
+                            "tour_tab_secure_browser_filter_title",
+                            "Website-Filter als enge Vertrauensgrenze",
+                        ),
+                        "body": self.tr(
+                            "tour_tab_secure_browser_filter_body",
+                            "Mit aktiviertem Website-Filter gilt grundsätzlich blockieren und nur konfigurierte Domains erlauben. Das erschwert versehentliche Navigation, fremde Login-Flows und unerwartete Weiterleitungen. Benötigte Anmelde-, Zahlungs- oder CDN-Domains müssen jedoch bewusst ergänzt werden; eine zu weite Whitelist schwächt den Effekt.",
+                        ),
+                    },
+                    {
+                        "target": lambda: getattr(
+                            self.__dict__.get("tab_secure_browser"),
+                            "secure_browser_draft_keep_cookies",
+                            None,
+                        ),
+                        "title": self.tr(
+                            "tour_tab_secure_browser_persistence_title",
+                            "Cookies und Logins bewusst abwägen",
+                        ),
+                        "body": self.tr(
+                            "tour_tab_secure_browser_persistence_body",
+                            "Wenn Cookies nicht behalten werden, entfernt die Instanz beim Beenden Sitzungen, Verlauf, Cache und weitere lokale Spuren konsequenter. Dauerhafte Cookies erhöhen den Komfort, erhalten aber auch wiedererkennbare Kennungen. Für Banking oder Mail kann ein eigener persistenter Login sinnvoll sein; für seltene oder besonders sensible Nutzung bietet ein vergänglicher Zustand mehr Privatsphäre.",
+                        ),
+                    },
+                    {
+                        "target": lambda: getattr(
+                            self.__dict__.get("tab_secure_browser"),
+                            "secure_browser_draft_dry_run_button",
+                            None,
+                        ),
+                        "title": self.tr(
+                            "tour_tab_secure_browser_dry_run_title",
+                            "Vor der Installation kontrollieren",
+                        ),
+                        "body": self.tr(
+                            "tour_tab_secure_browser_dry_run_body",
+                            "Der Dry-Run zeigt vorab Profil, erlaubte Domains, Richtlinien und geplante Dateien, ohne die Browser-Instanz anzulegen. Prüfe insbesondere Domain-Ausnahmen, Cookie-Verhalten, Passwortmanager und Sicherheitsprofil. Erst danach sollte „Anlegen“ die vorbereitete Konfiguration installieren.",
+                        ),
+                    },
+                    {
+                        "target": "tab_secure_browser",
+                        "title": self.tr(
+                            "tour_tab_secure_browser_limits_title",
+                            "Wichtige Schutzgrenzen",
+                        ),
+                        "body": self.tr(
+                            "tour_tab_secure_browser_limits_body",
+                            "Der Secure Browser verbessert Trennung und Datenminimierung, macht dich aber nicht anonym. Webseiten sehen weiterhin deine öffentliche IP, können Browser- und Gerätemerkmale auswerten und erkennen dich nach einer Anmeldung am Konto. Ein VPN oder Tor ist ein eigener Schutzbaustein; aktuelle Browser-Versionen, vorsichtige Freigaben und eine gepflegte Whitelist bleiben ebenfalls notwendig.",
                         ),
                     },
                 ],
@@ -13894,17 +14002,37 @@ class App(TkBase):
             pass
 
     def _default_log_overlay_dir(self):
-        pictures_dir = get_user_pictures_dir() or os.path.expanduser("~")
-        log_pics_dir = os.path.join(pictures_dir, "Log-Pics")
+        log_pics_dir = get_netmon_documents_subdir("Log-Pics")
         try:
             os.makedirs(log_pics_dir, exist_ok=True)
         except Exception:
             pass
         if os.path.isdir(log_pics_dir):
             return log_pics_dir
-        if os.path.isdir(pictures_dir):
-            return pictures_dir
+        netmon_docs_dir = get_netmon_documents_dir()
+        if os.path.isdir(netmon_docs_dir):
+            return netmon_docs_dir
         return os.path.expanduser("~")
+
+    def _default_log_overlay_image_path(self):
+        candidate_dirs = [
+            self._default_log_overlay_dir(),
+            "/usr/share/netmon/assets/log-pics",
+            "/opt/netmon/assets/log-pics",
+            "/opt/netmon-dark/assets/log-pics",
+            os.path.join(NETMON_REPO_ROOT, "tools", "Log-Pics"),
+        ]
+        seen = set()
+        for folder in candidate_dirs:
+            folder = str(folder or "").strip()
+            if not folder or folder in seen:
+                continue
+            seen.add(folder)
+            for filename in ("Netmon.png", "netmon.png"):
+                candidate = os.path.join(folder, filename)
+                if os.path.isfile(candidate):
+                    return candidate
+        return ""
 
     def _preferred_log_overlay_dir(self):
         picker_dir = str(self.__dict__.get("log_overlay_picker_dir") or "").strip()
@@ -14079,6 +14207,8 @@ class App(TkBase):
             return
 
         image_path = str(config.get("log_overlay_image_path") or "").strip()
+        if not image_path:
+            image_path = self._default_log_overlay_image_path()
         active = bool(config.get("log_overlay_active", False))
         last_dir = str(config.get("log_overlay_last_dir") or "").strip()
 
@@ -19082,7 +19212,7 @@ class App(TkBase):
             "start_killswitch": False,
             "start_security_monitoring": False,
             "start_dot": False,
-            "theme": "light",
+            "theme": "dark",
             "theme_custom_accent": "",
             "theme_custom_panel_bg": "",
             "theme_custom_style": "dezent",
@@ -19176,10 +19306,10 @@ class App(TkBase):
             ),
             "var_start_dot": False,
             "var_theme_choice": self._get_theme_display_name(
-                self.settings.get("theme", "light")
+                self.settings.get("theme", "dark")
             ),
             "var_theme_studio_base_theme": self._get_theme_display_name(
-                self.settings.get("theme", "light")
+                self.settings.get("theme", "dark")
             ),
             "var_theme_studio_accent": str(
                 self.settings.get("theme_custom_accent", "") or ""
@@ -19365,10 +19495,10 @@ class App(TkBase):
         )
         self.danger_guard_enabled = bool(self.settings.get("strict_protection", True))
         current_theme_name = (
-            str(self.__dict__.get("_preferred_theme_name", "light") or "light")
+            str(self.__dict__.get("_preferred_theme_name", "dark") or "dark")
             .strip()
             .lower()
-            or "light"
+            or "dark"
         )
         self._preferred_theme_name = self._normalize_theme_name(
             self.settings.get("theme", current_theme_name)
@@ -19399,7 +19529,7 @@ class App(TkBase):
         if theme_choice_var is not None:
             try:
                 theme_choice_var.set(
-                    self._get_theme_display_name(self.settings.get("theme", "light"))
+                    self._get_theme_display_name(self.settings.get("theme", "dark"))
                 )
             except Exception:
                 pass
@@ -19466,10 +19596,10 @@ class App(TkBase):
         new_language = self._language_choice_code(self.var_language.get())
         language_changed = new_language != previous_language
         new_theme = (
-            str(_var_value("var_theme_choice", self.settings.get("theme", "light")))
+            str(_var_value("var_theme_choice", self.settings.get("theme", "dark")))
             .strip()
             .lower()
-            or "light"
+            or "dark"
         )
 
         self.settings["language"] = new_language
@@ -19799,7 +19929,7 @@ class App(TkBase):
             )
         if self.__dict__.get("tk") is not None:
             self.apply_theme(
-                self._normalize_theme_name(self.settings.get("theme", "light")),
+                self._normalize_theme_name(self.settings.get("theme", "dark")),
                 log_change=False,
                 persist=False,
             )
@@ -21084,12 +21214,12 @@ class App(TkBase):
     def apply_startup_settings(self):
         startup_theme = (
             str(
-                self.settings.get("theme", self._preferred_theme_name or "light")
-                or "light"
+                self.settings.get("theme", self._preferred_theme_name or "dark")
+                or "dark"
             )
             .strip()
             .lower()
-            or "light"
+            or "dark"
         )
         self.apply_theme(
             self._normalize_theme_name(startup_theme),
@@ -30263,6 +30393,9 @@ class App(TkBase):
     def load_link_slot_into_form(self, slot_no):
         links_controller.load_link_slot_into_form(self, slot_no)
 
+    def show_link_table_context_menu(self, event):
+        return links_controller.show_link_table_context_menu(self, event)
+
     def on_systemlink_app_select(self, _event=None):
         links_controller.on_systemlink_app_select(self, _event=_event)
 
@@ -30853,14 +30986,12 @@ class App(TkBase):
                 getattr(self, "settings", {}).get("dns_guard_enabled", False)
             ),
             "wg_import_dir": "",
-            "log_overlay_active": False,
+            "log_overlay_active": True,
             "log_overlay_image_path": "",
             "log_overlay_last_dir": "",
             "clock_alarm_enabled": False,
             "clock_alarm_time": "07:00",
-            "theme": str(
-                getattr(self, "settings", {}).get("theme", "light") or "light"
-            ),
+            "theme": str(getattr(self, "settings", {}).get("theme", "dark") or "dark"),
         }
         try:
             if os.path.isfile(self.privacy_config_path):
@@ -30914,7 +31045,7 @@ class App(TkBase):
         alarm_enabled_var = self.__dict__.get("alarm_enabled_var")
         if alarm_enabled_var is not None:
             alarm_enabled_var.set(bool(config.get("clock_alarm_enabled", False)))
-        theme_name = str(config.get("theme") or "light").strip().lower()
+        theme_name = str(config.get("theme") or "dark").strip().lower()
         self._preferred_theme_name = self._normalize_theme_name(theme_name)
         if "settings" in self.__dict__:
             self.settings["strict_protection"] = strict_enabled
@@ -36003,6 +36134,15 @@ class App(TkBase):
             force_reconnect=force_reconnect,
             skip_cleanup=skip_cleanup,
         )
+        if result:
+            schedule_ip_refresh = getattr(
+                self, "_schedule_vpn_ip_country_refresh", None
+            )
+            if callable(schedule_ip_refresh):
+                try:
+                    schedule_ip_refresh()
+                except Exception:
+                    pass
         try:
             self.after(0, self.update_vpn_status_text)
         except Exception:
@@ -40652,8 +40792,22 @@ class App(TkBase):
         threading.Thread(target=job, daemon=True).start()
 
     # ---------- External IP/Country ----------
+    def _schedule_vpn_ip_country_refresh(self, delay_ms=750):
+        self.last_ip_ts = 0.0
+        generation = int(self.__dict__.get("_vpn_ip_refresh_generation", 0) or 0) + 1
+        self._vpn_ip_refresh_generation = generation
+
+        def refresh_after_route_change():
+            if self.__dict__.get("_vpn_ip_refresh_generation") != generation:
+                return
+            self.ip_country_async(force=True)
+
+        self.after(max(0, int(delay_ms)), refresh_after_route_change)
+
     def ip_country_async(self, force=False):
         if self.ip_country_running:
+            if force:
+                self._ip_country_force_pending = True
             return
         if not force and (time.time() - self.last_ip_ts) < 60:
             return
@@ -40680,6 +40834,8 @@ class App(TkBase):
                 self.after(0, self._update_ip_country_ui)
             finally:
                 self.ip_country_running = False
+                if self.__dict__.pop("_ip_country_force_pending", False):
+                    self.after(0, lambda: self.ip_country_async(force=True))
 
         threading.Thread(target=job, daemon=True).start()
 

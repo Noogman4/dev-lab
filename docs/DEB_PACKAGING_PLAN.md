@@ -26,9 +26,9 @@ Die `.deb` soll die startfaehige NetMon-Anwendung enthalten, inklusive aller zur
 
 ### Applikationscode
 
-Basisziel: `/opt/netmon/netmon/`
+Basisziel: `/usr/lib/netmon/netmon/`
 
-Direkt unter `/opt/netmon/netmon/`:
+Direkt unter `/usr/lib/netmon/netmon/`:
 
 - `__init__.py`
 - `__main__.py`
@@ -46,24 +46,24 @@ Direkt unter `/opt/netmon/netmon/`:
 
 Unterverzeichnisse, die komplett mitgenommen werden sollen:
 
-- `/opt/netmon/netmon/config/`
-- `/opt/netmon/netmon/core/`
-- `/opt/netmon/netmon/features/`
-- `/opt/netmon/netmon/lang/`
-- `/opt/netmon/netmon/modules/`
-- `/opt/netmon/netmon/services/`
-- `/opt/netmon/netmon/ui/`
+- `/usr/lib/netmon/netmon/config/`
+- `/usr/lib/netmon/netmon/core/`
+- `/usr/lib/netmon/netmon/features/`
+- `/usr/lib/netmon/netmon/lang/`
+- `/usr/lib/netmon/netmon/modules/`
+- `/usr/lib/netmon/netmon/services/`
+- `/usr/lib/netmon/netmon/ui/`
 
 ## Statische Daten und Assets
 
 ### Mitliefern
 
-- `/opt/netmon/assets/log-pics/`
+- `/usr/share/netmon/assets/log-pics/`
   - Quelle: `tools/Log-Pics/`
   - Zweck: Seed-Bilder fuer Log-/Overlay-Funktionen
 
 - `features/Code-the-Classics.zip`
-  - Zielpfad: `/opt/netmon/netmon/features/Code-the-Classics.zip`
+  - Zielpfad: `/usr/lib/netmon/netmon/features/Code-the-Classics.zip`
   - Soll offiziell Teil des Pakets sein
 
 - projectM-Presets
@@ -71,7 +71,7 @@ Unterverzeichnisse, die komplett mitgenommen werden sollen:
   - Quellen:
     - `tools/MD2 Presets Edited for projectM 4.x/`
     - optional zusaetzlich ausgewaehlte Inhalte aus `tools/mdpresets/`, falls wir diese kuratieren wollen
-  - Aktueller Paketpfad: `/opt/netmon/tools/`
+  - Aktueller Paketpfad: `/usr/lib/netmon/tools/`
   - Hintergrund: Der Laufzeitcode sucht die gebuendelten Preset-Quellen aktuell repo-relativ unter `tools/`
 
 ### Optional mitliefern
@@ -160,12 +160,15 @@ Stand `1.1.17`:
 - `scripts/build_netmon_deb.sh` liefert bereits eine explizite Datei-/Ordnerliste.
 - `udisks2` und `cryptsetup` sind fuer den installierten LUKS-/Mount-Pfad als `Depends` hinterlegt.
 - Die AppStream-Datei `packaging/netmon.metainfo.xml` wird mit ausgeliefert, damit Software-Center die Lizenz korrekt erkennen.
+- Privater Laufzeitcode liegt Debian-konform unter `/usr/lib/netmon`; gemeinsame Assets liegen unter `/usr/share/netmon`.
+- Paketdokumentation, Copyright und komprimierter Changelog liegen unter `/usr/share/doc/netmon`.
+- Manpages, `md5sums`, normalisierte Dateirechte und ein auf 256 x 256 skaliertes Hicolor-Icon werden beim Build erzeugt.
 
 Empfohlene Richtung:
 
 1. Vollstaendige Laufzeit-Unterpakete `config`, `core`, `features`, `lang`, `modules`, `services`, `ui` uebernehmen.
 2. Die benoetigten Top-Level-Dateien aus `netmon/` explizit kopieren.
-3. Assets getrennt unter `/opt/netmon/assets/` oder `/usr/share/netmon/assets/` ablegen.
+3. Assets getrennt unter `/usr/share/netmon/assets/` ablegen.
 4. `Depends`, `Recommends` und `Suggests` aus der aktuellen Feature-Registry in `netmon/app.py` ableiten.
 5. Tests und Repo-Ballast explizit ausschliessen, statt implizit wegzulassen.
 
@@ -187,6 +190,7 @@ Der Deinstaller fragt optional per `y/n` ab:
 - Paket entfernen
 - Launcher-/Menue-Reste entfernen
 - Benutzerdaten und Dokumente entfernen
+- installierte Secure Browser separat entfernen oder standardmaessig behalten
 - NetMon-VPN-/WireGuard-Reste entfernen
 - alle Profile unter `/etc/wireguard` auf Testsystemen entfernen
 - NetMon-NetworkManager-WireGuard-Connections entfernen

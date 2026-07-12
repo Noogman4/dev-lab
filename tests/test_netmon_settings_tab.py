@@ -787,7 +787,7 @@ def test_reset_settings_to_defaults_restores_defaults():
     assert app.var_start_killswitch.get() is False
     assert app.var_start_security_monitoring.get() is False
     assert app.var_start_dot.get() is False
-    assert app.var_theme_choice.get() == "Light"
+    assert app.var_theme_choice.get() == "Dark"
     assert app.var_auto_log_clear.get() is False
     assert app.var_debug_network_logging.get() is False
     assert app.var_ufw_logging_default.get() == "keep"

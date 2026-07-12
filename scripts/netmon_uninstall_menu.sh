@@ -105,6 +105,8 @@ tr_msg() {
     de:summary_remove_launchers|*:summary_remove_launchers) printf '%s' "Launcher/Icon-Reste entfernen:" ;;
     en:summary_remove_user_files) printf '%s' "Remove user data/caches:" ;;
     de:summary_remove_user_files|*:summary_remove_user_files) printf '%s' "Benutzerdaten/Caches entfernen:" ;;
+    en:summary_remove_secure_browsers) printf '%s' "Remove Secure Browsers:" ;;
+    de:summary_remove_secure_browsers|*:summary_remove_secure_browsers) printf '%s' "Secure Browser entfernen:" ;;
     en:summary_remove_wireguard_artifacts) printf '%s' "Clean up WireGuard/VPN leftovers:" ;;
     de:summary_remove_wireguard_artifacts|*:summary_remove_wireguard_artifacts) printf '%s' "WireGuard/VPN-Reste bereinigen:" ;;
     en:summary_remove_all_wireguard_confs) printf '%s' "Clear /etc/wireguard:" ;;
@@ -135,6 +137,8 @@ tr_msg() {
     de:prompt_remove_launchers|*:prompt_remove_launchers) printf '%s' "NetMon Desktop-Launcher und Radio-Launcher im Benutzerprofil entfernen?" ;;
     en:prompt_remove_user_files) printf '%s' "Remove NetMon user data, caches, logs and documents?" ;;
     de:prompt_remove_user_files|*:prompt_remove_user_files) printf '%s' "NetMon Benutzerdaten, Caches, Logs und Dokumente entfernen?" ;;
+    en:prompt_remove_secure_browsers) printf '%s' "Also uninstall installed Secure Browsers?" ;;
+    de:prompt_remove_secure_browsers|*:prompt_remove_secure_browsers) printf '%s' "Installierte Secure Browser ebenfalls deinstallieren?" ;;
     en:prompt_remove_wireguard_artifacts) printf '%s' "Clean up NetMon WireGuard profiles, VPN slot JSON files and import folders?" ;;
     de:prompt_remove_wireguard_artifacts|*:prompt_remove_wireguard_artifacts) printf '%s' "NetMon WireGuard-Profile, VPN-Slot-JSONs und Importordner bereinigen?" ;;
     en:prompt_remove_all_wireguard_confs) printf '%s' "Delete all WireGuard profiles under /etc/wireguard? (test systems only)" ;;
@@ -205,7 +209,7 @@ find_running_netmon_processes() {
     return 0
   fi
 
-  local pattern='(^|[[:space:]])(/usr/bin/netmon|python3[[:space:]]+-m[[:space:]]+netmon|/opt/netmon/.*/main\.py|netmon/main\.py|netmon_radio_app\.py|netmon\.netmon_radio_app)([[:space:]]|$)'
+  local pattern='(^|[[:space:]])(/usr/bin/netmon|python3[[:space:]]+-m[[:space:]]+netmon|/(opt|usr/lib)/netmon/.*/main\.py|netmon/main\.py|netmon_radio_app\.py|netmon\.netmon_radio_app)([[:space:]]|$)'
   local current_pid="$$"
   local line=""
   local found=0
@@ -407,6 +411,7 @@ remove_user_launchers() {
 }
 
 remove_user_data() {
+  local preserve_secure_browsers="${1:-ja}"
   local user_home
   user_home="$(target_home)"
   local targets=(
@@ -416,16 +421,55 @@ remove_user_data() {
     "$user_home/.cache/netmon_roots"
     "$user_home/.local/share/netmon"
   )
-  local doc_target=""
-  while IFS= read -r doc_target; do
-    [[ -n "$doc_target" ]] || continue
-    targets+=("$doc_target")
-  done < <(collect_document_dirs)
-
   local target=""
   for target in "${targets[@]}"; do
     remove_path_if_exists "$target"
   done
+
+  local doc_root=""
+  while IFS= read -r doc_root; do
+    [[ -n "$doc_root" ]] || continue
+    local netmon_docs="$doc_root/NetMon"
+    local secure_browser_dir="$netmon_docs/Secure Browser"
+    if [[ "$preserve_secure_browsers" == "ja" && -d "$secure_browser_dir" ]]; then
+      local child=""
+      while IFS= read -r -d '' child; do
+        [[ "$child" == "$secure_browser_dir" ]] && continue
+        remove_path_if_exists "$child"
+      done < <(find "$netmon_docs" -mindepth 1 -maxdepth 1 -print0 2>/dev/null)
+    else
+      remove_path_if_exists "$netmon_docs"
+    fi
+    remove_path_if_exists "$doc_root/Log-Pics"
+  done < <(collect_document_root_dirs)
+}
+
+remove_secure_browser_menu_entries() {
+  local user_home
+  user_home="$(target_home)"
+  local app_entry_dir="$user_home/.local/share/applications"
+  [[ -d "$app_entry_dir" ]] || return 0
+
+  local entry=""
+  while IFS= read -r -d '' entry; do
+    if grep -Eq '^(Name=NetMon Secure Browser|Comment=NetMon Secure Browser)' "$entry" 2>/dev/null; then
+      remove_path_if_exists "$entry"
+    fi
+  done < <(find "$app_entry_dir" -maxdepth 1 -type f -name '*.desktop' -print0 2>/dev/null)
+
+  if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "$app_entry_dir" >/dev/null 2>&1 || true
+  fi
+}
+
+remove_secure_browsers() {
+  local doc_root=""
+  while IFS= read -r doc_root; do
+    [[ -n "$doc_root" ]] || continue
+    remove_path_if_exists "$doc_root/NetMon/Secure Browser"
+  done < <(collect_document_root_dirs)
+
+  remove_secure_browser_menu_entries
 }
 
 collect_netmon_vpn_json_paths() {
@@ -672,12 +716,13 @@ print_summary() {
   printf '%-32s %s\n' "$(tr_msg summary_remove_package)" "$(choice_label "$1")"
   printf '%-32s %s\n' "$(tr_msg summary_remove_launchers)" "$(choice_label "$2")"
   printf '%-32s %s\n' "$(tr_msg summary_remove_user_files)" "$(choice_label "$3")"
-  printf '%-32s %s\n' "$(tr_msg summary_remove_wireguard_artifacts)" "$(choice_label "$4")"
-  printf '%-32s %s\n' "$(tr_msg summary_remove_all_wireguard_confs)" "$(choice_label "$5")"
-  printf '%-32s %s\n' "$(tr_msg summary_remove_nm_connections)" "$(choice_label "$6")"
-  printf '%-32s %s\n' "$(tr_msg summary_reset_dns_nm)" "$(choice_label "$7")"
-  printf '%-32s %s\n' "$(tr_msg summary_reset_firewall)" "$(choice_label "$8")"
-  printf '%-32s %s\n' "$(tr_msg summary_purge_optional)" "$(choice_label "$9")"
+  printf '%-32s %s\n' "$(tr_msg summary_remove_secure_browsers)" "$(choice_label "$4")"
+  printf '%-32s %s\n' "$(tr_msg summary_remove_wireguard_artifacts)" "$(choice_label "$5")"
+  printf '%-32s %s\n' "$(tr_msg summary_remove_all_wireguard_confs)" "$(choice_label "$6")"
+  printf '%-32s %s\n' "$(tr_msg summary_remove_nm_connections)" "$(choice_label "$7")"
+  printf '%-32s %s\n' "$(tr_msg summary_reset_dns_nm)" "$(choice_label "$8")"
+  printf '%-32s %s\n' "$(tr_msg summary_reset_firewall)" "$(choice_label "$9")"
+  printf '%-32s %s\n' "$(tr_msg summary_purge_optional)" "$(choice_label "${10}")"
   say ""
 }
 
@@ -688,6 +733,7 @@ main() {
   local remove_package="ja"
   local remove_launchers="ja"
   local remove_user_files="nein"
+  local remove_secure_browsers="nein"
   local remove_wireguard_artifacts="nein"
   local remove_all_wireguard_confs="nein"
   local remove_nm_vpn_connections="nein"
@@ -706,6 +752,7 @@ main() {
   prompt_yes_no "$(tr_msg prompt_remove_package)" "y" && remove_package="ja" || remove_package="nein"
   prompt_yes_no "$(tr_msg prompt_remove_launchers)" "y" && remove_launchers="ja" || remove_launchers="nein"
   prompt_yes_no "$(tr_msg prompt_remove_user_files)" "n" && remove_user_files="ja" || remove_user_files="nein"
+  prompt_yes_no "$(tr_msg prompt_remove_secure_browsers)" "n" && remove_secure_browsers="ja" || remove_secure_browsers="nein"
   prompt_yes_no "$(tr_msg prompt_remove_wireguard_artifacts)" "n" && remove_wireguard_artifacts="ja" || remove_wireguard_artifacts="nein"
   prompt_yes_no "$(tr_msg prompt_remove_all_wireguard_confs)" "n" && remove_all_wireguard_confs="ja" || remove_all_wireguard_confs="nein"
   prompt_yes_no "$(tr_msg prompt_remove_nm_connections)" "n" && remove_nm_vpn_connections="ja" || remove_nm_vpn_connections="nein"
@@ -717,6 +764,7 @@ main() {
     "$remove_package" \
     "$remove_launchers" \
     "$remove_user_files" \
+    "$remove_secure_browsers" \
     "$remove_wireguard_artifacts" \
     "$remove_all_wireguard_confs" \
     "$remove_nm_vpn_connections" \
@@ -736,7 +784,12 @@ main() {
   [[ "$remove_nm_vpn_connections" == "ja" ]] && remove_netmon_nm_connections
   [[ "$remove_wireguard_artifacts" == "ja" ]] && remove_netmon_wireguard_artifacts
   [[ "$remove_all_wireguard_confs" == "ja" ]] && remove_all_wireguard_conf_files
-  [[ "$remove_user_files" == "ja" ]] && remove_user_data
+  [[ "$remove_secure_browsers" == "ja" ]] && remove_secure_browsers
+  if [[ "$remove_user_files" == "ja" ]]; then
+    local preserve_secure_browsers="ja"
+    [[ "$remove_secure_browsers" == "ja" ]] && preserve_secure_browsers="nein"
+    remove_user_data "$preserve_secure_browsers"
+  fi
   [[ "$reset_dns_nm" == "ja" ]] && reset_netmon_dns_changes
   [[ "$reset_firewall" == "ja" ]] && reset_ufw
   [[ "$purge_optional" == "ja" ]] && purge_optional_packages
@@ -747,4 +800,6 @@ main() {
   pause_before_exit
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

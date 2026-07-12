@@ -498,6 +498,9 @@ def test_vpn_switch_records_action_and_delegates(monkeypatch):
     dummy = SimpleNamespace(
         after=lambda *_args, **_kwargs: None,
         update_vpn_status_text=lambda: None,
+        _schedule_vpn_ip_country_refresh=lambda: recorded.update(
+            {"ip_refresh_scheduled": True}
+        ),
         _record_diagnostic_action=lambda action, area, details=None: recorded.update(
             {"action": action, "area": area, "details": dict(details or {})}
         ),
@@ -518,6 +521,7 @@ def test_vpn_switch_records_action_and_delegates(monkeypatch):
     assert recorded["details"]["target"] == "wg0"
     assert recorded["delegated"]["target"] == "wg0"
     assert recorded["delegated"]["force_reconnect"] is True
+    assert recorded["ip_refresh_scheduled"] is True
 
 
 def test_internet_disable_records_action_before_cancel():

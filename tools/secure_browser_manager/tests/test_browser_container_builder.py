@@ -22,8 +22,7 @@ PNG_BYTES = (
 ICO_BYTES = b"\x00\x00\x01\x00\x01\x00\x10\x10\x00\x00\x00\x00\x20\x00"
 ICO_WITH_PNG_BYTES = (
     b"\x00\x00\x01\x00\x01\x00\x10\x10\x00\x00\x00\x00\x20\x00"
-    b"\x43\x00\x00\x00\x16\x00\x00\x00"
-    + PNG_BYTES
+    b"\x43\x00\x00\x00\x16\x00\x00\x00" + PNG_BYTES
 )
 
 
@@ -56,14 +55,14 @@ def make_existing_container(
     firefox_binary.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     os.chmod(firefox_binary, 0o755)
     (icon_dir / "default128.png").write_text("png", encoding="utf-8")
-    (profile_dir / "prefs.js").write_text('// prefs\n', encoding="utf-8")
+    (profile_dir / "prefs.js").write_text("// prefs\n", encoding="utf-8")
     if domains:
         homepage = f"https://{domains[0]}"
         (root_dir / "user.js").write_text(
             (
                 f'user_pref("browser.startup.homepage", "{homepage}");\n'
                 + "\n".join(
-                    f'// allowed domain: https://{domain}/' for domain in domains
+                    f"// allowed domain: https://{domain}/" for domain in domains
                 )
                 + "\n"
             ),
@@ -92,7 +91,9 @@ def make_existing_container(
             encoding="utf-8",
         )
     if with_launcher:
-        (root_dir / "launcher.desktop").write_text("existing launcher", encoding="utf-8")
+        (root_dir / "launcher.desktop").write_text(
+            "existing launcher", encoding="utf-8"
+        )
     return root_dir
 
 
@@ -114,6 +115,48 @@ def test_validate_config_payload_uses_base_dir_default() -> None:
     assert specs[0].homepage_url is None
     assert specs[0].new_tab_url is None
     assert specs[0].menu_name is None
+
+
+def test_fetch_url_uses_browser_like_headers(monkeypatch) -> None:
+    captured = {}
+
+    class FakeHeaders:
+        @staticmethod
+        def get_content_type() -> str:
+            return "image/png"
+
+    class FakeResponse:
+        headers = FakeHeaders()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        @staticmethod
+        def read() -> bytes:
+            return PNG_BYTES
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["timeout"] = timeout
+        captured["user_agent"] = request.get_header("User-agent")
+        captured["accept"] = request.get_header("Accept")
+        captured["accept_language"] = request.get_header("Accept-language")
+        return FakeResponse()
+
+    monkeypatch.setattr(builder, "urlopen", fake_urlopen)
+
+    payload, content_type = builder.fetch_url("https://chatgpt.com/favicon.ico")
+
+    assert payload == PNG_BYTES
+    assert content_type == "image/png"
+    assert captured["url"] == "https://chatgpt.com/favicon.ico"
+    assert captured["timeout"] == builder.FAVICON_TIMEOUT_SECONDS
+    assert "Mozilla/5.0" in (captured["user_agent"] or "")
+    assert "image/svg+xml" in (captured["accept"] or "")
+    assert "de-DE" in (captured["accept_language"] or "")
 
 
 def test_validate_config_payload_reads_homepage_and_new_tab() -> None:
@@ -225,6 +268,60 @@ def test_build_policies_payload_blocks_all_and_allows_domains() -> None:
     assert "https://netmonroots.com/*" in website_filter["Exceptions"]
 
 
+def test_get_known_container_defaults_matches_login_subdomain_generically() -> None:
+    defaults = builder.get_known_container_defaults(
+        "firefox-random",
+        domains=["login.github.com"],
+    )
+
+    assert defaults is not None
+    assert defaults["name"] == "firefox-GitHub"
+
+
+def test_active_artifact_search_ignores_policy_backups(tmp_path: Path) -> None:
+    root_dir = tmp_path / "ExampleSite"
+    active_policy = root_dir / "policies.json"
+    backup_policy = root_dir / "backups" / "old" / "policies.json"
+    active_policy.parent.mkdir(parents=True)
+    backup_policy.parent.mkdir(parents=True)
+    active_policy.write_text("{}", encoding="utf-8")
+    backup_policy.write_text("{}", encoding="utf-8")
+
+    assert builder.search_files(root_dir, "policies.json") == [active_policy]
+
+
+def test_existing_allowed_domains_prefer_builder_metadata(tmp_path: Path) -> None:
+    root_dir = tmp_path / "ExampleSite"
+    root_dir.mkdir()
+    (root_dir / "policies.json").write_text(
+        json.dumps(
+            {
+                "policies": {
+                    "WebsiteFilter": {
+                        "Block": ["<all_urls>"],
+                        "Exceptions": ["*://*.legacy.example.com/*"],
+                    }
+                },
+                "_builder_metadata": {"allowed_domains": ["www.example.com"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    container = builder.DiscoveredContainer(
+        name="ExampleSite",
+        root_dir=root_dir,
+        binary_path=root_dir / "firefox" / "firefox",
+        version="1.0",
+        profile_path=root_dir / "profile",
+        start_command=None,
+        domains=["legacy.example.com", "www.example.com"],
+        purpose=None,
+        risk_hints=[],
+    )
+
+    assert builder.read_existing_allowed_domains(container) == ["www.example.com"]
+
+
 def test_make_match_patterns_for_www_domain_includes_base_and_subdomains() -> None:
     patterns = builder.make_match_patterns("www.netflix.com")
 
@@ -261,7 +358,9 @@ def test_build_user_js_content_sets_homepage_and_blank_new_tab() -> None:
     assert 'user_pref("startup.homepage_welcome_url.additional", "");' in content
 
 
-def test_build_user_js_content_strict_profile_disables_password_manager_and_keeps_no_cookies() -> None:
+def test_build_user_js_content_strict_profile_disables_password_manager_and_keeps_no_cookies() -> (
+    None
+):
     spec = builder.ContainerSpec(
         name="firefox-GitHub",
         path=Path("/tmp/firefox-GitHub"),
@@ -274,7 +373,7 @@ def test_build_user_js_content_strict_profile_disables_password_manager_and_keep
 
     content = builder.build_user_js_content(spec)
 
-    assert '// Security profile: strict' in content
+    assert "// Security profile: strict" in content
     assert 'user_pref("signon.rememberSignons", false);' in content
     assert 'user_pref("network.cookie.lifetimePolicy", 2);' in content
     assert 'user_pref("privacy.clearOnShutdown.cookies", true);' in content
@@ -395,11 +494,8 @@ def test_get_default_menu_name_supports_new_labels() -> None:
         source_firefox_dir=None,
     )
 
-    assert builder.get_default_menu_name(amazon) == "NetMon Secure Browser – Amazon"
-    assert (
-        builder.get_default_menu_name(sparkasse)
-        == "NetMon Secure Browser – Sparkasse Ulm"
-    )
+    assert builder.get_default_menu_name(amazon) == "Amazon"
+    assert builder.get_default_menu_name(sparkasse) == "Sparkasse Ulm"
 
 
 def test_score_profile_match_counts_expected_domain_hits() -> None:
@@ -598,7 +694,9 @@ def test_apply_downloads_and_stores_favicon(monkeypatch, tmp_path: Path) -> None
     icon_path = spec.path / "icons" / "favicon.png"
     assert icon_path.exists()
     assert icon_path.read_bytes() == PNG_BYTES
-    assert f"Icon={icon_path}" in (spec.path / "launcher.desktop").read_text(encoding="utf-8")
+    assert f"Icon={icon_path}" in (spec.path / "launcher.desktop").read_text(
+        encoding="utf-8"
+    )
     assert f"Icon={icon_path}" in menu_entry_path.read_text(encoding="utf-8")
 
 
@@ -618,6 +716,25 @@ def test_extract_icon_links_ignores_mask_icon_and_prefers_png() -> None:
     assert links[0] == "https://github.com/favicon.png"
     assert "https://github.com/favicon.png" in links
     assert "https://github.com/pinned-octocat.svg" not in links
+
+
+def test_extract_manifest_icon_links_prefers_large_png() -> None:
+    manifest = json.dumps(
+        {
+            "icons": [
+                {"src": "/icon.svg", "sizes": "any"},
+                {"src": "/icon-192.png", "sizes": "192x192"},
+                {"src": "/icon-512.png", "sizes": "512x512"},
+            ]
+        }
+    )
+
+    links = builder.extract_manifest_icon_links(
+        manifest, "https://chatgpt.com/app.webmanifest"
+    )
+
+    assert links[0] == "https://chatgpt.com/icon-512.png"
+    assert "https://chatgpt.com/icon.svg" in links
 
 
 def test_favicon_fallback_uses_default_icon(monkeypatch, tmp_path: Path) -> None:
@@ -698,7 +815,7 @@ def test_invalid_first_icon_tries_next_candidate(
         if url == "https://www.sparkasse-ulm.de":
             return (
                 (
-                    b'<html><head>'
+                    b"<html><head>"
                     b'<link rel="icon" href="/favicon.png">'
                     b'<link rel="apple-touch-icon" href="/apple-touch-icon.png">'
                     b"</head></html>"
@@ -708,6 +825,132 @@ def test_invalid_first_icon_tries_next_candidate(
         if url == "https://www.sparkasse-ulm.de/favicon.png":
             return (b"not-a-real-png", "image/png")
         if url == "https://www.sparkasse-ulm.de/apple-touch-icon.png":
+            return (PNG_BYTES, "image/png")
+        raise RuntimeError(url)
+
+    monkeypatch.setattr(builder, "fetch_url", fake_fetch_url)
+
+    menu_entry_path = builder.create_container(spec, applications_dir)
+
+    icon_path = spec.path / "icons" / "favicon.png"
+    assert icon_path.exists()
+    assert icon_path.read_bytes() == PNG_BYTES
+    assert f"Icon={icon_path}" in menu_entry_path.read_text(encoding="utf-8")
+
+
+def test_svg_icon_falls_through_to_direct_raster_icon(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    source_dir = make_firefox_source_tree(tmp_path)
+    applications_dir = tmp_path / "applications"
+    spec = builder.ContainerSpec(
+        name="OpenAI",
+        path=tmp_path / "OpenAI",
+        allowed_domains=["chatgpt.com"],
+        source_firefox_dir=source_dir,
+        homepage_url="https://chatgpt.com",
+        icon_mode="favicon",
+        menu_name="OpenAI",
+    )
+
+    def fake_fetch_url(url: str) -> tuple[bytes, str | None]:
+        if url == "https://chatgpt.com":
+            return (
+                b'<html><head><link rel="icon" href="/icon.svg"></head></html>',
+                "text/html",
+            )
+        if url == "https://chatgpt.com/icon.svg":
+            return (b'<svg xmlns="http://www.w3.org/2000/svg"></svg>', "image/svg+xml")
+        if url == "https://chatgpt.com/favicon.ico":
+            return (ICO_WITH_PNG_BYTES, "image/x-icon")
+        raise RuntimeError(url)
+
+    monkeypatch.setattr(builder, "fetch_url", fake_fetch_url)
+
+    menu_entry_path = builder.create_container(spec, applications_dir)
+
+    icon_path = spec.path / "icons" / "favicon.png"
+    assert icon_path.exists()
+    assert icon_path.read_bytes() == PNG_BYTES
+    assert f"Icon={icon_path}" in menu_entry_path.read_text(encoding="utf-8")
+
+
+def test_manifest_icon_is_used_when_html_has_no_direct_icon(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    source_dir = make_firefox_source_tree(tmp_path)
+    applications_dir = tmp_path / "applications"
+    spec = builder.ContainerSpec(
+        name="Claude",
+        path=tmp_path / "Claude",
+        allowed_domains=["claude.ai"],
+        source_firefox_dir=source_dir,
+        homepage_url="https://claude.ai",
+        icon_mode="favicon",
+        menu_name="Claude",
+    )
+
+    def fake_fetch_url(url: str) -> tuple[bytes, str | None]:
+        if url == "https://claude.ai":
+            return (
+                b'<html><head><link rel="manifest" href="/manifest.webmanifest"></head></html>',
+                "text/html",
+            )
+        if url == "https://claude.ai/manifest.webmanifest":
+            return (
+                json.dumps(
+                    {
+                        "icons": [
+                            {"src": "/icon.svg", "sizes": "any"},
+                            {"src": "/icon-512.png", "sizes": "512x512"},
+                        ]
+                    }
+                ).encode("utf-8"),
+                "application/manifest+json",
+            )
+        if url == "https://claude.ai/icon-512.png":
+            return (PNG_BYTES, "image/png")
+        if url == "https://claude.ai/favicon.ico":
+            raise RuntimeError(url)
+        if url == "https://claude.ai/icon.svg":
+            return (b'<svg xmlns="http://www.w3.org/2000/svg"></svg>', "image/svg+xml")
+        raise RuntimeError(url)
+
+    monkeypatch.setattr(builder, "fetch_url", fake_fetch_url)
+
+    menu_entry_path = builder.create_container(spec, applications_dir)
+
+    icon_path = spec.path / "icons" / "favicon.png"
+    assert icon_path.exists()
+    assert icon_path.read_bytes() == PNG_BYTES
+    assert f"Icon={icon_path}" in menu_entry_path.read_text(encoding="utf-8")
+
+
+def test_public_favicon_service_is_used_when_site_blocks_icon_fetch(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    source_dir = make_firefox_source_tree(tmp_path)
+    applications_dir = tmp_path / "applications"
+    spec = builder.ContainerSpec(
+        name="ChatGPT",
+        path=tmp_path / "ChatGPT",
+        allowed_domains=["chatgpt.com"],
+        source_firefox_dir=source_dir,
+        homepage_url="https://chatgpt.com",
+        icon_mode="favicon",
+        menu_name="ChatGPT",
+    )
+
+    def fake_fetch_url(url: str) -> tuple[bytes, str | None]:
+        if url in {
+            "https://chatgpt.com",
+            "https://chatgpt.com/favicon.ico",
+        }:
+            raise RuntimeError("blocked")
+        if url == "https://www.google.com/s2/favicons?domain=chatgpt.com&sz=64":
             return (PNG_BYTES, "image/png")
         raise RuntimeError(url)
 
@@ -752,11 +995,69 @@ def test_existing_icon_is_backed_up_before_replace(monkeypatch, tmp_path: Path) 
 
     icon_path, _warning = builder.prepare_container_icon(spec)
 
-    backups = list((icon_dir / "browser-container-builder-backups").glob("*/favicon.png"))
+    backups = list(
+        (icon_dir / "browser-container-builder-backups").glob("*/favicon.png")
+    )
     assert backups
     assert backups[0].read_bytes() == b"oldpng"
     assert Path(icon_path).suffix == ".png"
     assert Path(icon_path).read_bytes() == PNG_BYTES
+
+
+def test_prepare_container_icon_keeps_existing_png_when_download_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
+    spec = builder.ContainerSpec(
+        name="Cpanel",
+        path=tmp_path / "Cpanel",
+        allowed_domains=["cpanel.example.com"],
+        source_firefox_dir=None,
+        icon_mode="favicon",
+    )
+    icon_path = spec.path / "icons" / "favicon.png"
+    icon_path.parent.mkdir(parents=True)
+    icon_path.write_bytes(PNG_BYTES)
+    monkeypatch.setattr(
+        builder,
+        "resolve_favicon_download",
+        lambda _spec: (None, None, None),
+    )
+
+    selected_icon, warning = builder.prepare_container_icon(spec)
+
+    assert selected_icon == str(icon_path)
+    assert warning == "Favicon download failed, fallback icon used."
+
+
+def test_prepare_container_icon_prefers_existing_ico_over_downloaded_svg(
+    tmp_path: Path, monkeypatch
+) -> None:
+    spec = builder.ContainerSpec(
+        name="Chad",
+        path=tmp_path / "Chad",
+        allowed_domains=["chad.example.com"],
+        source_firefox_dir=None,
+        icon_mode="favicon",
+    )
+    icon_path = spec.path / "icons" / "favicon.ico"
+    icon_path.parent.mkdir(parents=True)
+    icon_path.write_bytes(ICO_WITH_PNG_BYTES)
+    monkeypatch.setattr(
+        builder,
+        "resolve_favicon_download",
+        lambda _spec: (
+            "https://chad.example.com/favicon.svg",
+            b'<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+            "image/svg+xml",
+        ),
+    )
+
+    selected_icon, warning = builder.prepare_container_icon(spec)
+
+    assert selected_icon == str(icon_path)
+    assert (
+        warning == "SVG favicon skipped because an existing raster icon is available."
+    )
 
 
 def test_ico_with_embedded_png_is_saved_as_png(monkeypatch, tmp_path: Path) -> None:
@@ -869,12 +1170,13 @@ def test_create_container_removes_conflicting_menu_entry_by_visible_name(
 
     menu_entry_path = builder.create_container(spec, applications_dir)
 
-    assert menu_entry_path == applications_dir / "netmon-secure-browser-sparkasse.desktop"
+    assert (
+        menu_entry_path == applications_dir / "netmon-secure-browser-sparkasse.desktop"
+    )
     assert menu_entry_path.exists()
     assert not old_entry.exists()
-    assert (
-        "Name=NetMon Secure Browser – Sparkasse"
-        in menu_entry_path.read_text(encoding="utf-8")
+    assert "Name=NetMon Secure Browser – Sparkasse" in menu_entry_path.read_text(
+        encoding="utf-8"
     )
 
 
@@ -997,13 +1299,13 @@ def test_only_limits_menu_entry_in_main(tmp_path: Path) -> None:
             "{\n"
             f'  "default_source_firefox_dir": "{source_dir}",\n'
             '  "containers": [\n'
-            '    {\n'
+            "    {\n"
             '      "name": "firefox-GitHub",\n'
             f'      "path": "{tmp_path / "firefox-GitHub"}",\n'
             '      "allowed_domains": ["github.com"],\n'
             '      "menu_name": "NetMon Secure Browser – GitHub"\n'
             "    },\n"
-            '    {\n'
+            "    {\n"
             '      "name": "firefox-OpenAI",\n'
             f'      "path": "{tmp_path / "firefox-OpenAI"}",\n'
             '      "allowed_domains": ["openai.com"],\n'
@@ -1031,9 +1333,7 @@ def test_only_limits_menu_entry_in_main(tmp_path: Path) -> None:
     )
 
     assert exit_code == 0
-    assert (
-        applications_dir / "netmon-secure-browser-firefox-github.desktop"
-    ).exists()
+    assert (applications_dir / "netmon-secure-browser-firefox-github.desktop").exists()
     assert not (
         applications_dir / "netmon-secure-browser-firefox-openai.desktop"
     ).exists()
@@ -1121,7 +1421,9 @@ def test_register_existing_dry_run_shows_menu_entry(tmp_path: Path) -> None:
     assert "netmon-secure-browser-firefox-gmail.desktop" in rendered
 
 
-def test_register_existing_apply_creates_start_launcher_and_menu(tmp_path: Path) -> None:
+def test_register_existing_apply_creates_start_launcher_and_menu(
+    tmp_path: Path,
+) -> None:
     base_dir = tmp_path / "programme"
     base_dir.mkdir()
     root_dir = make_existing_container(base_dir, "firefox-gmail")
@@ -1150,8 +1452,8 @@ def test_register_existing_apply_creates_start_launcher_and_menu(tmp_path: Path)
     ).read_text(encoding="utf-8")
     assert '--profile "' in start_script
     assert "profile" in start_script
-    assert "NetMon Secure Browser – Gmail" in launcher
-    assert "NetMon Secure Browser – Gmail" in menu_entry
+    assert "Name=Gmail" in launcher
+    assert "Name=Gmail" in menu_entry
     assert os.access(root_dir / "launcher.desktop", os.X_OK)
     assert os.access(
         applications_dir / "netmon-secure-browser-firefox-gmail.desktop",
@@ -1189,16 +1491,17 @@ def test_register_existing_apply_supports_custom_container_name(tmp_path: Path) 
     menu_entry = (
         applications_dir / "netmon-secure-browser-sparkasse.desktop"
     ).read_text(encoding="utf-8")
-    assert "Name=NetMon Secure Browser – Sparkasse" in launcher
-    assert "Name=NetMon Secure Browser – Sparkasse" in menu_entry
+    assert "Name=Sparkasse" in launcher
+    assert "Name=Sparkasse" in menu_entry
     assert (
         f'Exec=env BAMF_DESKTOP_FILE_HINT="{applications_dir / "netmon-secure-browser-sparkasse.desktop"}" '
-        f'"{root_dir / "start.sh"}"'
-        in menu_entry
+        f'"{root_dir / "start.sh"}"' in menu_entry
     )
 
 
-def test_refresh_existing_apply_overwrites_launcher_and_menu(tmp_path: Path, monkeypatch) -> None:
+def test_refresh_existing_apply_overwrites_launcher_and_menu(
+    tmp_path: Path, monkeypatch
+) -> None:
     base_dir = tmp_path / "programme"
     base_dir.mkdir()
     root_dir = make_existing_container(
@@ -1241,16 +1544,22 @@ def test_refresh_existing_apply_overwrites_launcher_and_menu(tmp_path: Path, mon
 
     assert exit_code == 0
     assert "old start" not in (root_dir / "start.sh").read_text(encoding="utf-8")
-    assert "old launcher" not in (root_dir / "launcher.desktop").read_text(encoding="utf-8")
+    assert "old launcher" not in (root_dir / "launcher.desktop").read_text(
+        encoding="utf-8"
+    )
     updated_menu = menu_entry_path.read_text(encoding="utf-8")
     assert "old menu" not in updated_menu
+    assert "Name=Sparkasse" in updated_menu
+    assert "Name=NetMon Secure Browser" not in updated_menu
     assert f"Icon={root_dir / 'icons' / 'favicon.png'}" in updated_menu
     assert f"Icon={root_dir / 'icons' / 'favicon.png'}" in (
         root_dir / "launcher.desktop"
     ).read_text(encoding="utf-8")
 
 
-def test_repair_policy_apply_updates_existing_policy_and_user_js(tmp_path: Path) -> None:
+def test_repair_policy_apply_updates_existing_policy_and_user_js(
+    tmp_path: Path,
+) -> None:
     base_dir = tmp_path / "programme"
     base_dir.mkdir()
     root_dir = make_existing_container(
@@ -1291,27 +1600,73 @@ def test_repair_policy_apply_updates_existing_policy_and_user_js(tmp_path: Path)
     ).read_text(encoding="utf-8")
 
 
-def test_cleanup_menu_detects_duplicate_visible_names(tmp_path: Path) -> None:
+def test_cleanup_menu_keeps_same_visible_name_for_distinct_containers(
+    tmp_path: Path,
+) -> None:
     applications_dir = tmp_path / "applications"
     applications_dir.mkdir()
     first = applications_dir / "netmon-secure-browser-sparkasse.desktop"
     second = applications_dir / "netmon-secure-browser-firefox-sparkasseulm.desktop"
+    for container_name in ("sparkasse", "sparkasse2"):
+        container_dir = tmp_path / container_name
+        container_dir.mkdir()
+        (container_dir / "start.sh").write_text("#!/bin/sh\n", encoding="utf-8")
     content = (
         "[Desktop Entry]\n"
         "Name=NetMon Secure Browser – Sparkasse\n"
-        "Exec=/tmp/sparkasse/start.sh\n"
+        f"Exec={tmp_path / 'sparkasse' / 'start.sh'}\n"
     )
     first.write_text(content, encoding="utf-8")
-    second.write_text(content.replace("/tmp/sparkasse/", "/tmp/sparkasse2/"), encoding="utf-8")
+    second.write_text(
+        content.replace("/sparkasse/start.sh", "/sparkasse2/start.sh"), encoding="utf-8"
+    )
 
     lines, removable = builder.build_cleanup_menu_plan(applications_dir)
 
     rendered = "\n".join(lines)
-    assert "doppelt" in rendered
-    assert second in [entry.path for entry in removable]
+    assert "doppelt" not in rendered
+    assert removable == []
 
 
-def test_register_existing_does_not_overwrite_existing_start_or_launcher(tmp_path: Path) -> None:
+def test_cleanup_menu_detects_duplicate_container_target(tmp_path: Path) -> None:
+    applications_dir = tmp_path / "applications"
+    applications_dir.mkdir()
+    container_dir = tmp_path / "sparkasse"
+    container_dir.mkdir()
+    start_script = container_dir / "start.sh"
+    start_script.write_text("#!/bin/sh\n", encoding="utf-8")
+    first = applications_dir / "netmon-secure-browser-sparkasse.desktop"
+    second = applications_dir / "netmon-secure-browser-sparkasse-alt.desktop"
+    first.write_text(
+        f"[Desktop Entry]\nName=Sparkasse\nExec={start_script}\n",
+        encoding="utf-8",
+    )
+    second.write_text(
+        f"[Desktop Entry]\nName=Sparkasse Alt\nExec={start_script}\n",
+        encoding="utf-8",
+    )
+
+    lines, removable = builder.build_cleanup_menu_plan(applications_dir)
+
+    assert "doppelt" in "\n".join(lines)
+    assert len(removable) == 1
+    assert removable[0].path in {first, second}
+
+
+def test_container_status_distinguishes_missing_menu_entry(tmp_path: Path) -> None:
+    root_dir = make_existing_container(
+        tmp_path,
+        "firefox-gmail",
+        with_launcher=True,
+    )
+    container = builder.discover_container(root_dir / "firefox" / "firefox")
+
+    assert builder.derive_container_status(container, []) == "Menüeintrag fehlt"
+
+
+def test_register_existing_does_not_overwrite_existing_start_or_launcher(
+    tmp_path: Path,
+) -> None:
     base_dir = tmp_path / "programme"
     base_dir.mkdir()
     root_dir = make_existing_container(
@@ -1339,7 +1694,9 @@ def test_register_existing_does_not_overwrite_existing_start_or_launcher(tmp_pat
 
     assert exit_code == 0
     assert '--profile "' in (root_dir / "start.sh").read_text(encoding="utf-8")
-    assert (root_dir / "launcher.desktop").read_text(encoding="utf-8") == "existing launcher"
+    assert (root_dir / "launcher.desktop").read_text(
+        encoding="utf-8"
+    ) == "existing launcher"
 
 
 def test_register_existing_overwrites_existing_menu_entry(tmp_path: Path) -> None:
@@ -1395,9 +1752,7 @@ def test_register_existing_only_limits_menu_entry(tmp_path: Path) -> None:
     )
 
     assert exit_code == 0
-    assert (
-        applications_dir / "netmon-secure-browser-firefox-gmail.desktop"
-    ).exists()
+    assert (applications_dir / "netmon-secure-browser-firefox-gmail.desktop").exists()
     assert not (
         applications_dir / "netmon-secure-browser-firefox-youtube.desktop"
     ).exists()
@@ -1430,6 +1785,35 @@ def test_cleanup_menu_detects_orphaned_entry(tmp_path: Path) -> None:
     applications_dir.mkdir()
     orphan = applications_dir / "netmon-secure-browser-firefox-gmail.desktop"
     orphan.write_text("[Desktop Entry]\nExec=/missing/start.sh\n", encoding="utf-8")
+
+    lines, removable = builder.build_cleanup_menu_plan(applications_dir)
+
+    assert orphan in [entry.path for entry in removable]
+    assert "verwaist" in "\n".join(lines)
+
+
+def test_cleanup_menu_detects_entry_pointing_to_uninstall_backup(
+    tmp_path: Path,
+) -> None:
+    applications_dir = tmp_path / "applications"
+    applications_dir.mkdir()
+    uninstall_start = (
+        tmp_path
+        / "Dokumente"
+        / "NetMon"
+        / "Secure Browser"
+        / builder.DEFAULT_UNINSTALLED_DIRNAME
+        / "20260712_080000"
+        / "Chad"
+        / "start.sh"
+    )
+    uninstall_start.parent.mkdir(parents=True)
+    uninstall_start.write_text("#!/bin/sh\n", encoding="utf-8")
+    orphan = applications_dir / "netmon-secure-browser-chad.desktop"
+    orphan.write_text(
+        f'[Desktop Entry]\nExec=env BAMF_DESKTOP_FILE_HINT="{orphan}" "{uninstall_start}"\n',
+        encoding="utf-8",
+    )
 
     lines, removable = builder.build_cleanup_menu_plan(applications_dir)
 
@@ -1496,7 +1880,10 @@ def test_uninstall_dry_run_is_safe(tmp_path: Path) -> None:
     assert root_dir.exists()
 
 
-def test_uninstall_apply_moves_container_to_uninstalled(tmp_path: Path) -> None:
+def test_uninstall_apply_moves_container_to_uninstalled(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     base_dir = tmp_path / "programme"
     base_dir.mkdir()
     root_dir = make_existing_container(base_dir, "firefox-gmail")
@@ -1519,16 +1906,56 @@ def test_uninstall_apply_moves_container_to_uninstalled(tmp_path: Path) -> None:
     assert exit_code == 0
     assert not root_dir.exists()
     moved = list(
-        (base_dir / "browser-container-builder-uninstalled").glob("*/firefox-gmail")
+        (tmp_path / "state" / "netmon" / "browser-container-builder-uninstalled").glob(
+            "*/firefox-gmail"
+        )
     )
     assert moved
+
+
+def test_uninstall_move_failure_preserves_menu_entry(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    base_dir = tmp_path / "programme"
+    base_dir.mkdir()
+    root_dir = make_existing_container(base_dir, "firefox-gmail")
+    applications_dir = tmp_path / "applications"
+    applications_dir.mkdir()
+    menu_entry = applications_dir / "netmon-secure-browser-firefox-gmail.desktop"
+    menu_entry.write_text(
+        f"[Desktop Entry]\nExec={root_dir / 'start.sh'}\n",
+        encoding="utf-8",
+    )
+    container = builder.discover_container(root_dir / "firefox" / "firefox")
+
+    def fail_move(_source: str, _destination: str) -> None:
+        raise OSError("simulierter Verschiebefehler")
+
+    monkeypatch.setattr(builder.shutil, "move", fail_move)
+
+    try:
+        builder.uninstall_container(container, applications_dir, base_dir)
+    except OSError as exc:
+        assert "simulierter Verschiebefehler" in str(exc)
+    else:
+        raise AssertionError("Expected simulated uninstall move failure")
+
+    assert root_dir.exists()
+    assert menu_entry.exists()
 
 
 def test_inventory_skips_uninstalled_backup_tree(tmp_path: Path) -> None:
     base_dir = tmp_path / "programme"
     base_dir.mkdir()
     make_existing_container(base_dir, "firefox-gmail")
-    uninstall_root = base_dir / builder.DEFAULT_UNINSTALLED_DIRNAME / "20260705_120000"
+    uninstall_root = (
+        tmp_path
+        / "state"
+        / "netmon"
+        / builder.DEFAULT_UNINSTALLED_DIRNAME
+        / "20260705_120000"
+    )
     make_existing_container(uninstall_root, "firefox-chatgpt")
 
     discovered = builder.discover_existing_containers(base_dir)
@@ -1536,7 +1963,8 @@ def test_inventory_skips_uninstalled_backup_tree(tmp_path: Path) -> None:
     assert [container.name for container in discovered] == ["firefox-gmail"]
 
 
-def test_uninstall_never_deletes_external_profiles(tmp_path: Path) -> None:
+def test_uninstall_never_deletes_external_profiles(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     base_dir = tmp_path / "programme"
     base_dir.mkdir()
     external_profile = tmp_path / "external-profile"
@@ -1568,7 +1996,10 @@ def test_uninstall_never_deletes_external_profiles(tmp_path: Path) -> None:
     assert not root_dir.exists()
 
 
-def test_uninstall_backs_up_and_removes_menu_entries(tmp_path: Path) -> None:
+def test_uninstall_backs_up_and_removes_menu_entries(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     base_dir = tmp_path / "programme"
     base_dir.mkdir()
     root_dir = make_existing_container(base_dir, "firefox-gmail")
@@ -1598,6 +2029,60 @@ def test_uninstall_backs_up_and_removes_menu_entries(tmp_path: Path) -> None:
     assert not menu_entry.exists()
 
 
+def test_parse_desktop_exec_target_supports_spaces_in_paths(tmp_path: Path) -> None:
+    desktop_path = tmp_path / "netmon-secure-browser-chatgpt.desktop"
+    start_path = (
+        tmp_path / "Dokumente" / "NetMon" / "Secure Browser" / "ChatGPT" / "start.sh"
+    )
+    desktop_path.write_text(
+        (
+            "[Desktop Entry]\n"
+            f'Exec=env BAMF_DESKTOP_FILE_HINT="{desktop_path}" "{start_path}"\n'
+        ),
+        encoding="utf-8",
+    )
+
+    assert builder.parse_desktop_exec_target(desktop_path) == start_path
+
+
+def test_uninstall_removes_menu_entry_when_container_path_contains_spaces(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    base_dir = tmp_path / "Dokumente" / "NetMon" / "Secure Browser"
+    base_dir.mkdir(parents=True)
+    root_dir = make_existing_container(base_dir, "ChatGPT")
+    applications_dir = tmp_path / "applications"
+    applications_dir.mkdir()
+    menu_entry = applications_dir / "netmon-secure-browser-chatgpt.desktop"
+    menu_entry.write_text(
+        (
+            "[Desktop Entry]\n"
+            f'Exec=env BAMF_DESKTOP_FILE_HINT="{menu_entry}" "{root_dir / "start.sh"}"\n'
+        ),
+        encoding="utf-8",
+    )
+    inventory_path = tmp_path / "inventory.md"
+
+    exit_code = builder.main(
+        [
+            "--base-dir",
+            str(base_dir),
+            "--inventory",
+            str(inventory_path),
+            "--uninstall",
+            "ChatGPT",
+            "--apply",
+        ],
+        applications_dir=applications_dir,
+    )
+
+    assert exit_code == 0
+    assert not menu_entry.exists()
+    assert not (base_dir / builder.DEFAULT_UNINSTALLED_DIRNAME).exists()
+
+
 def test_uninstall_unknown_container_is_reported(tmp_path: Path) -> None:
     base_dir = tmp_path / "programme"
     base_dir.mkdir()
@@ -1616,3 +2101,23 @@ def test_uninstall_unknown_container_is_reported(tmp_path: Path) -> None:
     )
 
     assert exit_code == 1
+
+
+def test_list_installed_creates_missing_base_directory(tmp_path: Path) -> None:
+    base_dir = tmp_path / "Documents" / "NetMon" / "Secure Browser"
+    inventory_path = tmp_path / "inventory.md"
+
+    exit_code = builder.main(
+        [
+            "--base-dir",
+            str(base_dir),
+            "--inventory",
+            str(inventory_path),
+            "--list-installed",
+        ],
+        applications_dir=tmp_path / "applications",
+    )
+
+    assert exit_code == 0
+    assert base_dir.is_dir()
+    assert inventory_path.is_file()

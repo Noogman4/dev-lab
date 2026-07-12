@@ -18,6 +18,9 @@ NetMon kombiniert klassische Netzwerk-Werkzeuge, DNS-/DoT-Steuerung, Firewall- u
 - Radio-Modul mit eingebetteter und losgeloester Radio-App, Datenbank-/Favoriten-/Settings-Dateien und optionalem projectM-Visualizer.
 - Theme Studio fuer das Pop-Testprofil inklusive Speichern/Laden von Profilen.
 - Linux-Hilfe, Cleanup Assistant, HDD-/Link-/VPN-Slot-Verwaltung und Chad-Analyse.
+- Secure Browser fuer getrennte, gehaertete Firefox-Instanzen pro Webdienst mit Sicherheitsprofilen, Domain-Whitelist, Dry-Run und verwalteten Cookie-/Login-Optionen.
+- Gefuehrte Touren im Setup, einschliesslich einer zweisprachigen Secure-Browser-Tour mit ausfuehrlicher Datenschutz- und Grenzen-Erklaerung.
+- VPN-Profilverwaltung mit konsistenter Slot-/Privacy-Bereinigung und automatischer Aktualisierung der oeffentlichen IP nach einem Profilwechsel.
 - About-Dialog mit Online-Versionspruefung gegen `netmonroots.com` und automatischer Weiterleitung auf die Downloadseite bei neueren Website-Releases.
 - Support-/Diagnosebereich mit lokalem Supportpaket-Export und sichtbarem Datenschutzhinweis vor dem Versand.
 - Paketierter Deinstaller mit optionaler Bereinigung von NetMon-, WireGuard-, NetworkManager- und Testsystem-Resten.
@@ -58,6 +61,8 @@ NetMon kombiniert klassische Netzwerk-Werkzeuge, DNS-/DoT-Steuerung, Firewall- u
   - `netmon-uninstall.desktop`
   - `netmon.png`
   - `netmon-radio.png` als Radio-spezifisches Asset
+  - Secure-Browser-Manager und dessen Builder-/Policy-Ressourcen
+  - aktuelle HTML-/PDF-Dokumentation fuer Version `1.1.17`
 
 ### Beispiel-Setup unter Linux
 

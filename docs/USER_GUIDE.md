@@ -82,6 +82,27 @@ Wenn beim GUI-Start `tkinter` fehlt, verweist `netmon/main.py` auf `sudo apt ins
 - **Beschreibung:** Die Builder liegen in `netmon/ui/tabs/system_tab.py`, `hdd_tab.py`, `links_tab.py` und `vpn_slots_tab.py`.
 - **Screenshot-Platzhalter:** Screenshot-Platzhalter: System-Notebook mit Status, HDD und Links.
 - **Typische Anwendung:** Typische Nutzung: Laufende Systemdaten, HDD-Slots, Schnelllinks und VPN-Profile pflegen.
+- **Link-Slots rechts:** Der Schnellzugriff bietet 20 frei beschreibbare Slots fuer interne Systemlinks oder externe HTTP-/HTTPS-Ziele. Vorhandene Belegungen der bisherigen Slots 1 bis 15 bleiben bei der Erweiterung erhalten.
+- **VPN-Slots rechts:** Der Schnellzugriff bietet 10 VPN-Slots in einheitlicher Groesse. Vorhandene Belegungen der bisherigen Slots 1 bis 5 bleiben erhalten; die Slots 6 bis 10 werden bei bestehenden Konfigurationen leer ergaenzt.
+
+#### VPN-Profile und Statusanzeige
+
+- Eine markierte Zeile im VPN-Slot-Tab bestimmt das zu bearbeitende Profil auch dann, wenn das Formularfeld noch leer ist.
+- Beim Loeschen eines Profils bereinigt NetMon normale VPN-Slots, primaere VPN-Slots und die Privacy-VPN-Auswahl, sofern sie auf dieses Profil verweisen.
+- Nach einem erfolgreichen Profilwechsel fragt NetMon die oeffentliche IP und das Exit-Land neu ab. Die VPN-Ampel im Kernstatus wird nach Abschluss der Abfrage automatisch aktualisiert.
+
+### Secure Browser
+
+- **Zweck:** Der Haupttab `Secure Browser` erstellt fuer ausgewaehlte Webdienste getrennte, gehaertete Firefox-Instanzen mit jeweils eigenem Profil.
+- **Installationsort:** Neue Instanzen liegen gemeinsam unter `Dokumente/NetMon/Secure Browser`; NetMon legt den Ordner beim ersten Zugriff automatisch an. Ein abweichender XDG-Dokumentenordner wird beruecksichtigt.
+- **Privatsphaeregewinn:** Cookies, Website-Speicher, Verlauf, Logins und Einstellungen bleiben vom normalen Browser und von anderen Secure-Browser-Instanzen getrennt. Das reduziert dienstuebergreifende Wiedererkennung und verhindert, dass mehrere sensible Webanwendungen ungewollt denselben lokalen Browserzustand teilen.
+- **Hardening:** Je nach Sicherheitsprofil koennen Telemetrie, Studies, Pocket, Sync, WebRTC, Formular-/Suchvorschlaege und spekulative Netzwerkzugriffe deaktiviert werden. Strenger Tracking-Schutz, HTTPS-Only und blockierte Drittanbieter-Cookies verringern weitere Datenabfluesse.
+- **Website-Filter:** Im Whitelist-Modus werden standardmaessig alle Ziele blockiert und nur konfigurierte Domains erlaubt. Notwendige Login-, Zahlungs- oder CDN-Domains muessen bewusst ergaenzt werden.
+- **Cookie-Entscheidung:** Dauerhafte Cookies und Logins bieten Komfort, erhalten aber wiedererkennbare Kennungen. Ohne Cookie-Persistenz werden Sitzungen und lokale Spuren beim Beenden konsequenter entfernt.
+- **Sicherer Einstieg:** Zuerst Webseite, Domains und Sicherheitsprofil festlegen, danach den `Dry-Run` pruefen und erst anschliessend mit `Anlegen` installieren.
+- **Grenzen:** Der Secure Browser macht nicht anonym. Webseiten sehen weiterhin die oeffentliche IP, koennen Fingerprinting einsetzen und erkennen angemeldete Konten. VPN oder Tor, Browser-Updates und eine enge Whitelist bleiben eigenstaendige Schutzbausteine.
+- **Tour:** Unter `Setup -> Tour` steht `Secure Browser` als eigene deutsche oder englische Tour bereit. Die `Volle Tour` enthaelt diesen Abschnitt automatisch.
+- **Deinstallation:** Der NetMon-Deinstaller fragt separat `Installierte Secure Browser ebenfalls deinstallieren? [y/N]`. Bei `N` bleiben Browser, Profile und Starter auch dann erhalten, wenn andere NetMon-Dokumente entfernt werden. Bei `Y` entfernt der Deinstaller die dedizierte Browser-Ablage, erkannte Legacy-Container und deren NetMon-Menueeintraege.
 
 ### Scanfunktionen
 
@@ -122,6 +143,7 @@ Wenn beim GUI-Start `tkinter` fehlt, verweist `netmon/main.py` auf `sudo apt ins
 | projectM laesst sich nicht starten | projectM ist optional und wird gesondert erkannt | projectM/Flatpak-Pfade pruefen; im Radio-UI den Installationshinweis nutzen. |
 | Packet Capture / Wireshark fehlt | Wireshark-/tshark-Launcher nicht installiert | Wireshark installieren; der Packet-Capture-Bereich enthaelt einen Installationshinweis. |
 | DNS-/Firewall-Aktionen scheitern | Viele Systemaktionen benoetigen `sudo -n` oder eine frische `sudo`-Session | Sudo-Session erneuern und mit passender Linux-Umgebung arbeiten. |
+| Secure Browser erreicht eine benoetigte Seite nicht | Der Website-Filter erlaubt nur die konfigurierte Domain-Liste | Dry-Run und Whitelist pruefen; nur die konkret benoetigten Login-, Zahlungs- oder CDN-Domains ergaenzen. |
 
 ## Bekannte Probleme
 

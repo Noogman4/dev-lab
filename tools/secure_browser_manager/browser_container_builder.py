@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import sqlite3
 import stat
@@ -21,21 +22,51 @@ from typing import Any
 from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
 
-DEFAULT_BASE_DIR = Path("/home/happy/Programme")
+
+def get_default_base_dir() -> Path:
+    documents_dir = (os.environ.get("XDG_DOCUMENTS_DIR") or "").strip()
+    if documents_dir:
+        documents_root = Path(os.path.expanduser(documents_dir))
+    else:
+        documents_root = next(
+            (
+                path
+                for path in (Path.home() / "Documents", Path.home() / "Dokumente")
+                if path.is_dir()
+            ),
+            Path.home() / "Documents",
+        )
+    return documents_root / "NetMon" / "Secure Browser"
+
+
+DEFAULT_BASE_DIR = get_default_base_dir()
 DEFAULT_CONFIG_PATH = Path("containers.json")
 DEFAULT_INVENTORY_PATH = Path("container_inventory.md")
 DEFAULT_APPLICATIONS_DIR = Path.home() / ".local" / "share" / "applications"
 DEFAULT_UNINSTALLED_DIRNAME = "browser-container-builder-uninstalled"
 DEFAULT_PROFILE_BASE_DIRS = [
-    Path("/home/happy/.config/mozilla/firefox"),
-    Path("/home/happy/.mozilla/firefox"),
+    Path.home() / ".config" / "mozilla" / "firefox",
+    Path.home() / ".mozilla" / "firefox",
 ]
 MAX_SCAN_FILE_SIZE = 256 * 1024
 MAX_PROFILE_HISTORY_ROWS = 5000
 CONTAINER_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 DEFAULT_ICON_MODE = "favicon"
 DEFAULT_THEME_ICON = "firefox"
+WEBSITE_FILTER_BLOCK_PATTERN = "<all_urls>"
 FAVICON_TIMEOUT_SECONDS = 10
+FAVICON_REQUEST_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (X11; Linux x86_64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/126.0.0.0 Safari/537.36"
+    ),
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;q=0.9,"
+        "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+    ),
+    "Accept-Language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
+}
 SKIP_DIR_NAMES = {
     ".git",
     ".hg",
@@ -45,13 +76,16 @@ SKIP_DIR_NAMES = {
     "node_modules",
     DEFAULT_UNINSTALLED_DIRNAME,
 }
+ARTIFACT_SKIP_DIR_NAMES = {
+    "backups",
+    "browser-container-builder-backups",
+    DEFAULT_UNINSTALLED_DIRNAME,
+}
 DOMAIN_PATTERN = re.compile(
     r"(?<![@\w-])(?:https?://)?([A-Za-z0-9.-]+\.[A-Za-z]{2,})(?::\d+)?(?:/|$)"
 )
 VERSION_PATTERN = re.compile(r"(\d+(?:\.\d+)+)")
-HOMEPAGE_PREF_PATTERN = re.compile(
-    r'browser\.startup\.homepage"\s*,\s*"([^"]+)"'
-)
+HOMEPAGE_PREF_PATTERN = re.compile(r'browser\.startup\.homepage"\s*,\s*"([^"]+)"')
 PROFILE_MATCH_RULES = {
     "firefox-ProtonMail": ["mail.proton.me", "account.proton.me"],
     "firefox-chatgpt": [
@@ -66,20 +100,30 @@ PROFILE_MATCH_RULES = {
     "firefox-primevideo": ["primevideo.com", "amazon.de", "amazon.com"],
     "firefox-youtube": ["youtube.com", "googlevideo.com", "ytimg.com"],
 }
+LOGIN_SUBDOMAIN_PREFIXES = {
+    "account",
+    "accounts",
+    "auth",
+    "id",
+    "login",
+    "secure",
+    "signin",
+    "sso",
+}
 REGISTER_EXISTING_MENU_NAMES = {
-    "firefox-GitHub": "NetMon Secure Browser – GitHub",
-    "firefox-OpenAI": "NetMon Secure Browser – OpenAI",
-    "firefox-NameCom": "NetMon Secure Browser – Name.com",
-    "firefox-cPanel": "NetMon Secure Browser – cPanel",
-    "firefox-Amazon": "NetMon Secure Browser – Amazon",
-    "firefox-Netflix": "NetMon Secure Browser – Netflix",
-    "firefox-SparkasseUlm": "NetMon Secure Browser – Sparkasse Ulm",
-    "firefox-ProtonMail": "NetMon Secure Browser – ProtonMail",
-    "firefox-netflix": "NetMon Secure Browser – Netflix",
-    "firefox-primevideo": "NetMon Secure Browser – Prime Video",
-    "firefox-youtube": "NetMon Secure Browser – YouTube",
-    "firefox-gmail": "NetMon Secure Browser – Gmail",
-    "firefox-chatgpt": "NetMon Secure Browser – ChatGPT",
+    "firefox-GitHub": "GitHub",
+    "firefox-OpenAI": "OpenAI",
+    "firefox-NameCom": "Name.com",
+    "firefox-cPanel": "cPanel",
+    "firefox-Amazon": "Amazon",
+    "firefox-Netflix": "Netflix",
+    "firefox-SparkasseUlm": "Sparkasse Ulm",
+    "firefox-ProtonMail": "ProtonMail",
+    "firefox-netflix": "Netflix",
+    "firefox-primevideo": "Prime Video",
+    "firefox-youtube": "YouTube",
+    "firefox-gmail": "Gmail",
+    "firefox-chatgpt": "ChatGPT",
 }
 
 
@@ -213,6 +257,7 @@ class IconLinkParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
         self.links: list[tuple[str, str]] = []
+        self.manifests: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag.lower() != "link":
@@ -225,6 +270,8 @@ class IconLinkParser(HTMLParser):
         rel_tokens = {token for token in rel.split() if token}
         if "icon" in rel_tokens or "apple-touch-icon" in rel_tokens:
             self.links.append((rel, href))
+        elif "manifest" in rel_tokens:
+            self.manifests.append(href)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -247,9 +294,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--inventory",
         default=str(DEFAULT_INVENTORY_PATH),
-        help=(
-            f"Markdown inventory output path (default: {DEFAULT_INVENTORY_PATH})"
-        ),
+        help=(f"Markdown inventory output path (default: {DEFAULT_INVENTORY_PATH})"),
     )
     parser.add_argument(
         "--apply",
@@ -386,7 +431,14 @@ def read_places_domains(profile_dir: Path) -> list[str]:
 
 
 def search_files(root_dir: Path, filename: str) -> list[Path]:
-    return sorted(path for path in root_dir.rglob(filename) if path.is_file())
+    return sorted(
+        path
+        for path in root_dir.rglob(filename)
+        if path.is_file()
+        and not ARTIFACT_SKIP_DIR_NAMES.intersection(
+            path.relative_to(root_dir).parts[:-1]
+        )
+    )
 
 
 def detect_profile_path(root_dir: Path, start_script: Path | None) -> Path | None:
@@ -465,7 +517,9 @@ def discover_firefox_profiles(base_dirs: list[Path]) -> list[FirefoxProfile]:
     return profiles
 
 
-def score_profile_match(profile: FirefoxProfile, expected_domains: list[str]) -> tuple[int, list[str]]:
+def score_profile_match(
+    profile: FirefoxProfile, expected_domains: list[str]
+) -> tuple[int, list[str]]:
     matched_domains: list[str] = []
     for expected in expected_domains:
         expected_host = expected.split(":", 1)[0].lower()
@@ -512,7 +566,9 @@ def build_risk_hints(
     if profile_path is None:
         risks.append("Kein Profilordner erkannt.")
     elif str(profile_path).startswith(str(Path.home() / ".mozilla")):
-        risks.append("Profil liegt unter ~/.mozilla und sollte nicht veraendert werden.")
+        risks.append(
+            "Profil liegt unter ~/.mozilla und sollte nicht veraendert werden."
+        )
     elif str(profile_path).startswith(str(Path.home() / ".config" / "mozilla")):
         risks.append(
             "Profil liegt unter ~/.config/mozilla und sollte nicht veraendert werden."
@@ -530,7 +586,9 @@ def build_risk_hints(
         risks.append("Keine policies.json erkannt.")
     if not domains:
         risks.append("Keine eindeutigen Domains oder kein Zweck erkennbar.")
-    if not (root_dir / "launcher.desktop").exists() and not list(root_dir.glob("*.desktop")):
+    if not (root_dir / "launcher.desktop").exists() and not list(
+        root_dir.glob("*.desktop")
+    ):
         risks.append("Keine Desktop-Datei erkannt.")
     return risks
 
@@ -550,11 +608,7 @@ def discover_container(binary_path: Path) -> DiscoveredContainer:
         if path is not None:
             text_sources.append(read_text_if_small(path))
     domains = sorted(
-        {
-            domain
-            for text in text_sources
-            for domain in extract_domains_from_text(text)
-        }
+        {domain for text in text_sources for domain in extract_domains_from_text(text)}
     )
     start_command = detect_start_command(start_script)
     purpose = infer_purpose(root_dir.name, domains)
@@ -606,9 +660,7 @@ def correlate_profiles(
                 "Kein wahrscheinliches Mozilla-Profil ueber Domain-Treffer gefunden."
             )
             continue
-        scored_matches.sort(
-            key=lambda item: (-item[0], str(item[1].path))
-        )
+        scored_matches.sort(key=lambda item: (-item[0], str(item[1].path)))
         best_score, best_profile, matched_domains = scored_matches[0]
         container.correlated_profile_path = best_profile.path
         container.correlation_reason = (
@@ -699,10 +751,28 @@ def get_known_container_defaults(
         if item_key in target_keys:
             return dict(item)
         item_domains = normalize_allowed_domains(
-            [value for value in item.get("allowed_domains", []) if isinstance(value, str)]
+            [
+                value
+                for value in item.get("allowed_domains", [])
+                if isinstance(value, str)
+            ]
         )
-        if normalized_domains and any(domain in item_domains for domain in normalized_domains):
+        if normalized_domains and any(
+            domain in item_domains for domain in normalized_domains
+        ):
             return dict(item)
+        if normalized_domains:
+            derived_domains = []
+            for domain in normalized_domains:
+                host = domain.split(":", 1)[0].removeprefix("www.")
+                parts = [part for part in host.split(".") if part]
+                if len(parts) > 2 and parts[0] in LOGIN_SUBDOMAIN_PREFIXES:
+                    derived_domains.append(".".join(parts[1:]))
+            if derived_domains and any(
+                domain in item_domains or f"www.{domain}" in item_domains
+                for domain in derived_domains
+            ):
+                return dict(item)
     return None
 
 
@@ -812,9 +882,26 @@ def get_fallback_icon_path(spec: ContainerSpec) -> Path:
     return get_container_icon_path(spec)
 
 
+def get_existing_icon_reference(
+    spec: ContainerSpec,
+    *,
+    raster_only: bool = False,
+) -> Path | None:
+    suffixes = (".png", ".ico") if raster_only else (".png", ".ico", ".svg")
+    icon_dir = get_icon_storage_dir(spec)
+    for suffix in suffixes:
+        candidate = icon_dir / f"favicon{suffix}"
+        if candidate.is_file() and candidate.stat().st_size > 0:
+            return candidate
+    return None
+
+
 def get_fallback_icon_reference(spec: ContainerSpec) -> str:
     if spec.custom_icon_path is not None and spec.custom_icon_path.exists():
         return str(spec.custom_icon_path)
+    existing_icon = get_existing_icon_reference(spec)
+    if existing_icon is not None:
+        return str(existing_icon)
     return DEFAULT_THEME_ICON
 
 
@@ -822,9 +909,15 @@ def build_icon_plan(spec: ContainerSpec) -> IconPlan:
     mode = get_icon_mode(spec)
     source_domain = get_icon_source_domain(spec)
     attempt_url = (
-        f"https://{source_domain}/favicon.ico" if mode == "favicon" and source_domain else None
+        f"https://{source_domain}/favicon.ico"
+        if mode == "favicon" and source_domain
+        else None
     )
-    suffix = spec.custom_icon_path.suffix if mode == "custom" and spec.custom_icon_path else ".png"
+    suffix = (
+        spec.custom_icon_path.suffix
+        if mode == "custom" and spec.custom_icon_path
+        else ".png"
+    )
     return IconPlan(
         mode=mode,
         source_domain=source_domain,
@@ -851,7 +944,7 @@ def get_default_menu_name(spec: ContainerSpec) -> str:
         "namecom": "Name.com",
     }
     display_label = display_map.get(label.lower(), label)
-    return f"NetMon Secure Browser – {display_label}"
+    return display_label
 
 
 def get_menu_name(spec: ContainerSpec) -> str:
@@ -863,14 +956,37 @@ def get_menu_entry_path(spec: ContainerSpec, applications_dir: Path) -> Path:
 
 
 def get_uninstall_base_dir(base_dir: Path) -> Path:
-    return base_dir / DEFAULT_UNINSTALLED_DIRNAME
+    state_home = (os.environ.get("XDG_STATE_HOME") or "").strip()
+    if state_home:
+        state_root = Path(os.path.expanduser(state_home))
+    else:
+        state_root = Path.home() / ".local" / "state"
+    return state_root / "netmon" / DEFAULT_UNINSTALLED_DIRNAME
 
 
 def get_container_icon_path(spec: ContainerSpec) -> Path:
     candidates = [
-        spec.path / "firefox" / "browser" / "chrome" / "icons" / "default" / "default128.png",
-        spec.path / "firefox" / "browser" / "chrome" / "icons" / "default" / "default64.png",
-        spec.path / "firefox" / "browser" / "chrome" / "icons" / "default" / "default32.png",
+        spec.path
+        / "firefox"
+        / "browser"
+        / "chrome"
+        / "icons"
+        / "default"
+        / "default128.png",
+        spec.path
+        / "firefox"
+        / "browser"
+        / "chrome"
+        / "icons"
+        / "default"
+        / "default64.png",
+        spec.path
+        / "firefox"
+        / "browser"
+        / "chrome"
+        / "icons"
+        / "default"
+        / "default32.png",
     ]
     for candidate in candidates:
         if candidate.exists():
@@ -922,7 +1038,9 @@ def extract_png_from_ico(payload: bytes) -> bytes | None:
         entry_offset = 6 + (index * 16)
         if len(payload) < entry_offset + 16:
             return None
-        image_size = int.from_bytes(payload[entry_offset + 8 : entry_offset + 12], "little")
+        image_size = int.from_bytes(
+            payload[entry_offset + 8 : entry_offset + 12], "little"
+        )
         image_offset = int.from_bytes(
             payload[entry_offset + 12 : entry_offset + 16],
             "little",
@@ -948,7 +1066,7 @@ def fetch_url(url: str) -> tuple[bytes, str | None]:
         raise ValueError(f"Nur http/https-URLs erlaubt, nicht: {scheme or '(leer)'}")
     request = Request(
         url,
-        headers={"User-Agent": "NetMonSecureBrowserManager/1.0"},
+        headers=FAVICON_REQUEST_HEADERS,
     )
     with urlopen(request, timeout=FAVICON_TIMEOUT_SECONDS) as response:
         content = response.read()
@@ -975,30 +1093,123 @@ def extract_icon_links(html: str, base_url: str) -> list[str]:
     return [url for _, url in sorted(prioritized, key=lambda item: (item[0], item[1]))]
 
 
-def resolve_favicon_download(spec: ContainerSpec) -> tuple[str | None, bytes | None, str | None]:
+def extract_manifest_links(html: str, base_url: str) -> list[str]:
+    parser = IconLinkParser()
+    parser.feed(html)
+    return [urljoin(base_url, href) for href in parser.manifests]
+
+
+def extract_manifest_icon_links(manifest_text: str, base_url: str) -> list[str]:
+    try:
+        payload = json.loads(manifest_text)
+    except json.JSONDecodeError:
+        return []
+    icons = payload.get("icons")
+    if not isinstance(icons, list):
+        return []
+    prioritized: list[tuple[int, int, str]] = []
+    for item in icons:
+        if not isinstance(item, dict):
+            continue
+        src = str(item.get("src") or "").strip()
+        if not src:
+            continue
+        icon_url = urljoin(base_url, src)
+        lower_url = icon_url.lower()
+        sizes_text = str(item.get("sizes") or "").strip().lower()
+        best_size = 0
+        for token in sizes_text.split():
+            if "x" not in token:
+                continue
+            width_text, _sep, height_text = token.partition("x")
+            try:
+                best_size = max(best_size, int(width_text), int(height_text))
+            except ValueError:
+                continue
+        if lower_url.endswith(".png"):
+            score = 0
+        elif lower_url.endswith(".ico"):
+            score = 1
+        elif lower_url.endswith(".svg"):
+            score = 3
+        else:
+            score = 2
+        prioritized.append((score, -best_size, icon_url))
+    prioritized.sort(key=lambda item: (item[0], item[1], item[2]))
+    return [url for _score, _neg_size, url in prioritized]
+
+
+def get_public_favicon_fallback_urls(source_domain: str) -> list[str]:
+    return [
+        f"https://www.google.com/s2/favicons?domain={source_domain}&sz=64",
+    ]
+
+
+def resolve_favicon_download(
+    spec: ContainerSpec,
+) -> tuple[str | None, bytes | None, str | None]:
     icon_plan = build_icon_plan(spec)
     if icon_plan.source_domain is None:
         return None, None, None
     direct_url = f"https://{icon_plan.source_domain}/favicon.ico"
+    public_fallback_urls = get_public_favicon_fallback_urls(icon_plan.source_domain)
     homepage_url = get_homepage_url(spec)
     html_icon_urls: list[str] = []
+    manifest_icon_urls: list[str] = []
     try:
         html_bytes, html_type = fetch_url(homepage_url)
         if html_type == "text/html":
+            html_text = html_bytes.decode("utf-8", errors="ignore")
             html_icon_urls = extract_icon_links(
-                html_bytes.decode("utf-8", errors="ignore"),
+                html_text,
                 homepage_url,
             )
+            manifest_urls = extract_manifest_links(html_text, homepage_url)
+            for manifest_url in manifest_urls:
+                try:
+                    manifest_bytes, manifest_type = fetch_url(manifest_url)
+                except Exception:
+                    continue
+                if manifest_type not in {
+                    "application/manifest+json",
+                    "application/json",
+                    "text/plain",
+                }:
+                    # Some sites still serve manifests with uncommon content types;
+                    # if the payload parses as JSON we still accept it below.
+                    pass
+                manifest_icon_urls.extend(
+                    extract_manifest_icon_links(
+                        manifest_bytes.decode("utf-8", errors="ignore"),
+                        manifest_url,
+                    )
+                )
     except Exception:
         html_icon_urls = []
+        manifest_icon_urls = []
 
+    svg_candidate: tuple[str, bytes, str | None] | None = None
     tried_direct = False
-    for url in [*html_icon_urls, direct_url]:
+    seen_urls: set[str] = set()
+    for url in [
+        *html_icon_urls,
+        *manifest_icon_urls,
+        direct_url,
+        *public_fallback_urls,
+    ]:
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
         if url == direct_url:
             tried_direct = True
         try:
             payload, content_type = fetch_url(url)
-            if detect_icon_payload_suffix(payload, content_type, url) is None:
+            suffix = detect_icon_payload_suffix(payload, content_type, url)
+            if suffix is None:
+                continue
+            if suffix == ".svg":
+                if svg_candidate is None:
+                    svg_candidate = (url, payload, content_type)
                 continue
             return url, payload, content_type
         except Exception:
@@ -1006,11 +1217,26 @@ def resolve_favicon_download(spec: ContainerSpec) -> tuple[str | None, bytes | N
     if not tried_direct:
         try:
             payload, content_type = fetch_url(direct_url)
-            if detect_icon_payload_suffix(payload, content_type, direct_url) is None:
-                return None, None, None
+            suffix = detect_icon_payload_suffix(payload, content_type, direct_url)
+            if suffix is None:
+                return (
+                    svg_candidate if svg_candidate is not None else (None, None, None)
+                )
+            if suffix == ".svg":
+                return (
+                    svg_candidate
+                    if svg_candidate is not None
+                    else (
+                        direct_url,
+                        payload,
+                        content_type,
+                    )
+                )
             return direct_url, payload, content_type
         except Exception:
-            return None, None, None
+            return svg_candidate if svg_candidate is not None else (None, None, None)
+    if svg_candidate is not None:
+        return svg_candidate
     return None, None, None
 
 
@@ -1021,12 +1247,17 @@ def prepare_container_icon(spec: ContainerSpec) -> tuple[str, str | None]:
         return get_fallback_icon_reference(spec), None
     if mode == "custom":
         if spec.custom_icon_path and spec.custom_icon_path.exists():
-            target_path = get_icon_storage_path(spec, spec.custom_icon_path.suffix or ".png")
+            target_path = get_icon_storage_path(
+                spec, spec.custom_icon_path.suffix or ".png"
+            )
             target_path.parent.mkdir(parents=True, exist_ok=True)
             backup_existing_icons(spec)
             shutil.copy2(spec.custom_icon_path, target_path)
             return str(target_path), None
-        return get_fallback_icon_reference(spec), "Custom icon path not found, fallback used."
+        return (
+            get_fallback_icon_reference(spec),
+            "Custom icon path not found, fallback used.",
+        )
     download_url, payload, content_type = resolve_favicon_download(spec)
     if download_url and payload:
         suffix = detect_icon_payload_suffix(payload, content_type, download_url)
@@ -1040,12 +1271,22 @@ def prepare_container_icon(spec: ContainerSpec) -> tuple[str, str | None]:
             if extracted_png is not None:
                 payload = extracted_png
                 suffix = ".png"
+        if suffix == ".svg":
+            existing_raster = get_existing_icon_reference(spec, raster_only=True)
+            if existing_raster is not None:
+                return (
+                    str(existing_raster),
+                    "SVG favicon skipped because an existing raster icon is available.",
+                )
         target_path = get_icon_storage_path(spec, suffix)
         target_path.parent.mkdir(parents=True, exist_ok=True)
         backup_existing_icons(spec)
         target_path.write_bytes(payload)
         return str(target_path), None
-    return get_fallback_icon_reference(spec), "Favicon download failed, fallback icon used."
+    return (
+        get_fallback_icon_reference(spec),
+        "Favicon download failed, fallback icon used.",
+    )
 
 
 def build_register_existing_spec(container: DiscoveredContainer) -> ContainerSpec:
@@ -1107,12 +1348,40 @@ def read_existing_homepage_url(container: DiscoveredContainer) -> str | None:
     return None
 
 
+def read_existing_allowed_domains(container: DiscoveredContainer) -> list[str]:
+    for policy_path in (
+        container.root_dir / "policies.json",
+        container.root_dir / "firefox" / "distribution" / "policies.json",
+    ):
+        if not policy_path.is_file():
+            continue
+        try:
+            payload = json.loads(policy_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        metadata = payload.get("_builder_metadata")
+        if not isinstance(metadata, dict):
+            continue
+        domains = metadata.get("allowed_domains")
+        if not isinstance(domains, list):
+            continue
+        normalized = normalize_allowed_domains(
+            [item for item in domains if isinstance(item, str)]
+        )
+        if normalized:
+            return normalized
+    return list(container.domains)
+
+
 def build_repair_policy_spec(container: DiscoveredContainer) -> ContainerSpec:
-    known_defaults = get_known_container_defaults(
-        container.name,
-        purpose=container.purpose,
-        domains=container.domains,
-    ) or {}
+    known_defaults = (
+        get_known_container_defaults(
+            container.name,
+            purpose=container.purpose,
+            domains=container.domains,
+        )
+        or {}
+    )
     known_domains = known_defaults.get("allowed_domains")
     bundle_domains = (
         [item for item in known_domains if isinstance(item, str) and item.strip()]
@@ -1130,20 +1399,22 @@ def build_repair_policy_spec(container: DiscoveredContainer) -> ContainerSpec:
         urlparse(existing_homepage_url).hostname if existing_homepage_url else None
     )
     if existing_homepage_host:
-        existing_domains = merge_allowed_domains([existing_homepage_host], existing_domains)
+        existing_domains = merge_allowed_domains(
+            [existing_homepage_host], existing_domains
+        )
     homepage_domain = (
         existing_homepage_host
         if existing_homepage_host
-        else existing_domains[0]
-        if existing_domains
-        else (allowed_domains[0] if allowed_domains else "")
+        else (
+            existing_domains[0]
+            if existing_domains
+            else (allowed_domains[0] if allowed_domains else "")
+        )
     )
     homepage_url = (
         existing_homepage_url
         if existing_homepage_url
-        else f"https://{homepage_domain.split(':', 1)[0]}"
-        if homepage_domain
-        else None
+        else f"https://{homepage_domain.split(':', 1)[0]}" if homepage_domain else None
     )
     return ContainerSpec(
         name=container.name,
@@ -1178,7 +1449,10 @@ def parse_desktop_exec_target(path: Path) -> Path | None:
         command = line.split("=", 1)[1].strip()
         if not command:
             return None
-        tokens = command.split()
+        try:
+            tokens = shlex.split(command)
+        except ValueError:
+            return None
         if not tokens:
             return None
         index = 0
@@ -1203,10 +1477,13 @@ def read_desktop_entry_value(path: Path, key: str) -> str | None:
 
 
 def build_desktop_exec_command(desktop_file: Path, start_script: Path) -> str:
-    return (
-        f'env BAMF_DESKTOP_FILE_HINT="{desktop_file}" '
-        f'"{start_script}"'
-    )
+    return f'env BAMF_DESKTOP_FILE_HINT="{desktop_file}" ' f'"{start_script}"'
+
+
+def is_uninstalled_backup_path(path: Path | None) -> bool:
+    if path is None:
+        return False
+    return any(parent.name == DEFAULT_UNINSTALLED_DIRNAME for parent in path.parents)
 
 
 def list_managed_menu_entries(applications_dir: Path) -> list[MenuEntryInfo]:
@@ -1217,7 +1494,11 @@ def list_managed_menu_entries(applications_dir: Path) -> list[MenuEntryInfo]:
         exec_target = parse_desktop_exec_target(path)
         container_root = exec_target.parent if exec_target else None
         container_name = container_root.name if container_root else None
-        is_orphan = exec_target is None or not exec_target.exists()
+        is_orphan = (
+            exec_target is None
+            or not exec_target.exists()
+            or is_uninstalled_backup_path(exec_target)
+        )
         entries.append(
             MenuEntryInfo(
                 path=path,
@@ -1253,7 +1534,7 @@ def derive_container_status(
         return "Profil extern"
     if len(menu_entries) == 1:
         return "vollständig"
-    return "Launcher fehlt"
+    return "Menüeintrag fehlt"
 
 
 def find_container_by_name(
@@ -1296,7 +1577,7 @@ def build_policies_payload(spec: ContainerSpec) -> dict[str, Any]:
     }
     if bool(security["enable_website_filter"]):
         policies["WebsiteFilter"] = {
-            "Block": ["<all_urls>"],
+            "Block": [WEBSITE_FILTER_BLOCK_PATTERN],
             "Exceptions": exceptions,
         }
     return {
@@ -1321,8 +1602,8 @@ def build_user_js_content(spec: ContainerSpec) -> str:
     keep_cookies = bool(security["keep_cookies"])
     allow_password_manager = bool(security["allow_password_manager"])
     lines = [
-        '// Generated by browser_container_builder.py',
-        f'// Container: {spec.name}',
+        "// Generated by browser_container_builder.py",
+        f"// Container: {spec.name}",
         f'// Security profile: {security["security_profile"]}',
         'user_pref("app.normandy.enabled", false);',
         'user_pref("app.shield.optoutstudies.enabled", false);',
@@ -1471,7 +1752,9 @@ def _desktop_field(text: str) -> str:
     return str(text or "").replace("\r", " ").replace("\n", " ").strip()
 
 
-def build_launcher_content(spec: ContainerSpec, icon_path: str | Path | None = None) -> str:
+def build_launcher_content(
+    spec: ContainerSpec, icon_path: str | Path | None = None
+) -> str:
     absolute_start = spec.path / "start.sh"
     launcher_path = spec.path / "launcher.desktop"
     effective_icon_path = icon_path or get_fallback_icon_reference(spec)
@@ -1490,7 +1773,9 @@ StartupWMClass=firefox
 """
 
 
-def build_existing_start_script(container: DiscoveredContainer, profile_path: Path) -> str:
+def build_existing_start_script(
+    container: DiscoveredContainer, profile_path: Path
+) -> str:
     return f"""#!/usr/bin/env bash
 set -euo pipefail
 
@@ -1527,7 +1812,9 @@ def build_menu_launcher_content(
     desktop_file_path: Path | None = None,
 ) -> str:
     absolute_start = spec.path / "start.sh"
-    menu_entry_path = desktop_file_path or get_menu_entry_path(spec, DEFAULT_APPLICATIONS_DIR)
+    menu_entry_path = desktop_file_path or get_menu_entry_path(
+        spec, DEFAULT_APPLICATIONS_DIR
+    )
     effective_icon_path = icon_path or get_fallback_icon_reference(spec)
     return f"""[Desktop Entry]
 Version=1.0
@@ -1543,7 +1830,9 @@ StartupWMClass=firefox
 """
 
 
-def validate_config_payload(payload: dict[str, Any], base_dir: Path) -> list[ContainerSpec]:
+def validate_config_payload(
+    payload: dict[str, Any], base_dir: Path
+) -> list[ContainerSpec]:
     default_source_raw = payload.get("default_source_firefox_dir")
     default_source = (
         ensure_path(default_source_raw) if isinstance(default_source_raw, str) else None
@@ -1564,9 +1853,7 @@ def validate_config_payload(payload: dict[str, Any], base_dir: Path) -> list[Con
                 f"Container name enthaelt unzulaessige Zeichen (nur A-Z a-z 0-9 . _ - erlaubt): {name}"
             )
         if name in {".", ".."}:
-            raise ValueError(
-                f"Container name darf nicht '.' oder '..' sein: {name}"
-            )
+            raise ValueError(f"Container name darf nicht '.' oder '..' sein: {name}")
         if not isinstance(allowed_domains, list) or not all(
             isinstance(item, str) and item.strip() for item in allowed_domains
         ):
@@ -1583,7 +1870,9 @@ def validate_config_payload(payload: dict[str, Any], base_dir: Path) -> list[Con
         path_raw = entry.get("path")
         path = ensure_path(path_raw) if isinstance(path_raw, str) else base_dir / name
         source_raw = entry.get("source_firefox_dir")
-        source = ensure_path(source_raw) if isinstance(source_raw, str) else default_source
+        source = (
+            ensure_path(source_raw) if isinstance(source_raw, str) else default_source
+        )
         homepage_url = (
             entry.get("homepage_url")
             if isinstance(entry.get("homepage_url"), str)
@@ -1595,14 +1884,10 @@ def validate_config_payload(payload: dict[str, Any], base_dir: Path) -> list[Con
             else None
         )
         menu_name = (
-            entry.get("menu_name")
-            if isinstance(entry.get("menu_name"), str)
-            else None
+            entry.get("menu_name") if isinstance(entry.get("menu_name"), str) else None
         )
         icon_mode = (
-            entry.get("icon_mode")
-            if isinstance(entry.get("icon_mode"), str)
-            else None
+            entry.get("icon_mode") if isinstance(entry.get("icon_mode"), str) else None
         )
         custom_icon_path = (
             ensure_path(entry.get("custom_icon_path"))
@@ -1659,7 +1944,9 @@ def load_config(config_path: Path, base_dir: Path) -> list[ContainerSpec]:
 def select_missing_sources(
     specs: list[ContainerSpec], discovered: list[DiscoveredContainer]
 ) -> list[str]:
-    source_candidates = sorted({container.binary_path.parent for container in discovered})
+    source_candidates = sorted(
+        {container.binary_path.parent for container in discovered}
+    )
     problems: list[str] = []
     for spec in specs:
         if spec.source_firefox_dir is not None:
@@ -1695,7 +1982,9 @@ def write_inventory(
             ]
         )
     for container in containers:
-        profile = str(container.profile_path) if container.profile_path else "nicht erkannt"
+        profile = (
+            str(container.profile_path) if container.profile_path else "nicht erkannt"
+        )
         correlated_profile = (
             str(container.correlated_profile_path)
             if container.correlated_profile_path
@@ -1823,7 +2112,9 @@ def build_repair_policy_plan(
         spec = build_repair_policy_spec(container)
         effective_profile = get_effective_profile_path(container)
         profile_user_js = (
-            effective_profile / "user.js" if effective_profile and effective_profile.is_dir() else None
+            effective_profile / "user.js"
+            if effective_profile and effective_profile.is_dir()
+            else None
         )
         distribution_policy = (
             container.root_dir / "firefox" / "distribution" / "policies.json"
@@ -1836,7 +2127,7 @@ def build_repair_policy_plan(
                 f"  Domains: {', '.join(spec.allowed_domains) if spec.allowed_domains else 'keine'}",
                 (
                     "  policies.json: wird gesichert und aktualisiert"
-                    if (container.root_dir / 'policies.json').exists()
+                    if (container.root_dir / "policies.json").exists()
                     else "  policies.json: wird erstellt"
                 ),
                 (
@@ -1846,15 +2137,17 @@ def build_repair_policy_plan(
                 ),
                 (
                     "  user.js: wird gesichert und aktualisiert"
-                    if (container.root_dir / 'user.js').exists()
+                    if (container.root_dir / "user.js").exists()
                     else "  user.js: wird erstellt"
                 ),
                 (
                     "  profile/user.js: wird gesichert und aktualisiert"
                     if profile_user_js and profile_user_js.exists()
-                    else "  profile/user.js: wird erstellt"
-                    if profile_user_js
-                    else "  profile/user.js: externes Profil wird nicht beschrieben"
+                    else (
+                        "  profile/user.js: wird erstellt"
+                        if profile_user_js
+                        else "  profile/user.js: externes Profil wird nicht beschrieben"
+                    )
                 ),
                 "  Status: OK",
             ]
@@ -1896,7 +2189,9 @@ def build_list_installed_report(
     return lines
 
 
-def build_cleanup_menu_plan(applications_dir: Path) -> tuple[list[str], list[MenuEntryInfo]]:
+def build_cleanup_menu_plan(
+    applications_dir: Path,
+) -> tuple[list[str], list[MenuEntryInfo]]:
     menu_entries = list_managed_menu_entries(applications_dir)
     duplicates: list[MenuEntryInfo] = []
     grouped: dict[str, list[MenuEntryInfo]] = {}
@@ -1904,15 +2199,6 @@ def build_cleanup_menu_plan(applications_dir: Path) -> tuple[list[str], list[Men
         key = str(entry.container_root) if entry.container_root else entry.path.stem
         grouped.setdefault(key, []).append(entry)
     for items in grouped.values():
-        if len(items) > 1:
-            duplicates.extend(items[1:])
-    grouped_by_name: dict[str, list[MenuEntryInfo]] = {}
-    for entry in menu_entries:
-        name = read_desktop_entry_value(entry.path, "Name")
-        if not name:
-            continue
-        grouped_by_name.setdefault(name, []).append(entry)
-    for items in grouped_by_name.values():
         if len(items) > 1:
             duplicates.extend(items[1:])
     removable = [entry for entry in menu_entries if entry.is_orphan] + duplicates
@@ -1940,12 +2226,15 @@ def build_uninstall_plan(
     associated = [
         entry
         for entry in list_managed_menu_entries(applications_dir)
-        if entry.container_root == container.root_dir or entry.container_name == container.name
+        if entry.container_root == container.root_dir
+        or entry.container_name == container.name
     ]
     effective_profile = get_effective_profile_path(container)
-    uninstall_target = get_uninstall_base_dir(base_dir) / datetime.now().strftime(
-        "%Y%m%d_%H%M%S"
-    ) / container.name
+    uninstall_target = (
+        get_uninstall_base_dir(base_dir)
+        / datetime.now().strftime("%Y%m%d_%H%M%S")
+        / container.name
+    )
     lines = [
         "Dry-Run Uninstall",
         "",
@@ -1975,7 +2264,9 @@ def build_apply_plan(
     lines = ["Dry-Run Plan", ""]
     for spec in specs:
         target = spec.path.resolve()
-        source = str(spec.source_firefox_dir) if spec.source_firefox_dir else "UNGESETZT"
+        source = (
+            str(spec.source_firefox_dir) if spec.source_firefox_dir else "UNGESETZT"
+        )
         icon_plan = build_icon_plan(spec)
         menu_entry_path = get_menu_entry_path(spec, applications_dir)
         if menu_entry_path.exists():
@@ -2287,15 +2578,16 @@ def uninstall_container(
     associated = [
         entry
         for entry in list_managed_menu_entries(applications_dir)
-        if entry.container_root == container.root_dir or entry.container_name == container.name
+        if entry.container_root == container.root_dir
+        or entry.container_name == container.name
     ]
-    remove_menu_entries(associated)
     uninstall_root = get_uninstall_base_dir(base_dir) / datetime.now().strftime(
         "%Y%m%d_%H%M%S"
     )
     uninstall_root.mkdir(parents=True, exist_ok=False)
     destination = uninstall_root / container.name
     shutil.move(str(container.root_dir), str(destination))
+    remove_menu_entries(associated)
     return destination
 
 
@@ -2315,11 +2607,18 @@ def main(argv: list[str] | None = None, applications_dir: Path | None = None) ->
         ]
     )
 
-    if not base_dir.is_dir():
-        print(f"Base directory not found: {base_dir}", file=sys.stderr)
+    try:
+        base_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        print(
+            f"Base directory could not be created: {base_dir} ({exc})", file=sys.stderr
+        )
         return 1
     if mode_count > 1:
-        print("Bitte genau einen Verwaltungsmodus gleichzeitig verwenden.", file=sys.stderr)
+        print(
+            "Bitte genau einen Verwaltungsmodus gleichzeitig verwenden.",
+            file=sys.stderr,
+        )
         return 1
 
     discovered = discover_existing_containers(base_dir)
@@ -2428,11 +2727,17 @@ def main(argv: list[str] | None = None, applications_dir: Path | None = None) ->
                 "Keine Aenderungen ausgefuehrt. Fuer echte Policy-Reparatur mit --apply starten."
             )
         elif args.cleanup_menu:
-            print("Keine Aenderungen ausgefuehrt. Fuer echtes Menu-Cleanup mit --apply starten.")
+            print(
+                "Keine Aenderungen ausgefuehrt. Fuer echtes Menu-Cleanup mit --apply starten."
+            )
         elif args.uninstall:
-            print("Keine Aenderungen ausgefuehrt. Fuer echte Deinstallation mit --apply starten.")
+            print(
+                "Keine Aenderungen ausgefuehrt. Fuer echte Deinstallation mit --apply starten."
+            )
         else:
-            print("Keine Aenderungen ausgefuehrt. Fuer echte Erstellung mit --apply starten.")
+            print(
+                "Keine Aenderungen ausgefuehrt. Fuer echte Erstellung mit --apply starten."
+            )
         return 0
 
     try:

@@ -17,5 +17,6 @@ class BrowserContainer:
     homepage_url: str
     allowed_domains: list[str] = field(default_factory=list)
     icon_path: Path | None = None
+    icon_value: str = ""
     menu_entry_path: Path | None = None
     status: str = "prepared"

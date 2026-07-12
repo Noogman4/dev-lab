@@ -65,6 +65,9 @@ class DummyWidget:
     def clipboard_append(self, value):
         self.clipboard_content = value
 
+    def clipboard_get(self):
+        return getattr(self, "clipboard_content", "")
+
     def event_generate(self, sequence):
         self.generated_events = getattr(self, "generated_events", [])
         self.generated_events.append(sequence)
@@ -200,6 +203,17 @@ def test_secure_browser_service_can_be_instantiated():
     )
 
 
+def test_secure_browser_default_base_dir_uses_xdg_documents(monkeypatch, tmp_path):
+    documents_dir = tmp_path / "My Documents"
+    monkeypatch.setenv("XDG_DOCUMENTS_DIR", str(documents_dir))
+    service = SecureBrowserService()
+
+    base_dir = service.get_default_base_dir()
+
+    assert base_dir == documents_dir / "NetMon" / "Secure Browser"
+    assert base_dir.is_dir()
+
+
 def test_secure_browser_service_runs_preflight_checks(monkeypatch, tmp_path):
     tool_root = tmp_path / "secure_browser_manager"
     tool_root.mkdir()
@@ -260,8 +274,12 @@ def test_secure_browser_service_reads_and_saves_policy_json(tmp_path):
     runtime_dir.mkdir(parents=True)
     source_path = container_dir / "policies.json"
     runtime_path = runtime_dir / "policies.json"
-    source_path.write_text('{"policies":{"Homepage":{"URL":"https://chatgpt.com"}}}\n', encoding="utf-8")
-    runtime_path.write_text('{"policies":{"Homepage":{"URL":"https://chatgpt.com"}}}\n', encoding="utf-8")
+    source_path.write_text(
+        '{"policies":{"Homepage":{"URL":"https://chatgpt.com"}}}\n', encoding="utf-8"
+    )
+    runtime_path.write_text(
+        '{"policies":{"Homepage":{"URL":"https://chatgpt.com"}}}\n', encoding="utf-8"
+    )
 
     container = BrowserContainer(
         name="firefox-OpenAI",
@@ -283,12 +301,16 @@ def test_secure_browser_service_reads_and_saves_policy_json(tmp_path):
     )
 
     assert source_path.read_text(encoding="utf-8").startswith("{\n")
-    assert runtime_path.read_text(encoding="utf-8") == source_path.read_text(encoding="utf-8")
+    assert runtime_path.read_text(encoding="utf-8") == source_path.read_text(
+        encoding="utf-8"
+    )
     assert Path(result["backup_dir"]).is_dir()
     assert (Path(result["backup_dir"]) / "policies.json").is_file()
 
 
-def test_secure_browser_service_run_builder_command_adds_runtime_inventory(monkeypatch, tmp_path):
+def test_secure_browser_service_run_builder_command_adds_runtime_inventory(
+    monkeypatch, tmp_path
+):
     service = SecureBrowserService(tool_root=tmp_path)
 
     captured = {}
@@ -298,7 +320,9 @@ def test_secure_browser_service_run_builder_command_adds_runtime_inventory(monke
         captured["cwd"] = cwd
         return SimpleNamespace(returncode=0, stdout="ok\n", stderr="")
 
-    monkeypatch.setattr("netmon.modules.secure_browser.service.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "netmon.modules.secure_browser.service.subprocess.run", fake_run
+    )
 
     result = service._run_builder_command(
         ["python3", str(tmp_path / "browser_container_builder.py"), "--apply"]
@@ -309,6 +333,7 @@ def test_secure_browser_service_run_builder_command_adds_runtime_inventory(monke
     assert captured["command"][inventory_index + 1].endswith(
         "netmon-secure-browser-container_inventory.md"
     )
+    assert "--base-dir" in captured["command"]
     assert result["ok"] is True
 
 
@@ -462,7 +487,7 @@ def test_secure_browser_manager_renders_create_browser_draft():
     assert "- Containername: firefox-GitHub2" in draft
     assert "- Startseite: https://github.com" in draft
     assert "- Neue Tabs: about:blank" in draft
-    assert "- Menüname: NetMon Secure Browser – GitHub2" in draft
+    assert "- Menüname: GitHub2" in draft
     assert "- Icon-Modus: favicon" in draft
     assert "- Erlaubte Domains: github.com, githubassets.com" in draft
     assert "- Validierung: ohne Befund" in draft
@@ -492,10 +517,7 @@ def test_secure_browser_manager_lists_create_presets():
         "firefox-OpenAI",
     ]
     assert manager.get_create_preset("firefox-GitHub") == {"name": "firefox-GitHub"}
-    assert (
-        manager.derive_menu_name("firefox-SparkasseUlm")
-        == "NetMon Secure Browser – SparkasseUlm"
-    )
+    assert manager.derive_menu_name("firefox-SparkasseUlm") == "SparkasseUlm"
 
 
 def test_secure_browser_manager_derives_create_defaults_from_website():
@@ -506,7 +528,7 @@ def test_secure_browser_manager_derives_create_defaults_from_website():
     assert derived["homepage_url"] == "https://sparkasse-ulm.de"
     assert derived["container_name"] == "firefox-sparkasse-ulm-de"
     assert derived["allowed_domains"] == ["sparkasse-ulm.de"]
-    assert derived["menu_name"] == "NetMon Secure Browser – Sparkasse Ulm De"
+    assert derived["menu_name"] == "Sparkasse Ulm De"
 
 
 def test_secure_browser_manager_derives_known_domain_bundle_for_netflix():
@@ -521,7 +543,7 @@ def test_secure_browser_manager_derives_known_domain_bundle_for_netflix():
         "nflxvideo.net",
         "nflximg.net",
     ]
-    assert derived["menu_name"] == "NetMon Secure Browser – Netflix"
+    assert derived["menu_name"] == "Netflix"
 
 
 def test_secure_browser_manager_derives_known_domain_bundle_for_openai():
@@ -538,7 +560,7 @@ def test_secure_browser_manager_derives_known_domain_bundle_for_openai():
         "oaistatic.com",
         "oaiusercontent.com",
     ]
-    assert derived["menu_name"] == "NetMon Secure Browser – OpenAI"
+    assert derived["menu_name"] == "OpenAI"
 
 
 def test_secure_browser_manager_derives_defaults_for_explicit_port_url():
@@ -596,11 +618,13 @@ def test_secure_browser_manager_append_policy_exception_json_adds_exception():
 
     rendered = manager.append_policy_exception_json(
         '{"policies":{"WebsiteFilter":{"Block":["<all_urls>"],"Exceptions":[]}}}',
-        "https://www.web.de/mail",
+        "https://www.example.com/mail",
     )
 
     assert '"Exceptions"' in rendered
-    assert "https://www.web.de/mail*" in rendered
+    assert "https://www.example.com/mail*" in rendered
+    assert '"<all_urls>"' in rendered
+    assert '"*://*/*"' not in rendered
 
 
 def test_secure_browser_manager_append_policy_exception_json_adds_default_block():
@@ -608,12 +632,12 @@ def test_secure_browser_manager_append_policy_exception_json_adds_default_block(
 
     rendered = manager.append_policy_exception_json(
         '{"policies":{"WebsiteFilter":{}}}',
-        "web.de",
+        "example.com",
     )
 
     assert '"Block"' in rendered
     assert '"<all_urls>"' in rendered
-    assert "*://web.de/*" in rendered
+    assert "*://example.com/*" in rendered
 
 
 def test_secure_browser_manager_filters_by_status():
@@ -875,6 +899,7 @@ def test_secure_browser_manager_renders_artifact_view():
 
 def test_secure_browser_service_scan_containers_reads_builder_inventory(monkeypatch):
     service = SecureBrowserService()
+    scanned_base_dirs = []
     fake_container = SimpleNamespace(
         name="firefox-GitHub",
         root_dir=Path("/tmp/firefox-GitHub"),
@@ -890,7 +915,9 @@ def test_secure_browser_service_scan_containers_reads_builder_inventory(monkeypa
         DEFAULT_BASE_DIR="/tmp",
         DEFAULT_PROFILE_BASE_DIRS=["/tmp/profiles"],
         DEFAULT_APPLICATIONS_DIR="/tmp/applications",
-        discover_existing_containers=lambda base_dir: [fake_container],
+        discover_existing_containers=lambda base_dir: (
+            scanned_base_dirs.append(base_dir) or [fake_container]
+        ),
         discover_firefox_profiles=lambda profile_dirs: [
             Path("/tmp/profiles/profile.default")
         ],
@@ -899,10 +926,20 @@ def test_secure_browser_service_scan_containers_reads_builder_inventory(monkeypa
         get_effective_profile_path=lambda container: Path(
             "/tmp/profiles/profile.default"
         ),
+        read_existing_homepage_url=lambda container: "https://github.com",
+        read_existing_allowed_domains=lambda container: [
+            "github.com",
+            "githubassets.com",
+        ],
         derive_container_status=lambda container, associated: "vollständig",
     )
 
     monkeypatch.setattr(service, "_load_tool_module", lambda: fake_module)
+    monkeypatch.setattr(
+        service,
+        "get_default_base_dir",
+        lambda: Path("/tmp/Documents/NetMon/Secure Browser"),
+    )
 
     containers = service.scan_containers()
 
@@ -911,6 +948,48 @@ def test_secure_browser_service_scan_containers_reads_builder_inventory(monkeypa
     assert containers[0].profile_path == Path("/tmp/profiles/profile.default")
     assert containers[0].menu_entry_path == fake_menu_entry.path
     assert containers[0].status == "vollständig"
+    assert containers[0].homepage_url == "https://github.com"
+    assert containers[0].allowed_domains == ["github.com", "githubassets.com"]
+    assert scanned_base_dirs == [Path("/tmp/Documents/NetMon/Secure Browser")]
+
+
+def test_secure_browser_service_scan_containers_reads_icon_from_launcher(
+    monkeypatch, tmp_path
+):
+    service = SecureBrowserService()
+    root_dir = tmp_path / "firefox-GitHub"
+    root_dir.mkdir()
+    launcher_path = root_dir / "launcher.desktop"
+    icon_path = root_dir / "icons" / "favicon.png"
+    icon_path.parent.mkdir()
+    icon_path.write_text("png", encoding="utf-8")
+    launcher_path.write_text(
+        f"[Desktop Entry]\nIcon={icon_path}\n",
+        encoding="utf-8",
+    )
+    fake_container = SimpleNamespace(
+        name="firefox-GitHub",
+        root_dir=root_dir,
+        binary_path=root_dir / "firefox" / "firefox",
+        domains=["github.com"],
+    )
+    fake_module = SimpleNamespace(
+        DEFAULT_PROFILE_BASE_DIRS=["/tmp/profiles"],
+        DEFAULT_APPLICATIONS_DIR="/tmp/applications",
+        discover_existing_containers=lambda _base_dir: [fake_container],
+        discover_firefox_profiles=lambda _profile_dirs: [],
+        correlate_profiles=lambda _containers, _profiles: None,
+        list_managed_menu_entries=lambda _applications_dir: [],
+        get_effective_profile_path=lambda _container: None,
+        derive_container_status=lambda _container, _associated: "vollständig",
+    )
+
+    monkeypatch.setattr(service, "_load_tool_module", lambda: fake_module)
+
+    containers = service.scan_containers()
+
+    assert containers[0].icon_path == icon_path
+    assert containers[0].icon_value == str(icon_path)
 
 
 def test_secure_browser_service_inspects_all_associated_menu_entries(monkeypatch):
@@ -923,7 +1002,9 @@ def test_secure_browser_service_inspects_all_associated_menu_entries(monkeypatch
         homepage_url="https://www.sparkasse-ulm.de",
         allowed_domains=["www.sparkasse-ulm.de"],
         icon_path=Path("/tmp/Sparkasse/icons"),
-        menu_entry_path=Path("/tmp/applications/netmon-secure-browser-sparkasse.desktop"),
+        menu_entry_path=Path(
+            "/tmp/applications/netmon-secure-browser-sparkasse.desktop"
+        ),
         status="vollständig",
     )
     fake_module = SimpleNamespace(
@@ -939,12 +1020,14 @@ def test_secure_browser_service_inspects_all_associated_menu_entries(monkeypatch
     monkeypatch.setattr(
         Path,
         "glob",
-        lambda self, pattern: [
-            Path("/tmp/applications/netmon-secure-browser-sparkasse.desktop"),
-            Path("/tmp/applications/Sparkasse.desktop"),
-        ]
-        if str(self) == "/tmp/applications" and pattern == "*.desktop"
-        else [],
+        lambda self, pattern: (
+            [
+                Path("/tmp/applications/netmon-secure-browser-sparkasse.desktop"),
+                Path("/tmp/applications/Sparkasse.desktop"),
+            ]
+            if str(self) == "/tmp/applications" and pattern == "*.desktop"
+            else []
+        ),
     )
     monkeypatch.setattr(
         service,
@@ -957,7 +1040,8 @@ def test_secure_browser_service_inspects_all_associated_menu_entries(monkeypatch
             ),
             "Exec": (
                 "/tmp/Sparkasse/start.sh"
-                if path.name in {
+                if path.name
+                in {
                     "netmon-secure-browser-sparkasse.desktop",
                     "Sparkasse.desktop",
                 }
@@ -975,6 +1059,27 @@ def test_secure_browser_service_inspects_all_associated_menu_entries(monkeypatch
     assert any(entry["Datei"] == "Sparkasse.desktop" for entry in info["menu_entries"])
     assert any(entry["Status"] == "aktiv" for entry in info["menu_entries"])
     assert any(entry["Status"] == "zusätzlich" for entry in info["menu_entries"])
+
+
+def test_secure_browser_integrity_checks_report_system_icon_name():
+    service = SecureBrowserService()
+    container = BrowserContainer(
+        name="Claude",
+        path=Path("/tmp/Claude"),
+        binary_path=Path("/tmp/Claude/firefox/firefox"),
+        profile_path=Path("/tmp/Claude/profile"),
+        homepage_url="https://claude.ai",
+        allowed_domains=["claude.ai"],
+        icon_path=None,
+        icon_value="firefox",
+        menu_entry_path=None,
+        status="Launcher fehlt",
+    )
+
+    checks = service.verify_container(container)
+
+    assert "Menüeintrag: nicht registriert" in checks
+    assert "Icon: System-Icon-Name hinterlegt (firefox)" in checks
 
 
 def test_secure_browser_service_parse_exec_target_supports_env_bamf_hint():
@@ -1180,7 +1285,10 @@ def test_secure_browser_manager_renders_register_existing_preview():
     assert "Register-Vorbereitung" in rendered
     assert "Bestätigungscode akzeptiert" in rendered
     assert "firefox-chatgpt" in rendered
-    assert "Wirkung: start.sh, launcher.desktop und Menüeintrag werden bei Bedarf nachgezogen" in rendered
+    assert (
+        "Wirkung: start.sh, launcher.desktop und Menüeintrag werden bei Bedarf nachgezogen"
+        in rendered
+    )
 
 
 def test_secure_browser_manager_renders_register_existing_preview_for_custom_container():
@@ -1222,6 +1330,31 @@ def test_secure_browser_manager_executes_cleanup_menu_apply():
 
     assert "Cleanup-Ausführung" in rendered
     assert "Cleanup complete" in rendered
+
+
+def test_secure_browser_manager_raises_when_admin_builder_action_fails():
+    manager = SecureBrowserManager(
+        service=SimpleNamespace(
+            run_cleanup_menu_dry_run=lambda: ["Dry-Run Cleanup Menu"],
+            execute_cleanup_menu_apply=lambda: {
+                "command": "python3 builder.py --cleanup-menu --apply",
+                "returncode": 1,
+                "stdout": "",
+                "stderr": "Menüeintrag konnte nicht entfernt werden",
+                "ok": False,
+            },
+        )
+    )
+
+    try:
+        manager.execute_cleanup_menu_apply("CLEANUP")
+    except RuntimeError as exc:
+        rendered = str(exc)
+        assert "Cleanup-Ausführung" in rendered
+        assert "Return-Code: 1" in rendered
+        assert "Menüeintrag konnte nicht entfernt werden" in rendered
+    else:
+        raise AssertionError("Expected RuntimeError for failing admin builder action")
 
 
 def test_secure_browser_manager_executes_uninstall_apply():
@@ -1353,7 +1486,9 @@ def test_secure_browser_tab_can_be_created(monkeypatch):
         == "disabled"
     )
     assert (
-        app.tab_secure_browser.secure_browser_buttons["add_policy_exception"].kwargs["state"]
+        app.tab_secure_browser.secure_browser_buttons["add_policy_exception"].kwargs[
+            "state"
+        ]
         == "disabled"
     )
     assert (
@@ -1364,14 +1499,18 @@ def test_secure_browser_tab_can_be_created(monkeypatch):
     assert app.tab_secure_browser.secure_browser_draft_name_entry.get() == ""
     assert app.tab_secure_browser.secure_browser_draft_icon_mode.get() == "favicon"
     assert (
-        app.tab_secure_browser.secure_browser_draft_security_profile.get()
-        == "Standard"
+        app.tab_secure_browser.secure_browser_draft_security_profile.get() == "Standard"
     )
     assert (
-        app.tab_secure_browser.secure_browser_draft_security_profile_hint.configure_kwargs["text"]
+        app.tab_secure_browser.secure_browser_draft_security_profile_hint.configure_kwargs[
+            "text"
+        ]
         == "Standard: guter Mittelweg aus Trennung, Komfort und Kompatibilität."
     )
-    assert app.tab_secure_browser.secure_browser_draft_allow_password_manager_var.get() is True
+    assert (
+        app.tab_secure_browser.secure_browser_draft_allow_password_manager_var.get()
+        is True
+    )
     assert app.tab_secure_browser.secure_browser_draft_keep_cookies_var.get() is True
     assert (
         app.tab_secure_browser.secure_browser_draft_enable_website_filter_var.get()
@@ -1552,7 +1691,9 @@ def test_secure_browser_policy_editor_button_loads_json(monkeypatch):
         def run_preflight_checks(self):
             return []
 
-    frame = create_secure_browser_tab(DummyWidget(), SecureBrowserManager(service=PolicyEditorService()))
+    frame = create_secure_browser_tab(
+        DummyWidget(), SecureBrowserManager(service=PolicyEditorService())
+    )
 
     frame.secure_browser_buttons["inventory"].kwargs["command"]()
     frame.secure_browser_buttons["edit_policy"].kwargs["command"]()
@@ -1647,7 +1788,9 @@ def test_secure_browser_policy_editor_save_button_persists_json(monkeypatch):
     frame.secure_browser_buttons["inventory"].kwargs["command"]()
     frame.secure_browser_buttons["edit_policy"].kwargs["command"]()
     frame.secure_browser_detail_text.delete("1.0", "end")
-    frame.secure_browser_detail_text.insert("1.0", '{"policies":{"WebsiteFilter":{"Exceptions":["*://chatgpt.com/*"]}}}')
+    frame.secure_browser_detail_text.insert(
+        "1.0", '{"policies":{"WebsiteFilter":{"Exceptions":["*://chatgpt.com/*"]}}}'
+    )
     frame.secure_browser_buttons["save_policy"].kwargs["command"]()
 
     assert '"WebsiteFilter"' in captured["content"]
@@ -1688,20 +1831,22 @@ def test_secure_browser_policy_exception_button_appends_url(monkeypatch):
     monkeypatch.setattr(
         ui_module,
         "simpledialog",
-        SimpleNamespace(askstring=lambda *args, **kwargs: "https://www.web.de/mail"),
+        SimpleNamespace(
+            askstring=lambda *args, **kwargs: "https://www.example.com/mail"
+        ),
     )
 
     class PolicyEditorExceptionService:
         def scan_containers(self):
             return [
                 BrowserContainer(
-                    name="firefox-WebDe",
-                    path=Path("/tmp/firefox-WebDe"),
-                    binary_path=Path("/tmp/firefox-WebDe/firefox/firefox"),
-                    profile_path=Path("/tmp/firefox-WebDe/profile"),
-                    homepage_url="https://www.web.de",
-                    allowed_domains=["www.web.de"],
-                    icon_path=Path("/tmp/firefox-WebDe/icons"),
+                    name="firefox-Example",
+                    path=Path("/tmp/firefox-Example"),
+                    binary_path=Path("/tmp/firefox-Example/firefox/firefox"),
+                    profile_path=Path("/tmp/firefox-Example/profile"),
+                    homepage_url="https://www.example.com",
+                    allowed_domains=["www.example.com"],
+                    icon_path=Path("/tmp/firefox-Example/icons"),
                     menu_entry_path=Path("/tmp/menu.desktop"),
                     status="vollständig",
                 )
@@ -1712,9 +1857,9 @@ def test_secure_browser_policy_exception_button_appends_url(monkeypatch):
 
         def save_policy_json(self, container, content):
             return {
-                "source_path": "/tmp/firefox-WebDe/policies.json",
-                "runtime_path": "/tmp/firefox-WebDe/firefox/distribution/policies.json",
-                "backup_dir": "/tmp/firefox-WebDe/backups/policy-editor-backups/stamp",
+                "source_path": "/tmp/firefox-Example/policies.json",
+                "runtime_path": "/tmp/firefox-Example/firefox/distribution/policies.json",
+                "backup_dir": "/tmp/firefox-Example/backups/policy-editor-backups/stamp",
                 "backup_count": "2",
             }
 
@@ -1738,12 +1883,33 @@ def test_secure_browser_policy_exception_button_appends_url(monkeypatch):
         SecureBrowserManager(service=PolicyEditorExceptionService()),
     )
 
-    assert frame.secure_browser_buttons["add_policy_exception"].kwargs["state"] == "disabled"
+    assert (
+        frame.secure_browser_buttons["add_policy_exception"].kwargs["state"]
+        == "disabled"
+    )
     frame.secure_browser_buttons["inventory"].kwargs["command"]()
-    assert frame.secure_browser_buttons["add_policy_exception"].kwargs["state"] == "normal"
+    assert (
+        frame.secure_browser_buttons["add_policy_exception"].kwargs["state"] == "normal"
+    )
     frame.secure_browser_buttons["add_policy_exception"].kwargs["command"]()
 
-    assert "https://www.web.de/mail*" in frame.secure_browser_detail_text.text_content
+    assert (
+        "https://www.example.com/mail*" in frame.secure_browser_detail_text.text_content
+    )
+
+    valid_editor_content = frame.secure_browser_detail_text.text_content
+    monkeypatch.setattr(
+        ui_module,
+        "_prompt_url_with_context_menu",
+        lambda *_args, **_kwargs: "keine-gueltige-domain",
+    )
+    frame.secure_browser_buttons["add_policy_exception"].kwargs["command"]()
+
+    assert frame.secure_browser_detail_text.text_content == valid_editor_content
+    assert frame.secure_browser_buttons["save_policy"].kwargs["state"] == "normal"
+    assert "Ungültige URL oder Domain" in (
+        frame.secure_browser_status_badge.configure_kwargs["text"]
+    )
 
 
 def test_secure_browser_policy_exception_button_auto_loads_editor_and_saves(
@@ -1784,7 +1950,9 @@ def test_secure_browser_policy_exception_button_auto_loads_editor_and_saves(
     monkeypatch.setattr(
         ui_module,
         "simpledialog",
-        SimpleNamespace(askstring=lambda *args, **kwargs: "https://www.web.de/mail"),
+        SimpleNamespace(
+            askstring=lambda *args, **kwargs: "https://www.example.com/mail"
+        ),
     )
 
     captured = {}
@@ -1793,13 +1961,13 @@ def test_secure_browser_policy_exception_button_auto_loads_editor_and_saves(
         def scan_containers(self):
             return [
                 BrowserContainer(
-                    name="firefox-WebDe",
-                    path=Path("/tmp/firefox-WebDe"),
-                    binary_path=Path("/tmp/firefox-WebDe/firefox/firefox"),
-                    profile_path=Path("/tmp/firefox-WebDe/profile"),
-                    homepage_url="https://www.web.de",
-                    allowed_domains=["www.web.de"],
-                    icon_path=Path("/tmp/firefox-WebDe/icons"),
+                    name="firefox-Example",
+                    path=Path("/tmp/firefox-Example"),
+                    binary_path=Path("/tmp/firefox-Example/firefox/firefox"),
+                    profile_path=Path("/tmp/firefox-Example/profile"),
+                    homepage_url="https://www.example.com",
+                    allowed_domains=["www.example.com"],
+                    icon_path=Path("/tmp/firefox-Example/icons"),
                     menu_entry_path=Path("/tmp/menu.desktop"),
                     status="vollständig",
                 )
@@ -1811,9 +1979,9 @@ def test_secure_browser_policy_exception_button_auto_loads_editor_and_saves(
         def save_policy_json(self, container, content):
             captured["content"] = content
             return {
-                "source_path": "/tmp/firefox-WebDe/policies.json",
-                "runtime_path": "/tmp/firefox-WebDe/firefox/distribution/policies.json",
-                "backup_dir": "/tmp/firefox-WebDe/backups/policy-editor-backups/stamp",
+                "source_path": "/tmp/firefox-Example/policies.json",
+                "runtime_path": "/tmp/firefox-Example/firefox/distribution/policies.json",
+                "backup_dir": "/tmp/firefox-Example/backups/policy-editor-backups/stamp",
                 "backup_count": "2",
             }
 
@@ -1840,14 +2008,13 @@ def test_secure_browser_policy_exception_button_auto_loads_editor_and_saves(
     frame.secure_browser_buttons["inventory"].kwargs["command"]()
     frame.secure_browser_buttons["add_policy_exception"].kwargs["command"]()
 
-    assert "https://www.web.de/mail*" in captured["content"]
-    assert "firefox-WebDe" in frame.secure_browser_detail_text.text_content
+    assert "https://www.example.com/mail*" in captured["content"]
+    assert "firefox-Example" in frame.secure_browser_detail_text.text_content
     assert (
-        frame.secure_browser_status_badge.configure_kwargs["text"]
-        == "[OK] Übersicht"
+        frame.secure_browser_status_badge.configure_kwargs["text"] == "[OK] Übersicht"
     )
     assert messagebox_stub.calls == [
-        ("Whitelist speichern", "Ausnahme für firefox-WebDe jetzt direkt speichern?")
+        ("Whitelist speichern", "Ausnahme für firefox-Example jetzt direkt speichern?")
     ]
 
 
@@ -2002,6 +2169,8 @@ def test_secure_browser_inventory_button_renders_read_only_scan(monkeypatch):
         == "SecureBrowser.Status.Ok.TLabel"
     )
     assert frame.secure_browser_detail_text.configure_kwargs["state"] == "disabled"
+
+
 def test_secure_browser_launcher_button_renders_launcher_report(monkeypatch):
     import netmon.modules.secure_browser.ui as ui_module
 
@@ -2316,7 +2485,7 @@ def test_secure_browser_create_draft_derives_values_from_website(monkeypatch):
     assert "- Webseite: https://sparkasse-ulm.de" in rendered
     assert "- Containername: firefox-sparkasse-ulm-de" in rendered
     assert "- Erlaubte Domains: sparkasse-ulm.de" in rendered
-    assert "- Menüname: NetMon Secure Browser – Sparkasse Ulm De" in rendered
+    assert "- Menüname: Sparkasse Ulm De" in rendered
 
 
 def test_secure_browser_create_draft_supports_real_entry_widgets(monkeypatch):
@@ -2378,7 +2547,7 @@ def test_secure_browser_create_draft_supports_real_entry_widgets(monkeypatch):
     )
 
 
-def test_secure_browser_draft_entries_bind_clipboard_shortcuts(monkeypatch):
+def test_secure_browser_inputs_and_detail_bind_clipboard_shortcuts(monkeypatch):
     import netmon.modules.secure_browser.ui as ui_module
 
     monkeypatch.setattr(
@@ -2420,11 +2589,18 @@ def test_secure_browser_draft_entries_bind_clipboard_shortcuts(monkeypatch):
         frame.secure_browser_draft_domains_entry,
         frame.secure_browser_draft_menu_entry,
         frame.secure_browser_draft_new_tab_entry,
+        frame.secure_browser_detail_text,
     ):
         assert "<Control-c>" in widget.bound_events
         assert "<Control-v>" in widget.bound_events
         assert "<Control-x>" in widget.bound_events
         assert "<Button-3>" in widget.bound_events
+
+    frame.secure_browser_detail_copy_button.configure_kwargs["command"]()
+    assert "Secure-Browser-Preflight" in frame.clipboard_content
+    assert (
+        frame.secure_browser_detail_paste_button.configure_kwargs["state"] == "disabled"
+    )
 
 
 def test_secure_browser_draft_entry_copy_binding_generates_copy_event(monkeypatch):
@@ -2581,9 +2757,14 @@ def test_secure_browser_apply_preview_button_blocks_without_token(monkeypatch):
                     status="vollständig",
                 )
             ],
-            derive_risk_hints=lambda container: ["Keine offensichtlichen Risiken erkannt"],
+            derive_risk_hints=lambda container: [
+                "Keine offensichtlichen Risiken erkannt"
+            ],
             verify_container=lambda container: ["OK"],
-            inspect_launchers=lambda container: {"launcher.desktop": {}, "menu_entry": {}},
+            inspect_launchers=lambda container: {
+                "launcher.desktop": {},
+                "menu_entry": {},
+            },
             read_container_artifacts=lambda container: {
                 "start.sh": "",
                 "launcher.desktop": "",
@@ -2670,9 +2851,14 @@ def test_secure_browser_apply_execute_button_confirms_before_apply(monkeypatch):
                     status="vollständig",
                 )
             ],
-            derive_risk_hints=lambda container: ["Keine offensichtlichen Risiken erkannt"],
+            derive_risk_hints=lambda container: [
+                "Keine offensichtlichen Risiken erkannt"
+            ],
             verify_container=lambda container: ["OK"],
-            inspect_launchers=lambda container: {"launcher.desktop": {}, "menu_entry": {}},
+            inspect_launchers=lambda container: {
+                "launcher.desktop": {},
+                "menu_entry": {},
+            },
             read_container_artifacts=lambda container: {
                 "start.sh": "",
                 "launcher.desktop": "",
@@ -2755,9 +2941,14 @@ def test_secure_browser_apply_execute_button_runs_apply(monkeypatch):
                     status="vollständig",
                 )
             ],
-            derive_risk_hints=lambda container: ["Keine offensichtlichen Risiken erkannt"],
+            derive_risk_hints=lambda container: [
+                "Keine offensichtlichen Risiken erkannt"
+            ],
             verify_container=lambda container: ["OK"],
-            inspect_launchers=lambda container: {"launcher.desktop": {}, "menu_entry": {}},
+            inspect_launchers=lambda container: {
+                "launcher.desktop": {},
+                "menu_entry": {},
+            },
             read_container_artifacts=lambda container: {
                 "start.sh": "",
                 "launcher.desktop": "",
@@ -3391,6 +3582,78 @@ def test_secure_browser_repair_policy_without_selection_updates_all(monkeypatch)
     assert "Netflix" in frame.secure_browser_detail_text.text_content
 
 
+def test_secure_browser_cleanup_menu_button_executes_cleanup(monkeypatch):
+    import netmon.modules.secure_browser.ui as ui_module
+
+    monkeypatch.setattr(
+        ui_module,
+        "ttk",
+        type(
+            "DummyTtk",
+            (),
+            {
+                "Frame": DummyWidget,
+                "Label": DummyWidget,
+                "Button": DummyButton,
+                "Combobox": DummyCombobox,
+                "Entry": DummyEntry,
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        ui_module,
+        "tk",
+        type(
+            "DummyTk",
+            (),
+            {
+                "Text": DummyWidget,
+                "Listbox": DummyListbox,
+                "END": "end",
+            },
+        )(),
+    )
+    messagebox = DummyMessageBox(result=True)
+    monkeypatch.setattr(ui_module, "messagebox", messagebox)
+
+    service = SimpleNamespace(
+        scan_containers=lambda: [],
+        derive_risk_hints=lambda container: [],
+        verify_container=lambda container: [],
+        inspect_launchers=lambda container: {"launcher.desktop": {}, "menu_entry": {}},
+        read_container_artifacts=lambda container: {
+            "start.sh": "",
+            "launcher.desktop": "",
+        },
+        run_cleanup_menu_dry_run=lambda: [
+            "Dry-Run Cleanup Menu",
+            "",
+            "- netmon-secure-browser-chad.desktop: verwaist",
+        ],
+        execute_cleanup_menu_apply=lambda: {
+            "command": "python3 builder.py --cleanup-menu --apply",
+            "returncode": 0,
+            "stdout": "Cleanup complete",
+            "stderr": "",
+            "ok": True,
+        },
+    )
+    manager = SecureBrowserManager(service=service)
+    frame = create_secure_browser_tab(DummyWidget(), manager)
+
+    assert "cleanup_menu" in frame.secure_browser_buttons
+    frame.secure_browser_buttons["cleanup_menu"].kwargs["command"]()
+
+    assert messagebox.calls[-1] == (
+        "Menü bereinigen",
+        "Verwaiste oder doppelte Secure-Browser-Menüeinträge jetzt entfernen?",
+    )
+    assert (
+        "keine gefilterten Container"
+        in frame.secure_browser_status_badge.configure_kwargs["text"]
+    )
+
+
 def test_secure_browser_uninstall_preview_and_execute(monkeypatch):
     import netmon.modules.secure_browser.ui as ui_module
 
@@ -3718,6 +3981,7 @@ def test_secure_browser_inventory_filter_limits_visible_containers(monkeypatch):
         "Kennzahlen: Gesamt: 2 | Launcher fehlt: 1 | vollständig: 1 | externe Profile: 1 | fehlende Launcher: 0 | fehlende Menüeinträge: 1"
         in frame.secure_browser_summary_text.text_content
     )
+
 
 def test_secure_browser_inventory_keeps_all_visible_without_status_filter(monkeypatch):
     import netmon.modules.secure_browser.ui as ui_module

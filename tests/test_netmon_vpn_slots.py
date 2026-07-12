@@ -2,6 +2,7 @@ import inspect
 import json
 import threading
 
+from netmon.config.constants import VPN_SLOT_COUNT
 from netmon.features import vpn_controller
 from tools import netmon
 
@@ -101,6 +102,9 @@ def test_load_vpn_slots_config_reads_saved_slots(tmp_path):
     assert slots[0] == {"slot": 1, "custom_name": "Proton CH", "profile": "proton"}
     assert slots[1] == {"slot": 2, "custom_name": "Proton DE", "profile": "proton-de"}
     assert slots[4] == {"slot": 5, "custom_name": "", "profile": ""}
+    assert VPN_SLOT_COUNT == 10
+    assert len(slots) == 10
+    assert slots[9] == {"slot": 10, "custom_name": "", "profile": ""}
 
 
 def test_ensure_netmon_wireguard_profiles_dir_uses_documents_dir_and_migrates(
@@ -745,6 +749,26 @@ def test_open_vpn_slot_accepts_legacy_internal_ipv4_profile_name():
     assert started == [("proton", 1)]
 
 
+def test_open_vpn_slot_starts_existing_profile_even_when_profile_list_is_stale():
+    app = netmon.App.__new__(netmon.App)
+    logs = []
+    started = []
+
+    app.vpn_slots = [{"slot": 1, "custom_name": "", "profile": "proton"}]
+    app.wg_profiles = []
+    app.log = logs.append
+    app._resolve_vpn_profile_input = lambda profile, refresh_profiles=False: "proton"
+    app._wg_profile_exists = lambda profile: profile == "proton"
+    app._start_vpn_slot_profile = lambda profile, slot_no=None: started.append(
+        (profile, slot_no)
+    )
+
+    app.open_vpn_slot(0)
+
+    assert logs == []
+    assert started == [("proton", 1)]
+
+
 def test_build_input_access_baseline_sets_state(monkeypatch):
     app = netmon.App.__new__(netmon.App)
     app.input_access_baseline = {}
@@ -841,6 +865,12 @@ class DummyTable:
 
     def focus(self, iid):
         self.focused = iid
+
+    def item(self, iid, option=None):
+        values = self.rows.get(iid, ())
+        if option == "values":
+            return values
+        return {"values": values}
 
 
 def test_refresh_vpn_slots_table_preserves_selection_without_leaving_refresh_flag():
@@ -1765,6 +1795,27 @@ def test_delete_selected_vpn_profile_logs_when_no_profile_is_selected():
     assert logs == ["Bitte erst ein WireGuard-Profil auswählen."]
 
 
+def test_delete_selected_vpn_profile_uses_selected_table_row_when_form_is_empty(
+    monkeypatch,
+):
+    app = netmon.App.__new__(netmon.App)
+    logs = []
+
+    app.vpn_profile_var = DummyVar("")
+    app.vpn_table = DummyTable()
+    app.vpn_table.rows = {"vpn-slot-2": (2, "Other", "proton", "bereit")}
+    app.vpn_table.selected = ("vpn-slot-2",)
+    app.log = logs.append
+    app.ensure_sudo_session = lambda label: False
+
+    monkeypatch.setattr(netmon.messagebox, "askyesno", lambda *args, **kwargs: True)
+
+    app.delete_selected_vpn_profile()
+
+    assert app.vpn_profile_var.get() == "proton"
+    assert logs == []
+
+
 def test_delete_selected_vpn_profile_removes_files_clears_slots_and_refreshes(
     monkeypatch,
 ):
@@ -1783,6 +1834,13 @@ def test_delete_selected_vpn_profile_removes_files_clears_slots_and_refreshes(
         {"slot": 2, "custom_name": "Other", "profile": "wg-b"},
         {"slot": 3, "custom_name": "Legacy", "profile": "proton__ipv4"},
     ]
+    app.primary_vpn_slots = [
+        {"slot": 1, "custom_name": "Primary", "profile": "proton"},
+        {"slot": 2, "custom_name": "Other Primary", "profile": "wg-b"},
+    ]
+    app.privacy_config = {"vpn_profile": "proton"}
+    app.isp_stealth_vpn_profile = DummyVar("proton")
+    app.isp_stealth_vpn_choice = DummyVar("Proton")
     app.wg_profiles = ["wg-b"]
     app.log = logs.append
     app.ensure_sudo_session = lambda label: True
@@ -1797,6 +1855,8 @@ def test_delete_selected_vpn_profile_removes_files_clears_slots_and_refreshes(
     app._wg_profile_exists = lambda profile: profile in exists_state["value"]
     app._wg_profile_path = lambda profile: f"/etc/wireguard/{profile}.conf"
     app.save_vpn_slots_config = lambda: calls.append("save_slots")
+    app.save_primary_vpn_slots_config = lambda: calls.append("save_primary_slots")
+    app.save_privacy_config = lambda: calls.append("save_privacy")
     app.refresh_wg_profiles = lambda: setattr(
         app,
         "wg_profiles",
@@ -1859,9 +1919,20 @@ def test_delete_selected_vpn_profile_removes_files_clears_slots_and_refreshes(
     assert app.vpn_slots[0] == {"slot": 1, "custom_name": "", "profile": ""}
     assert app.vpn_slots[2] == {"slot": 3, "custom_name": "", "profile": ""}
     assert app.vpn_slots[1] == {"slot": 2, "custom_name": "Other", "profile": "wg-b"}
+    assert app.primary_vpn_slots[0] == {"slot": 1, "custom_name": "", "profile": ""}
+    assert app.primary_vpn_slots[1] == {
+        "slot": 2,
+        "custom_name": "Other Primary",
+        "profile": "wg-b",
+    }
+    assert app.privacy_config["vpn_profile"] == ""
+    assert app.isp_stealth_vpn_profile.get() == ""
+    assert app.isp_stealth_vpn_choice.get() == ""
     assert app.vpn_profile_combo["values"] == ["wg-b"]
     assert app.vpn_profile_var.get() == ""
     assert "save_slots" in calls
+    assert "save_primary_slots" in calls
+    assert "save_privacy" in calls
     assert "sync_form" in calls
     assert ("load_form", 1) in calls
     assert "buttons" in calls
@@ -1870,6 +1941,8 @@ def test_delete_selected_vpn_profile_removes_files_clears_slots_and_refreshes(
     assert "Originalprofil gelöscht: proton" in logs
     assert "Interne IPv4-Kopie gelöscht: proton__ipv4" in logs
     assert "VPN-Slots bereinigt: 2" in logs
+    assert "Primäre VPN-Slots bereinigt: 1" in logs
+    assert "Privacy-VPN-Profil zurückgesetzt." in logs
     assert "WireGuard-Profil gelöscht: proton" in logs
     assert reconcile_calls == [
         (

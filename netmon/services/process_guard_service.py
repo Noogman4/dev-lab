@@ -449,10 +449,13 @@ class ProcessGuardService:
         return False
 
     def _looks_random_or_fake_name(self, name: str) -> bool:
-        lowered = (name or "").strip().lower()
+        raw_name = str(name or "").strip()
+        lowered = raw_name.lower()
         if not lowered:
             return False
-        if re.fullmatch(r"[a-z0-9]{12,}", lowered):
+        if lowered.startswith("kworker/"):
+            return False
+        if re.fullmatch(r"[a-z0-9]{12,}", lowered) and raw_name == lowered:
             return True
         if lowered.count(".") >= 2:
             return True

@@ -216,14 +216,22 @@ def test_main_tabs_and_security_sections_use_translation_keys():
     assert "dot_leak_fix_confirm_title" in app_source
 
 
-def test_link_slot_and_vpn_slot_buttons_use_compact_per_button_size_override():
+def test_link_slot_and_vpn_slot_buttons_keep_original_per_button_size():
     init_source = inspect.getsource(App.__init__)
 
     assert 'style="LinkSlot.TButton"' in init_source
     assert "width=19," in init_source
-    assert "padding=(8, 6)," in init_source
+    assert init_source.count("padding=(8, 6),") >= 2
+    assert 'pady=(0, 6) if idx < LINK_SLOT_COUNT - 1 else 0' in init_source
     assert "command=lambda i=idx: self.open_link_slot(i)," in init_source
     assert "command=lambda i=idx: self.open_vpn_slot(i)," in init_source
+
+
+def test_header_reserves_enough_height_for_radio_clock():
+    init_source = inspect.getsource(App.__init__)
+
+    assert "header.rowconfigure(0, minsize=140)" in init_source
+    assert "self.radio_header_frame.configure(width=300, height=138)" in init_source
 
 
 def test_mtr_summary_and_runtime_use_translation_keys():
@@ -496,7 +504,7 @@ def test_german_repository_guard_and_lynis_strings_do_not_use_known_english_ui_l
     assert de["security_tab_firewall"] == "Firewall"
     assert de["security_tab_guards"] == "Devices"
     assert de["security_tab_path_guard"] == "Path"
-    assert de["security_tab_startup_guard"] == "Autostart"
+    assert de["security_tab_startup_guard"] == "Startup"
     assert de["security_tab_roots_baseline_guard"] == "Roots"
     assert de["security_tab_rkhunter"] == "Rootkithunter"
     assert de["security_tab_process_guard"] == "Prozesse"

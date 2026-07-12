@@ -192,6 +192,7 @@ def build_links_tab(app):
     app.link_table.grid(row=0, column=0, sticky="nsew")
     link_table_scroll.grid(row=0, column=1, sticky="ns")
     app.link_table.bind("<<TreeviewSelect>>", app.on_link_table_select)
+    app.link_table.bind("<Button-3>", app.show_link_table_context_menu, add="+")
 
     app.load_link_slot_into_form(1)
     app.sync_link_target_widgets()

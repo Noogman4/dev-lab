@@ -50,6 +50,7 @@ def load_speedtest_module_from_file(*, app_file: str, repo_root: str, search_pat
         os.path.join(base_dir, "modules", "speedtest.py"),
         os.path.join(repo_root, "netmon", "modules", "speedtest.py"),
         os.path.join(repo_root, "modules", "speedtest.py"),
+        "/usr/lib/netmon/netmon/modules/speedtest.py",
         "/opt/netmon/netmon/modules/speedtest.py",
     ]
 

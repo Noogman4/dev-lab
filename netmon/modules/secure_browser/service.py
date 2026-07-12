@@ -14,8 +14,9 @@ from datetime import datetime
 from pathlib import Path
 from types import ModuleType
 
-from .models import BrowserContainer
+from netmon.core.state import get_netmon_documents_subdir
 
+from .models import BrowserContainer
 
 LOGGER = logging.getLogger(__name__)
 
@@ -30,10 +31,8 @@ class SecureBrowserService:
     MAX_PREVIEW_LINES = 20
     POLICY_BACKUP_DIRNAME = "policy-editor-backups"
     RUNTIME_INVENTORY_FILENAME = "netmon-secure-browser-container_inventory.md"
-    COMMON_SOURCE_DIR_NAMES = (
-        Path("/opt/netmon-browser/firefox"),
-        Path.home() / "Programme" / "firefox-base" / "firefox",
-    )
+    SECURE_BROWSER_DIRNAME = "Secure Browser"
+    COMMON_SOURCE_DIR_NAMES = (Path("/opt/netmon-browser/firefox"),)
 
     def __init__(self, tool_root: Path | None = None) -> None:
         self.tool_root = (tool_root or self.TOOL_ROOT).resolve()
@@ -118,9 +117,7 @@ class SecureBrowserService:
                 lines.append(f"- Firefox-Quelle (Fallback): OK ({resolved_source})")
             return lines
         if resolved_source is None:
-            return [
-                "- Firefox-Quelle: HINWEIS (keine gültige Standardquelle gefunden)"
-            ]
+            return ["- Firefox-Quelle: HINWEIS (keine gültige Standardquelle gefunden)"]
         return [
             f"- Firefox-Quelle (Fallback): OK ({resolved_source})",
             f"- Firefox-Binary (Fallback): OK ({resolved_source / 'firefox'})",
@@ -162,8 +159,7 @@ class SecureBrowserService:
 
     def scan_containers(self) -> list[BrowserContainer]:
         module = self._load_tool_module()
-        base_dir = Path(module.DEFAULT_BASE_DIR)
-        containers = module.discover_existing_containers(base_dir)
+        containers = self._discover_all_containers(module)
         profiles = module.discover_firefox_profiles(module.DEFAULT_PROFILE_BASE_DIRS)
         module.correlate_profiles(containers, profiles)
         menu_entries = module.list_managed_menu_entries(module.DEFAULT_APPLICATIONS_DIR)
@@ -177,30 +173,46 @@ class SecureBrowserService:
             ]
             effective_profile = module.get_effective_profile_path(container)
             status = module.derive_container_status(container, associated)
+            homepage_reader = getattr(module, "read_existing_homepage_url", None)
+            homepage_url = (
+                homepage_reader(container) if callable(homepage_reader) else None
+            )
+            domain_reader = getattr(module, "read_existing_allowed_domains", None)
+            allowed_domains = (
+                domain_reader(container)
+                if callable(domain_reader)
+                else list(container.domains)
+            )
+            launcher_path = container.root_dir / "launcher.desktop"
+            menu_entry_path = associated[0].path if associated else None
+            icon_value, icon_path = self._resolve_container_icon(
+                launcher_path,
+                menu_entry_path,
+            )
             result.append(
                 BrowserContainer(
                     name=container.name,
                     path=container.root_dir,
                     binary_path=container.binary_path,
                     profile_path=effective_profile or Path(),
-                    homepage_url="",
-                    allowed_domains=list(container.domains),
-                    icon_path=container.root_dir / "icons",
-                    menu_entry_path=associated[0].path if associated else None,
+                    homepage_url=homepage_url or "",
+                    allowed_domains=allowed_domains,
+                    icon_path=icon_path,
+                    icon_value=icon_value,
+                    menu_entry_path=menu_entry_path,
                     status=status,
                 )
             )
         return result
 
+    def _discover_all_containers(self, module) -> list[object]:
+        return list(module.discover_existing_containers(self.get_default_base_dir()))
+
     def get_default_base_dir(self) -> Path:
-        try:
-            module = self._load_tool_module()
-        except Exception:
-            LOGGER.warning(
-                "Secure Browser default base dir fallback used because builder could not be loaded."
-            )
-            return Path.home() / "Programme"
-        return Path(module.DEFAULT_BASE_DIR)
+        return Path(get_netmon_documents_subdir(self.SECURE_BROWSER_DIRNAME))
+
+    def _container_base_dir(self, container_name: str | None = None) -> Path:
+        return self.get_default_base_dir()
 
     def list_create_presets(self) -> list[dict[str, object]]:
         content = self._read_tool_config_payload()
@@ -223,10 +235,14 @@ class SecureBrowserService:
         try:
             content = json.loads(self.tool_config.read_text(encoding="utf-8"))
         except FileNotFoundError:
-            LOGGER.warning("Secure Browser preset config not found: %s", self.tool_config)
+            LOGGER.warning(
+                "Secure Browser preset config not found: %s", self.tool_config
+            )
             return {}
         except json.JSONDecodeError:
-            LOGGER.warning("Secure Browser preset config is invalid JSON: %s", self.tool_config)
+            LOGGER.warning(
+                "Secure Browser preset config is invalid JSON: %s", self.tool_config
+            )
             return {}
         return content
 
@@ -397,7 +413,7 @@ class SecureBrowserService:
             enable_website_filter=enable_website_filter,
         )
         specs = module.validate_config_payload(payload, self.get_default_base_dir())
-        discovered = module.discover_existing_containers(self.get_default_base_dir())
+        discovered = self._discover_all_containers(module)
         source_problems = module.select_missing_sources(specs, discovered)
         dry_run_lines = module.build_apply_plan(
             specs,
@@ -480,6 +496,8 @@ class SecureBrowserService:
 
     def _run_builder_command(self, command: list[str]) -> dict[str, object]:
         final_command = list(command)
+        if "--base-dir" not in final_command:
+            final_command.extend(["--base-dir", str(self.get_default_base_dir())])
         if "--inventory" not in final_command:
             final_command.extend(
                 ["--inventory", str(self._get_runtime_inventory_path())]
@@ -501,16 +519,20 @@ class SecureBrowserService:
             "ok": result.returncode == 0,
         }
 
-    def run_register_existing_dry_run(self, *, container_name: str | None = None) -> list[str]:
+    def run_register_existing_dry_run(
+        self, *, container_name: str | None = None
+    ) -> list[str]:
         module = self._load_tool_module()
-        base_dir = self.get_default_base_dir()
+        base_dir = self._container_base_dir(container_name)
         discovered = module.discover_existing_containers(base_dir)
         profiles = module.discover_firefox_profiles(module.DEFAULT_PROFILE_BASE_DIRS)
         module.correlate_profiles(discovered, profiles)
         candidates = module.get_register_existing_candidates(discovered)
         if container_name:
             candidates, _ = module.filter_by_only(candidates, [], container_name)
-        return module.build_register_existing_plan(candidates, module.DEFAULT_APPLICATIONS_DIR)
+        return module.build_register_existing_plan(
+            candidates, module.DEFAULT_APPLICATIONS_DIR
+        )
 
     def execute_register_existing_apply(
         self,
@@ -526,18 +548,23 @@ class SecureBrowserService:
         ]
         if container_name:
             command.extend(["--only", container_name])
+        command.extend(["--base-dir", str(self._container_base_dir(container_name))])
         command.append("--apply")
         return self._run_builder_command(command)
 
-    def run_refresh_existing_dry_run(self, *, container_name: str | None = None) -> list[str]:
+    def run_refresh_existing_dry_run(
+        self, *, container_name: str | None = None
+    ) -> list[str]:
         module = self._load_tool_module()
-        base_dir = self.get_default_base_dir()
+        base_dir = self._container_base_dir(container_name)
         discovered = module.discover_existing_containers(base_dir)
         profiles = module.discover_firefox_profiles(module.DEFAULT_PROFILE_BASE_DIRS)
         module.correlate_profiles(discovered, profiles)
         if container_name:
             discovered, _ = module.filter_by_only(discovered, [], container_name)
-        return module.build_refresh_existing_plan(discovered, module.DEFAULT_APPLICATIONS_DIR)
+        return module.build_refresh_existing_plan(
+            discovered, module.DEFAULT_APPLICATIONS_DIR
+        )
 
     def execute_refresh_existing_apply(
         self,
@@ -553,12 +580,15 @@ class SecureBrowserService:
         ]
         if container_name:
             command.extend(["--only", container_name])
+        command.extend(["--base-dir", str(self._container_base_dir(container_name))])
         command.append("--apply")
         return self._run_builder_command(command)
 
-    def run_repair_policy_dry_run(self, *, container_name: str | None = None) -> list[str]:
+    def run_repair_policy_dry_run(
+        self, *, container_name: str | None = None
+    ) -> list[str]:
         module = self._load_tool_module()
-        base_dir = self.get_default_base_dir()
+        base_dir = self._container_base_dir(container_name)
         discovered = module.discover_existing_containers(base_dir)
         profiles = module.discover_firefox_profiles(module.DEFAULT_PROFILE_BASE_DIRS)
         module.correlate_profiles(discovered, profiles)
@@ -580,12 +610,15 @@ class SecureBrowserService:
         ]
         if container_name:
             command.extend(["--only", container_name])
+        command.extend(["--base-dir", str(self._container_base_dir(container_name))])
         command.append("--apply")
         return self._run_builder_command(command)
 
     def run_cleanup_menu_dry_run(self) -> list[str]:
         module = self._load_tool_module()
-        lines, _targets = module.build_cleanup_menu_plan(module.DEFAULT_APPLICATIONS_DIR)
+        lines, _targets = module.build_cleanup_menu_plan(
+            module.DEFAULT_APPLICATIONS_DIR
+        )
         return lines
 
     def execute_cleanup_menu_apply(self) -> dict[str, object]:
@@ -601,7 +634,7 @@ class SecureBrowserService:
 
     def run_uninstall_dry_run(self, *, container_name: str) -> list[str]:
         module = self._load_tool_module()
-        base_dir = self.get_default_base_dir()
+        base_dir = self._container_base_dir(container_name)
         discovered = module.discover_existing_containers(base_dir)
         profiles = module.discover_firefox_profiles(module.DEFAULT_PROFILE_BASE_DIRS)
         module.correlate_profiles(discovered, profiles)
@@ -622,6 +655,8 @@ class SecureBrowserService:
             str(self.tool_config),
             "--uninstall",
             container_name,
+            "--base-dir",
+            str(self._container_base_dir(container_name)),
             "--apply",
         ]
         return self._run_builder_command(command)
@@ -663,9 +698,7 @@ class SecureBrowserService:
 
         start_script = container.path / "start.sh"
         checks.append(
-            "start.sh: OK"
-            if start_script.is_file()
-            else "start.sh: nicht gefunden"
+            "start.sh: OK" if start_script.is_file() else "start.sh: nicht gefunden"
         )
 
         launcher = container.path / "launcher.desktop"
@@ -708,14 +741,16 @@ class SecureBrowserService:
                 else "Menüeintrag: Pfad hinterlegt, Datei fehlt"
             )
 
-        if container.icon_path is None:
-            checks.append("Icon: nicht hinterlegt")
-        else:
+        if container.icon_path is not None:
             checks.append(
                 "Icon: vorhanden"
                 if container.icon_path.exists()
                 else "Icon: Pfad hinterlegt, Datei oder Ordner fehlt"
             )
+        elif container.icon_value:
+            checks.append(f"Icon: System-Icon-Name hinterlegt ({container.icon_value})")
+        else:
+            checks.append("Icon: nicht hinterlegt")
         return checks
 
     def derive_risk_hints(self, container: BrowserContainer) -> list[str]:
@@ -800,6 +835,24 @@ class SecureBrowserService:
             return None
         return Path(tokens[index].strip('"')).expanduser()
 
+    def _resolve_container_icon(
+        self,
+        launcher_path: Path,
+        menu_entry_path: Path | None,
+    ) -> tuple[str, Path | None]:
+        sources = [launcher_path]
+        if menu_entry_path is not None:
+            sources.append(menu_entry_path)
+        for source in sources:
+            data = self._parse_desktop_entry(source)
+            icon_value = str(data.get("Icon", "") or "").strip()
+            if not icon_value or icon_value == "nicht gesetzt":
+                continue
+            if icon_value.startswith("/"):
+                return icon_value, Path(icon_value).expanduser()
+            return icon_value, None
+        return "", None
+
     def read_container_artifacts(self, container: BrowserContainer) -> dict[str, str]:
         return {
             "start.sh": self._read_preview(container.path / "start.sh"),
@@ -822,7 +875,9 @@ class SecureBrowserService:
             raise ValueError(f"policies.json ist ungültig: {exc}") from exc
         return json.dumps(payload, indent=2, ensure_ascii=True) + "\n"
 
-    def save_policy_json(self, container: BrowserContainer, content: str) -> dict[str, str]:
+    def save_policy_json(
+        self, container: BrowserContainer, content: str
+    ) -> dict[str, str]:
         source_path, runtime_path = self._get_policy_paths(container)
         try:
             payload = json.loads(content)
@@ -880,13 +935,17 @@ class SecureBrowserService:
                 data = self._parse_desktop_entry(path)
                 exec_target = self._parse_exec_target(data)
                 same_exec = exec_target == desired_exec
-                same_root = exec_target is not None and exec_target.parent == container.path
+                same_root = (
+                    exec_target is not None and exec_target.parent == container.path
+                )
                 same_name = bool(active_name) and data.get("Name", "") == active_name
                 if same_exec or same_root or same_name:
                     entry_paths.append(path)
         if container.menu_entry_path is not None:
             entry_paths.append(container.menu_entry_path)
-        unique_paths = sorted({path for path in entry_paths}, key=lambda item: str(item))
+        unique_paths = sorted(
+            {path for path in entry_paths}, key=lambda item: str(item)
+        )
         entries: list[dict[str, str]] = []
         for path in unique_paths:
             data = self._parse_desktop_entry(path)
@@ -901,14 +960,17 @@ class SecureBrowserService:
                     "Categories": data.get("Categories", "nicht gesetzt"),
                     "Status": (
                         "aktiv"
-                        if container.menu_entry_path is not None and path == container.menu_entry_path
+                        if container.menu_entry_path is not None
+                        and path == container.menu_entry_path
                         else "zusätzlich"
                     ),
                 }
             )
         return entries
 
-    def inspect_launchers(self, container: BrowserContainer) -> dict[str, dict[str, str]]:
+    def inspect_launchers(
+        self, container: BrowserContainer
+    ) -> dict[str, dict[str, str]]:
         launcher_data = self._parse_desktop_entry(container.path / "launcher.desktop")
         menu_data = (
             self._parse_desktop_entry(container.menu_entry_path)

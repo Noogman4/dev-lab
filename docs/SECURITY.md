@@ -39,6 +39,15 @@ Im Code wurden folgende Arten von Netzwerkzugriffen gefunden:
 - Der sichtbare Datenschutzhinweis im Support-Tab fordert deshalb ausdruecklich zur Pruefung vor dem Versand auf und beschreibt die beabsichtigte Nutzung nur fuer Fehleranalyse und Supportbearbeitung.
 - Radio- und Netzwerkfunktionen koennen externe Dienste kontaktieren; die konkreten Endpunkte sind im Code sichtbar.
 
+### Secure Browser
+
+- Der Secure Browser trennt Webdienste in eigene Firefox-Profile. Cookies, Website-Speicher, Verlauf, Logins und Einstellungen werden dadurch nicht automatisch mit dem normalen Browser oder anderen Secure-Browser-Instanzen geteilt.
+- Das generierte Hardening reduziert unter anderem Telemetrie, Sync-, WebRTC-, Vorschlags-, Prefetch- und Drittanbieter-Cookie-Pfade. Das konkrete Verhalten haengt vom gewaehlten Sicherheitsprofil ab.
+- Der optionale Firefox-Website-Filter arbeitet nach dem Prinzip `blockieren, ausser explizit erlaubt`. Eine breite Whitelist oder deaktivierter Filter reduziert die Schutzwirkung.
+- Cookie- und Passwortmanager-Persistenz sind bewusste Komfort-/Datenschutzentscheidungen und sollten pro Webdienst festgelegt werden.
+- Die Funktion ist keine Anonymisierung: Oeffentliche IP, Browser-/Geraete-Fingerprinting und eine Anmeldung am Benutzerkonto bleiben fuer den Webdienst erkennbar.
+- Vor dem Anlegen sollte der Dry-Run geprueft werden. Browser-Updates, enge Domain-Ausnahmen und bei Bedarf ein separater VPN-/Tor-Pfad bleiben notwendig.
+
 ## Risiken
 
 | Bereich | Risiko | Beleg im Code |

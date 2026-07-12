@@ -167,9 +167,9 @@ VSCODE_DESKTOP_FILES = (
 
 HDD_SLOT_COUNT = 5
 HDD_SLOT_CONFIG_FILE = "netmon_hdd_slots.json"
-LINK_SLOT_COUNT = 15
+LINK_SLOT_COUNT = 20
 LINK_SLOT_CONFIG_FILE = "netmon_link_slots.json"
-VPN_SLOT_COUNT = 5
+VPN_SLOT_COUNT = 10
 VPN_SLOT_CONFIG_FILE = "netmon_vpn_slots.json"
 PRIMARY_VPN_SLOT_CONFIG_FILE = "netmon_primary_vpn_slots.json"
 PRIVACY_CONFIG_FILE = "netmon_privacy.json"

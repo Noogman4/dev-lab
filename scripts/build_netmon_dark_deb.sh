@@ -119,18 +119,36 @@ seed_log_pics_dir() {
   fi
 }
 
-seed_log_pics_dir "/etc/skel/Bilder/Log-Pics"
-seed_log_pics_dir "/etc/skel/Pictures/Log-Pics"
+documents_root_for_home() {
+  HOME_DIR="$1"
+  [ -n "$HOME_DIR" ] || return 1
+  if [ -d "$HOME_DIR/Documents" ]; then
+    printf '%s\n' "$HOME_DIR/Documents"
+    return 0
+  fi
+  if [ -d "$HOME_DIR/Dokumente" ]; then
+    printf '%s\n' "$HOME_DIR/Dokumente"
+    return 0
+  fi
+  printf '%s\n' "$HOME_DIR/Documents"
+}
+
+seed_netmon_log_pics_for_home() {
+  HOME_DIR="$1"
+  DOC_ROOT="$(documents_root_for_home "$HOME_DIR")"
+  [ -n "$DOC_ROOT" ] || return 0
+  seed_log_pics_dir "$DOC_ROOT/NetMon/Log-Pics"
+}
+
+seed_netmon_log_pics_for_home "/etc/skel"
 
 if [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER}" != "root" ]; then
   USER_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
   if [ -n "$USER_HOME" ] && [ -d "$USER_HOME" ]; then
-    seed_log_pics_dir "$USER_HOME/Bilder/Log-Pics"
-    seed_log_pics_dir "$USER_HOME/Pictures/Log-Pics"
-    chown "$SUDO_USER":"$SUDO_USER" "$USER_HOME/Bilder" "$USER_HOME/Bilder/Log-Pics" >/dev/null 2>&1 || true
-    chown "$SUDO_USER":"$SUDO_USER" "$USER_HOME/Pictures" "$USER_HOME/Pictures/Log-Pics" >/dev/null 2>&1 || true
-    chown "$SUDO_USER":"$SUDO_USER" "$USER_HOME/Bilder/Log-Pics"/* >/dev/null 2>&1 || true
-    chown "$SUDO_USER":"$SUDO_USER" "$USER_HOME/Pictures/Log-Pics"/* >/dev/null 2>&1 || true
+    USER_DOC_ROOT="$(documents_root_for_home "$USER_HOME")"
+    seed_log_pics_dir "$USER_DOC_ROOT/NetMon/Log-Pics"
+    chown "$SUDO_USER":"$SUDO_USER" "$USER_DOC_ROOT" "$USER_DOC_ROOT/NetMon" "$USER_DOC_ROOT/NetMon/Log-Pics" >/dev/null 2>&1 || true
+    chown "$SUDO_USER":"$SUDO_USER" "$USER_DOC_ROOT/NetMon/Log-Pics"/* >/dev/null 2>&1 || true
   fi
 fi
 
