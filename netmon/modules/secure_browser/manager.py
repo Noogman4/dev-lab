@@ -194,7 +194,7 @@ class SecureBrowserManager:
                 self.T("secure_browser_preflight_title", "Secure-Browser-Preflight"),
                 "",
                 f"- {self.T('secure_browser_preflight_mode_label', 'Modus')}: {self.T('secure_browser_preflight_mode_read_only', 'read-only')}",
-                f"- {self.T('secure_browser_preflight_dependencies_label', 'Abhängigkeiten')}: {self.T('secure_browser_preflight_dependencies_none', 'keine zusätzliche Installation durch NetMon erforderlich')}",
+                f"- {self.T('secure_browser_preflight_dependencies_label', 'Abhängigkeiten')}: {self.T('secure_browser_preflight_dependencies_none', 'bei fehlender Firefox-Laufzeit oder Firefox-Basis den Setup-Assistenten verwenden')}",
                 *lines,
             ]
         )

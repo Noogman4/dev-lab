@@ -29,6 +29,14 @@ def test_dependency_registry_contains_selected_tools():
     assert DEPENDENCIES["iftop"]["apt_packages"] == ["iftop"]
     assert DEPENDENCIES["htop"]["apt_packages"] == ["htop"]
     assert DEPENDENCIES["mpv"]["checks"] == ["mpv"]
+    assert DEPENDENCIES["secure_browser_firefox_source"]["type"] == "file_feature"
+    assert (
+        DEPENDENCIES["secure_browser_firefox_source"]["install_method"]
+        == "url_tar_import"
+    )
+    assert "download.mozilla.org" in DEPENDENCIES["secure_browser_firefox_source"][
+        "install_url"
+    ]
     assert DEPENDENCIES["projectm_visualizer"]["apt_packages"] == [
         "projectm",
         "projectm-pulseaudio",
@@ -58,7 +66,21 @@ def test_dependency_registry_contains_selected_tools():
 
 
 def test_find_code_the_classics_zip_prefers_existing_repo_asset():
-    path = find_code_the_classics_zip()
+    import netmon.app as app_module
+
+    expected = CODE_THE_CLASSICS_ZIP_DEV
+    original_isfile = app_module.os.path.isfile
+
+    def fake_isfile(path):
+        if path == expected:
+            return True
+        return False
+
+    app_module.os.path.isfile = fake_isfile
+    try:
+        path = find_code_the_classics_zip()
+    finally:
+        app_module.os.path.isfile = original_isfile
 
     assert path
     assert path.endswith("Code-the-Classics.zip")
@@ -78,6 +100,7 @@ def test_collect_missing_installable_dependencies_uses_registry():
         "iftop": False,
         "htop": False,
         "mpv": True,
+        "secure_browser_firefox_source": False,
         "projectm_visualizer": False,
         "projectm_visualizer_installable": True,
         "projectm_preset_pack_available": True,
@@ -98,6 +121,7 @@ def test_collect_missing_installable_dependencies_uses_registry():
     assert "iftop" in missing
     assert "htop" in missing
     assert "clamav" in missing
+    assert "secure_browser_firefox_source" in missing
     assert "projectm_visualizer" not in missing
     assert "projectm_visualizer" in missing_with_optional
     assert "projectm_presets_cream_crop" in missing_with_optional
@@ -312,6 +336,7 @@ def test_preflight_logged_tools_are_covered_by_dependency_registry():
         "rkhunter",
         "whois",
         "mpv",
+        "secure_browser_firefox_source",
         "projectm_visualizer",
         "projectm_presets_cream_crop",
         "python3",

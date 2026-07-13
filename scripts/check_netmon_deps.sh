@@ -39,6 +39,7 @@ check_cmd ufw || req_missing=$((req_missing + 1))
 echo
 echo "[Optional]"
 check_cmd nmcli "nmcli (network-manager)" || true
+check_cmd firefox "firefox (Secure Browser Laufzeit)" || true
 if have dig || have nslookup; then
   ok "dnsutils (dig/nslookup)"
 else
@@ -66,7 +67,7 @@ fi
 echo
 echo "[Install-Vorschlag Debian/RPi]"
 echo "sudo apt update"
-echo "sudo apt install -y wireguard-tools ufw iproute2 iputils-ping curl traceroute dnsutils network-manager"
+echo "sudo apt install -y wireguard-tools ufw iproute2 iputils-ping curl traceroute dnsutils network-manager firefox"
 
 echo
 if [ "$req_missing" -eq 0 ]; then

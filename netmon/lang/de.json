@@ -56,7 +56,7 @@
     "secure_browser_preflight_mode_label": "Modus",
     "secure_browser_preflight_mode_read_only": "read-only",
     "secure_browser_preflight_dependencies_label": "Abhängigkeiten",
-    "secure_browser_preflight_dependencies_none": "keine zusätzliche Installation durch NetMon erforderlich",
+    "secure_browser_preflight_dependencies_none": "bei fehlender Firefox-Laufzeit oder Firefox-Basis den Setup-Assistenten verwenden",
     "secure_browser_inventory_none": "Keine Secure-Browser-Container erkannt.",
     "secure_browser_inventory_summary_status_risk_search": "{count} von {total} Secure-Browser-Containern mit Status {status}, Filter {risk} passend zu '{query}' erkannt.",
     "secure_browser_inventory_summary_risk_search": "{count} von {total} Secure-Browser-Containern mit Filter {risk} passend zu '{query}' erkannt.",

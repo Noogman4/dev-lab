@@ -231,16 +231,75 @@ def test_secure_browser_service_runs_preflight_checks(monkeypatch, tmp_path):
     monkeypatch.setattr(service, "_load_tool_module", lambda: SimpleNamespace())
     monkeypatch.setattr(service, "get_default_source_firefox_dir", lambda: source_dir)
     monkeypatch.setattr(service, "get_default_base_dir", lambda: tmp_path / "Programme")
+    monkeypatch.setattr(
+        "netmon.modules.secure_browser.service.shutil.which",
+        lambda name: "/usr/bin/firefox" if name == "firefox" else None,
+    )
 
     lines = service.run_preflight_checks()
 
     assert any("Builder-Skript: OK" in line for line in lines)
     assert any("Builder-Konfiguration: OK" in line for line in lines)
     assert any("Builder-Modul: OK" in line for line in lines)
+    assert any("Firefox-Laufzeit: OK" in line for line in lines)
     assert any("Firefox-Quelle" in line and "OK" in line for line in lines)
     assert any("Firefox-Binary" in line and "OK" in line for line in lines)
     assert any("Menüpfad:" in line for line in lines)
     assert any("Zielbasis:" in line for line in lines)
+
+
+def test_secure_browser_service_reports_missing_firefox_runtime_as_hint_when_local_source_exists(
+    monkeypatch, tmp_path
+):
+    tool_root = tmp_path / "secure_browser_manager"
+    tool_root.mkdir()
+    (tool_root / "browser_container_builder.py").write_text(
+        "DEFAULT_BASE_DIR = '/tmp'\n",
+        encoding="utf-8",
+    )
+    (tool_root / "containers.example.json").write_text("{}", encoding="utf-8")
+
+    source_dir = tmp_path / "firefox-source"
+    source_dir.mkdir()
+    (source_dir / "firefox").write_text("", encoding="utf-8")
+
+    service = SecureBrowserService(tool_root=tool_root)
+    monkeypatch.setattr(service, "_load_tool_module", lambda: SimpleNamespace())
+    monkeypatch.setattr(service, "get_default_source_firefox_dir", lambda: source_dir)
+    monkeypatch.setattr(service, "get_default_base_dir", lambda: tmp_path / "Programme")
+    monkeypatch.setattr(
+        "netmon.modules.secure_browser.service.shutil.which",
+        lambda name: None,
+    )
+
+    lines = service.run_preflight_checks()
+
+    assert any("Firefox-Laufzeit: HINWEIS" in line for line in lines)
+
+
+def test_secure_browser_service_reports_missing_firefox_runtime_as_error_without_source(
+    monkeypatch, tmp_path
+):
+    tool_root = tmp_path / "secure_browser_manager"
+    tool_root.mkdir()
+    (tool_root / "browser_container_builder.py").write_text(
+        "DEFAULT_BASE_DIR = '/tmp'\n",
+        encoding="utf-8",
+    )
+    (tool_root / "containers.example.json").write_text("{}", encoding="utf-8")
+
+    service = SecureBrowserService(tool_root=tool_root)
+    monkeypatch.setattr(service, "_load_tool_module", lambda: SimpleNamespace())
+    monkeypatch.setattr(service, "get_default_source_firefox_dir", lambda: None)
+    monkeypatch.setattr(service, "get_default_base_dir", lambda: tmp_path / "Programme")
+    monkeypatch.setattr(
+        "netmon.modules.secure_browser.service.shutil.which",
+        lambda name: None,
+    )
+
+    lines = service.run_preflight_checks()
+
+    assert any("Firefox-Laufzeit: FEHLT" in line for line in lines)
 
 
 def test_secure_browser_service_falls_back_to_firefox_base_when_configured_source_is_missing(
@@ -378,7 +437,7 @@ def test_secure_browser_manager_renders_preflight_text():
 
     assert "Secure-Browser-Preflight" in rendered
     assert "- Modus: read-only" in rendered
-    assert "keine zusätzliche Installation" in rendered
+    assert "Setup-Assistenten" in rendered
     assert "- Builder-Skript: OK" in rendered
     assert "- Firefox-Quelle: OK" in rendered
 

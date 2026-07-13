@@ -20,6 +20,7 @@ import tempfile
 import traceback
 import warnings
 import hashlib
+import tarfile
 import zipfile
 import unicodedata
 from urllib import request as urllib_request
@@ -54,6 +55,9 @@ CODE_THE_CLASSICS_ZIP_SYSTEM = "/usr/share/netmon/assets/fun/Code-the-Classics.z
 PROJECTM_CREAM_OF_THE_CROP_URL = (
     "https://github.com/projectM-visualizer/"
     "presets-cream-of-the-crop/archive/refs/heads/master.zip"
+)
+FIREFOX_STANDALONE_LINUX_X64_URL = (
+    "https://download.mozilla.org/?product=firefox-latest-ssl&os=linux64&lang=de"
 )
 NVIDIA_UTILS_PACKAGE_RE = re.compile(r"^nvidia-utils-(\d+)$")
 
@@ -772,6 +776,18 @@ DEPENDENCIES = {
         "description": "Radio-Player",
         "checks": ["mpv"],
         "apt_packages": ["mpv"],
+        "pip_packages": [],
+    },
+    "secure_browser_firefox_source": {
+        "label": "Secure Browser Firefox-Basis",
+        "category": "Secure Browser",
+        "description": "Lädt eine kopierbare Firefox-Basis nach Dokumente/NetMon/Secure Browser/firefox-base",
+        "type": "file_feature",
+        "install_method": "url_tar_import",
+        "install_url": FIREFOX_STANDALONE_LINUX_X64_URL,
+        "target_dir": "~/Documents/NetMon/Secure Browser/firefox-base/firefox",
+        "checks": ["secure_browser_firefox_source"],
+        "apt_packages": [],
         "pip_packages": [],
     },
     "projectm_visualizer": {
@@ -31868,6 +31884,103 @@ class App(TkBase):
             "Erwartet in: netmon/features/Code-the-Classics.zip"
         )
 
+    def _secure_browser_firefox_base_root(self):
+        return get_netmon_documents_subdir("Secure Browser", "firefox-base")
+
+    def _secure_browser_firefox_target_dir(self):
+        return os.path.join(self._secure_browser_firefox_base_root(), "firefox")
+
+    def _find_secure_browser_firefox_source_dir(self):
+        candidates = [
+            self._secure_browser_firefox_target_dir(),
+            "/opt/netmon-browser/firefox",
+        ]
+        for candidate in candidates:
+            candidate_path = os.path.abspath(os.path.expanduser(str(candidate or "").strip()))
+            if os.path.isdir(candidate_path) and os.path.isfile(
+                os.path.join(candidate_path, "firefox")
+            ):
+                return candidate_path
+        return ""
+
+    def _import_secure_browser_firefox_archive_from_url(self, url):
+        target_root = self._secure_browser_firefox_target_dir()
+        parent_root = os.path.dirname(target_root)
+        os.makedirs(parent_root, exist_ok=True)
+
+        temp_archive = ""
+        temp_extract_dir = ""
+        try:
+            with urllib_request.urlopen(str(url or "").strip(), timeout=90) as response:
+                payload = response.read()
+
+            fd, temp_archive = tempfile.mkstemp(
+                prefix="netmon-firefox-source-",
+                suffix=".tar.xz",
+            )
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(payload)
+
+            temp_extract_dir = tempfile.mkdtemp(prefix="netmon-firefox-extract-")
+            with tarfile.open(temp_archive, "r:*") as archive:
+                members = archive.getmembers()
+                for member in members:
+                    member_name = str(getattr(member, "name", "") or "").strip()
+                    if not member_name:
+                        continue
+                    member_target = os.path.abspath(
+                        os.path.join(temp_extract_dir, member_name)
+                    )
+                    if member_target != temp_extract_dir and not member_target.startswith(
+                        temp_extract_dir + os.sep
+                    ):
+                        raise ValueError("Unsicherer TAR-Pfad erkannt")
+                archive.extractall(temp_extract_dir)
+
+            extracted_firefox_dir = ""
+            for candidate in (
+                os.path.join(temp_extract_dir, "firefox"),
+                os.path.join(temp_extract_dir, "firefox", "firefox"),
+            ):
+                if os.path.isdir(candidate) and os.path.isfile(
+                    os.path.join(candidate, "firefox")
+                ):
+                    extracted_firefox_dir = candidate
+                    break
+            if not extracted_firefox_dir:
+                for entry in os.listdir(temp_extract_dir):
+                    candidate = os.path.join(temp_extract_dir, entry, "firefox")
+                    if os.path.isdir(candidate) and os.path.isfile(
+                        os.path.join(candidate, "firefox")
+                    ):
+                        extracted_firefox_dir = candidate
+                        break
+
+            if not extracted_firefox_dir:
+                raise ValueError("Firefox-Basis im Archiv nicht gefunden")
+
+            if os.path.isdir(target_root):
+                shutil.rmtree(target_root)
+            shutil.copytree(extracted_firefox_dir, target_root, symlinks=True)
+
+            firefox_binary = os.path.join(target_root, "firefox")
+            if os.path.isfile(firefox_binary):
+                current_mode = os.stat(firefox_binary).st_mode
+                os.chmod(firefox_binary, current_mode | 0o755)
+
+            return target_root
+        finally:
+            if temp_archive:
+                try:
+                    os.unlink(temp_archive)
+                except Exception:
+                    pass
+            if temp_extract_dir:
+                try:
+                    shutil.rmtree(temp_extract_dir)
+                except Exception:
+                    pass
+
     def _import_projectm_preset_pack_from_url(self, url, pack_name):
         temp_path = ""
         try:
@@ -31914,6 +32027,15 @@ class App(TkBase):
                     "Cream of the Crop",
                 )
                 imported_features.append((dep_key, imported_count))
+                continue
+            if (
+                dep_key == "secure_browser_firefox_source"
+                and install_method == "url_tar_import"
+            ):
+                installed_path = self._import_secure_browser_firefox_archive_from_url(
+                    info.get("install_url", "")
+                )
+                imported_features.append((dep_key, installed_path))
                 continue
             raise ValueError(f"Unbekannte Installationsmethode für {dep_key}")
         return imported_features
@@ -32566,17 +32688,28 @@ class App(TkBase):
                     file_feature_keys
                 )
             except Exception as exc:
-                self.dep_installer_status_var.set(f"ZIP-Import fehlgeschlagen: {exc}")
-                self.log_safe(f"Setup ZIP-Import Fehler: {exc}")
+                self.dep_installer_status_var.set(
+                    f"Datei-Import fehlgeschlagen: {exc}"
+                )
+                self.log_safe(f"Setup Datei-Import Fehler: {exc}")
                 return
             if imported_features is False:
                 return
             if imported_features:
                 self.refresh_fun_games()
                 imported_messages = []
-                for dep_key, imported_count in imported_features:
+                for dep_key, imported_result in imported_features:
                     label = DEPENDENCIES.get(dep_key, {}).get("label", dep_key)
-                    imported_messages.append(f"{label} ({imported_count} Spiele)")
+                    if dep_key == "code_the_classics_files":
+                        imported_messages.append(
+                            f"{label} ({imported_result} Spiele)"
+                        )
+                    elif dep_key == "projectm_presets_cream_crop":
+                        imported_messages.append(
+                            f"{label} ({imported_result} Presets)"
+                        )
+                    else:
+                        imported_messages.append(f"{label} ({imported_result})")
                 self.log_safe("Setup importiert: " + ", ".join(imported_messages))
 
         if not package_keys:
@@ -32865,6 +32998,7 @@ class App(TkBase):
             ("whois", "whois"),
             ("nvidia-smi", "nvidia-smi"),
             ("mpv (Radio)", "mpv"),
+            ("Secure Browser Firefox-Basis", "secure_browser_firefox_source"),
             ("projectM Visualizer", "projectm_visualizer"),
             ("python3 (Fun)", "python3"),
         ]
@@ -32893,6 +33027,8 @@ class App(TkBase):
                 path = get_cmd_path(key)
                 if not path and checks.get("nvidia_smi_installable", False):
                     path = "Optional"
+            elif key == "secure_browser_firefox_source":
+                path = self._find_secure_browser_firefox_source_dir()
             else:
                 path = get_cmd_path(key)
             self._log_preflight_tool_state(label, checks.get(key, False), path)
@@ -33002,6 +33138,9 @@ class App(TkBase):
             "nvidia_gpu_present": detect_nvidia_gpu_present(),
             "nvidia-smi": has_cmd("nvidia-smi"),
             "mpv": has_cmd("mpv"),
+            "secure_browser_firefox_source": bool(
+                self._find_secure_browser_firefox_source_dir()
+            ),
             "pactl": has_cmd("pactl"),
             "parec": has_cmd("parec"),
             "projectM": has_cmd("projectM"),

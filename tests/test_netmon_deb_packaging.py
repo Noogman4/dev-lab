@@ -10,10 +10,20 @@ def test_main_deb_builder_uses_debian_compliant_install_locations():
 
     assert 'APP_ROOT="$PKG_DIR/usr/lib/netmon"' in source
     assert 'ASSETS_ROOT="$PKG_DIR/usr/share/netmon/assets"' in source
+    assert 'FUN_ASSETS_ROOT="$ASSETS_ROOT/fun"' in source
     assert 'DOCS_ROOT="$PKG_DIR/usr/share/doc/netmon"' in source
     assert 'NETMON_HOME="/usr/lib/netmon"' in source
     assert 'ASSET_DIR="/usr/share/netmon/assets/log-pics"' in source
     assert 'APP_ROOT="$PKG_DIR/opt/netmon"' not in source
+
+
+def test_main_deb_builder_bundles_code_the_classics_in_system_asset_path():
+    source = (PROJECT_ROOT / "scripts" / "build_netmon_deb.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert '"$ROOT_DIR/netmon/features/Code-the-Classics.zip"' in source
+    assert '"$FUN_ASSETS_ROOT/Code-the-Classics.zip"' in source
 
 
 def test_main_deb_builder_generates_required_policy_artifacts():

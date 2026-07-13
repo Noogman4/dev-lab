@@ -1720,13 +1720,18 @@ def test_standalone_radio_app_ui_contains_player_and_projectm():
     assert "radio_browser_country_at_exact" in inspect.getsource(netmon_radio_app)
     assert "radio_browser_country_us_exact" in inspect.getsource(netmon_radio_app)
     assert 'popup.title("Datenbanken")' in app_source
-    assert 'text="Senderdatenbanken an- oder abwählen."' in app_source
+    assert 'popup.geometry("980x760")' in app_source
     assert 'text="Exklusive Länderdatenbanken"' in app_source
     assert 'text="Alle auswählen"' in app_source
     assert 'text="Exklusivmodus"' in app_source
     assert 'text="Andere Datenbanken"' in app_source
+    assert "source_canvas = tk.Canvas(source_wrap, highlightthickness=0, bd=0)" in app_source
+    assert 'orient="vertical"' in app_source
+    assert "command=source_canvas.yview" in app_source
     assert 'ttk.Separator(source_frame, orient="horizontal")' in app_source
     assert 'text="Datenbank aktualisieren"' in app_source
+    assert "action_row = ttk.Frame(body)" in app_source
+    assert "self.radio_database_progressbar.grid(" in app_source
     assert 'image=self.radio_status_indicator_images.get("unknown")' in app_source
     assert "self.check_radio_database_source_reachability()" in app_source
     assert "def check_radio_database_source_reachability(self):" in app_source
@@ -2379,7 +2384,12 @@ def test_radio_core_builds_wrapper_command(monkeypatch):
     ]
 
 
-def test_radio_core_builds_desktop_entry_with_repo_path():
+def test_radio_core_builds_desktop_entry_with_repo_path(monkeypatch):
+    monkeypatch.setattr(
+        "netmon.netmon_radio_core.repo_root",
+        lambda: "/workspaces/dev-lab",
+    )
+
     entry = netmon_radio_core.build_radio_desktop_entry("/usr/bin/python3 app.py")
 
     assert "Exec=/usr/bin/python3 app.py\n" in entry

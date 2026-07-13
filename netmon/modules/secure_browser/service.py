@@ -70,10 +70,23 @@ class SecureBrowserService:
     def run_preflight_checks(self) -> list[str]:
         checks: list[str] = []
         checks.extend(self._check_tool_artifacts())
+        checks.extend(self._check_firefox_runtime())
         checks.extend(self._check_firefox_source())
         checks.extend(self._check_menu_target())
         checks.extend(self._check_base_directory())
         return checks
+
+    def _check_firefox_runtime(self) -> list[str]:
+        firefox_binary = shutil.which("firefox")
+        if firefox_binary:
+            return [f"- Firefox-Laufzeit: OK ({firefox_binary})"]
+        if self.get_default_source_firefox_dir() is not None:
+            return [
+                "- Firefox-Laufzeit: HINWEIS (Befehl 'firefox' nicht gefunden; lokale Secure-Browser-Firefox-Basis wird verwendet)"
+            ]
+        return [
+            "- Firefox-Laufzeit: FEHLT (Befehl 'firefox' nicht gefunden; Secure Browser kann lokal nicht gestartet werden)"
+        ]
 
     def _check_tool_artifacts(self) -> list[str]:
         checks = [

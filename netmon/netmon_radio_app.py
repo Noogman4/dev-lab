@@ -4196,34 +4196,101 @@ class NetMonRadioApp(tk.Tk):
         popup.title(self.tr("radio_database_window_title", "Databases"))
         popup.transient(parent)
         popup.resizable(True, True)
+        popup.geometry("980x760")
         popup.columnconfigure(0, weight=1)
         popup.rowconfigure(0, weight=1)
+        progress_style_name = "RadioDatabase.Green.Horizontal.TProgressbar"
+        try:
+            progress_style = ttk.Style(popup)
+            progress_style.configure(
+                progress_style_name,
+                background="#2e7d32",
+                troughcolor="#d9d9d9",
+                bordercolor="#d9d9d9",
+                lightcolor="#43a047",
+                darkcolor="#1b5e20",
+            )
+        except Exception:
+            progress_style_name = "Horizontal.TProgressbar"
 
         body = ttk.Frame(popup, padding=14)
         body.grid(row=0, column=0, sticky="nsew")
         body.columnconfigure(0, weight=1)
+        body.rowconfigure(2, weight=1)
 
         ttk.Label(
             body,
             text=self.tr("radio_database_window_title", "Databases"),
             font=("TkDefaultFont", 11, "bold"),
         ).grid(row=0, column=0, sticky="w")
-        ttk.Label(
-            body,
-            text=self.tr(
-                "radio_database_window_intro",
-                "Enable or disable station databases.",
-            ),
-            justify="left",
-        ).grid(row=1, column=0, sticky="w", pady=(8, 0))
 
-        source_frame = ttk.LabelFrame(
+        action_row = ttk.Frame(body)
+        action_row.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+        action_row.columnconfigure(1, weight=1)
+
+        self.radio_database_refresh_button = ttk.Button(
+            action_row,
+            text=self.tr("radio_database_refresh_button", "Datenbank aktualisieren"),
+            command=self.request_radio_database_refresh,
+        )
+        self.radio_database_refresh_button.grid(row=0, column=0, sticky="w")
+        self.radio_database_progressbar = ttk.Progressbar(
+            action_row,
+            orient="horizontal",
+            mode="determinate",
+            variable=self.radio_database_progress_var,
+            maximum=1,
+            length=240,
+            style=progress_style_name,
+        )
+        self.radio_database_progressbar.grid(
+            row=0, column=1, sticky="ew", padx=(12, 0)
+        )
+        ttk.Label(
+            action_row,
+            textvariable=self.radio_database_progress_status_var,
+            justify="left",
+        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(8, 0))
+
+        source_wrap = ttk.LabelFrame(
             body,
             text=self.tr("radio_database_group_sources", "Sources"),
             padding=10,
         )
-        source_frame.grid(row=2, column=0, sticky="nsew", pady=(12, 0))
+        source_wrap.grid(row=2, column=0, sticky="nsew", pady=(12, 0))
+        source_wrap.columnconfigure(0, weight=1)
+        source_wrap.rowconfigure(0, weight=1)
+
+        source_canvas = tk.Canvas(source_wrap, highlightthickness=0, bd=0)
+        source_canvas.grid(row=0, column=0, sticky="nsew")
+        source_scrollbar = ttk.Scrollbar(
+            source_wrap,
+            orient="vertical",
+            command=source_canvas.yview,
+        )
+        source_scrollbar.grid(row=0, column=1, sticky="ns")
+        source_canvas.configure(yscrollcommand=source_scrollbar.set)
+
+        source_frame = ttk.Frame(source_canvas)
         source_frame.columnconfigure(1, weight=1)
+        source_canvas_window = source_canvas.create_window(
+            (0, 0), window=source_frame, anchor="nw"
+        )
+
+        source_frame.bind(
+            "<Configure>",
+            lambda _event, canvas=source_canvas: canvas.configure(
+                scrollregion=canvas.bbox("all")
+            ),
+            add="+",
+        )
+        source_canvas.bind(
+            "<Configure>",
+            lambda event, canvas=source_canvas, window_id=source_canvas_window: canvas.itemconfigure(
+                window_id, width=event.width
+            ),
+            add="+",
+        )
         self.radio_database_source_vars = {}
         self.radio_database_source_status_labels = {}
         country_sources = [
@@ -4297,29 +4364,6 @@ class NetMonRadioApp(tk.Tk):
                 url=url,
             )
 
-        self.radio_database_refresh_button = ttk.Button(
-            body,
-            text=self.tr("radio_database_refresh_button", "Datenbank aktualisieren"),
-            command=self.request_radio_database_refresh,
-        )
-        self.radio_database_refresh_button.grid(
-            row=3, column=0, sticky="w", pady=(12, 0)
-        )
-        self.radio_database_progressbar = ttk.Progressbar(
-            body,
-            orient="horizontal",
-            mode="determinate",
-            variable=self.radio_database_progress_var,
-            maximum=1,
-            length=220,
-        )
-        self.radio_database_progressbar.grid(row=3, column=0, sticky="e", pady=(12, 0))
-        ttk.Label(
-            body,
-            textvariable=self.radio_database_progress_status_var,
-            justify="left",
-        ).grid(row=4, column=0, sticky="w", pady=(8, 0))
-
         def _close_popup():
             try:
                 popup.destroy()
@@ -4334,7 +4378,7 @@ class NetMonRadioApp(tk.Tk):
             text=self.tr("radio_custom_close_button", "Close"),
             command=_close_popup,
         ).grid(
-            row=5, column=0, sticky="e", pady=(14, 0)
+            row=3, column=0, sticky="e", pady=(14, 0)
         )
         popup.protocol("WM_DELETE_WINDOW", _close_popup)
         self.radio_database_sources_window = popup

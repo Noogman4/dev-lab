@@ -15,6 +15,7 @@ APP_ROOT="$PKG_DIR/usr/lib/netmon"
 APP_PY_ROOT="$APP_ROOT/netmon"
 TOOLS_ROOT="$APP_ROOT/tools"
 ASSETS_ROOT="$PKG_DIR/usr/share/netmon/assets"
+FUN_ASSETS_ROOT="$ASSETS_ROOT/fun"
 DOCS_ROOT="$PKG_DIR/usr/share/doc/netmon"
 MAN_ROOT="$PKG_DIR/usr/share/man/man1"
 
@@ -59,6 +60,7 @@ mkdir -p \
   "$APP_PY_ROOT" \
   "$TOOLS_ROOT" \
   "$ASSETS_ROOT/log-pics" \
+  "$FUN_ASSETS_ROOT" \
   "$DOCS_ROOT" \
   "$MAN_ROOT" \
   "$PKG_DIR/usr/bin" \
@@ -110,6 +112,10 @@ rm -f \
 
 # Seed images for log overlay.
 copy_tree_if_exists "$ROOT_DIR/tools/Log-Pics" "$ASSETS_ROOT/log-pics"
+
+# Bundled fun assets consumed via fixed system paths.
+copy_file "$ROOT_DIR/netmon/features/Code-the-Classics.zip" \
+  "$FUN_ASSETS_ROOT/Code-the-Classics.zip"
 
 # Bundled documentation for About dialog and offline reference.
 copy_file_if_exists \
