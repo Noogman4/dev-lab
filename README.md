@@ -28,9 +28,9 @@ Designed for Linux users who want to monitor, diagnose, and secure their systems
 * Process Guard
 * Repository Guard
 * Roots Baseline Guard
-* ClamAV integration
+* ClamAV integration with configurable quick-scan paths, scan runtime display, findings and quarantine management
 * Lynis integration
-* RKHunter integration
+* RKHunter integration with deterministic finding classification and a guarded manual reference update
 * Secure Browser with isolated, hardened Firefox profiles per web service
 
 ### AI Analysis
@@ -78,7 +78,7 @@ or from the GitHub Releases page.
 Install the package:
 
 ```bash
-sudo dpkg -i netmon_1.1.17_all.deb
+sudo dpkg -i netmon_1.1.19_all.deb
 sudo apt -f install
 ```
 

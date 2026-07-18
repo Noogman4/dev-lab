@@ -34,6 +34,16 @@ except ModuleNotFoundError:
     from core.tooling import has_cmd
 
 
+CLAMAV_DATABASE_EXTENSIONS = (".cvd", ".cld")
+CLAMAV_PROGRESS_TICK_MS = 500
+CLAMAV_QUICK_TARGET_IDS = (
+    "downloads",
+    "desktop",
+    "documents_de",
+    "documents_en",
+)
+
+
 def _app_value(app, name: str, default=None):
     return app.__dict__.get(name, default)
 
@@ -64,6 +74,70 @@ def _clamav_runtime_state(app):
     return started, scanned, expected
 
 
+def _tr(app, key: str, default: str) -> str:
+    translator = getattr(app, "tr", None)
+    if callable(translator):
+        try:
+            return str(translator(key, default) or default)
+        except Exception:
+            return default
+    return default
+
+
+def clamav_user_database_dir() -> str:
+    xdg_data_home = str(os.environ.get("XDG_DATA_HOME", "") or "").strip()
+    if xdg_data_home:
+        base_dir = os.path.abspath(os.path.expanduser(xdg_data_home))
+    else:
+        user_home = os.path.expanduser(f"~{getpass.getuser()}")
+        base_dir = os.path.join(user_home, ".local", "share")
+    return os.path.join(base_dir, "netmon", "clamav-db")
+
+
+def _clamav_database_dir_is_secure(path: str) -> bool:
+    try:
+        entry = os.lstat(path)
+    except OSError:
+        return False
+    if stat.S_ISLNK(entry.st_mode) or not stat.S_ISDIR(entry.st_mode):
+        return False
+    if entry.st_uid != os.getuid():
+        return False
+    return (stat.S_IMODE(entry.st_mode) & 0o077) == 0
+
+
+def clamav_database_dir_has_signatures(path: str) -> bool:
+    if not path or not os.path.isdir(path):
+        return False
+    try:
+        return any(
+            entry.lower().endswith(CLAMAV_DATABASE_EXTENSIONS)
+            for entry in os.listdir(path)
+        )
+    except Exception:
+        return False
+
+
+def clamav_database_args(app) -> list[str]:
+    user_db_dir = clamav_user_database_dir()
+    candidates = [
+        _app_value(app, "clamav_database_dir", ""),
+        user_db_dir,
+        "/var/lib/clamav",
+    ]
+    seen = set()
+    for path in candidates:
+        path = str(path or "").strip()
+        if not path or path in seen:
+            continue
+        seen.add(path)
+        if path != "/var/lib/clamav" and not _clamav_database_dir_is_secure(path):
+            continue
+        if clamav_database_dir_has_signatures(path):
+            return ["--database", path]
+    return []
+
+
 def _clamav_findings_path(app) -> str:
     return str(getattr(app, "clamav_findings_path", "") or "").strip()
 
@@ -81,7 +155,9 @@ def _safe_makedirs_no_symlink(path: str) -> None:
             if stat.S_ISLNK(entry.st_mode):
                 raise RuntimeError(f"Symlink path component not allowed: {current}")
             if not stat.S_ISDIR(entry.st_mode):
-                raise RuntimeError(f"Non-directory path component not allowed: {current}")
+                raise RuntimeError(
+                    f"Non-directory path component not allowed: {current}"
+                )
             continue
         os.mkdir(current, 0o700)
 
@@ -241,6 +317,110 @@ def clamav_system_excluded_roots():
         "/tmp",
         "/var/tmp",
     ]
+
+
+def clamav_quick_target_definitions():
+    home = os.path.expanduser("~")
+    return [
+        {
+            "id": "downloads",
+            "label": "Downloads",
+            "path": os.path.join(home, "Downloads"),
+        },
+        {
+            "id": "desktop",
+            "label": "Desktop",
+            "path": os.path.join(home, "Desktop"),
+        },
+        {
+            "id": "documents_de",
+            "label": "Dokumente",
+            "path": os.path.join(home, "Dokumente"),
+        },
+        {
+            "id": "documents_en",
+            "label": "Documents",
+            "path": os.path.join(home, "Documents"),
+        },
+    ]
+
+
+def clamav_default_quick_target_ids():
+    return ["downloads", "desktop", "documents_de", "documents_en"]
+
+
+def clamav_normalize_quick_target_ids(target_ids):
+    allowed = set(CLAMAV_QUICK_TARGET_IDS)
+    normalized = []
+    for raw in target_ids or []:
+        value = str(raw or "").strip().lower()
+        if value and value in allowed and value not in normalized:
+            normalized.append(value)
+    return normalized
+
+
+def clamav_normalize_custom_quick_paths(paths):
+    normalized = []
+    seen = set()
+    for raw in paths or []:
+        value = str(raw or "").strip()
+        if not value:
+            continue
+        path = os.path.realpath(os.path.normpath(value))
+        if not os.path.isabs(path) or path in seen:
+            continue
+        seen.add(path)
+        normalized.append(path)
+    return normalized
+
+
+def clamav_load_quickscan_config(app):
+    settings = getattr(app, "settings", {}) if app is not None else {}
+    if not isinstance(settings, dict):
+        settings = {}
+    target_ids = clamav_normalize_quick_target_ids(
+        settings.get("clamav_quickscan_targets")
+    )
+    if not target_ids:
+        target_ids = clamav_default_quick_target_ids()
+    custom_paths = clamav_normalize_custom_quick_paths(
+        settings.get("clamav_quickscan_custom_paths")
+    )
+    app.clamav_quickscan_target_ids = list(target_ids)
+    app.clamav_quickscan_custom_paths = list(custom_paths)
+    return target_ids, custom_paths
+
+
+def clamav_quick_excluded_roots():
+    home = os.path.expanduser("~")
+    candidates = [
+        os.path.join(home, ".cache"),
+        os.path.join(home, ".local", "share", "Trash"),
+        os.path.join(home, ".local", "share", "Steam"),
+        os.path.join(home, ".steam"),
+        os.path.join(home, "snap"),
+    ]
+    seen = set()
+    excluded = []
+    for path in candidates:
+        norm = os.path.realpath(os.path.normpath(path))
+        if norm in seen or not os.path.isdir(norm):
+            continue
+        seen.add(norm)
+        excluded.append(norm)
+    return excluded
+
+
+def clamav_exclude_dir_args(paths):
+    args = []
+    seen = set()
+    for raw_path in paths or []:
+        path = os.path.realpath(os.path.normpath(str(raw_path or "").strip()))
+        if not path or path in seen:
+            continue
+        seen.add(path)
+        args.append(f"--exclude-dir=^{re.escape(path)}($|/)")
+    return args
 
 
 def clamav_count_files(app, targets, excluded_roots=None, limit=600000):
@@ -427,6 +607,8 @@ def run_clamscan_with_progress(app, cmd, timeout=3600, progress_cb=None):
         rc = proc.returncode if proc.returncode is not None else 1
         if timed_out:
             rc = 124
+        elif rc < 0:
+            cancelled = True
         elif cancelled and rc == 0:
             rc = -15
         return rc, "".join(out_lines), cancelled, timed_out, scanned
@@ -510,6 +692,42 @@ def write_clamav_output(app, lines, replace=True):
     call_in_ui_thread(app, _apply)
 
 
+def clamav_scan_failure_lines(app, title, target_label, scanned_files, rc, output):
+    error_line = clamav_extract_error_message(output)
+    lines = [
+        title,
+        _tr(app, "clamav_output_target", "Ziel: {value}").format(
+            value=target_label or "-"
+        ),
+        _tr(app, "clamav_output_scanned_files", "Dateien gescannt: {value}").format(
+            value=scanned_files
+        ),
+        _tr(app, "clamav_output_return_code", "Rückgabecode: {value}").format(
+            value=rc
+        ),
+    ]
+    if error_line:
+        lines.append(
+            _tr(app, "clamav_output_details", "Details: {value}").format(
+                value=error_line
+            )
+        )
+    else:
+        lines.append(
+            _tr(
+                app,
+                "clamav_output_details_no_error_line",
+                "Details: keine technische Fehlerzeile erkannt",
+            )
+        )
+    raw_lines = [line.strip() for line in (output or "").splitlines() if line.strip()]
+    if raw_lines:
+        lines.extend(
+            ["", _tr(app, "clamav_output_raw_section", "ClamAV-Ausgabe:"), *raw_lines[-8:]]
+        )
+    return lines
+
+
 def format_runtime_hms(seconds):
     try:
         total = max(0, int(seconds))
@@ -557,10 +775,15 @@ def clamav_progress_apply(app):
 
 def clamav_progress_tick(app):
     app.clamav_progress_after_id = None
-    if not getattr(app, "security_clamav_running", False):
-        return
     clamav_progress_apply(app)
-    app.clamav_progress_after_id = app.after(1000, lambda: clamav_progress_tick(app))
+    if getattr(app, "security_clamav_running", False):
+        try:
+            app.clamav_progress_after_id = app.after(
+                CLAMAV_PROGRESS_TICK_MS,
+                lambda: clamav_progress_tick(app),
+            )
+        except Exception:
+            app.clamav_progress_after_id = None
 
 
 def clamav_progress_start(app, expected_files=None):
@@ -578,7 +801,13 @@ def clamav_progress_start(app, expected_files=None):
             pass
         app.clamav_progress_after_id = None
     clamav_progress_apply(app)
-    app.clamav_progress_after_id = app.after(1000, lambda: clamav_progress_tick(app))
+    try:
+        app.clamav_progress_after_id = app.after(
+            CLAMAV_PROGRESS_TICK_MS,
+            lambda: clamav_progress_tick(app),
+        )
+    except Exception:
+        app.clamav_progress_after_id = None
 
 
 def clamav_progress_update_safe(app, scanned_files):
@@ -797,13 +1026,7 @@ def clamav_safe_restore_source(original_path):
 
 
 def clamav_quick_targets():
-    home = os.path.expanduser("~")
-    candidates = [
-        os.path.join(home, "Downloads"),
-        os.path.join(home, "Desktop"),
-        os.path.join(home, "Dokumente"),
-        os.path.join(home, "Documents"),
-    ]
+    candidates = [item["path"] for item in clamav_quick_target_definitions()]
     seen = set()
     targets = []
     for path in candidates:
@@ -813,15 +1036,265 @@ def clamav_quick_targets():
         seen.add(norm)
         if os.path.isdir(norm):
             targets.append(norm)
-    if targets:
-        return targets, False
-    return [home], True
+    return targets, False
+
+
+def clamav_quick_targets_for_app(app):
+    configured_ids = clamav_normalize_quick_target_ids(
+        getattr(app, "clamav_quickscan_target_ids", None)
+    )
+    if not configured_ids:
+        configured_ids, _custom = clamav_load_quickscan_config(app)
+    configured_custom = clamav_normalize_custom_quick_paths(
+        getattr(app, "clamav_quickscan_custom_paths", None)
+    )
+    definitions = {item["id"]: item for item in clamav_quick_target_definitions()}
+
+    targets = []
+    seen = set()
+    for target_id in configured_ids:
+        item = definitions.get(target_id)
+        if item is None:
+            continue
+        path = os.path.realpath(os.path.normpath(item["path"]))
+        if not os.path.isdir(path) or path in seen:
+            continue
+        seen.add(path)
+        targets.append(path)
+
+    for path in configured_custom:
+        real = os.path.realpath(os.path.normpath(path))
+        if not os.path.isdir(real) or real in seen:
+            continue
+        seen.add(real)
+        targets.append(real)
+
+    return targets, False
+
+
+def clamav_configure_quickscan_paths_dialog(app):
+    existing = _app_value(app, "clamav_quickscan_popup", None)
+    if existing is not None and getattr(existing, "winfo_exists", lambda: False)():
+        try:
+            existing.deiconify()
+            existing.lift()
+            existing.focus_force()
+        except Exception:
+            pass
+        return
+
+    target_ids, custom_paths = clamav_load_quickscan_config(app)
+    win = tk.Toplevel(app)
+    win.title(
+        _tr(
+            app,
+            "clamav_quick_paths_dialog_title",
+            "ClamAV Schnellscan-Pfade",
+        )
+    )
+    win.transient(app)
+    win.resizable(True, True)
+    win.minsize(720, 420)
+    app.clamav_quickscan_popup = win
+
+    container = ttk.Frame(win, padding=12)
+    container.pack(fill="both", expand=True)
+    container.columnconfigure(0, weight=1)
+    container.rowconfigure(3, weight=1)
+
+    ttk.Label(
+        container,
+        text=_tr(
+            app,
+            "clamav_quick_paths_dialog_body",
+            "Wähle Standardpfade für den Schnellscan und füge bei Bedarf eigene Ordner hinzu.",
+        ),
+        justify="left",
+        wraplength=640,
+    ).grid(row=0, column=0, sticky="w")
+
+    standard_frame = ttk.LabelFrame(
+        container,
+        text=_tr(app, "clamav_quick_paths_group_standard", "Standardpfade"),
+        padding=8,
+    )
+    standard_frame.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+    standard_vars = {}
+    for row, item in enumerate(clamav_quick_target_definitions()):
+        path = os.path.realpath(os.path.normpath(item["path"]))
+        var = tk.BooleanVar(value=item["id"] in target_ids)
+        standard_vars[item["id"]] = var
+        ttk.Checkbutton(
+            standard_frame,
+            text=f"{item['label']} ({path})",
+            variable=var,
+        ).grid(row=row, column=0, sticky="w", pady=2)
+
+    custom_frame = ttk.LabelFrame(
+        container,
+        text=_tr(app, "clamav_quick_paths_group_custom", "Eigene Ordner"),
+        padding=8,
+    )
+    custom_frame.grid(row=2, column=0, sticky="nsew", pady=(10, 0))
+    custom_frame.columnconfigure(0, weight=1)
+    custom_frame.rowconfigure(0, weight=1)
+
+    list_frame = ttk.Frame(custom_frame)
+    list_frame.grid(row=0, column=0, sticky="nsew")
+    list_frame.columnconfigure(0, weight=1)
+    list_frame.rowconfigure(0, weight=1)
+
+    custom_list = tk.Listbox(list_frame, height=8, exportselection=False)
+    custom_list.grid(row=0, column=0, sticky="nsew")
+    custom_scroll = ttk.Scrollbar(
+        list_frame, orient="vertical", command=custom_list.yview
+    )
+    custom_scroll.grid(row=0, column=1, sticky="ns")
+    custom_list.configure(yscrollcommand=custom_scroll.set)
+
+    def refresh_custom_list(items):
+        custom_list.delete(0, "end")
+        for item in items:
+            custom_list.insert("end", item)
+
+    current_custom = list(custom_paths)
+    refresh_custom_list(current_custom)
+
+    def on_add_folder():
+        selected = filedialog.askdirectory(
+            title=_tr(
+                app,
+                "clamav_quick_paths_add_folder_dialog_title",
+                "Ordner für ClamAV-Schnellscan auswählen",
+            ),
+            initialdir=os.path.expanduser("~"),
+            mustexist=True,
+        )
+        if not selected:
+            return
+        path = os.path.realpath(os.path.normpath(selected))
+        if path not in current_custom:
+            current_custom.append(path)
+            refresh_custom_list(current_custom)
+
+    def on_remove_selected():
+        selected = list(custom_list.curselection())
+        if not selected:
+            return
+        for index in reversed(selected):
+            if 0 <= index < len(current_custom):
+                current_custom.pop(index)
+        refresh_custom_list(current_custom)
+
+    def on_reset_defaults():
+        for target_id, var in standard_vars.items():
+            var.set(target_id in clamav_default_quick_target_ids())
+        current_custom.clear()
+        refresh_custom_list(current_custom)
+
+    buttons = ttk.Frame(custom_frame)
+    buttons.grid(row=1, column=0, sticky="ew", pady=(8, 0))
+    ttk.Button(
+        buttons,
+        text=_tr(
+            app,
+            "clamav_quick_paths_btn_add_folder",
+            "Ordner hinzufügen",
+        ),
+        command=on_add_folder,
+    ).pack(side="left")
+    ttk.Button(
+        buttons,
+        text=_tr(
+            app,
+            "setup_assistant_btn_remove_selection",
+            "Auswahl entfernen",
+        ),
+        command=on_remove_selected,
+    ).pack(
+        side="left", padx=(8, 0)
+    )
+    ttk.Button(
+        buttons,
+        text=_tr(app, "clamav_quick_paths_btn_reset", "Standard"),
+        command=on_reset_defaults,
+    ).pack(
+        side="left", padx=(8, 0)
+    )
+
+    status_var = tk.StringVar(value="")
+    ttk.Label(container, textvariable=status_var).grid(
+        row=4, column=0, sticky="w", pady=(10, 0)
+    )
+
+    def close_popup():
+        app.__dict__.pop("clamav_quickscan_popup", None)
+        win.destroy()
+
+    def on_save():
+        selected_target_ids = [
+            target_id for target_id, var in standard_vars.items() if bool(var.get())
+        ]
+        normalized_target_ids = clamav_normalize_quick_target_ids(selected_target_ids)
+        normalized_custom = clamav_normalize_custom_quick_paths(current_custom)
+        if not normalized_target_ids and not normalized_custom:
+            status_var.set(
+                _tr(
+                    app,
+                    "clamav_quick_paths_validation_select_one",
+                    "Bitte mindestens einen Schnellscan-Pfad auswählen.",
+                )
+            )
+            return
+        app.clamav_quickscan_target_ids = normalized_target_ids
+        app.clamav_quickscan_custom_paths = normalized_custom
+        app.settings["clamav_quickscan_targets"] = list(normalized_target_ids)
+        app.settings["clamav_quickscan_custom_paths"] = list(normalized_custom)
+        app.save_settings(log_success=False)
+        app.log_safe(
+            _tr(
+                app,
+                "clamav_quick_paths_log_saved",
+                "ClamAV-Schnellscan-Pfade gespeichert: {value}",
+            ).format(value=", ".join(normalized_target_ids + normalized_custom))
+        )
+        close_popup()
+
+    action_row = ttk.Frame(container)
+    action_row.grid(row=5, column=0, sticky="ew", pady=(12, 0))
+    ttk.Button(
+        action_row,
+        text=_tr(app, "btn_cancel", "Abbrechen"),
+        command=close_popup,
+    ).pack(side="right")
+    ttk.Button(
+        action_row,
+        text=_tr(app, "btn_save", "Speichern"),
+        command=on_save,
+    ).pack(
+        side="right", padx=(0, 8)
+    )
+
+    win.protocol("WM_DELETE_WINDOW", close_popup)
 
 
 def clamav_extract_error_message(output):
     lines = [ln.strip() for ln in (output or "").splitlines() if ln.strip()]
     if not lines:
         return ""
+
+    priority_patterns = [
+        "libclamav error",
+        "no supported database files found",
+        "database initialization failed",
+        "database error",
+        "unknown option",
+        "invalid option",
+    ]
+    for line in lines:
+        lower = line.lower()
+        if any(token in lower for token in priority_patterns):
+            return line
 
     patterns = [
         "error:",
@@ -871,6 +1344,19 @@ def clamav_is_nonfatal_scan_issue(output):
         "can't read file",
     ]
     return any(marker in text for marker in benign_markers)
+
+
+def clamav_allows_nonfatal_scan_completion(output, scanned_files) -> bool:
+    try:
+        scanned = int(scanned_files)
+    except Exception:
+        scanned = 0
+    if scanned <= 0:
+        return False
+    return (
+        clamav_is_nonfatal_scan_issue(output)
+        or clamav_parse_scanned_files(output) is not None
+    )
 
 
 def clamav_is_nonfatal_update_issue(output):
@@ -1095,11 +1581,11 @@ def security_clamav_update_async(app):
             app.log_safe("ClamAV-Update gestartet...")
 
             try:
-                user_tmp = tempfile.gettempdir()
+                user_db_dir = clamav_user_database_dir()
                 user_tag = re.sub(r"[^a-zA-Z0-9_.-]", "_", getpass.getuser())
-                user_db_dir = os.path.join(user_tmp, f"netmon-clamav-db-{user_tag}")
                 user_log_file = os.path.join(
-                    user_tmp, f"netmon-freshclam-{user_tag}.log"
+                    tempfile.gettempdir(),
+                    f"netmon-freshclam-{user_tag}.log",
                 )
                 _safe_makedirs_no_symlink(user_db_dir)
                 with tempfile.NamedTemporaryFile(
@@ -1169,8 +1655,16 @@ def security_clamav_update_async(app):
                     break
 
             if rc == 0:
+                if used_sudo:
+                    app.clamav_database_dir = ""
+                elif clamav_database_dir_has_signatures(user_db_dir):
+                    app.clamav_database_dir = user_db_dir
                 update_clamav_panel_safe(app, status="bereit", signatures="aktuell")
                 app.log_safe("ClamAV-Update abgeschlossen.")
+                if getattr(app, "clamav_database_dir", ""):
+                    app.log_safe(
+                        f"ClamAV nutzt Signaturen aus: {app.clamav_database_dir}"
+                    )
                 if used_sudo:
                     app.log_debug_safe("ClamAV-Update wurde mit sudo -n ausgeführt.")
             else:
@@ -1241,24 +1735,93 @@ def security_clamav_quickscan_async(app):
     app.security_clamav_running = True
     app.security_clamav_last_systemcheck_text = ""
     update_clamav_panel(app, status="Scan läuft", result="-")
-    app._clamav_progress_start()
 
     def job():
         try:
             targets, used_home_fallback = app._clamav_quick_targets()
+            if not targets:
+                update_clamav_panel_safe(
+                    app,
+                    status=_tr(app, "status_ready_short", "bereit"),
+                    result=_tr(
+                        app,
+                        "clamav_quickscan_result_no_paths",
+                        "Keine Schnellscan-Pfade konfiguriert",
+                    ),
+                )
+                write_clamav_output(
+                    app,
+                    [
+                        _tr(
+                            app,
+                            "clamav_quickscan_output_not_started",
+                            "ClamAV-Schnellscan nicht gestartet.",
+                        ),
+                        _tr(
+                            app,
+                            "clamav_quickscan_output_not_started_reason",
+                            "Grund: keine gültigen Schnellscan-Pfade ausgewählt.",
+                        ),
+                        "",
+                        _tr(
+                            app,
+                            "clamav_quickscan_output_not_started_hint",
+                            "Bitte Schnellscan-Pfade festlegen und erneut starten.",
+                        ),
+                    ],
+                    replace=True,
+                )
+                app.log_safe(
+                    _tr(
+                        app,
+                        "clamav_quickscan_log_not_started_no_paths",
+                        "ClamAV-Schnellscan nicht gestartet: keine gültigen Schnellscan-Pfade.",
+                    )
+                )
+                return
+            excluded = clamav_quick_excluded_roots()
             target_label = ", ".join(targets)
             if len(target_label) > 120:
                 target_label = target_label[:117] + "..."
             update_clamav_panel_safe(app, last_target=target_label)
+            call_in_ui_thread(app, app._clamav_progress_start)
 
-            app.log_safe("ClamAV-Schnellscan gestartet...")
+            app.log_safe(
+                _tr(
+                    app,
+                    "clamav_quickscan_log_started",
+                    "ClamAV-Schnellscan gestartet...",
+                )
+            )
             if used_home_fallback:
                 app.log_safe(
-                    "ClamAV: Keine Standardordner gefunden, nutze Home-Verzeichnis."
+                    _tr(
+                        app,
+                        "clamav_quickscan_log_home_fallback",
+                        "ClamAV: Keine Standardordner gefunden, nutze Home-Verzeichnis.",
+                    )
+                )
+            if excluded:
+                app.log_debug_safe(
+                    _tr(
+                        app,
+                        "clamav_quickscan_log_excluded",
+                        "ClamAV-Schnellscan Ausschlüsse: {value}",
+                    ).format(value=", ".join(excluded))
                 )
 
-            cmd = ["clamscan", "-r", "--infected"] + targets
+            exclude_args = clamav_exclude_dir_args(excluded)
+            cmd = [
+                "clamscan",
+                *clamav_database_args(app),
+                "-r",
+                "--infected",
+                *exclude_args,
+                *targets,
+            ]
             rc, out, cancelled = app._run_clamscan_with_cancel(cmd, timeout=900)
+            timed_out = rc == 124
+            scanned_live = 0
 
             if cancelled:
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -1279,27 +1842,106 @@ def security_clamav_quickscan_async(app):
                     last_scan=timestamp,
                     result="Scan abgebrochen",
                 )
-                app.log_safe("ClamAV-Schnellscan abgebrochen.")
+                lines = [
+                    _tr(
+                        app,
+                        "clamav_quickscan_output_cancelled",
+                        "ClamAV-Schnellscan abgebrochen.",
+                    ),
+                    _tr(app, "clamav_output_targets", "Ziele: {value}").format(
+                        value=target_label or "-"
+                    ),
+                    _tr(app, "clamav_output_scanned_files", "Dateien gescannt: {value}").format(
+                        value=scanned_live
+                    ),
+                    _tr(app, "clamav_output_return_code", "Rückgabecode: {value}").format(
+                        value=rc
+                    ),
+                ]
+                raw_lines = [
+                    line.strip() for line in (out or "").splitlines() if line.strip()
+                ]
+                if raw_lines:
+                    lines.extend(
+                        [
+                            "",
+                            _tr(app, "clamav_output_raw_section", "ClamAV-Ausgabe:"),
+                            *raw_lines[-8:],
+                        ]
+                    )
+                write_clamav_output(app, lines, replace=True)
+                app.log_safe(
+                    _tr(
+                        app,
+                        "clamav_quickscan_output_cancelled",
+                        "ClamAV-Schnellscan abgebrochen.",
+                    )
+                )
                 if out:
                     app.log_debug_safe("ClamAV scan raw: " + out[:1000])
                 return
 
+            if timed_out:
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                update_clamav_panel_safe(
+                    app,
+                    status="Fehler",
+                    last_scan=timestamp,
+                    last_target=target_label,
+                    findings="-",
+                    result=_tr(app, "status_timeout", "Timeout"),
+                )
+                write_clamav_output(
+                    app,
+                    [
+                        _tr(
+                            app,
+                            "clamav_quickscan_output_timeout",
+                            "ClamAV-Schnellscan Timeout.",
+                        ),
+                        _tr(app, "clamav_output_targets", "Ziele: {value}").format(
+                            value=target_label
+                        ),
+                        _tr(app, "clamav_output_scanned_files", "Dateien gescannt: {value}").format(
+                            value=scanned_live
+                        ),
+                    ],
+                    replace=True,
+                )
+                app.log_safe(
+                    _tr(
+                        app,
+                        "clamav_quickscan_log_timeout",
+                        "ClamAV-Schnellscan fehlgeschlagen: Timeout.",
+                    )
+                )
+                return
+
             infected_count = clamav_parse_infected_count(out)
             scanned_files = clamav_parse_scanned_files(out)
+            if not isinstance(scanned_files, int):
+                scanned_files = scanned_live
             if isinstance(scanned_files, int) and scanned_files >= 0:
                 app._clamav_progress_update_safe(scanned_files)
 
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             findings_txt = str(infected_count)
             result_txt = (
-                "Keine Bedrohungen gefunden"
+                _tr(
+                    app,
+                    "clamav_quickscan_result_clean",
+                    "Keine Bedrohungen gefunden",
+                )
                 if infected_count == 0
-                else f"{infected_count} verdächtige Dateien gefunden"
+                else _tr(
+                    app,
+                    "clamav_quickscan_result_found",
+                    "{count} verdächtige Dateien gefunden",
+                ).format(count=infected_count)
             )
 
-            nonfatal_issue = rc == 2 and (
-                clamav_is_nonfatal_scan_issue(out)
-                or clamav_parse_scanned_files(out) is not None
+            nonfatal_issue = rc == 2 and clamav_allows_nonfatal_scan_completion(
+                out, scanned_files
             )
             if rc in (0, 1) or nonfatal_issue:
                 extracted_findings = clamav_extract_findings(
@@ -1326,7 +1968,11 @@ def security_clamav_quickscan_async(app):
                         + (
                             result_txt
                             if not nonfatal_issue
-                            else f"{result_txt} (mit Zugriffswarnungen)"
+                            else _tr(
+                                app,
+                                "clamav_quickscan_result_with_warnings",
+                                "{value} (mit Zugriffswarnungen)",
+                            ).format(value=result_txt)
                         ),
                     ]
                 )
@@ -1335,7 +1981,11 @@ def security_clamav_quickscan_async(app):
                     status=(
                         "abgeschlossen"
                         if not nonfatal_issue
-                        else "abgeschlossen (Warnungen)"
+                        else _tr(
+                            app,
+                            "clamav_quickscan_status_completed_warnings",
+                            "abgeschlossen (Warnungen)",
+                        )
                     ),
                     signatures="aktuell" if has_cmd("freshclam") else "unbekannt",
                     last_scan=timestamp,
@@ -1343,20 +1993,39 @@ def security_clamav_quickscan_async(app):
                     result=(
                         result_txt
                         if not nonfatal_issue
-                        else f"{result_txt} (mit Zugriffswarnungen)"
+                        else _tr(
+                            app,
+                            "clamav_quickscan_result_with_warnings",
+                            "{value} (mit Zugriffswarnungen)",
+                        ).format(value=result_txt)
                     ),
                 )
                 if len(targets) == 1:
                     app.log_safe(
-                        f"ClamAV-Schnellscan abgeschlossen. Ziel: {targets[0]} | Funde: {infected_count}"
+                        _tr(
+                            app,
+                            "clamav_quickscan_log_completed_single",
+                            "ClamAV-Schnellscan abgeschlossen. Ziel: {target} | Funde: {count}",
+                        ).format(target=targets[0], count=infected_count)
                     )
                 else:
                     app.log_safe(
-                        f"ClamAV-Schnellscan abgeschlossen. Ziele: {len(targets)} | Funde: {infected_count}"
+                        _tr(
+                            app,
+                            "clamav_quickscan_log_completed_multi",
+                            "ClamAV-Schnellscan abgeschlossen. Ziele: {count_targets} | Funde: {count_findings}",
+                        ).format(
+                            count_targets=len(targets),
+                            count_findings=infected_count,
+                        )
                     )
                 if nonfatal_issue:
                     app.log_safe(
-                        "ClamAV-Schnellscan: Einige Dateien konnten nicht gelesen werden (Zugriffswarnungen)."
+                        _tr(
+                            app,
+                            "clamav_quickscan_log_read_warnings",
+                            "ClamAV-Schnellscan: Einige Dateien konnten nicht gelesen werden (Zugriffswarnungen).",
+                        )
                     )
             else:
                 error_line = clamav_extract_error_message(out)
@@ -1381,13 +2050,33 @@ def security_clamav_quickscan_async(app):
                     status="Fehler",
                     last_scan=timestamp,
                     findings="-",
-                    result="Scan fehlgeschlagen",
+                    result=_tr(
+                        app,
+                        "clamav_quickscan_result_failed",
+                        "Scan fehlgeschlagen",
+                    ),
+                )
+                write_clamav_output(
+                    app,
+                    clamav_scan_failure_lines(
+                        app,
+                        "ClamAV-Schnellscan fehlgeschlagen.",
+                        target_label,
+                        scanned_files if isinstance(scanned_files, int) else 0,
+                        rc,
+                        out,
+                    ),
+                    replace=True,
                 )
                 if error_line:
                     app.log_safe(f"ClamAV-Schnellscan fehlgeschlagen: {error_line}")
                 else:
                     app.log_safe(
-                        f"ClamAV-Schnellscan fehlgeschlagen (rc={rc}, keine technische Fehlerzeile erkannt)."
+                        _tr(
+                            app,
+                            "clamav_quickscan_log_failed_no_error_line",
+                            "ClamAV-Schnellscan fehlgeschlagen (rc={rc}, keine technische Fehlerzeile erkannt).",
+                        ).format(rc=rc)
                     )
 
             if out:
@@ -1426,15 +2115,24 @@ def security_clamav_folder_scan_async(app):
 
     app.security_clamav_running = True
     update_clamav_panel(app, status="Scan läuft", result="-", last_target=target)
-    app._clamav_progress_start()
 
     def job():
         try:
+            call_in_ui_thread(app, app._clamav_progress_start)
             app.log_safe(f"ClamAV-Ordnerscan gestartet: {target}")
 
-            rc, out, cancelled = app._run_clamscan_with_cancel(
-                ["clamscan", "-r", "--infected", target],
-                timeout=900,
+            rc, out, cancelled, timed_out, scanned_live = (
+                app._run_clamscan_with_progress(
+                    [
+                        "clamscan",
+                        *clamav_database_args(app),
+                        "-r",
+                        "--infected",
+                        target,
+                    ],
+                    timeout=900,
+                    progress_cb=app._clamav_progress_update_safe,
+                )
             )
             if cancelled:
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -1443,28 +2141,107 @@ def security_clamav_folder_scan_async(app):
                     status="abgebrochen",
                     last_scan=timestamp,
                     last_target=target,
-                    result="Scan abgebrochen",
+                    result=_tr(app, "status_cancelled", "Abgebrochen"),
                 )
-                app.log_safe("ClamAV-Ordnerscan abgebrochen.")
+                lines = [
+                    _tr(
+                        app,
+                        "clamav_folder_scan_output_cancelled",
+                        "ClamAV-Ordnerscan abgebrochen.",
+                    ),
+                    _tr(app, "clamav_output_target", "Ziel: {value}").format(
+                        value=target
+                    ),
+                    _tr(app, "clamav_output_scanned_files", "Dateien gescannt: {value}").format(
+                        value=scanned_live
+                    ),
+                    _tr(app, "clamav_output_return_code", "Rückgabecode: {value}").format(
+                        value=rc
+                    ),
+                ]
+                raw_lines = [
+                    line.strip() for line in (out or "").splitlines() if line.strip()
+                ]
+                if raw_lines:
+                    lines.extend(
+                        [
+                            "",
+                            _tr(app, "clamav_output_raw_section", "ClamAV-Ausgabe:"),
+                            *raw_lines[-8:],
+                        ]
+                    )
+                write_clamav_output(app, lines, replace=True)
+                app.log_safe(
+                    _tr(
+                        app,
+                        "clamav_folder_scan_output_cancelled",
+                        "ClamAV-Ordnerscan abgebrochen.",
+                    )
+                )
                 if out:
                     app.log_debug_safe("ClamAV folder scan raw: " + out[:1000])
                 return
 
+            if timed_out:
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                update_clamav_panel_safe(
+                    app,
+                    status="Fehler",
+                    last_scan=timestamp,
+                    last_target=target,
+                    findings="-",
+                    result=_tr(app, "status_timeout", "Timeout"),
+                )
+                write_clamav_output(
+                    app,
+                    [
+                        _tr(
+                            app,
+                            "clamav_folder_scan_output_timeout",
+                            "ClamAV-Ordnerscan Timeout.",
+                        ),
+                        _tr(app, "clamav_output_target", "Ziel: {value}").format(
+                            value=target
+                        ),
+                        _tr(app, "clamav_output_scanned_files", "Dateien gescannt: {value}").format(
+                            value=scanned_live
+                        ),
+                    ],
+                    replace=True,
+                )
+                app.log_safe(
+                    _tr(
+                        app,
+                        "clamav_folder_scan_log_timeout",
+                        "ClamAV-Ordnerscan fehlgeschlagen: Timeout.",
+                    )
+                )
+                return
+
             infected_count = clamav_parse_infected_count(out)
             scanned_files = clamav_parse_scanned_files(out)
+            if not isinstance(scanned_files, int):
+                scanned_files = scanned_live
             if isinstance(scanned_files, int) and scanned_files >= 0:
                 app._clamav_progress_update_safe(scanned_files)
 
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             result_txt = (
-                "Keine Bedrohungen gefunden"
+                _tr(
+                    app,
+                    "clamav_quickscan_result_clean",
+                    "Keine Bedrohungen gefunden",
+                )
                 if infected_count == 0
-                else f"{infected_count} verdächtige Dateien gefunden"
+                else _tr(
+                    app,
+                    "clamav_quickscan_result_found",
+                    "{count} verdächtige Dateien gefunden",
+                ).format(count=infected_count)
             )
 
-            nonfatal_issue = rc == 2 and (
-                clamav_is_nonfatal_scan_issue(out)
-                or clamav_parse_scanned_files(out) is not None
+            nonfatal_issue = rc == 2 and clamav_allows_nonfatal_scan_completion(
+                out, scanned_files
             )
             if rc in (0, 1) or nonfatal_issue:
                 extracted_findings = clamav_extract_findings(
@@ -1476,7 +2253,11 @@ def security_clamav_folder_scan_async(app):
                     status=(
                         "abgeschlossen"
                         if not nonfatal_issue
-                        else "abgeschlossen (Warnungen)"
+                        else _tr(
+                            app,
+                            "clamav_quickscan_status_completed_warnings",
+                            "abgeschlossen (Warnungen)",
+                        )
                     ),
                     signatures="aktuell" if has_cmd("freshclam") else "unbekannt",
                     last_scan=timestamp,
@@ -1485,15 +2266,27 @@ def security_clamav_folder_scan_async(app):
                     result=(
                         result_txt
                         if not nonfatal_issue
-                        else f"{result_txt} (mit Zugriffswarnungen)"
+                        else _tr(
+                            app,
+                            "clamav_quickscan_result_with_warnings",
+                            "{value} (mit Zugriffswarnungen)",
+                        ).format(value=result_txt)
                     ),
                 )
                 app.log_safe(
-                    f"ClamAV-Ordnerscan abgeschlossen. Ziel: {target} | Funde: {infected_count}"
+                    _tr(
+                        app,
+                        "clamav_folder_scan_log_completed",
+                        "ClamAV-Ordnerscan abgeschlossen. Ziel: {target} | Funde: {count}",
+                    ).format(target=target, count=infected_count)
                 )
                 if nonfatal_issue:
                     app.log_safe(
-                        "ClamAV-Ordnerscan: Einige Dateien konnten nicht gelesen werden (Zugriffswarnungen)."
+                        _tr(
+                            app,
+                            "clamav_folder_scan_log_read_warnings",
+                            "ClamAV-Ordnerscan: Einige Dateien konnten nicht gelesen werden (Zugriffswarnungen).",
+                        )
                     )
             else:
                 error_line = clamav_extract_error_message(out)
@@ -1503,13 +2296,33 @@ def security_clamav_folder_scan_async(app):
                     last_scan=timestamp,
                     last_target=target,
                     findings="-",
-                    result="Scan fehlgeschlagen",
+                    result=_tr(
+                        app,
+                        "clamav_quickscan_result_failed",
+                        "Scan fehlgeschlagen",
+                    ),
+                )
+                write_clamav_output(
+                    app,
+                    clamav_scan_failure_lines(
+                        app,
+                        "ClamAV-Ordnerscan fehlgeschlagen.",
+                        target,
+                        scanned_files if isinstance(scanned_files, int) else 0,
+                        rc,
+                        out,
+                    ),
+                    replace=True,
                 )
                 if error_line:
                     app.log_safe(f"ClamAV-Ordnerscan fehlgeschlagen: {error_line}")
                 else:
                     app.log_safe(
-                        f"ClamAV-Ordnerscan fehlgeschlagen (rc={rc}, keine technische Fehlerzeile erkannt)."
+                        _tr(
+                            app,
+                            "clamav_folder_scan_log_failed_no_error_line",
+                            "ClamAV-Ordnerscan fehlgeschlagen (rc={rc}, keine technische Fehlerzeile erkannt).",
+                        ).format(rc=rc)
                     )
 
             if out:
@@ -1571,13 +2384,21 @@ def security_clamav_systemscan_async(app):
                     f"ClamAV-Systemscan Dateivorzählung fehlgeschlagen: {exc}"
                 )
 
-            call_in_ui_thread(app, lambda n=estimated_total: app._clamav_progress_start(n))
+            call_in_ui_thread(
+                app, lambda n=estimated_total: app._clamav_progress_start(n)
+            )
             app.log_safe("ClamAV-Systemscan gestartet...")
 
             exclude_args = [
                 f"--exclude-dir=^{re.escape(root)}($|/)" for root in excluded
             ]
-            cmd = ["clamscan", "-r", *exclude_args, *targets]
+            cmd = [
+                "clamscan",
+                *clamav_database_args(app),
+                "-r",
+                *exclude_args,
+                *targets,
+            ]
             rc, out, cancelled, timed_out, scanned_live = (
                 app._run_clamscan_with_progress(
                     cmd,
@@ -1598,18 +2419,32 @@ def security_clamav_systemscan_async(app):
                     status="abgebrochen",
                     last_scan=timestamp,
                     last_target=target_label,
-                    result="Systemscan abgebrochen",
+                    result=_tr(app, "status_cancelled", "Abgebrochen"),
                 )
                 write_clamav_output(
                     app,
                     [
-                        "ClamAV-Systemscan abgebrochen.",
-                        f"Ziele: {target_label}",
-                        f"Dateien gescannt: {scanned_files}",
+                        _tr(
+                            app,
+                            "clamav_system_scan_output_cancelled",
+                            "ClamAV-Systemscan abgebrochen.",
+                        ),
+                        _tr(app, "clamav_output_targets", "Ziele: {value}").format(
+                            value=target_label
+                        ),
+                        _tr(app, "clamav_output_scanned_files", "Dateien gescannt: {value}").format(
+                            value=scanned_files
+                        ),
                     ],
                     replace=True,
                 )
-                app.log_safe("ClamAV-Systemscan abgebrochen.")
+                app.log_safe(
+                    _tr(
+                        app,
+                        "clamav_system_scan_output_cancelled",
+                        "ClamAV-Systemscan abgebrochen.",
+                    )
+                )
                 return
 
             if timed_out:
@@ -1618,30 +2453,51 @@ def security_clamav_systemscan_async(app):
                     status="Fehler",
                     last_scan=timestamp,
                     last_target=target_label,
-                    result="Systemscan Timeout",
+                    result=_tr(app, "status_timeout", "Timeout"),
                 )
                 write_clamav_output(
                     app,
                     [
-                        "ClamAV-Systemscan Timeout.",
-                        f"Ziele: {target_label}",
-                        f"Dateien gescannt: {scanned_files}",
+                        _tr(
+                            app,
+                            "clamav_system_scan_output_timeout",
+                            "ClamAV-Systemscan Timeout.",
+                        ),
+                        _tr(app, "clamav_output_targets", "Ziele: {value}").format(
+                            value=target_label
+                        ),
+                        _tr(app, "clamav_output_scanned_files", "Dateien gescannt: {value}").format(
+                            value=scanned_files
+                        ),
                     ],
                     replace=True,
                 )
-                app.log_safe("ClamAV-Systemscan fehlgeschlagen: Timeout.")
+                app.log_safe(
+                    _tr(
+                        app,
+                        "clamav_system_scan_log_timeout",
+                        "ClamAV-Systemscan fehlgeschlagen: Timeout.",
+                    )
+                )
                 return
 
             infected_count = clamav_parse_infected_count(out)
             result_txt = (
-                "Keine Bedrohungen gefunden"
+                _tr(
+                    app,
+                    "clamav_quickscan_result_clean",
+                    "Keine Bedrohungen gefunden",
+                )
                 if infected_count == 0
-                else f"{infected_count} verdächtige Dateien gefunden"
+                else _tr(
+                    app,
+                    "clamav_quickscan_result_found",
+                    "{count} verdächtige Dateien gefunden",
+                ).format(count=infected_count)
             )
 
-            nonfatal_issue = rc == 2 and (
-                clamav_is_nonfatal_scan_issue(out)
-                or clamav_parse_scanned_files(out) is not None
+            nonfatal_issue = rc == 2 and clamav_allows_nonfatal_scan_completion(
+                out, scanned_files
             )
             if rc in (0, 1) or nonfatal_issue:
                 extracted_findings = clamav_extract_findings(
@@ -1653,7 +2509,11 @@ def security_clamav_systemscan_async(app):
                     status=(
                         "abgeschlossen"
                         if not nonfatal_issue
-                        else "abgeschlossen (Warnungen)"
+                        else _tr(
+                            app,
+                            "clamav_quickscan_status_completed_warnings",
+                            "abgeschlossen (Warnungen)",
+                        )
                     ),
                     signatures="aktuell" if has_cmd("freshclam") else "unbekannt",
                     last_scan=timestamp,
@@ -1662,26 +2522,49 @@ def security_clamav_systemscan_async(app):
                     result=(
                         result_txt
                         if not nonfatal_issue
-                        else f"{result_txt} (mit Zugriffswarnungen)"
+                        else _tr(
+                            app,
+                            "clamav_quickscan_result_with_warnings",
+                            "{value} (mit Zugriffswarnungen)",
+                        ).format(value=result_txt)
                     ),
                 )
                 write_clamav_output(
                     app,
                     [
-                        "ClamAV-Systemscan abgeschlossen.",
-                        f"Ziele: {target_label}",
-                        f"Dateien gescannt: {scanned_files}",
+                        _tr(
+                            app,
+                            "clamav_system_scan_output_completed",
+                            "ClamAV-Systemscan abgeschlossen.",
+                        ),
+                        _tr(app, "clamav_output_targets", "Ziele: {value}").format(
+                            value=target_label
+                        ),
+                        _tr(app, "clamav_output_scanned_files", "Dateien gescannt: {value}").format(
+                            value=scanned_files
+                        ),
                         f"Funde: {infected_count}",
                         f"Ergebnis: {result_txt}",
                     ],
                     replace=True,
                 )
                 app.log_safe(
-                    f"ClamAV-Systemscan abgeschlossen. Ziele: {len(targets)} | Funde: {infected_count}"
+                    _tr(
+                        app,
+                        "clamav_system_scan_log_completed",
+                        "ClamAV-Systemscan abgeschlossen. Ziele: {count_targets} | Funde: {count_findings}",
+                    ).format(
+                        count_targets=len(targets),
+                        count_findings=infected_count,
+                    )
                 )
                 if nonfatal_issue:
                     app.log_safe(
-                        "ClamAV-Systemscan: Einige Dateien konnten nicht gelesen werden (Zugriffswarnungen)."
+                        _tr(
+                            app,
+                            "clamav_system_scan_log_read_warnings",
+                            "ClamAV-Systemscan: Einige Dateien konnten nicht gelesen werden (Zugriffswarnungen).",
+                        )
                     )
             else:
                 error_line = clamav_extract_error_message(out)
@@ -1691,20 +2574,22 @@ def security_clamav_systemscan_async(app):
                     last_scan=timestamp,
                     last_target=target_label,
                     findings="-",
-                    result="Systemscan fehlgeschlagen",
+                    result=_tr(
+                        app,
+                        "clamav_system_scan_result_failed",
+                        "Systemscan fehlgeschlagen",
+                    ),
                 )
                 write_clamav_output(
                     app,
-                    [
+                    clamav_scan_failure_lines(
+                        app,
                         "ClamAV-Systemscan fehlgeschlagen.",
-                        f"Ziele: {target_label}",
-                        f"Dateien gescannt: {scanned_files}",
-                        (
-                            f"Details: {error_line}"
-                            if error_line
-                            else f"Rückgabecode: {rc} (keine technische Fehlerzeile erkannt)"
-                        ),
-                    ],
+                        target_label,
+                        scanned_files,
+                        rc,
+                        out,
+                    ),
                     replace=True,
                 )
                 if error_line:

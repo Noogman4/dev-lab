@@ -71,6 +71,7 @@ flowchart LR
     Config --> Slots[HDD/Link/VPN/Privacy/Radio JSON]
     Config --> LinuxHelp[linux_help_commands.json]
     Config --> RadioCfg[radio_stations.json / radio_favorites.json / radio_settings.json]
+    Data[XDG_DATA_HOME/netmon] --> ClamDb[clamav-db / Benutzersignaturen]
     State[~/.local/state/netmon] --> Sec[security / startup / repository / roots baseline Dateien]
     State --> RadioState[radio_db.json / handover / attach / detached state]
     State --> Logs[startup_error.log / logs/speedtest_history.jsonl]
@@ -88,6 +89,8 @@ flowchart LR
 - Controller-Module in `netmon/features/` kapseln UI-nahe Aktionen und Dateipfade.
 - Services in `netmon/services/` kapseln Parser, Policies, Guards oder Onlinezugriffe.
 - Core-Helfer in `netmon/core/` kapseln Basiskommandos, Locking, Crash-Handling, Pfad- und Formatierungslogik.
+- `clamav_controller.py` verwaltet Scanarten, Schnellscan-Konfiguration, Fortschrittsanzeige, Signaturauswahl, Befunde und Quarantaene.
+- `security_audit_controller.py` orchestriert RKHunter-Scans und Referenzupdates; `rkhunter_analysis_service.py` klassifiziert die Ausgabe und liefert die Gate-Evidenz.
 
 ## Netzwerkmodule
 
@@ -126,6 +129,7 @@ flowchart TD
         S4[startup_guard_service.py]
         S5[path_guard_service.py]
         S6[process_guard_service.py]
+        S7[rkhunter_analysis_service.py]
     end
     subgraph Features
         F1[dns_controller.py]
@@ -135,6 +139,7 @@ flowchart TD
         F5[security_monitoring_controller.py]
         F6[security_audit_controller.py]
         F7[repository_guard_controller.py]
+        F8[clamav_controller.py]
     end
     subgraph UI
         U1[ui/tabs/*.py]

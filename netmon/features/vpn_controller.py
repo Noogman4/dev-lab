@@ -1887,7 +1887,13 @@ def collect_endpoint_rules_for_profiles(app, profiles):
         resolved = app.resolve_profile_family_runtime(base_profile, log_missing=False)
         candidates = resolved.get("endpoint_profiles") or [base_profile]
         for candidate in candidates:
-            endpoint_ip, endpoint_port = app.parse_vpn_endpoint(candidate)
+            try:
+                endpoint_ip, endpoint_port = app.parse_vpn_endpoint(candidate)
+            except Exception as exc:
+                app.log_debug(
+                    f"[DEBUG] Endpoint fuer Profil {candidate} konnte nicht gelesen werden: {exc}"
+                )
+                continue
             if endpoint_ip and endpoint_port:
                 endpoints.add((endpoint_ip, endpoint_port))
     return endpoints
@@ -1924,8 +1930,18 @@ def apply_profile_ufw_rules_non_killswitch(app, interfaces, endpoints):
         return True
 
     network_service = app._network_service()
-    with app.ufw_lock:
-        rc_status, out_status = app._read_ufw_status(verbose=True)
+    ufw_lock = app.__dict__.get("ufw_lock")
+    if ufw_lock is None:
+        ufw_lock = threading.Lock()
+        app.ufw_lock = ufw_lock
+    with ufw_lock:
+        try:
+            rc_status, out_status = app._read_ufw_status(verbose=True)
+        except Exception as exc:
+            app.log_debug(
+                f"VPN/UFW-Reconcile: UFW-Status konnte nicht gelesen werden: {exc}"
+            )
+            return True
         if rc_status != 0:
             app.log(
                 "VPN/UFW-Reconcile: UFW-Status nicht lesbar – Regelsetzung übersprungen."
@@ -2669,7 +2685,7 @@ def vpn_switch(
             app.log_safe(
                 app.tr("vpn_log_no_profile_selected", "Kein WireGuard-Profil gewählt.")
             )
-            app._recover_firewall_after_killswitch_failure()
+            app._recover_firewall_preserving_killswitch()
             if refresh_ui:
                 app.refresh_safe()
             return False
@@ -2689,7 +2705,7 @@ def vpn_switch(
         if not runtime_target:
             runtime_target = app.resolve_runtime_vpn_profile(target, log_missing=True)
         if not runtime_target:
-            app._recover_firewall_after_killswitch_failure()
+            app._recover_firewall_preserving_killswitch()
             if refresh_ui:
                 app.refresh_safe()
             return False
@@ -2762,7 +2778,7 @@ def vpn_switch(
                 "[DEBUG] WG Cleanup vor VPN Start übersprungen: bereits sauber."
             )
         elif not cleanup_wireguard_interfaces(app):
-            app._recover_firewall_after_killswitch_failure()
+            app._recover_firewall_preserving_killswitch()
             if refresh_ui:
                 app.refresh_safe()
             return False
@@ -2809,8 +2825,15 @@ def vpn_switch(
         app.refresh_wg_profiles()
         app.update_primary_vpn_form_controls()
         app.sync_primary_vpn_form_selection()
-        if rc == 0 and app.killswitch_is_on():
-            app._killswitch_on_sync(refresh_ui=False)
+        if rc == 0:
+            if app.killswitch_is_on():
+                app._killswitch_on_sync(refresh_ui=False)
+            else:
+                app.reconcile_vpn_slot_firewall_state(
+                    reason=f"VPN aktiv: {target}",
+                    touched_profiles=[target],
+                    refresh_ui=False,
+                )
         if rc == 0:
             app._schedule_dns_finalize_after_vpn_profile_switch(delay_ms=2500)
             app.run_async(lambda t=target: app.verify_vpn_exit_country(t))

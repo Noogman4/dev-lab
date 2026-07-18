@@ -1,3 +1,5 @@
+import hashlib
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -559,6 +561,70 @@ def test_secure_browser_manager_renders_create_browser_draft():
     )
     assert '"name": "firefox-GitHub2"' in draft
     assert '"new_tab_url": "about:blank"' in draft
+
+
+def test_secure_browser_child_lock_payload_contains_only_password_hash():
+    payload = SecureBrowserManager.create_child_lock_payload("familie123")
+
+    assert payload["algorithm"] == "pbkdf2_sha256"
+    assert "familie123" not in str(payload)
+    actual = hashlib.pbkdf2_hmac(
+        "sha256",
+        b"familie123",
+        bytes.fromhex(str(payload["salt"])),
+        int(payload["iterations"]),
+    )
+    assert actual.hex() == payload["password_hash"]
+
+
+def test_secure_browser_service_adds_child_lock_to_generated_config(tmp_path):
+    service = SecureBrowserService()
+    service.get_default_source_firefox_dir = lambda: None
+    lock = SecureBrowserManager.create_child_lock_payload("testpasswort")
+
+    payload = service.build_generated_create_config(
+        name="firefox-Kinder",
+        homepage_url="https://example.com",
+        allowed_domains=["example.com"],
+        target_dir=tmp_path / "firefox-Kinder",
+        menu_name="Kinder",
+        new_tab_url="about:blank",
+        icon_mode="default",
+        child_lock=lock,
+    )
+
+    assert payload["containers"][0]["child_lock"] == lock
+    assert "testpasswort" not in json.dumps(payload)
+
+
+def test_secure_browser_service_configures_child_lock_for_existing_container(tmp_path):
+    service = SecureBrowserService()
+    service.get_default_base_dir = lambda: tmp_path
+    container_dir = tmp_path / "firefox-Kinder"
+    container_dir.mkdir()
+    container = BrowserContainer(
+        name="firefox-Kinder",
+        path=container_dir,
+        binary_path=container_dir / "firefox" / "firefox",
+        profile_path=container_dir / "profile",
+        homepage_url="https://example.com",
+        allowed_domains=["example.com"],
+    )
+    lock = SecureBrowserManager.create_child_lock_payload("familie123")
+
+    service.configure_container_child_lock(container, lock)
+
+    lock_path = container_dir / "child-lock.json"
+    helper_path = container_dir / "browser_lock.py"
+    assert service.container_child_lock_enabled(container) is True
+    assert json.loads(lock_path.read_text(encoding="utf-8")) == lock
+    assert lock_path.stat().st_mode & 0o777 == 0o600
+    assert helper_path.is_file()
+
+    service.configure_container_child_lock(container, None)
+
+    assert service.container_child_lock_enabled(container) is False
+    assert not helper_path.exists()
 
 
 def test_secure_browser_manager_lists_create_presets():
@@ -1473,6 +1539,22 @@ def test_secure_browser_manager_uninstall_execute_stops_when_container_missing()
     assert called["executed"] is False
 
 
+def test_secure_browser_manager_never_uninstalls_firefox_base():
+    called = {"dry_run": False, "executed": False}
+    manager = SecureBrowserManager(
+        service=SimpleNamespace(
+            run_uninstall_dry_run=lambda **kwargs: called.update(dry_run=True),
+            execute_uninstall_apply=lambda **kwargs: called.update(executed=True),
+        )
+    )
+
+    rendered = manager.execute_uninstall_apply("firefox.base", "UNINSTALL")
+
+    assert "Firefox-Basis geschützt" in rendered
+    assert "zum Anlegen neuer Browser benötigt" in rendered
+    assert called == {"dry_run": False, "executed": False}
+
+
 def test_secure_browser_tab_can_be_created(monkeypatch):
     import netmon.modules.secure_browser.ui as ui_module
     from netmon.ui.tabs.secure_browser_tab import build_secure_browser_tab
@@ -1559,6 +1641,15 @@ def test_secure_browser_tab_can_be_created(monkeypatch):
     assert app.tab_secure_browser.secure_browser_draft_icon_mode.get() == "favicon"
     assert (
         app.tab_secure_browser.secure_browser_draft_security_profile.get() == "Standard"
+    )
+    assert app.tab_secure_browser.secure_browser_child_lock_row.grid_kwargs["row"] == 4
+    assert (
+        app.tab_secure_browser.secure_browser_draft_child_lock.parent
+        is app.tab_secure_browser.secure_browser_child_lock_row
+    )
+    assert (
+        app.tab_secure_browser.secure_browser_child_lock_label.kwargs["text"]
+        == "Browser-Zugriff:"
     )
     assert (
         app.tab_secure_browser.secure_browser_draft_security_profile_hint.configure_kwargs[

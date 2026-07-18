@@ -1026,8 +1026,8 @@ def test_open_selected_station_homepage_rejects_disallowed_scheme():
         }
         radio_controller._selected_station_id = lambda _app: "station-1"
         radio_controller.webbrowser.open = lambda url, new=0: opened.append((url, new))
-        radio_controller.set_radio_status = (
-            lambda _app, message: statuses.append(message)
+        radio_controller.set_radio_status = lambda _app, message: statuses.append(
+            message
         )
 
         assert radio_controller.open_selected_station_homepage(app) is False
@@ -1057,8 +1057,8 @@ def test_open_selected_station_homepage_opens_https():
         }
         radio_controller._selected_station_id = lambda _app: "station-1"
         radio_controller.webbrowser.open = lambda url, new=0: opened.append((url, new))
-        radio_controller.set_radio_status = (
-            lambda _app, message: statuses.append(message)
+        radio_controller.set_radio_status = lambda _app, message: statuses.append(
+            message
         )
 
         assert radio_controller.open_selected_station_homepage(app) is True
@@ -1725,7 +1725,10 @@ def test_standalone_radio_app_ui_contains_player_and_projectm():
     assert 'text="Alle auswählen"' in app_source
     assert 'text="Exklusivmodus"' in app_source
     assert 'text="Andere Datenbanken"' in app_source
-    assert "source_canvas = tk.Canvas(source_wrap, highlightthickness=0, bd=0)" in app_source
+    assert (
+        "source_canvas = tk.Canvas(source_wrap, highlightthickness=0, bd=0)"
+        in app_source
+    )
     assert 'orient="vertical"' in app_source
     assert "command=source_canvas.yview" in app_source
     assert 'ttk.Separator(source_frame, orient="horizontal")' in app_source
@@ -1799,6 +1802,37 @@ def test_station_online_indicator_uses_lastcheckok():
     assert (
         radio_controller._station_online_indicator(app, {"id": "unknown"}) == "unknown"
     )
+
+
+def test_station_logo_url_allows_only_web_schemes():
+    app = SimpleNamespace()
+
+    assert (
+        netmon_radio_app.NetMonRadioApp._station_logo_url(
+            app, {"favicon": "https://example.com/logo.png"}
+        )
+        == "https://example.com/logo.png"
+    )
+    assert (
+        netmon_radio_app.NetMonRadioApp._station_logo_url(
+            app, {"favicon": "http://example.com/logo.png"}
+        )
+        == "http://example.com/logo.png"
+    )
+    for blocked in (
+        "file:///etc/passwd",
+        "ftp://example.com/logo.png",
+        "data:image/png;base64,AAAA",
+        "javascript:alert(1)",
+        "//example.com/logo.png",
+        "example.com/logo.png",
+    ):
+        assert (
+            netmon_radio_app.NetMonRadioApp._station_logo_url(
+                app, {"favicon": blocked}
+            )
+            == ""
+        )
 
 
 def test_radio_logo_size_uses_larger_embedded_main_logo():
@@ -2539,7 +2573,9 @@ def test_radio_core_launch_radio_app_uses_runtime_desktop_id_for_gtk_launch(
         "netmon.netmon_radio_core.get_netmon_state_dir",
         lambda: str(tmp_path / "state"),
     )
-    monkeypatch.setattr("netmon.netmon_radio_core.shutil.which", lambda cmd: "/usr/bin/gtk-launch")
+    monkeypatch.setattr(
+        "netmon.netmon_radio_core.shutil.which", lambda cmd: "/usr/bin/gtk-launch"
+    )
     monkeypatch.setattr("netmon.netmon_radio_core.time.sleep", lambda _seconds: None)
 
     def fake_popen(command, **kwargs):
@@ -3209,9 +3245,7 @@ def test_ensure_projectm_preset_dir_migrates_legacy_presets_without_bundled_sync
         "Presets",
     )
     assert os.path.isfile(os.path.join(preset_dir, "legacy.milk"))
-    assert not os.path.exists(
-        os.path.join(preset_dir, "NetMon Presets")
-    )
+    assert not os.path.exists(os.path.join(preset_dir, "NetMon Presets"))
 
 
 def test_install_projectm_preset_archive_extracts_zip_pack(monkeypatch, tmp_path):

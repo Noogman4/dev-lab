@@ -1134,6 +1134,61 @@ def test_resolved_status_async_shows_compact_dns_status_without_raw_dump(monkeyp
     ]
 
 
+def test_resolved_status_async_background_refresh_keeps_current_tab(monkeypatch):
+    app = netmon.App.__new__(netmon.App)
+    tab_calls = []
+
+    app.nb = type(
+        "DummyNotebook", (), {"select": lambda self, tab: tab_calls.append(tab)}
+    )()
+    app.tab_dns = "dns-tab"
+    app.log = lambda _message: None
+    app.after = lambda _delay, callback: callback()
+    app.update_dns_output = lambda _text, append=False: None
+
+    monkeypatch.setattr(netmon.threading, "Thread", ImmediateThread)
+    monkeypatch.setattr(netmon, "has_cmd", lambda _name: False)
+
+    app.resolved_status_async(select_tab=False)
+
+    assert tab_calls == []
+
+
+def test_resolved_status_worker_never_schedules_tk_callback(monkeypatch):
+    app = netmon.App.__new__(netmon.App)
+    scheduled = []
+    workers = []
+    outputs = []
+
+    class DeferredThread:
+        def __init__(self, target, daemon=True):
+            self.target = target
+
+        def start(self):
+            workers.append(self.target)
+
+    app.nb = type("DummyNotebook", (), {"select": lambda self, tab: None})()
+    app.tab_dns = "dns-tab"
+    app.log = lambda _message: None
+    app.after = lambda delay, callback: scheduled.append((delay, callback))
+    app.update_dns_output = lambda text, append=False: outputs.append(text)
+
+    monkeypatch.setattr(netmon.threading, "Thread", DeferredThread)
+    monkeypatch.setattr(netmon, "has_cmd", lambda _name: False)
+
+    app.resolved_status_async(select_tab=False)
+
+    assert len(workers) == 1
+    assert len(scheduled) == 1
+
+    workers[0]()
+
+    assert len(scheduled) == 1
+    _delay, show_when_ready = scheduled.pop()
+    show_when_ready()
+    assert outputs
+
+
 def test_run_dns_leak_check_stays_in_dns_tab_without_auto_chad(monkeypatch):
     app = netmon.App.__new__(netmon.App)
     logs = []
@@ -1794,6 +1849,20 @@ def test_start_dns_startup_sequence_schedules_ordered_steps():
         "monitor",
         "guard_loop",
     ]
+
+
+def test_run_dns_startup_cleanup_step_restores_fallback_when_needed():
+    app = netmon.App.__new__(netmon.App)
+    events = []
+
+    app.initial_dns_cleanup = lambda defer_followup=False: events.append(
+        ("cleanup", defer_followup)
+    )
+    app._restore_isp_dns_on_startup_if_needed = lambda: events.append("fallback")
+
+    app._run_dns_startup_cleanup_step()
+
+    assert events == [("cleanup", True), "fallback"]
 
 
 def test_finalize_dns_startup_sequence_refreshes_and_clears_transition():
@@ -3217,3 +3286,69 @@ def test_restore_isp_dns_after_vpn_skips_during_internet_vpn_restore():
     assert app._restore_isp_dns_after_vpn_switch() is False
     assert calls == []
     assert logs == ["[DEBUG] DNS nach VPN-Aus übersprungen: Internet-AN-Restore aktiv."]
+
+
+def test_apply_automatic_dns_restore_choice_bypasses_ui_lock_during_transition():
+    app = netmon.App.__new__(netmon.App)
+    calls = []
+
+    app._dns_runtime_transition_active = lambda: True
+    app._set_dns_choice_safe = lambda choice: calls.append(("set", choice))
+    app._apply_dns_profile_choice_via_control = (
+        lambda choice: calls.append(("control", choice)) or {"success": True}
+    )
+    app.refresh_dns_policy_status = lambda: calls.append(("refresh", None))
+    app.apply_dns = lambda **kwargs: calls.append(("apply_dns", kwargs)) or False
+    app.log_safe = lambda _message: None
+
+    assert app._apply_automatic_dns_restore_choice("Cloudflare (1.1.1.1)") is True
+    assert calls == [
+        ("set", "Cloudflare (1.1.1.1)"),
+        ("control", "Cloudflare (1.1.1.1)"),
+        ("refresh", None),
+    ]
+
+
+def test_restore_isp_dns_on_startup_uses_fallback_without_active_dns(monkeypatch):
+    app = netmon.App.__new__(netmon.App)
+    logs = []
+    debug_logs = []
+    calls = []
+
+    app.is_vpn_active = lambda: False
+    app._auto_dns_control_available = lambda: True
+    app._parse_active_dns_servers = lambda _out: []
+    app._restore_isp_dns_after_vpn_switch = lambda: calls.append("restore") or True
+    app.log_safe = logs.append
+    app.log_network_debug = debug_logs.append
+
+    monkeypatch.setattr(netmon, "has_cmd", lambda name: name == "resolvectl")
+    monkeypatch.setattr(netmon, "run_cmd", lambda args, timeout=0: (0, "Global\n"))
+
+    assert app._restore_isp_dns_on_startup_if_needed() is True
+    assert calls == ["restore"]
+    assert logs == [
+        "DNS-Startup-Fallback wird angewendet: keine aktiven DNS-Server erkannt."
+    ]
+    assert debug_logs == []
+
+
+def test_restore_isp_dns_on_startup_skips_when_dns_already_present(monkeypatch):
+    app = netmon.App.__new__(netmon.App)
+    debug_logs = []
+    calls = []
+
+    app.is_vpn_active = lambda: False
+    app._auto_dns_control_available = lambda: True
+    app._parse_active_dns_servers = lambda _out: ["1.1.1.1"]
+    app._restore_isp_dns_after_vpn_switch = lambda: calls.append("restore") or True
+    app.log_network_debug = debug_logs.append
+
+    monkeypatch.setattr(netmon, "has_cmd", lambda name: name == "resolvectl")
+    monkeypatch.setattr(netmon, "run_cmd", lambda args, timeout=0: (0, "DNS Servers: 1.1.1.1"))
+
+    assert app._restore_isp_dns_on_startup_if_needed() is False
+    assert calls == []
+    assert debug_logs == [
+        "[DEBUG] DNS-Startup-Fallback übersprungen: aktive DNS-Server vorhanden."
+    ]

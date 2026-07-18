@@ -1,6 +1,7 @@
 import inspect
 
 from netmon.app import App
+from netmon.ui.tabs.security_tabs import build_security_tabs
 
 
 class DummyVar:
@@ -159,3 +160,31 @@ def test_copy_download_scan_temp_folder_path_logs_copy_failure():
 
     assert result is False
     assert calls == [("log", "Temp-Ordner-Pfad konnte nicht kopiert werden: kaputt")]
+
+
+def test_run_download_scan_source_uses_clamav_database_args_and_nonfatal_helper():
+    source = inspect.getsource(App._run_download_scan)
+
+    assert "self._clamav_database_args()" in source
+    assert "self._clamav_allows_nonfatal_scan_completion(out, scanned_files)" in source
+
+
+def test_clamav_helper_wrappers_are_exposed_on_app():
+    database_source = inspect.getsource(App._clamav_database_args)
+    nonfatal_source = inspect.getsource(App._clamav_allows_nonfatal_scan_completion)
+
+    assert "clamav_controller.clamav_database_args(self)" in database_source
+    assert (
+        "clamav_controller.clamav_allows_nonfatal_scan_completion(" in nonfatal_source
+    )
+
+
+def test_clamav_quickscan_button_and_wrapper_are_wired():
+    source = inspect.getsource(build_security_tabs)
+    wrapper_source = inspect.getsource(App.configure_clamav_quickscan_paths)
+
+    assert 'text=app.tr("clamav_btn_quick_paths", "Schnellscan-Pfade")' in source
+    assert "command=app.configure_clamav_quickscan_paths" in source
+    assert "clamav_controller.clamav_configure_quickscan_paths_dialog(self)" in (
+        wrapper_source
+    )

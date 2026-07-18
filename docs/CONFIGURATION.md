@@ -8,6 +8,8 @@
 - Diagnoseordner: `~/Documents/NetMon/diagnostics` oder `~/Dokumente/NetMon/diagnostics` (`netmon/core/diagnostics.py`).
 - Supportordner: `~/Documents/NetMon/support` oder `~/Dokumente/NetMon/support` (`netmon/core/support_bundle.py`).
 - Theme-Studio-Profile: `~/Documents/NetMon/ThemeStudio` oder `~/Dokumente/NetMon/ThemeStudio` (`app.py`).
+- Linux-Hilfe-PDF-Bibliothek: `~/Documents/NetMon/LinuxHelp` oder `~/Dokumente/NetMon/LinuxHelp` mit `pdfs/` und `meta/` (`netmon/services/linux_help_library_service.py`).
+- ClamAV-Benutzersignaturen: `XDG_DATA_HOME/netmon/clamav-db` oder `~/.local/share/netmon/clamav-db` (`netmon/features/clamav_controller.py`).
 
 ## Konfigurationsdateien
 
@@ -24,6 +26,12 @@
 | `radio_stations.json` | Config | Radio-Stationen |
 | `radio_favorites.json` | Config | Radio-Favoriten |
 | `radio_settings.json` | Config | Radio-Einstellungen |
+
+Die Schnellscan-Auswahl liegt in `config.json`:
+
+- `clamav_quickscan_targets`: aktivierte Standardordner (`downloads`, `desktop`, `documents_de`, `documents_en`).
+- `clamav_quickscan_custom_paths`: zusaetzliche, vom Benutzer ausgewaehlte absolute Ordnerpfade.
+- Sind noch keine Werte gespeichert, verwendet NetMon die vorhandenen Standardordner. Im ClamAV-Tab koennen die Pfade ueber `Schnellscan-Pfade` geaendert und auf den Standard zurueckgesetzt werden.
 
 ## State- und Laufzeitdateien
 
@@ -51,6 +59,8 @@
 | `logs/speedtest_history.jsonl` | State | Speedtest-Historie |
 | `logs/` | State | Laufzeit- und Feature-Logs, z. B. `speedtest_history.jsonl` |
 | `WireGuard/` | Documents | NetMon-Importordner fuer lokale WireGuard-Profile |
+| `LinuxHelp/pdfs/` | Documents | Importierte Linux-Hilfe-PDFs |
+| `LinuxHelp/meta/` | Documents | JSON-Metadaten zu importierten Linux-Hilfe-PDFs |
 
 ## Diagnose- und Supportdateien
 
@@ -63,8 +73,9 @@
 
 ## Standardwerte
 
-- App-Version laut `netmon/config/constants.py`: `1.1.17`
+- App-Version laut `netmon/config/constants.py`: `1.1.19`
 - Theme-Startwert: `light` als bevorzugtes Theme in `App.__init__`.
+- Das losgeloeste Standalone-Radio erzwingt aktuell `dark` als Start- und Laufzeittheme; der eingebettete Radio-Tab folgt weiter dem NetMon-/Radio-Theme.
 - Chad-Startmodell: `gpt-4.1-mini`.
 - DNS Guard startet mit `False` / inaktiv, mehrere Statusvariablen initialisieren auf Platzhaltertexte.
 - Fehler- und Supportdiagnose ist standardmaessig aktiv; Supportpakete werden bei Bedarf manuell aus der UI erzeugt.

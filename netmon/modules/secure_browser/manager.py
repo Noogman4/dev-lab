@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
+import secrets
 from urllib.parse import urlparse
 
 from .models import BrowserContainer
@@ -173,6 +175,29 @@ class SecureBrowserManager:
     def scan_inventory(self) -> list[BrowserContainer]:
         self.last_scan = self.service.scan_containers()
         return self.last_scan
+
+    @staticmethod
+    def create_child_lock_payload(password: str) -> dict[str, object]:
+        if not isinstance(password, str) or not password:
+            raise ValueError("Für die Kindersicherung wurde kein Passwort eingegeben.")
+        salt = secrets.token_bytes(16)
+        iterations = 200_000
+        password_hash = hashlib.pbkdf2_hmac(
+            "sha256", password.encode("utf-8"), salt, iterations
+        )
+        return {
+            "algorithm": "pbkdf2_sha256",
+            "salt": salt.hex(),
+            "password_hash": password_hash.hex(),
+            "iterations": iterations,
+        }
+
+    @staticmethod
+    def is_protected_firefox_base_name(container_name: str | None) -> bool:
+        normalized = re.sub(
+            r"[-_.\s]+", "", str(container_name or "").strip().lower()
+        )
+        return normalized == "firefoxbase"
 
     def render_preflight_text(self) -> str:
         try:
@@ -1042,6 +1067,7 @@ class SecureBrowserManager:
         keep_cookies: bool | None = None,
         enable_website_filter: bool | None = None,
         confirmation: str = "",
+        child_lock: dict[str, object] | None = None,
     ) -> str:
         preview = self.render_create_browser_apply_preview(
             name,
@@ -1093,6 +1119,7 @@ class SecureBrowserManager:
             allow_password_manager=resolved_allow_password_manager,
             keep_cookies=resolved_keep_cookies,
             enable_website_filter=resolved_enable_website_filter,
+            child_lock=child_lock,
         )
         lines = [
             preview,
@@ -1240,6 +1267,31 @@ class SecureBrowserManager:
             )
         return rendered
 
+    def container_child_lock_enabled(self, container_name: str) -> bool:
+        container = self.get_container_by_name(container_name)
+        if container is None:
+            return False
+        try:
+            return bool(self.service.container_child_lock_enabled(container))
+        except Exception:
+            LOGGER.exception("Secure Browser child lock status failed")
+            return False
+
+    def configure_container_child_lock(
+        self,
+        container_name: str,
+        child_lock: dict[str, object] | None,
+    ) -> None:
+        container = self.get_container_by_name(container_name)
+        if container is None:
+            raise ValueError(
+                self.T(
+                    "secure_browser_container_missing_from_inventory",
+                    "Container nicht mehr in der letzten Inventur vorhanden.",
+                )
+            )
+        self.service.configure_container_child_lock(container, child_lock)
+
     def render_repair_policy_preview(
         self,
         container_name: str | None = None,
@@ -1327,6 +1379,17 @@ class SecureBrowserManager:
         token = (confirmation or "").strip()
         if not name:
             return "Entfernen\n\nKein Container ausgewählt."
+        if self.is_protected_firefox_base_name(name):
+            return "\n".join(
+                [
+                    "Entfernen",
+                    "",
+                    "Firefox-Basis geschützt",
+                    f"- Verzeichnis: {name}",
+                    "- Abbruch: Die Firefox-Basis wird zum Anlegen neuer Browser benötigt.",
+                    "- Hinweis: Reparatur oder Neuinstallation erfolgt über den SetupManager.",
+                ]
+            )
         try:
             lines = self.service.run_uninstall_dry_run(container_name=name)
         except ValueError as exc:
@@ -1386,6 +1449,7 @@ class SecureBrowserManager:
         name = (container_name or "").strip()
         if (
             not name
+            or self.is_protected_firefox_base_name(name)
             or (confirmation or "").strip() != self.UNINSTALL_CONFIRM_TOKEN
             or "Container nicht gefunden:" in preview
             or "Abbruch: Der Container ist nicht mehr in der aktuellen Inventur."

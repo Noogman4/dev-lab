@@ -22,6 +22,26 @@ Im Code wurden folgende Arten von Netzwerkzugriffen gefunden:
 - UFW-/Firewall-, WireGuard-, DoT-, Packet-Capture-, RKHunter- und Cleanup-Funktionen enthalten `sudo`-nahe Systemkommandos.
 - Der Cleanup Assistant markiert eigene `run_sudo_command`-Pfade als bestaetigungspflichtig und nutzt einen separaten `ensure_sudo_session`-Flow.
 
+### RKHunter-Referenzdatenbank
+
+`rkhunter --propupd` kann manipulierte Dateieigenschaften als neue Referenz akzeptieren und ist deshalb besonders geschuetzt:
+
+- Der Befehl wird niemals automatisch ausgefuehrt.
+- Ein vollstaendiger RKHunter-Scan und eine erfolgreiche `dpkg -V`-Pruefung sind erforderlich.
+- Rootkits, Backdoors, verdaechtige Laufzeit- oder Netzwerkfunde, manipulierte Systemprogramme, gelbe Prueffaelle und Scanfehler blockieren die Freigabe.
+- Das berechnete Gesamtrisiko muss `Niedrig` sein.
+- Der Benutzer muss den Vorgang ausdruecklich bestaetigen und eine sudo-Sitzung freigeben.
+- Das Sicherheits-Gate wird vor dem Dialog, nach der Bestaetigung und nach der sudo-Freigabe erneut geprueft.
+- Jeder neue, fehlgeschlagene oder blockierte Scan sowie jedes Referenzupdate entzieht eine vorherige Freigabe.
+
+### ClamAV-Signaturdatenbank
+
+- Ein benutzerbezogenes `freshclam`-Update schreibt Signaturen nach `XDG_DATA_HOME/netmon/clamav-db` oder ersatzweise `~/.local/share/netmon/clamav-db`, nicht in einen vorhersagbaren gemeinsamen `/tmp`-Ordner.
+- NetMon erstellt den Ordner ohne Symlink-Folgen und mit Benutzerrechten. Vor `clamscan --database` werden Eigentuemerschaft, Verzeichnistyp und fehlende Gruppen-/Fremdrechte geprueft.
+- Als benutzerbezogene Datenbank werden nur Verzeichnisse mit vorhandenen `.cvd`- oder `.cld`-Signaturen akzeptiert. Andernfalls wird auf eine gueltige Systemdatenbank unter `/var/lib/clamav` beziehungsweise auf die ClamAV-Standardsuche zurueckgefallen.
+- Schnellscan-Pfade werden vom Benutzer ausgewaehlt und als normalisierte absolute Pfade gespeichert. Nicht mehr vorhandene Ordner werden beim Scan uebersprungen.
+- Quarantaene- und Wiederherstellungspfade werden getrennt validiert; ein Fund wird nicht allein durch den Scan automatisch verschoben oder wiederhergestellt.
+
 ## Logging
 
 - Startfehler enthalten `argv`, `cwd`, `DISPLAY` und optional Stacktraces in `~/Documents/NetMon/diagnostics/startup_error.log` bzw. `~/Dokumente/NetMon/diagnostics/startup_error.log`.
@@ -65,6 +85,7 @@ Im Code wurden folgende Arten von Netzwerkzugriffen gefunden:
 - Redaction-Logik in `AiAnalysisService`.
 - Sudo-Session-Pruefung vor kritischen Systemaenderungen.
 - Trustlist-/Baseline-Konzepte fuer mehrere Security-Guards.
+- Eigentums-, Rechte- und Symlink-Pruefungen fuer benutzerbezogene ClamAV-Signaturen und Quarantaenepfade.
 
 ## Benutzerhinweise
 

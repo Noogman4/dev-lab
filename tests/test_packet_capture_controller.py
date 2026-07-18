@@ -42,6 +42,16 @@ class DummyText:
         return "1.0" if not self.value else "2.0"
 
 
+class ImmediateThread:
+    def __init__(self, target=None, daemon=None):
+        self.target = target
+        self.daemon = daemon
+
+    def start(self):
+        if self.target is not None:
+            self.target()
+
+
 def test_packet_capture_set_running_state_updates_button_states():
     app = type("DummyApp", (), {})()
     app.dep_status = {"tshark": True, "dumpcap": False}
@@ -196,6 +206,99 @@ def test_packet_capture_show_file_info_falls_back_to_filesystem_size(tmp_path):
     assert "Capture-Datei Info" in app.packet_capture_text.value
     assert str(capture_file) in app.packet_capture_text.value
     assert app.packet_capture_size_var.get()
+
+
+def test_packet_capture_has_existing_file_returns_true_only_for_real_file(tmp_path):
+    capture_file = tmp_path / "capture.pcapng"
+    capture_file.write_bytes(b"abc123")
+    missing_file = tmp_path / "missing.pcapng"
+
+    existing_app = type("DummyApp", (), {})()
+    existing_app.packet_capture_output_path = str(capture_file)
+
+    missing_app = type("DummyApp", (), {})()
+    missing_app.packet_capture_output_path = str(missing_file)
+
+    assert packet_capture_controller._packet_capture_has_existing_file(existing_app) is True
+    assert packet_capture_controller._packet_capture_has_existing_file(missing_app) is False
+
+
+def test_packet_capture_start_async_skips_file_info_for_permission_error_without_capture_file(
+    monkeypatch, tmp_path
+):
+    capture_file = tmp_path / "capture.pcapng"
+
+    class FakeProc:
+        def __init__(self, *_args, **_kwargs):
+            self.stdout = iter(
+                [
+                    "Capturing on 'enp4s0'\n",
+                    'tshark: You do not have permission to capture on device "enp4s0".\n',
+                    "(socket: Operation not permitted)\n",
+                    "dumpcap: Operation not permitted\n",
+                ]
+            )
+
+        def wait(self):
+            return 1
+
+    app = type("DummyApp", (), {})()
+    app.dep_status = {"tshark": True, "dumpcap": True}
+    app.packet_capture_running = False
+    app.packet_capture_cancel_requested = False
+    app.packet_capture_started_at = 0.0
+    app.packet_capture_output_path = ""
+    app.packet_capture_active_process = None
+    app.packet_capture_text_after_id = None
+    app.packet_capture_text = DummyText()
+    app.packet_capture_interface_var = DummyVar("enp4s0")
+    app.packet_capture_file_var = DummyVar(str(capture_file))
+    app.packet_capture_filter_var = DummyVar("")
+    app.packet_capture_status_var = DummyVar("")
+    app.packet_capture_runtime_var = DummyVar("")
+    app.packet_capture_packets_var = DummyVar("")
+    app.packet_capture_size_var = DummyVar("")
+    app.btn_packet_capture_start = DummyButton()
+    app.btn_packet_capture_stop = DummyButton()
+    app.tab_packet_capture = object()
+    app.logged = []
+    app.permission_hint_calls = 0
+    app.selected_tabs = []
+
+    app._select_security_tab = lambda tab: app.selected_tabs.append(tab)
+    app.log = lambda message: app.logged.append(message)
+    app._looks_like_dumpcap_permission_issue = (
+        lambda text: "operation not permitted" in str(text).lower()
+    )
+    app.show_dumpcap_permission_hint = (
+        lambda: setattr(app, "permission_hint_calls", app.permission_hint_calls + 1)
+    )
+    app.after = lambda _delay, callback: callback()
+
+    monkeypatch.setattr(packet_capture_controller.subprocess, "Popen", FakeProc)
+    monkeypatch.setattr(packet_capture_controller.threading, "Thread", ImmediateThread)
+    monkeypatch.setattr(packet_capture_controller, "call_in_ui_thread", lambda _app, fn: fn())
+
+    packet_capture_controller.packet_capture_start_async(app)
+
+    assert "You do not have permission to capture on device" not in app.packet_capture_text.value
+    assert "Capture fehlgeschlagen: keine Berechtigung" in app.packet_capture_text.value
+    assert "Hinweis: Capture wurde mit Fehler beendet." in app.packet_capture_text.value
+    assert "Capture-Datei nicht gefunden" not in app.packet_capture_text.value
+    assert app.permission_hint_calls == 1
+
+
+def test_packet_capture_looks_like_permission_issue_detects_tshark_text_without_dumpcap():
+    app = type("DummyApp", (), {})()
+    app._looks_like_dumpcap_permission_issue = lambda _text: False
+
+    assert (
+        packet_capture_controller._packet_capture_looks_like_permission_issue(
+            app,
+            'tshark: You do not have permission to capture on device "enp4s0".',
+        )
+        is True
+    )
 
 
 def test_packet_capture_open_target_path_prefers_existing_file(tmp_path):

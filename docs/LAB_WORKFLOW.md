@@ -105,7 +105,7 @@ Beispiel mit Notiz:
 scripts/lab/init_test_run.sh \
   --distro fedora \
   --scenario gui \
-  --note "Fedora 42 GNOME, erster GUI-Smoke fuer NetMon 1.1.17"
+  --note "Fedora 42 GNOME, erster GUI-Smoke fuer NetMon 1.1.18"
 ```
 
 Nur Pfade aufloesen, ohne etwas anzulegen:

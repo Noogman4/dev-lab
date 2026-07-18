@@ -2,6 +2,31 @@
 
 Automatisch aus der Git-Historie des Repositories erzeugt.
 
+## 2026-07-18 - Version 1.1.19
+
+- DNS-Startup-Fallback und Startup-Reparatur fuer verwaiste Killswitch-Zustaende robuster gemacht.
+- Nach einem erfolgreichen VPN-Profilwechsel synchronisiert NetMon den UFW-Sollzustand jetzt auch ohne aktiven Killswitch wieder mit den referenzierten VPN-Profilen.
+- Das losgeloeste Standalone-Radio startet nur noch im Darkmode; die Theme-Umschaltung im externen Radio wurde entfernt.
+- Der Speedtest-Bereich ordnet `Server-ID`, `Speichern`, `Server-IDs abrufen`, `Speedtest starten` und `Speedtest-Verlauf` klar vertikal an.
+- Die Linux-Hilfe besitzt jetzt einen PDF-Prompt-Workflow: Eintraege koennen per Rechtsklick als normaler Prompt oder als `Als Prompt mit PDF` kopiert werden.
+- PDF-Dokumentationen werden nicht mehr lokal erzeugt, sondern extern erstellt/heruntergeladen und anschliessend in der unteren Linux-Hilfe-Bibliothek importiert.
+- Die Linux-Hilfe-Bibliothek kann importierte PDFs anzeigen, per Doppelklick oeffnen, den gespeicherten Prompt kopieren, den Dokumentenordner oeffnen und PDFs inklusive Metadaten per Rechtsklick loeschen.
+
+## 2026-07-17 - Version 1.1.18
+
+- Der Speedtest-Bereich kann verfuegbare Server-IDs abrufen und bis zu 20 Treffer mit Anbieter, Ort, Land und Entfernung im NetMon-Log anzeigen.
+- Die Serverabfrage unterstuetzt sowohl das offizielle Ookla-CLI als auch `speedtest-cli`, laeuft im Hintergrund und veraendert die gespeicherte Server-ID nicht automatisch.
+- Der ClamAV-Schnellscan besitzt frei konfigurierbare Standard- und eigene Scanordner; die Auswahl wird dauerhaft in den NetMon-Einstellungen gespeichert.
+- Die ClamAV-Anzeige zaehlt die Laufzeit ab Scanstart weiter und stellt Abbruch, Abschlussstatus und technische Fehlerausgaben klarer dar.
+- Schnellscan-Ausschluesse fuer Cache, Papierkorb, Steam und Snap vermeiden unnoetig grosse Standardscans; ohne gueltige Zielordner startet kein stiller Home-Komplettscan.
+- Benutzerbezogene ClamAV-Signaturen liegen XDG-konform unter `~/.local/share/netmon/clamav-db` beziehungsweise `XDG_DATA_HOME/netmon/clamav-db`; Eigentuemerschaft und restriktive Rechte werden vor der Nutzung geprueft.
+- Neue und geaenderte ClamAV-Oberflaechentexte sind ueber deutsche und englische Sprachschluessel angebunden.
+- RKHunter-Warnungen werden als erwartete Systemaenderung, pruefenswert oder kritisch klassifiziert; bekannte Entwicklerumgebungen und typische Konfigurationsaenderungen werden nicht mehr pauschal als Sicherheitsproblem dargestellt.
+- Die Analyseausgabe enthaelt immer Kurzbewertung, relevante Auffaelligkeiten, Risiko, konkrete Handlungsempfehlungen und die Einordnung typischer Fehlalarme.
+- Ein vollstaendiger RKHunter-Scan wird um `dpkg -V` als zusaetzliche Vertrauensevidenz ergaenzt.
+- `rkhunter --propupd` wird nur bei niedrigem Risiko, erfolgreicher Paketpruefung und ohne kritische oder ungeklaerte Befunde angeboten.
+- Das Referenzupdate erfordert immer eine ausdrueckliche Bestaetigung und eine erneute Gate-Pruefung; es wird niemals automatisch ausgefuehrt.
+
 ## 2026-07-11 - Version 1.1.17
 
 - Rechter Link-Slot-Bereich von 15 auf 20 frei beschreibbare interne oder externe Links erweitert; die fuenf neuen Buttons werden in Originalgroesse unten angehaengt und verschieben VPN-Slots sowie Security-Systemcheck entsprechend nach unten.

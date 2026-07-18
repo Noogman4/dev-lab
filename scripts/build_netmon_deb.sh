@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PKG_NAME="netmon"
-PKG_VERSION="1.1.17"
-DOCS_VERSION="1.1.17"
+PKG_VERSION="1.1.19"
+DOCS_VERSION="1.1.19"
 PKG_ARCH="all"
 MAINTAINER="Mr. Happy <netmon.proglab@protonmail.ch>"
 
@@ -90,6 +90,7 @@ copy_file_if_exists "$ROOT_DIR/netmon_radio_app.py" "$APP_ROOT/netmon_radio_app.
 copy_tree "$ROOT_DIR/netmon/config" "$APP_PY_ROOT/config"
 copy_tree "$ROOT_DIR/netmon/core" "$APP_PY_ROOT/core"
 copy_tree "$ROOT_DIR/netmon/features" "$APP_PY_ROOT/features"
+rm -f "$APP_PY_ROOT/features/Code-the-Classics.zip"
 copy_tree "$ROOT_DIR/netmon/lang" "$APP_PY_ROOT/lang"
 copy_tree "$ROOT_DIR/netmon/modules" "$APP_PY_ROOT/modules"
 copy_tree "$ROOT_DIR/netmon/services" "$APP_PY_ROOT/services"
@@ -223,7 +224,47 @@ if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
 fi
 
+NETMON_STATE_DIR="/var/lib/netmon"
+NETMON_INSTALL_DNS_STATE="$NETMON_STATE_DIR/install-dns-nm.state"
+NETMON_INSTALL_DNS_SERVER="8.8.8.8"
 ASSET_DIR="/usr/share/netmon/assets/log-pics"
+
+netmon_dns_state_has_uuid() {
+  UUID="$1"
+  [ -n "$UUID" ] || return 1
+  [ -f "$NETMON_INSTALL_DNS_STATE" ] || return 1
+  grep -Fq "$UUID|" "$NETMON_INSTALL_DNS_STATE" 2>/dev/null
+}
+
+apply_netmon_install_dns() {
+  command -v nmcli >/dev/null 2>&1 || return 0
+
+  mkdir -p "$NETMON_STATE_DIR" >/dev/null 2>&1 || return 0
+  chmod 0755 "$NETMON_STATE_DIR" >/dev/null 2>&1 || true
+  touch "$NETMON_INSTALL_DNS_STATE" >/dev/null 2>&1 || return 0
+  chmod 0600 "$NETMON_INSTALL_DNS_STATE" >/dev/null 2>&1 || true
+
+  nmcli -t -f UUID,DEVICE connection show --active 2>/dev/null | while IFS=: read -r UUID DEVICE; do
+    [ -n "$UUID" ] || continue
+    [ -n "$DEVICE" ] || continue
+    case "$DEVICE" in
+      lo|wg*|tun*|tap*|ppp*)
+        continue
+        ;;
+    esac
+
+    if ! netmon_dns_state_has_uuid "$UUID"; then
+      OLD_DNS="$(nmcli -g ipv4.dns connection show "$UUID" 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+      OLD_IGNORE_AUTO_DNS="$(nmcli -g ipv4.ignore-auto-dns connection show "$UUID" 2>/dev/null | tr -d '\n')"
+      printf '%s|%s|%s\n' "$UUID" "$OLD_DNS" "$OLD_IGNORE_AUTO_DNS" >> "$NETMON_INSTALL_DNS_STATE" 2>/dev/null || true
+    fi
+
+    nmcli connection modify "$UUID" \
+      ipv4.dns "$NETMON_INSTALL_DNS_SERVER" \
+      ipv4.ignore-auto-dns yes >/dev/null 2>&1 || true
+    nmcli connection up "$UUID" >/dev/null 2>&1 || true
+  done
+}
 
 seed_log_pics_dir() {
   TARGET_DIR="$1"
@@ -262,6 +303,7 @@ seed_netmon_log_pics_for_home() {
 }
 
 seed_netmon_log_pics_for_home "/etc/skel"
+apply_netmon_install_dns
 
 if [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER}" != "root" ]; then
   USER_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
@@ -277,11 +319,49 @@ exit 0
 EOF
 chmod 755 "$PKG_DIR/DEBIAN/postinst"
 
+cat > "$PKG_DIR/DEBIAN/prerm" <<'EOF'
+#!/bin/sh
+set -e
+
+NETMON_STATE_DIR="/var/lib/netmon"
+NETMON_INSTALL_DNS_STATE="$NETMON_STATE_DIR/install-dns-nm.state"
+
+restore_netmon_install_dns() {
+  [ "${1:-}" = "remove" ] || [ "${1:-}" = "deconfigure" ] || return 0
+  command -v nmcli >/dev/null 2>&1 || return 0
+  [ -f "$NETMON_INSTALL_DNS_STATE" ] || return 0
+
+  while IFS='|' read -r UUID OLD_DNS OLD_IGNORE_AUTO_DNS; do
+    [ -n "$UUID" ] || continue
+    nmcli connection show "$UUID" >/dev/null 2>&1 || continue
+
+    if [ -n "$OLD_IGNORE_AUTO_DNS" ]; then
+      nmcli connection modify "$UUID" \
+        ipv4.dns "$OLD_DNS" \
+        ipv4.ignore-auto-dns "$OLD_IGNORE_AUTO_DNS" >/dev/null 2>&1 || true
+    else
+      nmcli connection modify "$UUID" \
+        ipv4.dns "$OLD_DNS" \
+        ipv4.ignore-auto-dns no >/dev/null 2>&1 || true
+    fi
+    nmcli connection up "$UUID" >/dev/null 2>&1 || true
+  done < "$NETMON_INSTALL_DNS_STATE"
+
+  rm -f "$NETMON_INSTALL_DNS_STATE" >/dev/null 2>&1 || true
+  rmdir "$NETMON_STATE_DIR" >/dev/null 2>&1 || true
+}
+
+restore_netmon_install_dns "${1:-}"
+exit 0
+EOF
+chmod 755 "$PKG_DIR/DEBIAN/prerm"
+
 # Normalize permissions inherited from the development worktree.
 find "$PKG_DIR" -type d -exec chmod 0755 {} +
 find "$PKG_DIR" -type f -exec chmod 0644 {} +
 chmod 0755 \
   "$PKG_DIR/DEBIAN/postinst" \
+  "$PKG_DIR/DEBIAN/prerm" \
   "$PKG_DIR/usr/bin/netmon" \
   "$PKG_DIR/usr/bin/netmon-uninstall" \
   "$APP_PY_ROOT/app.py" \

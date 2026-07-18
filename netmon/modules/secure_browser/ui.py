@@ -490,6 +490,11 @@ def create_secure_browser_tab(
     allow_password_manager_var = _make_bool_var(True)
     keep_cookies_var = _make_bool_var(True)
     enable_website_filter_var = _make_bool_var(True)
+    child_lock_var = _make_bool_var(False)
+    child_lock_state: dict[str, object] = {}
+    child_lock_loaded_name = ""
+    child_lock_loaded_enabled = False
+    child_lock_dirty = False
 
     def sync_security_controls_from_profile(*_args) -> None:
         resolved = manager.resolve_security_options(draft_security_profile.get())
@@ -572,6 +577,81 @@ def create_secure_browser_tab(
     )
     draft_enable_website_filter.grid(
         row=0, column=2, sticky="w", padx=(FIELD_PAD_X, 0), pady=(0, 0)
+    )
+
+    def configure_child_lock() -> None:
+        nonlocal child_lock_dirty
+        child_lock_dirty = True
+        if not bool(child_lock_var.get()):
+            child_lock_state.clear()
+            return
+        password = simpledialog.askstring(
+            "Secure Browser Kindersicherung",
+            "Passwort für diesen Browser eingeben:",
+            show="*",
+            parent=frame,
+        )
+        if password is None:
+            child_lock_var.set(False)
+            return
+        confirmation = simpledialog.askstring(
+            "Secure Browser Kindersicherung",
+            "Passwort zur Bestätigung erneut eingeben:",
+            show="*",
+            parent=frame,
+        )
+        if not password or password != confirmation:
+            child_lock_var.set(False)
+            child_lock_state.clear()
+            messagebox.showerror(
+                "Secure Browser Kindersicherung",
+                "Die Passwörter stimmen nicht überein oder sind leer.",
+                parent=frame,
+            )
+            return
+        child_lock_state.update(manager.create_child_lock_payload(password))
+
+    child_lock_row = ttk.Frame(draft_row)
+    child_lock_row.grid(
+        row=4,
+        column=0,
+        columnspan=6,
+        sticky="w",
+        pady=(12, 0),
+    )
+    child_lock_label = ttk.Label(
+        child_lock_row,
+        text=T("secure_browser_child_lock_section", "Browser-Zugriff:"),
+        font=("TkDefaultFont", 10, "bold"),
+    )
+    child_lock_label.grid(row=0, column=0, sticky="w", padx=(0, FIELD_PAD_X))
+
+    draft_child_lock = checkbutton_factory(
+        child_lock_row,
+        text=T(
+            "secure_browser_option_child_lock",
+            "Kindersicherung (Passwort)",
+        ),
+        variable=child_lock_var,
+        command=configure_child_lock,
+    )
+    draft_child_lock.grid(
+        row=0, column=1, sticky="w", pady=(0, 0)
+    )
+    child_lock_hint = ttk.Label(
+        child_lock_row,
+        text=T(
+            "secure_browser_child_lock_hint",
+            "Für neue oder ausgewählte Browser; Übernahme mit Anlegen bzw. Aktualisieren.",
+        ),
+        wraplength=480,
+        justify="left",
+    )
+    child_lock_hint.grid(
+        row=0,
+        column=2,
+        sticky="w",
+        padx=(FIELD_PAD_X, 0),
     )
 
     if hasattr(draft_security_profile, "bind"):
@@ -810,6 +890,22 @@ def create_secure_browser_tab(
                 break
         status_badge.configure(text=formatted, style=style_name)
 
+    def sync_child_lock_from_selection(selected_name: str | None) -> None:
+        nonlocal child_lock_loaded_name
+        nonlocal child_lock_loaded_enabled
+        nonlocal child_lock_dirty
+        normalized_name = str(selected_name or "")
+        if normalized_name == child_lock_loaded_name:
+            return
+        child_lock_loaded_name = normalized_name
+        child_lock_loaded_enabled = bool(
+            normalized_name
+            and manager.container_child_lock_enabled(normalized_name)
+        )
+        child_lock_state.clear()
+        child_lock_dirty = False
+        child_lock_var.set(child_lock_loaded_enabled)
+
     def selected_container_context() -> tuple[str | None, str, str, str]:
         selection = container_list.curselection()
         if not selection:
@@ -853,6 +949,17 @@ def create_secure_browser_tab(
                 or "fehlt" in (selected_container.status or "").lower()
                 or any("Menüeintrag fehlt" in risk for risk in selected_risks)
                 or any("Launcher fehlt" in risk for risk in selected_risks)
+            )
+        protected_firefox_base = manager.is_protected_firefox_base_name(selected_name)
+        try:
+            draft_remove_button.configure(
+                state="disabled" if protected_firefox_base else "normal"
+            )
+        except Exception:
+            pass
+        if hasattr(draft_remove_button, "kwargs"):
+            draft_remove_button.kwargs["state"] = (
+                "disabled" if protected_firefox_base else "normal"
             )
         action_states = {
             "backup": has_selection and needs_registration,
@@ -919,12 +1026,14 @@ def create_secure_browser_tab(
         nonlocal current_detail_mode
         selection = container_list.curselection()
         if not selection:
+            sync_child_lock_from_selection(None)
             set_text(detail_text, "Kein Container ausgewählt.")
             set_status("Bereit: keine Auswahl")
             current_detail_mode = "readonly"
             update_copy_buttons()
             return
         selected_name = container_list.get(selection[0])
+        sync_child_lock_from_selection(selected_name)
         active_filter = manager.STATUS_FILTER_ALL
         search_query = ""
         active_risk_filter = manager.RISK_FILTER_ALL
@@ -1003,6 +1112,9 @@ def create_secure_browser_tab(
 
     def execute_refresh_existing_direct() -> None:
         nonlocal current_admin_action, current_admin_target
+        nonlocal child_lock_loaded_name
+        nonlocal child_lock_loaded_enabled
+        nonlocal child_lock_dirty
         selection = container_list.curselection()
         selected_name = container_list.get(selection[0]) if selection else None
         current_admin_action = "refresh"
@@ -1022,6 +1134,21 @@ def create_secure_browser_tab(
                 current_admin_target,
                 manager.REFRESH_CONFIRM_TOKEN,
             )
+            if (
+                current_admin_target
+                and child_lock_dirty
+                and child_lock_loaded_name == current_admin_target
+            ):
+                manager.configure_container_child_lock(
+                    current_admin_target,
+                    (
+                        dict(child_lock_state)
+                        if bool(child_lock_var.get())
+                        else None
+                    ),
+                )
+                child_lock_loaded_enabled = bool(child_lock_var.get())
+                child_lock_dirty = False
         except Exception as exc:
             LOGGER.exception("Secure Browser refresh failed")
             set_text(detail_text, f"Fehler bei Verwaltungsaktion: {exc}")
@@ -1229,6 +1356,10 @@ def create_secure_browser_tab(
             set_text(detail_text, "Entfernen\n\nKein Container ausgewählt.")
             set_status("Blockiert: keine Auswahl")
             return
+        if manager.is_protected_firefox_base_name(selected_name):
+            set_text(detail_text, manager.render_uninstall_preview(selected_name))
+            set_status("Blockiert: Firefox-Basis geschützt")
+            return
         current_admin_action = "uninstall"
         current_admin_target = selected_name
         confirmed = messagebox.askyesno(
@@ -1319,6 +1450,7 @@ def create_secure_browser_tab(
                 bool(keep_cookies_var.get()),
                 bool(enable_website_filter_var.get()),
                 manager.APPLY_CONFIRM_TOKEN,
+                child_lock=(dict(child_lock_state) if child_lock_var.get() else None),
             )
         except ValueError as exc:
             set_text(detail_text, f"Neuer Browser\n\nValidierung\n- {exc}")
@@ -1331,6 +1463,8 @@ def create_secure_browser_tab(
             update_copy_buttons()
             return
         refresh_inventory_after_action(preferred_name=created_name)
+        child_lock_var.set(False)
+        child_lock_state.clear()
 
     def apply_filter(_event=None, preferred_name: str | None = None) -> None:
         active_filter = manager.STATUS_FILTER_ALL
@@ -1506,9 +1640,14 @@ def create_secure_browser_tab(
     frame.secure_browser_draft_allow_password_manager = draft_allow_password_manager
     frame.secure_browser_draft_keep_cookies = draft_keep_cookies
     frame.secure_browser_draft_enable_website_filter = draft_enable_website_filter
+    frame.secure_browser_child_lock_row = child_lock_row
+    frame.secure_browser_child_lock_label = child_lock_label
+    frame.secure_browser_child_lock_hint = child_lock_hint
+    frame.secure_browser_draft_child_lock = draft_child_lock
     frame.secure_browser_draft_allow_password_manager_var = allow_password_manager_var
     frame.secure_browser_draft_keep_cookies_var = keep_cookies_var
     frame.secure_browser_draft_enable_website_filter_var = enable_website_filter_var
+    frame.secure_browser_draft_child_lock_var = child_lock_var
     frame.secure_browser_draft_preview_button = draft_preview_button
     frame.secure_browser_draft_dry_run_button = draft_dry_run_button
     frame.secure_browser_draft_execute_button = draft_execute_button

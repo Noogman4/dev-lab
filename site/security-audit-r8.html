@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 8</title>
+  <meta
+    name="description"
+    content="Achtes unabhaengiges Sicherheits-Audit des NetMon-Quellcodes (v1.1.18, Juli 2026). Fokus: das komplette Secure-Browser-Subsystem inkl. Kindersicherung, die neuen Linux-Hilfe-Services und die Website-/PHP-Endpunkte. 0 ausnutzbare Findings, 1 Defense-in-Depth-Haertung umgesetzt, Kindersicherung als bewusste Design-Entscheidung dokumentiert."
+  >
+  <link rel="icon" type="image/png" href="./favicon.png">
+  <link rel="apple-touch-icon" href="./favicon.png">
+  <link rel="canonical" href="https://netmonroots.com/security-audit.html">
+  <link rel="alternate" hreflang="de" href="https://netmonroots.com/security-audit.html">
+  <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/security-audit.html">
+  <meta property="og:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 8">
+  <meta property="og:description" content="Achtes Sicherheits-Audit des NetMon-Quellcodes (v1.1.18, Juli 2026). 0 ausnutzbare Findings, 1 Defense-in-Depth-Haertung, Kindersicherung als bewusste Design-Entscheidung dokumentiert.">
+  <meta property="og:url" content="https://netmonroots.com/security-audit.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NetMon Roots">
+  <meta property="og:locale" content="de_DE">
+  <meta property="og:image" content="https://netmonroots.com/favicon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 8">
+  <meta name="twitter:description" content="Achtes Sicherheits-Audit des NetMon-Quellcodes (v1.1.18, Juli 2026). 0 ausnutzbare Findings, 1 Defense-in-Depth-Haertung, Kindersicherung als bewusste Design-Entscheidung dokumentiert.">
+  <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
+  <link rel="stylesheet" href="./styles.css">
+  <style>
+    /* ── Audit-spezifische Erweiterungen ─────────────────────────────────── */
+    .audit-hero { padding: 64px 0 48px; }
+    .audit-hero .eyebrow { color: var(--accent); }
+
+    .verdict-banner {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 28px 32px;
+      margin: 40px 0;
+      border: 1px solid rgba(114, 240, 182, 0.4);
+      border-radius: var(--radius-sm);
+      background: rgba(58, 198, 143, 0.08);
+    }
+    .verdict-icon {
+      font-size: 2.8rem;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .verdict-text h2 { margin: 0 0 6px; font-size: 1.4rem; color: var(--accent); }
+    .verdict-text p  { margin: 0; color: var(--muted); font-size: 0.97rem; line-height: 1.55; }
+
+    .audit-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 32px 0;
+    }
+    .audit-meta-card {
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .audit-meta-card .label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .audit-meta-card .value {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .audit-meta-card .value.ok   { color: var(--accent); }
+    .audit-meta-card .value.warn { color: var(--accent-warm); }
+    .audit-meta-card .value.info { color: #7ab8f5; }
+
+    .audit-section { margin-top: 56px; }
+    .audit-section h2 {
+      font-size: 1.55rem;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+    .audit-section .section-rule {
+      height: 1px;
+      background: var(--line);
+      margin-bottom: 28px;
+    }
+
+    .scope-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.93rem;
+    }
+    .scope-table th {
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .scope-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(154, 177, 204, 0.08);
+      vertical-align: top;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .scope-table tr:last-child td { border-bottom: none; }
+    .scope-table code {
+      font-size: 0.83rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .badge-ok   { background: rgba(58, 198, 143, 0.15); color: #72f0b6; }
+    .badge-low  { background: rgba(255, 184, 107, 0.15); color: #ffb86b; }
+    .badge-med  { background: rgba(255, 184, 107, 0.2);  color: #ffb86b; }
+    .badge-high { background: rgba(220, 60, 60, 0.15);   color: #ff7070; }
+    .badge-info { background: rgba(90, 160, 240, 0.15);  color: #7ab8f5; }
+
+    .finding-card {
+      margin-bottom: 24px;
+      padding: 24px 28px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .finding-card.design {
+      border-color: rgba(90, 160, 240, 0.35);
+      background: rgba(90, 160, 240, 0.04);
+    }
+    .finding-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .finding-header h3 { margin: 0; font-size: 1rem; flex: 1; min-width: 200px; }
+    .finding-detail { color: var(--muted); font-size: 0.92rem; line-height: 1.6; }
+    .finding-detail strong { color: var(--text); }
+    .finding-detail code {
+      font-size: 0.83rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .finding-verdict {
+      margin-top: 12px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: rgba(2, 8, 15, 0.4);
+      font-size: 0.88rem;
+      color: var(--muted);
+      border-left: 3px solid rgba(154, 177, 204, 0.25);
+    }
+    .finding-verdict.pass { border-left-color: var(--accent); }
+    .finding-verdict.design { border-left-color: #7ab8f5; }
+
+    .fixed-card {
+      display: flex;
+      gap: 16px;
+      padding: 18px 22px;
+      margin-bottom: 14px;
+      border: 1px solid rgba(58, 198, 143, 0.2);
+      border-radius: var(--radius-sm);
+      background: rgba(58, 198, 143, 0.04);
+    }
+    .fixed-icon { font-size: 1.4rem; flex-shrink: 0; line-height: 1.2; }
+    .fixed-body h4 { margin: 0 0 4px; font-size: 0.97rem; color: var(--accent); }
+    .fixed-body p  { margin: 0; font-size: 0.9rem; color: var(--muted); line-height: 1.5; }
+    .fixed-body code {
+      font-size: 0.82rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .methodology-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .method-card {
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .method-card h4 { margin: 0 0 8px; font-size: 0.93rem; color: var(--accent); }
+    .method-card p  { margin: 0; font-size: 0.87rem; color: var(--muted); line-height: 1.5; }
+
+    .signature-block {
+      margin-top: 48px;
+      padding: 28px 32px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .signature-block strong { color: var(--text); }
+
+    .round-link {
+      display: inline-block;
+      padding: 10px 18px;
+      border-radius: 40px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-decoration: none;
+      margin-top: 16px;
+    }
+
+    @media (max-width: 640px) {
+      .verdict-banner { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .audit-meta-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="./index.html" aria-label="NetMon Startseite">
+        <span class="brand-mark">
+          <span class="brand-lockup">
+            <span class="brand-title">
+              <span class="brand-title-main">NETMON</span>
+              <span class="brand-title-accent">ROOTS</span>
+            </span>
+            <span class="brand-subline">MONITOR. CONTROL. UNDERSTAND.</span>
+            <span class="brand-tagline">BACK TO THE ROOTS.</span>
+          </span>
+          <img class="brand-icon" src="./bannericon.png" alt="" aria-hidden="true">
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="./index.html">Start</a>
+        <a href="./tour.html">Rundgang</a>
+        <a href="./downloads.html">Download</a>
+        <a href="./aktuelles.html">Aktuelles</a>
+        <a href="./changelog.html">Changelog</a>
+        <a href="./docs.html">Doku</a>
+        <a href="./legal.html">Legal</a>
+      </nav>
+      <div class="lang-switch" aria-label="Sprachauswahl">
+        <a class="active" href="./security-audit.html" lang="de">DE</a>
+      </div>
+    </header>
+
+    <main>
+      <!-- ── Hero ── -->
+      <section class="audit-hero">
+        <p class="eyebrow">Sicherheits-Audit &mdash; Juli 2026 &mdash; Runde&nbsp;8</p>
+        <h1 style="font-size:clamp(2rem,4vw,3rem);margin:0 0 20px;color:var(--text);">
+          Code-Security-Review<br>
+          <span style="color:var(--accent);">NetMon Roots v1.1.18</span>
+        </h1>
+        <p style="max-width:680px;color:var(--muted);line-height:1.65;font-size:1.05rem;">
+          Achtes automatisiertes Security-Review auf Basis von
+          Claude&nbsp;Fable&nbsp;5. Schwerpunkt dieser Runde: das komplette
+          <strong>Secure-Browser-Subsystem</strong>
+          (<code>manager.py</code>, <code>service.py</code>, <code>ui.py</code>,
+          <code>browser_container_builder.py</code>) inklusive der neuen
+          <strong>Kindersicherung</strong>, die f&uuml;nf neuen
+          <strong>Linux-Hilfe-Services</strong>
+          (<code>linux_help_*_service.py</code>, u.&nbsp;a. PDF-Erzeugung), die
+          Controller f&uuml;r Radio, Speedtest, VPN und Paketmitschnitt sowie die
+          <strong>Website-Endpunkte</strong> (<code>download.php</code>,
+          <code>download-stats.php</code>). Ergebnis: <strong>keine ausnutzbaren
+          Schwachstellen</strong>. Zwei Kandidaten wurden von dedizierten
+          Validierungs-Sub-Agenten gepr&uuml;ft &mdash; die
+          Same-User-Umgehbarkeit der Kindersicherung wurde dabei als
+          <strong>bewusste Design-Entscheidung</strong> eingestuft und
+          dokumentiert, der Favicon-/Logo-Download als False Positive verworfen.
+          Eine daraus abgeleitete <strong>Defense-in-Depth-H&auml;rtung</strong>
+          (http/https-Allowlist f&uuml;r Radio-Logo-Downloads) wurde direkt
+          umgesetzt und mit einem Regressionstest abgesichert. Alle
+          Runde-7-H&auml;rtungen sind unver&auml;ndert intakt.
+        </p>
+        <a class="round-link" href="./security-audit-r7.html">
+          &#8592; Runde&nbsp;7 (0&nbsp;Findings &mdash; 2&nbsp;H&auml;rtungen)
+        </a>
+      </section>
+
+      <!-- ── Aktionen ── -->
+      <div style="margin-bottom:32px;">
+        <a class="button button-primary" href="./netmon_security_audit_2026_r8.pdf" download
+           style="display:inline-block;padding:12px 28px;border-radius:40px;background:var(--accent);color:#07101d;font-weight:700;font-size:0.95rem;text-decoration:none;margin-right:12px;">
+          PDF herunterladen
+        </a>
+        <a href="#kandidaten"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;">
+          Kandidaten
+        </a>
+        <a href="#kindersicherung"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;margin-left:8px;">
+          Kindersicherung
+        </a>
+        <a href="#hardening"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;margin-left:8px;">
+          Hardening
+        </a>
+        <a href="#kategorien"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;margin-left:8px;">
+          Kategorien
+        </a>
+      </div>
+
+      <!-- ── Gesamtverdikt ── -->
+      <div class="verdict-banner">
+        <div class="verdict-icon">&#10003;</div>
+        <div class="verdict-text">
+          <h2>0 ausnutzbare Findings &mdash; 1 H&auml;rtung umgesetzt &mdash; Kindersicherung als bewusste Design-Entscheidung dokumentiert</h2>
+          <p>
+            Diese Runde nahm die seit Runde&nbsp;7 nicht mehr im Fokus gewesene
+            bzw. neu hinzugekommene Angriffsfl&auml;che vollst&auml;ndig in den
+            Blick: das Secure-Browser-Subsystem samt Container-Builder und
+            Kindersicherung, die neuen Linux-Hilfe-Services, die
+            Medien-Controller und die serverseitigen PHP-Endpunkte der Website.
+            Ein Analyse-Sub-Agent identifizierte <strong>zwei Kandidaten</strong>;
+            beide wurden von eigenen Validierungs-Sub-Agenten gepr&uuml;ft und
+            erhielten Konfidenz <strong>1/10</strong> &mdash; weit unterhalb der
+            Melde-Schwelle (&ge;&nbsp;8/10). Die
+            <strong>Kindersicherung</strong> ist kryptographisch sauber umgesetzt
+            (PBKDF2-SHA256, 200.000&nbsp;Iterationen, Zufalls-Salt,
+            konstantzeitiger Vergleich, fail-closed); dass sie einen technisch
+            versierten Nutzer <em>im selben Linux-Konto</em> nicht aufhalten
+            kann, ist eine inh&auml;rente Eigenschaft jeder
+            Same-Account-Kindersicherung und wird hier ausdr&uuml;cklich als
+            <strong>bewusste Design-Entscheidung</strong> festgehalten &mdash;
+            nicht als Schwachstelle. Der zweite Kandidat (Favicon-/Logo-Download)
+            erwies sich als False Positive: Der Container-Builder begrenzt
+            Downloads bereits auf http/https. Als Konsistenz-H&auml;rtung wurde
+            dieselbe Allowlist zus&auml;tzlich im Radio-Logo-Download
+            nachgezogen und mit einem Regressionstest abgesichert. Alle
+            sicherheitsrelevanten Testsuiten sind gr&uuml;n; die
+            Runde-7-H&auml;rtungen wurden gegengepr&uuml;ft und sind intakt.
+          </p>
+        </div>
+      </div>
+
+      <!-- ── Meta-Daten ── -->
+      <div class="audit-meta-grid">
+        <div class="audit-meta-card">
+          <div class="label">Datum</div>
+          <div class="value">18.&nbsp;Juli&nbsp;2026</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Analysierte Version</div>
+          <div class="value">v1.1.18 &mdash; Runde&nbsp;8</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Schwerpunkt</div>
+          <div class="value">Secure Browser, Linux-Hilfe, Site-PHP</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Bewertete Kandidaten</div>
+          <div class="value warn">2 (beide 1/10)</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Ausnutzbare Findings</div>
+          <div class="value ok">0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">H&auml;rtungen umgesetzt</div>
+          <div class="value ok">1 (Defense-in-Depth)</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Dokumentierte Design-Entscheidungen</div>
+          <div class="value info">1 (Kindersicherung)</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Analysewerkzeug</div>
+          <div class="value">Claude Fable&nbsp;5</div>
+        </div>
+      </div>
+
+      <!-- ── Umfang & Methodik ── -->
+      <div class="audit-section" id="methodik">
+        <h2>Umfang &amp; Methodik</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:760px;line-height:1.65;">
+          Gepr&uuml;ft wurde der vollst&auml;ndige Branch-Diff
+          (<code>feature/secure-browser-manager</code>, Codestand
+          <code>c2087b63</code> plus Arbeitsstand) mit Schwerpunkt auf den in
+          Runde&nbsp;7 nicht fokussierten Bereichen: das
+          Secure-Browser-Subsystem (<code>manager.py</code>,
+          <code>service.py</code>, <code>ui.py</code>,
+          <code>secure_browser_tab.py</code>,
+          <code>browser_container_builder.py</code>) inklusive Kindersicherung
+          (<code>create_child_lock_payload()</code>,
+          <code>browser_lock.py</code>, <code>child-lock.json</code>), die
+          f&uuml;nf neuen Linux-Hilfe-Services
+          (<code>linux_help_document/library/pdf/prompt/viewer_service.py</code>),
+          die Controller <code>packet_capture_controller.py</code>,
+          <code>speedtest_controller.py</code>, <code>vpn_controller.py</code>,
+          das Radio-Modul (<code>netmon_radio_app.py</code>,
+          <code>netmon_radio_core.py</code>), die Website-Endpunkte
+          (<code>download.php</code>, <code>download-stats.php</code>,
+          <code>download-config.php</code>, <code>app.js</code>) und die
+          Build-Skripte. Die in Runde&nbsp;7 geh&auml;rteten RKHunter-/ClamAV-
+          Pfade wurden auf Regressionen gegengepr&uuml;ft.
+        </p>
+        <div class="methodology-grid">
+          <div class="method-card">
+            <h4>Phase&nbsp;1 &mdash; Diff- &amp; Reconnaissance</h4>
+            <p>Vollst&auml;ndiger <code>git diff</code> des Branches
+            (3,7&nbsp;MB) plus Sichtung der unversionierten neuen Services.
+            Abgleich mit den etablierten Sicherheitsmustern des Projekts
+            (<code>run_cmd()</code> in Listenform,
+            <code>_normalize_allowed_path()</code>,
+            <code>_safe_makedirs_no_symlink()</code>).</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;2 &mdash; Kandidaten-Analyse</h4>
+            <p>Ein dedizierter Analyse-Sub-Agent verfolgte Datenflussketten von
+            Fremdeingaben (besuchte Websites, API-Antworten von
+            radio-browser.info, Dateinamen, Containernamen) bis zu sensiblen
+            Operationen (<code>subprocess</code>, <code>urlopen</code>,
+            Dateisystem-Schreibpfade, <code>.desktop</code>-Generierung).
+            2&nbsp;Kandidaten identifiziert.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;3 &mdash; False-Positive-Validierung</h4>
+            <p>F&uuml;r jeden Kandidaten lief ein eigener
+            Validierungs-Sub-Agent mit striktem FP-Filter und
+            Konfidenz-Scoring. Ergebnis: Kindersicherung =
+            By-Design-Limitierung (1/10), Favicon-/Logo-Fetch = False Positive
+            (1/10) &mdash; beide weit unter der Schwelle von 8/10.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;4 &mdash; H&auml;rtung &amp; Regressionscheck</h4>
+            <p>Die aus K2 abgeleitete Konsistenz-H&auml;rtung
+            (http/https-Allowlist im Radio-Logo-Download) wurde umgesetzt und
+            mit einem neuen Regressionstest abgesichert. Suiten ausgef&uuml;hrt:
+            Secure-Browser-Modul &amp; Container-Builder (173), RKHunter/ClamAV/
+            Linux-Hilfe (80), Radio-Modul (121) &mdash; alle
+            sicherheitsrelevanten Tests gr&uuml;n.</p>
+          </div>
+        </div>
+
+        <!-- ── Scope-Tabelle ── -->
+        <h3 style="margin-top:36px;font-size:1.1rem;">Sicherheitsfokus (Runde&nbsp;8)</h3>
+        <table class="scope-table" style="margin-top:12px;">
+          <thead>
+            <tr>
+              <th>Datei / Modul</th>
+              <th>Fokus</th>
+              <th>Ergebnis</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>browser_container_builder.py</code> &mdash; Kindersicherung
+                (<code>build_browser_lock_helper()</code>, <code>start.sh</code>-Gate)</td>
+              <td>Passwort-Gate vor dem Browserstart: Krypto, Fail-Closed-Verhalten,
+                Umgehbarkeit im selben Linux-Konto</td>
+              <td><span class="badge badge-info">Bewusste Entscheidung</span></td>
+            </tr>
+            <tr>
+              <td><code>browser_container_builder.py</code> &mdash;
+                <code>fetch_url()</code> / <code>resolve_favicon_download()</code></td>
+              <td>Favicon-Download von fremden Websites: <code>file://</code>-Lesezugriff,
+                SSRF, Pfadeinfluss aus Fremddaten</td>
+              <td><span class="badge badge-ok">Kein Finding (Allowlist vorhanden)</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon_radio_app.py</code> &mdash; <code>_download_station_logo()</code></td>
+              <td>Logo-URLs aus der radio-browser.info-API gingen ohne
+                Schema-Pr&uuml;fung an <code>urlopen</code></td>
+              <td><span class="badge badge-ok">K2 &rarr; geh&auml;rtet</span></td>
+            </tr>
+            <tr>
+              <td><code>manager.py</code> / <code>service.py</code> &mdash; Containernamen,
+                Builder-Aufrufe</td>
+              <td>Command-/Argument-Injection, Pfad-Traversal &uuml;ber Containernamen</td>
+              <td><span class="badge badge-ok">Kein Finding (Regex-Validierung, list-form)</span></td>
+            </tr>
+            <tr>
+              <td><code>linux_help_*_service.py</code> (5 neue Services)</td>
+              <td>PDF-Erzeugung (Escaping), Dokument-Import/-L&ouml;schung
+                (Zielpfade), Prompt-Aufbau</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td><code>download.php</code> / <code>download-stats.php</code></td>
+              <td>Pfad-Traversal &uuml;ber <code>id</code>-Parameter, Stored XSS in
+                Statistikfeldern</td>
+              <td><span class="badge badge-ok">Kein Finding (Fix-Map, htmlspecialchars)</span></td>
+            </tr>
+            <tr>
+              <td>Runde-7-Bereiche (propupd-Gate, ClamAV-DB, rkhunter-Pfade,
+                Scan-Worker)</td>
+              <td>Regression der H&auml;rtungen?</td>
+              <td><span class="badge badge-ok">Weiterhin intakt</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="color:var(--muted);font-size:0.85rem;max-width:760px;line-height:1.6;margin-top:14px;">
+          Bedrohungsmodell wie in den Vorrunden: NetMon ist ein
+          Einzelnutzer-Desktop-Werkzeug. Relevante Angreifer sind Fremdinhalte
+          (besuchte Websites, API-Antworten, Dateinamen), andere lokale Nutzer
+          auf einem geteilten Host und manipulierte Eingabedateien &mdash;
+          nicht der Nutzer selbst im eigenen Konto. Das Audit ersetzt keinen
+          Laufzeit-Penetrationstest.
+        </p>
+      </div>
+
+      <!-- ── Kandidaten ── -->
+      <div class="audit-section" id="kandidaten">
+        <h2>Bewertete Kandidaten</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:28px;">
+          Zwei Kandidaten wurden identifiziert und jeweils von einem eigenen
+          Validierungs-Sub-Agenten gegengepr&uuml;ft. Beide erhielten Konfidenz
+          1/10 &mdash; weit unter der Schwelle von 8/10 f&uuml;r ein
+          best&auml;tigtes, ausnutzbares Finding. K1 wird als bewusste
+          Design-Entscheidung dokumentiert, K2 f&uuml;hrte zu einer
+          Konsistenz-H&auml;rtung.
+        </p>
+
+        <!-- K1 -->
+        <div class="finding-card design" id="kindersicherung">
+          <div class="finding-header">
+            <h3>K1 &mdash; Kindersicherung: Same-User-Umgehbarkeit</h3>
+            <span class="badge badge-low">Konfidenz 1/10</span>
+            <span class="badge badge-info">Bewusste Design-Entscheidung</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Dateien:</strong>
+              <code>netmon/modules/secure_browser/manager.py</code>
+              (<code>create_child_lock_payload()</code>),
+              <code>tools/secure_browser_manager/browser_container_builder.py</code>
+              (<code>start.sh</code>-Gate, <code>build_browser_lock_helper()</code>),
+              <code>netmon/modules/secure_browser/ui.py</code> (Tab-Integration).</p>
+            <p>
+              Die Kindersicherung im Secure-Browser-Tab sch&uuml;tzt den Start
+              eines Browser-Containers mit einem Passwort. Die Umsetzung ist
+              kryptographisch korrekt: <strong>PBKDF2-SHA256</strong> mit
+              <strong>200.000&nbsp;Iterationen</strong> und zuf&auml;lligem
+              16-Byte-Salt, Ablage als Hash in <code>child-lock.json</code>
+              (Rechte <code>0600</code>), Pr&uuml;fung vor jedem Start &uuml;ber
+              <code>browser_lock.py</code> mit konstantzeitigem Vergleich
+              (<code>hmac.compare_digest</code>), maximal drei Versuchen und
+              Fail-Closed-Verhalten (<code>||&nbsp;exit&nbsp;1</code> in beiden
+              <code>start.sh</code>-Varianten; fehlende oder defekte
+              Lock-Datei blockiert den Start).
+            </p>
+            <p>
+              <strong>Gepr&uuml;fte Frage:</strong> Ein Nutzer im
+              <em>selben Linux-Konto</em> kann das Gate umgehen &mdash; etwa durch
+              direkten Start von <code>./firefox/firefox --no-remote --profile
+              ./profile</code>, L&ouml;schen der nutzereigenen
+              <code>child-lock.json</code> oder Editieren von
+              <code>start.sh</code>. Ist das eine Schwachstelle?
+            </p>
+            <p>
+              <strong>Einordnung des Validierungs-Sub-Agenten:</strong> Nein.
+              &bdquo;Angreifer&ldquo; und &bdquo;Opfer&ldquo; teilen dieselbe
+              Linux-UID &mdash; es existiert keine vom Betriebssystem
+              durchsetzbare Vertrauensgrenze. Diese Umgehbarkeit ist eine
+              <em>inh&auml;rente Kategorie-Eigenschaft jeder
+              Same-Account-Kindersicherung</em>, kein Implementierungsfehler:
+              Dem Kind geh&ouml;ren Firefox-Kopie, Profil und Lock-Datei, und es
+              k&ouml;nnte ebenso jeden anderen Browser des Systems starten.
+              Jede &bdquo;H&auml;rtung&ldquo; innerhalb desselben Kontos w&auml;re
+              Sicherheitstheater; eine echte Durchsetzung erg&auml;be nur mit
+              getrennten Betriebssystem-Konten oder Root-Rechten &mdash; was dem
+              bewussten No-Root-Design des Secure-Browser-Moduls widerspr&auml;che.
+            </p>
+          </div>
+          <div class="finding-verdict design">
+            <strong>Bewusste Design-Entscheidung (dokumentiert, keine &Auml;nderung):</strong>
+            Die Kindersicherung ist als <em>Alltagsh&uuml;rde gegen
+            Gelegenheitszugriff</em> im selben Konto konzipiert &mdash; z.&nbsp;B.
+            Kinder am Familienrechner &mdash; und bewusst <em>nicht</em> als harte
+            Sicherheitsgrenze gegen technisch versierte Nutzer mit Kontozugriff.
+            Die UI verspricht entsprechend nichts anderes (Hinweistext:
+            &bdquo;F&uuml;r neue oder ausgew&auml;hlte Browser; &Uuml;bernahme mit
+            Anlegen bzw. Aktualisieren.&ldquo;). Wer eine harte Grenze braucht,
+            nutzt getrennte Linux-Benutzerkonten &mdash; das dokumentiert diese
+            Runde ausdr&uuml;cklich als empfohlenes Setup f&uuml;r diesen Fall.
+          </div>
+        </div>
+
+        <!-- K2 -->
+        <div class="finding-card">
+          <div class="finding-header">
+            <h3>K2 &mdash; Favicon-/Logo-Download: <code>file://</code>-Lesezugriff &amp; SSRF</h3>
+            <span class="badge badge-low">Konfidenz 1/10</span>
+            <span class="badge badge-ok">False Positive &mdash; Konsistenz geh&auml;rtet</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Dateien:</strong>
+              <code>tools/secure_browser_manager/browser_container_builder.py</code>
+              (<code>fetch_url()</code>, <code>resolve_favicon_download()</code>),
+              <code>netmon/netmon_radio_app.py</code>
+              (<code>_download_station_logo()</code>).</p>
+            <p>
+              Beim Anlegen eines Browser-Containers l&auml;dt NetMon das Favicon
+              der eingetragenen Startseite; die Icon-URL stammt dabei aus dem
+              HTML der fremden Website (<code>&lt;link rel=&quot;icon&quot;&gt;</code>,
+              via <code>urljoin</code> aufgel&ouml;st). Eine b&ouml;sartige Website
+              k&ouml;nnte <code>href=&quot;file:///etc/passwd&quot;</code> liefern.
+              <strong>Bewertung:</strong> <code>fetch_url()</code> erzwingt vor
+              jedem <code>urlopen</code> eine http/https-Allowlist &mdash; mit
+              Kommentar, der genau dieses Szenario benennt &mdash; und deckt damit
+              alle Aufrufer ab. Die geladenen Bytes werden ausschlie&szlig;lich
+              unter festem Namen (<code>favicon.png/.ico/.svg</code>, Endung per
+              Magic-Byte-Erkennung) im Container-Verzeichnis gespeichert; weder
+              URL noch Content-Disposition beeinflussen den Pfad. Umleitungen
+              von http(s) auf <code>file://</code> verhindert bereits
+              <code>urllib</code> selbst.
+            </p>
+            <p>
+              <strong>Einziger Nebenbefund:</strong> Der Radio-Logo-Download
+              (<code>_download_station_logo()</code>) &uuml;bergab die
+              Favicon-URL aus der radio-browser.info-API als einziger Fetcher
+              <em>ohne</em> Schema-Pr&uuml;fung an <code>urlopen</code>. Auch das
+              ist nicht ausnutzbar (Zielpfad ist ein fester SHA-256-Hashname im
+              nutzereigenen Cache, PIL re-encodiert nach PNG, kein
+              R&uuml;ckkanal zum Angreifer) &mdash; aber inkonsistent zum
+              Builder-Standard.
+            </p>
+          </div>
+          <div class="finding-verdict pass">
+            <strong>H&auml;rtung umgesetzt &amp; verifiziert:</strong>
+            <code>_station_logo_url()</code> begrenzt Logo-URLs jetzt wie
+            <code>fetch_url()</code> auf <code>http</code>/<code>https</code>;
+            alles andere (<code>file://</code>, <code>ftp://</code>,
+            <code>data:</code>, <code>javascript:</code>, schemalose URLs) wird
+            verworfen, bevor ein Download-Thread startet. Mit neuem
+            Regressionstest abgesichert
+            (<code>test_station_logo_url_allows_only_web_schemes</code>).
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Umgesetzte Härtungen ── -->
+      <div class="audit-section" id="hardening">
+        <h2>Umgesetzte H&auml;rtungsma&szlig;nahmen (Runde&nbsp;8)</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:24px;">
+          Auch ohne best&auml;tigtes ausnutzbares Finding wurde die aus K2
+          abgeleitete Konsistenzl&uuml;cke direkt geschlossen &mdash;
+          fail-closed und mit Regressionstest.
+        </p>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128274;</div>
+          <div class="fixed-body">
+            <h4>http/https-Allowlist f&uuml;r Radio-Logo-Downloads &mdash; <code>netmon_radio_app.py</code></h4>
+            <p>
+              <code>_station_logo_url()</code> akzeptiert nur noch
+              <code>http</code>-/<code>https</code>-URLs aus der
+              radio-browser.info-API &mdash; dieselbe Regel, die
+              <code>fetch_url()</code> im Container-Builder bereits erzwingt.
+              Nicht-Web-Schemata erreichen <code>urlopen</code> damit in keinem
+              Codepfad des Projekts mehr.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#129514;</div>
+          <div class="fixed-body">
+            <h4>Neuer Regressionstest &mdash; Radio-Suite</h4>
+            <p>
+              <code>test_station_logo_url_allows_only_web_schemes</code> stellt
+              sicher, dass <code>file://</code>, <code>ftp://</code>,
+              <code>data:</code>, <code>javascript:</code> und schemalose URLs
+              dauerhaft verworfen werden. Sicherheitsrelevante Suiten nach der
+              H&auml;rtung: Secure-Browser-Modul &amp; Container-Builder
+              (173&nbsp;Tests), RKHunter/ClamAV/Linux-Hilfe (80&nbsp;Tests),
+              Radio-Modul (121&nbsp;Tests) &mdash; alle sicherheitsrelevanten
+              Tests gr&uuml;n. (Zwei vorbestehende, umgebungsabh&auml;ngige
+              Desktop-Launch-Tests der Radio-Suite schlagen auf dem
+              Audit-Host unabh&auml;ngig vom Codestand fehl und haben keinen
+              Sicherheitsbezug.)
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Geprüfte Kategorien ── -->
+      <div class="audit-section" id="kategorien">
+        <h2>Gepr&uuml;fte Sicherheitskategorien</h2>
+        <div class="section-rule"></div>
+        <table class="scope-table">
+          <thead>
+            <tr>
+              <th>Kategorie</th>
+              <th>Gepr&uuml;ft</th>
+              <th>Ergebnis</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Command Injection (subprocess, <code>shell=True</code>)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (durchg&auml;ngig list-form)</span></td>
+            </tr>
+            <tr>
+              <td>Pfad-Traversal (Containernamen, Icon-/Logo-Speicherpfade,
+                Hilfe-Dokumente)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (Regex-Validierung, feste Namen)</span></td>
+            </tr>
+            <tr>
+              <td>Lokaler Dateizugriff / SSRF &uuml;ber Fremd-URLs
+                (<code>file://</code>, interne Hosts)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">K2 &rarr; geh&auml;rtet (http/https-Allowlist)</span></td>
+            </tr>
+            <tr>
+              <td>Autorisierung / Zugriffskontrolle (Kindersicherung)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-info">K1 &rarr; bewusste Design-Entscheidung</span></td>
+            </tr>
+            <tr>
+              <td>Kryptographie (Passwort-Hashing der Kindersicherung)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (PBKDF2-SHA256, Salt, compare_digest)</span></td>
+            </tr>
+            <tr>
+              <td><code>.desktop</code>-/Launcher-Injection (Exec-/Icon-Felder)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (validierte Namen, CR/LF-Strip)</span></td>
+            </tr>
+            <tr>
+              <td>XSS / Pfad-Traversal in Website-PHP
+                (<code>download.php</code>, <code>download-stats.php</code>)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (Fix-Map, htmlspecialchars)</span></td>
+            </tr>
+            <tr>
+              <td>Unsichere Deserialisierung (pickle, yaml.load, eval, exec)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>PDF-Injection in der Linux-Hilfe
+                (<code>render_text_pdf</code>)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (Text-Escaping)</span></td>
+            </tr>
+            <tr>
+              <td>Hardcoded Credentials / API-Keys</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Regression der Runde-7-H&auml;rtungen (propupd-Gate,
+                ClamAV-DB-Pr&uuml;fung, rkhunter-Pfad-Allowlist, Scan-Worker)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Alle intakt</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ── Signatur ── -->
+      <div class="signature-block">
+        <p>
+          <strong>Auditor:</strong> Claude Fable&nbsp;5 (Anthropic) &mdash;
+          Analyse-Sub-Agent + zwei dedizierte False-Positive-Validierungs-Sub-Agenten<br>
+          <strong>Projektverantwortlicher:</strong> Sven Fr&ouml;hlich<br>
+          <strong>Datum:</strong> 18.&nbsp;Juli&nbsp;2026<br>
+          <strong>Analysierter Codestand:</strong>
+          <code>c2087b63</code> + Arbeitsstand (modified/untracked), Fokus
+          Secure-Browser-Subsystem inkl. Kindersicherung, Linux-Hilfe-Services,
+          Medien-Controller &amp; Website-PHP &mdash; Runde&nbsp;8<br>
+          <strong>Methode:</strong> Statische Code-Analyse + manuelle
+          Datenfluss-Verifikation + Konfidenz-gescorte FP-Validierung pro
+          Kandidat + Umsetzung einer Defense-in-Depth-H&auml;rtung mit
+          Regressionstest + Regressions-Gegenpr&uuml;fung der
+          Runde-7-H&auml;rtungen (Testsuiten: 173 + 80 + 121 Tests, alle
+          sicherheitsrelevanten Tests bestanden) &mdash; kein
+          Laufzeit-Penetrationstest<br>
+          <strong>Haftungsausschluss:</strong> Dieses Audit ersetzt keinen professionellen
+          Penetrationstest durch eine zertifizierte Sicherheitsfirma. Die Analyse
+          beschr&auml;nkt sich auf den angegebenen Codestand. Nicht erfasst werden:
+          Laufzeitverhalten, abh&auml;ngige Systembibliotheken,
+          Netzwerkkonfiguration und soziale Angriffsvektoren.
+        </p>
+        <p style="margin-top:16px;">
+          <a href="./downloads.html" style="color:var(--accent);">Zur Downloadseite</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./aktuelles.html" style="color:var(--accent);">Aktuelles</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./docs.html" style="color:var(--accent);">Dokumentation</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./security-audit-r7.html" style="color:var(--accent);">Runde&nbsp;7</a>
+        </p>
+      </div>
+    </main>
+
+    <footer style="margin-top:64px;padding:24px 0;border-top:1px solid var(--line);text-align:center;color:var(--muted);font-size:0.85rem;">
+      &copy; 2026 Sven Fr&ouml;hlich &mdash; NetMon Roots &mdash;
+      <a href="./legal.html" style="color:var(--muted);">Lizenz &amp; Credits</a>
+      &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+      <a href="https://github.com/Noogman4/dev-lab" target="_blank" rel="noopener noreferrer" style="color:var(--muted);">GitHub</a>
+    </footer>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>

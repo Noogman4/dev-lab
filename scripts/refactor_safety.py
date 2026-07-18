@@ -16,7 +16,6 @@ Subkommandos:
 import ast
 import pathlib
 import re
-import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -42,7 +41,6 @@ def classify_methods(cls):
         if not isinstance(node, ast.FunctionDef):
             continue
         name = node.name
-        body_src = ast.unparse(node)
         lines = node.end_lineno - node.lineno + 1
         stmts = [s for s in node.body
                  if not isinstance(s, ast.Expr) or not isinstance(s.value, ast.Constant)]
@@ -144,7 +142,6 @@ def cmd_check(method_name: str):
         return
 
     callers = find_callers(method_name)
-    callers_in_app = [c for c in callers if c[0] == "netmon/app.py"]
     callers_outside = [c for c in callers if c[0] != "netmon/app.py"]
 
     print(f"\nAufrufer außerhalb app.py: {len(callers_outside)}")
@@ -174,7 +171,7 @@ def cmd_status():
     _, cls = load_app_class()
     proxies, empty, real = classify_methods(cls)
 
-    print(f"\napp.py — aktueller Refactoring-Stand")
+    print("\napp.py — aktueller Refactoring-Stand")
     print(f"{'─'*45}")
     proxy_lines = sum(e - s + 1 for _, s, e in proxies)
     empty_lines = sum(e - s + 1 for _, s, e in empty)

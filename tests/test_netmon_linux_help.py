@@ -1,6 +1,10 @@
 import inspect
+import os
 
 from netmon.features import linux_help_controller
+from netmon.services import linux_help_document_service
+from netmon.services import linux_help_library_service
+from netmon.services import linux_help_prompt_service
 from tools import netmon
 
 
@@ -432,3 +436,127 @@ def test_selected_linux_help_chad_payload_returns_empty_when_nothing_selected():
         "",
         "",
     )
+
+
+def test_build_linux_help_pdf_prompt_contains_command_context():
+    prompt = linux_help_prompt_service.build_linux_help_pdf_prompt(
+        {
+            "name": "unlzma",
+            "cmd": "unlzma -k archiv.tar.lzma",
+            "category": "Archive",
+            "info": "LZMA-Dateien entpacken",
+            "syntax": "unlzma [OPTIONEN] [DATEI]",
+            "example": "unlzma --help",
+            "explanation": "Entpackt .lzma-Dateien.",
+            "warning_text": "Dateiname vorher pruefen.",
+            "risk": "safe",
+            "root_required": False,
+            "tags": "archive,compression",
+        }
+    )
+
+    assert "unlzma" in prompt
+    assert "unlzma [OPTIONEN] [DATEI]" in prompt
+    assert "LZMA-Dateien entpacken" in prompt
+    assert "Risikostufe: 🟢 Sicher" in prompt
+
+
+def test_linux_help_document_bundle_writes_pdf_and_metadata(tmp_path, monkeypatch):
+    target_root = tmp_path / "Documents"
+
+    def fake_documents_subdir(*parts):
+        path = target_root.joinpath(*parts)
+        path.mkdir(parents=True, exist_ok=True)
+        return str(path)
+
+    monkeypatch.setattr(
+        linux_help_library_service,
+        "get_netmon_documents_subdir",
+        fake_documents_subdir,
+    )
+
+    document = linux_help_document_service.build_linux_help_document(
+        {
+            "name": "unlzma",
+            "cmd": "unlzma -k archiv.tar.lzma",
+            "category": "Archive",
+            "info": "LZMA-Dateien entpacken",
+            "syntax": "unlzma [OPTIONEN] [DATEI]",
+            "example": "unlzma --help",
+            "explanation": "Entpackt die Datei und behaelt das Original.",
+            "warning_text": "Speicherplatz vorher pruefen.",
+            "risk": "safe",
+            "root_required": False,
+            "tags": "archive,compression",
+        },
+        source_prompt="Beispiel-Prompt",
+    )
+
+    metadata = linux_help_library_service.create_linux_help_document_bundle(document)
+
+    assert metadata["id"].startswith("unlzma_")
+    assert os.path.isfile(metadata["pdf_path"])
+    assert os.path.isfile(metadata["json_path"])
+    assert metadata["source_prompt"] == "Beispiel-Prompt"
+    assert metadata["summary"] == "LZMA-Dateien entpacken"
+
+
+def test_import_linux_help_pdf_creates_library_entry(tmp_path, monkeypatch):
+    source_pdf = tmp_path / "hilfe.pdf"
+    source_pdf.write_bytes(b"%PDF-1.4\n%%EOF\n")
+    target_root = tmp_path / "Documents"
+
+    def fake_documents_subdir(*parts):
+        path = target_root.joinpath(*parts)
+        path.mkdir(parents=True, exist_ok=True)
+        return str(path)
+
+    monkeypatch.setattr(
+        linux_help_library_service,
+        "get_netmon_documents_subdir",
+        fake_documents_subdir,
+    )
+
+    metadata = linux_help_library_service.import_linux_help_pdf(str(source_pdf))
+
+    assert metadata["generator"] == "import"
+    assert os.path.isfile(metadata["pdf_path"])
+    assert os.path.isfile(metadata["json_path"])
+    assert "Importierte Linux-Hilfe-PDF" in metadata["preview_text"]
+
+
+def test_delete_linux_help_document_removes_pdf_and_metadata(tmp_path, monkeypatch):
+    target_root = tmp_path / "Documents"
+
+    def fake_documents_subdir(*parts):
+        path = target_root.joinpath(*parts)
+        path.mkdir(parents=True, exist_ok=True)
+        return str(path)
+
+    monkeypatch.setattr(
+        linux_help_library_service,
+        "get_netmon_documents_subdir",
+        fake_documents_subdir,
+    )
+
+    document = linux_help_document_service.build_linux_help_document(
+        {
+            "name": "ls",
+            "cmd": "ls -la",
+            "category": "Dateien",
+            "info": "Dateien anzeigen",
+            "syntax": "ls [OPTIONEN]",
+            "example": "ls -la",
+            "risk": "safe",
+        }
+    )
+    metadata = linux_help_library_service.create_linux_help_document_bundle(document)
+
+    result = linux_help_library_service.delete_linux_help_document(metadata["id"])
+
+    assert result["id"] == metadata["id"]
+    assert metadata["pdf_path"] in result["deleted"]
+    assert metadata["json_path"] in result["deleted"]
+    assert not os.path.exists(metadata["pdf_path"])
+    assert not os.path.exists(metadata["json_path"])
+    assert linux_help_library_service.get_linux_help_document_by_id(metadata["id"]) is None

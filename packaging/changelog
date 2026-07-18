@@ -1,3 +1,23 @@
+netmon (1.1.19) unstable; urgency=medium
+
+  * Repair DNS fallback and orphaned killswitch handling during startup.
+  * Protect the Secure Browser Firefox base from inventory removal.
+  * Add optional password-based child locks for new and existing Secure Browsers.
+  * Improve packet capture permission repair and system action protection wiring.
+  * Add the Linux Help PDF prompt/import library workflow with PDF delete support.
+
+ -- Mr. Happy <netmon.proglab@protonmail.ch>  Sat, 18 Jul 2026 00:00:00 +0200
+
+netmon (1.1.18) unstable; urgency=medium
+
+  * Include the Linux Mint compatibility and dependency improvements.
+  * Add the Secure Browser Firefox base installer.
+  * Refresh radio integration, package tests, and test-build tooling.
+  * Classify rkhunter findings and guard manual reference updates.
+  * Add speedtest server discovery with provider and location logging.
+
+ -- Mr. Happy <netmon.proglab@protonmail.ch>  Mon, 13 Jul 2026 00:00:00 +0200
+
 netmon (1.1.17) unstable; urgency=medium
 
   * Rebuild version 1.1.17 with VPN profile lifecycle fixes.

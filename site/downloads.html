@@ -49,6 +49,7 @@
         <a href="./tour.html">Rundgang</a>
         <a href="#package">Paket</a>
         <a href="./aktuelles.html">Aktuelles</a>
+        <a href="./changelog.html">Changelog</a>
         <a href="#docs">Doku</a>
         <a href="./security-audit.html">Audit</a>
         <a href="#verify">Verifikation</a>
@@ -68,7 +69,7 @@
         <div class="download-layout">
           <article class="download-card featured">
             <p class="download-label">Beta</p>
-            <h3>NetMon 1.1.17 fuer Debian/Ubuntu-basierte Systeme</h3>
+            <h3>NetMon 1.1.19 fuer Debian/Ubuntu-basierte Systeme</h3>
             <p>Aktuelles Beta-Paket fuer Installation, Test und Verifikation.</p>
             <div class="inline-actions">
               <a class="button button-primary" href="/download.php?id=netmon-deb&amp;src=downloads-de&amp;lang=de">.deb herunterladen</a>
@@ -102,20 +103,20 @@
           </article>
           <article class="download-card featured">
             <p class="download-label">HTML</p>
-            <h3>NetMon Dokumentation 1.1.17</h3>
+            <h3>NetMon Dokumentation 1.1.19</h3>
             <p>Browserfassung fuer schnellen Zugriff.</p>
             <a class="button button-primary" href="/download.php?id=docs-html&amp;src=downloads-de-docs-html&amp;lang=de">HTML oeffnen</a>
           </article>
           <article class="download-card">
             <p class="download-label">PDF</p>
-            <h3>PDF-Handbuch 1.1.17</h3>
+            <h3>PDF-Handbuch 1.1.19</h3>
             <p>Offline-Version zum Speichern oder Weitergeben.</p>
             <a class="button button-secondary" href="/download.php?id=docs-pdf&amp;src=downloads-de-docs-pdf&amp;lang=de">PDF herunterladen</a>
           </article>
           <article class="download-card">
             <p class="download-label">Audit</p>
             <h3>Sicherheits-Audit 2026</h3>
-            <p>Aktueller Auditstand: Runde 4 fuer NetMon v1.1.15, erstellt auf Basis des aktuellen Quellcodes.</p>
+            <p>Aktueller Auditbericht: Runde 9 fuer den finalen Release-Stand NetMon v1.1.19. Zwei mittlere Findings (Update-URL-Allowlist, Killswitch-Fail-Open) wurden umgesetzt und verifiziert; die Release-Signatur (SHA256SUMS + minisign) ist gueltig.</p>
             <div class="inline-actions">
               <a class="button button-primary" href="./security-audit.html">HTML oeffnen</a>
               <a class="button button-secondary" href="/download.php?id=audit-pdf&amp;src=downloads-de-audit-pdf&amp;lang=de">PDF laden</a>
@@ -144,9 +145,9 @@
             <p>Prueft nur die heruntergeladene <code>.deb</code>. Gut fuer den schnellen Alltagscheck.</p>
             <pre><code>mkdir -p /tmp/netmon-check
 cd /tmp/netmon-check
-wget https://netmonroots.com/dist/netmon_1.1.17_all.deb
+wget https://netmonroots.com/dist/netmon_1.1.19_all.deb
 wget https://netmonroots.com/dist/SHA256SUMS
-grep 'netmon_1.1.17_all.deb' SHA256SUMS | sha256sum -c</code></pre>
+grep 'netmon_1.1.19_all.deb' SHA256SUMS | sha256sum -c</code></pre>
           </article>
           <article class="faq-card">
             <h3>Signierte Releases</h3>
@@ -157,11 +158,11 @@ grep 'netmon_1.1.17_all.deb' SHA256SUMS | sha256sum -c</code></pre>
             <p>Prueft Paket, Doku und danach die Herkunft der Hash-Datei per Minisign.</p>
             <pre><code>mkdir -p /tmp/netmon-check/docs
 cd /tmp/netmon-check
-wget https://netmonroots.com/dist/netmon_1.1.17_all.deb
+wget https://netmonroots.com/dist/netmon_1.1.19_all.deb
 wget https://netmonroots.com/dist/SHA256SUMS
 wget https://netmonroots.com/dist/SHA256SUMS.minisig
-wget https://netmonroots.com/dist/docs/netmon_dokumentation_1.1.17.pdf -O docs/netmon_dokumentation_1.1.17.pdf
-wget https://netmonroots.com/dist/docs/netmon_dokumentation_1.1.17.html -O docs/netmon_dokumentation_1.1.17.html
+wget https://netmonroots.com/dist/docs/netmon_dokumentation_1.1.19.pdf -O docs/netmon_dokumentation_1.1.19.pdf
+wget https://netmonroots.com/dist/docs/netmon_dokumentation_1.1.19.html -O docs/netmon_dokumentation_1.1.19.html
 wget https://netmonroots.com/verify/netmonroots.minisign.pub
 wget https://netmonroots.com/verify/verify_netmon_signature.sh
 chmod +x verify_netmon_signature.sh
@@ -176,8 +177,8 @@ bash verify_netmon_signature.sh \
 
       <section class="section">
         <div class="version-note">
-          <p><strong>Paket:</strong> <code>1.1.17</code></p>
-          <p><strong>Doku:</strong> <code>1.1.17</code></p>
+          <p><strong>Paket:</strong> <code>1.1.19</code></p>
+          <p><strong>Doku:</strong> <code>1.1.19</code></p>
           <p><strong>Status:</strong> Beta. Vor der Installation bitte <a href="./aktuelles.html">Aktuelles</a> pruefen.</p>
           <p><strong>Signatur:</strong> Signed releases werden per Minisign unterstuetzt.</p>
         </div>

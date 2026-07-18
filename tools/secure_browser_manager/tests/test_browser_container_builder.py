@@ -471,12 +471,15 @@ def test_build_menu_launcher_content_uses_menu_fields() -> None:
     assert "Type=Application" in content
     assert "Terminal=false" in content
     assert "Categories=Network;Security;" in content
-    assert "StartupWMClass=firefox" in content
+    assert "StartupWMClass=netmon-secure-browser-firefox-github" in content
     assert "Name=NetMon Secure Browser – GitHub" in content
     assert (
         'Exec=env BAMF_DESKTOP_FILE_HINT="/home/happy/.local/share/applications/'
-        'netmon-secure-browser-firefox-github.desktop" "/tmp/firefox-GitHub/start.sh"'
-        in content
+        'netmon-secure-browser-firefox-github.desktop" '
+        'GIO_LAUNCHED_DESKTOP_FILE="/home/happy/.local/share/applications/'
+        'netmon-secure-browser-firefox-github.desktop" '
+        'MOZ_DESKTOP_FILE="netmon-secure-browser-firefox-github.desktop" '
+        '"/tmp/firefox-GitHub/start.sh"' in content
     )
 
 
@@ -698,6 +701,48 @@ def test_apply_downloads_and_stores_favicon(monkeypatch, tmp_path: Path) -> None
         encoding="utf-8"
     )
     assert f"Icon={icon_path}" in menu_entry_path.read_text(encoding="utf-8")
+
+
+def test_create_container_installs_optional_child_lock(tmp_path: Path) -> None:
+    source_dir = make_firefox_source_tree(tmp_path)
+    lock = {
+        "algorithm": "pbkdf2_sha256",
+        "salt": "00" * 16,
+        "password_hash": "11" * 32,
+        "iterations": 200000,
+    }
+    spec = builder.ContainerSpec(
+        name="firefox-Kinder",
+        path=tmp_path / "firefox-Kinder",
+        allowed_domains=["example.com"],
+        source_firefox_dir=source_dir,
+        homepage_url="https://example.com",
+        icon_mode="default",
+        child_lock=lock,
+    )
+
+    builder.create_container(spec, tmp_path / "applications")
+
+    lock_path = spec.path / "child-lock.json"
+    helper_path = spec.path / "browser_lock.py"
+    assert json.loads(lock_path.read_text(encoding="utf-8")) == lock
+    assert lock_path.stat().st_mode & 0o777 == 0o600
+    helper_source = helper_path.read_text(encoding="utf-8")
+    assert "simpledialog.askstring" in helper_source
+    compile(helper_source, str(helper_path), "exec")
+    assert 'python3 "$SCRIPT_DIR/browser_lock.py"' in (
+        spec.path / "start.sh"
+    ).read_text(encoding="utf-8")
+
+
+def test_existing_container_refresh_start_script_supports_child_lock(tmp_path: Path) -> None:
+    root_dir = make_existing_container(tmp_path, "firefox-Kinder")
+    container = builder.discover_container(root_dir / "firefox" / "firefox")
+
+    script = builder.build_existing_start_script(container, root_dir / "profile")
+
+    assert '[ -f "$SCRIPT_DIR/child-lock.json" ]' in script
+    assert 'python3 "$SCRIPT_DIR/browser_lock.py"' in script
 
 
 def test_extract_icon_links_ignores_mask_icon_and_prefers_png() -> None:
@@ -1112,11 +1157,24 @@ def test_apply_creates_menu_desktop_file(tmp_path: Path) -> None:
     content = menu_entry_path.read_text(encoding="utf-8")
     assert "Name=NetMon Secure Browser – GitHub" in content
     assert (
-        f'Exec=env BAMF_DESKTOP_FILE_HINT="{menu_entry_path}" "{spec.path / "start.sh"}"'
-        in content
+        f'Exec=env BAMF_DESKTOP_FILE_HINT="{menu_entry_path}" '
+        f'GIO_LAUNCHED_DESKTOP_FILE="{menu_entry_path}" '
+        'MOZ_DESKTOP_FILE="netmon-secure-browser-firefox-github.desktop" '
+        f'"{spec.path / "start.sh"}"' in content
     )
     assert "Categories=Network;Security;" in content
-    assert "StartupWMClass=firefox" in content
+    assert "StartupWMClass=netmon-secure-browser-firefox-github" in content
+    start_script = (spec.path / "start.sh").read_text(encoding="utf-8")
+    assert "NETMON_SECURE_BROWSER_LEGACY_START" in start_script
+    assert '--class "$WM_CLASS"' in start_script
+    assert 'exec "$SCRIPT_DIR/firefox/firefox" --class "$WM_CLASS"' in start_script
+    assert "FIREFOX_PID" not in start_script
+    assert "MOZ_DESKTOP_FILE" in start_script
+    assert "GIO_LAUNCHED_DESKTOP_FILE" in start_script
+    assert "MOZ_ENABLE_WAYLAND=0" in start_script
+    assert "GDK_BACKEND=x11" in start_script
+    assert "NETMON_SECURE_BROWSER_NATIVE_WAYLAND" in start_script
+    assert "LOCK_DIR=" in start_script
     assert os.access(menu_entry_path, os.X_OK)
     assert os.access(spec.path / "launcher.desktop", os.X_OK)
 
@@ -1450,10 +1508,23 @@ def test_register_existing_apply_creates_start_launcher_and_menu(
     menu_entry = (
         applications_dir / "netmon-secure-browser-firefox-gmail.desktop"
     ).read_text(encoding="utf-8")
-    assert '--profile "' in start_script
+    assert '--class "$WM_CLASS"' in start_script
+    assert '--profile "$PROFILE_PATH"' in start_script
+    assert 'exec "$SCRIPT_DIR/firefox/firefox" --class "$WM_CLASS"' in start_script
+    assert "FIREFOX_PID" not in start_script
+    assert "LOCK_DIR=" in start_script
+    assert "focus_existing_window" in start_script
+    assert "NETMON_SECURE_BROWSER_LEGACY_START" in start_script
+    assert "MOZ_DESKTOP_FILE" in start_script
+    assert "GIO_LAUNCHED_DESKTOP_FILE" in start_script
+    assert "MOZ_ENABLE_WAYLAND=0" in start_script
+    assert "GDK_BACKEND=x11" in start_script
+    assert "NETMON_SECURE_BROWSER_NATIVE_WAYLAND" in start_script
     assert "profile" in start_script
     assert "Name=Gmail" in launcher
+    assert "StartupWMClass=netmon-secure-browser-firefox-gmail" in launcher
     assert "Name=Gmail" in menu_entry
+    assert "StartupWMClass=netmon-secure-browser-firefox-gmail" in menu_entry
     assert os.access(root_dir / "launcher.desktop", os.X_OK)
     assert os.access(
         applications_dir / "netmon-secure-browser-firefox-gmail.desktop",
@@ -1495,6 +1566,8 @@ def test_register_existing_apply_supports_custom_container_name(tmp_path: Path) 
     assert "Name=Sparkasse" in menu_entry
     assert (
         f'Exec=env BAMF_DESKTOP_FILE_HINT="{applications_dir / "netmon-secure-browser-sparkasse.desktop"}" '
+        f'GIO_LAUNCHED_DESKTOP_FILE="{applications_dir / "netmon-secure-browser-sparkasse.desktop"}" '
+        'MOZ_DESKTOP_FILE="netmon-secure-browser-sparkasse.desktop" '
         f'"{root_dir / "start.sh"}"' in menu_entry
     )
 
@@ -1961,6 +2034,33 @@ def test_inventory_skips_uninstalled_backup_tree(tmp_path: Path) -> None:
     discovered = builder.discover_existing_containers(base_dir)
 
     assert [container.name for container in discovered] == ["firefox-gmail"]
+
+
+def test_inventory_skips_protected_firefox_base(tmp_path: Path) -> None:
+    base_dir = tmp_path / "Secure Browser"
+    base_dir.mkdir()
+    make_existing_container(base_dir, "firefox-base")
+    make_existing_container(base_dir, "firefox-GitHub")
+
+    discovered = builder.discover_existing_containers(base_dir)
+
+    assert [container.name for container in discovered] == ["firefox-GitHub"]
+
+
+def test_uninstall_rejects_protected_firefox_base(tmp_path: Path) -> None:
+    base_dir = tmp_path / "Secure Browser"
+    base_dir.mkdir()
+    root_dir = make_existing_container(base_dir, "firefox.base")
+    container = builder.discover_container(root_dir / "firefox" / "firefox")
+
+    try:
+        builder.uninstall_container(container, tmp_path / "applications", base_dir)
+    except ValueError as exc:
+        assert "Firefox-Basis ist geschützt" in str(exc)
+    else:
+        raise AssertionError("Expected protected Firefox base uninstall to fail")
+
+    assert root_dir.is_dir()
 
 
 def test_uninstall_never_deletes_external_profiles(monkeypatch, tmp_path: Path) -> None:

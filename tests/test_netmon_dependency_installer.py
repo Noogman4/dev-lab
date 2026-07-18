@@ -139,6 +139,31 @@ def test_build_dependency_terminal_command_deduplicates_packages():
     )
 
 
+def test_build_packet_capture_permission_repair_script_contains_required_steps():
+    app = App.__new__(App)
+
+    script = app._build_packet_capture_permission_repair_script("happy")
+
+    assert (
+        "wireshark-common wireshark-common/install-setuid boolean true" in script
+    )
+    assert "groupadd --system wireshark" in script
+    assert 'chown root:wireshark "$DUMPCAP_PATH"' in script
+    assert 'chmod 0750 "$DUMPCAP_PATH"' in script
+    assert 'usermod -a -G wireshark "$TARGET_USER"' in script
+    assert "setcap cap_net_raw,cap_net_admin=ep" in script
+    assert "TARGET_USER=happy" in script
+
+
+def test_build_packet_capture_permission_repair_terminal_command_wraps_script():
+    app = App.__new__(App)
+
+    cmd = app._build_packet_capture_permission_repair_terminal_command("happy")
+
+    assert cmd.startswith("sudo /bin/bash -lc ")
+    assert "dpkg-reconfigure -f noninteractive wireshark-common" in cmd
+
+
 def test_build_dependency_terminal_command_returns_empty_for_removed_internal_visualizers():
     app = App.__new__(App)
 
@@ -189,6 +214,50 @@ def test_build_setup_removal_terminal_command_deduplicates_packages():
     )
 
     assert cmd == "sudo apt remove -y mpv python3-pgzero python3-pygame"
+
+
+def test_collect_setup_removable_components_uses_wireshark_package_marker():
+    app = type(
+        "DummyApp",
+        (),
+        {
+            "_count_code_the_classics_files": lambda self: 0,
+            "_is_safe_netmon_managed_path": lambda self, path: False,
+        },
+    )()
+
+    removable = App._collect_setup_removable_components(
+        app,
+        {
+            "wireshark": False,
+            "wireshark_installed": True,
+            "tshark": False,
+            "dumpcap": False,
+        }
+    )
+
+    assert "wireshark_suite" in removable
+
+
+def test_is_debian_package_installed_reads_dpkg_status(monkeypatch):
+    import netmon.app as app_module
+
+    calls = []
+
+    monkeypatch.setattr(app_module, "has_cmd", lambda name: name == "dpkg-query")
+
+    def fake_run(cmd, stdout=None, stderr=None, text=None, timeout=None, check=None):
+        calls.append(cmd)
+        return type(
+            "Completed",
+            (),
+            {"returncode": 0, "stdout": "install ok installed"},
+        )()
+
+    monkeypatch.setattr(app_module.subprocess, "run", fake_run)
+
+    assert app_module.is_debian_package_installed("wireshark") is True
+    assert calls == [["dpkg-query", "-W", "-f=${Status}", "wireshark"]]
 
 
 def test_dependency_installer_integration_hooks_are_present():

@@ -219,6 +219,44 @@ def test_open_support_dir_with_xdg_open_uses_documents_support_dir(
     assert recorded["args"] == ["xdg-open", str(docs_dir / "support")]
 
 
+def test_run_system_action_async_requires_phrase_when_strict_protection_is_enabled():
+    app = App.__new__(App)
+    recorded = {}
+    app.strict_protection_var = SimpleNamespace(get=lambda: True)
+    app.settings = {"strict_protection": True}
+    app.tr = lambda _key, default, **_kwargs: default
+    app._system_action_commands = lambda action: [(["systemctl", "reboot"], False)]
+    app._confirm_danger_action = lambda *args, **kwargs: recorded.setdefault(
+        "kwargs", kwargs
+    ) or True
+    app.ensure_sudo_session = lambda _label: True
+    app.log = lambda _message: None
+    app.after = lambda _delay, callback: callback()
+
+    app.run_system_action_async("Reboot")
+
+    assert recorded["kwargs"]["require_phrase"] == "AUSFUEHREN"
+
+
+def test_run_system_action_async_skips_phrase_when_strict_protection_is_disabled():
+    app = App.__new__(App)
+    recorded = {}
+    app.strict_protection_var = SimpleNamespace(get=lambda: False)
+    app.settings = {"strict_protection": False}
+    app.tr = lambda _key, default, **_kwargs: default
+    app._system_action_commands = lambda action: [(["systemctl", "reboot"], False)]
+    app._confirm_danger_action = lambda *args, **kwargs: recorded.setdefault(
+        "kwargs", kwargs
+    ) or True
+    app.ensure_sudo_session = lambda _label: True
+    app.log = lambda _message: None
+    app.after = lambda _delay, callback: callback()
+
+    app.run_system_action_async("Reboot")
+
+    assert recorded["kwargs"]["require_phrase"] == ""
+
+
 def test_startup_support_dialog_source_mentions_support_folder_and_hint():
     source = inspect.getsource(main._show_startup_support_dialog)
 
@@ -291,8 +329,8 @@ def test_diagnostic_ui_state_includes_last_action_context():
         _diagnostic_last_action_at="2026-06-07T12:00:00+00:00",
         _diagnostic_last_details={"selected_tab": "Radio"},
     )
-    dummy._selected_notebook_tab_label = (
-        lambda notebook: App._selected_notebook_tab_label(dummy, notebook)
+    dummy._selected_notebook_tab_label = lambda notebook: (
+        App._selected_notebook_tab_label(dummy, notebook)
     )
     dummy._diagnostic_last_action_context = lambda: App._diagnostic_last_action_context(
         dummy
@@ -341,8 +379,8 @@ def test_diagnostic_ui_state_includes_runtime_snapshot():
         _diagnostic_last_action_at="2026-06-07T12:00:00+00:00",
         _diagnostic_last_details={"selected_tab": "Security"},
     )
-    dummy._selected_notebook_tab_label = (
-        lambda notebook: App._selected_notebook_tab_label(dummy, notebook)
+    dummy._selected_notebook_tab_label = lambda notebook: (
+        App._selected_notebook_tab_label(dummy, notebook)
     )
     dummy._diagnostic_last_action_context = lambda: App._diagnostic_last_action_context(
         dummy
@@ -620,6 +658,8 @@ def test_about_program_dialog_contains_diagnostic_actions_source():
     assert "Supportpaket mit Formular erzeugen" in source
     assert "self._support_form_placeholders()" in source
     assert "Tipp: Supportpaket erzeugen, ZIP im Supportordner prüfen" in source
+    assert 'self.tr("about_section_donation", "NetMon unterstützen")' in source
+    assert 'self.tr("about_donation_button", "Spendenlink folgt")' in source
 
 
 def test_bootstrap_failure_source_mentions_startup_support_dialog():
@@ -698,8 +738,8 @@ def test_create_support_package_app_method_remembers_path(monkeypatch, tmp_path)
     )
     dummy._diagnostic_last_action_context = lambda: {"action": "DNS anwenden"}
     dummy._diagnostic_runtime_state = lambda: {"public_ip": "203.0.113.10"}
-    dummy._remember_support_package_path = (
-        lambda path: App._remember_support_package_path(dummy, path)
+    dummy._remember_support_package_path = lambda path: (
+        App._remember_support_package_path(dummy, path)
     )
 
     result = App.create_support_package(dummy)
@@ -730,8 +770,8 @@ def test_create_support_package_app_method_merges_support_form_metadata(
     )
     dummy._diagnostic_last_action_context = lambda: {"action": "Radio lösen"}
     dummy._diagnostic_runtime_state = lambda: {"radio_detached": True}
-    dummy._remember_support_package_path = (
-        lambda path: App._remember_support_package_path(dummy, path)
+    dummy._remember_support_package_path = lambda path: (
+        App._remember_support_package_path(dummy, path)
     )
 
     result = App.create_support_package(
@@ -760,8 +800,8 @@ def test_create_support_package_app_method_merges_support_form_metadata(
 def test_build_about_support_form_metadata_skips_placeholder_values():
     dummy = SimpleNamespace()
     dummy._support_form_placeholders = lambda: App._support_form_placeholders(dummy)
-    dummy._support_form_clean_value = (
-        lambda value, placeholder="": App._support_form_clean_value(
+    dummy._support_form_clean_value = lambda value, placeholder="": (
+        App._support_form_clean_value(
             dummy,
             value,
             placeholder,
@@ -793,3 +833,40 @@ def test_settings_tab_contains_support_actions_source():
     assert (
         "Empfehlung: Paket erzeugen, kurz den Inhalt im Supportordner prüfen" in source
     )
+
+
+def test_is_trusted_update_url_accepts_only_netmonroots_https():
+    accept = App._is_trusted_update_url
+    assert accept("https://netmonroots.com/downloads.html") is True
+    assert accept("http://netmonroots.com/downloads.html") is True
+    assert accept("https://cdn.netmonroots.com/dist/x.deb") is True
+    for bad in (
+        "https://evil.example.com/x",
+        "https://netmonroots.com.evil.com/x",
+        "file:///etc/passwd",
+        "vnc://netmonroots.com",
+        "ftp://netmonroots.com/x",
+        "//netmonroots.com/x",
+        "",
+    ):
+        assert accept(bad) is False
+
+
+def test_open_url_with_xdg_open_rejects_non_web_scheme(monkeypatch):
+    app = App.__new__(App)
+    logs = []
+    app.log_safe = logs.append
+    opened = []
+    monkeypatch.setattr(main.shutil, "which", lambda _name: "/usr/bin/xdg-open")
+    monkeypatch.setattr(
+        app_module.subprocess,
+        "Popen",
+        lambda args, **kwargs: opened.append(args) or object(),
+    )
+
+    for blocked in ("file:///etc/passwd", "vnc://host/x", "javascript:alert(1)", "x"):
+        assert app._open_url_with_xdg_open(blocked, label="Test") is False
+    assert opened == []
+
+    assert app._open_url_with_xdg_open("https://netmonroots.com/x") is True
+    assert opened == [["xdg-open", "https://netmonroots.com/x"]]

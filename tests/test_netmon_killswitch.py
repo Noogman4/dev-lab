@@ -84,6 +84,68 @@ Endpoint = any:51820
     assert warnings == [("proton", "any")]
 
 
+def test_startup_repair_disables_killswitch_without_active_vpn(monkeypatch):
+    app = netmon.App.__new__(netmon.App)
+    calls = []
+    app.privacy_config = {}
+    app.isp_stealth_running = False
+    app._network_operation_active_elsewhere = lambda: False
+    app.killswitch_is_on = lambda: True
+    app.get_wg_interfaces = lambda: []
+    app.is_vpn_active = lambda: False
+    app.log_safe = lambda message: calls.append(("log", message))
+    app.log_debug_safe = lambda message: calls.append(("debug", message))
+    app.killswitch_off = lambda **kwargs: calls.append(("off", kwargs)) or True
+    monkeypatch.setattr(
+        netmon.vpn_controller, "get_active_nm_wireguard_connections", lambda _app: []
+    )
+    monkeypatch.setattr(
+        netmon.vpn_controller, "get_active_nm_vpn_connections", lambda _app: []
+    )
+    monkeypatch.setattr(netmon, "check_sudo_nopasswd", lambda: True)
+
+    assert app.repair_orphaned_killswitch_on_startup() is True
+    assert (
+        "off",
+        {
+            "async_mode": False,
+            "ensure_sudo": False,
+            "refresh_ui": True,
+            "interactive_guard": False,
+        },
+    ) in calls
+
+
+def test_startup_repair_keeps_killswitch_with_active_vpn(monkeypatch):
+    app = netmon.App.__new__(netmon.App)
+    calls = []
+    app.privacy_config = {}
+    app.isp_stealth_running = False
+    app._network_operation_active_elsewhere = lambda: False
+    app.killswitch_is_on = lambda: True
+    app.get_wg_interfaces = lambda: ["wg0"]
+    app.is_vpn_active = lambda: False
+    app.log_safe = lambda message: calls.append(("log", message))
+    app.log_debug_safe = lambda message: calls.append(("debug", message))
+    app.killswitch_off = lambda **kwargs: calls.append(("off", kwargs)) or True
+    monkeypatch.setattr(netmon, "check_sudo_nopasswd", lambda: True)
+
+    assert app.repair_orphaned_killswitch_on_startup() is False
+    assert not any(kind == "off" for kind, _value in calls)
+
+
+def test_startup_repair_skips_stealth_autostart():
+    app = netmon.App.__new__(netmon.App)
+    app.privacy_config = {"enabled": True, "autostart": True}
+    app.isp_stealth_running = False
+    app._network_operation_active_elsewhere = lambda: False
+    app.killswitch_is_on = lambda: (_ for _ in ()).throw(
+        AssertionError("killswitch state must not be queried during stealth autostart")
+    )
+
+    assert app.repair_orphaned_killswitch_on_startup() is False
+
+
 def test_killswitch_on_allows_wireguard_handshake_without_active_tunnel(monkeypatch):
     app = netmon.App.__new__(netmon.App)
     app.ufw_lock = threading.Lock()
@@ -514,6 +576,7 @@ def test_vpn_switch_prepares_and_schedules_dns_finalize(monkeypatch):
         lambda delay_ms=2500: finalize_delays.append(delay_ms)
     )
     app.run_async = lambda func: func()
+    app.reconcile_vpn_slot_firewall_state = lambda **kwargs: True
 
     def fake_run_cmd(args, timeout=0, text=True):
         calls.append(args)
@@ -530,6 +593,57 @@ def test_vpn_switch_prepares_and_schedules_dns_finalize(monkeypatch):
     assert finalize_delays == [2500]
     assert ["sudo", "-n", "test", "-f", "/etc/wireguard/wg-slot.conf"] in calls
     assert ["sudo", "-n", "wg-quick", "up", "wg-slot"] in calls
+
+
+def test_vpn_switch_reconciles_non_killswitch_firewall_rules_after_success(monkeypatch):
+    app = netmon.App.__new__(netmon.App)
+    calls = []
+    finalize_delays = []
+    reconciles = []
+
+    app.ipv6_is_disabled = lambda: False
+    app.profile_supports_ipv6 = lambda profile: False
+    app.get_wg_interfaces = lambda: []
+    app._check_wireguard_profile_for_multiple_endpoints = lambda *args: None
+    app.log_safe = lambda *_args: None
+    app.log_debug = lambda *_args: None
+    app.log_debug_safe = lambda *_args: None
+    app.refresh_wg_profiles = lambda: None
+    app.update_primary_vpn_form_controls = lambda: None
+    app.sync_primary_vpn_form_selection = lambda: None
+    app.update_ipv6_controls_state_safe = lambda: None
+    app.refresh_safe = lambda: None
+    app.killswitch_is_on = lambda: False
+    app.prepare_dns_for_vpn_profile_switch = lambda: []
+    app._schedule_dns_finalize_after_vpn_profile_switch = (
+        lambda delay_ms=2500: finalize_delays.append(delay_ms)
+    )
+    app.run_async = lambda func: func()
+    app.verify_vpn_exit_country = lambda profile: None
+    app.reconcile_vpn_slot_firewall_state = (
+        lambda **kwargs: reconciles.append(dict(kwargs)) or True
+    )
+
+    def fake_run_cmd(args, timeout=0, text=True):
+        calls.append(args)
+        return 0, "ok"
+
+    monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
+    monkeypatch.setattr(netmon.vpn_controller, "run_cmd", fake_run_cmd)
+    monkeypatch.setattr(
+        netmon.vpn_controller, "cleanup_wireguard_interfaces", lambda _app: True
+    )
+
+    assert app.vpn_switch("wg-slot", ensure_sudo=False, refresh_ui=True) is True
+    assert ["sudo", "-n", "wg-quick", "up", "wg-slot"] in calls
+    assert reconciles == [
+        {
+            "reason": "VPN aktiv: wg-slot",
+            "touched_profiles": ["wg-slot"],
+            "refresh_ui": False,
+        }
+    ]
+    assert finalize_delays == [2500]
 
 
 def test_vpn_switch_can_skip_cleanup_after_restore_cleanup(monkeypatch):
@@ -556,6 +670,7 @@ def test_vpn_switch_can_skip_cleanup_after_restore_cleanup(monkeypatch):
     app.prepare_dns_for_vpn_profile_switch = lambda: []
     app._schedule_dns_finalize_after_vpn_profile_switch = lambda delay_ms=2500: None
     app.run_async = lambda func: func()
+    app.reconcile_vpn_slot_firewall_state = lambda **kwargs: True
 
     def fake_run_cmd(args, timeout=0, text=True):
         calls.append(args)
@@ -775,6 +890,7 @@ def test_vpn_switch_force_reconnect_rebuilds_same_profile(monkeypatch):
     app.prepare_dns_for_vpn_profile_switch = lambda: []
     app._schedule_dns_finalize_after_vpn_profile_switch = lambda delay_ms=2500: None
     app.run_async = lambda func: func()
+    app.reconcile_vpn_slot_firewall_state = lambda **kwargs: True
 
     def fake_run_cmd(args, timeout=0, text=True):
         calls.append(args)
@@ -1897,3 +2013,56 @@ def test_killswitch_off_sync_fails_when_rules_remain_present(monkeypatch):
 
     assert app._killswitch_off_sync(refresh_ui=False) is False
     assert any("Deaktivierung unvollstaendig" in entry for entry in logs)
+
+
+def test_recover_preserving_killswitch_reasserts_when_killswitch_active():
+    app = netmon.App.__new__(netmon.App)
+    events = []
+    app.killswitch_is_on = lambda: True
+    app._killswitch_on_sync = lambda refresh_ui=True: events.append(
+        ("sync", refresh_ui)
+    ) or True
+    app._recover_firewall_after_killswitch_failure = lambda: events.append("open")
+
+    app._recover_firewall_preserving_killswitch()
+
+    # Aktiver Killswitch: deny-outgoing wird per Re-Sync erhalten,
+    # NICHT auf allow-outgoing geoeffnet.
+    assert events == [("sync", False)]
+
+
+def test_recover_preserving_killswitch_opens_when_killswitch_inactive():
+    app = netmon.App.__new__(netmon.App)
+    events = []
+    app.killswitch_is_on = lambda: False
+    app._killswitch_on_sync = lambda refresh_ui=True: events.append(
+        ("sync", refresh_ui)
+    ) or True
+    app._recover_firewall_after_killswitch_failure = lambda: events.append("open")
+
+    app._recover_firewall_preserving_killswitch()
+
+    # Ohne aktiven Killswitch wird wie bisher auf allow-outgoing zurueckgesetzt,
+    # damit sich der Nutzer nicht selbst aussperrt.
+    assert events == ["open"]
+
+
+def test_vpn_switch_empty_target_preserves_active_killswitch(monkeypatch):
+    app = netmon.App.__new__(netmon.App)
+    events = []
+    app.log_safe = lambda *args: None
+    app.log_debug = lambda *args: None
+    app.tr = lambda key, default, **kwargs: default
+    app.refresh_safe = lambda: None
+    app._try_begin_network_operation = lambda label: True
+    app.killswitch_is_on = lambda: True
+    app._killswitch_on_sync = lambda refresh_ui=True: events.append(
+        ("sync", refresh_ui)
+    ) or True
+    app._recover_firewall_after_killswitch_failure = lambda: events.append("open")
+
+    assert app.vpn_switch("", ensure_sudo=False, refresh_ui=True) is False
+    # Fehlgeschlagener Slot-Wechsel bei aktivem Killswitch darf die
+    # Firewall nicht still oeffnen.
+    assert events == [("sync", False)]
+    assert "open" not in events

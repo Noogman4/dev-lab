@@ -40,6 +40,22 @@ def test_main_deb_builder_generates_required_policy_artifacts():
     assert 'find "$PKG_DIR" -type f -exec chmod 0644' in source
 
 
+def test_main_deb_builder_configures_and_restores_install_dns():
+    source = (PROJECT_ROOT / "scripts" / "build_netmon_deb.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'NETMON_INSTALL_DNS_STATE="$NETMON_STATE_DIR/install-dns-nm.state"' in source
+    assert 'NETMON_INSTALL_DNS_SERVER="8.8.8.8"' in source
+    assert "apply_netmon_install_dns" in source
+    assert 'ipv4.dns "$NETMON_INSTALL_DNS_SERVER"' in source
+    assert 'cat > "$PKG_DIR/DEBIAN/prerm"' in source
+    assert "restore_netmon_install_dns" in source
+    assert 'ipv4.dns "$OLD_DNS"' in source
+    assert 'rm -f "$NETMON_INSTALL_DNS_STATE"' in source
+    assert '"$PKG_DIR/DEBIAN/prerm"' in source
+
+
 def test_main_deb_policy_sources_exist():
     for relative_path in (
         "packaging/copyright",
@@ -50,3 +66,11 @@ def test_main_deb_policy_sources_exist():
         "packaging/netmon.lintian-overrides",
     ):
         assert (PROJECT_ROOT / relative_path).is_file()
+
+
+def test_deb_builders_do_not_duplicate_code_the_classics_archive():
+    for script_name in ("build_netmon_deb.sh", "build_test_deb.sh"):
+        source = (PROJECT_ROOT / "scripts" / script_name).read_text(encoding="utf-8")
+
+        assert 'rm -f "$APP_PY_ROOT/features/Code-the-Classics.zip"' in source
+        assert '"$FUN_ASSETS_ROOT/Code-the-Classics.zip"' in source

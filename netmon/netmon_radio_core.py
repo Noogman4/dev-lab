@@ -660,9 +660,8 @@ def _append_radio_launch_args(
     theme_name: str | None = None,
     started_from: str | None = None,
 ) -> list[str]:
-    theme = str(theme_name or "").strip().lower()
-    if theme:
-        command.extend(["--theme", theme])
+    _ignored_theme_name = theme_name
+    command.extend(["--theme", "dark"])
     source = str(started_from or "").strip().lower()
     if source:
         command.extend(["--started-from", source])

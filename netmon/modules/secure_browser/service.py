@@ -314,6 +314,7 @@ class SecureBrowserService:
         allow_password_manager: bool = True,
         keep_cookies: bool = True,
         enable_website_filter: bool = True,
+        child_lock: dict[str, object] | None = None,
     ) -> dict[str, object]:
         payload: dict[str, object] = {
             "containers": [
@@ -333,6 +334,8 @@ class SecureBrowserService:
             ]
         }
         source_dir = self.get_default_source_firefox_dir()
+        if child_lock:
+            payload["containers"][0]["child_lock"] = dict(child_lock)
         if source_dir is not None:
             payload["default_source_firefox_dir"] = str(source_dir)
         return payload
@@ -480,6 +483,7 @@ class SecureBrowserService:
         allow_password_manager: bool = True,
         keep_cookies: bool = True,
         enable_website_filter: bool = True,
+        child_lock: dict[str, object] | None = None,
     ) -> dict[str, object]:
         config_path = self._write_generated_create_config(
             self.build_generated_create_config(
@@ -494,6 +498,7 @@ class SecureBrowserService:
                 allow_password_manager=allow_password_manager,
                 keep_cookies=keep_cookies,
                 enable_website_filter=enable_website_filter,
+                child_lock=child_lock,
             )
         )
         command = [
@@ -596,6 +601,47 @@ class SecureBrowserService:
         command.extend(["--base-dir", str(self._container_base_dir(container_name))])
         command.append("--apply")
         return self._run_builder_command(command)
+
+    @staticmethod
+    def container_child_lock_enabled(container: BrowserContainer) -> bool:
+        return (container.path / "child-lock.json").is_file()
+
+    def configure_container_child_lock(
+        self,
+        container: BrowserContainer,
+        child_lock: dict[str, object] | None,
+    ) -> None:
+        lock_path = container.path / "child-lock.json"
+        helper_path = container.path / "browser_lock.py"
+        if child_lock is None:
+            for path in (lock_path, helper_path):
+                try:
+                    path.unlink()
+                except FileNotFoundError:
+                    pass
+            return
+
+        module = self._load_tool_module()
+        validated = module.validate_config_payload(
+            {
+                "containers": [
+                    {
+                        "name": container.name,
+                        "allowed_domains": container.allowed_domains
+                        or ["example.invalid"],
+                        "child_lock": child_lock,
+                    }
+                ]
+            },
+            self.get_default_base_dir(),
+        )[0].child_lock
+        module.write_json(lock_path, validated)
+        lock_path.chmod(0o600)
+        module.write_text(
+            helper_path,
+            module.build_browser_lock_helper(),
+            executable=True,
+        )
 
     def run_repair_policy_dry_run(
         self, *, container_name: str | None = None

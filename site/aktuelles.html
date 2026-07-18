@@ -67,17 +67,18 @@
         <div class="download-layout">
           <article class="download-card featured">
             <p class="download-label">Status</p>
-            <h3>NetMon 1.1.17 ist der aktuelle Build.</h3>
-            <p>Die Versionspruefung im About-Bereich arbeitet sauber und verweist bei neueren Website-Versionen automatisch auf die Downloadseite. Diese Seite dient als zentrale Stelle fuer Freigaben, Testhinweise und laufende Pflege-Updates.</p>
+            <h3>NetMon 1.1.19 ist der aktuelle Build.</h3>
+            <p>Die Versionspruefung im About-Bereich arbeitet sauber und verweist bei neueren Website-Versionen automatisch auf die Downloadseite. Diese Seite bleibt die zentrale Stelle fuer Freigaben, Testhinweise und aktuelle Release-Pflege.</p>
             <div class="inline-actions">
               <a class="button button-primary" href="./downloads.html">Zur Downloadseite</a>
+              <a class="button button-secondary" href="./changelog.html">Zum Changelog</a>
               <a class="button button-secondary" href="./docs.html">Zur Dokumentation</a>
             </div>
           </article>
           <article class="download-card">
             <p class="download-label">Wichtiger Hinweis</p>
-            <h3>NetMon wird weiter auf mehreren Linux-Systemen geprueft.</h3>
-            <p>Wenn auf einzelnen Distributionen Unterschiede oder Probleme auftreten, dokumentieren wir diese hier, bevor eine allgemeine Freigabe erfolgt. So bleiben Status und bekannte Themen zentral sichtbar.</p>
+            <h3>NetMon ist fuer Linux Mint und Zorin OS freigegeben.</h3>
+            <p>Weitere Distributionen werden weiterhin geprueft. Unterschiede, bekannte Themen und neue Freigaben sammeln wir hier zentral, damit der aktuelle Support-Stand sichtbar bleibt.</p>
           </article>
         </div>
       </section>
@@ -89,15 +90,15 @@
         <div class="faq-grid">
           <article class="faq-card">
             <h3>Zorin OS freigegeben</h3>
-            <p>Die aktuellen Kernfunktionen wurden unter Zorin erfolgreich geprueft. Dazu gehoeren Start, Diagnosepfad und der ueberarbeitete LUKS-Mount-Workflow.</p>
+            <p>Zorin OS ist fuer NetMon 1.1.19 freigegeben. Geprueft wurden die Kernfunktionen inklusive Start, Diagnosepfad, Secure Browser, VPN-, DNS- und Killswitch-Ablauf.</p>
           </article>
           <article class="faq-card">
-            <h3>Linux Mint im Testlabor</h3>
-            <p>Erste Tests unter Mint verlaufen positiv. Eine allgemeine Freigabe erfolgt jedoch noch nicht, da weitere Pruefungen im Testlabor ausstehen.</p>
+            <h3>Linux Mint freigegeben</h3>
+            <p>Linux Mint ist fuer NetMon 1.1.19 freigegeben. Die Kernfunktionen sowie die Secure-Browser-, VPN-, DNS- und Killswitch-Ablaeufe wurden erfolgreich geprueft.</p>
           </article>
           <article class="faq-card">
-            <h3>Hinweis fuer Mint-Tests</h3>
-            <p>Vor Systemeingriffen, Mount-/Unmount-Tests oder Deinstallationsversuchen sollte unter Mint zunaechst ein Timeshift-Backup angelegt werden.</p>
+            <h3>Aktueller Freigabestand</h3>
+            <p>Fuer den aktuellen Release-Stand gelten Linux Mint und Zorin OS als freigegeben. Weitere Debian-/Ubuntu-basierte Systeme folgen nach erfolgreicher Gegenpruefung.</p>
           </article>
         </div>
       </section>
@@ -108,16 +109,20 @@
         </div>
         <div class="faq-grid">
           <article class="faq-card">
-            <h3>LUKS-Mounting ueberarbeitet</h3>
-            <p>Das fruehere Problem beim Einbinden verschluesselter LUKS-Partitionen wurde in Version 1.1.14 ueberarbeitet. Der Mount-Pfad arbeitet jetzt stabiler und orientiert sich am getesteten Systemverhalten.</p>
+            <h3>Robusterer Start bei DNS- und Killswitch-Themen</h3>
+            <p>Verwaiste Killswitch-Zustaende und problematische DNS-Startlagen werden in Version 1.1.19 sauberer abgefangen, damit NetMon verlässlicher startet und sich konsistenter erholt.</p>
           </article>
           <article class="faq-card">
-            <h3>Installierter Build gehaertet</h3>
-            <p>Der Paketpfad wurde zusaetzlich abgesichert, damit sich das Verhalten zwischen Dev-Lab und installiertem System weniger unterscheidet. Besonders der Umgang mit LUKS- und Desktop-Mount-Tools wurde verbessert.</p>
+            <h3>VPN-Wechsel und Firewall-Abgleich verbessert</h3>
+            <p>Nach einem erfolgreichen VPN-Profilwechsel wird der UFW-Zielzustand wieder sauber mit den referenzierten Profilen abgeglichen, auch wenn gerade kein aktiver Killswitch laeuft.</p>
           </article>
           <article class="faq-card">
-            <h3>Versionspruefung im About-Bereich</h3>
-            <p>Die Online-Pruefung der aktuellen Versionsnummer laeuft sauber durch. Bei einer neueren Website-Version kann NetMon direkt auf die Downloadseite weiterleiten.</p>
+            <h3>RKHunter-Auswertung klarer abgesichert</h3>
+            <p>Warnungen werden strukturierter eingeordnet, mit <code>dpkg -V</code> gegengeprueft und Referenzupdates nur noch unter klaren Sicherheitsbedingungen angeboten.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Linux-Hilfe-Workflow erweitert</h3>
+            <p>Prompts mit PDF-Bezug und die neue PDF-Bibliothek schliessen eine bisher offene Luecke zwischen Recherche, Dokumentation und direkter Weiterarbeit in NetMon.</p>
           </article>
         </div>
       </section>
@@ -129,24 +134,25 @@
         <div class="faq-grid">
           <article class="faq-card">
             <h3>Neues Paket</h3>
-            <p>Fuer Version 1.1.17 wird ein aktuelles <code>.deb</code>-Paket bereitgestellt. Es enthaelt die Sprachbereinigung, die ueberarbeiteten Security-Tabs, den D-Scan-Pfadkopierer und eindeutige Log-Zeitstempel.</p>
+            <p>Fuer Version 1.1.19 wird ein aktuelles <code>.deb</code>-Paket bereitgestellt. Es enthaelt die verhaerteten Startup-/Netzwerkpfade, die robustere VPN-/Firewall-Synchronisierung und den neuen PDF-Workflow in der Linux-Hilfe.</p>
           </article>
           <article class="faq-card">
             <h3>Hash und Signatur</h3>
-            <p>Parallel dazu werden neue SHA256-Pruefsummen und eine aktualisierte Minisign-Signatur bereitgestellt, damit Downloads vor der Installation geprueft werden koennen.</p>
+            <p>Parallel dazu werden neue SHA256-Pruefsummen und eine aktualisierte Minisign-Signatur bereitgestellt, damit Downloads vor der Installation sauber geprueft werden koennen.</p>
           </article>
           <article class="faq-card">
             <h3>Empfehlung</h3>
-            <p>Bitte vor der Installation nach Moeglichkeit die Verifikation auf der Downloadseite verwenden und vor Testinstallationen aktuelle Hinweise auf dieser Seite beachten.</p>
+            <p>Bitte vor der Installation nach Moeglichkeit die Verifikation auf der Downloadseite verwenden und vor Tests oder Upgrades die aktuellen Hinweise auf dieser Seite beachten.</p>
           </article>
         </div>
       </section>
 
       <section class="section">
         <div class="version-note">
-          <p><strong>Stand:</strong> <code>2026-07-05</code></p>
-          <p><strong>Aktueller Build:</strong> <code>1.1.17</code></p>
-          <p><strong>Naechster Fokus:</strong> Weitere Distributionstests und die saubere Bewertung moeglicher Unterschiede zwischen Zorin, Mint und weiteren Debian-/Ubuntu-basierten Systemen.</p>
+          <p><strong>Stand:</strong> <code>2026-07-18</code></p>
+          <p><strong>Aktueller Build:</strong> <code>1.1.19</code></p>
+          <p><strong>Freigegeben:</strong> <code>Linux Mint</code>, <code>Zorin OS</code></p>
+          <p><strong>Naechster Fokus:</strong> Weitere Distributionstests und die fortlaufende Release-Pflege fuer Debian-/Ubuntu-basierte Systeme.</p>
         </div>
       </section>
     </main>

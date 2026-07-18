@@ -54,9 +54,6 @@ def build_pdf(pdf_path: Path) -> None:
               textColor=colors.HexColor("#5f6368"), spaceAfter=5)
     MONO = s("MONO", fontName="Courier", fontSize=8.5, leading=11,
              textColor=colors.HexColor("#0b5d0e"), spaceAfter=4)
-    MONO_DARK = s("MONO_DARK", fontName="Courier", fontSize=8, leading=11,
-                  textColor=colors.HexColor("#e2e8f0"),
-                  backColor=colors.HexColor("#0f172a"), spaceAfter=4)
     FINDING_TITLE = s("FINDING_TITLE", fontName="Helvetica-Bold", fontSize=10.5,
                       leading=14, textColor=colors.HexColor("#16263a"), spaceAfter=3)
     FIXED_TITLE = s("FIXED_TITLE", fontName="Helvetica-Bold", fontSize=10,
@@ -67,8 +64,6 @@ def build_pdf(pdf_path: Path) -> None:
     C_LINE     = colors.HexColor("#d9e1e7")
     C_BG_HEAD  = colors.HexColor("#eef3f7")
     C_BG_GREEN = colors.HexColor("#f0fdf4")
-    C_BLUE     = colors.HexColor("#1d4ed8")
-    C_BG_BLUE  = colors.HexColor("#eff6ff")
 
     story = []
 

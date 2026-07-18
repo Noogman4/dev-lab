@@ -63,7 +63,6 @@ def build_pdf(pdf_path: Path) -> None:
     C_LINE = colors.HexColor("#d9e1e7")
     C_BG_HEAD = colors.HexColor("#eef3f7")
     C_BG_GREEN = colors.HexColor("#f0fdf4")
-    C_BG_AMBER = colors.HexColor("#fffbeb")
 
     story = []
 

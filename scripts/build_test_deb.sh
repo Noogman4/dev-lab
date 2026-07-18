@@ -81,6 +81,7 @@ copy_file_if_exists "$ROOT_DIR/netmon_radio_app.py" "$APP_ROOT/netmon_radio_app.
 copy_tree "$ROOT_DIR/netmon/config" "$APP_PY_ROOT/config"
 copy_tree "$ROOT_DIR/netmon/core" "$APP_PY_ROOT/core"
 copy_tree "$ROOT_DIR/netmon/features" "$APP_PY_ROOT/features"
+rm -f "$APP_PY_ROOT/features/Code-the-Classics.zip"
 copy_tree "$ROOT_DIR/netmon/lang" "$APP_PY_ROOT/lang"
 copy_tree "$ROOT_DIR/netmon/modules" "$APP_PY_ROOT/modules"
 copy_tree "$ROOT_DIR/netmon/services" "$APP_PY_ROOT/services"

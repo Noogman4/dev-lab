@@ -944,6 +944,14 @@ def test_settings_tab_source_and_hooks_are_present():
     chad_wrapper_source = inspect.getsource(build_chad_settings_tab)
 
     assert 'self.tr("settings_save_button", "Einstellungen speichern")' in build_source
+    save_button_pos = build_source.index('self.tr("settings_save_button"')
+    restart_button_pos = build_source.index(
+        'self.tr("settings_restart_netmon_only"', save_button_pos
+    )
+    reset_button_pos = build_source.index(
+        'self.tr("settings_reset_button"', restart_button_pos
+    )
+    assert save_button_pos < restart_button_pos < reset_button_pos
     assert 'self.tr(\n                "settings_autostart",' in build_source
     assert "variable=self.autostart_var" in build_source
     assert "command=self.toggle_autostart" in build_source
@@ -967,9 +975,18 @@ def test_settings_tab_source_and_hooks_are_present():
     assert "variable=self.isp_stealth_disable_ipv6" in build_source
     assert "variable=self.isp_stealth_enable_killswitch" in build_source
     assert "textvariable=self.isp_stealth_vpn_choice" in build_source
+    assert (
+        'self.tr(\n                "privacy_dns_profile_vpn_managed_hint",'
+        in build_source
+    )
     assert "variable=self.var_auto_log_clear" in build_source
     assert "variable=self.var_debug_network_logging" in build_source
     assert "textvariable=self.var_ufw_logging_default" in build_source
+    assert 'self.tr("settings_group_donation", "NetMon unterstützen")' in build_source
+    assert "variable=self.var_donation_popup_enabled" in build_source
+    assert (
+        'self.tr(\n                "settings_donation_support_button",' in build_source
+    )
     assert 'self.tr("settings_group_system", "System")' in build_source
     assert "command=self.restart_netmon_only" in build_source
     assert "def build_theme_studio_tab(self):" in app_source
@@ -988,6 +1005,28 @@ def test_settings_tab_source_and_hooks_are_present():
     assert (
         'text=app.tr("tab_chad_settings", "Chad Einstellungen")' in chad_wrapper_source
     )
+
+
+def test_donation_popup_disable_waits_until_one_week():
+    app = App.__new__(App)
+    app.settings = {"donation_popup_first_seen_at": 1000}
+
+    assert app.donation_popup_disable_allowed(now=1000 + 7 * 24 * 60 * 60 - 1) is False
+    assert app.donation_popup_disable_allowed(now=1000 + 7 * 24 * 60 * 60) is True
+
+
+def test_donation_popup_first_seen_is_persisted_once():
+    app = App.__new__(App)
+    app.settings = {"donation_popup_first_seen_at": 0}
+    saved = []
+    app.save_settings = lambda log_success=False: saved.append(log_success)
+
+    first_seen = app._ensure_donation_popup_first_seen_at()
+    second_seen = app._ensure_donation_popup_first_seen_at()
+
+    assert first_seen > 0
+    assert second_seen == first_seen
+    assert saved == [False]
 
 
 def test_apply_startup_settings_orchestrates_existing_actions(monkeypatch):
@@ -1012,8 +1051,8 @@ def test_apply_startup_settings_orchestrates_existing_actions(monkeypatch):
     app.clear_log = lambda: actions.append(("clear_log",))
     app.set_dns_guard_enabled = lambda enabled: actions.append(("dns_guard", enabled))
     app.security_start_monitoring = lambda: actions.append(("security_monitoring",))
-    app.run_async = (
-        lambda func, job_name="": actions.append(("run_async", job_name)) or func()
+    app.run_async = lambda func, job_name="": (
+        actions.append(("run_async", job_name)) or func()
     )
     app.vpn_switch = lambda profile, ensure_sudo=True: actions.append(
         ("vpn", profile, ensure_sudo)
@@ -1146,8 +1185,8 @@ def test_apply_startup_settings_uses_killswitch_off_for_isp(monkeypatch):
     app.clear_log = lambda: actions.append(("clear_log",))
     app.set_dns_guard_enabled = lambda enabled: actions.append(("dns_guard", enabled))
     app.security_start_monitoring = lambda: actions.append(("security_monitoring",))
-    app.run_async = (
-        lambda func, job_name="": actions.append(("run_async", job_name)) or func()
+    app.run_async = lambda func, job_name="": (
+        actions.append(("run_async", job_name)) or func()
     )
     app.vpn_switch = lambda profile, ensure_sudo=True: actions.append(
         ("vpn", profile, ensure_sudo)
@@ -1227,8 +1266,8 @@ def test_apply_startup_settings_skips_general_network_mode_when_stealth_autostar
     )
     app.set_dns_guard_enabled = lambda enabled: actions.append(("dns_guard", enabled))
     app.security_start_monitoring = lambda: actions.append(("security_monitoring",))
-    app.run_async = (
-        lambda func, job_name="": actions.append(("run_async", job_name)) or func()
+    app.run_async = lambda func, job_name="": (
+        actions.append(("run_async", job_name)) or func()
     )
     app.vpn_switch = lambda profile, ensure_sudo=True: actions.append(
         ("vpn", profile, ensure_sudo)
@@ -1276,8 +1315,8 @@ def test_apply_startup_settings_skips_dot_for_vpn(monkeypatch):
     app.clear_log = lambda: actions.append(("clear_log",))
     app.set_dns_guard_enabled = lambda enabled: actions.append(("dns_guard", enabled))
     app.security_start_monitoring = lambda: actions.append(("security_monitoring",))
-    app.run_async = (
-        lambda func, job_name="": actions.append(("run_async", job_name)) or func()
+    app.run_async = lambda func, job_name="": (
+        actions.append(("run_async", job_name)) or func()
     )
     app.vpn_switch = lambda profile, ensure_sudo=True: actions.append(
         ("vpn", profile, ensure_sudo)

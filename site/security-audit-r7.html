@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 7</title>
+  <meta
+    name="description"
+    content="Siebtes unabhaengiges Sicherheits-Audit des NetMon-Quellcodes (v1.1.18, Juli 2026). Fokus: neue RKHunter-Referenzuebernahme (propupd), die deterministische rkhunter-Analyse und die ClamAV-Signaturdatenbank-Auswahl. 0 ausnutzbare Findings, 2 Defense-in-Depth-Haertungen umgesetzt und verifiziert."
+  >
+  <link rel="icon" type="image/png" href="./favicon.png">
+  <link rel="apple-touch-icon" href="./favicon.png">
+  <link rel="canonical" href="https://netmonroots.com/security-audit.html">
+  <link rel="alternate" hreflang="de" href="https://netmonroots.com/security-audit.html">
+  <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/security-audit.html">
+  <meta property="og:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 7">
+  <meta property="og:description" content="Siebtes Sicherheits-Audit des NetMon-Quellcodes (v1.1.18, Juli 2026). 0 ausnutzbare Findings, 2 Defense-in-Depth-Haertungen umgesetzt und verifiziert.">
+  <meta property="og:url" content="https://netmonroots.com/security-audit.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NetMon Roots">
+  <meta property="og:locale" content="de_DE">
+  <meta property="og:image" content="https://netmonroots.com/favicon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 7">
+  <meta name="twitter:description" content="Siebtes Sicherheits-Audit des NetMon-Quellcodes (v1.1.18, Juli 2026). 0 ausnutzbare Findings, 2 Defense-in-Depth-Haertungen umgesetzt und verifiziert.">
+  <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
+  <link rel="stylesheet" href="./styles.css">
+  <style>
+    /* ── Audit-spezifische Erweiterungen ─────────────────────────────────── */
+    .audit-hero { padding: 64px 0 48px; }
+    .audit-hero .eyebrow { color: var(--accent); }
+
+    .verdict-banner {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 28px 32px;
+      margin: 40px 0;
+      border: 1px solid rgba(114, 240, 182, 0.4);
+      border-radius: var(--radius-sm);
+      background: rgba(58, 198, 143, 0.08);
+    }
+    .verdict-icon {
+      font-size: 2.8rem;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .verdict-text h2 { margin: 0 0 6px; font-size: 1.4rem; color: var(--accent); }
+    .verdict-text p  { margin: 0; color: var(--muted); font-size: 0.97rem; line-height: 1.55; }
+
+    .audit-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 32px 0;
+    }
+    .audit-meta-card {
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .audit-meta-card .label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .audit-meta-card .value {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .audit-meta-card .value.ok   { color: var(--accent); }
+    .audit-meta-card .value.warn { color: var(--accent-warm); }
+
+    .audit-section { margin-top: 56px; }
+    .audit-section h2 {
+      font-size: 1.55rem;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+    .audit-section .section-rule {
+      height: 1px;
+      background: var(--line);
+      margin-bottom: 28px;
+    }
+
+    .scope-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.93rem;
+    }
+    .scope-table th {
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .scope-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(154, 177, 204, 0.08);
+      vertical-align: top;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .scope-table tr:last-child td { border-bottom: none; }
+    .scope-table code {
+      font-size: 0.83rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .badge-ok   { background: rgba(58, 198, 143, 0.15); color: #72f0b6; }
+    .badge-low  { background: rgba(255, 184, 107, 0.15); color: #ffb86b; }
+    .badge-med  { background: rgba(255, 184, 107, 0.2);  color: #ffb86b; }
+    .badge-high { background: rgba(220, 60, 60, 0.15);   color: #ff7070; }
+    .badge-info { background: rgba(90, 160, 240, 0.15);  color: #7ab8f5; }
+
+    .finding-card {
+      margin-bottom: 24px;
+      padding: 24px 28px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .finding-card.filtered {
+      border-color: rgba(154, 177, 204, 0.1);
+      opacity: 0.75;
+    }
+    .finding-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .finding-header h3 { margin: 0; font-size: 1rem; flex: 1; min-width: 200px; }
+    .finding-detail { color: var(--muted); font-size: 0.92rem; line-height: 1.6; }
+    .finding-detail strong { color: var(--text); }
+    .finding-detail code {
+      font-size: 0.83rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .finding-verdict {
+      margin-top: 12px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: rgba(2, 8, 15, 0.4);
+      font-size: 0.88rem;
+      color: var(--muted);
+      border-left: 3px solid rgba(154, 177, 204, 0.25);
+    }
+    .finding-verdict.pass { border-left-color: var(--accent); }
+
+    .fixed-card {
+      display: flex;
+      gap: 16px;
+      padding: 18px 22px;
+      margin-bottom: 14px;
+      border: 1px solid rgba(58, 198, 143, 0.2);
+      border-radius: var(--radius-sm);
+      background: rgba(58, 198, 143, 0.04);
+    }
+    .fixed-icon { font-size: 1.4rem; flex-shrink: 0; line-height: 1.2; }
+    .fixed-body h4 { margin: 0 0 4px; font-size: 0.97rem; color: var(--accent); }
+    .fixed-body p  { margin: 0; font-size: 0.9rem; color: var(--muted); line-height: 1.5; }
+    .fixed-body code {
+      font-size: 0.82rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .methodology-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .method-card {
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .method-card h4 { margin: 0 0 8px; font-size: 0.93rem; color: var(--accent); }
+    .method-card p  { margin: 0; font-size: 0.87rem; color: var(--muted); line-height: 1.5; }
+
+    .signature-block {
+      margin-top: 48px;
+      padding: 28px 32px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .signature-block strong { color: var(--text); }
+
+    .round-link {
+      display: inline-block;
+      padding: 10px 18px;
+      border-radius: 40px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-decoration: none;
+      margin-top: 16px;
+    }
+
+    @media (max-width: 640px) {
+      .verdict-banner { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .audit-meta-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="./index.html" aria-label="NetMon Startseite">
+        <span class="brand-mark">
+          <span class="brand-lockup">
+            <span class="brand-title">
+              <span class="brand-title-main">NETMON</span>
+              <span class="brand-title-accent">ROOTS</span>
+            </span>
+            <span class="brand-subline">MONITOR. CONTROL. UNDERSTAND.</span>
+            <span class="brand-tagline">BACK TO THE ROOTS.</span>
+          </span>
+          <img class="brand-icon" src="./bannericon.png" alt="" aria-hidden="true">
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="./index.html">Start</a>
+        <a href="./tour.html">Rundgang</a>
+        <a href="./downloads.html">Download</a>
+        <a href="./aktuelles.html">Aktuelles</a>
+        <a href="./changelog.html">Changelog</a>
+        <a href="./docs.html">Doku</a>
+        <a href="./legal.html">Legal</a>
+      </nav>
+      <div class="lang-switch" aria-label="Sprachauswahl">
+        <a class="active" href="./security-audit.html" lang="de">DE</a>
+      </div>
+    </header>
+
+    <main>
+      <!-- ── Hero ── -->
+      <section class="audit-hero">
+        <p class="eyebrow">Sicherheits-Audit &mdash; Juli 2026 &mdash; Runde&nbsp;7</p>
+        <h1 style="font-size:clamp(2rem,4vw,3rem);margin:0 0 20px;color:var(--text);">
+          Code-Security-Review<br>
+          <span style="color:var(--accent);">NetMon Roots v1.1.18</span>
+        </h1>
+        <p style="max-width:680px;color:var(--muted);line-height:1.65;font-size:1.05rem;">
+          Siebtes automatisiertes Security-Review auf Basis von
+          Claude&nbsp;Fable&nbsp;5. Schwerpunkt dieser Runde: die seit Runde&nbsp;6
+          neu hinzugekommene <strong>RKHunter-Referenzuebernahme</strong>
+          (<code>rkhunter&nbsp;--propupd</code> &uuml;ber
+          <code>run_rkhunter_propupd()</code> /
+          <code>restore_property_database()</code> in
+          <code>rkhunter_manager.py</code>), der neue
+          <strong>deterministische Analysedienst</strong>
+          (<code>rkhunter_analysis_service.py</code>) samt seinem
+          <code>propupd</code>-Sicherheits-Gate, die zus&auml;tzlichen
+          privilegierten Hilfskommandos im Scan-Worker
+          (<code>dpkg&nbsp;-V</code>, <code>dpkg&nbsp;-S</code>,
+          <code>file&nbsp;-b</code>, <code>cat&nbsp;/var/log/rkhunter.log</code>)
+          sowie die neue <strong>ClamAV-Signaturdatenbank-Auswahl</strong>
+          (<code>clamav_database_args()</code>) und die konfigurierbaren
+          Schnellscan-Pfade. Wie in Runde&nbsp;6 wurden
+          <strong>keine ausnutzbaren Schwachstellen best&auml;tigt</strong>:
+          vier Kandidaten wurden von dedizierten Validierungs-Sub-Agenten
+          gepr&uuml;ft &mdash; zwei als &bdquo;kein Finding&ldquo; verworfen, zwei
+          als sinnvolle <strong>Defense-in-Depth-H&auml;rtungen</strong> unterhalb
+          der Konfidenzschwelle. Beide H&auml;rtungen wurden anschlie&szlig;end
+          <strong>umgesetzt und empirisch verifiziert</strong>
+          (versch&auml;rfter <code>propupd</code>-Klassifizierer, Eigent&uuml;mer-/
+          Rechte-Pr&uuml;fung der ClamAV-Signaturdatenbank) und mit neuen
+          Regressionstests abgesichert.
+        </p>
+        <a class="round-link" href="./security-audit-r6.html">
+          &#8592; Runde&nbsp;6 (0&nbsp;Findings &mdash; 3&nbsp;H&auml;rtungen)
+        </a>
+      </section>
+
+      <!-- ── Aktionen ── -->
+      <div style="margin-bottom:32px;">
+        <a class="button button-primary" href="./netmon_security_audit_2026_r7.pdf" download
+           style="display:inline-block;padding:12px 28px;border-radius:40px;background:var(--accent);color:#07101d;font-weight:700;font-size:0.95rem;text-decoration:none;margin-right:12px;">
+          PDF herunterladen
+        </a>
+        <a href="#kandidaten"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;">
+          Kandidaten
+        </a>
+        <a href="#hardening"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;margin-left:8px;">
+          Hardening
+        </a>
+        <a href="#kategorien"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;margin-left:8px;">
+          Kategorien
+        </a>
+      </div>
+
+      <!-- ── Gesamtverdikt ── -->
+      <div class="verdict-banner">
+        <div class="verdict-icon">&#10003;</div>
+        <div class="verdict-text">
+          <h2>0 ausnutzbare Findings &mdash; 2 Defense-in-Depth-H&auml;rtungen umgesetzt &amp; verifiziert</h2>
+          <p>
+            Diese Runde untersuchte gezielt die seit Runde&nbsp;6 neu
+            hinzugekommene Angriffsfl&auml;che rund um die RKHunter-Automatisierung
+            &mdash; vor allem das neue Sicherheits-Gate, das entscheidet, ob der
+            aktuelle Dateizustand als vertrauensw&uuml;rdige Referenz
+            (<code>rkhunter&nbsp;--propupd</code>) &uuml;bernommen werden darf
+            &mdash; sowie die neue ClamAV-Signaturdatenbank-Auswahl. Ein
+            Analyse-Sub-Agent identifizierte <strong>vier Kandidaten</strong>; jeder
+            wurde von einem eigenen Validierungs-Sub-Agenten gepr&uuml;ft. Zwei
+            entpuppten sich als <strong>kein Finding</strong> (keine
+            Command-/Argument-Injection in den neuen <code>sudo</code>-Hilfskommandos;
+            die <code>cp&nbsp;-a</code>-Pfade der Referenz-Sicherung sind
+            fail-closed auf eine feste Allowlist begrenzt). Zwei weitere lagen
+            <strong>unterhalb der Konfidenzschwelle (&ge;&nbsp;8/10)</strong>
+            &mdash; kein Angriffspfad &uuml;ber eine echte Vertrauensgrenze in einem
+            Einzelnutzer-Desktop-Werkzeug &mdash; wurden aber dennoch als
+            Defense-in-Depth <strong>direkt umgesetzt</strong> (Whitelist statt
+            <code>.conf</code>-Wildcard im propupd-Gate; Eigent&uuml;mer-/Rechte-
+            Pr&uuml;fung der ClamAV-Signaturdatenbank) und die Wirkung wurde
+            <strong>empirisch am realen Modul verifiziert</strong>. Alle
+            59&nbsp;relevanten automatisierten Tests bleiben nach den H&auml;rtungen
+            gr&uuml;n. Der Codestand v1.1.18 enth&auml;lt keine offenen ausnutzbaren
+            Sicherheitsl&uuml;cken.
+          </p>
+        </div>
+      </div>
+
+      <!-- ── Meta-Daten ── -->
+      <div class="audit-meta-grid">
+        <div class="audit-meta-card">
+          <div class="label">Datum</div>
+          <div class="value">17.&nbsp;Juli&nbsp;2026</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Analysierte Version</div>
+          <div class="value">v1.1.18 &mdash; Runde&nbsp;7</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Neue Angriffsfl&auml;che</div>
+          <div class="value">RKHunter-Referenz &amp; Analyse</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Bewertete Kandidaten</div>
+          <div class="value warn">4 (2 kein Finding)</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Ausnutzbare Findings</div>
+          <div class="value ok">0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">H&auml;rtungen umgesetzt</div>
+          <div class="value ok">2 (Defense-in-Depth)</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Konfidenz-Schwelle</div>
+          <div class="value">8&nbsp;/&nbsp;10</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Analysewerkzeug</div>
+          <div class="value">Claude Fable&nbsp;5</div>
+        </div>
+      </div>
+
+      <!-- ── Umfang & Methodik ── -->
+      <div class="audit-section" id="methodik">
+        <h2>Umfang &amp; Methodik</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:760px;line-height:1.65;">
+          Schwerpunkt dieser Runde war die seit dem Runde-6-Snapshot neu
+          hinzugekommene bzw. ver&auml;nderte Angriffsfl&auml;che im
+          Arbeitsstand: die RKHunter-Referenzuebernahme
+          (<code>run_rkhunter_propupd()</code>,
+          <code>backup_property_database()</code>,
+          <code>restore_property_database()</code>), der neue deterministische
+          Analysedienst mit seinem <code>propupd</code>-Sicherheits-Gate
+          (<code>analyze_rkhunter_output()</code>,
+          <code>_rkhunter_propupd_gate_valid()</code>), die im Scan-Worker
+          neu ausgef&uuml;hrten privilegierten Hilfskommandos
+          (<code>dpkg&nbsp;-V</code>/<code>-S</code>, <code>file&nbsp;-b</code>,
+          <code>cat&nbsp;/var/log/rkhunter.log</code>) sowie die neue
+          ClamAV-Signaturdatenbank-Auswahl
+          (<code>clamav_database_args()</code>,
+          <code>clamav_user_database_dir()</code>) und die konfigurierbaren
+          Schnellscan-Pfade. Die in Runde&nbsp;6 geh&auml;rteten Bereiche des
+          Secure&nbsp;Browser&nbsp;Managers und des Agent-Pfad-Confinements
+          waren in diesem Arbeitsstand unver&auml;ndert und daher nicht im
+          Fokus.
+        </p>
+        <div class="methodology-grid">
+          <div class="method-card">
+            <h4>Phase&nbsp;1 &mdash; Diff- &amp; Reconnaissance</h4>
+            <p>Vollst&auml;ndiger <code>git diff</code> gegen den letzten Commit
+            (<code>c2087b63</code>) plus Sichtung der neuen unversionierten Dateien
+            (<code>rkhunter_analysis_service.py</code> und die zugeh&ouml;rigen
+            Testdateien). Gezieltes Lesen der neuen RKHunter-Pfade und der
+            ClamAV-Datenbankwahl.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;2 &mdash; Kandidaten-Analyse</h4>
+            <p>Ein dedizierter Analyse-Sub-Agent verfolgte Datenflussketten von
+            rkhunter-/dpkg-Ausgaben und lokalen Eingaben bis zu sensiblen
+            Operationen (<code>sudo&nbsp;cp&nbsp;-a</code>, <code>subprocess.run</code>,
+            <code>--propupd</code>, <code>clamscan&nbsp;--database</code>).
+            4&nbsp;Kandidaten identifiziert.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;3 &mdash; False-Positive-Validierung</h4>
+            <p>F&uuml;r jeden Kandidaten lief eine eigene Validierung mit striktem
+            FP-Filter und Konfidenz-Scoring &mdash; erg&auml;nzt um eine empirische
+            Reproduktion des Klassifizierer-Verhaltens am realen Modul. Ergebnis:
+            2&nbsp;kein Finding, 2&nbsp;unter der Schwelle (2&ndash;3&nbsp;/&nbsp;10).</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;4 &mdash; H&auml;rtung &amp; Regressionscheck</h4>
+            <p>Die beiden Kandidaten unter der Schwelle wurden als
+            Defense-in-Depth umgesetzt, empirisch am realen Modul gegengepr&uuml;ft
+            und mit neuen Regressionstests abgesichert. Suiten erneut ausgef&uuml;hrt:
+            <code>test_rkhunter_analysis_service.py</code>,
+            <code>test_rkhunter_security_flow.py</code>,
+            <code>test_rkhunter_manager.py</code>,
+            <code>test_clamav_controller.py</code> &mdash;
+            59&nbsp;Tests, alle gr&uuml;n.</p>
+          </div>
+        </div>
+
+        <!-- ── Scope-Tabelle ── -->
+        <h3 style="margin-top:36px;font-size:1.1rem;">Sicherheitsfokus (Runde&nbsp;7)</h3>
+        <table class="scope-table" style="margin-top:12px;">
+          <thead>
+            <tr>
+              <th>Datei / Modul</th>
+              <th>Fokus</th>
+              <th>Ergebnis</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>rkhunter_analysis_service.py</code> &mdash; <code>analyze_rkhunter_output()</code></td>
+              <td>Zu permissive FP-Klassifizierung: jede <code>/etc/*.conf</code>-
+                &Auml;nderung und jeder <code>docker</code>/<code>vscode</code>-
+                Substring gilt als &bdquo;expected&ldquo; und kann das
+                <code>propupd</code>-Gate passieren</td>
+              <td><span class="badge badge-ok">K1 &rarr; geh&auml;rtet</span></td>
+            </tr>
+            <tr>
+              <td><code>clamav_controller.py</code> &mdash; <code>clamav_user_database_dir()</code></td>
+              <td>ClamAV-Signaturdatenbank in einem vorhersagbaren
+                <code>/tmp</code>-Pfad (<code>--database</code>)</td>
+              <td><span class="badge badge-ok">K2 &rarr; geh&auml;rtet</span></td>
+            </tr>
+            <tr>
+              <td><code>security_audit_controller.py</code> &mdash; <code>rkhunter_scan_worker()</code></td>
+              <td>Neue privilegierte Hilfskommandos mit Pfaden aus der
+                rkhunter-Ausgabe (<code>dpkg&nbsp;-S</code>, <code>file&nbsp;-b</code>)
+                &mdash; Command-/Argument-Injection?</td>
+              <td><span class="badge badge-ok">Kein Finding (list-form)</span></td>
+            </tr>
+            <tr>
+              <td><code>rkhunter_manager.py</code> &mdash; <code>backup/restore_property_database()</code></td>
+              <td><code>sudo&nbsp;cp&nbsp;-a</code> auf die rkhunter-Referenz-DB &mdash;
+                Pfad-Kontrolle?</td>
+              <td><span class="badge badge-ok">Kein Finding (fail-closed)</span></td>
+            </tr>
+            <tr>
+              <td>Runde-6-Bereiche (Browser-Manager, Agent-Confinement)</td>
+              <td>In diesem Arbeitsstand unver&auml;ndert &mdash; Gegenpr&uuml;fung</td>
+              <td><span class="badge badge-ok">Weiterhin wirksam</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="color:var(--muted);font-size:0.85rem;max-width:760px;line-height:1.6;margin-top:14px;">
+          Au&szlig;erhalb des Scopes: die reine Kosmetik-/UI-Diffs
+          (<code>security_tabs.py</code>, Sprachdateien) und das
+          Verpackungs-Cleanup (<code>rm&nbsp;-f&nbsp;Code-the-Classics.zip</code> im
+          Deb-Build) enthalten keine sicherheitsrelevante Logik. Das Audit ersetzt
+          keinen Laufzeit-Penetrationstest.
+        </p>
+      </div>
+
+      <!-- ── Kandidaten ── -->
+      <div class="audit-section" id="kandidaten">
+        <h2>Bewertete Kandidaten</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:28px;">
+          Vier Kandidaten wurden identifiziert und jeweils gegengepr&uuml;ft. Keiner
+          erreichte die Konfidenzschwelle von 8/10 f&uuml;r ein best&auml;tigtes,
+          ausnutzbares Finding &mdash; im Wesentlichen, weil es sich um ein
+          Einzelnutzer-Desktop-Werkzeug handelt, bei dem die vermeintliche
+          &bdquo;Angreifer&ldquo;-Eingabe entweder vom selben lokalen Nutzer stammt
+          oder bereits lokale Root-Rechte voraussetzt. Zwei Kandidaten wurden als
+          &bdquo;kein Finding&ldquo; verworfen, zwei als Defense-in-Depth
+          <strong>direkt umgesetzt und verifiziert</strong>.
+        </p>
+
+        <!-- K1 -->
+        <div class="finding-card">
+          <div class="finding-header">
+            <h3>K1 &mdash; Zu permissive FP-Klassifizierung im <code>propupd</code>-Sicherheits-Gate</h3>
+            <span class="badge badge-med">Konfidenz 3/10</span>
+            <span class="badge badge-ok">Geh&auml;rtet</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Datei:</strong> <code>netmon/services/rkhunter_analysis_service.py</code>
+              &mdash; <code>_classify_rkhunter_line()</code> /
+              <code>analyze_rkhunter_output()</code>, ausgewertet in
+              <code>_rkhunter_propupd_gate_valid()</code>.</p>
+            <p>
+              Das Gate entscheidet, ob der aktuelle Dateizustand per
+              <code>rkhunter&nbsp;--propupd</code> als neue vertrauensw&uuml;rdige
+              Referenz &uuml;bernommen werden darf. Zwei Klassifizierungsregeln sind
+              breiter als n&ouml;tig: <code>_EXPECTED_CONFIG_RE</code> matcht mit dem
+              Teilmuster <code>[^\s:]+\.conf</code> <em>jede</em> Datei mit
+              <code>.conf</code>-Endung (z.&nbsp;B.
+              <code>/etc/cron.d/persist.conf</code>,
+              <code>/etc/ld.so.conf</code>), und <code>_DEVELOPER_ENV_RE</code>
+              matcht blo&szlig;e Substrings wie <code>docker</code>,
+              <code>containerd</code> oder <code>vscode</code> an <em>beliebiger</em>
+              Stelle im Pfad. Solche Zeilen werden als <code>expected</code>
+              eingestuft; empirisch verifiziert f&auml;llt das Gesamtrisiko dann auf
+              <code>low</code> und <code>propupd_allowed</code> wird
+              <code>True</code> &mdash; obwohl die betroffene Datei nicht
+              paketverwaltet ist und daher auch von der <code>dpkg&nbsp;-V</code>-
+              Gegenpr&uuml;fung nicht erfasst wird.
+            </p>
+            <p>
+              <strong>Warum unter der Schwelle:</strong> Um eine solche Datei zu
+              platzieren, ben&ouml;tigt ein Angreifer bereits Schreibzugriff auf
+              <code>/etc</code> bzw. Systempfade &mdash; also lokale Root-Rechte.
+              Das Gate ist ein <em>konservativer Sicherheits-Assistent</em> in einem
+              Einzelnutzer-Desktop-Tool, keine harte Vertrauensgrenze; die
+              Referenzuebernahme selbst ist zus&auml;tzlich manuell, doppelt
+              best&auml;tigt (<code>askyesno</code>) und sudo-gesch&uuml;tzt. Es
+              entsteht keine Privilegien-Eskalation, sondern lediglich das Risiko,
+              eine bereits kompromittierte Systemdatei als &bdquo;normal&ldquo; in die
+              Referenz aufzunehmen.
+            </p>
+          </div>
+          <div class="finding-verdict pass">
+            <strong>H&auml;rtung umgesetzt &amp; verifiziert:</strong>
+            <code>_EXPECTED_CONFIG_RE</code> wurde von der <code>.conf</code>-Wildcard
+            auf eine explizite Whitelist bekannter Konfigurationsdateien
+            (<code>rkhunter.conf</code>, <code>gdm3/custom.conf</code>,
+            <code>fwupd.conf</code>, <code>systemd/resolved.conf</code>,
+            <code>systemd/timesyncd.conf</code>, <code>mirrors.dat</code>)
+            eingeschr&auml;nkt; <code>_DEVELOPER_ENV_RE</code> nutzt jetzt
+            Wortgrenzen und Pfadsegment-Anker
+            (<code>(?&lt;![\w.-])docker(?![\w.-])</code>,
+            <code>/\.devcontainer(?:/|$)</code>&nbsp;&hellip;). Empirisch
+            gegengepr&uuml;ft: <code>/etc/cron.d/persist.conf</code> und
+            <code>&hellip;/dockerish-malware</code> fallen jetzt in
+            <code>review</code> &mdash; das Gate schlie&szlig;t
+            (<code>risk=medium</code>, <code>propupd_allowed=False</code>) &mdash;
+            w&auml;hrend legitime F&auml;lle (<code>/etc/rkhunter.conf</code>,
+            <code>/usr/bin/docker</code>, <code>.vscode/</code>) weiterhin korrekt
+            als <code>expected</code> erkannt werden. Mit Regressionstests
+            abgesichert.
+          </div>
+        </div>
+
+        <!-- K2 -->
+        <div class="finding-card">
+          <div class="finding-header">
+            <h3>K2 &mdash; ClamAV-Signaturdatenbank in vorhersagbarem <code>/tmp</code>-Pfad</h3>
+            <span class="badge badge-low">Konfidenz 2/10</span>
+            <span class="badge badge-ok">Geh&auml;rtet</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Datei:</strong> <code>netmon/features/clamav_controller.py</code>
+              &mdash; <code>clamav_user_database_dir()</code> /
+              <code>clamav_database_args()</code>.</p>
+            <p>
+              Nach einem nutzergetriebenen ClamAV-Update ohne <code>sudo</code>
+              werden die Signaturen in
+              <code>&lt;tmp&gt;/netmon-clamav-db-&lt;user&gt;</code> abgelegt und via
+              <code>clamscan&nbsp;--database</code> genutzt. Der Pfad ist
+              vorhersagbar. Auf einem <em>gemeinsam genutzten</em> Host k&ouml;nnte
+              ein weiterer lokaler Nutzer dieses Verzeichnis theoretisch vorbelegen
+              (<code>.cvd</code>/<code>.cld</code>) und so die Signaturbasis des
+              Opfers beeinflussen &mdash; potenziell Erkennungsschw&auml;chung.
+            </p>
+            <p>
+              <strong>Warum unter der Schwelle:</strong> Das Verzeichnis wird per
+              <code>_safe_makedirs_no_symlink()</code> mit <code>0o700</code>
+              angelegt, wobei jede Pfadkomponente auf Symlinks/Nicht-Verzeichnisse
+              gepr&uuml;ft wird; ein von einem Fremdnutzer vorab angelegtes
+              Verzeichnis w&uuml;rde das <code>mkdir</code> scheitern lassen. NetMon
+              vertraut dem Verzeichnis zudem erst nach einem erfolgreichen
+              <code>freshclam</code>-Lauf. Das Zielprofil ist ein
+              Einzelnutzer-Desktop; ein Mehrbenutzer-Host ist untypisch.
+            </p>
+          </div>
+          <div class="finding-verdict pass">
+            <strong>H&auml;rtung umgesetzt &amp; verifiziert:</strong> Vor jeder
+            Verwendung von <code>clamscan&nbsp;--database</code> pr&uuml;ft die neue
+            Funktion <code>_clamav_database_dir_is_secure()</code> das Verzeichnis:
+            es muss dem aktuellen Nutzer geh&ouml;ren
+            (<code>st_uid&nbsp;==&nbsp;os.getuid()</code>), darf kein Symlink sein und
+            keinerlei Gruppen-/Welt-Rechte tragen
+            (<code>st_mode&nbsp;&amp;&nbsp;0o077&nbsp;==&nbsp;0</code>). Empirisch
+            gegengepr&uuml;ft: fremd-owned, gruppen-/welt-zug&auml;ngliche,
+            symlink- und fehlende Verzeichnisse werden abgelehnt &mdash; nur ein
+            eigenes <code>0700</code>-Verzeichnis wird als Signaturquelle
+            akzeptiert. Damit ist das <code>/tmp</code>-Vorbelegungs-Szenario
+            geschlossen; mit Regressionstests abgesichert.
+          </div>
+        </div>
+
+        <!-- K3 -->
+        <div class="finding-card">
+          <div class="finding-header">
+            <h3>K3 &mdash; Neue privilegierte Hilfskommandos im Scan-Worker</h3>
+            <span class="badge badge-ok">Kein Finding</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Datei:</strong> <code>netmon/features/security_audit_controller.py</code>
+              &mdash; <code>rkhunter_scan_worker()</code>.</p>
+            <p>
+              Der Scan-Worker f&uuml;hrt neu <code>sudo&nbsp;-n&nbsp;dpkg&nbsp;-V</code>,
+              <code>dpkg&nbsp;-S&nbsp;&lt;pfad&gt;</code>,
+              <code>file&nbsp;-b&nbsp;&lt;pfad&gt;</code> und
+              <code>sudo&nbsp;-n&nbsp;cat&nbsp;/var/log/rkhunter.log</code> aus. Die
+              &uuml;bergebenen Pfade stammen aus der rkhunter-Ausgabe
+              (<code>extract_replaced_script_paths()</code>,
+              <code>extract_warning_command_paths()</code>) &mdash; also aus
+              extern beeinflussbarem Text.
+            </p>
+            <p>
+              <strong>Bewertung:</strong> Alle Aufrufe laufen &uuml;ber
+              <code>run_cmd()</code>, das <code>subprocess.run()</code> in
+              <em>Listenform ohne <code>shell=True</code></em> nutzt. Pfade werden als
+              einzelne <code>argv</code>-Elemente an <code>dpkg&nbsp;-S</code> /
+              <code>file&nbsp;-b</code> &uuml;bergeben &mdash; keine Shell-Interpolation,
+              keine Option-Injection (die Werkzeuge erhalten den Pfad als
+              Positionsargument). Kein Command- oder Argument-Injection-Pfad.
+            </p>
+          </div>
+          <div class="finding-verdict pass">
+            <strong>Ergebnis:</strong> Kein Finding. Die neuen Hilfskommandos sind
+            gegen Shell- und Argument-Injection abgesichert.
+          </div>
+        </div>
+
+        <!-- K4 -->
+        <div class="finding-card">
+          <div class="finding-header">
+            <h3>K4 &mdash; <code>cp&nbsp;-a</code> auf die RKHunter-Referenzdatenbank</h3>
+            <span class="badge badge-ok">Kein Finding</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Datei:</strong> <code>netmon/core/rkhunter_manager.py</code>
+              &mdash; <code>backup_property_database()</code> /
+              <code>restore_property_database()</code>.</p>
+            <p>
+              Beide Funktionen kopieren die rkhunter-Referenz-DB per
+              <code>sudo&nbsp;-n&nbsp;cp&nbsp;-a</code>. Gepr&uuml;ft wurde, ob der
+              Ziel-/Quellpfad manipuliert werden kann.
+            </p>
+            <p>
+              <strong>Bewertung:</strong> Beide Pfade laufen zuerst durch
+              <code>_normalize_allowed_path(&hellip;,&nbsp;allow_prop_db=True)</code>,
+              das <code>os.realpath()</code> anwendet und ausschlie&szlig;lich die
+              zwei fest kodierten Zielpfade (<code>rkhunter.dat</code> und
+              <code>&hellip;.netmon.bak</code>) zul&auml;sst; alles andere liefert
+              einen leeren String und die Operation bricht mit
+              &bdquo;Nicht erlaubter rkhunter-Datenbankpfad&ldquo; ab. Vor der
+              Wiederherstellung wird zudem die Existenz des NetMon-Backups
+              (<code>test&nbsp;-f</code>) verlangt. Fail-closed, keine
+              Pfad-Traversal.
+            </p>
+          </div>
+          <div class="finding-verdict pass">
+            <strong>Ergebnis:</strong> Kein Finding. Die Referenz-Sicherung ist
+            fail-closed auf eine feste Pfad-Allowlist begrenzt.
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Umgesetzte Härtungen ── -->
+      <div class="audit-section" id="hardening">
+        <h2>Umgesetzte H&auml;rtungsma&szlig;nahmen (Runde&nbsp;7)</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:24px;">
+          Auch ohne best&auml;tigtes ausnutzbares Finding wurden die beiden
+          risikoreduzierenden Kandidaten direkt geschlossen &mdash; jeweils
+          fail-closed, empirisch gegengepr&uuml;ft und mit Regressionstest.
+        </p>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128274;</div>
+          <div class="fixed-body">
+            <h4>Konservativeres <code>propupd</code>-Gate &mdash; <code>rkhunter_analysis_service.py</code></h4>
+            <p>
+              <code>_EXPECTED_CONFIG_RE</code> nutzt statt der <code>.conf</code>-
+              Wildcard eine explizite Whitelist bekannter Konfigurationsdateien;
+              <code>_DEVELOPER_ENV_RE</code> ist mit Wortgrenzen und
+              Pfadsegment-Ankern versehen. Eine nicht paketverwaltete
+              <code>/etc</code>-&Auml;nderung f&auml;llt jetzt nach
+              <code>review</code> &mdash; das Gate bleibt fail-closed
+              (<code>propupd_allowed=False</code>).
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#9989;</div>
+          <div class="fixed-body">
+            <h4>Owner-/Rechte-Pr&uuml;fung der ClamAV-Signaturdatenbank &mdash; <code>clamav_controller.py</code></h4>
+            <p>
+              <code>_clamav_database_dir_is_secure()</code> l&auml;sst
+              <code>clamscan&nbsp;--database</code> nur auf ein Verzeichnis zeigen,
+              das dem aktuellen Nutzer geh&ouml;rt, kein Symlink ist und keine
+              Gruppen-/Welt-Rechte tr&auml;gt (<code>&amp;&nbsp;0o077&nbsp;==&nbsp;0</code>).
+              Das <code>/tmp</code>-Vorbelegungs-Szenario ist damit geschlossen.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#129514;</div>
+          <div class="fixed-body">
+            <h4>Neue Regressionstests &mdash; 59&nbsp;/&nbsp;59 gr&uuml;n</h4>
+            <p>
+              <code>test_rkhunter_analysis_service.py</code> und
+              <code>test_clamav_controller.py</code> wurden um Tests f&uuml;r die
+              versch&auml;rfte Klassifizierung bzw. die Verzeichnis-Sicherheitspr&uuml;fung
+              erweitert. Alle relevanten Suiten bestehen nach den H&auml;rtungen
+              vollst&auml;ndig.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Geprüfte Kategorien ── -->
+      <div class="audit-section" id="kategorien">
+        <h2>Gepr&uuml;fte Sicherheitskategorien</h2>
+        <div class="section-rule"></div>
+        <table class="scope-table">
+          <thead>
+            <tr>
+              <th>Kategorie</th>
+              <th>Gepr&uuml;ft</th>
+              <th>Ergebnis</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Command Injection (subprocess, <code>shell=True</code>)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Argument Injection (Pfade aus rkhunter-Ausgabe an <code>dpkg</code>/<code>file</code>)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (K3, list-form)</span></td>
+            </tr>
+            <tr>
+              <td>Path Traversal (<code>cp&nbsp;-a</code> der Referenz-DB)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (K4, fail-closed)</span></td>
+            </tr>
+            <tr>
+              <td>Sicherheitskontroll-Umgehung (<code>propupd</code>-Gate zu permissiv)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">K1 &rarr; geh&auml;rtet (Whitelist)</span></td>
+            </tr>
+            <tr>
+              <td>Signatur-/Datenbank-Vertrauen (ClamAV <code>--database</code>)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">K2 &rarr; geh&auml;rtet (Owner/Rechte)</span></td>
+            </tr>
+            <tr>
+              <td>Privilegierte Kommandos (<code>sudo&nbsp;-n</code> Umfang &amp; Argumente)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>TOCTOU / Symlink bei Verzeichniserstellung</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (<code>_safe_makedirs_no_symlink</code>)</span></td>
+            </tr>
+            <tr>
+              <td>Unsichere Deserialisierung (pickle, yaml.load, eval)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Persistierte Konfiguration (Schnellscan-Pfade in Settings)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (normalisiert/validiert)</span></td>
+            </tr>
+            <tr>
+              <td>Hardcoded Credentials / API-Keys</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Sensitive Data Exposure (PII in Logs)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ── Signatur ── -->
+      <div class="signature-block">
+        <p>
+          <strong>Auditor:</strong> Claude Fable&nbsp;5 (Anthropic) &mdash;
+          Analyse-Sub-Agent + False-Positive-Validierung mit empirischer Reproduktion
+          am realen Modul<br>
+          <strong>Projektverantwortlicher:</strong> Sven Fr&ouml;hlich<br>
+          <strong>Datum:</strong> 17.&nbsp;Juli&nbsp;2026<br>
+          <strong>Analysierter Codestand:</strong>
+          <code>c2087b63</code> + Arbeitsstand (modified/untracked), Fokus
+          RKHunter-Referenzuebernahme, deterministische Analyse &amp;
+          ClamAV-Datenbankwahl &mdash; Runde&nbsp;7<br>
+          <strong>Methode:</strong> Statische Code-Analyse + manuelle
+          Datenfluss-Verifikation + empirische Reproduktion des
+          Klassifizierer-Verhaltens + Konfidenz-gescorte FP-Validierung +
+          Umsetzung der beiden H&auml;rtungen mit empirischer Gegenpr&uuml;fung +
+          Regressionstests (59/59 relevante Tests bestanden)
+          &mdash; kein Laufzeit-Penetrationstest<br>
+          <strong>Haftungsausschluss:</strong> Dieses Audit ersetzt keinen professionellen
+          Penetrationstest durch eine zertifizierte Sicherheitsfirma. Die Analyse
+          beschr&auml;nkt sich auf den angegebenen Codestand. Nicht erfasst werden:
+          Laufzeitverhalten, abh&auml;ngige Systembibliotheken,
+          Netzwerkkonfiguration und soziale Angriffsvektoren.
+        </p>
+        <p style="margin-top:16px;">
+          <a href="./downloads.html" style="color:var(--accent);">Zur Downloadseite</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./aktuelles.html" style="color:var(--accent);">Aktuelles</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./docs.html" style="color:var(--accent);">Dokumentation</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./security-audit-r6.html" style="color:var(--accent);">Runde&nbsp;6</a>
+        </p>
+      </div>
+    </main>
+
+    <footer style="margin-top:64px;padding:24px 0;border-top:1px solid var(--line);text-align:center;color:var(--muted);font-size:0.85rem;">
+      &copy; 2026 Sven Fr&ouml;hlich &mdash; NetMon Roots &mdash;
+      <a href="./legal.html" style="color:var(--muted);">Lizenz &amp; Credits</a>
+      &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+      <a href="https://github.com/Noogman4/dev-lab" target="_blank" rel="noopener noreferrer" style="color:var(--muted);">GitHub</a>
+    </footer>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>

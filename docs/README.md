@@ -1,6 +1,6 @@
 # NetMon
 
-Dokumentierter Paket- und App-Stand: `1.1.17`.
+Dokumentierter Paket- und App-Stand: `1.1.19`.
 
 NetMon ist eine Linux-GUI fuer Netzwerk-, DNS-, Firewall-, VPN-, Security-, Radio- und Hilfsfunktionen. Der Startpfad liegt in `netmon/main.py`, die Hauptoberflaeche in `netmon/app.py`, und die Funktionslogik ist in Controller-, Service- und Tab-Module aufgeteilt.
 
@@ -15,16 +15,19 @@ NetMon kombiniert klassische Netzwerk-Werkzeuge, DNS-/DoT-Steuerung, Firewall- u
 - DNS-Funktionen inklusive DNS Guard, DNS-over-TLS-Profilen und Resolver-Pruefungen.
 - Firewall-, UFW-, Killswitch- und Packet-Capture-Funktionen.
 - Security-Monitoring mit Security-Events, Startup Guard, Process Guard, Repository Guard, Roots Baseline Guard, ClamAV, Lynis und RKHunter.
+- ClamAV-Schnellscan mit dauerhaft konfigurierbaren Standard- und eigenen Ordnern, sichtbarer Laufzeit, Abbruchfunktion sowie Fund- und Quarantaeneverwaltung.
+- RKHunter-Auswertung mit deterministischer Risikoklassifizierung, ergaenzender `dpkg -V`-Pruefung und streng geschuetzter manueller Referenzuebernahme.
 - Radio-Modul mit eingebetteter und losgeloester Radio-App, Datenbank-/Favoriten-/Settings-Dateien und optionalem projectM-Visualizer.
 - Theme Studio fuer das Pop-Testprofil inklusive Speichern/Laden von Profilen.
-- Linux-Hilfe, Cleanup Assistant, HDD-/Link-/VPN-Slot-Verwaltung und Chad-Analyse.
+- Linux-Hilfe mit Such-/Glossaransicht, Prompt-Kopie fuer externe PDF-Erstellung und importierbarer PDF-Bibliothek.
+- Cleanup Assistant, HDD-/Link-/VPN-Slot-Verwaltung und Chad-Analyse.
 - Secure Browser fuer getrennte, gehaertete Firefox-Instanzen pro Webdienst mit Sicherheitsprofilen, Domain-Whitelist, Dry-Run und verwalteten Cookie-/Login-Optionen.
 - Gefuehrte Touren im Setup, einschliesslich einer zweisprachigen Secure-Browser-Tour mit ausfuehrlicher Datenschutz- und Grenzen-Erklaerung.
 - VPN-Profilverwaltung mit konsistenter Slot-/Privacy-Bereinigung und automatischer Aktualisierung der oeffentlichen IP nach einem Profilwechsel.
 - About-Dialog mit Online-Versionspruefung gegen `netmonroots.com` und automatischer Weiterleitung auf die Downloadseite bei neueren Website-Releases.
 - Support-/Diagnosebereich mit lokalem Supportpaket-Export und sichtbarem Datenschutzhinweis vor dem Versand.
 - Paketierter Deinstaller mit optionaler Bereinigung von NetMon-, WireGuard-, NetworkManager- und Testsystem-Resten.
-- Aktueller Security-Audit-Stand fuer die Produktdoku: Runde 4 auf Basis von `1.1.15`.
+- Aktueller Security-Audit-Stand fuer die Produktdoku: Runde 9 auf Basis des finalen Release-Stands `1.1.19`.
 
 ## Screenshots
 
@@ -50,7 +53,7 @@ NetMon kombiniert klassische Netzwerk-Werkzeuge, DNS-/DoT-Steuerung, Firewall- u
 
 ### Debian-Paketstand
 
-- Aktueller Test-/Paketstand in diesem Repository: `1.1.17`
+- Aktueller Test-/Paketstand in diesem Repository: `1.1.19`
 - Build-Skript: `scripts/build_netmon_deb.sh`
 - Ergebnisdatei: `dist/netmon_<version>_all.deb`
 - Harte Laufzeitabhaengigkeiten im Paket: `udisks2`, `cryptsetup`
@@ -62,7 +65,7 @@ NetMon kombiniert klassische Netzwerk-Werkzeuge, DNS-/DoT-Steuerung, Firewall- u
   - `netmon.png`
   - `netmon-radio.png` als Radio-spezifisches Asset
   - Secure-Browser-Manager und dessen Builder-/Policy-Ressourcen
-  - aktuelle HTML-/PDF-Dokumentation fuer Version `1.1.17`
+  - aktuelle HTML-/PDF-Dokumentation fuer Version `1.1.19`
 
 ### Beispiel-Setup unter Linux
 

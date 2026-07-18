@@ -2,6 +2,9 @@ from netmon.features import speedtest_controller
 from netmon.modules.speedtest import (
     format_speedtest_summary,
     format_speedtest_table,
+    list_speedtest_servers,
+    normalize_speedtest_server_id,
+    parse_speedtest_servers,
     run_speedtest,
 )
 from types import SimpleNamespace
@@ -84,11 +87,208 @@ def test_run_speedtest_falls_back_to_speedtest_cli():
     assert round(result["upload_mbps"], 1) == 11.7
 
 
+def test_run_speedtest_normalizes_server_id_label_before_cli_call():
+    calls = []
+
+    def fake_run_cmd(args, timeout=120):
+        calls.append(tuple(args))
+        return 0, '{"ping":21.3,"download":40200000,"upload":11700000}'
+
+    result, err = run_speedtest(
+        fake_run_cmd,
+        lambda name: name == "speedtest-cli",
+        server_id="ID 44081",
+    )
+
+    assert err is None
+    assert result is not None
+    assert calls == [("speedtest-cli", "--json", "--secure", "--server", "44081")]
+
+
+def test_run_speedtest_uses_ookla_server_id_option():
+    calls = []
+
+    def fake_run_cmd(args, timeout=120):
+        calls.append(tuple(args))
+        return (
+            0,
+            '{"ping":{"latency":21.3},"download":{"bandwidth":1},'
+            '"upload":{"bandwidth":1}}',
+        )
+
+    result, err = run_speedtest(
+        fake_run_cmd,
+        lambda name: name == "speedtest",
+        server_id="18667",
+    )
+
+    assert err is None
+    assert result is not None
+    assert calls[0][-1] == "--server-id=18667"
+
+
+def test_run_speedtest_retries_fixed_legacy_server_without_secure():
+    calls = []
+
+    def fake_run_cmd(args, timeout=120):
+        calls.append(tuple(args))
+        if "--secure" in args:
+            return 1, "ERROR: No matched servers: 18667"
+        return 0, '{"ping":21.3,"download":40200000,"upload":11700000}'
+
+    result, err = run_speedtest(
+        fake_run_cmd,
+        lambda name: name == "speedtest-cli",
+        server_id="18667",
+    )
+
+    assert err is None
+    assert result is not None
+    assert calls == [
+        ("speedtest-cli", "--json", "--secure", "--server", "18667"),
+        ("speedtest-cli", "--json", "--server", "18667"),
+    ]
+
+
 def test_run_speedtest_returns_error_when_no_cli_found():
     result, err = run_speedtest(lambda *_args, **_kwargs: (1, "x"), lambda _n: False)
 
     assert result is None
     assert "Kein Speedtest-CLI gefunden" in err
+
+
+def test_parse_speedtest_servers_reads_ookla_json_with_location():
+    servers = parse_speedtest_servers(
+        '{"servers":[{"id":12345,"name":"Example Net",'
+        '"location":"Ulm","country":"Germany","host":"speed.example"}]}'
+    )
+
+    assert servers == [
+        {
+            "id": "12345",
+            "name": "Example Net",
+            "location": "Ulm",
+            "country": "Germany",
+            "distance": "",
+            "host": "speed.example",
+        }
+    ]
+
+
+def test_parse_speedtest_servers_reads_speedtest_cli_list_with_distance():
+    servers = parse_speedtest_servers(
+        "12345) Example Net (Ulm, Germany) [12.34 km]\n"
+        "67890) Other Provider (Augsburg, Germany) [67.8 km]"
+    )
+
+    assert servers[0] == {
+        "id": "12345",
+        "name": "Example Net",
+        "location": "Ulm",
+        "country": "Germany",
+        "distance": "12.34 km",
+        "host": "",
+    }
+    assert servers[1]["location"] == "Augsburg"
+
+
+def test_list_speedtest_servers_falls_back_to_list_command_and_limits_results():
+    calls = []
+
+    def fake_run_cmd(args, timeout=60):
+        calls.append((tuple(args), timeout))
+        if args == ["speedtest", "--list"]:
+            return (
+                0,
+                "12345) Example Net (Ulm, Germany) [12.34 km]\n"
+                "67890) Other Provider (Augsburg, Germany) [67.8 km]",
+            )
+        return 1, "unsupported option"
+
+    servers, error = list_speedtest_servers(
+        fake_run_cmd,
+        lambda name: name == "speedtest",
+        timeout=33,
+        limit=1,
+    )
+
+    assert error is None
+    assert [server["id"] for server in servers] == ["12345"]
+    assert calls[-1] == (("speedtest", "--list"), 33)
+
+
+def test_list_speedtest_servers_reports_missing_cli():
+    servers, error = list_speedtest_servers(
+        lambda *_args, **_kwargs: (1, "unexpected"),
+        lambda _name: False,
+    )
+
+    assert servers == []
+    assert "Kein Speedtest-CLI" in error
+
+
+def test_speedtest_server_log_line_contains_id_provider_and_place():
+    app = SimpleNamespace(tr=lambda _key, default: default)
+
+    line = speedtest_controller._speedtest_server_log_line(
+        app,
+        {
+            "id": "12345",
+            "name": "Example Net",
+            "location": "Ulm",
+            "country": "Germany",
+            "distance": "12.34 km",
+        },
+    )
+
+    assert line == (
+        "ID 12345 | Anbieter: Example Net | Ort: Ulm, Germany" " | Entfernung: 12.34 km"
+    )
+
+
+def test_normalize_speedtest_server_id_accepts_id_label_and_log_line():
+    assert normalize_speedtest_server_id("44081") == "44081"
+    assert normalize_speedtest_server_id("ID 44081") == "44081"
+    assert normalize_speedtest_server_id("Server-ID: 44081") == "44081"
+    assert normalize_speedtest_server_id("ID 44081 | Anbieter: Example") == "44081"
+    assert (
+        normalize_speedtest_server_id(
+            "[2026-07-17 16:39:59] ID 44081 | Anbieter: Example"
+        )
+        == "44081"
+    )
+
+
+def test_configured_speedtest_server_id_normalizes_saved_value():
+    app = SimpleNamespace(speedtest_server_id_var=DummyVar("ID 44081"))
+
+    assert speedtest_controller.configured_speedtest_server_id(app) == "44081"
+
+
+def test_normalize_speedtest_server_id_rejects_invalid_text():
+    assert normalize_speedtest_server_id("Example 44081") == ""
+    assert speedtest_controller.normalize_speedtest_server_id("--help") == ""
+
+
+def test_prepare_speedtest_server_log_opens_and_clears_log():
+    events = []
+    log_tab = object()
+
+    class DummyNotebook:
+        def select(self, tab):
+            events.append(("select", tab))
+
+    app = SimpleNamespace(
+        nb=DummyNotebook(),
+        tab_log=log_tab,
+        log_overlay_active=True,
+        toggle_log_overlay=lambda: events.append("toggle_overlay"),
+        clear_log=lambda: events.append("clear_log"),
+    )
+
+    speedtest_controller._prepare_speedtest_server_log(app)
+
+    assert events == [("select", log_tab), "toggle_overlay", "clear_log"]
 
 
 def test_format_speedtest_summary_human_readable():

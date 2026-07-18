@@ -5,7 +5,6 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
-
 ROOTS_GUARD_INITIAL_ENABLED_AREAS = {
     "SSH Konfiguration",
     "SSH Schlüssel / authorized_keys",
@@ -570,7 +569,6 @@ def build_repository_guard_tab(app):
     action_frame = ttk.LabelFrame(
         app.repository_guard_pane,
         text=app.tr("repository_guard_group_actions", "Preparation"),
-
         padding=8,
     )
 
@@ -626,7 +624,6 @@ def build_repository_guard_tab(app):
     app.btn_repository_guard_scan = ttk.Button(
         top_actions_row,
         text=app.tr("repository_guard_btn_scan", "Repository scan"),
-
         command=app.run_repository_guard_scan,
     )
     app.btn_repository_guard_scan.pack(side="left")
@@ -839,10 +836,20 @@ def build_repository_guard_tab(app):
     for col, title, width, anchor in [
         ("state", app.tr("repository_guard_col_state", "Status"), 90, "center"),
         ("type", app.tr("repository_guard_col_type", "Typ"), 80, "center"),
-        ("trust", app.tr("repository_guard_trust_label", "Vertrauen").rstrip(":"), 95, "center"),
+        (
+            "trust",
+            app.tr("repository_guard_trust_label", "Vertrauen").rstrip(":"),
+            95,
+            "center",
+        ),
         ("host", "Host", 180, "w"),
         ("suite", "Suite", 110, "w"),
-        ("components", app.tr("repository_guard_col_components", "Komponenten"), 180, "w"),
+        (
+            "components",
+            app.tr("repository_guard_col_components", "Komponenten"),
+            180,
+            "w",
+        ),
         ("uri", "URI", 300, "w"),
         ("file", app.tr("repository_guard_col_file", "Datei"), 300, "w"),
     ]:
@@ -876,7 +883,12 @@ def build_repository_guard_tab(app):
     for col, title, width, anchor in [
         ("severity", app.tr("repository_guard_col_severity", "Schwere"), 100, "center"),
         ("code", "Code", 220, "w"),
-        ("summary", app.tr("repository_guard_col_summary", "Zusammenfassung"), 520, "w"),
+        (
+            "summary",
+            app.tr("repository_guard_col_summary", "Zusammenfassung"),
+            520,
+            "w",
+        ),
     ]:
         app.repository_guard_findings_tree.heading(col, text=title)
         app.repository_guard_findings_tree.column(col, width=width, anchor=anchor)
@@ -966,7 +978,9 @@ def build_repository_guard_tab(app):
     )
     app.btn_repository_guard_reset_trustlist = ttk.Button(
         trust_row,
-        text=app.tr("repository_guard_btn_reset_trustlist", "Vertrauensliste zurücksetzen"),
+        text=app.tr(
+            "repository_guard_btn_reset_trustlist", "Vertrauensliste zurücksetzen"
+        ),
         command=app.reset_repository_guard_trustlist,
     )
     app.btn_repository_guard_reset_trustlist.pack(side="left", padx=(8, 0))
@@ -1504,7 +1518,10 @@ def build_roots_baseline_guard_tab(app):
         ),
         (
             "Anfängerfreundlich erklären",
-            app.tr("roots_chad_option_beginner_friendly", "Explain in a beginner-friendly way"),
+            app.tr(
+                "roots_chad_option_beginner_friendly",
+                "Explain in a beginner-friendly way",
+            ),
         ),
         (
             "Handlungsempfehlungen anzeigen",
@@ -1571,7 +1588,9 @@ def build_roots_baseline_guard_tab(app):
         app.tr("roots_history_last_baseline_default", "Last baseline: not created yet"),
         app.tr("roots_history_last_check_default", "Last check: not performed yet"),
         app.tr("roots_history_found_changes", "Found changes: {count}").format(count=0),
-        app.tr("roots_history_accepted_changes", "Accepted changes: {count}").format(count=0),
+        app.tr("roots_history_accepted_changes", "Accepted changes: {count}").format(
+            count=0
+        ),
     ):
         app.roots_baseline_guard_history_list.insert("end", item)
     app.attach_selection_copy_shortcuts(
@@ -1596,11 +1615,15 @@ def build_roots_baseline_guard_tab(app):
         ),
         (
             "Paketupdates niedriger einstufen",
-            app.tr("roots_trust_option_lower_package_updates", "Rate package updates lower"),
+            app.tr(
+                "roots_trust_option_lower_package_updates", "Rate package updates lower"
+            ),
         ),
         (
             "Benutzer-Whitelist berücksichtigen",
-            app.tr("roots_trust_option_respect_user_whitelist", "Respect user whitelist"),
+            app.tr(
+                "roots_trust_option_respect_user_whitelist", "Respect user whitelist"
+            ),
         ),
         (
             "Wiederkehrende harmlose Änderungen minimieren",
@@ -1749,7 +1772,9 @@ def build_firewall_tab(app):
         value=app.tr("firewall_status_listener_count_default", "Lokale Listener: 0")
     )
     app.firewall_tab_last_check_var = tk.StringVar(
-        value=app.tr("firewall_status_last_check_default", "Letzter Check: Noch kein Check")
+        value=app.tr(
+            "firewall_status_last_check_default", "Letzter Check: Noch kein Check"
+        )
     )
 
     frame = app.tab_firewall
@@ -1853,9 +1878,7 @@ def build_firewall_tab(app):
         text=app.tr("btn_firewall_status", "Firewall Status"),
         command=app.show_firewall_status_clean,
     )
-    app.btn_firewall_status.grid(
-        row=0, column=2, sticky="ew", padx=(6, 0), pady=(0, 6)
-    )
+    app.btn_firewall_status.grid(row=0, column=2, sticky="ew", padx=(6, 0), pady=(0, 6))
 
     app.firewall_logging_button = tk.Menubutton(
         quick_group,
@@ -1892,9 +1915,7 @@ def build_firewall_tab(app):
         text=app.tr("btn_last_scan", "Letzter Scan"),
         command=app.show_firewall_port_reality_last,
     )
-    app.btn_firewall_last_scan.grid(
-        row=1, column=2, sticky="ew", padx=(6, 0), pady=6
-    )
+    app.btn_firewall_last_scan.grid(row=1, column=2, sticky="ew", padx=(6, 0), pady=6)
     app.btn_firewall_refresh_table = ttk.Button(
         quick_group,
         text=app.tr("security_btn_refresh_table", "Tabelle aktualisieren"),
@@ -2577,9 +2598,7 @@ def build_security_tabs(app):
         command=app.analyze_selected_process_guard_with_chad,
         width=28,
     )
-    app.btn_process_guard_selected_chad.grid(
-        row=0, column=2, sticky="ew", padx=(6, 0)
-    )
+    app.btn_process_guard_selected_chad.grid(row=0, column=2, sticky="ew", padx=(6, 0))
 
     process_guard_btn_row3 = ttk.Frame(process_guard_frame)
     process_guard_btn_row3.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(6, 0))
@@ -2631,7 +2650,9 @@ def build_security_tabs(app):
         command=app.reset_process_guard_trustlist,
         width=28,
     )
-    app.btn_process_guard_reset_trustlist.grid(row=0, column=2, sticky="ew", padx=(6, 0))
+    app.btn_process_guard_reset_trustlist.grid(
+        row=0, column=2, sticky="ew", padx=(6, 0)
+    )
     app.add_tooltip(
         app.btn_process_guard_reset_trustlist,
         app.tr(
@@ -2804,37 +2825,35 @@ def build_security_tabs(app):
         row=0, column=3, sticky="w", padx=(8, 0)
     )
 
-    ttk.Label(clamav_status, text=app.tr("clamav_label_signatures", "Signaturen:")).grid(
-        row=1, column=0, sticky="w", pady=(2, 0)
-    )
+    ttk.Label(
+        clamav_status, text=app.tr("clamav_label_signatures", "Signaturen:")
+    ).grid(row=1, column=0, sticky="w", pady=(2, 0))
     ttk.Label(clamav_status, textvariable=app.clamav_signatures_var).grid(
         row=1, column=1, sticky="w", padx=(8, 12), pady=(2, 0)
     )
     ttk.Label(
         clamav_status, text=app.tr("clamav_label_scanned_files", "Dateien gescannt:")
-    ).grid(
-        row=1, column=2, sticky="w", pady=(2, 0)
-    )
+    ).grid(row=1, column=2, sticky="w", pady=(2, 0))
     ttk.Label(clamav_status, textvariable=app.clamav_scanned_files_var).grid(
         row=1, column=3, sticky="w", padx=(8, 0), pady=(2, 0)
     )
 
-    ttk.Label(clamav_status, text=app.tr("clamav_label_last_scan", "Letzter Scan:")).grid(
-        row=2, column=0, sticky="w", pady=(2, 0)
-    )
+    ttk.Label(
+        clamav_status, text=app.tr("clamav_label_last_scan", "Letzter Scan:")
+    ).grid(row=2, column=0, sticky="w", pady=(2, 0))
     ttk.Label(clamav_status, textvariable=app.clamav_last_scan_var).grid(
         row=2, column=1, sticky="w", padx=(8, 12), pady=(2, 0)
     )
-    ttk.Label(clamav_status, text=app.tr("clamav_label_speed", "Geschwindigkeit:")).grid(
-        row=2, column=2, sticky="w", pady=(2, 0)
-    )
+    ttk.Label(
+        clamav_status, text=app.tr("clamav_label_speed", "Geschwindigkeit:")
+    ).grid(row=2, column=2, sticky="w", pady=(2, 0))
     ttk.Label(clamav_status, textvariable=app.clamav_speed_var).grid(
         row=2, column=3, sticky="w", padx=(8, 0), pady=(2, 0)
     )
 
-    ttk.Label(clamav_status, text=app.tr("clamav_label_last_target", "Letztes Ziel:")).grid(
-        row=3, column=0, sticky="w", pady=(2, 0)
-    )
+    ttk.Label(
+        clamav_status, text=app.tr("clamav_label_last_target", "Letztes Ziel:")
+    ).grid(row=3, column=0, sticky="w", pady=(2, 0))
     ttk.Label(clamav_status, textvariable=app.clamav_last_target_var).grid(
         row=3, column=1, sticky="w", padx=(8, 12), pady=(2, 0)
     )
@@ -2872,9 +2891,7 @@ def build_security_tabs(app):
         text=app.tr("clamav_btn_update", "ClamAV Update"),
         command=app.security_clamav_update_async,
     )
-    app.btn_clamav_update.grid(
-        row=0, column=0, sticky="ew", padx=(0, 6), pady=(0, 6)
-    )
+    app.btn_clamav_update.grid(row=0, column=0, sticky="ew", padx=(0, 6), pady=(0, 6))
     app.register_feature_button("clamav_update", app.btn_clamav_update)
     app.add_tooltip(
         app.btn_clamav_update,
@@ -2904,9 +2921,7 @@ def build_security_tabs(app):
         text=app.tr("clamav_btn_scan_folder", "ClamAV Ordner scannen"),
         command=app.security_clamav_folder_scan_async,
     )
-    app.btn_clamav_folder.grid(
-        row=0, column=2, sticky="ew", padx=(6, 0), pady=(0, 6)
-    )
+    app.btn_clamav_folder.grid(row=0, column=2, sticky="ew", padx=(6, 0), pady=(0, 6))
     app.register_feature_button("clamav_scan", app.btn_clamav_folder)
     app.add_tooltip(
         app.btn_clamav_folder,
@@ -2921,15 +2936,28 @@ def build_security_tabs(app):
         text=app.tr("clamav_btn_systemscan", "Systemscan"),
         command=app.security_clamav_systemscan_async,
     )
-    app.btn_clamav_system.grid(
-        row=1, column=0, sticky="ew", padx=(0, 6), pady=(6, 0)
-    )
+    app.btn_clamav_system.grid(row=1, column=0, sticky="ew", padx=(0, 6), pady=(6, 0))
     app.register_feature_button("clamav_scan", app.btn_clamav_system)
     app.add_tooltip(
         app.btn_clamav_system,
         app.tr(
             "tooltip_clamav_system",
             "Startet einen erweiterten ClamAV-Systemscan auf sinnvollen Standardpfaden.",
+        ),
+    )
+
+    app.btn_clamav_quick_paths = ttk.Button(
+        clamav_scan,
+        text=app.tr("clamav_btn_quick_paths", "Schnellscan-Pfade"),
+        command=app.configure_clamav_quickscan_paths,
+    )
+    app.btn_clamav_quick_paths.grid(row=1, column=1, sticky="ew", padx=6, pady=(6, 0))
+    app.register_feature_button("clamav_scan", app.btn_clamav_quick_paths)
+    app.add_tooltip(
+        app.btn_clamav_quick_paths,
+        app.tr(
+            "tooltip_clamav_quick_paths",
+            "Legt fest, welche Standardordner und eigenen Pfade der ClamAV-Schnellscan prüft.",
         ),
     )
 

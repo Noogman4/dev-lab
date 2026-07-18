@@ -297,6 +297,7 @@ def build_linux_help_tab(app):
     bottom_pane = ttk.Frame(app.linux_help_main_pane, padding=(0, 6, 0, 0))
     bottom_pane.columnconfigure(0, weight=1)
     bottom_pane.rowconfigure(0, weight=1)
+    bottom_pane.rowconfigure(1, weight=1)
     app.linux_help_main_pane.add(bottom_pane, weight=2)
 
     explanation_frame = ttk.LabelFrame(
@@ -326,9 +327,105 @@ def build_linux_help_tab(app):
     app.linux_help_text.configure(yscrollcommand=detail_scroll.set)
     app.attach_chad_context_menu(app.linux_help_text, "Linux command database")
 
+    documents_frame = ttk.LabelFrame(
+        bottom_pane,
+        text=app.tr("linux_help_group_documents", "PDF documentation library"),
+        padding=8,
+    )
+    documents_frame.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
+    documents_frame.columnconfigure(0, weight=0)
+    documents_frame.columnconfigure(1, weight=1)
+    documents_frame.rowconfigure(1, weight=1)
+
+    documents_actions = ttk.Frame(documents_frame)
+    documents_actions.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 8))
+    for column in range(4):
+        documents_actions.columnconfigure(column, weight=1)
+
+    app.btn_linux_help_import_pdf = ttk.Button(
+        documents_actions,
+        text=app.tr("linux_help_btn_import_pdf", "PDF importieren"),
+        command=app.import_linux_help_pdf_dialog,
+    )
+    app.btn_linux_help_import_pdf.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+    app.btn_linux_help_reload_docs = ttk.Button(
+        documents_actions,
+        text=app.tr("btn_reload", "Reload"),
+        command=app.reload_linux_help_documents,
+    )
+    app.btn_linux_help_reload_docs.grid(row=0, column=1, sticky="ew", padx=(0, 8))
+    app.btn_linux_help_open_pdf = ttk.Button(
+        documents_actions,
+        text=app.tr("linux_help_btn_open_pdf", "PDF oeffnen"),
+        command=app.open_selected_linux_help_pdf,
+    )
+    app.btn_linux_help_open_pdf.grid(row=0, column=2, sticky="ew", padx=(0, 8))
+    app.btn_linux_help_open_docs_folder = ttk.Button(
+        documents_actions,
+        text=app.tr("linux_help_btn_open_docs_folder", "Ordner oeffnen"),
+        command=app.open_linux_help_documents_folder,
+    )
+    app.btn_linux_help_open_docs_folder.grid(row=0, column=3, sticky="ew")
+
+    documents_list_frame = ttk.Frame(documents_frame)
+    documents_list_frame.grid(row=1, column=0, sticky="nsew", padx=(0, 8))
+    documents_list_frame.columnconfigure(0, weight=1)
+    documents_list_frame.rowconfigure(0, weight=1)
+
+    app.linux_help_documents_listbox = tk.Listbox(
+        documents_list_frame,
+        exportselection=False,
+        height=8,
+    )
+    app.linux_help_documents_listbox.grid(row=0, column=0, sticky="nsew")
+    app.linux_help_documents_listbox.bind(
+        "<<ListboxSelect>>",
+        app.on_linux_help_document_select,
+    )
+    app.linux_help_documents_listbox.bind(
+        "<Double-1>",
+        lambda _event: app.open_selected_linux_help_pdf(),
+    )
+    app.linux_help_documents_listbox.bind(
+        "<Button-3>",
+        app.show_linux_help_document_menu,
+    )
+    documents_list_scroll = ttk.Scrollbar(
+        documents_list_frame,
+        orient="vertical",
+        command=app.linux_help_documents_listbox.yview,
+    )
+    documents_list_scroll.grid(row=0, column=1, sticky="ns")
+    app.linux_help_documents_listbox.configure(yscrollcommand=documents_list_scroll.set)
+
+    documents_preview_frame = ttk.Frame(documents_frame)
+    documents_preview_frame.grid(row=1, column=1, sticky="nsew")
+    documents_preview_frame.columnconfigure(0, weight=1)
+    documents_preview_frame.rowconfigure(0, weight=1)
+
+    app.linux_help_documents_text = tk.Text(
+        documents_preview_frame,
+        wrap="word",
+        height=8,
+        relief="flat",
+        bd=0,
+    )
+    app.linux_help_documents_text.grid(row=0, column=0, sticky="nsew")
+    documents_preview_scroll = ttk.Scrollbar(
+        documents_preview_frame,
+        orient="vertical",
+        command=app.linux_help_documents_text.yview,
+    )
+    documents_preview_scroll.grid(row=0, column=1, sticky="ns")
+    app.linux_help_documents_text.configure(
+        yscrollcommand=documents_preview_scroll.set,
+        state="disabled",
+    )
+
     _install_vertical_pane_drag_markers(
         app.tab_linux_help,
         app.linux_help_main_pane,
         min_pane_size=180,
     )
     app.reload_linux_help_data()
+    app.reload_linux_help_documents()

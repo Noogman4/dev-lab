@@ -61,6 +61,7 @@ Wenn beim GUI-Start `tkinter` fehlt, verweist `netmon/main.py` auf `sudo apt ins
 - **Beschreibung:** Die Oberflaechen entstehen in `netmon/ui/tabs/security_tabs.py`; die Logik steckt in separaten Controllern.
 - **Screenshot-Platzhalter:** Screenshot-Platzhalter: Security-Notebook mit Firewall- und Monitoring-Ansicht.
 - **Typische Anwendung:** Typische Nutzung: UFW-Status pruefen, Security-Logs sichten, Baselines erstellen, Paketmitschnitte starten.
+- **VPN/UFW-Hinweis:** Nach einem erfolgreichen VPN-Profilwechsel synchronisiert NetMon die referenzierten Interface- und UDP-Endpoint-Regeln wieder mit UFW, auch wenn der Killswitch aus ist.
 
 ### Radio
 
@@ -68,6 +69,7 @@ Wenn beim GUI-Start `tkinter` fehlt, verweist `netmon/main.py` auf `sudo apt ins
 - **Beschreibung:** Funktionen liegen in `netmon/netmon_radio_app.py`, `netmon/netmon_radio_core.py` und `netmon/features/radio_controller.py`.
 - **Screenshot-Platzhalter:** Screenshot-Platzhalter: Radio-Tab mit aktueller Station und projectM.
 - **Typische Anwendung:** Typische Nutzung: Senderdatenbank laden, Station abspielen, Favoriten pflegen, Player losloesen.
+- **Standalone-Verhalten:** Das losgeloeste externe Radio startet nur noch im Darkmode; dort gibt es keine Theme-Umschaltung mehr.
 
 ### Chat / Chad
 
@@ -91,6 +93,14 @@ Wenn beim GUI-Start `tkinter` fehlt, verweist `netmon/main.py` auf `sudo apt ins
 - Beim Loeschen eines Profils bereinigt NetMon normale VPN-Slots, primaere VPN-Slots und die Privacy-VPN-Auswahl, sofern sie auf dieses Profil verweisen.
 - Nach einem erfolgreichen Profilwechsel fragt NetMon die oeffentliche IP und das Exit-Land neu ab. Die VPN-Ampel im Kernstatus wird nach Abschluss der Abfrage automatisch aktualisiert.
 
+### Speedtest und Server-ID
+
+- Das optionale Feld `Server-ID` legt einen festen Speedtest-Server fest. Ein leeres Feld verwendet die automatische Serverauswahl des installierten Speedtest-CLI.
+- Der Bedienblock ist vertikal aufgebaut: oben `Server-ID`, darunter `Speichern`, dann `Server-IDs abrufen`, `Speedtest starten` und `Speedtest-Verlauf`.
+- `Server-IDs abrufen` fragt asynchron bis zu 20 verfuegbare beziehungsweise nahe Server ab und schreibt ID, Anbieter, Ort, Land und vorhandene Entfernungsangaben in das NetMon-Log.
+- Die gewuenschte ID kann anschliessend in das Feld `Server-ID` eingetragen und mit `Speichern` uebernommen werden. Die Abfrage traegt keine ID automatisch ein und startet noch keinen Geschwindigkeitstest.
+- Unterstuetzt werden sowohl das offizielle Ookla-CLI `speedtest` als auch das Python-Werkzeug `speedtest-cli`; die konkret verfuegbare Serverliste wird vom jeweiligen Online-Dienst geliefert.
+
 ### Secure Browser
 
 - **Zweck:** Der Haupttab `Secure Browser` erstellt fuer ausgewaehlte Webdienste getrennte, gehaertete Firefox-Instanzen mit jeweils eigenem Profil.
@@ -111,6 +121,40 @@ Wenn beim GUI-Start `tkinter` fehlt, verweist `netmon/main.py` auf `sudo apt ins
 - **Screenshot-Platzhalter:** Screenshot-Platzhalter: Scan-/Audit-Ansicht.
 - **Typische Anwendung:** Typische Nutzung: Baselines erstellen, Veraenderungen vergleichen, Findings exportieren.
 
+### ClamAV-Scans
+
+- **Schnellscan-Pfade:** `Schnellscan-Pfade` oeffnet einen Dialog fuer die Standardordner `Downloads`, `Desktop`, `Dokumente` und `Documents`. Zusaetzliche eigene Ordner lassen sich hinzufuegen und wieder entfernen.
+- **Speicherung:** Die Auswahl bleibt in den NetMon-Einstellungen erhalten. `Standard` aktiviert wieder alle vorhandenen Standardordner und entfernt die eigenen Eintraege aus der Auswahl.
+- **Ausschluesse:** Beim Schnellscan werden Cache, Papierkorb, Steam-Ordner und Snap-Daten unter dem Benutzerverzeichnis ausgelassen, sofern diese Ordner vorhanden sind.
+- **Scanarten:** Der ClamAV-Bereich bietet Schnellscan, frei gewaehlten Ordnerscan und Systemscan. Der Schnellscan ist nur so klein und schnell wie die dort ausgewaehlten Ordner.
+- **Fortschritt:** Die Laufzeit beginnt mit dem eigentlichen Scan und wird waehrenddessen weitergezaehlt. Die verlaessliche Zahl gescannter Dateien kommt aus der abschliessenden ClamAV-Zusammenfassung; bei ruhiger `--infected`-Ausgabe kann sie waehrend des Laufs noch bei `0` stehen.
+- **Abbruch:** `Scan abbrechen` beendet den laufenden ClamAV-Prozess kontrolliert. Ein Schnellscan hat zusaetzlich ein Zeitlimit von 15 Minuten.
+- **Signaturen:** Ein Update ohne root-Rechte speichert ClamAV-Signaturen unter `XDG_DATA_HOME/netmon/clamav-db` beziehungsweise `~/.local/share/netmon/clamav-db`. NetMon verwendet nur ein eigenes, nicht fuer andere Nutzer zugaengliches Verzeichnis mit vorhandenen `.cvd`- oder `.cld`-Dateien.
+- **Funde:** Erkannte Dateien werden zuerst als Befunde gespeichert. Quarantaene und Wiederherstellung bleiben getrennte, vom Benutzer ausgeloeste Aktionen.
+
+#### Laufenden ClamAV-Scan im Terminal pruefen
+
+```bash
+ps -o pid,etime,%cpu,cmd -C clamscan
+```
+
+`ELAPSED` zeigt die bisherige Laufzeit und `%CPU` die aktuelle Prozessauslastung. Die vollstaendige, nicht abgeschnittene Kommandozeile inklusive Scanpfaden zeigt:
+
+```bash
+ps -efww | grep '[c]lamscan'
+```
+
+Eine hohe CPU-Auslastung bedeutet normalerweise, dass ClamAV noch arbeitet. `clamscan --infected` liefert jedoch keine verlaessliche Live-Dateinummer; die endgueltige Anzahl steht erst nach Abschluss in der Scan-Zusammenfassung.
+
+### RKHunter-Auswertung und Referenzupdate
+
+- **Klassifizierung:** NetMon ordnet relevante RKHunter- und `dpkg -V`-Meldungen als erwartete Systemaenderung, pruefenswert oder kritisch ein.
+- **Ausgabe:** Die Auswertung zeigt Kurzbewertung, relevante Auffaelligkeiten, Risiko, konkrete Handlungsempfehlungen und typische Fehlalarme.
+- **Entwicklerumgebungen:** VS Code, Codex, Dev-Container und Docker werden nur erwaehnt, wenn eine tatsaechliche Warnzeile oder ein weiteres Risikosignal vorliegt.
+- **Referenzupdate:** Der Button `Vertrauenswuerdige Referenz uebernehmen` bleibt deaktiviert, bis ein vollstaendiger Scan niedriges Risiko meldet und `dpkg -V` nur erwartete Aenderungen zeigt.
+- **Bestaetigung:** `sudo rkhunter --propupd` wird ausschliesslich nach einer ausdruecklichen Bestaetigung ausgefuehrt. NetMon startet diesen Befehl niemals automatisch.
+- **Nach dem Update:** Ein erfolgreiches Referenzupdate entzieht die Freigabe sofort. Vor einem weiteren Update ist ein neuer vollstaendiger Scan erforderlich.
+
 ### Logs
 
 - **Zweck:** Der Log-Tab sammelt App-Ausgaben und kann an andere Bereiche gekoppelte Log-Links enthalten.
@@ -128,9 +172,10 @@ Wenn beim GUI-Start `tkinter` fehlt, verweist `netmon/main.py` auf `sudo apt ins
 ### Linux-Hilfe
 
 - **Zweck:** Die Linux-Hilfe zeigt CSV-/JSON-basierte Kommandoeintraege mit Kategorien, Risiken und Details.
-- **Beschreibung:** Der Code enthaelt klare Platzhalter, dass sichere Ausfuehrung und tiefere Terminal-Integration spaeter folgen.
+- **Beschreibung:** Die obere Eintragsliste bietet per Rechtsklick normale Chad-Prompts und den Eintrag `Als Prompt mit PDF`. Dieser PDF-Prompt ist fuer externe Erklaerung und PDF-Erstellung gedacht; NetMon erzeugt diese PDF nicht lokal.
+- **PDF-Bibliothek:** Die untere Bibliothek importiert heruntergeladene PDFs, zeigt Metadaten und Vorschau, oeffnet PDFs per Doppelklick oder Button und erlaubt per Rechtsklick das Loeschen der PDF inklusive JSON-Metadaten.
 - **Screenshot-Platzhalter:** Screenshot-Platzhalter: Linux-Hilfe.
-- **Typische Anwendung:** Typische Nutzung: Kommandoreferenz nachschlagen und fuer spaetere Terminal-Nutzung vorbereiten.
+- **Typische Anwendung:** Typische Nutzung: Befehl nachschlagen, PDF-Prompt kopieren, externe PDF herunterladen und ueber `PDF importieren` in NetMon anzeigen.
 
 ## Fehlerbehebung
 
@@ -139,17 +184,19 @@ Wenn beim GUI-Start `tkinter` fehlt, verweist `netmon/main.py` auf `sudo apt ins
 | GUI startet nicht | `tkinter` fehlt oder `DISPLAY` ist nicht gesetzt (`netmon/main.py`) | `python3-tk` installieren oder `--headless` verwenden; bei Remote-Umgebungen X11/Wayland weiterreichen. |
 | NetMon startet nicht erneut | Instanz-Lock aktiv (`acquire_netmon_instance_lock`) | Laufende Instanz beenden oder alten Prozess pruefen. |
 | Onlineanalyse funktioniert nicht | `OPENAI_API_KEY` fehlt (`AiOnlineService`) | API-Key als Umgebungsvariable setzen. |
-| Linux-Hilfe fuehlt sich unvollstaendig an | Mehrere UI-/Lang-Texte markieren die sichere Ausfuehrung als spaeteren Schritt | Bereich aktuell als Anzeige-/Datenpflege-Funktion nutzen. |
+| Linux-Hilfe erzeugt keine PDF direkt | Der aktuelle Workflow ist bewusst auf Prompt-Kopie, externen PDF-Build und Import ausgelegt | Oben `Als Prompt mit PDF` nutzen, PDF extern erstellen/herunterladen und unten ueber `PDF importieren` laden. |
 | projectM laesst sich nicht starten | projectM ist optional und wird gesondert erkannt | projectM/Flatpak-Pfade pruefen; im Radio-UI den Installationshinweis nutzen. |
 | Packet Capture / Wireshark fehlt | Wireshark-/tshark-Launcher nicht installiert | Wireshark installieren; der Packet-Capture-Bereich enthaelt einen Installationshinweis. |
 | DNS-/Firewall-Aktionen scheitern | Viele Systemaktionen benoetigen `sudo -n` oder eine frische `sudo`-Session | Sudo-Session erneuern und mit passender Linux-Umgebung arbeiten. |
 | Secure Browser erreicht eine benoetigte Seite nicht | Der Website-Filter erlaubt nur die konfigurierte Domain-Liste | Dry-Run und Whitelist pruefen; nur die konkret benoetigten Login-, Zahlungs- oder CDN-Domains ergaenzen. |
+| ClamAV-Schnellscan dauert unerwartet lange | Zu viele oder grosse eigene Scanpfade, Archive, viele kleine Dateien oder langsame Datentraeger | Unter `Schnellscan-Pfade` die Auswahl verkleinern; Prozessstand mit `ps -o pid,etime,%cpu,cmd -C clamscan` pruefen. |
+| ClamAV zeigt waehrend des Scans `0` Dateien | `clamscan --infected` liefert die verwertbare Dateisumme erst in der Abschlussausgabe | Laufzeit und Prozess im Terminal beobachten; die endgueltige Dateizahl nach Scanende ablesen. |
 
 ## Bekannte Probleme
 
 | Ursache | Beobachtung | Loesung |
 | --- | --- | --- |
-| `Linux Hilfe` ist im Code noch als teilweise vorbereiteter Bereich markiert | Texte und Placeholder nennen weitere Integrationsschritte | Aktuell als Referenz-/Pflegebereich verwenden; siehe Abschnitt `Unklar / Nicht dokumentiert`. |
+| `Linux Hilfe` fuehrt riskante Befehle nicht direkt aus | Der Bereich ist als Referenz-, Prompt- und Bibliotheksfunktion ausgelegt | Befehle pruefen, Prompts extern nutzen und PDFs ueber die Bibliothek verwalten. |
 | Sprachpaket-Hinweis nennt spaetere Vollumsetzung | Sprachunterstuetzung ist vorhanden, aber der Hinweistext ist noch konservativ | Sprachdateien in `netmon/lang/` pruefen und bei Bedarf erweitern. |
 | Lizenz-/Dokumentations-/Video-Links enthalten Platzhaltertexte in `app.py` | Nicht alle Hilfe-/Info-Links sind produktiv angebunden | Externe Hilfe nur verwenden, wenn konkrete Inhalte hinterlegt sind. |
 
@@ -195,6 +242,7 @@ Wenn beim GUI-Start `tkinter` fehlt, verweist `netmon/main.py` auf `sudo apt ins
 
 13. **Kann ich den Radio-Player losloesen?**
    Ja. Der Code in `netmon/netmon_radio_core.py` und `netmon/features/radio_controller.py` verwaltet Host-/Handover-/Attach-Dateien fuer eingebetteten und losgeloesten Betrieb.
+   Das losgeloeste Standalone-Radio laeuft dabei aktuell ausschliesslich im Darkmode.
 
 14. **Wo liegt die Radio-Datenbank?**
    Im State-Verzeichnis, standardmaessig als `radio_db.json` und `radio_db_meta.json`.
