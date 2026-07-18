@@ -1,0 +1,37 @@
+[
+  {
+    "slot": 1,
+    "custom_name": "Container",
+    "device": "/dev/sda1",
+    "device_uuid": "ad1c2ea9-6fe2-46fe-b9b4-f7ba8456ea03",
+    "mountpoint": "/mnt/sda1"
+  },
+  {
+    "slot": 2,
+    "custom_name": "Media",
+    "device": "/dev/sdb",
+    "device_uuid": "bea55c3b-848c-492a-9ae6-2e1b3bfabff2",
+    "mountpoint": "/mnt/sdb"
+  },
+  {
+    "slot": 3,
+    "custom_name": "TimeShift/Daten",
+    "device": "/dev/sdc1",
+    "device_uuid": "296f7a9f-c639-4e21-a0a2-2395352fbce3",
+    "mountpoint": "/mnt/sdc1"
+  },
+  {
+    "slot": 4,
+    "custom_name": "Container",
+    "device": "/dev/sdd1",
+    "device_uuid": "249dec09-6846-4b26-9b1a-72d6186ddd3b",
+    "mountpoint": "/mnt/sdd1"
+  },
+  {
+    "slot": 5,
+    "custom_name": "",
+    "device": "",
+    "device_uuid": "",
+    "mountpoint": ""
+  }
+]

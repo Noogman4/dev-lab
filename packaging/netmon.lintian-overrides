@@ -1,0 +1,4 @@
+# Ubuntu Lintian 2.117 reports a troff segfault, while both pages pass
+# gzip -t and render cleanly with man --warnings and groff -mandoc.
+netmon: groff-message * [usr/share/man/man1/netmon.1.gz*]
+netmon: groff-message * [usr/share/man/man1/netmon-uninstall.1.gz*]

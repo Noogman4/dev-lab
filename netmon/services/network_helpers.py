@@ -186,6 +186,19 @@ def parse_ss_lines(output: str):
             if pm:
                 pid = pm.group(1)
 
+        cgroup = ""
+        cgroup_match = re.search(r"\bcgroup:([^\s]+)", line)
+        if cgroup_match:
+            cgroup = cgroup_match.group(1).strip()
+
+        if not proc and cgroup:
+            scope_name = cgroup.rsplit("/", 1)[-1]
+            if (
+                scope_name.startswith("app-gnome-netmon-")
+                and scope_name.endswith(".scope")
+            ):
+                proc = "NetMon"
+
         conns.append(
             {
                 "proto": proto,
@@ -194,6 +207,7 @@ def parse_ss_lines(output: str):
                 "remote": remote,
                 "pid": pid,
                 "proc": proc,
+                "cgroup": cgroup,
                 "raw": line,
             }
         )

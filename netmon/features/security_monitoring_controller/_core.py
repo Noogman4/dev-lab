@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import os
-import threading
 import time
 from datetime import datetime
 from tkinter import messagebox
@@ -21,26 +18,9 @@ except ModuleNotFoundError:
     from core.command import run_cmd
 
 try:
-    from netmon.core.utils import safe_write_json, call_in_ui_thread
+    from netmon.core.utils import safe_write_json
 except ModuleNotFoundError:
-    from core.utils import safe_write_json, call_in_ui_thread
-
-try:
-    from netmon.config.constants import (
-        HDD_SLOT_CONFIG_FILE,
-        LINK_SLOT_CONFIG_FILE,
-        PRIMARY_VPN_SLOT_CONFIG_FILE,
-        PRIVACY_CONFIG_FILE,
-        VPN_SLOT_CONFIG_FILE,
-    )
-except ModuleNotFoundError:
-    from config.constants import (
-        HDD_SLOT_CONFIG_FILE,
-        LINK_SLOT_CONFIG_FILE,
-        PRIMARY_VPN_SLOT_CONFIG_FILE,
-        PRIVACY_CONFIG_FILE,
-        VPN_SLOT_CONFIG_FILE,
-    )
+    from core.utils import safe_write_json
 
 
 def _app_value(app, name, default=""):

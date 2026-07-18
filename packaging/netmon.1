@@ -1,0 +1,36 @@
+.TH NETMON 1 "July 2026" "NetMon 1.1.19" "User Commands"
+.SH NAME
+netmon \- Linux network, security, VPN, and diagnostics desktop application
+.SH SYNOPSIS
+.B netmon
+.RI [ options ]
+.SH DESCRIPTION
+.B netmon
+starts the graphical NetMon application. It combines network diagnostics,
+DNS and firewall controls, WireGuard VPN slots, security checks, Secure
+Browser management, radio functions, and guided support workflows.
+.SH OPTIONS
+.TP
+.B --headless
+Print a compact network and system status snapshot without starting Tk.
+.TP
+.B --headless-smoke
+Create the graphical interface once for startup validation and then exit.
+.TP
+.BI --theme " THEME"
+Start with the selected theme. Supported values include dark, light, beige,
+pop, and default.
+.SH FILES
+.TP
+.I ~/.config/netmon
+Per-user configuration files.
+.TP
+.I ~/.local/state/netmon
+Per-user runtime state and diagnostics.
+.TP
+.I ~/Documents/NetMon
+Default location for user-visible reports, support bundles, and assets.
+.SH SEE ALSO
+.BR netmon-uninstall (1)
+.SH AUTHOR
+NetMon Roots <info@netmonroots.com>

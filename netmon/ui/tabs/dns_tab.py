@@ -32,13 +32,13 @@ def build_dns_tab(app):
     # Expert: DoT Leak-Konflikt beheben -> fix_dot_leak_conflict_async
     dns_policy_frame = ttk.LabelFrame(
         app.tab_dns,
-        text=app.tr("dns_group_control", "DNS Control"),
+        text=app.tr("dns_group_control", "DNS-Steuerung"),
         padding=6,
     )
     dns_policy_frame.pack(fill="x", pady=(0, 8))
     ttk.Checkbutton(
         dns_policy_frame,
-        text=app.tr("dns_check_enable_guard", "Enable DNS Guard"),
+        text=app.tr("dns_check_enable_guard", "DNS Guard aktivieren"),
         variable=app.dns_guard_enabled_var,
         command=app.save_privacy_config,
     ).pack(anchor="w", pady=(6, 0))
@@ -47,12 +47,12 @@ def build_dns_tab(app):
     dns_guard_row.pack(fill="x", pady=(6, 0))
     ttk.Label(
         dns_guard_row,
-        text=app.tr("dns_label_guard_status", "Guard status:"),
+        text=app.tr("dns_label_guard_status", "Guard-Status:"),
     ).pack(side="left")
 
     ttk.Label(
         dns_policy_frame,
-        text=app.tr("dns_rule_status", "DNS rule: prefer VPN DNS"),
+        text=app.tr("dns_rule_status", "DNS-Regel: VPN-DNS bevorzugen"),
     ).pack(anchor="w", pady=(6, 0))
     ttk.Label(
         dns_policy_frame,
@@ -73,7 +73,7 @@ def build_dns_tab(app):
 
     dns_expert_frame = ttk.LabelFrame(
         app.tab_dns,
-        text=app.tr("dns_group_expert", "DNS expert / maintenance"),
+        text=app.tr("dns_group_expert", "DNS-Experte / Wartung"),
         padding=6,
     )
     dns_expert_frame.pack(fill="x", pady=(0, 8))
@@ -94,7 +94,7 @@ def build_dns_tab(app):
 
     btn_dnssec = ttk.Button(
         dns_expert_row1,
-        text=app.tr("dns_btn_dnssec_check", "Check DNSSEC"),
+        text=app.tr("dns_btn_dnssec_check", "DNSSEC prüfen"),
         command=app.run_dnssec_check,
     )
     btn_dnssec.grid(row=0, column=1, sticky="ew", padx=4)
@@ -102,19 +102,19 @@ def build_dns_tab(app):
 
     ttk.Button(
         dns_expert_row1,
-        text=app.tr("dns_btn_health_check", "DNS Health Check"),
+        text=app.tr("dns_btn_health_check", "DNS-Health-Check"),
         command=app.run_dns_health_check,
     ).grid(row=0, column=2, sticky="ew", padx=(4, 0))
 
     ttk.Button(
         dns_expert_row2,
-        text=app.tr("dns_btn_leak_check", "DNS Leak Check"),
+        text=app.tr("dns_btn_leak_check", "DNS-Leak-Check"),
         command=app.run_dns_leak_check,
     ).grid(row=0, column=0, sticky="ew", padx=(0, 4))
 
     app.btn_dns_repair = ttk.Button(
         dns_expert_row2,
-        text=app.tr("dns_btn_repair", "Repair DNS"),
+        text=app.tr("dns_btn_repair", "DNS reparieren"),
         command=app.apply_vpn_dns_policy_async,
     )
     app.btn_dns_repair.grid(row=0, column=1, sticky="ew", padx=4)
@@ -122,14 +122,14 @@ def build_dns_tab(app):
         app.btn_dns_repair,
         app.tr(
             "dns_tooltip_repair",
-            "Fixes DNS conflicts and ensures\n"
-            "that only the correct DNS (for example VPN DNS) is active.",
+            "Behebt DNS-Konflikte und stellt sicher,\n"
+            "dass nur das gewünschte DNS (zum Beispiel VPN-DNS) aktiv ist.",
         ),
     )
 
     ttk.Button(
         dns_expert_row2,
-        text=app.tr("dns_btn_repair_rollback", "DNS Repair Rollback"),
+        text=app.tr("dns_btn_repair_rollback", "DNS-Reparatur-Rollback"),
         command=app.dns_repair_rollback_async,
     ).grid(row=0, column=2, sticky="ew", padx=(4, 0))
 
@@ -158,7 +158,7 @@ def build_dns_tab(app):
 
     app.btn_dot_on = ttk.Button(
         dot_button_frame,
-        text=app.tr("dns_btn_dot_on", "DoT ON"),
+        text=app.tr("dns_btn_dot_on", "DoT AN"),
         command=app.enable_dot_async,
     )
     app.btn_dot_on.grid(row=0, column=0, sticky="ew", padx=2, pady=2)
@@ -167,14 +167,14 @@ def build_dns_tab(app):
         app.btn_dot_on,
         app.tr(
             "dns_tooltip_dot_on",
-            "Enables DNS over TLS through a NetMon drop-in file for systemd-resolved. "
-            "This action is blocked while a VPN is active.",
+            "Aktiviert DNS over TLS über eine NetMon-Drop-in-Datei für systemd-resolved. "
+            "Diese Aktion ist blockiert, solange ein VPN aktiv ist.",
         ),
     )
 
     app.btn_dot_off = ttk.Button(
         dot_button_frame,
-        text=app.tr("dns_btn_dot_off", "DoT OFF"),
+        text=app.tr("dns_btn_dot_off", "DoT AUS"),
         command=app.disable_dot_async,
     )
     app.btn_dot_off.grid(row=0, column=1, sticky="ew", padx=2, pady=2)
@@ -183,13 +183,13 @@ def build_dns_tab(app):
         app.btn_dot_off,
         app.tr(
             "dns_tooltip_dot_off",
-            "Removes the NetMon DoT configuration from systemd-resolved again.",
+            "Entfernt die NetMon-DoT-Konfiguration wieder aus systemd-resolved.",
         ),
     )
 
     app.btn_dot_test = ttk.Button(
         dot_button_frame,
-        text=app.tr("dns_btn_dot_test", "Test DoT"),
+        text=app.tr("dns_btn_dot_test", "DoT testen"),
         command=app.test_dot_async,
     )
     app.btn_dot_test.grid(row=1, column=0, sticky="ew", padx=2, pady=2)
@@ -198,13 +198,13 @@ def build_dns_tab(app):
         app.btn_dot_test,
         app.tr(
             "dns_tooltip_dot_test",
-            "Checks the configuration, resolver response, and optionally a TLS connection on port 853.",
+            "Prüft Konfiguration, Resolver-Antwort und optional eine TLS-Verbindung auf Port 853.",
         ),
     )
 
     btn_dot_status = ttk.Button(
         dot_button_frame,
-        text=app.tr("dns_btn_dot_status", "DoT status"),
+        text=app.tr("dns_btn_dot_status", "DoT-Status"),
         command=app.show_dot_status_async,
     )
     btn_dot_status.grid(row=1, column=1, sticky="ew", padx=2, pady=2)
@@ -213,13 +213,13 @@ def build_dns_tab(app):
         btn_dot_status,
         app.tr(
             "dns_tooltip_dot_status",
-            "Shows the current DoT status in the DNS tab.",
+            "Zeigt den aktuellen DoT-Status im DNS-Tab an.",
         ),
     )
 
     btn_dot_fix = ttk.Button(
         dot_button_frame,
-        text=app.tr("dns_btn_fix_dot_leak", "Fix DoT leak conflict"),
+        text=app.tr("dns_btn_fix_dot_leak", "DoT-Leak-Konflikt beheben"),
         command=app.fix_dot_leak_conflict_async,
     )
     btn_dot_fix.grid(
@@ -234,20 +234,20 @@ def build_dns_tab(app):
         btn_dot_fix,
         app.tr(
             "dns_tooltip_dot_fix",
-            "Resolves a conflict between global NetMon DoT and active VPN DNS.",
+            "Behebt einen Konflikt zwischen globalem NetMon-DoT und aktivem VPN-DNS.",
         ),
     )
 
     manual_dns_frame = ttk.LabelFrame(
         app.tab_dns,
-        text=app.tr("dns_group_manual", "Manual DNS"),
+        text=app.tr("dns_group_manual", "Manuelles DNS"),
         padding=6,
     )
     manual_dns_frame.pack(fill="x", pady=(0, 8))
 
     ttk.Label(
         manual_dns_frame,
-        text=app.tr("dns_label_manual_entry", "Enter DNS server manually:"),
+        text=app.tr("dns_label_manual_entry", "DNS-Server manuell eingeben:"),
     ).pack(anchor="w")
 
     manual_dns_row = ttk.Frame(manual_dns_frame)
@@ -263,13 +263,13 @@ def build_dns_tab(app):
 
     ttk.Button(
         manual_dns_row,
-        text=app.tr("dns_btn_add_manual", "Add to selection"),
+        text=app.tr("dns_btn_add_manual", "Zur Auswahl hinzufügen"),
         command=app.add_manual_dns_server,
     ).pack(side="left", padx=(8, 0))
 
     app.btn_dns_manage_profiles = ttk.Button(
         manual_dns_row,
-        text=app.tr("dns_btn_manage_profiles", "Manage DNS..."),
+        text=app.tr("dns_btn_manage_profiles", "DNS verwalten..."),
         command=app.open_dns_profile_manager,
     )
     app.btn_dns_manage_profiles.pack(side="left", padx=(8, 0))
@@ -278,19 +278,19 @@ def build_dns_tab(app):
     dns_output_actions.pack(fill="x", pady=(0, 6))
     app.btn_dns_analyze_with_chad = ttk.Button(
         dns_output_actions,
-        text=app.tr("btn_analyze_with_chad", "Analyze with Chad"),
+        text=app.tr("btn_analyze_with_chad", "Mit Chad analysieren"),
         command=lambda: app.prepare_chad_analysis(
-            "DNS analysis",
+            "DNS-Analyse",
             _text_widget_value(_app_value(app, "dns_text")),
         ),
     )
     app.btn_dns_analyze_with_chad.pack(side="left")
     ttk.Button(
         dns_output_actions,
-        text=app.tr("dns_btn_clear_output", "Clear DNS output"),
+        text=app.tr("dns_btn_clear_output", "DNS-Ausgabe leeren"),
         command=app.clear_dns_output,
     ).pack(side="right")
 
     app.dns_text = tk.Text(app.tab_dns, wrap="word")
     app.dns_text.pack(fill="both", expand=True)
-    app.attach_chad_context_menu(app.dns_text, "DNS analysis")
+    app.attach_chad_context_menu(app.dns_text, "DNS-Analyse")

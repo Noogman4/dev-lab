@@ -1,0 +1,119 @@
+{
+  "integrity": {
+    "/dev-lab/projects/dev-lab/tools/netmon_vpn_slots.json": {
+      "sha": "6406bd10b368c3d5d83f7953594aca11fbe694e5b8ce3edbfc1545334a5d6988",
+      "size": 327,
+      "mtime": 1775244558.2459724
+    },
+    "/dev-lab/projects/dev-lab/tools/netmon_primary_vpn_slots.json": {
+      "sha": "783d830756d8cbacd26ecfbc527dabab7215a58c4e9f076d67442fc7cbaeb435",
+      "size": 165,
+      "mtime": 1774988230.0596685
+    },
+    "/dev-lab/projects/dev-lab/tools/netmon_link_slots.json": {
+      "sha": "7eff8e0a46c2c6aa9e4bae157c53ca88a2e458d3fd86159ea44882122b59c40f",
+      "size": 2087,
+      "mtime": 1775213005.8356762
+    },
+    "/dev-lab/projects/dev-lab/tools/netmon_privacy.json": {
+      "sha": "ba97e04bfa0b3da6bda7459cd09720d7253e6b76dd85735e56d92b8f1ef171cd",
+      "size": 205,
+      "mtime": 1775246165.0346591
+    },
+    "/dev-lab/projects/dev-lab/tools/netmon_hdd_slots.json": {
+      "sha": "2267f5e7bbedcaee32290208bea5625ae3102e6887fbd67ab76744a3e27a6dfd",
+      "size": 799,
+      "mtime": 1773677119.9774446
+    },
+    "/dev-lab/projects/dev-lab/tools/netmon.py": {
+      "sha": "a3c06ba15153f9f6dc2c22111fdd3c3e3db6f460ead82e1d317db8c03f55bab9",
+      "size": 386082,
+      "mtime": 1775245903.7932765
+    }
+  },
+  "device": {
+    "/dev/input/by-id": "hid",
+    "/dev/input/by-path": "hid",
+    "/dev/input/event0": "input-event",
+    "/dev/input/event1": "input-event",
+    "/dev/input/event10": "input-event",
+    "/dev/input/event11": "input-event",
+    "/dev/input/event12": "input-event",
+    "/dev/input/event13": "input-event",
+    "/dev/input/event14": "input-event",
+    "/dev/input/event15": "input-event",
+    "/dev/input/event16": "input-event",
+    "/dev/input/event17": "input-event",
+    "/dev/input/event18": "input-event",
+    "/dev/input/event2": "input-event",
+    "/dev/input/event3": "input-event",
+    "/dev/input/event4": "input-event",
+    "/dev/input/event5": "input-event",
+    "/dev/input/event6": "input-event",
+    "/dev/input/event7": "input-event",
+    "/dev/input/event8": "input-event",
+    "/dev/input/event9": "input-event",
+    "/dev/input/mice": "hid",
+    "/dev/input/mouse0": "mouse",
+    "/dev/input/mouse1": "mouse",
+    "/sys/class/input/event0": "input-event",
+    "/sys/class/input/event1": "input-event",
+    "/sys/class/input/event10": "input-event",
+    "/sys/class/input/event11": "input-event",
+    "/sys/class/input/event12": "input-event",
+    "/sys/class/input/event13": "input-event",
+    "/sys/class/input/event14": "input-event",
+    "/sys/class/input/event15": "input-event",
+    "/sys/class/input/event16": "input-event",
+    "/sys/class/input/event17": "input-event",
+    "/sys/class/input/event18": "input-event",
+    "/sys/class/input/event2": "input-event",
+    "/sys/class/input/event3": "input-event",
+    "/sys/class/input/event4": "input-event",
+    "/sys/class/input/event5": "input-event",
+    "/sys/class/input/event6": "input-event",
+    "/sys/class/input/event7": "input-event",
+    "/sys/class/input/event8": "input-event",
+    "/sys/class/input/event9": "input-event",
+    "/sys/class/input/input0": "hid",
+    "/sys/class/input/input1": "hid",
+    "/sys/class/input/input16": "hid",
+    "/sys/class/input/input17": "hid",
+    "/sys/class/input/input18": "hid",
+    "/sys/class/input/input19": "hid",
+    "/sys/class/input/input20": "hid",
+    "/sys/class/input/input21": "hid",
+    "/sys/class/input/input22": "hid",
+    "/sys/class/input/input23": "hid",
+    "/sys/class/input/input24": "hid",
+    "/sys/class/input/input25": "hid",
+    "/sys/class/input/input26": "hid",
+    "/sys/class/input/input27": "hid",
+    "/sys/class/input/input28": "hid",
+    "/sys/class/input/input29": "hid",
+    "/sys/class/input/input30": "hid",
+    "/sys/class/input/input31": "hid",
+    "/sys/class/input/input7": "hid",
+    "/sys/class/input/mice": "hid",
+    "/sys/class/input/mouse0": "mouse",
+    "/sys/class/input/mouse1": "mouse"
+  },
+  "input_access": {
+    "/dev/input/event1": {
+      "1656": "gnome-shell"
+    },
+    "/dev/input/event0": {
+      "1656": "gnome-shell"
+    },
+    "/dev/input/event2": {
+      "1656": "gnome-shell"
+    },
+    "/dev/input/event3": {
+      "1656": "gnome-shell"
+    },
+    "/dev/input/event18": {
+      "1656": "gnome-shell"
+    }
+  },
+  "ts": "2026-04-03T21:56:21.847210"
+}

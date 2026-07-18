@@ -1,0 +1,44 @@
+.venv/
+.venv.bak-*/
+venv/
+.release-venv/
+.release-venv2/
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+
+# pytest
+.pytest_cache/
+.ruff_cache/
+
+# tool caches
+agent/__pycache__/
+tools/__pycache__/
+tests/__pycache__/
+
+# backups
+*.tar.gz
+backups/
+
+# build artifacts
+dist/
+site-build/
+*.deb
+netmon/features/Code-the-Classics.zip
+site/screenshots/Bildschirmfoto vom *.png
+
+# local runtime output
+logs/
+
+# local tool hints
+.codi-hints
+
+# local workspace files
+*.code-workspace
+*.save
+
+# pending third-party preset packs
+tools/mdpresets/
+tools/MD2 Presets Edited for projectM 4.x/

@@ -169,6 +169,7 @@ def test_roots_guard_builder_smoke_when_display_is_available():
         dummy.roots_baseline_guard_check_baseline = lambda: None
         dummy.roots_baseline_guard_update_baseline = lambda: None
         dummy.roots_baseline_guard_show_last_comparison = lambda: None
+        dummy.load_roots_baseline_guard_demo_cases = lambda: None
         dummy.analyze_roots_baseline_guard_with_chad = lambda: None
         dummy.explain_selected_roots_baseline_guard_change = lambda: None
         dummy.add_selected_roots_baseline_guard_change_to_whitelist = lambda: None

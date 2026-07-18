@@ -84,7 +84,7 @@ public_html/screenshots/netmon-status-header-tour.png
 public_html/netmon_security_audit_2026.pdf
 public_html/LICENSE.txt
 public_html/THIRD_PARTY_NOTICES.md
-public_html/dist/netmon_1.1.15_all.deb
+public_html/dist/netmon_1.1.19_all.deb
 public_html/dist/SHA256SUMS
 public_html/tools/netmon.png
 public_html/docs/CHANGELOG.md

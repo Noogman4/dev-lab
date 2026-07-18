@@ -53,6 +53,117 @@ def test_activate_startup_log_view_skips_overlay_without_image():
     assert calls == []
 
 
+def test_default_log_overlay_dir_uses_netmon_documents(tmp_path, monkeypatch):
+    app = netmon_app.App.__new__(netmon_app.App)
+    netmon_docs = tmp_path / "Dokumente" / "NetMon"
+    log_pics = netmon_docs / "Log-Pics"
+
+    monkeypatch.setattr(
+        netmon_app,
+        "get_netmon_documents_subdir",
+        lambda *parts: str(netmon_docs.joinpath(*parts)),
+    )
+    monkeypatch.setattr(netmon_app, "get_netmon_documents_dir", lambda: str(netmon_docs))
+
+    assert app._default_log_overlay_dir() == str(log_pics)
+    assert log_pics.is_dir()
+
+
+def test_default_log_overlay_image_prefers_netmon_png(tmp_path, monkeypatch):
+    app = netmon_app.App.__new__(netmon_app.App)
+    log_pics = tmp_path / "Documents" / "NetMon" / "Log-Pics"
+    log_pics.mkdir(parents=True)
+    default_image = log_pics / "Netmon.png"
+    default_image.write_bytes(b"png")
+
+    monkeypatch.setattr(app, "_default_log_overlay_dir", lambda: str(log_pics))
+
+    assert app._default_log_overlay_image_path() == str(default_image)
+
+
+def test_restore_log_overlay_uses_default_netmon_png_when_config_is_empty(monkeypatch):
+    app = netmon_app.App.__new__(netmon_app.App)
+    calls = []
+
+    app.privacy_config = {"log_overlay_active": True}
+    app.log_overlay_picker_dir = ""
+    app.close_log_overlay_picker = lambda: calls.append("close-picker")
+    app._default_log_overlay_dir = lambda: "/tmp/NetMon/Log-Pics"
+    app._default_log_overlay_image_path = lambda: "/tmp/NetMon/Log-Pics/Netmon.png"
+    app._load_log_overlay_image = lambda path: calls.append(("load", path)) or True
+    app._render_log_overlay_image = lambda: calls.append("render")
+    app._set_log_overlay_visible = lambda visible, persist=True: calls.append(
+        ("visible", visible, persist)
+    )
+
+    app._restore_log_overlay_from_config()
+
+    assert calls == [
+        "close-picker",
+        ("load", "/tmp/NetMon/Log-Pics/Netmon.png"),
+        "render",
+        ("visible", True, False),
+    ]
+
+
+def test_fresh_privacy_config_enables_log_overlay_by_default(tmp_path):
+    app = netmon_app.App.__new__(netmon_app.App)
+    app.settings = {}
+    app.privacy_config_path = str(tmp_path / "privacy.json")
+
+    config = app.load_privacy_config()
+
+    assert config["log_overlay_active"] is True
+    assert config["log_overlay_image_path"] == ""
+    assert config["theme"] == "dark"
+
+
+def test_log_uses_full_runtime_timestamp(monkeypatch):
+    app = netmon_app.App.__new__(netmon_app.App)
+    app.settings = {"language": "de"}
+    written = []
+    app._append_runtime_log_line = written.append
+
+    class DummyText:
+        def __init__(self):
+            self.lines = []
+
+        def insert(self, _pos, text):
+            self.lines.append(text)
+
+        def see(self, _pos):
+            return None
+
+    app.text = DummyText()
+
+    monkeypatch.setattr(
+        netmon_app,
+        "runtime_log_timestamp",
+        lambda: "2026-07-10 22:08:24",
+    )
+
+    app.log("DNS Guard: OK")
+
+    assert written == ["[2026-07-10 22:08:24] DNS Guard: OK"]
+    assert app.text.lines == ["[2026-07-10 22:08:24] DNS Guard: OK\n"]
+
+
+def test_log_network_debug_uses_full_runtime_timestamp(monkeypatch):
+    app = netmon_app.App.__new__(netmon_app.App)
+    app.debug_network_logging = True
+    app.netmon_state_dir = ""
+
+    monkeypatch.setattr(
+        netmon_app,
+        "runtime_log_timestamp",
+        lambda: "2026-07-10 22:08:24",
+    )
+
+    app.log_network_debug("debug entry")
+
+    assert app._network_debug_entries == ["[2026-07-10 22:08:24] debug entry"]
+
+
 def test_acquire_and_release_netmon_instance_lock(tmp_path, monkeypatch):
     netmon_lock.release_netmon_instance_lock()
     monkeypatch.setattr(netmon_lock, "get_netmon_state_dir", lambda: str(tmp_path))
@@ -152,7 +263,9 @@ def test_detect_primary_monitor_bounds_prefers_primary_output(monkeypatch):
 
     monkeypatch.setenv("DISPLAY", ":0")
     monkeypatch.setattr(netmon_app, "has_cmd", lambda name: name == "xrandr")
-    monkeypatch.setattr(netmon_app.subprocess, "run", lambda *args, **kwargs: DummyResult())
+    monkeypatch.setattr(
+        netmon_app.subprocess, "run", lambda *args, **kwargs: DummyResult()
+    )
 
     assert netmon_app._detect_primary_monitor_bounds() == (0, 0, 2560, 1440)
 

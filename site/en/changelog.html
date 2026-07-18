@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetMonRoots | Changelog since version 1.1.15</title>
+  <meta
+    name="description"
+    content="Highlights and release changes in NetMon since the last actually published website version 1.1.15."
+  >
+  <link rel="icon" type="image/png" href="../favicon.png">
+  <link rel="apple-touch-icon" href="../favicon.png">
+  <link rel="canonical" href="https://netmonroots.com/en/changelog.html">
+  <link rel="alternate" hreflang="de" href="https://netmonroots.com/changelog.html">
+  <link rel="alternate" hreflang="en" href="https://netmonroots.com/en/changelog.html">
+  <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/changelog.html">
+  <meta property="og:title" content="NetMonRoots | Changelog since version 1.1.15">
+  <meta property="og:description" content="Highlights and release changes in NetMon since the last actually published website version 1.1.15.">
+  <meta property="og:url" content="https://netmonroots.com/en/changelog.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NetMon Roots">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:locale:alternate" content="de_DE">
+  <meta property="og:image" content="https://netmonroots.com/favicon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="NetMonRoots | Changelog since version 1.1.15">
+  <meta name="twitter:description" content="Highlights and release changes in NetMon since the last actually published website version 1.1.15.">
+  <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body class="downloads-page updates-page">
+  <div class="page-shell docs-page downloads-page-shell">
+    <header class="topbar">
+      <a class="brand" href="./index.html" aria-label="NetMon home page">
+        <span class="brand-mark">
+          <span class="brand-lockup">
+            <span class="brand-title">
+              <span class="brand-title-main">NETMON</span>
+              <span class="brand-title-accent">ROOTS</span>
+            </span>
+            <span class="brand-subline">MONITOR. CONTROL. UNDERSTAND.</span>
+            <span class="brand-tagline">BACK TO THE ROOTS.</span>
+          </span>
+          <img class="brand-icon" src="../bannericon.png" alt="" aria-hidden="true">
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="./index.html">Home</a>
+        <a href="./downloads.html">Download</a>
+        <a href="./updates.html">Updates</a>
+        <a href="./changelog.html">Changelog</a>
+        <a href="./tour.html">Tour</a>
+        <a href="./docs.html">Docs</a>
+        <a href="./security-audit.html">Audit</a>
+        <a href="./legal.html">Legal</a>
+      </nav>
+      <div class="lang-switch" aria-label="Language switcher">
+        <a href="../changelog.html" lang="de">DE</a>
+        <a class="active" href="./changelog.html" lang="en">EN</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Release overview</p>
+        </div>
+        <div class="download-layout">
+          <article class="download-card featured">
+            <p class="download-label">Baseline</p>
+            <h3>This page summarizes the highlights since NetMon 1.1.15.</h3>
+            <p>The last actually published website version was 1.1.15. This page lists the most important changes and additions up to the current local state, grouped by release.</p>
+            <div class="inline-actions">
+              <a class="button button-primary" href="./downloads.html">Go to download page</a>
+              <a class="button button-secondary" href="./updates.html">Open updates page</a>
+            </div>
+          </article>
+          <article class="download-card">
+            <p class="download-label">Focus</p>
+            <h3>Main work happened in Secure Browser, VPN, security evaluation, and ClamAV.</h3>
+            <p>Between 1.1.15 and the current local state, the biggest changes landed in Secure Browser, slot handling, the security area, packaging, and ClamAV usability.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Highlights since 1.1.15</p>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>Secure Browser expanded</h3>
+            <p>New German and English tours, XDG-compliant storage under <code>Documents/NetMon/Secure Browser</code>, more robust icon handling, and cleaned-up legacy paths.</p>
+          </article>
+          <article class="faq-card">
+            <h3>More slots and stronger VPN switching</h3>
+            <p>Link slots were expanded from 15 to 20 and VPN slots from 5 to 10. VPN profile switching and related mappings became more robust, including automatic refresh of public IP and exit country.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Security area restructured</h3>
+            <p>Security subtabs were renamed more compactly, PATH Guard moved into its own tab, and both German and English output were cleaned up across several security areas.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Packaging and release hygiene</h3>
+            <p>The Debian package layout was aligned with standard paths and extended with manual pages, checksums, copyright metadata, and related packaging improvements.</p>
+          </article>
+          <article class="faq-card">
+            <h3>RKHunter deepened</h3>
+            <p>Warnings are now classified, scans are backed by <code>dpkg -V</code>, and manual reference updates are gated much more strictly.</p>
+          </article>
+          <article class="faq-card">
+            <h3>ClamAV and D-Scan improved</h3>
+            <p>D-Scan gained direct path copying, while ClamAV received a fixed runtime display, lighter quick scans, and configurable quick-scan paths.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Linux help with PDF library</h3>
+            <p>Entries can be copied as regular prompts or PDF prompts. Externally generated PDFs can be imported, opened, and deleted again from the lower library context menu.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Version 1.1.16</p>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>Release and audit refresh</h3>
+            <p>Release artifacts were rebuilt, website and download references were updated, and the security audit moved to round 6.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Site bundle extended</h3>
+            <p>The site bundle now ships the current round-6 audit files and carries the Secure Browser integration and language keys into the current package and documentation state.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Version 1.1.17</p>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>Link and VPN slots expanded</h3>
+            <p>Link slots increased from 15 to 20, VPN slots from 5 to 10, and existing configurations are extended automatically when loaded.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Stronger VPN lifecycle</h3>
+            <p>Profiles can again be deleted directly from selected table rows, assignments are cleaned up consistently, and IP/country displays refresh properly after switches.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Secure Browser and migration cleanup</h3>
+            <p>New guided tour, removed legacy paths like <code>~/Programme</code>, safer uninstall behaviour, and cleaner browser menu entry names.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Security and language cleanup</h3>
+            <p>PATH Guard moved into its own tab, security subtabs were renamed more compactly, and German/English defaults were unified across multiple security areas.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Package and D-Scan</h3>
+            <p>The Debian package was normalized to standard paths. D-Scan gained <code>Copy path</code> and logs now use full timestamps.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Version 1.1.18</p>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>RKHunter classification</h3>
+            <p>RKHunter warnings are now classified as expected change, worth checking, or critical. The analysis includes a short assessment, findings, risk, and concrete recommendations.</p>
+          </article>
+          <article class="faq-card">
+            <h3>More trust evidence</h3>
+            <p>Full RKHunter scans now include <code>dpkg -V</code>. <code>rkhunter --propupd</code> is offered only under explicit security conditions.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Compatibility and installer state</h3>
+            <p>Linux Mint compatibility and dependency improvements were added, together with a Secure Browser Firefox base installer and refreshed radio/test-build paths.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Current local additions</p>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>Configurable ClamAV quick scan</h3>
+            <p>ClamAV now includes a <code>Quick scan paths</code> button with a popup for standard folders and custom directories. This makes fast scans predictable and easy to keep small.</p>
+          </article>
+          <article class="faq-card">
+            <h3>No silent full-home fallback</h3>
+            <p>If no valid quick-scan paths are configured, NetMon no longer starts an unexpectedly large fallback scan across the whole home directory.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="version-note">
+          <p><strong>Baseline:</strong> <code>1.1.15</code></p>
+          <p><strong>Covered releases:</strong> <code>1.1.16</code>, <code>1.1.17</code>, <code>1.1.18</code>, <code>1.1.19</code></p>
+          <p><strong>Page date:</strong> <code>2026-07-18</code></p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <a href="./impressum.html">Imprint</a>
+      <a href="https://github.com/Noogman4/dev-lab" target="_blank" rel="noopener noreferrer">GitHub</a>
+    </footer>
+  </div>
+  <script src="../app.js"></script>
+</body>
+</html>

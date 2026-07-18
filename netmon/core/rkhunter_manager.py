@@ -7,6 +7,8 @@ import tempfile
 
 RKHUNTER_CONFIG_PATH = "/etc/rkhunter.conf"
 RKHUNTER_BACKUP_PATH = "/etc/rkhunter.conf.netmon.bak"
+RKHUNTER_PROP_DB_PATH = "/var/lib/rkhunter/db/rkhunter.dat"
+RKHUNTER_PROP_DB_BACKUP_PATH = "/var/lib/rkhunter/db/rkhunter.dat.netmon.bak"
 
 REPAIR_TARGETS = {
     "UPDATE_MIRRORS": "1",
@@ -26,11 +28,18 @@ def _preferred_web_cmd():
     return ""
 
 
-def _normalize_allowed_path(path, *, allow_backup=False):
+def _normalize_allowed_path(path, *, allow_backup=False, allow_prop_db=False):
     candidate = os.path.realpath(str(path or "").strip())
     allowed = {os.path.realpath(RKHUNTER_CONFIG_PATH)}
     if allow_backup:
         allowed.add(os.path.realpath(RKHUNTER_BACKUP_PATH))
+    if allow_prop_db:
+        allowed.update(
+            {
+                os.path.realpath(RKHUNTER_PROP_DB_PATH),
+                os.path.realpath(RKHUNTER_PROP_DB_BACKUP_PATH),
+            }
+        )
     if not candidate or candidate not in allowed:
         return ""
     return candidate
@@ -59,6 +68,54 @@ def is_rkhunter_installed():
 
 def run_rkhunter_update(timeout=600):
     return _run_cmd(["sudo", "-n", "rkhunter", "--update"], timeout=timeout)
+
+
+def run_rkhunter_propupd(timeout=600):
+    backup_rc, backup_out = backup_property_database()
+    if backup_rc != 0:
+        return backup_rc, backup_out or "rkhunter property database backup failed."
+    propupd_rc, propupd_out = _run_cmd(
+        ["sudo", "-n", "rkhunter", "--propupd"], timeout=timeout
+    )
+    if propupd_out:
+        return propupd_rc, f"{backup_out}\n{propupd_out}".strip()
+    return propupd_rc, backup_out
+
+
+def backup_property_database(
+    db_path=RKHUNTER_PROP_DB_PATH,
+    backup_path=RKHUNTER_PROP_DB_BACKUP_PATH,
+):
+    safe_db_path = _normalize_allowed_path(db_path, allow_prop_db=True)
+    safe_backup_path = _normalize_allowed_path(backup_path, allow_prop_db=True)
+    if not safe_db_path or not safe_backup_path:
+        return 1, "Nicht erlaubter rkhunter-Datenbankpfad."
+    return _run_cmd(
+        ["sudo", "-n", "cp", "-a", safe_db_path, safe_backup_path], timeout=20
+    )
+
+
+def restore_property_database(
+    db_path=RKHUNTER_PROP_DB_PATH,
+    backup_path=RKHUNTER_PROP_DB_BACKUP_PATH,
+):
+    safe_db_path = _normalize_allowed_path(db_path, allow_prop_db=True)
+    safe_backup_path = _normalize_allowed_path(backup_path, allow_prop_db=True)
+    if not safe_db_path or not safe_backup_path:
+        return 1, "Nicht erlaubter rkhunter-Datenbankpfad."
+    exists_rc, _exists_out = _run_cmd(
+        ["sudo", "-n", "test", "-f", safe_backup_path], timeout=10
+    )
+    if exists_rc != 0:
+        return (
+            2,
+            "Kein NetMon-Backup der RKHunter-Referenzdatenbank vorhanden. "
+            "Ein Widerruf ist erst möglich, nachdem eine Referenz mit dieser "
+            "NetMon-Version übernommen wurde.",
+        )
+    return _run_cmd(
+        ["sudo", "-n", "cp", "-a", safe_backup_path, safe_db_path], timeout=20
+    )
 
 
 def update_after_repair(timeout=600):
@@ -91,7 +148,9 @@ def backup_config(
     safe_backup_path = _normalize_allowed_path(backup_path, allow_backup=True)
     if not safe_config_path or not safe_backup_path:
         return False, "Nicht erlaubter rkhunter-Pfad."
-    return _run_cmd(["sudo", "-n", "cp", safe_config_path, safe_backup_path], timeout=20)
+    return _run_cmd(
+        ["sudo", "-n", "cp", safe_config_path, safe_backup_path], timeout=20
+    )
 
 
 def _read_config(config_path):

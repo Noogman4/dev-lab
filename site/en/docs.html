@@ -49,6 +49,7 @@
         <a href="./tour.html">Tour</a>
         <a href="./downloads.html">Download</a>
         <a href="./updates.html">Updates</a>
+        <a href="./changelog.html">Changelog</a>
         <a href="./security-audit.html">Audit</a>
         <a href="#docs">Docs</a>
         <a href="#faq">FAQ</a>
@@ -74,23 +75,23 @@
         <div class="download-layout">
           <article class="download-card featured">
             <p class="download-label">HTML</p>
-            <h3>NetMon Documentation 1.1.15</h3>
+            <h3>NetMon Documentation 1.1.19</h3>
             <p>Directly readable in the browser, including architecture, user guide, and security sections.</p>
-            <a class="button button-primary" href="/dist/docs/netmon_dokumentation_1.1.15.html">Open HTML</a>
+            <a class="button button-primary" href="/dist/docs/netmon_dokumentation_1.1.19.html">Open HTML</a>
           </article>
           <article class="download-card">
             <p class="download-label">PDF</p>
-            <h3>PDF Export 1.1.15</h3>
+            <h3>PDF Export 1.1.19</h3>
             <p>Suitable for offline archiving or sharing a stable documentation snapshot.</p>
-            <a class="button button-secondary" href="/dist/docs/netmon_dokumentation_1.1.15.pdf">Open PDF</a>
+            <a class="button button-secondary" href="/dist/docs/netmon_dokumentation_1.1.19.pdf">Open PDF</a>
           </article>
           <article class="download-card">
             <p class="download-label">Security Audit</p>
             <h3>Security Audit 2026</h3>
-            <p>Latest audit status: round 4 for NetMon v1.1.15. No critical finding reported.</p>
+            <p>Latest published audit report: round 9 for the final NetMon v1.1.19 release state. Two medium findings (update URL allowlist and killswitch fail-open) were fixed and verified, and the release signature chain via SHA256SUMS and minisign was validated.</p>
             <div class="inline-actions">
-              <a class="button button-primary" href="../security-audit.html">Open HTML</a>
-              <a class="button button-secondary" href="../netmon_security_audit_2026_r4.pdf">Open PDF</a>
+              <a class="button button-primary" href="./security-audit.html">Open HTML</a>
+              <a class="button button-secondary" href="../netmon_security_audit_2026_r9.pdf">Open PDF</a>
             </div>
           </article>
         </div>
@@ -137,7 +138,7 @@
             <p>The latest static review of the NetMon codebase is bundled in the web area and can be read without extra tooling.</p>
             <div class="inline-actions">
               <a class="button button-primary" href="./security-audit.html">HTML report</a>
-              <a class="button button-secondary" href="../netmon_security_audit_2026.pdf">PDF report</a>
+              <a class="button button-secondary" href="../netmon_security_audit_2026_r9.pdf">PDF report</a>
             </div>
           </article>
         </div>
@@ -179,11 +180,11 @@
           </article>
           <article class="faq-card">
             <h3>Which features stand out most?</h3>
-            <p>DNS Guard, security guards, support packages, WireGuard slots, Linux help, link blocks, Theme Studio, and the detachable radio player.</p>
+            <p>DNS Guard, security guards, support packages, WireGuard slots, Linux help with glossary and PDF library, link blocks, Theme Studio, and the detachable radio player.</p>
           </article>
           <article class="faq-card">
             <h3>Is Linux help built in?</h3>
-            <p>Yes. NetMon includes an expandable help system with around 700 Linux commands and IT terms.</p>
+            <p>Yes. NetMon includes an expandable help system with around 700 Linux commands, IT terms, a copyable PDF prompt, and an importable PDF library.</p>
           </article>
           <article class="faq-card">
             <h3>Is there a link block?</h3>
@@ -192,6 +193,10 @@
           <article class="faq-card">
             <h3>Are Theme Studio and a fun area included?</h3>
             <p>Yes. NetMon includes Theme Studio, radio, visualizer support, and a small built-in area for downtime.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Can I configure the ClamAV quick-scan paths?</h3>
+            <p>Yes. The ClamAV tab lets you persistently select Downloads, Desktop, document folders, and custom directories. Scan runtime remains visible while it runs.</p>
           </article>
           <article class="faq-card">
             <h3>Are final screenshots already in place?</h3>
@@ -206,12 +211,12 @@
           <h2>Package and documentation status kept separate</h2>
         </div>
         <div class="version-note">
-          <p><strong>Debian package:</strong> Available in the repository up to <code>1.1.15</code>.</p>
-          <p><strong>Built manual:</strong> Currently available as <code>1.1.15</code>.</p>
-          <p><strong>Changelog:</strong> Entries document state <code>2026-06-29</code> for version <code>1.1.15</code>.</p>
+          <p><strong>Debian package:</strong> Planned as <code>1.1.19</code> for the current release.</p>
+          <p><strong>Built manual:</strong> Planned as <code>1.1.19</code> for the release state.</p>
+          <p><strong>Changelog:</strong> Entries document state <code>2026-07-18</code> for version <code>1.1.19</code>.</p>
         </div>
         <div class="inline-actions">
-          <a class="button button-primary" href="/dist/netmon_1.1.15_all.deb">1.1.15 .deb</a>
+          <a class="button button-primary" href="/dist/netmon_1.1.19_all.deb">1.1.19 .deb</a>
           <a class="button button-secondary" href="/docs/CHANGELOG.md">Repo changelog</a>
         </div>
       </section>
@@ -253,6 +258,7 @@
 
     <footer class="footer">
       <a href="./impressum.html">Imprint</a>
+      <a href="https://github.com/Noogman4/dev-lab" target="_blank" rel="noopener noreferrer">GitHub</a>
     </footer>
   </div>
   <script src="../app.js"></script>

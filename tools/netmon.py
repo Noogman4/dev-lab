@@ -7,8 +7,12 @@ import sys
 from runpy import run_module
 
 NETMON_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if NETMON_REPO_ROOT not in sys.path:
-    sys.path.insert(0, NETMON_REPO_ROOT)
+sys.path = [
+    path
+    for path in sys.path
+    if os.path.abspath(path or os.getcwd()) != NETMON_REPO_ROOT
+]
+sys.path.insert(0, NETMON_REPO_ROOT)
 
 if __name__ == "__main__":
     run_module("netmon.main", run_name="__main__")

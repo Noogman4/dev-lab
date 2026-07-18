@@ -1,0 +1,19 @@
+.TH NETMON-UNINSTALL 1 "July 2026" "NetMon 1.1.19" "User Commands"
+.SH NAME
+netmon-uninstall \- guided removal utility for NetMon
+.SH SYNOPSIS
+.B netmon-uninstall
+.SH DESCRIPTION
+.B netmon-uninstall
+opens an interactive terminal workflow for removing the NetMon package and,
+only after explicit confirmation, optional NetMon configuration or runtime
+data. User data is not removed by the Debian package's normal removal scripts.
+.SH WARNING
+Review every prompt before confirming optional cleanup. WireGuard, DNS,
+NetworkManager, and user-data cleanup choices can affect system configuration.
+.SH SEE ALSO
+.BR netmon (1),
+.BR dpkg (1),
+.BR apt (8)
+.SH AUTHOR
+NetMon Roots <info@netmonroots.com>

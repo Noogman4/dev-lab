@@ -116,6 +116,10 @@ def build_hdd_tab(app):
         app.hdd_table.column(col, width=width, anchor=anchor)
     app.hdd_table.pack(fill="x", pady=(8, 0))
     app.hdd_table.bind("<<TreeviewSelect>>", app.on_hdd_table_select)
+    app.hdd_usage_canvas = tk.Canvas(
+        app.tab_hdd, height=34, highlightthickness=1, highlightbackground="#bbb"
+    )
+    app.hdd_usage_canvas.pack(fill="x", pady=(8, 0))
     app.hdd_info_auto_mount_var = tk.BooleanVar(value=False)
     app.hdd_info_auto_mount_hint_var = tk.StringVar(value="")
     auto_mount_row = ttk.Frame(app.tab_hdd)
@@ -138,7 +142,3 @@ def build_hdd_tab(app):
     app.hdd_info_auto_mount_hint_label.pack(side="left", padx=(10, 0))
     app.hdd_info_text = tk.Text(app.tab_hdd, wrap="word", height=12)
     app.hdd_info_text.pack(fill="both", expand=True)
-    app.hdd_usage_canvas = tk.Canvas(
-        app.tab_hdd, height=34, highlightthickness=1, highlightbackground="#bbb"
-    )
-    app.hdd_usage_canvas.pack(fill="x", pady=(8, 0))

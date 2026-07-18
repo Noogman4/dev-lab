@@ -304,6 +304,7 @@ def build_vpn_slots_tab(app):
     app.manual_wg_profile_name_var = tk.StringVar(value="")
     app.manual_wg_private_key_var = tk.StringVar(value="")
     app.manual_wg_public_key_var = tk.StringVar(value="")
+    app.manual_wg_preshared_key_var = tk.StringVar(value="")
     app.manual_wg_endpoint_var = tk.StringVar(value="")
     app.manual_wg_address_var = tk.StringVar(value="")
     app.manual_wg_allowed_ips_var = tk.StringVar(value="0.0.0.0/0")
@@ -358,15 +359,29 @@ def build_vpn_slots_tab(app):
 
     ttk.Label(
         manual_wg_frame,
-        text=app.tr("vpn_label_endpoint", "Endpoint:"),
+        text=app.tr("vpn_label_preshared_key_optional", "Preshared Key (optional):"),
     ).grid(
         row=1, column=2, sticky="w", padx=(0, 4), pady=(0, 4)
+    )
+    app.manual_wg_preshared_key_entry = ttk.Entry(
+        manual_wg_frame,
+        textvariable=app.manual_wg_preshared_key_var,
+        show="*",
+    )
+    app.manual_wg_preshared_key_entry.grid(row=1, column=3, sticky="ew", pady=(0, 4))
+    app.attach_text_context_menu(app.manual_wg_preshared_key_entry)
+
+    ttk.Label(
+        manual_wg_frame,
+        text=app.tr("vpn_label_endpoint", "Endpoint:"),
+    ).grid(
+        row=2, column=2, sticky="w", padx=(0, 4), pady=(0, 4)
     )
     app.manual_wg_endpoint_entry = ttk.Entry(
         manual_wg_frame,
         textvariable=app.manual_wg_endpoint_var,
     )
-    app.manual_wg_endpoint_entry.grid(row=1, column=3, sticky="ew", pady=(0, 4))
+    app.manual_wg_endpoint_entry.grid(row=2, column=3, sticky="ew", pady=(0, 4))
     app.attach_text_context_menu(app.manual_wg_endpoint_entry)
 
     ttk.Label(

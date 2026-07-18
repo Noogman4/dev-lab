@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 6</title>
+  <meta
+    name="description"
+    content="Sechstes unabhaengiges Sicherheits-Audit des NetMon-Quellcodes (v1.1.16, Juli 2026). Fokus: neue Favicon-Download-Netzwerkfunktion und Agent-Runner-Pfad-Confinement. 0 ausnutzbare Findings, 3 Defense-in-Depth-Haertungen proaktiv umgesetzt."
+  >
+  <link rel="icon" type="image/png" href="./favicon.png">
+  <link rel="apple-touch-icon" href="./favicon.png">
+  <link rel="canonical" href="https://netmonroots.com/security-audit.html">
+  <link rel="alternate" hreflang="de" href="https://netmonroots.com/security-audit.html">
+  <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/security-audit.html">
+  <meta property="og:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 6">
+  <meta property="og:description" content="Sechstes Sicherheits-Audit des NetMon-Quellcodes (v1.1.16, Juli 2026). 0 ausnutzbare Findings, 3 Defense-in-Depth-Haertungen proaktiv umgesetzt.">
+  <meta property="og:url" content="https://netmonroots.com/security-audit.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NetMon Roots">
+  <meta property="og:locale" content="de_DE">
+  <meta property="og:image" content="https://netmonroots.com/favicon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 6">
+  <meta name="twitter:description" content="Sechstes Sicherheits-Audit des NetMon-Quellcodes (v1.1.16, Juli 2026). 0 ausnutzbare Findings, 3 Defense-in-Depth-Haertungen proaktiv umgesetzt.">
+  <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
+  <link rel="stylesheet" href="./styles.css">
+  <style>
+    /* ── Audit-spezifische Erweiterungen ─────────────────────────────────── */
+    .audit-hero { padding: 64px 0 48px; }
+    .audit-hero .eyebrow { color: var(--accent); }
+
+    .verdict-banner {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 28px 32px;
+      margin: 40px 0;
+      border: 1px solid rgba(114, 240, 182, 0.4);
+      border-radius: var(--radius-sm);
+      background: rgba(58, 198, 143, 0.08);
+    }
+    .verdict-icon {
+      font-size: 2.8rem;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .verdict-text h2 { margin: 0 0 6px; font-size: 1.4rem; color: var(--accent); }
+    .verdict-text p  { margin: 0; color: var(--muted); font-size: 0.97rem; line-height: 1.55; }
+
+    .audit-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 32px 0;
+    }
+    .audit-meta-card {
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .audit-meta-card .label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .audit-meta-card .value {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .audit-meta-card .value.ok   { color: var(--accent); }
+    .audit-meta-card .value.warn { color: var(--accent-warm); }
+
+    .audit-section { margin-top: 56px; }
+    .audit-section h2 {
+      font-size: 1.55rem;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+    .audit-section .section-rule {
+      height: 1px;
+      background: var(--line);
+      margin-bottom: 28px;
+    }
+
+    .scope-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.93rem;
+    }
+    .scope-table th {
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .scope-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(154, 177, 204, 0.08);
+      vertical-align: top;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .scope-table tr:last-child td { border-bottom: none; }
+    .scope-table code {
+      font-size: 0.83rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .badge-ok   { background: rgba(58, 198, 143, 0.15); color: #72f0b6; }
+    .badge-low  { background: rgba(255, 184, 107, 0.15); color: #ffb86b; }
+    .badge-med  { background: rgba(255, 184, 107, 0.2);  color: #ffb86b; }
+    .badge-high { background: rgba(220, 60, 60, 0.15);   color: #ff7070; }
+    .badge-info { background: rgba(90, 160, 240, 0.15);  color: #7ab8f5; }
+
+    .finding-card {
+      margin-bottom: 24px;
+      padding: 24px 28px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .finding-card.filtered {
+      border-color: rgba(154, 177, 204, 0.1);
+      opacity: 0.75;
+    }
+    .finding-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .finding-header h3 { margin: 0; font-size: 1rem; flex: 1; min-width: 200px; }
+    .finding-detail { color: var(--muted); font-size: 0.92rem; line-height: 1.6; }
+    .finding-detail strong { color: var(--text); }
+    .finding-detail code {
+      font-size: 0.83rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .finding-verdict {
+      margin-top: 12px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: rgba(2, 8, 15, 0.4);
+      font-size: 0.88rem;
+      color: var(--muted);
+      border-left: 3px solid rgba(154, 177, 204, 0.25);
+    }
+    .finding-verdict.pass { border-left-color: var(--accent); }
+
+    .fixed-card {
+      display: flex;
+      gap: 16px;
+      padding: 18px 22px;
+      margin-bottom: 14px;
+      border: 1px solid rgba(58, 198, 143, 0.2);
+      border-radius: var(--radius-sm);
+      background: rgba(58, 198, 143, 0.04);
+    }
+    .fixed-icon { font-size: 1.4rem; flex-shrink: 0; line-height: 1.2; }
+    .fixed-body h4 { margin: 0 0 4px; font-size: 0.97rem; color: var(--accent); }
+    .fixed-body p  { margin: 0; font-size: 0.9rem; color: var(--muted); line-height: 1.5; }
+    .fixed-body code {
+      font-size: 0.82rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .hardening-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .hardening-list li {
+      display: flex;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(154, 177, 204, 0.08);
+      font-size: 0.93rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .hardening-list li:last-child { border-bottom: none; }
+    .hardening-list .hl-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+    .hardening-list code {
+      font-size: 0.82rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .hardening-list strong { color: var(--text); }
+
+    .methodology-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .method-card {
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .method-card h4 { margin: 0 0 8px; font-size: 0.93rem; color: var(--accent); }
+    .method-card p  { margin: 0; font-size: 0.87rem; color: var(--muted); line-height: 1.5; }
+
+    .signature-block {
+      margin-top: 48px;
+      padding: 28px 32px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .signature-block strong { color: var(--text); }
+
+    .round-link {
+      display: inline-block;
+      padding: 10px 18px;
+      border-radius: 40px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-decoration: none;
+      margin-top: 16px;
+    }
+
+    @media (max-width: 640px) {
+      .verdict-banner { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .audit-meta-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="./index.html" aria-label="NetMon Startseite">
+        <span class="brand-mark">
+          <span class="brand-lockup">
+            <span class="brand-title">
+              <span class="brand-title-main">NETMON</span>
+              <span class="brand-title-accent">ROOTS</span>
+            </span>
+            <span class="brand-subline">MONITOR. CONTROL. UNDERSTAND.</span>
+            <span class="brand-tagline">BACK TO THE ROOTS.</span>
+          </span>
+          <img class="brand-icon" src="./bannericon.png" alt="" aria-hidden="true">
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="./index.html">Start</a>
+        <a href="./tour.html">Rundgang</a>
+        <a href="./downloads.html">Download</a>
+        <a href="./aktuelles.html">Aktuelles</a>
+        <a href="./changelog.html">Changelog</a>
+        <a href="./docs.html">Doku</a>
+        <a href="./legal.html">Legal</a>
+      </nav>
+      <div class="lang-switch" aria-label="Sprachauswahl">
+        <a class="active" href="./security-audit.html" lang="de">DE</a>
+      </div>
+    </header>
+
+    <main>
+      <!-- ── Hero ── -->
+      <section class="audit-hero">
+        <p class="eyebrow">Sicherheits-Audit &mdash; Juli 2026 &mdash; Runde&nbsp;6</p>
+        <h1 style="font-size:clamp(2rem,4vw,3rem);margin:0 0 20px;color:var(--text);">
+          Code-Security-Review<br>
+          <span style="color:var(--accent);">NetMon Roots v1.1.16</span>
+        </h1>
+        <p style="max-width:680px;color:var(--muted);line-height:1.65;font-size:1.05rem;">
+          Sechstes automatisiertes Security-Review auf Basis von
+          Claude&nbsp;Fable&nbsp;5. Schwerpunkt dieser Runde: die seit Runde&nbsp;5
+          hinzugekommene <strong>Favicon-Download-Netzwerkfunktion</strong> des
+          Secure&nbsp;Browser&nbsp;Managers
+          (<code>fetch_url()</code>, <code>resolve_favicon_download()</code>,
+          <code>extract_icon_links()</code> in
+          <code>browser_container_builder.py</code>) &mdash; die erste ausgehende
+          Netzwerk-Schnittstelle des Features &mdash; sowie die
+          Pfad-Confinement-H&auml;rtung des Coding-Agenten
+          (<code>agent/runner.py</code>) und das damals noch vorhandene
+          Dev-Container-GUI-/Docker-Profil
+          (<code>.devcontainer/gui-docker/</code>, inzwischen entfernt). Anders als in Runde&nbsp;5
+          wurden <strong>keine ausnutzbaren Schwachstellen best&auml;tigt</strong>:
+          vier Kandidaten wurden von dedizierten Validierungs-Sub-Agenten allesamt
+          unterhalb der Konfidenzschwelle eingestuft (2&ndash;3&nbsp;/&nbsp;10).
+          Drei davon wurden dennoch als
+          <strong>Defense-in-Depth proaktiv geh&auml;rtet</strong> und mit neuen
+          Regressionstests abgesichert.
+        </p>
+        <a class="round-link" href="./security-audit-r5.html">
+          &#8592; Runde&nbsp;5 (3&nbsp;Findings &mdash; alle behoben)
+        </a>
+      </section>
+
+      <!-- ── Aktionen ── -->
+      <div style="margin-bottom:32px;">
+        <a class="button button-primary" href="./netmon_security_audit_2026_r6.pdf" download
+           style="display:inline-block;padding:12px 28px;border-radius:40px;background:var(--accent);color:#07101d;font-weight:700;font-size:0.95rem;text-decoration:none;margin-right:12px;">
+          PDF herunterladen
+        </a>
+        <a href="#kandidaten"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;">
+          Kandidaten
+        </a>
+        <a href="#hardening"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;margin-left:8px;">
+          Hardening
+        </a>
+      </div>
+
+      <!-- ── Gesamtverdikt ── -->
+      <div class="verdict-banner">
+        <div class="verdict-icon">&#10003;</div>
+        <div class="verdict-text">
+          <h2>0 ausnutzbare Findings &mdash; 3 Defense-in-Depth-H&auml;rtungen proaktiv umgesetzt</h2>
+          <p>
+            Diese Runde untersuchte gezielt die seit Runde&nbsp;5 neu
+            hinzugekommene Angriffsfl&auml;che &mdash; vor allem die erste
+            ausgehende Netzwerkfunktion des Secure&nbsp;Browser&nbsp;Managers
+            (Favicon-Download) sowie die Pfad-Confinement-H&auml;rtung des
+            Coding-Agenten. Ein Analyse-Sub-Agent identifizierte
+            <strong>vier Kandidaten</strong>; jeder wurde von einem eigenen,
+            parallel laufenden Validierungs-Sub-Agenten gepr&uuml;ft und
+            <strong>allesamt unterhalb der Konfidenzschwelle (&ge;&nbsp;8/10)
+            eingestuft</strong> &mdash; kein konkret ausnutzbarer Angriffspfad
+            &uuml;ber eine echte Vertrauensgrenze. Drei der vier Punkte wurden
+            trotzdem als sinnvolle H&auml;rtung <strong>direkt umgesetzt</strong>
+            (Scheme-Allowlist f&uuml;r Netzwerk-Fetches, Schliessen einer
+            <code>--flag=value</code>-L&uuml;cke im Agent-Pfad-Confinement, explizite
+            Ablehnung von <code>.</code>/<code>..</code> als Containername) und mit
+            6&nbsp;neuen Regressionstests abgesichert. Alle 149&nbsp;relevanten
+            automatisierten Tests bleiben nach den Fixes gr&uuml;n. Der Codestand
+            v1.1.16 enth&auml;lt keine offenen ausnutzbaren Sicherheitsl&uuml;cken.
+          </p>
+        </div>
+      </div>
+
+      <!-- ── Meta-Daten ── -->
+      <div class="audit-meta-grid">
+        <div class="audit-meta-card">
+          <div class="label">Datum</div>
+          <div class="value">07.&nbsp;Juli&nbsp;2026</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Analysierte Version</div>
+          <div class="value">v1.1.16 &mdash; Runde&nbsp;6</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Neue Angriffsfl&auml;che</div>
+          <div class="value">Favicon-Download (Netzwerk)</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Bewertete Kandidaten</div>
+          <div class="value warn">4 (alle &lt; Schwelle)</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Ausnutzbare Findings</div>
+          <div class="value ok">0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">H&auml;rtungen umgesetzt</div>
+          <div class="value ok">3</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Konfidenz-Schwelle</div>
+          <div class="value">8&nbsp;/&nbsp;10</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Analysewerkzeug</div>
+          <div class="value">Claude Fable&nbsp;5</div>
+        </div>
+      </div>
+
+      <!-- ── Umfang & Methodik ── -->
+      <div class="audit-section" id="methodik">
+        <h2>Umfang &amp; Methodik</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:760px;line-height:1.65;">
+          Schwerpunkt dieser Runde war die seit dem Runde-5-Snapshot neu
+          hinzugekommene bzw. ver&auml;nderte Angriffsfl&auml;che im
+          Arbeitsstand: die erstmals eingef&uuml;hrte Favicon-Download-Funktion des
+          Secure&nbsp;Browser&nbsp;Managers (ausgehende HTTP-Requests aus
+          Homepage-URL und aus dem HTML geparsten Icon-Links), die
+          Pfad-Confinement-Logik des Coding-Agenten
+          (<code>_looks_like_path_argument()</code> /
+          <code>_validate_repo_confined_arguments()</code>) sowie die neu
+          hinzugef&uuml;gten Dev-Container-Profile. Die in Runde&nbsp;5 behobenen
+          Findings (K1&ndash;K3) wurden zus&auml;tzlich am aktuellen Code
+          gegengepr&uuml;ft &mdash; die Fixes sind unver&auml;ndert wirksam
+          (<code>CONTAINER_NAME_PATTERN</code>, <code>json.dumps()</code>-Escaping,
+          <code>_desktop_field()</code>).
+        </p>
+        <div class="methodology-grid">
+          <div class="method-card">
+            <h4>Phase&nbsp;1 &mdash; Diff- &amp; Reconnaissance</h4>
+            <p>Vollst&auml;ndiger <code>git diff</code> gegen den letzten Commit plus
+            Sichtung aller neuen unversionierten Dateien; gezieltes Lesen der neuen
+            Netzwerkpfade in <code>browser_container_builder.py</code> und der
+            H&auml;rtungslogik in <code>agent/runner.py</code>. Abgleich gegen die im
+            README dokumentierten Sicherheitsgarantien.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;2 &mdash; Kandidaten-Analyse</h4>
+            <p>Ein dedizierter Analyse-Sub-Agent verfolgte Datenflussketten von
+            Nutzer-/Konfig-Eingaben (Containername, <code>homepage_url</code>,
+            Agent-Kommandozeile) bis zu sensiblen Operationen
+            (<code>urlopen</code>, <code>mkdir</code>/<code>copytree</code>,
+            <code>subprocess.run</code>). 4&nbsp;Kandidaten identifiziert.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;3 &mdash; False-Positive-Validierung</h4>
+            <p>F&uuml;r jeden Kandidaten lief ein eigener, paralleler
+            Validierungs-Sub-Agent mit striktem FP-Filter-Regelwerk und
+            Konfidenz-Scoring. Ergebnis: alle vier unter der Schwelle
+            (2&ndash;3&nbsp;/&nbsp;10) &mdash; kein Angriffspfad &uuml;ber eine echte
+            Vertrauensgrenze in einem Einzelnutzer-Desktop-Werkzeug.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;4 &mdash; H&auml;rtung &amp; Regressionscheck</h4>
+            <p>3&nbsp;der 4&nbsp;Punkte als Defense-in-Depth umgesetzt und mit
+            6&nbsp;neuen Regressionstests abgesichert. Bestehende Suiten erneut
+            ausgef&uuml;hrt: <code>test_runner.py</code>,
+            <code>test_secure_browser_module.py</code> und
+            <code>test_browser_container_builder.py</code> &mdash;
+            149&nbsp;Tests, alle gr&uuml;n.</p>
+          </div>
+        </div>
+
+        <!-- ── Scope-Tabelle ── -->
+        <h3 style="margin-top:36px;font-size:1.1rem;">Sicherheitsfokus (Runde&nbsp;6)</h3>
+        <table class="scope-table" style="margin-top:12px;">
+          <thead>
+            <tr>
+              <th>Datei / Modul</th>
+              <th>Fokus</th>
+              <th>Ergebnis</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>browser_container_builder.py</code> &mdash; <code>fetch_url()</code></td>
+              <td>Ausgehende HTTP(S)-Fetches ohne Scheme-Restriktion
+                (<code>file://</code> via Default-Opener erreichbar)</td>
+              <td><span class="badge badge-med">K1 &rarr; geh&auml;rtet</span></td>
+            </tr>
+            <tr>
+              <td><code>browser_container_builder.py</code> &mdash; <code>resolve_favicon_download()</code> / <code>extract_icon_links()</code></td>
+              <td>SSRF-Betrachtung: <code>homepage_url</code> und aus HTML geparste
+                Icon-Links steuern Ziel-Host</td>
+              <td><span class="badge badge-ok">Kein Finding (Self-SSRF)</span></td>
+            </tr>
+            <tr>
+              <td><code>agent/runner.py</code> &mdash; <code>_looks_like_path_argument()</code></td>
+              <td>Pfad-Confinement f&uuml;r <code>pytest</code>/<code>black</code>/<code>ruff</code>/<code>ls</code>;
+                <code>--flag=value</code>-Argumente wurden nicht gepr&uuml;ft</td>
+              <td><span class="badge badge-med">K2 &rarr; geh&auml;rtet</span></td>
+            </tr>
+            <tr>
+              <td><code>browser_container_builder.py</code> / <code>manager.py</code> &mdash; Namensvalidierung</td>
+              <td><code>CONTAINER_NAME_PATTERN</code> matcht weiterhin
+                <code>.</code>/<code>..</code></td>
+              <td><span class="badge badge-low">K3 &rarr; geh&auml;rtet</span></td>
+            </tr>
+            <tr>
+              <td><code>netmon/app.py</code> &mdash; <code>_is_netmon_listener()</code></td>
+              <td>Substring-Match <code>"netmon" in process_name</code> zur
+                Listener-Zuordnung in der Firewall-Transparenz</td>
+              <td><span class="badge badge-info">K4 &rarr; Empfehlung (offen)</span></td>
+            </tr>
+            <tr>
+              <td><code>.devcontainer/gui-docker/devcontainer.json</code></td>
+              <td>Historisches offenes Entwickler-Profil mit
+                <code>docker.sock</code>- und X11-Mount; inzwischen aus dem
+                aktuellen Setup entfernt</td>
+              <td><span class="badge badge-ok">Historisch / entfernt</span></td>
+            </tr>
+            <tr>
+              <td>Runde-5-Fixes (K1&ndash;K3)</td>
+              <td>Gegenpr&uuml;fung, ob die Patches am aktuellen Code weiterhin
+                greifen</td>
+              <td><span class="badge badge-ok">Weiterhin wirksam</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="color:var(--muted);font-size:0.85rem;max-width:760px;line-height:1.6;margin-top:14px;">
+          Au&szlig;erhalb des Scopes: die im Repository-Root liegende
+          <code>index.html</code> ist eine fremde Drittanbieter-Seite (Rootkit-Hunter-
+          Projekt) und geh&ouml;rt nicht zur ausgelieferten Anwendung &mdash;
+          empfohlen wird deren Entfernung/Verschiebung als reine Aufr&auml;um-Ma&szlig;nahme.
+          Das fr&uuml;here GUI-/Docker-Dev-Container-Profil mit Host-Docker-Socket-Mount
+          war ein bewusst offenes Entwickler-Feature, wurde aber aus dem aktuellen
+          Setup entfernt und ist kein Bestandteil der ausgelieferten App.
+        </p>
+      </div>
+
+      <!-- ── Kandidaten ── -->
+      <div class="audit-section" id="kandidaten">
+        <h2>Bewertete Kandidaten (alle unterhalb der Konfidenzschwelle)</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:28px;">
+          Vier Kandidaten wurden identifiziert und jeweils von einem eigenen
+          Validierungs-Sub-Agenten gegengepr&uuml;ft. Keiner erreichte die
+          Konfidenzschwelle von 8/10 f&uuml;r ein best&auml;tigtes, ausnutzbares
+          Finding &mdash; im Wesentlichen, weil es sich um ein
+          Einzelnutzer-Desktop-Werkzeug handelt, bei dem die vermeintliche
+          &bdquo;Angreifer&ldquo;-Eingabe (z.&nbsp;B. selbst geschriebene
+          <code>containers.json</code> oder lokal getippte Agent-Kommandos) vom
+          selben Nutzer stammt, der das Werkzeug ausf&uuml;hrt. Drei der vier
+          Punkte wurden dennoch als sinnvolle Defense-in-Depth geh&auml;rtet.
+        </p>
+
+        <!-- K1 -->
+        <div class="finding-card">
+          <div class="finding-header">
+            <h3>K1 &mdash; Ausgehende Netzwerk-Fetches ohne Scheme-Allowlist (Favicon-Download)</h3>
+            <span class="badge badge-med">Konfidenz 3/10</span>
+            <span class="badge badge-ok">Geh&auml;rtet</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Datei:</strong> <code>tools/secure_browser_manager/browser_container_builder.py</code>
+              &mdash; <code>fetch_url()</code>, aufgerufen aus
+              <code>resolve_favicon_download()</code> (Standard-Icon-Modus
+              <code>favicon</code>).</p>
+            <p>
+              <code>fetch_url()</code> reichte <code>homepage_url</code> (und daraus per
+              <code>urljoin()</code> abgeleitete Icon-Links) ohne Scheme-Pr&uuml;fung an
+              <code>urllib.request.urlopen()</code>. Der Default-Opener von urllib
+              behandelt neben <code>http</code>/<code>https</code> auch
+              <code>file://</code> &mdash; ein <code>homepage_url</code> wie
+              <code>file:///etc/passwd</code> h&auml;tte damit theoretisch einen lokalen
+              Dateizugriff ausgel&ouml;st, und ein beliebiger Host w&auml;re als
+              SSRF-Primitive erreichbar gewesen.
+            </p>
+            <p>
+              <strong>Warum unter der Schwelle:</strong> In diesem Einzelnutzer-Desktop-
+              Werkzeug wird <code>homepage_url</code> ausschlie&szlig;lich vom selben
+              Nutzer gesetzt, der auch <code>--apply</code> ausf&uuml;hrt
+              (lokale <code>containers.json</code> bzw. GUI-Eingabe). Es existiert kein
+              Remote-/Mehrbenutzer-Eingabepfad und kein Import-aus-URL-Feature &mdash;
+              also keine echte Vertrauensgrenze, die &uuml;berschritten wird
+              (Self-SSRF / selbstverschuldete Fehlkonfiguration).
+            </p>
+          </div>
+          <div class="finding-verdict pass">
+            <strong>H&auml;rtung umgesetzt:</strong> <code>fetch_url()</code> pr&uuml;ft
+            jetzt das Scheme und lehnt alles ab, was nicht <code>http</code>/<code>https</code>
+            ist &mdash; damit ist der <code>file://</code>-Pfad und jede andere
+            Nicht-Web-Scheme geschlossen, bevor die URL den Opener erreicht. Neuer
+            Regressionstest <code>test_fetch_url_rejects_non_http_schemes</code>
+            (<code>file://</code>, <code>ftp://</code>, <code>gopher://</code>,
+            absoluter Pfad) verifiziert die Ablehnung.
+          </div>
+        </div>
+
+        <!-- K2 -->
+        <div class="finding-card">
+          <div class="finding-header">
+            <h3>K2 &mdash; <code>--flag=value</code>-L&uuml;cke im Pfad-Confinement des Coding-Agenten</h3>
+            <span class="badge badge-med">Konfidenz 3/10</span>
+            <span class="badge badge-ok">Geh&auml;rtet</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Datei:</strong> <code>agent/runner.py</code> &mdash;
+              <code>_looks_like_path_argument()</code> /
+              <code>_validate_repo_confined_arguments()</code>.</p>
+            <p>
+              Die in Runde&nbsp;5 eingef&uuml;hrte Repo-Confinement-Pr&uuml;fung
+              behandelte jedes Argument, das mit <code>-</code> beginnt, sofort als
+              &bdquo;kein Pfad&ldquo; und &uuml;bersprang es. Flags der Form
+              <code>--junitxml=/pfad</code>, <code>--basetemp=/pfad</code> oder
+              <code>--output-file=/pfad</code> (bei <code>pytest</code>/<code>ruff</code>)
+              trugen ihren Pfad also am Confinement-Check vorbei &mdash; ein Schreibziel
+              au&szlig;erhalb des Repos w&auml;re nicht abgewiesen worden.
+            </p>
+            <p>
+              <strong>Warum unter der Schwelle:</strong> Der einzige Aufrufer
+              (<code>agent/cli.py</code>) baut das Kommando aus <code>sys.argv</code> &mdash;
+              es ist ein manuell vom Betreiber gestartetes lokales CLI, keine an
+              untrusted Input angebundene autonome LLM-Tool-Schleife. Damit greift der
+              Grundsatz &bdquo;vom vertrauensw&uuml;rdigen Betreiber &uuml;bergebene
+              CLI-Argumente sind kein Angreifer-Input&ldquo;. Die Absicht des
+              Confinement-Codes wird dennoch vervollst&auml;ndigt.
+            </p>
+          </div>
+          <div class="finding-verdict pass">
+            <strong>H&auml;rtung umgesetzt:</strong> <code>_looks_like_path_argument()</code>
+            zerlegt jetzt <code>--flag=value</code>-Argumente und pr&uuml;ft den
+            Wert-Teil; eine neue Hilfsfunktion <code>_flag_value()</code> sorgt
+            daf&uuml;r, dass auch <code>_is_repo_confined_path()</code> den reinen
+            Pfad-Teil bewertet. Neue Tests
+            (<code>test_run_command_rejects_pytest_flag_value_outside_repo</code>,
+            <code>...ruff...</code>, <code>...allows_flag_value_inside_repo</code>)
+            best&auml;tigen, dass Pfade au&szlig;erhalb des Repos abgewiesen und solche
+            innerhalb weiterhin erlaubt werden.
+          </div>
+        </div>
+
+        <!-- K3 -->
+        <div class="finding-card">
+          <div class="finding-header">
+            <h3>K3 &mdash; <code>.</code> / <code>..</code> passieren die Containername-Validierung</h3>
+            <span class="badge badge-low">Konfidenz 2/10</span>
+            <span class="badge badge-ok">Geh&auml;rtet</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Datei:</strong> <code>tools/secure_browser_manager/browser_container_builder.py</code>
+              (<code>validate_config_payload()</code>) und
+              <code>netmon/modules/secure_browser/manager.py</code>
+              (<code>_resolve_create_inputs()</code>).</p>
+            <p>
+              Das Runde-5-Muster <code>^[A-Za-z0-9_.-]+$</code> erlaubt den Punkt und
+              matcht damit auch die Literale <code>.</code> und <code>..</code>.
+              <code>base_dir / name</code> zeigt f&uuml;r <code>..</code> lexikalisch auf
+              das &uuml;bergeordnete Verzeichnis.
+            </p>
+            <p>
+              <strong>Warum unter der Schwelle:</strong> In der Praxis blockiert die
+              bestehende <code>mkdir(parents=True, exist_ok=False)</code>-Semantik den
+              Schreibvorgang &mdash; ein empirischer Test best&auml;tigte, dass bei
+              <code>name=".."</code> zuerst <code>base_dir</code> selbst angelegt wird und
+              der finale <code>mkdir</code> dann zuverl&auml;ssig mit
+              <code>FileExistsError</code> abbricht, bevor <code>copytree</code>
+              erreicht wird. Kein Schreibzugriff au&szlig;erhalb von
+              <code>base_dir</code> heute m&ouml;glich.
+            </p>
+          </div>
+          <div class="finding-verdict pass">
+            <strong>H&auml;rtung umgesetzt:</strong> An beiden Validierungsstellen wird
+            <code>name in {".", ".."}</code> jetzt explizit mit klarer Fehlermeldung
+            abgelehnt &mdash; die Namenspr&uuml;fung ist damit selbst fail-closed und
+            h&auml;ngt nicht mehr an der zuf&auml;lligen <code>mkdir</code>-Semantik.
+            Neue Tests <code>test_validate_config_payload_rejects_dot_and_dotdot_names</code>
+            und <code>...rejects_path_traversal_name</code> sichern das ab.
+          </div>
+        </div>
+
+        <!-- K4 -->
+        <div class="finding-card filtered">
+          <div class="finding-header">
+            <h3>K4 &mdash; Loser Substring-Match bei der NetMon-Listener-Zuordnung</h3>
+            <span class="badge badge-info">Konfidenz 3/10</span>
+            <span class="badge badge-info">Empfehlung (offen)</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Datei:</strong> <code>netmon/app.py</code> &mdash;
+              <code>_is_netmon_listener()</code>.</p>
+            <p>
+              Die Firewall-Transparenz stuft einen Listener als &bdquo;geh&ouml;rt zu
+              NetMon selbst&ldquo; ein, u.&nbsp;a. per
+              <code>if "netmon" in process_name</code>. Ein lokal laufender Prozess mit
+              einem Namen wie <code>netmon-helper</code> w&uuml;rde damit als eigener
+              Listener gelabelt.
+            </p>
+            <p>
+              <strong>Warum unter der Schwelle &amp; bewusst nicht ge&auml;ndert:</strong>
+              Die Klassifikation dient rein der Anzeige/Priorisierung in einem
+              informativen Diagnose-Report &mdash; sie steuert keine
+              <code>ufw</code>-Regel und blendet keine Zeile aus der Haupttabelle aus
+              (Prozessname, PID, Port bleiben sichtbar). Ein Angreifer, der einen Prozess
+              frei benennen kann, hat bereits lokale Codeausf&uuml;hrung als der Nutzer;
+              das Verbergen einer Zeile in einer Zusammenfassung ist keine relevante
+              Eskalation. Ein Entfernen des Matches birgt zudem das Risiko, echte
+              NetMon-Listener f&auml;lschlich als &bdquo;fremd&ldquo; zu markieren
+              (schlechtere UX). Daher bewusst als Empfehlung belassen.
+            </p>
+          </div>
+          <div class="finding-verdict">
+            <strong>Empfehlung (Runde&nbsp;7):</strong> Die Zuordnung k&uuml;nftig nur
+            noch &uuml;ber schwer f&auml;lschbare Signale st&uuml;tzen &mdash;
+            <code>pid&nbsp;==&nbsp;os.getpid()</code> und den systemd-Scope-Check
+            <code>_is_netmon_app_scope()</code> (<code>app-gnome-netmon-*.scope</code>)
+            &mdash; und den reinen Substring-Match entfernen, sobald die
+            Selbst-Erkennung der eigenen Listener &uuml;ber diese Pfade verl&auml;sslich
+            abgedeckt ist.
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Umgesetzte Härtungen ── -->
+      <div class="audit-section" id="hardening">
+        <h2>Umgesetzte H&auml;rtungsma&szlig;nahmen (Runde&nbsp;6)</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:24px;">
+          Auch ohne best&auml;tigtes ausnutzbares Finding wurden die drei
+          risikoreduzierenden Kandidaten direkt geschlossen &mdash; jeweils
+          fail-closed und mit Regressionstest.
+        </p>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128274;</div>
+          <div class="fixed-body">
+            <h4>Scheme-Allowlist f&uuml;r Netzwerk-Fetches &mdash; <code>browser_container_builder.py</code></h4>
+            <p>
+              <code>fetch_url()</code> akzeptiert nur noch <code>http</code>/<code>https</code>.
+              Damit sind <code>file://</code> (lokaler Dateizugriff via urllib-
+              Default-Opener) und andere Nicht-Web-Schemes ausgeschlossen, bevor die URL
+              <code>urlopen()</code> erreicht.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#9989;</div>
+          <div class="fixed-body">
+            <h4>Vollst&auml;ndiges Pfad-Confinement inkl. <code>--flag=value</code> &mdash; <code>agent/runner.py</code></h4>
+            <p>
+              <code>_looks_like_path_argument()</code> zerlegt jetzt
+              <code>--flag=value</code>-Argumente und pr&uuml;ft den Wertteil; die neue
+              Hilfsfunktion <code>_flag_value()</code> stellt sicher, dass auch
+              <code>_is_repo_confined_path()</code> den reinen Pfad bewertet. Schreibziele
+              wie <code>--junitxml=/etc/passwd</code> werden nun abgewiesen.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#9989;</div>
+          <div class="fixed-body">
+            <h4>Fail-closed Containername-Validierung &mdash; <code>browser_container_builder.py</code> + <code>manager.py</code></h4>
+            <p>
+              <code>.</code> und <code>..</code> werden an beiden
+              Validierungseinstiegen explizit abgelehnt &mdash; die Namenspr&uuml;fung
+              h&auml;ngt nicht mehr an der zuf&auml;lligen
+              <code>mkdir(exist_ok=False)</code>-Semantik als letzter Schutzlinie.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#129514;</div>
+          <div class="fixed-body">
+            <h4>6&nbsp;neue Regressionstests &mdash; 149&nbsp;/&nbsp;149 gr&uuml;n</h4>
+            <p>
+              <code>test_runner.py</code> (+3: <code>--flag=value</code> innerhalb/
+              au&szlig;erhalb Repo), <code>test_browser_container_builder.py</code>
+              (+3: <code>.</code>/<code>..</code>-Namen, Pfad-Escape-Name, Nicht-HTTP-
+              Schemes). Alle drei relevanten Suiten bestehen nach den Fixes vollst&auml;ndig.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Gegengeprüfte Runde-5-Fixes ── -->
+      <div class="audit-section" id="regression">
+        <h2>Runde-5-Fixes &mdash; am aktuellen Code gegengepr&uuml;ft</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:24px;">
+          Die drei in Runde&nbsp;5 behobenen Findings wurden nicht nur dem Dokument
+          entnommen, sondern am aktuellen Quelltext verifiziert &mdash; alle Patches
+          sind unver&auml;ndert wirksam.
+        </p>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#10003;</div>
+          <div class="fixed-body">
+            <h4>K1&nbsp;(R5) &mdash; Namensvalidierung</h4>
+            <p>
+              <code>CONTAINER_NAME_PATTERN&nbsp;=&nbsp;re.compile(r"^[A-Za-z0-9_.-]+$")</code>
+              vorhanden in <code>browser_container_builder.py:35</code> und
+              <code>manager.py:54</code>, an beiden Einstiegen angewandt &mdash; in
+              Runde&nbsp;6 zus&auml;tzlich um die <code>.</code>/<code>..</code>-Ablehnung
+              erweitert.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#10003;</div>
+          <div class="fixed-body">
+            <h4>K2&nbsp;(R5) &mdash; <code>user.js</code>-Escaping</h4>
+            <p>
+              <code>homepage_url</code>/<code>new_tab_url</code> werden weiterhin per
+              <code>json.dumps()</code> kodiert
+              (<code>browser_container_builder.py:1312&ndash;1313</code>) &mdash;
+              Preference-Injection bleibt geschlossen.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#10003;</div>
+          <div class="fixed-body">
+            <h4>K3&nbsp;(R5) &mdash; <code>.desktop</code>-Feld-Bereinigung</h4>
+            <p>
+              <code>_desktop_field()</code> entfernt weiterhin <code>\r</code>/<code>\n</code>
+              und wird an allen drei Launcher-Erzeugungsstellen verwendet
+              (<code>browser_container_builder.py:1463&nbsp;ff.</code>).
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Geprüfte Kategorien ── -->
+      <div class="audit-section" id="kategorien">
+        <h2>Gepr&uuml;fte Sicherheitskategorien</h2>
+        <div class="section-rule"></div>
+        <table class="scope-table">
+          <thead>
+            <tr>
+              <th>Kategorie</th>
+              <th>Gepr&uuml;ft</th>
+              <th>Ergebnis</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>SSRF / ausgehende URL-Fetches (Host-/Scheme-Kontrolle)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-med">K1 &rarr; geh&auml;rtet (Scheme-Allowlist)</span></td>
+            </tr>
+            <tr>
+              <td>Local File Read via <code>file://</code> im URL-Opener</td>
+              <td>Ja</td>
+              <td><span class="badge badge-med">K1 &rarr; geh&auml;rtet</span></td>
+            </tr>
+            <tr>
+              <td>Path Traversal (Dateioperationen mit Nutzereingabe)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-low">K3 &rarr; geh&auml;rtet (fail-closed)</span></td>
+            </tr>
+            <tr>
+              <td>Agent-Sandbox: Pfad-Confinement der Kommando-Allowlist</td>
+              <td>Ja</td>
+              <td><span class="badge badge-med">K2 &rarr; geh&auml;rtet (<code>--flag=value</code>)</span></td>
+            </tr>
+            <tr>
+              <td>Command Injection (subprocess, <code>shell=True</code>)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Argument Injection (list-form subprocess mit externen Daten)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Firefox <code>user.js</code>/Preference-Injection</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Geschlossen (R5-K2)</span></td>
+            </tr>
+            <tr>
+              <td>Desktop-Entry-Injection (<code>.desktop</code> Name=/Comment=)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Geschlossen (R5-K3)</span></td>
+            </tr>
+            <tr>
+              <td>Unsichere Deserialisierung (pickle, yaml.load, eval)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Privilege Escalation (historisches Dev-Container docker.sock-Mount)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-info">Historisch / entfernt</span></td>
+            </tr>
+            <tr>
+              <td>Sicherheitskontroll-Umgehung (Listener-Zuordnung)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-info">K4 &rarr; Empfehlung (offen)</span></td>
+            </tr>
+            <tr>
+              <td>Hardcoded Credentials / API-Keys</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Sensitive Data Exposure (PII in Logs)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ── Signatur ── -->
+      <div class="signature-block">
+        <p>
+          <strong>Auditor:</strong> Claude Fable&nbsp;5 (Anthropic) &mdash;
+          Analyse-Sub-Agent + vier parallele False-Positive-Validierungs-Sub-Agenten
+          + manuelle Fix-Umsetzung und Regressionstests<br>
+          <strong>Projektverantwortlicher:</strong> Sven Fr&ouml;hlich<br>
+          <strong>Datum:</strong> 07.&nbsp;Juli&nbsp;2026<br>
+          <strong>Analysierter Codestand:</strong>
+          <code>9baa6284</code> + Arbeitsstand (modified/untracked), Fokus
+          Favicon-Download &amp; Agent-Pfad-Confinement &mdash; Runde&nbsp;6<br>
+          <strong>Methode:</strong> Statische Code-Analyse + manuelle Datenfluss-Verifikation
+          + Konfidenz-gescorte FP-Validierung + Regressionstests
+          (149/149 relevante Tests bestanden nach den H&auml;rtungen)
+          &mdash; kein Laufzeit-Penetrationstest<br>
+          <strong>Haftungsausschluss:</strong> Dieses Audit ersetzt keinen professionellen
+          Penetrationstest durch eine zertifizierte Sicherheitsfirma. Die Analyse
+          beschr&auml;nkt sich auf den angegebenen Codestand. Nicht erfasst werden:
+          Laufzeitverhalten, abh&auml;ngige Systembibliotheken,
+          Netzwerkkonfiguration und soziale Angriffsvektoren.
+        </p>
+        <p style="margin-top:16px;">
+          <a href="./downloads.html" style="color:var(--accent);">Zur Downloadseite</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./aktuelles.html" style="color:var(--accent);">Aktuelles</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./docs.html" style="color:var(--accent);">Dokumentation</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./security-audit-r5.html" style="color:var(--accent);">Runde&nbsp;5</a>
+        </p>
+      </div>
+    </main>
+
+    <footer style="margin-top:64px;padding:24px 0;border-top:1px solid var(--line);text-align:center;color:var(--muted);font-size:0.85rem;">
+      &copy; 2026 Sven Fr&ouml;hlich &mdash; NetMon Roots &mdash;
+      <a href="./legal.html" style="color:var(--muted);">Lizenz &amp; Credits</a>
+      &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+      <a href="https://github.com/Noogman4/dev-lab" target="_blank" rel="noopener noreferrer" style="color:var(--muted);">GitHub</a>
+    </footer>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>

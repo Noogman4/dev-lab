@@ -27,7 +27,12 @@ def get_netmon_documents_dir() -> str:
     candidates = []
     env_value = (os.environ.get("XDG_DOCUMENTS_DIR") or "").strip()
     if env_value:
-        candidates.append(os.path.expanduser(env_value))
+        path = os.path.join(os.path.expanduser(env_value), "NetMon")
+        try:
+            os.makedirs(path, exist_ok=True)
+        except Exception:
+            pass
+        return path
     candidates.extend(
         [
             os.path.expanduser("~/Documents"),

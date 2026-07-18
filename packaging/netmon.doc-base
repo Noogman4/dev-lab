@@ -1,0 +1,12 @@
+Document: netmon
+Title: NetMon Documentation
+Author: NetMon Roots
+Abstract: User, configuration, security, architecture, packaging, and change documentation for NetMon.
+Section: Network/Monitoring
+
+Format: HTML
+Index: /usr/share/doc/netmon/netmon_dokumentation.html
+Files: /usr/share/doc/netmon/netmon_dokumentation*.html
+
+Format: PDF
+Files: /usr/share/doc/netmon/netmon_dokumentation*.pdf

@@ -24,6 +24,29 @@ try:
 except ModuleNotFoundError:
     from core.utils import safe_write_json
 
+try:
+    from netmon.services.linux_help_library_service import (
+        delete_linux_help_document,
+        get_linux_help_document_by_id,
+        import_linux_help_pdf,
+        list_linux_help_documents,
+        linux_help_documents_dir,
+    )
+    from netmon.services.linux_help_prompt_service import build_linux_help_pdf_prompt
+    from netmon.services.linux_help_viewer_service import (
+        build_linux_help_library_preview,
+    )
+except ModuleNotFoundError:
+    from services.linux_help_library_service import (
+        delete_linux_help_document,
+        get_linux_help_document_by_id,
+        import_linux_help_pdf,
+        list_linux_help_documents,
+        linux_help_documents_dir,
+    )
+    from services.linux_help_prompt_service import build_linux_help_pdf_prompt
+    from services.linux_help_viewer_service import build_linux_help_library_preview
+
 
 NETMON_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 LINUX_HELP_EXPORT_FIELDS = [
@@ -493,12 +516,20 @@ def _linux_help_source_value(app):
     }.get(label, "both")
 
 
-def _linux_help_chad_title(item) -> str:
+def _linux_help_chad_title(app, item) -> str:
     entry = dict(item or {})
     if _is_glossary_item(entry):
-        return f"Explain glossary term: {entry.get('name') or 'Unknown'}"
+        return _tr(
+            app,
+            "linux_help_chad_title_glossary",
+            "Explain glossary term: {name}",
+        ).format(name=entry.get("name") or "Unknown")
     return (
-        f"Explain Linux command: {entry.get('name') or entry.get('cmd') or 'Unknown'}"
+        _tr(
+            app,
+            "linux_help_chad_title_command",
+            "Explain Linux command: {name}",
+        ).format(name=entry.get("name") or entry.get("cmd") or "Unknown")
     )
 
 
@@ -506,21 +537,65 @@ def build_linux_help_chad_prompt(app, item):
     entry = dict(item or {})
     if _is_glossary_item(entry):
         lines = [
-            "Please explain the following IT/Linux glossary term for beginners in clear, well-structured English.",
+            _tr(
+                app,
+                "linux_help_prompt_glossary_intro",
+                "Please explain the following IT/Linux glossary term for beginners in clear, well-structured English.",
+            ),
             "",
-            "Important requirements for your answer:",
-            "- Start with a simple definition.",
-            "- Explain why the term matters in Linux or IT practice.",
-            "- Use the stored example and expand it in plain language.",
-            "- Mention 2 or 3 related concepts beginners should learn next.",
+            _tr(
+                app,
+                "linux_help_prompt_requirements",
+                "Important requirements for your answer:",
+            ),
+            _tr(
+                app,
+                "linux_help_prompt_glossary_req_1",
+                "- Start with a simple definition.",
+            ),
+            _tr(
+                app,
+                "linux_help_prompt_glossary_req_2",
+                "- Explain why the term matters in Linux or IT practice.",
+            ),
+            _tr(
+                app,
+                "linux_help_prompt_glossary_req_3",
+                "- Use the stored example and expand it in plain language.",
+            ),
+            _tr(
+                app,
+                "linux_help_prompt_glossary_req_4",
+                "- Mention 2 or 3 related concepts beginners should learn next.",
+            ),
             "",
-            "Glossary data from NetMon:",
-            f"Term: {entry.get('name') or '–'}",
-            f"Category: {entry.get('category') or '–'}",
-            f"Short description: {entry.get('info') or '–'}",
-            f"Example: {entry.get('example') or '–'}",
-            f"Tags: {str(entry.get('tags') or '–').strip() or '–'}",
-            f"Related terms: {str(entry.get('related') or '–').strip() or '–'}",
+            _tr(
+                app,
+                "linux_help_prompt_glossary_data_header",
+                "Glossary data from NetMon:",
+            ),
+            _tr(app, "linux_help_prompt_glossary_term", "Term: {value}").format(
+                value=entry.get("name") or "–"
+            ),
+            _tr(app, "linux_help_prompt_category", "Category: {value}").format(
+                value=entry.get("category") or "–"
+            ),
+            _tr(
+                app,
+                "linux_help_prompt_short_description",
+                "Short description: {value}",
+            ).format(value=entry.get("info") or "–"),
+            _tr(app, "linux_help_prompt_example", "Example: {value}").format(
+                value=entry.get("example") or "–"
+            ),
+            _tr(app, "linux_help_prompt_tags", "Tags: {value}").format(
+                value=str(entry.get("tags") or "–").strip() or "–"
+            ),
+            _tr(
+                app,
+                "linux_help_prompt_glossary_related_terms",
+                "Related terms: {value}",
+            ).format(value=str(entry.get("related") or "–").strip() or "–"),
         ]
         return "\n".join(lines).strip()
     _risk_key, risk_label, _fill = RISK_UI.get(
@@ -535,36 +610,115 @@ def build_linux_help_chad_prompt(app, item):
     tags = str(entry.get("tags") or "–").strip() or "–"
     explanation = (
         str(entry.get("explanation") or "").strip()
-        or "No additional explanation stored."
+        or _tr(
+            app,
+            "linux_help_prompt_no_additional_explanation",
+            "No additional explanation stored.",
+        )
     )
     warning_text = (
-        str(entry.get("warning_text") or "").strip() or "No additional warning stored."
+        str(entry.get("warning_text") or "").strip()
+        or _tr(
+            app,
+            "linux_help_prompt_no_additional_warning",
+            "No additional warning stored.",
+        )
     )
     lines = [
-        "Please explain the following Linux command for beginners in clear, well-structured English.",
+        _tr(
+            app,
+            "linux_help_prompt_command_intro",
+            "Please explain the following Linux command for beginners in clear, well-structured English.",
+        ),
         "",
-        "Important requirements for your answer:",
-        "- Write in a beginner-friendly way without assuming prior knowledge.",
-        "- Start with a short explanation of what the command is used for.",
-        "- Then break down the syntax and the most important parts.",
-        "- Explain the example step by step.",
-        "- Mention typical real-world use cases.",
-        "- Clearly point out risks, root requirements, and common mistakes.",
-        "- End with 3 safe beginner tips or variants.",
-        "- Use calm, clear language instead of unnecessary jargon.",
+        _tr(
+            app,
+            "linux_help_prompt_requirements",
+            "Important requirements for your answer:",
+        ),
+        _tr(
+            app,
+            "linux_help_prompt_command_req_1",
+            "- Write in a beginner-friendly way without assuming prior knowledge.",
+        ),
+        _tr(
+            app,
+            "linux_help_prompt_command_req_2",
+            "- Start with a short explanation of what the command is used for.",
+        ),
+        _tr(
+            app,
+            "linux_help_prompt_command_req_3",
+            "- Then break down the syntax and the most important parts.",
+        ),
+        _tr(
+            app,
+            "linux_help_prompt_command_req_4",
+            "- Explain the example step by step.",
+        ),
+        _tr(
+            app,
+            "linux_help_prompt_command_req_5",
+            "- Mention typical real-world use cases.",
+        ),
+        _tr(
+            app,
+            "linux_help_prompt_command_req_6",
+            "- Clearly point out risks, root requirements, and common mistakes.",
+        ),
+        _tr(
+            app,
+            "linux_help_prompt_command_req_7",
+            "- End with 3 safe beginner tips or variants.",
+        ),
+        _tr(
+            app,
+            "linux_help_prompt_command_req_8",
+            "- Use calm, clear language instead of unnecessary jargon.",
+        ),
         "",
-        "Command data from NetMon:",
-        f"Command name: {entry.get('name') or entry.get('cmd') or '–'}",
-        f"Category: {entry.get('category') or '–'}",
-        f"Command: {entry.get('cmd') or '–'}",
-        f"Short description: {entry.get('info') or '–'}",
-        f"Syntax: {entry.get('syntax') or entry.get('cmd') or '–'}",
-        f"Example: {entry.get('example') or entry.get('cmd') or '–'}",
-        f"Database explanation/note: {explanation}",
-        f"Additional warning: {warning_text}",
-        f"Root required: {root_text}",
-        f"Risk level: {risk_label}",
-        f"Tags: {tags}",
+        _tr(
+            app,
+            "linux_help_prompt_command_data_header",
+            "Command data from NetMon:",
+        ),
+        _tr(app, "linux_help_prompt_command_name", "Command name: {value}").format(
+            value=entry.get("name") or entry.get("cmd") or "–"
+        ),
+        _tr(app, "linux_help_prompt_category", "Category: {value}").format(
+            value=entry.get("category") or "–"
+        ),
+        _tr(app, "linux_help_prompt_command", "Command: {value}").format(
+            value=entry.get("cmd") or "–"
+        ),
+        _tr(
+            app,
+            "linux_help_prompt_short_description",
+            "Short description: {value}",
+        ).format(value=entry.get("info") or "–"),
+        _tr(app, "linux_help_prompt_syntax", "Syntax: {value}").format(
+            value=entry.get("syntax") or entry.get("cmd") or "–"
+        ),
+        _tr(app, "linux_help_prompt_example", "Example: {value}").format(
+            value=entry.get("example") or entry.get("cmd") or "–"
+        ),
+        _tr(
+            app,
+            "linux_help_prompt_database_explanation",
+            "Database explanation/note: {value}",
+        ).format(value=explanation),
+        _tr(
+            app,
+            "linux_help_prompt_additional_warning",
+            "Additional warning: {value}",
+        ).format(value=warning_text),
+        _tr(app, "linux_help_prompt_root_required", "Root required: {value}").format(
+            value=root_text
+        ),
+        _tr(app, "linux_help_prompt_risk_level", "Risk level: {value}").format(
+            value=risk_label
+        ),
+        _tr(app, "linux_help_prompt_tags", "Tags: {value}").format(value=tags),
     ]
     return "\n".join(lines).strip()
 
@@ -574,7 +728,7 @@ def _selected_linux_help_chad_payload(app):
     if item is None:
         return None, "", ""
     prompt = build_linux_help_chad_prompt(app, item)
-    return item, _linux_help_chad_title(item), prompt
+    return item, _linux_help_chad_title(app, item), prompt
 
 
 def _iter_source_rows(path):
@@ -1764,6 +1918,28 @@ def copy_linux_help_chad_prompt(app):
     return True
 
 
+def copy_linux_help_pdf_prompt(app):
+    item = _get_selected_linux_help_item(app)
+    if item is None:
+        app.linux_help_status_var.set(
+            app.tr(
+                "linux_help_status_no_command_selected",
+                "Linux help: no command selected.",
+            )
+        )
+        return False
+    prompt = build_linux_help_pdf_prompt(item, language="de")
+    app.clipboard_clear()
+    app.clipboard_append(prompt)
+    app.linux_help_status_var.set(
+        app.tr(
+            "linux_help_status_pdf_prompt_copied",
+            "Linux help: PDF prompt copied to clipboard.",
+        )
+    )
+    return True
+
+
 def send_linux_help_to_chad(app):
     item, title, prompt = _selected_linux_help_chad_payload(app)
     if item is None:
@@ -1825,6 +2001,10 @@ def show_linux_help_tree_menu(app, event):
     menu.add_command(
         label=app.tr("linux_help_menu_copy_prompt", "Copy as prompt"),
         command=lambda: copy_linux_help_chad_prompt(app),
+    )
+    menu.add_command(
+        label=app.tr("linux_help_menu_copy_pdf_prompt", "Als Prompt mit PDF"),
+        command=lambda: copy_linux_help_pdf_prompt(app),
     )
     menu.add_separator()
     menu.add_command(
@@ -1943,6 +2123,319 @@ def reload_linux_help_data(app):
             "{count} glossary entries loaded.",
         ).format(count=len(_app_value(app, "linux_help_glossary", []) or []))
     )
+    reload_linux_help_documents(app)
+
+
+def _select_linux_help_document_in_listbox(app, document_id: str) -> bool:
+    listbox = getattr(app, "linux_help_documents_listbox", None)
+    ids = list(getattr(app, "linux_help_document_ids", []) or [])
+    target = str(document_id or "").strip()
+    if listbox is None or not target or target not in ids:
+        return False
+    try:
+        index = ids.index(target)
+        listbox.selection_clear(0, "end")
+        listbox.selection_set(index)
+        listbox.activate(index)
+        listbox.see(index)
+        app.linux_help_document_selected_id = target
+        return True
+    except Exception:
+        return False
+
+
+def update_linux_help_document_preview(app, metadata=None, *, extra_error: str = ""):
+    widget = getattr(app, "linux_help_documents_text", None)
+    if metadata:
+        text = build_linux_help_library_preview(metadata)
+    else:
+        lines = [
+            _tr(
+                app,
+                "linux_help_documents_placeholder",
+                "Noch keine Linux-Hilfe-PDF ausgewaehlt.",
+            ),
+            "",
+            _tr(
+                app,
+                "linux_help_documents_placeholder_hint",
+                "Erzeuge ueber das Kontextmenue oder den Button eine PDF-Doku und oeffne sie dann hier.",
+            ),
+        ]
+        if extra_error:
+            lines.extend(["", f"Fehler: {extra_error}"])
+        text = "\n".join(lines).strip()
+    _set_text_widget_content(widget, text)
+
+
+def reload_linux_help_documents(app, select_id: str = ""):
+    listbox = getattr(app, "linux_help_documents_listbox", None)
+    try:
+        documents = list_linux_help_documents()
+    except Exception as exc:
+        app.linux_help_documents = []
+        app.linux_help_document_ids = []
+        app.linux_help_document_selected_id = ""
+        if listbox is not None:
+            try:
+                listbox.delete(0, "end")
+            except Exception:
+                pass
+        update_linux_help_document_preview(app, None, extra_error=str(exc))
+        return []
+
+    app.linux_help_documents = documents
+    app.linux_help_document_ids = [str(item.get("id") or "").strip() for item in documents]
+    if listbox is not None:
+        try:
+            listbox.delete(0, "end")
+            for item in documents:
+                title = str(item.get("title") or item.get("command_name") or "PDF").strip()
+                created = str(item.get("created_at") or "").strip().replace("T", " ")
+                listbox.insert("end", f"{title} [{created}]".strip())
+        except Exception:
+            pass
+
+    selected = ""
+    if select_id and _select_linux_help_document_in_listbox(app, select_id):
+        selected = select_id
+    elif app.linux_help_document_ids:
+        selected = app.linux_help_document_ids[0]
+        _select_linux_help_document_in_listbox(app, selected)
+    else:
+        app.linux_help_document_selected_id = ""
+
+    metadata = get_linux_help_document_by_id(selected) if selected else None
+    update_linux_help_document_preview(app, metadata)
+    return documents
+
+
+def on_linux_help_document_select(app, _event=None):
+    listbox = getattr(app, "linux_help_documents_listbox", None)
+    ids = list(getattr(app, "linux_help_document_ids", []) or [])
+    if listbox is None or not ids:
+        update_linux_help_document_preview(app, None)
+        return None
+    try:
+        selection = listbox.curselection()
+    except Exception:
+        selection = ()
+    if not selection:
+        update_linux_help_document_preview(app, None)
+        return None
+    index = int(selection[0])
+    if index < 0 or index >= len(ids):
+        update_linux_help_document_preview(app, None)
+        return None
+    document_id = ids[index]
+    app.linux_help_document_selected_id = document_id
+    metadata = get_linux_help_document_by_id(document_id)
+    update_linux_help_document_preview(app, metadata)
+    return metadata
+
+
+def show_linux_help_document_menu(app, event):
+    listbox = getattr(app, "linux_help_documents_listbox", None)
+    if listbox is None:
+        return
+    try:
+        index = listbox.nearest(event.y)
+        if index >= 0:
+            listbox.selection_clear(0, "end")
+            listbox.selection_set(index)
+            listbox.activate(index)
+            on_linux_help_document_select(app)
+    except Exception:
+        pass
+    if not _selected_linux_help_document(app):
+        return
+    menu = tk.Menu(app, tearoff=0)
+    menu.add_command(
+        label=_tr(app, "linux_help_btn_open_pdf", "PDF oeffnen"),
+        command=lambda: open_selected_linux_help_pdf(app),
+    )
+    menu.add_command(
+        label=_tr(app, "linux_help_menu_delete_pdf", "PDF loeschen"),
+        command=lambda: delete_selected_linux_help_document(app),
+    )
+    menu.add_separator()
+    menu.add_command(
+        label=_tr(app, "linux_help_btn_open_docs_folder", "Ordner oeffnen"),
+        command=lambda: open_linux_help_documents_folder(app),
+    )
+    show_fn = getattr(app, "_show_context_menu", None)
+    if callable(show_fn):
+        return show_fn(menu, event)
+    try:
+        menu.tk_popup(event.x_root, event.y_root)
+    finally:
+        try:
+            menu.grab_release()
+        except Exception:
+            pass
+    return "break"
+
+
+def _selected_linux_help_document(app):
+    document_id = str(getattr(app, "linux_help_document_selected_id", "") or "").strip()
+    if not document_id:
+        return None
+    return get_linux_help_document_by_id(document_id)
+
+
+def open_selected_linux_help_pdf(app):
+    metadata = _selected_linux_help_document(app)
+    if not metadata:
+        app.linux_help_status_var.set(
+            _tr(app, "linux_help_status_no_pdf_selected", "Linux help: no PDF selected.")
+        )
+        return False
+    path = str(metadata.get("pdf_path") or "").strip()
+    if not path:
+        app.linux_help_status_var.set(
+            _tr(app, "linux_help_status_pdf_missing", "Linux help: PDF file missing.")
+        )
+        return False
+    opened = app._open_path_with_xdg_open(path, label="Linux-Hilfe-PDF")
+    if opened:
+        app.linux_help_status_var.set(
+            _tr(app, "linux_help_status_pdf_opened", "Linux help: PDF opened.")
+        )
+    else:
+        app.linux_help_status_var.set(
+            _tr(app, "linux_help_status_pdf_open_failed", "Linux help: PDF could not be opened.")
+        )
+    return bool(opened)
+
+
+def copy_selected_linux_help_document_prompt(app):
+    metadata = _selected_linux_help_document(app)
+    if not metadata:
+        app.linux_help_status_var.set(
+            _tr(app, "linux_help_status_no_pdf_selected", "Linux help: no PDF selected.")
+        )
+        return False
+    prompt = str(metadata.get("source_prompt") or "").strip()
+    if not prompt:
+        prompt = _tr(
+            app,
+            "linux_help_status_imported_pdf_no_prompt_text",
+            "Fuer diese PDF ist kein gespeicherter Prompt vorhanden.",
+        )
+    app.clipboard_clear()
+    app.clipboard_append(prompt)
+    app.linux_help_status_var.set(
+        _tr(
+            app,
+            "linux_help_status_document_prompt_copied",
+            "Linux help: document prompt copied to clipboard.",
+        )
+    )
+    return True
+
+
+def delete_selected_linux_help_document(app):
+    metadata = _selected_linux_help_document(app)
+    if not metadata:
+        app.linux_help_status_var.set(
+            _tr(app, "linux_help_status_no_pdf_selected", "Linux help: no PDF selected.")
+        )
+        return False
+    title = str(metadata.get("title") or metadata.get("command_name") or "PDF").strip()
+    if messagebox is not None:
+        confirmed = messagebox.askyesno(
+            _tr(app, "linux_help_delete_pdf_title", "PDF loeschen"),
+            _tr(
+                app,
+                "linux_help_delete_pdf_prompt",
+                "Diese PDF-Dokumentation wird aus der NetMon-Bibliothek entfernt.\n\nPDF loeschen?",
+            ),
+            parent=app,
+        )
+        if not confirmed:
+            app.linux_help_status_var.set(
+                _tr(
+                    app,
+                    "linux_help_status_pdf_delete_cancelled",
+                    "Linux help: PDF deletion canceled.",
+                )
+            )
+            return False
+    try:
+        delete_linux_help_document(metadata.get("id") or "")
+    except Exception as exc:
+        app.linux_help_status_var.set(
+            _tr(
+                app,
+                "linux_help_status_pdf_delete_failed",
+                "Linux help: PDF could not be deleted.",
+            )
+        )
+        update_linux_help_document_preview(app, metadata, extra_error=str(exc))
+        return False
+    reload_linux_help_documents(app)
+    app.linux_help_status_var.set(
+        _tr(
+            app,
+            "linux_help_status_pdf_deleted",
+            "Linux help: PDF deleted.",
+        ).format(title=title)
+    )
+    return True
+
+
+def open_linux_help_documents_folder(app):
+    try:
+        path = linux_help_documents_dir()
+    except Exception:
+        path = ""
+    if not path:
+        app.linux_help_status_var.set(
+            _tr(
+                app,
+                "linux_help_status_folder_missing",
+                "Linux help: document folder is not available.",
+            )
+        )
+        return False
+    opened = app.open_path_in_file_manager(path, label="Linux-Hilfe-Dokumente")
+    if opened:
+        app.linux_help_status_var.set(
+            _tr(
+                app,
+                "linux_help_status_folder_opened",
+                "Linux help: document folder opened.",
+            )
+        )
+    return bool(opened)
+
+
+def import_linux_help_pdf_dialog(app):
+    if filedialog is None:
+        return None
+    path = filedialog.askopenfilename(
+        parent=app,
+        title=_tr(app, "linux_help_import_pdf_title", "Linux-Hilfe-PDF importieren"),
+        filetypes=[
+            (_tr(app, "filetype_pdf", "PDF files"), "*.pdf"),
+            (_tr(app, "filetype_all", "All files"), "*.*"),
+        ],
+    )
+    if not path:
+        return None
+    try:
+        metadata = import_linux_help_pdf(path)
+    except Exception as exc:
+        app.linux_help_status_var.set(
+            _tr(app, "linux_help_status_pdf_import_failed", "Linux help: PDF import failed.")
+        )
+        update_linux_help_document_preview(app, None, extra_error=str(exc))
+        return None
+    reload_linux_help_documents(app, select_id=metadata.get("id") or "")
+    app.linux_help_status_var.set(
+        _tr(app, "linux_help_status_pdf_imported", "Linux help: PDF imported.")
+    )
+    return metadata
 
 
 def send_linux_help_command_to_terminal(app):

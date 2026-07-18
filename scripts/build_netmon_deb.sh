@@ -3,18 +3,21 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PKG_NAME="netmon"
-PKG_VERSION="1.1.15"
-DOCS_VERSION="1.1.15"
+PKG_VERSION="1.1.19"
+DOCS_VERSION="1.1.19"
 PKG_ARCH="all"
 MAINTAINER="Mr. Happy <netmon.proglab@protonmail.ch>"
 
 BUILD_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/netmon-debbuild.XXXXXX")"
 PKG_DIR="$BUILD_ROOT/${PKG_NAME}_${PKG_VERSION}_${PKG_ARCH}"
 OUT_DEB="$ROOT_DIR/dist/${PKG_NAME}_${PKG_VERSION}_${PKG_ARCH}.deb"
-APP_ROOT="$PKG_DIR/opt/netmon"
+APP_ROOT="$PKG_DIR/usr/lib/netmon"
 APP_PY_ROOT="$APP_ROOT/netmon"
 TOOLS_ROOT="$APP_ROOT/tools"
-DOCS_ROOT="$PKG_DIR/usr/share/netmon/docs"
+ASSETS_ROOT="$PKG_DIR/usr/share/netmon/assets"
+FUN_ASSETS_ROOT="$ASSETS_ROOT/fun"
+DOCS_ROOT="$PKG_DIR/usr/share/doc/netmon"
+MAN_ROOT="$PKG_DIR/usr/share/man/man1"
 
 cleanup() {
   rm -rf "$BUILD_ROOT"
@@ -55,13 +58,17 @@ mkdir -p "$ROOT_DIR/dist"
 mkdir -p \
   "$PKG_DIR/DEBIAN" \
   "$APP_PY_ROOT" \
-  "$APP_ROOT/assets/log-pics" \
   "$TOOLS_ROOT" \
+  "$ASSETS_ROOT/log-pics" \
+  "$FUN_ASSETS_ROOT" \
   "$DOCS_ROOT" \
+  "$MAN_ROOT" \
   "$PKG_DIR/usr/bin" \
   "$PKG_DIR/usr/share/applications" \
+  "$PKG_DIR/usr/share/doc-base" \
   "$PKG_DIR/usr/share/metainfo" \
   "$PKG_DIR/usr/share/icons/hicolor/256x256/apps"
+mkdir -p "$PKG_DIR/usr/share/lintian/overrides"
 
 # Runtime code and packaged defaults.
 copy_file "$ROOT_DIR/netmon/__init__.py" "$APP_PY_ROOT/__init__.py"
@@ -83,6 +90,7 @@ copy_file_if_exists "$ROOT_DIR/netmon_radio_app.py" "$APP_ROOT/netmon_radio_app.
 copy_tree "$ROOT_DIR/netmon/config" "$APP_PY_ROOT/config"
 copy_tree "$ROOT_DIR/netmon/core" "$APP_PY_ROOT/core"
 copy_tree "$ROOT_DIR/netmon/features" "$APP_PY_ROOT/features"
+rm -f "$APP_PY_ROOT/features/Code-the-Classics.zip"
 copy_tree "$ROOT_DIR/netmon/lang" "$APP_PY_ROOT/lang"
 copy_tree "$ROOT_DIR/netmon/modules" "$APP_PY_ROOT/modules"
 copy_tree "$ROOT_DIR/netmon/services" "$APP_PY_ROOT/services"
@@ -95,9 +103,20 @@ copy_file_if_exists "$ROOT_DIR/tools/it_lexikon_linux_hilfe.json" "$TOOLS_ROOT/i
 copy_file_if_exists "$ROOT_DIR/tools/netmon_roots_banner.png" "$TOOLS_ROOT/netmon_roots_banner.png"
 copy_file_if_exists "$ROOT_DIR/tools/netmon_roots_splash.png" "$TOOLS_ROOT/netmon_roots_splash.png"
 copy_file_if_exists "$ROOT_DIR/tools/netmon_roots_startup.png" "$TOOLS_ROOT/netmon_roots_startup.png"
+copy_tree_if_exists "$ROOT_DIR/tools/secure_browser_manager" "$TOOLS_ROOT/secure_browser_manager"
+rm -rf "$TOOLS_ROOT/secure_browser_manager/tests"
+rm -f \
+  "$TOOLS_ROOT/secure_browser_manager/README.md" \
+  "$TOOLS_ROOT/secure_browser_manager/container_inventory.md" \
+  "$APP_PY_ROOT/modules/secure_browser/README.md" \
+  "$APP_PY_ROOT/modules/secure_browser/resources/icons/.gitkeep"
 
 # Seed images for log overlay.
-copy_tree_if_exists "$ROOT_DIR/tools/Log-Pics" "$APP_ROOT/assets/log-pics"
+copy_tree_if_exists "$ROOT_DIR/tools/Log-Pics" "$ASSETS_ROOT/log-pics"
+
+# Bundled fun assets consumed via fixed system paths.
+copy_file "$ROOT_DIR/netmon/features/Code-the-Classics.zip" \
+  "$FUN_ASSETS_ROOT/Code-the-Classics.zip"
 
 # Bundled documentation for About dialog and offline reference.
 copy_file_if_exists \
@@ -112,21 +131,23 @@ copy_file_if_exists \
 copy_file_if_exists \
   "$ROOT_DIR/dist/docs/netmon_dokumentation_${DOCS_VERSION}.html" \
   "$DOCS_ROOT/netmon_dokumentation.html"
-copy_file_if_exists "$ROOT_DIR/LICENSE" "$DOCS_ROOT/LICENSE"
 copy_file_if_exists "$ROOT_DIR/THIRD_PARTY_NOTICES.md" "$DOCS_ROOT/THIRD_PARTY_NOTICES.md"
-copy_file_if_exists \
-  "$ROOT_DIR/CODE_THE_CLASSICS_LICENSE.txt" \
-  "$DOCS_ROOT/CODE_THE_CLASSICS_LICENSE.txt"
+copy_file "$ROOT_DIR/packaging/copyright" "$DOCS_ROOT/copyright"
+copy_file "$ROOT_DIR/packaging/netmon.doc-base" "$PKG_DIR/usr/share/doc-base/netmon.netmon"
+gzip -9n -c "$ROOT_DIR/packaging/changelog" > "$DOCS_ROOT/changelog.gz"
+gzip -9n -c "$ROOT_DIR/packaging/netmon.1" > "$MAN_ROOT/netmon.1.gz"
+gzip -9n -c "$ROOT_DIR/packaging/netmon-uninstall.1" > "$MAN_ROOT/netmon-uninstall.1.gz"
 
 # Remove transient Python caches from copied trees.
 find "$APP_ROOT" -type d \( -name "__pycache__" -o -name ".pytest_cache" -o -name ".ruff_cache" \) -prune -exec rm -rf {} +
 find "$APP_ROOT" -type f \( -name "*.pyc" -o -name "*.pyo" \) -delete
+find "$APP_ROOT" -type d -empty -delete
 
 # Launcher
 cat > "$PKG_DIR/usr/bin/netmon" <<'EOF'
 #!/bin/sh
 set -eu
-NETMON_HOME="/opt/netmon"
+NETMON_HOME="/usr/lib/netmon"
 export PYTHONPATH="$NETMON_HOME${PYTHONPATH:+:$PYTHONPATH}"
 exec /usr/bin/python3 -m netmon "$@"
 EOF
@@ -146,6 +167,7 @@ Terminal=false
 Categories=Network;System;Security;
 StartupNotify=true
 StartupWMClass=NetMon
+Keywords=network;security;firewall;VPN;DNS;diagnostics;
 EOF
 
 cat > "$PKG_DIR/usr/share/applications/netmon-uninstall.desktop" <<'EOF'
@@ -159,14 +181,23 @@ Icon=netmon
 Terminal=true
 Categories=System;Settings;
 StartupNotify=true
+Keywords=uninstall;remove;NetMon;
 EOF
 
 copy_file \
   "$ROOT_DIR/packaging/netmon.metainfo.xml" \
   "$PKG_DIR/usr/share/metainfo/netmon.metainfo.xml"
+copy_file \
+  "$ROOT_DIR/packaging/netmon.lintian-overrides" \
+  "$PKG_DIR/usr/share/lintian/overrides/netmon"
 
 # Icon
-copy_file "$ROOT_DIR/tools/netmon.png" "$PKG_DIR/usr/share/icons/hicolor/256x256/apps/netmon.png"
+if command -v convert >/dev/null 2>&1; then
+  convert "$ROOT_DIR/tools/netmon.png" -resize 256x256 \
+    "$PKG_DIR/usr/share/icons/hicolor/256x256/apps/netmon.png"
+else
+  copy_file "$ROOT_DIR/tools/netmon.png" "$PKG_DIR/usr/share/pixmaps/netmon.png"
+fi
 
 # Debian control
 cat > "$PKG_DIR/DEBIAN/control" <<EOF
@@ -179,10 +210,10 @@ Maintainer: ${MAINTAINER}
 Depends: python3, python3-tk, python3-psutil, python3-pil, python3-pil.imagetk, udisks2, cryptsetup
 Recommends: network-manager, systemd-resolved, dnsutils, wireguard-tools, ufw, traceroute, mtr, nmap, iproute2, iftop, htop, lynis, rkhunter, clamav, clamav-freshclam, speedtest-cli, mpv, whois
 Suggests: wireshark, tshark, projectm, projectm-pulseaudio, python3-pypdf2, python3-docx, python3-pygame, python3-pgzero
-Description: NetMon - Linux Netzwerkmonitor mit Security-, VPN- und Radio-Funktionen
- NetMon bietet Netzwerkdiagnose, DNS- und Firewall-Steuerung, Security-Checks,
- VPN-Slots, Radio-Funktionen, projectM-Preset-Manager fuer externe Packs und weitere Linux-Werkzeuge
- in einer GUI.
+Description: Linux-Netzwerkmonitor mit Security-, VPN- und Radio-Funktionen
+ Die Anwendung bietet Netzwerkdiagnose, DNS- und Firewall-Steuerung,
+ Security-Checks, VPN-Slots, Radio-Funktionen und weitere Linux-Werkzeuge
+ in einer grafischen Oberflaeche.
 EOF
 
 # postinst/prerm minimal
@@ -193,7 +224,47 @@ if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
 fi
 
-ASSET_DIR="/opt/netmon/assets/log-pics"
+NETMON_STATE_DIR="/var/lib/netmon"
+NETMON_INSTALL_DNS_STATE="$NETMON_STATE_DIR/install-dns-nm.state"
+NETMON_INSTALL_DNS_SERVER="8.8.8.8"
+ASSET_DIR="/usr/share/netmon/assets/log-pics"
+
+netmon_dns_state_has_uuid() {
+  UUID="$1"
+  [ -n "$UUID" ] || return 1
+  [ -f "$NETMON_INSTALL_DNS_STATE" ] || return 1
+  grep -Fq "$UUID|" "$NETMON_INSTALL_DNS_STATE" 2>/dev/null
+}
+
+apply_netmon_install_dns() {
+  command -v nmcli >/dev/null 2>&1 || return 0
+
+  mkdir -p "$NETMON_STATE_DIR" >/dev/null 2>&1 || return 0
+  chmod 0755 "$NETMON_STATE_DIR" >/dev/null 2>&1 || true
+  touch "$NETMON_INSTALL_DNS_STATE" >/dev/null 2>&1 || return 0
+  chmod 0600 "$NETMON_INSTALL_DNS_STATE" >/dev/null 2>&1 || true
+
+  nmcli -t -f UUID,DEVICE connection show --active 2>/dev/null | while IFS=: read -r UUID DEVICE; do
+    [ -n "$UUID" ] || continue
+    [ -n "$DEVICE" ] || continue
+    case "$DEVICE" in
+      lo|wg*|tun*|tap*|ppp*)
+        continue
+        ;;
+    esac
+
+    if ! netmon_dns_state_has_uuid "$UUID"; then
+      OLD_DNS="$(nmcli -g ipv4.dns connection show "$UUID" 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+      OLD_IGNORE_AUTO_DNS="$(nmcli -g ipv4.ignore-auto-dns connection show "$UUID" 2>/dev/null | tr -d '\n')"
+      printf '%s|%s|%s\n' "$UUID" "$OLD_DNS" "$OLD_IGNORE_AUTO_DNS" >> "$NETMON_INSTALL_DNS_STATE" 2>/dev/null || true
+    fi
+
+    nmcli connection modify "$UUID" \
+      ipv4.dns "$NETMON_INSTALL_DNS_SERVER" \
+      ipv4.ignore-auto-dns yes >/dev/null 2>&1 || true
+    nmcli connection up "$UUID" >/dev/null 2>&1 || true
+  done
+}
 
 seed_log_pics_dir() {
   TARGET_DIR="$1"
@@ -210,18 +281,37 @@ seed_log_pics_dir() {
   fi
 }
 
-seed_log_pics_dir "/etc/skel/Bilder/Log-Pics"
-seed_log_pics_dir "/etc/skel/Pictures/Log-Pics"
+documents_root_for_home() {
+  HOME_DIR="$1"
+  [ -n "$HOME_DIR" ] || return 1
+  if [ -d "$HOME_DIR/Documents" ]; then
+    printf '%s\n' "$HOME_DIR/Documents"
+    return 0
+  fi
+  if [ -d "$HOME_DIR/Dokumente" ]; then
+    printf '%s\n' "$HOME_DIR/Dokumente"
+    return 0
+  fi
+  printf '%s\n' "$HOME_DIR/Documents"
+}
+
+seed_netmon_log_pics_for_home() {
+  HOME_DIR="$1"
+  DOC_ROOT="$(documents_root_for_home "$HOME_DIR")"
+  [ -n "$DOC_ROOT" ] || return 0
+  seed_log_pics_dir "$DOC_ROOT/NetMon/Log-Pics"
+}
+
+seed_netmon_log_pics_for_home "/etc/skel"
+apply_netmon_install_dns
 
 if [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER}" != "root" ]; then
   USER_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
   if [ -n "$USER_HOME" ] && [ -d "$USER_HOME" ]; then
-    seed_log_pics_dir "$USER_HOME/Bilder/Log-Pics"
-    seed_log_pics_dir "$USER_HOME/Pictures/Log-Pics"
-    chown "$SUDO_USER":"$SUDO_USER" "$USER_HOME/Bilder" "$USER_HOME/Bilder/Log-Pics" >/dev/null 2>&1 || true
-    chown "$SUDO_USER":"$SUDO_USER" "$USER_HOME/Pictures" "$USER_HOME/Pictures/Log-Pics" >/dev/null 2>&1 || true
-    chown "$SUDO_USER":"$SUDO_USER" "$USER_HOME/Bilder/Log-Pics"/* >/dev/null 2>&1 || true
-    chown "$SUDO_USER":"$SUDO_USER" "$USER_HOME/Pictures/Log-Pics"/* >/dev/null 2>&1 || true
+    USER_DOC_ROOT="$(documents_root_for_home "$USER_HOME")"
+    seed_log_pics_dir "$USER_DOC_ROOT/NetMon/Log-Pics"
+    chown "$SUDO_USER":"$SUDO_USER" "$USER_DOC_ROOT" "$USER_DOC_ROOT/NetMon" "$USER_DOC_ROOT/NetMon/Log-Pics" >/dev/null 2>&1 || true
+    chown "$SUDO_USER":"$SUDO_USER" "$USER_DOC_ROOT/NetMon/Log-Pics"/* >/dev/null 2>&1 || true
   fi
 fi
 
@@ -232,10 +322,59 @@ chmod 755 "$PKG_DIR/DEBIAN/postinst"
 cat > "$PKG_DIR/DEBIAN/prerm" <<'EOF'
 #!/bin/sh
 set -e
-# Keine Userdaten entfernen.
+
+NETMON_STATE_DIR="/var/lib/netmon"
+NETMON_INSTALL_DNS_STATE="$NETMON_STATE_DIR/install-dns-nm.state"
+
+restore_netmon_install_dns() {
+  [ "${1:-}" = "remove" ] || [ "${1:-}" = "deconfigure" ] || return 0
+  command -v nmcli >/dev/null 2>&1 || return 0
+  [ -f "$NETMON_INSTALL_DNS_STATE" ] || return 0
+
+  while IFS='|' read -r UUID OLD_DNS OLD_IGNORE_AUTO_DNS; do
+    [ -n "$UUID" ] || continue
+    nmcli connection show "$UUID" >/dev/null 2>&1 || continue
+
+    if [ -n "$OLD_IGNORE_AUTO_DNS" ]; then
+      nmcli connection modify "$UUID" \
+        ipv4.dns "$OLD_DNS" \
+        ipv4.ignore-auto-dns "$OLD_IGNORE_AUTO_DNS" >/dev/null 2>&1 || true
+    else
+      nmcli connection modify "$UUID" \
+        ipv4.dns "$OLD_DNS" \
+        ipv4.ignore-auto-dns no >/dev/null 2>&1 || true
+    fi
+    nmcli connection up "$UUID" >/dev/null 2>&1 || true
+  done < "$NETMON_INSTALL_DNS_STATE"
+
+  rm -f "$NETMON_INSTALL_DNS_STATE" >/dev/null 2>&1 || true
+  rmdir "$NETMON_STATE_DIR" >/dev/null 2>&1 || true
+}
+
+restore_netmon_install_dns "${1:-}"
 exit 0
 EOF
 chmod 755 "$PKG_DIR/DEBIAN/prerm"
+
+# Normalize permissions inherited from the development worktree.
+find "$PKG_DIR" -type d -exec chmod 0755 {} +
+find "$PKG_DIR" -type f -exec chmod 0644 {} +
+chmod 0755 \
+  "$PKG_DIR/DEBIAN/postinst" \
+  "$PKG_DIR/DEBIAN/prerm" \
+  "$PKG_DIR/usr/bin/netmon" \
+  "$PKG_DIR/usr/bin/netmon-uninstall" \
+  "$APP_PY_ROOT/app.py" \
+  "$APP_PY_ROOT/core/rkhunter_manager.py" \
+  "$TOOLS_ROOT/secure_browser_manager/browser_container_builder.py"
+
+# Debian binary packages conventionally carry checksums for installed files.
+(
+  cd "$PKG_DIR"
+  find . -type f ! -path './DEBIAN/*' -print0 \
+    | sort -z \
+    | xargs -0 md5sum > DEBIAN/md5sums
+)
 
 # Build
 rm -f "$OUT_DEB"

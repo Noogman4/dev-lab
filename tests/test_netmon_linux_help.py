@@ -1,6 +1,10 @@
 import inspect
+import os
 
 from netmon.features import linux_help_controller
+from netmon.services import linux_help_document_service
+from netmon.services import linux_help_library_service
+from netmon.services import linux_help_prompt_service
 from tools import netmon
 
 
@@ -323,20 +327,78 @@ def test_send_linux_help_to_chad_uses_direct_prompt_setter():
 
 
 def test_linux_help_chad_title_prefers_name_then_command():
+    app = netmon.App.__new__(netmon.App)
+    app.tr = lambda _key, default: default
+
     assert (
-        linux_help_controller._linux_help_chad_title({"name": "ls", "cmd": "ls -la"})
+        linux_help_controller._linux_help_chad_title(
+            app, {"name": "ls", "cmd": "ls -la"}
+        )
         == "Explain Linux command: ls"
     )
     assert (
-        linux_help_controller._linux_help_chad_title({"cmd": "ls -la"})
+        linux_help_controller._linux_help_chad_title(app, {"cmd": "ls -la"})
         == "Explain Linux command: ls -la"
     )
     assert (
         linux_help_controller._linux_help_chad_title(
+            app,
             {"name": "Algorithm", "entry_type": "glossary"}
         )
         == "Explain glossary term: Algorithm"
     )
+
+
+def test_build_linux_help_chad_prompt_uses_translated_german_labels():
+    app = netmon.App.__new__(netmon.App)
+    translations = {
+        "linux_help_prompt_command_intro": "Bitte erkläre den folgenden Linux-Befehl für Einsteiger in klarem, gut strukturiertem Deutsch.",
+        "linux_help_prompt_command_data_header": "Befehlsdaten aus NetMon:",
+        "linux_help_prompt_command_name": "Befehlsname: {value}",
+        "linux_help_prompt_category": "Kategorie: {value}",
+        "linux_help_prompt_command": "Befehl: {value}",
+        "linux_help_prompt_short_description": "Kurzbeschreibung: {value}",
+        "linux_help_prompt_syntax": "Syntax: {value}",
+        "linux_help_prompt_example": "Beispiel: {value}",
+        "linux_help_prompt_database_explanation": "Datenbank-Erklärung/Hinweis: {value}",
+        "linux_help_prompt_additional_warning": "Zusätzliche Warnung: {value}",
+        "linux_help_prompt_root_required": "Root erforderlich: {value}",
+        "linux_help_prompt_risk_level": "Risikostufe: {value}",
+        "linux_help_prompt_tags": "Tags: {value}",
+        "linux_help_prompt_requirements": "Wichtige Anforderungen an deine Antwort:",
+        "linux_help_prompt_command_req_1": "- Schreibe einsteigerfreundlich und setze kein Vorwissen voraus.",
+        "linux_help_prompt_command_req_2": "- Beginne mit einer kurzen Erklärung, wofür der Befehl verwendet wird.",
+        "linux_help_prompt_command_req_3": "- Zerlege dann die Syntax und die wichtigsten Bestandteile.",
+        "linux_help_prompt_command_req_4": "- Erkläre das Beispiel Schritt für Schritt.",
+        "linux_help_prompt_command_req_5": "- Nenne typische praktische Einsatzfälle.",
+        "linux_help_prompt_command_req_6": "- Weise klar auf Risiken, Root-Bedarf und häufige Fehler hin.",
+        "linux_help_prompt_command_req_7": "- Beende die Antwort mit 3 sicheren Tipps oder Varianten für Einsteiger.",
+        "linux_help_prompt_command_req_8": "- Verwende ruhige, klare Sprache statt unnötigem Fachjargon.",
+        "linux_help_prompt_no_additional_warning": "Keine zusätzliche Warnung gespeichert.",
+    }
+    app.tr = lambda key, default: translations.get(key, default)
+
+    prompt = linux_help_controller.build_linux_help_chad_prompt(
+        app,
+        {
+            "name": "ls",
+            "category": "Dateien",
+            "cmd": "ls -la",
+            "info": "Dateien anzeigen",
+            "syntax": "ls [OPTIONEN] [DATEI]",
+            "example": "ls -la",
+            "risk": "safe",
+            "root_required": False,
+            "tags": "bash",
+            "explanation": "Zeigt Dateien an.",
+            "warning_text": "",
+        },
+    )
+
+    assert "Bitte erkläre den folgenden Linux-Befehl" in prompt
+    assert "Befehlsdaten aus NetMon:" in prompt
+    assert "Befehlsname: ls" in prompt
+    assert "Root erforderlich: No" in prompt
 
 
 def test_selected_linux_help_chad_payload_returns_prompt_and_title():
@@ -374,3 +436,127 @@ def test_selected_linux_help_chad_payload_returns_empty_when_nothing_selected():
         "",
         "",
     )
+
+
+def test_build_linux_help_pdf_prompt_contains_command_context():
+    prompt = linux_help_prompt_service.build_linux_help_pdf_prompt(
+        {
+            "name": "unlzma",
+            "cmd": "unlzma -k archiv.tar.lzma",
+            "category": "Archive",
+            "info": "LZMA-Dateien entpacken",
+            "syntax": "unlzma [OPTIONEN] [DATEI]",
+            "example": "unlzma --help",
+            "explanation": "Entpackt .lzma-Dateien.",
+            "warning_text": "Dateiname vorher pruefen.",
+            "risk": "safe",
+            "root_required": False,
+            "tags": "archive,compression",
+        }
+    )
+
+    assert "unlzma" in prompt
+    assert "unlzma [OPTIONEN] [DATEI]" in prompt
+    assert "LZMA-Dateien entpacken" in prompt
+    assert "Risikostufe: 🟢 Sicher" in prompt
+
+
+def test_linux_help_document_bundle_writes_pdf_and_metadata(tmp_path, monkeypatch):
+    target_root = tmp_path / "Documents"
+
+    def fake_documents_subdir(*parts):
+        path = target_root.joinpath(*parts)
+        path.mkdir(parents=True, exist_ok=True)
+        return str(path)
+
+    monkeypatch.setattr(
+        linux_help_library_service,
+        "get_netmon_documents_subdir",
+        fake_documents_subdir,
+    )
+
+    document = linux_help_document_service.build_linux_help_document(
+        {
+            "name": "unlzma",
+            "cmd": "unlzma -k archiv.tar.lzma",
+            "category": "Archive",
+            "info": "LZMA-Dateien entpacken",
+            "syntax": "unlzma [OPTIONEN] [DATEI]",
+            "example": "unlzma --help",
+            "explanation": "Entpackt die Datei und behaelt das Original.",
+            "warning_text": "Speicherplatz vorher pruefen.",
+            "risk": "safe",
+            "root_required": False,
+            "tags": "archive,compression",
+        },
+        source_prompt="Beispiel-Prompt",
+    )
+
+    metadata = linux_help_library_service.create_linux_help_document_bundle(document)
+
+    assert metadata["id"].startswith("unlzma_")
+    assert os.path.isfile(metadata["pdf_path"])
+    assert os.path.isfile(metadata["json_path"])
+    assert metadata["source_prompt"] == "Beispiel-Prompt"
+    assert metadata["summary"] == "LZMA-Dateien entpacken"
+
+
+def test_import_linux_help_pdf_creates_library_entry(tmp_path, monkeypatch):
+    source_pdf = tmp_path / "hilfe.pdf"
+    source_pdf.write_bytes(b"%PDF-1.4\n%%EOF\n")
+    target_root = tmp_path / "Documents"
+
+    def fake_documents_subdir(*parts):
+        path = target_root.joinpath(*parts)
+        path.mkdir(parents=True, exist_ok=True)
+        return str(path)
+
+    monkeypatch.setattr(
+        linux_help_library_service,
+        "get_netmon_documents_subdir",
+        fake_documents_subdir,
+    )
+
+    metadata = linux_help_library_service.import_linux_help_pdf(str(source_pdf))
+
+    assert metadata["generator"] == "import"
+    assert os.path.isfile(metadata["pdf_path"])
+    assert os.path.isfile(metadata["json_path"])
+    assert "Importierte Linux-Hilfe-PDF" in metadata["preview_text"]
+
+
+def test_delete_linux_help_document_removes_pdf_and_metadata(tmp_path, monkeypatch):
+    target_root = tmp_path / "Documents"
+
+    def fake_documents_subdir(*parts):
+        path = target_root.joinpath(*parts)
+        path.mkdir(parents=True, exist_ok=True)
+        return str(path)
+
+    monkeypatch.setattr(
+        linux_help_library_service,
+        "get_netmon_documents_subdir",
+        fake_documents_subdir,
+    )
+
+    document = linux_help_document_service.build_linux_help_document(
+        {
+            "name": "ls",
+            "cmd": "ls -la",
+            "category": "Dateien",
+            "info": "Dateien anzeigen",
+            "syntax": "ls [OPTIONEN]",
+            "example": "ls -la",
+            "risk": "safe",
+        }
+    )
+    metadata = linux_help_library_service.create_linux_help_document_bundle(document)
+
+    result = linux_help_library_service.delete_linux_help_document(metadata["id"])
+
+    assert result["id"] == metadata["id"]
+    assert metadata["pdf_path"] in result["deleted"]
+    assert metadata["json_path"] in result["deleted"]
+    assert not os.path.exists(metadata["pdf_path"])
+    assert not os.path.exists(metadata["json_path"])
+    assert linux_help_library_service.get_linux_help_document_by_id(metadata["id"]) is None

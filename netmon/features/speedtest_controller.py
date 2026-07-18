@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 
 try:
@@ -32,6 +33,16 @@ def _app_var_set(app, name: str, value) -> bool:
     except Exception:
         return False
     return True
+
+
+def _tr(app, key: str, default: str) -> str:
+    translator = getattr(app, "tr", None)
+    if callable(translator):
+        try:
+            return str(translator(key, default) or default)
+        except Exception:
+            return default
+    return default
 
 
 def _speedtest_history_records(app):
@@ -366,15 +377,171 @@ def _speedtest_internal_debug_message(result, history_size: int) -> str:
     return f"Speedtest intern: tool={result.get('tool','-')} history={history_size}"
 
 
+def normalize_speedtest_server_id(value) -> str:
+    text = str(value or "").strip()
+    if text.isdigit():
+        return text
+
+    match = re.search(
+        r"(?:^|\]\s*)(?:server[- ]?id|id)\s*[:#-]?\s*(\d+)" r"(?=\s*(?:$|\||\n))",
+        text,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+    return match.group(1) if match else ""
+
+
 def configured_speedtest_server_id(app) -> str:
     server_var = getattr(app, "speedtest_server_id_var", None)
     if server_var is not None:
         try:
-            return str(server_var.get() or "").strip()
+            return normalize_speedtest_server_id(server_var.get())
         except Exception:
             pass
     settings = getattr(app, "settings", {}) or {}
-    return str(settings.get("speedtest_server_id", "") or "").strip()
+    return normalize_speedtest_server_id(settings.get("speedtest_server_id", ""))
+
+
+def _speedtest_server_place(server) -> str:
+    location = str(server.get("location", "") or "").strip()
+    country = str(server.get("country", "") or "").strip()
+    return ", ".join(value for value in (location, country) if value) or "-"
+
+
+def _speedtest_server_log_line(app, server) -> str:
+    distance = str(server.get("distance", "") or "").strip()
+    distance_text = (
+        _tr(app, "speedtest_server_list_distance", " | Entfernung: {value}").format(
+            value=distance
+        )
+        if distance
+        else ""
+    )
+    return _tr(
+        app,
+        "speedtest_server_list_item",
+        "ID {id} | Anbieter: {name} | Ort: {place}{distance}",
+    ).format(
+        id=str(server.get("id", "") or "-").strip() or "-",
+        name=str(server.get("name", "") or server.get("host", "") or "-").strip()
+        or "-",
+        place=_speedtest_server_place(server),
+        distance=distance_text,
+    )
+
+
+def _prepare_speedtest_server_log(app) -> None:
+    def prepare_log():
+        notebook = _app_value(app, "nb")
+        log_tab = _app_value(app, "tab_log")
+        if notebook is not None and log_tab is not None:
+            try:
+                notebook.select(log_tab)
+            except Exception:
+                pass
+
+        if bool(_app_value(app, "log_overlay_active", False)):
+            toggle_overlay = getattr(app, "toggle_log_overlay", None)
+            if callable(toggle_overlay):
+                try:
+                    toggle_overlay()
+                except Exception:
+                    pass
+
+        clear_log = getattr(app, "clear_log", None)
+        if callable(clear_log):
+            clear_log()
+
+    call_in_ui_thread(app, prepare_log)
+
+
+def _set_speedtest_server_lookup_running(app, running: bool) -> None:
+    app.speedtest_servers_running = bool(running)
+    button = _app_value(app, "btn_speedtest_server_lookup")
+    if button is None:
+        return
+
+    def apply_state():
+        try:
+            button.configure(state="disabled" if running else "normal")
+        except Exception:
+            pass
+
+    call_in_ui_thread(app, apply_state)
+
+
+def speedtest_servers_async(
+    app,
+    *,
+    list_servers_fn,
+    run_cmd_fn,
+    has_cmd_fn,
+):
+    if bool(_app_value(app, "speedtest_servers_running", False)):
+        app.log_safe(
+            _tr(
+                app,
+                "speedtest_server_list_already_running",
+                "Speedtest-Server werden bereits abgerufen.",
+            )
+        )
+        return
+
+    _prepare_speedtest_server_log(app)
+    _set_speedtest_server_lookup_running(app, True)
+    app.log_safe(
+        _tr(
+            app,
+            "speedtest_server_list_started",
+            "Speedtest-Server-IDs werden abgerufen...",
+        )
+    )
+
+    def job():
+        try:
+            servers, error = list_servers_fn(
+                run_cmd_fn,
+                has_cmd_fn,
+                timeout=60,
+                limit=20,
+            )
+            if error:
+                app.log_safe(
+                    _tr(
+                        app,
+                        "speedtest_server_list_failed",
+                        "Speedtest-Server konnten nicht abgerufen werden: {error}",
+                    ).format(error=error)
+                )
+                return
+
+            app.log_safe(
+                _tr(
+                    app,
+                    "speedtest_server_list_header",
+                    "Verfügbare Speedtest-Server ({count} Treffer):",
+                ).format(count=len(servers))
+            )
+            for server in servers:
+                app.log_safe(_speedtest_server_log_line(app, server))
+            app.log_safe(
+                _tr(
+                    app,
+                    "speedtest_server_list_hint",
+                    "Gewünschte ID in das Feld Server-ID eintragen und speichern.",
+                )
+            )
+        except Exception as exc:
+            app.log_safe(
+                _tr(
+                    app,
+                    "speedtest_server_list_failed",
+                    "Speedtest-Server konnten nicht abgerufen werden: {error}",
+                ).format(error=exc)
+            )
+        finally:
+            _set_speedtest_server_lookup_running(app, False)
+
+    threading.Thread(target=job, daemon=True).start()
 
 
 def show_speedtest_history(app):

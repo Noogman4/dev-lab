@@ -18,6 +18,7 @@ import tkinter as tk
 import types
 from tkinter import filedialog, messagebox, simpledialog, ttk
 from urllib import request as urllib_request
+from urllib.parse import urlparse
 
 try:
     from netmon.features import radio_controller
@@ -518,9 +519,7 @@ def _init_radio_ui_state(app):
     app.radio_now_playing_var = tk.StringVar(
         value=app.tr("radio_header_off", "Radio: off")
     )
-    app.radio_status_var = tk.StringVar(
-        value=app.tr("radio_header_off", "Radio: off")
-    )
+    app.radio_status_var = tk.StringVar(value=app.tr("radio_header_off", "Radio: off"))
     app.radio_title_var = tk.StringVar(
         value=app.tr("radio_header_title_idle", "Title: -")
     )
@@ -810,11 +809,11 @@ class NetMonRadioApp(tk.Tk):
 
         _init_radio_runtime_state(self, embedded_mode=False)
         self._load_language()
-        self._start_theme_name = str(start_theme or "").strip().lower()
+        self._start_theme_name = "dark"
         self._started_from = str(started_from or "desktop").strip().lower() or "desktop"
         self._radio_compact_layout = True
-        if self._start_theme_name in RADIO_THEMES:
-            self._app_theme = {"name": self._start_theme_name}
+        self._app_theme = {"name": self._start_theme_name}
+        self.radio_settings["theme"] = self._start_theme_name
         _init_radio_ui_state(self)
         self.radio_embedded_mode = False
         self.radio_detach_callback = None
@@ -823,10 +822,7 @@ class NetMonRadioApp(tk.Tk):
         self._register_radio_miniplayer_var_traces()
         self._configure_compact_standalone_window()
         radio_controller.on_radio_eq_preview(self)
-        initial_theme = self._start_theme_name or str(
-            self.radio_settings.get("theme", "light") or "light"
-        )
-        self.apply_theme(initial_theme)
+        self.apply_theme(self._start_theme_name)
         transition_id = netmon_radio_core.current_radio_transition_id()
         try:
             handover_payload = netmon_radio_core.consume_radio_handover(
@@ -855,6 +851,7 @@ class NetMonRadioApp(tk.Tk):
                 )
             except Exception:
                 pass
+            self.apply_theme(self._start_theme_name)
         try:
             netmon_radio_core.complete_radio_transition(
                 mode="standalone",
@@ -1059,7 +1056,9 @@ class NetMonRadioApp(tk.Tk):
                 with open(config_path, "r", encoding="utf-8") as handle:
                     payload = json.load(handle)
                 if isinstance(payload, dict):
-                    candidate = str(payload.get("language", "de") or "de").strip().lower()
+                    candidate = (
+                        str(payload.get("language", "de") or "de").strip().lower()
+                    )
                     if candidate in {"de", "en"}:
                         lang_code = candidate
         except Exception:
@@ -1641,8 +1640,10 @@ class NetMonRadioApp(tk.Tk):
             current_station = {}
         station_name = str(current_station.get("name") or "").strip()
         if playback_mode != "radio":
-            station_name = media_label or station_name or self.tr(
-                "radio_miniplayer_local_playback", "Local playback"
+            station_name = (
+                media_label
+                or station_name
+                or self.tr("radio_miniplayer_local_playback", "Local playback")
             )
         if not station_name:
             station_name = self.tr("label_unknown", "unknown")
@@ -1653,8 +1654,12 @@ class NetMonRadioApp(tk.Tk):
         title_value = title_text
         if title_value in {"", "-"}:
             if playback_mode == "radio":
-                title_value = station_name if playback_active else self.tr(
-                    "radio_miniplayer_waiting_metadata", "Waiting for metadata"
+                title_value = (
+                    station_name
+                    if playback_active
+                    else self.tr(
+                        "radio_miniplayer_waiting_metadata", "Waiting for metadata"
+                    )
                 )
             else:
                 title_value = media_label or self.tr(
@@ -2138,7 +2143,13 @@ class NetMonRadioApp(tk.Tk):
     def _station_logo_url(self, station):
         if not isinstance(station, dict):
             return ""
-        return str(station.get("favicon", "") or "").strip()
+        url = str(station.get("favicon", "") or "").strip()
+        # Logo-URLs stammen aus der radio-browser.info-API (Fremddaten).
+        # urlopen wuerde auch file:// und andere Nicht-Web-Schemata bedienen,
+        # daher wie in fetch_url() im Container-Builder auf http/https begrenzen.
+        if urlparse(url).scheme.lower() not in ("http", "https"):
+            return ""
+        return url
 
     def _station_logo_cache_path(self, logo_url):
         url = str(logo_url or "").strip()
@@ -2729,11 +2740,7 @@ class NetMonRadioApp(tk.Tk):
                     "Preset access: Custom presets imported into Documents/NetMon: {presets} presets{assets}. Downloaded packs and your own imports are now available there. Please restart projectM.",
                 ).format(
                     presets=imported_presets,
-                    assets=(
-                        f" + {imported_assets} assets"
-                        if imported_assets
-                        else ""
-                    ),
+                    assets=(f" + {imported_assets} assets" if imported_assets else ""),
                 )
             )
             try:
@@ -3014,9 +3021,7 @@ class NetMonRadioApp(tk.Tk):
         )
         playback_frame.grid(row=0, column=0, sticky="nsew", padx=(0, outer_pad))
         playback_frame.columnconfigure(0, weight=1)
-        self._set_radio_logo_placeholder(
-            self.tr("radio_logo_placeholder", "No logo")
-        )
+        self._set_radio_logo_placeholder(self.tr("radio_logo_placeholder", "No logo"))
         button_row = ttk.Frame(playback_frame)
         button_row.grid(row=0, column=0, pady=(0, 0))
         ttk.Button(button_row, text="⏮", width=7, command=self.radio_previous).grid(
@@ -3104,12 +3109,6 @@ class NetMonRadioApp(tk.Tk):
             value_variable=self.radio_eq_treble_label_var,
             slider_length=eq_length,
         )
-        if not embedded:
-            ttk.Button(
-                eq_frame,
-                textvariable=self.radio_theme_name_var,
-                command=self.toggle_theme,
-            ).grid(row=3, column=0, columnspan=3, sticky="ew", pady=(10, 0))
         details_row = ttk.Frame(controls)
         details_row.grid(row=0, column=0, sticky="ew", pady=(0, outer_pad))
         details_row.columnconfigure(0, weight=1)
@@ -3567,9 +3566,7 @@ class NetMonRadioApp(tk.Tk):
             self.radio_recordings_listbox, tearoff=0
         )
         self.radio_folder_browser_menu.add_command(
-            label=self.tr(
-                "radio_folder_menu_add_to_playlist", "Add to playlist"
-            ),
+            label=self.tr("radio_folder_menu_add_to_playlist", "Add to playlist"),
             command=self.add_selected_radio_folder_browser_entry_to_playlist,
         )
         self.radio_folder_browser_menu.add_command(
@@ -4080,9 +4077,7 @@ class NetMonRadioApp(tk.Tk):
             )
 
         popup = tk.Toplevel(parent)
-        popup.title(
-            self.tr("radio_database_import_summary_title", "Import summary")
-        )
+        popup.title(self.tr("radio_database_import_summary_title", "Import summary"))
         try:
             popup.transient(parent)
         except Exception:
@@ -4170,9 +4165,7 @@ class NetMonRadioApp(tk.Tk):
             body,
             text=self.tr("radio_custom_close_button", "Close"),
             command=popup.destroy,
-        ).grid(
-            row=3, column=0, sticky="e", pady=(12, 0)
-        )
+        ).grid(row=3, column=0, sticky="e", pady=(12, 0))
         return popup
 
     def open_radio_database_sources_popup(self):
@@ -4196,34 +4189,99 @@ class NetMonRadioApp(tk.Tk):
         popup.title(self.tr("radio_database_window_title", "Databases"))
         popup.transient(parent)
         popup.resizable(True, True)
+        popup.geometry("980x760")
         popup.columnconfigure(0, weight=1)
         popup.rowconfigure(0, weight=1)
+        progress_style_name = "RadioDatabase.Green.Horizontal.TProgressbar"
+        try:
+            progress_style = ttk.Style(popup)
+            progress_style.configure(
+                progress_style_name,
+                background="#2e7d32",
+                troughcolor="#d9d9d9",
+                bordercolor="#d9d9d9",
+                lightcolor="#43a047",
+                darkcolor="#1b5e20",
+            )
+        except Exception:
+            progress_style_name = "Horizontal.TProgressbar"
 
         body = ttk.Frame(popup, padding=14)
         body.grid(row=0, column=0, sticky="nsew")
         body.columnconfigure(0, weight=1)
+        body.rowconfigure(2, weight=1)
 
         ttk.Label(
             body,
             text=self.tr("radio_database_window_title", "Databases"),
             font=("TkDefaultFont", 11, "bold"),
         ).grid(row=0, column=0, sticky="w")
-        ttk.Label(
-            body,
-            text=self.tr(
-                "radio_database_window_intro",
-                "Enable or disable station databases.",
-            ),
-            justify="left",
-        ).grid(row=1, column=0, sticky="w", pady=(8, 0))
 
-        source_frame = ttk.LabelFrame(
+        action_row = ttk.Frame(body)
+        action_row.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+        action_row.columnconfigure(1, weight=1)
+
+        self.radio_database_refresh_button = ttk.Button(
+            action_row,
+            text=self.tr("radio_database_refresh_button", "Datenbank aktualisieren"),
+            command=self.request_radio_database_refresh,
+        )
+        self.radio_database_refresh_button.grid(row=0, column=0, sticky="w")
+        self.radio_database_progressbar = ttk.Progressbar(
+            action_row,
+            orient="horizontal",
+            mode="determinate",
+            variable=self.radio_database_progress_var,
+            maximum=1,
+            length=240,
+            style=progress_style_name,
+        )
+        self.radio_database_progressbar.grid(row=0, column=1, sticky="ew", padx=(12, 0))
+        ttk.Label(
+            action_row,
+            textvariable=self.radio_database_progress_status_var,
+            justify="left",
+        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(8, 0))
+
+        source_wrap = ttk.LabelFrame(
             body,
             text=self.tr("radio_database_group_sources", "Sources"),
             padding=10,
         )
-        source_frame.grid(row=2, column=0, sticky="nsew", pady=(12, 0))
+        source_wrap.grid(row=2, column=0, sticky="nsew", pady=(12, 0))
+        source_wrap.columnconfigure(0, weight=1)
+        source_wrap.rowconfigure(0, weight=1)
+
+        source_canvas = tk.Canvas(source_wrap, highlightthickness=0, bd=0)
+        source_canvas.grid(row=0, column=0, sticky="nsew")
+        source_scrollbar = ttk.Scrollbar(
+            source_wrap,
+            orient="vertical",
+            command=source_canvas.yview,
+        )
+        source_scrollbar.grid(row=0, column=1, sticky="ns")
+        source_canvas.configure(yscrollcommand=source_scrollbar.set)
+
+        source_frame = ttk.Frame(source_canvas)
         source_frame.columnconfigure(1, weight=1)
+        source_canvas_window = source_canvas.create_window(
+            (0, 0), window=source_frame, anchor="nw"
+        )
+
+        source_frame.bind(
+            "<Configure>",
+            lambda _event, canvas=source_canvas: canvas.configure(
+                scrollregion=canvas.bbox("all")
+            ),
+            add="+",
+        )
+        source_canvas.bind(
+            "<Configure>",
+            lambda event, canvas=source_canvas, window_id=source_canvas_window: canvas.itemconfigure(
+                window_id, width=event.width
+            ),
+            add="+",
+        )
         self.radio_database_source_vars = {}
         self.radio_database_source_status_labels = {}
         country_sources = [
@@ -4297,29 +4355,6 @@ class NetMonRadioApp(tk.Tk):
                 url=url,
             )
 
-        self.radio_database_refresh_button = ttk.Button(
-            body,
-            text=self.tr("radio_database_refresh_button", "Datenbank aktualisieren"),
-            command=self.request_radio_database_refresh,
-        )
-        self.radio_database_refresh_button.grid(
-            row=3, column=0, sticky="w", pady=(12, 0)
-        )
-        self.radio_database_progressbar = ttk.Progressbar(
-            body,
-            orient="horizontal",
-            mode="determinate",
-            variable=self.radio_database_progress_var,
-            maximum=1,
-            length=220,
-        )
-        self.radio_database_progressbar.grid(row=3, column=0, sticky="e", pady=(12, 0))
-        ttk.Label(
-            body,
-            textvariable=self.radio_database_progress_status_var,
-            justify="left",
-        ).grid(row=4, column=0, sticky="w", pady=(8, 0))
-
         def _close_popup():
             try:
                 popup.destroy()
@@ -4333,9 +4368,7 @@ class NetMonRadioApp(tk.Tk):
             body,
             text=self.tr("radio_custom_close_button", "Close"),
             command=_close_popup,
-        ).grid(
-            row=5, column=0, sticky="e", pady=(14, 0)
-        )
+        ).grid(row=3, column=0, sticky="e", pady=(14, 0))
         popup.protocol("WM_DELETE_WINDOW", _close_popup)
         self.radio_database_sources_window = popup
         self._sync_radio_database_select_all_state()
@@ -4879,9 +4912,7 @@ class NetMonRadioApp(tk.Tk):
         ).grid(row=4, column=0, sticky="w", pady=(6, 0))
         ttk.Button(
             body,
-            text=self.tr(
-                "radio_settings_update_station_data", "Refresh station data"
-            ),
+            text=self.tr("radio_settings_update_station_data", "Refresh station data"),
             command=self.download_radio_db,
         ).grid(row=5, column=0, sticky="w", pady=(12, 0))
 
@@ -4892,9 +4923,7 @@ class NetMonRadioApp(tk.Tk):
                 pass
             self.radio_record_settings_window = None
 
-        ttk.Button(
-            body, text=self.tr("btn_close", "Close"), command=_close_popup
-        ).grid(
+        ttk.Button(body, text=self.tr("btn_close", "Close"), command=_close_popup).grid(
             row=6, column=0, sticky="e", pady=(14, 0)
         )
         popup.protocol("WM_DELETE_WINDOW", _close_popup)
@@ -5093,12 +5122,10 @@ class NetMonRadioApp(tk.Tk):
         packages = ", ".join(list(probe.get("available_packages", []) or []))
         strategy = str(probe.get("install_strategy", "") or "").strip()
         if strategy == "apt":
-            detail = (
-                self.tr(
-                    "radio_projectm_install_detail_apt",
-                    "Only packages available in your configured package sources will be used.\n\nPackages: {packages}",
-                ).format(packages=packages or "-")
-            )
+            detail = self.tr(
+                "radio_projectm_install_detail_apt",
+                "Only packages available in your configured package sources will be used.\n\nPackages: {packages}",
+            ).format(packages=packages or "-")
         elif strategy == "flatpak":
             detail = self.tr(
                 "radio_projectm_install_detail_flatpak",
@@ -5316,16 +5343,17 @@ class RadioMiniPlayerWindow:
             self.title_value_var.set(str(data.get("title", "-") or "-"))
             self.source_value_var.set(str(data.get("source_kind", "-") or "-"))
             default_status = self.app.tr("radio_miniplayer_status_ready", "Ready")
-            self.status_value_var.set(str(data.get("status", default_status) or default_status))
+            self.status_value_var.set(
+                str(data.get("status", default_status) or default_status)
+            )
         except Exception:
             pass
         current_station = getattr(self.app, "radio_current_station", None)
         placeholder_name = self.app.tr("radio_logo_placeholder", "No logo")
         if isinstance(current_station, dict):
-            placeholder_name = (
-                str(current_station.get("name", "") or "").strip()
-                or self.app.tr("radio_logo_placeholder", "No logo")
-            )
+            placeholder_name = str(
+                current_station.get("name", "") or ""
+            ).strip() or self.app.tr("radio_logo_placeholder", "No logo")
         self.app.radio_mini_logo_label = self.logo_label
         self.app._set_radio_logo_placeholder(placeholder_name)
         try:
@@ -5660,7 +5688,7 @@ def main(argv=None):
     parser.add_argument(
         "--theme",
         default="",
-        help="Optional start theme for the standalone radio app (light, dark, beige, pop).",
+        help="Kompatibilitaetsoption ohne Wirkung; Standalone Radio startet immer im Darkmode.",
     )
     parser.add_argument(
         "--headless-smoke",

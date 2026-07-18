@@ -1,0 +1,96 @@
+{
+"default_source_firefox_dir": "/opt/netmon-browser/firefox",
+  "containers": [
+    {
+      "name": "firefox-GitHub",
+      "homepage_url": "https://github.com",
+      "new_tab_url": "about:blank",
+      "menu_name": "GitHub",
+      "icon_mode": "favicon",
+      "allowed_domains": [
+        "github.com",
+        "githubusercontent.com",
+        "githubassets.com"
+      ],
+      "notes": "Getrennter Browser fuer GitHub, Releases und Repository-Arbeit."
+    },
+    {
+      "name": "firefox-OpenAI",
+      "homepage_url": "https://chatgpt.com",
+      "new_tab_url": "about:blank",
+      "menu_name": "OpenAI",
+      "icon_mode": "favicon",
+      "allowed_domains": [
+        "chatgpt.com",
+        "openai.com",
+        "platform.openai.com",
+        "auth.openai.com"
+      ],
+      "notes": "Getrennter Browser fuer ChatGPT, OpenAI-Doku und API-Konsole."
+    },
+    {
+      "name": "firefox-NameCom",
+      "homepage_url": "https://name.com",
+      "new_tab_url": "about:blank",
+      "menu_name": "Name.com",
+      "icon_mode": "favicon",
+      "allowed_domains": [
+        "name.com",
+        "www.name.com"
+      ],
+      "notes": "Getrennter Browser fuer Domainverwaltung bei Name.com."
+    },
+    {
+      "name": "firefox-cPanel",
+      "homepage_url": "https://cpanel.netmonroots.com",
+      "new_tab_url": "about:blank",
+      "menu_name": "cPanel",
+      "icon_mode": "favicon",
+      "allowed_domains": [
+        "netmonroots.com",
+        "cpanel.netmonroots.com",
+        "netmonroots.com:2083"
+      ],
+      "notes": "Getrennter Browser fuer Hosting- und cPanel-Zugriffe."
+    },
+    {
+      "name": "firefox-Amazon",
+      "homepage_url": "https://www.amazon.de",
+      "new_tab_url": "about:blank",
+      "menu_name": "Amazon",
+      "icon_mode": "favicon",
+      "allowed_domains": [
+        "amazon.de",
+        "amazon.com",
+        "media-amazon.com",
+        "ssl-images-amazon.com"
+      ],
+      "notes": "Getrennter Browser fuer Amazon-Konto, Bestellungen und Zahlungsablaeufe."
+    },
+    {
+      "name": "firefox-Netflix",
+      "homepage_url": "https://www.netflix.com",
+      "new_tab_url": "about:blank",
+      "menu_name": "Netflix",
+      "icon_mode": "favicon",
+      "allowed_domains": [
+        "netflix.com",
+        "nflxvideo.net",
+        "nflximg.net"
+      ],
+      "notes": "Getrennter Browser fuer Netflix und Streaming-Sitzungen."
+    },
+    {
+      "name": "firefox-SparkasseUlm",
+      "homepage_url": "https://www.sparkasse-ulm.de",
+      "new_tab_url": "about:blank",
+      "menu_name": "Sparkasse Ulm",
+      "icon_mode": "favicon",
+      "allowed_domains": [
+        "sparkasse-ulm.de",
+        "www.sparkasse-ulm.de"
+      ],
+      "notes": "Getrennter Browser fuer Sparkasse-Ulm.de und Online-Banking-Zugriffe."
+    }
+  ]
+}

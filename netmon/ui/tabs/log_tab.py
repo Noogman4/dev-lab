@@ -213,3 +213,22 @@ def build_log_tab(app):
 
     app.log_view_frame.bind("<Configure>", app._on_log_overlay_resize)
     app._restore_log_overlay_from_config()
+
+    log_footer = ttk.Frame(app.tab_log)
+    log_footer.pack(fill="x", pady=(8, 0))
+
+    app.chk_log_auto_clear = ttk.Checkbutton(
+        log_footer,
+        text=app.tr(
+            "settings_auto_log_clear", "Clear log automatically on startup"
+        ),
+        variable=app.var_auto_log_clear,
+    )
+    app.chk_log_auto_clear.pack(side="right")
+    app.add_tooltip(
+        app.chk_log_auto_clear,
+        app.tr(
+            "tooltip_log_auto_clear",
+            "Uses the same setting as in Setup and clears the runtime log on startup.",
+        ),
+    )

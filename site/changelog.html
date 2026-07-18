@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetMonRoots | Changelog bis Version 1.1.19</title>
+  <meta
+    name="description"
+    content="Kompakte Release-Highlights von NetMon bis zum lokalen Stand 1.1.19."
+  >
+  <link rel="icon" type="image/png" href="./favicon.png">
+  <link rel="apple-touch-icon" href="./favicon.png">
+  <link rel="canonical" href="https://netmonroots.com/changelog.html">
+  <link rel="alternate" hreflang="de" href="https://netmonroots.com/changelog.html">
+  <link rel="alternate" hreflang="en" href="https://netmonroots.com/en/changelog.html">
+  <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/changelog.html">
+  <meta property="og:title" content="NetMonRoots | Changelog bis Version 1.1.19">
+  <meta property="og:description" content="Kompakte Release-Highlights von NetMon bis zum lokalen Stand 1.1.19.">
+  <meta property="og:url" content="https://netmonroots.com/changelog.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NetMon Roots">
+  <meta property="og:locale" content="de_DE">
+  <meta property="og:locale:alternate" content="en_US">
+  <meta property="og:image" content="https://netmonroots.com/favicon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="NetMonRoots | Changelog bis Version 1.1.19">
+  <meta name="twitter:description" content="Kompakte Release-Highlights von NetMon bis zum lokalen Stand 1.1.19.">
+  <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body class="downloads-page updates-page">
+  <div class="page-shell docs-page downloads-page-shell">
+    <header class="topbar">
+      <a class="brand" href="./index.html" aria-label="NetMon Startseite">
+        <span class="brand-mark">
+          <span class="brand-lockup">
+            <span class="brand-title">
+              <span class="brand-title-main">NETMON</span>
+              <span class="brand-title-accent">ROOTS</span>
+            </span>
+            <span class="brand-subline">MONITOR. CONTROL. UNDERSTAND.</span>
+            <span class="brand-tagline">BACK TO THE ROOTS.</span>
+          </span>
+          <img class="brand-icon" src="./bannericon.png" alt="" aria-hidden="true">
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="./index.html">Start</a>
+        <a href="./downloads.html">Download</a>
+        <a href="./aktuelles.html">Aktuelles</a>
+        <a href="./changelog.html">Changelog</a>
+        <a href="./tour.html">Rundgang</a>
+        <a href="./docs.html">Doku</a>
+        <a href="./security-audit.html">Audit</a>
+        <a href="./legal.html">Legal</a>
+      </nav>
+      <div class="lang-switch" aria-label="Sprachauswahl">
+        <a class="active" href="./changelog.html" lang="de">DE</a>
+        <a href="./en/changelog.html" lang="en">EN</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Release-Ueberblick</p>
+        </div>
+        <div class="download-layout">
+          <article class="download-card featured">
+            <p class="download-label">Stand</p>
+            <h3>Diese Seite zeigt die kompakten Release-Highlights bis NetMon 1.1.19.</h3>
+            <p>Fokus ist eine kurze, website-taugliche Uebersicht der wichtigsten Aenderungen pro Version ohne technische Detailtiefe.</p>
+            <div class="inline-actions">
+              <a class="button button-primary" href="./downloads.html">Zur Downloadseite</a>
+              <a class="button button-secondary" href="./aktuelles.html">Zu Aktuelles</a>
+            </div>
+          </article>
+          <article class="download-card">
+            <p class="download-label">Schwerpunkt</p>
+            <h3>Fokus auf Stabilitaet, Security-Workflows und Linux-Hilfe.</h3>
+            <p>Im aktuellen Release stehen Startup-Reparaturen, bessere VPN-/Firewall-Synchronisierung, RKHunter-/ClamAV-Haertung und neue PDF-Workflows im Vordergrund.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Release-Fokus</p>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>Startup und Netzwerk robuster</h3>
+            <p>DNS-Fallback, Killswitch-Recovery und VPN-/UFW-Abgleich wurden auf einen deutlich stabileren Start- und Wechselpfad gebracht.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Security-Auswertung vertieft</h3>
+            <p>RKHunter analysiert Funde strukturierter, <code>dpkg -V</code> liefert zusaetzliche Vertrauensevidenz und Referenzupdates bleiben streng abgesichert.</p>
+          </article>
+          <article class="faq-card">
+            <h3>ClamAV praxisnaeher</h3>
+            <p>Schnellscan-Pfade sind steuerbar, Standardscans wurden entlastet und Laufzeit sowie Fehlerdarstellung sind klarer lesbar.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Linux-Hilfe mit PDF-Workflow</h3>
+            <p>Prompts koennen inklusive PDF-Kontext vorbereitet werden; importierte PDFs lassen sich in einer Bibliothek anzeigen, oeffnen und verwalten.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Version 1.1.19</p>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>Mehr Stabilitaet beim Start</h3>
+            <p>NetMon faengt DNS-Probleme und verwaiste Killswitch-Zustaende beim Start zuverlaessiger ab.</p>
+          </article>
+          <article class="faq-card">
+            <h3>VPN und Firewall sauberer synchron</h3>
+            <p>Nach einem Profilwechsel wird der UFW-Zielzustand auch ohne aktiven Killswitch wieder korrekt an die referenzierten VPN-Profile angepasst.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Linux-Hilfe mit PDF-Bibliothek</h3>
+            <p>Eintraege koennen als Prompt oder PDF-Prompt kopiert werden; importierte PDFs lassen sich anzeigen, oeffnen und per Rechtsklick inklusive Metadaten entfernen.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Speedtest und Radio bereinigt</h3>
+            <p>Der Speedtest-Bereich ist klarer angeordnet, und das Standalone-Radio startet konsequent im Darkmode.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Version 1.1.16</p>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>Release- und Audit-Stand aktualisiert</h3>
+            <p>Release-Artefakte neu gebaut, Website- und Download-Verweise aktualisiert und das Security-Audit auf Runde 6 angehoben.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Site-Bundle erweitert</h3>
+            <p>Das Site-Bundle liefert die aktuellen Audit-Dateien fuer Runde 6 aus und uebernimmt Secure-Browser-Integration und Sprachschluessel in den aktuellen Paket- und Dokumentationsstand.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Version 1.1.17</p>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>Link- und VPN-Slots erweitert</h3>
+            <p>Link-Slots wurden von 15 auf 20, VPN-Slots von 5 auf 10 erhoeht. Bestehende Konfigurationen werden beim Laden automatisch ergaenzt.</p>
+          </article>
+          <article class="faq-card">
+            <h3>VPN-Lebenszyklus robuster</h3>
+            <p>Profile lassen sich wieder direkt aus markierten Tabellenzeilen loeschen, Zuordnungen werden konsistent bereinigt und die IP-/Laenderanzeige aktualisiert sich nach Wechseln sauber.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Secure Browser und Migration</h3>
+            <p>Neue Tour, bereinigte Altpfade wie <code>~/Programme</code>, sicherere Deinstallationspfade und benutzerfreundlichere Browser-Menueeintraege.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Security- und Sprachbereinigung</h3>
+            <p>PATH Guard erhielt einen eigenen Tab, Security-Untertabs wurden kompakter benannt und deutsche sowie englische Standardtexte in vielen Security-Bereichen vereinheitlicht.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Paket und D-Scan</h3>
+            <p>Das Debian-Paket wurde auf Standardpfade normalisiert. D-Scan erhielt <code>Pfad kopieren</code> und die Logs verwenden jetzt vollstaendige Zeitstempel.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Version 1.1.18</p>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>RKHunter-Klassifizierung</h3>
+            <p>Warnungen werden als erwartete Aenderung, pruefenswert oder kritisch eingeordnet und mit klarer Kurzbewertung versehen.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Mehr Vertrauensevidenz</h3>
+            <p>Vollstaendige RKHunter-Scans werden um <code>dpkg -V</code> ergaenzt; <code>rkhunter --propupd</code> bleibt an klare Sicherheitsbedingungen gebunden.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Kompatibilitaet und Installationsstand</h3>
+            <p>Linux-Mint-Verbesserungen, Firefox-Basisinstaller fuer den Secure Browser und aktualisierte Radio-/Test-Pfade runden das Release ab.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="version-note">
+          <p><strong>Lokaler Release-Stand:</strong> <code>1.1.19</code></p>
+          <p><strong>Zusammengefasste Releases:</strong> <code>1.1.16</code>, <code>1.1.17</code>, <code>1.1.18</code>, <code>1.1.19</code></p>
+          <p><strong>Stand dieser Seite:</strong> <code>2026-07-18</code></p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <a href="./impressum.html">Impressum</a>
+      <a href="https://github.com/Noogman4/dev-lab" target="_blank" rel="noopener noreferrer">GitHub</a>
+    </footer>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>

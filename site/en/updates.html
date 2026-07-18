@@ -67,17 +67,18 @@
         <div class="download-layout">
           <article class="download-card featured">
             <p class="download-label">Status</p>
-            <h3>NetMon 1.1.15 is the current build.</h3>
-            <p>The version check in the About section works cleanly and automatically points to the download page when a newer website version is available. This page serves as the central place for approvals, test notes, and ongoing maintenance updates.</p>
+            <h3>NetMon 1.1.19 is the current build.</h3>
+            <p>The version check in the About section works cleanly and automatically points to the download page when a newer website version is available. This page remains the central place for approvals, test notes, and current release maintenance updates.</p>
             <div class="inline-actions">
               <a class="button button-primary" href="./downloads.html">Go to download page</a>
+              <a class="button button-secondary" href="./changelog.html">Open changelog</a>
               <a class="button button-secondary" href="./docs.html">Open documentation</a>
             </div>
           </article>
           <article class="download-card">
             <p class="download-label">Important note</p>
-            <h3>NetMon is still being checked on multiple Linux systems.</h3>
-            <p>If differences or problems appear on individual distributions, we document them here before issuing a broad approval. This keeps status and known topics visible in one place.</p>
+            <h3>NetMon is approved for Linux Mint and Zorin OS.</h3>
+            <p>Additional distributions are still being reviewed. Differences, known topics, and new approvals are collected here so the current support status remains visible in one place.</p>
           </article>
         </div>
       </section>
@@ -89,15 +90,15 @@
         <div class="faq-grid">
           <article class="faq-card">
             <h3>Zorin OS approved</h3>
-            <p>The current core functions were tested successfully on Zorin. This includes launch, the diagnostics path, and the revised LUKS mount workflow.</p>
+            <p>Zorin OS is approved for NetMon 1.1.19. The tested scope includes core functions, startup, diagnostics, Secure Browser, and the VPN, DNS, and killswitch flows.</p>
           </article>
           <article class="faq-card">
-            <h3>Linux Mint in the test lab</h3>
-            <p>Initial tests on Mint are positive. A broad approval is still pending because more checks are scheduled in the test lab.</p>
+            <h3>Linux Mint approved</h3>
+            <p>Linux Mint is approved for NetMon 1.1.19. Core functions and the Secure Browser, VPN, DNS, and killswitch workflows were tested successfully.</p>
           </article>
           <article class="faq-card">
-            <h3>Note for Mint tests</h3>
-            <p>Before system changes, mount and unmount checks, or uninstall tests on Mint, a Timeshift backup should be created first.</p>
+            <h3>Current approval status</h3>
+            <p>Linux Mint and Zorin OS are approved for the current release. Additional Debian-/Ubuntu-based systems will follow after successful cross-checks.</p>
           </article>
         </div>
       </section>
@@ -108,16 +109,20 @@
         </div>
         <div class="faq-grid">
           <article class="faq-card">
-            <h3>LUKS mounting revised</h3>
-            <p>The earlier problem with mounting encrypted LUKS partitions was reworked in version 1.1.14. The mount path now behaves more reliably and follows the tested system behaviour more closely.</p>
+            <h3>More robust startup for DNS and killswitch states</h3>
+            <p>Orphaned killswitch states and problematic DNS startup situations are handled more cleanly in version 1.1.19 so NetMon starts and recovers more reliably.</p>
           </article>
           <article class="faq-card">
-            <h3>Installed build hardened</h3>
-            <p>The package path was additionally hardened so that behaviour differences between the dev lab and the installed system are reduced. LUKS handling and desktop mount tooling were improved in particular.</p>
+            <h3>Improved VPN switching and firewall sync</h3>
+            <p>After a successful VPN profile switch, the intended UFW state is now synchronized cleanly with the referenced profiles even when no active killswitch is running.</p>
           </article>
           <article class="faq-card">
-            <h3>About version check</h3>
-            <p>The online check for the current version now runs cleanly. If the website offers a newer version, NetMon can forward directly to the download page.</p>
+            <h3>RKHunter analysis tightened up</h3>
+            <p>Warnings are classified more clearly, cross-checked with <code>dpkg -V</code>, and reference updates are only offered under explicit security conditions.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Linux Help workflow expanded</h3>
+            <p>PDF-linked prompts and the new PDF library close an earlier gap between research, documentation, and direct follow-up work inside NetMon.</p>
           </article>
         </div>
       </section>
@@ -129,30 +134,32 @@
         <div class="faq-grid">
           <article class="faq-card">
             <h3>New package</h3>
-            <p>An updated <code>.deb</code> package is provided for version 1.1.15. It includes the latest LUKS-mounting work, the About version-check improvements, and the current recovery baseline.</p>
+            <p>An updated <code>.deb</code> package is provided for version 1.1.19. It includes the hardened startup and network paths, more robust VPN/firewall synchronization, and the new Linux Help PDF workflow.</p>
           </article>
           <article class="faq-card">
             <h3>Hash and signature</h3>
-            <p>Updated SHA256 checksums and a refreshed Minisign signature will be published alongside the package so downloads can be verified before installation.</p>
+            <p>Updated SHA256 checksums and a refreshed Minisign signature will be published alongside the package so downloads can be verified cleanly before installation.</p>
           </article>
           <article class="faq-card">
             <h3>Recommendation</h3>
-            <p>Please use the verification steps on the download page whenever possible and review this page before test installations.</p>
+            <p>Please use the verification steps on the download page whenever possible and review this page before tests or upgrades.</p>
           </article>
         </div>
       </section>
 
       <section class="section">
         <div class="version-note">
-          <p><strong>Status date:</strong> <code>2026-06-29</code></p>
-          <p><strong>Current build:</strong> <code>1.1.15</code></p>
-          <p><strong>Next focus:</strong> Additional distribution tests and a clean assessment of possible differences between Zorin, Mint, and other Debian-/Ubuntu-based systems.</p>
+          <p><strong>Status date:</strong> <code>2026-07-18</code></p>
+          <p><strong>Current build:</strong> <code>1.1.19</code></p>
+          <p><strong>Approved:</strong> <code>Linux Mint</code>, <code>Zorin OS</code></p>
+          <p><strong>Next focus:</strong> Additional distribution tests and ongoing release maintenance for Debian-/Ubuntu-based systems.</p>
         </div>
       </section>
     </main>
 
     <footer class="footer">
       <a href="./impressum.html">Imprint</a>
+      <a href="https://github.com/Noogman4/dev-lab" target="_blank" rel="noopener noreferrer">GitHub</a>
     </footer>
   </div>
   <script src="../app.js"></script>

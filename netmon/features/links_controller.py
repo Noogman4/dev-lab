@@ -9,6 +9,7 @@ import shlex
 import shutil
 import subprocess
 import webbrowser
+import tkinter as tk
 from tkinter import messagebox
 
 try:
@@ -117,6 +118,14 @@ def _link_slot_has_assignment(slot) -> bool:
 
 def _link_custom_name(app) -> str:
     return str(_app_var_get(app, "link_custom_name_var", "") or "").strip()
+
+
+def _set_link_custom_name_autofill(app, value: str) -> None:
+    app.__dict__["link_custom_name_autofill"] = str(value or "").strip()
+
+
+def _link_custom_name_autofill(app) -> str:
+    return str(_app_value(app, "link_custom_name_autofill", "") or "").strip()
 
 
 def _link_target_fields(app):
@@ -439,7 +448,9 @@ def load_link_slot_into_form(app, slot_no):
     if slot is None:
         return
     _app_var_set(app, "link_slot_choice", str(slot_no))
-    _app_var_set(app, "link_custom_name_var", (slot.get("custom_name") or "").strip())
+    custom_name = (slot.get("custom_name") or "").strip()
+    _app_var_set(app, "link_custom_name_var", custom_name)
+    _set_link_custom_name_autofill(app, "")
     _app_var_set(
         app,
         "link_type_var",
@@ -473,6 +484,74 @@ def on_link_table_select(app, _event=None):
     load_link_slot_into_form(app, slot_no)
 
 
+def _link_table_slot_no_for_row(app, row_id: str) -> int | None:
+    table = _app_value(app, "link_table")
+    if table is None or not row_id:
+        return None
+    try:
+        values = table.item(row_id, "values")
+    except Exception:
+        return None
+    if not values:
+        return None
+    try:
+        slot_no = int(values[0])
+    except (TypeError, ValueError, IndexError):
+        return None
+    return slot_no if 1 <= slot_no <= LINK_SLOT_COUNT else None
+
+
+def remove_link_table_selection(app):
+    table = _app_value(app, "link_table")
+    if table is None:
+        return
+    try:
+        selection = tuple(table.selection())
+    except Exception:
+        selection = ()
+    if not selection:
+        app.log("Kein Link-Slot ausgewählt.")
+        return
+    slot_no = _link_table_slot_no_for_row(app, selection[0])
+    if slot_no is None:
+        app.log("Ungültiger Link-Slot ausgewählt.")
+        return
+    _app_var_set(app, "link_slot_choice", str(slot_no))
+    clear_link_slot(app, confirm=True)
+
+
+def show_link_table_context_menu(app, event):
+    table = _app_value(app, "link_table")
+    if table is None:
+        return None
+    row_id = ""
+    try:
+        row_id = table.identify_row(event.y)
+    except Exception:
+        row_id = ""
+    if row_id:
+        try:
+            table.selection_set(row_id)
+            table.focus(row_id)
+        except Exception:
+            pass
+        slot_no = _link_table_slot_no_for_row(app, row_id)
+        if slot_no is not None:
+            load_link_slot_into_form(app, slot_no)
+
+    menu = tk.Menu(table, tearoff=0)
+    has_row = bool(row_id)
+    menu.add_command(
+        label=app.tr("menu_link_remove", "Link entfernen"),
+        command=lambda: remove_link_table_selection(app),
+        state="normal" if has_row else "disabled",
+    )
+    show_fn = getattr(app, "_show_context_menu", None)
+    if callable(show_fn):
+        return show_fn(menu, event)
+    return None
+
+
 def on_link_type_change(app, _event=None):
     sync_link_target_widgets(app)
 
@@ -481,6 +560,12 @@ def on_systemlink_app_select(app, _event=None):
     entry = _selected_systemlink_entry(app)
     if entry:
         _app_var_set(app, "link_target_var", f"desktop:{entry['desktop_id']}")
+        current_name = _link_custom_name(app)
+        previous_autofill = _link_custom_name_autofill(app)
+        next_name = str(entry.get("name") or entry.get("label") or "").strip()
+        if next_name and (not current_name or current_name == previous_autofill):
+            _app_var_set(app, "link_custom_name_var", next_name)
+            _set_link_custom_name_autofill(app, next_name)
 
 
 def sync_link_target_widgets(app):

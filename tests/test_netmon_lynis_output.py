@@ -61,28 +61,28 @@ def test_lynis_running_reads_safe_default_state():
 
 def test_lynis_summary_and_start_log_messages_match_modes():
     assert security_audit_controller._lynis_summary_text("quick") == (
-        "Quick Scan wird ausgeführt ..."
+        "Schnellaudit wird ausgeführt ..."
     )
     assert security_audit_controller._lynis_summary_text("full") == (
-        "Full Security Scan wird ausgeführt ..."
+        "Vollständiger Sicherheitsscan wird ausgeführt ..."
     )
     assert security_audit_controller._lynis_start_log_message("quick") == (
-        "Lynis Quick Scan gestartet (ohne root)"
+        "Lynis Schnellaudit gestartet (ohne root)"
     )
     assert security_audit_controller._lynis_start_log_message("full") == (
-        "Lynis Full Scan gestartet (sudo erforderlich)"
+        "Lynis Vollscan gestartet (sudo erforderlich)"
     )
 
 
 def test_lynis_finish_log_message_covers_success_timeout_and_error():
     assert security_audit_controller._lynis_finish_log_message("quick", 0) == (
-        "Lynis Quick Scan abgeschlossen."
+        "Lynis Schnellaudit abgeschlossen."
     )
     assert security_audit_controller._lynis_finish_log_message("full", 124) == (
-        "Lynis Full Scan Timeout (rc=124)."
+        "Lynis Vollscan Timeout (rc=124)."
     )
     assert security_audit_controller._lynis_finish_log_message("full", 7) == (
-        "Lynis Full Scan fehlgeschlagen (rc=7)."
+        "Lynis Vollscan fehlgeschlagen (rc=7)."
     )
 
 
@@ -161,7 +161,7 @@ def test_finish_lynis_audit_stores_clean_output_and_updates_summary():
     assert app.lynis_status_var.get() == "abgeschlossen"
     assert app.lynis_last_result["suggestions"] == "2"
     assert app.lynis_last_result["hardening_index"] == "88"
-    assert logs[-1] == "Lynis Quick Scan abgeschlossen."
+    assert logs[-1] == "Lynis Schnellaudit abgeschlossen."
 
 
 def test_run_lynis_quick_starts_expected_scan(monkeypatch):
@@ -216,8 +216,8 @@ def test_run_lynis_quick_starts_expected_scan(monkeypatch):
 
     assert seen["cmd"] == ["lynis", "audit", "system", "--no-colors"]
     assert seen["timeout"] == 120
-    assert app.lynis_last_output == "=== Lynis Quick Scan (eingeschränkt) ===\nOK"
-    assert seen["log"][-1] == "Lynis Quick Scan abgeschlossen."
+    assert app.lynis_last_output == "=== Lynis Schnellaudit (eingeschränkt) ===\nOK"
+    assert seen["log"][-1] == "Lynis Schnellaudit abgeschlossen."
 
 
 def test_run_lynis_full_requests_sudo_and_uses_expected_scan(monkeypatch):
@@ -276,12 +276,15 @@ def test_run_lynis_full_requests_sudo_and_uses_expected_scan(monkeypatch):
 
     app.run_lynis_full()
 
-    assert seen["info"][0] == "Lynis Full Scan"
+    assert seen["info"][0] == "Lynis Vollscan"
     assert seen["sudo_reason"] == "Lynis Full Security Scan"
     assert seen["cmd"] == ["sudo", "lynis", "audit", "system", "--no-colors"]
     assert seen["timeout"] == 600
-    assert app.lynis_last_output == "=== Lynis Full Security Scan (sudo) ===\nWarning"
-    assert seen["log"][-1] == "Lynis Full Scan abgeschlossen."
+    assert (
+        app.lynis_last_output
+        == "=== Lynis Vollständiger Sicherheitsscan (sudo) ===\nWarning"
+    )
+    assert seen["log"][-1] == "Lynis Vollscan abgeschlossen."
 
 
 def test_finish_lynis_audit_marks_timeout_cleanly():
@@ -310,4 +313,4 @@ def test_finish_lynis_audit_marks_timeout_cleanly():
     app._finish_lynis_audit(124, "Command timed out", mode="full")
 
     assert app.lynis_status_var.get() == "Timeout"
-    assert logs[-1] == "Lynis Full Scan Timeout (rc=124)."
+    assert logs[-1] == "Lynis Vollscan Timeout (rc=124)."

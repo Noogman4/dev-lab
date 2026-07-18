@@ -208,3 +208,41 @@ def test_match_suspicious_cmdline_still_detects_real_nc_usage():
     service = ProcessGuardService()
 
     assert service._match_suspicious_cmdline("sh -c nc 1.2.3.4 4444") is True
+
+
+def test_evaluate_process_does_not_flag_networkmanager_name_only():
+    service = ProcessGuardService()
+    proc = {
+        "pid": 929,
+        "ppid": 1,
+        "name": "NetworkManager",
+        "exe": "/usr/sbin/NetworkManager",
+        "cmdline": ["/usr/sbin/NetworkManager", "--no-daemon"],
+        "cwd": "",
+        "username": "root",
+        "create_time": 1.0,
+        "status": "sleeping",
+    }
+
+    finding = service.evaluate_process(proc, parent={"pid": 1, "name": "systemd"})
+
+    assert finding is None
+
+
+def test_evaluate_process_does_not_flag_kworker_name_only():
+    service = ProcessGuardService()
+    proc = {
+        "pid": 1152,
+        "ppid": 2,
+        "name": "kworker/R-comp_1.0.0",
+        "exe": "",
+        "cmdline": [],
+        "cwd": "",
+        "username": "root",
+        "create_time": 1.0,
+        "status": "sleeping",
+    }
+
+    finding = service.evaluate_process(proc, parent={"pid": 2, "name": "kthreadd"})
+
+    assert finding is None

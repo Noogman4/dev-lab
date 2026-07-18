@@ -74,6 +74,10 @@ def _packet_capture_existing_file_path(app) -> str:
     return ""
 
 
+def _packet_capture_has_existing_file(app) -> bool:
+    return bool(_packet_capture_existing_file_path(app))
+
+
 def _packet_capture_open_target_path(app) -> str:
     file_path = _packet_capture_file_path(app)
     if not file_path:
@@ -305,6 +309,30 @@ def _packet_capture_dumpcap_permission_message() -> str:
     return "tshark ist vorhanden, aber dumpcap hat keine ausreichenden Berechtigungen."
 
 
+def _packet_capture_permission_failure_message() -> str:
+    return (
+        "Capture fehlgeschlagen: keine Berechtigung für dieses Interface.\n"
+        "Nutze in NetMon den Button 'Capture-Rechte reparieren' und melde dich danach einmal neu an."
+    )
+
+
+def _packet_capture_looks_like_permission_issue(app, text: str) -> bool:
+    detector = getattr(app, "_looks_like_dumpcap_permission_issue", None)
+    if callable(detector) and detector(text):
+        return True
+    lowered = str(text or "").strip().lower()
+    if not lowered:
+        return False
+    markers = [
+        "you do not have permission to capture on device",
+        "operation not permitted",
+        "permission denied",
+        "cap_net_raw",
+        "cap_net_admin",
+    ]
+    return any(marker in lowered for marker in markers)
+
+
 def _packet_capture_capinfos_text(output: str) -> str:
     return _packet_capture_file_info_header() + "\n" + str(output or "").strip()
 
@@ -476,7 +504,7 @@ def refresh_packet_capture_interfaces(app):
                 if name:
                     interfaces.append(name)
                     details.append(raw)
-        elif app._looks_like_dumpcap_permission_issue(out):
+        elif _packet_capture_looks_like_permission_issue(app, out):
             app.packet_capture_status_var.set("permission missing")
             append_packet_capture_output(
                 app,
@@ -670,12 +698,20 @@ def packet_capture_start_async(app):
             )
             app.packet_capture_active_process = proc
             captured_lines = []
+            suppress_live_output = False
             if proc.stdout is not None:
                 for line in proc.stdout:
                     text_line = (line or "").rstrip()
                     if not text_line:
                         continue
                     captured_lines.append(text_line)
+                    if _packet_capture_looks_like_permission_issue(
+                        app,
+                        "\n".join(captured_lines[-10:]),
+                    ):
+                        suppress_live_output = True
+                    if suppress_live_output:
+                        continue
                     app.after(
                         0,
                         lambda msg=text_line: append_packet_capture_output(app, msg),
@@ -686,6 +722,9 @@ def packet_capture_start_async(app):
             def finish_success():
                 app.packet_capture_active_process = None
                 app.packet_capture_running = False
+                permission_issue = _packet_capture_looks_like_permission_issue(
+                    app, details
+                )
                 _app_var_set(
                     app,
                     "packet_capture_status_var",
@@ -696,7 +735,14 @@ def packet_capture_start_async(app):
                 )
                 packet_capture_set_running_state(app, False)
                 if details:
-                    append_packet_capture_output(app, details)
+                    append_packet_capture_output(
+                        app,
+                        (
+                            _packet_capture_permission_failure_message()
+                            if permission_issue
+                            else details
+                        ),
+                    )
                 if return_code != 0 and not app.packet_capture_cancel_requested:
                     output_message, log_message = (
                         _packet_capture_completion_failure_messages(
@@ -709,11 +755,12 @@ def packet_capture_start_async(app):
                         output_message,
                     )
                     app.log(log_message)
-                    if app._looks_like_dumpcap_permission_issue(details):
+                    if permission_issue:
                         app.show_dumpcap_permission_hint()
                 else:
                     app.log(_packet_capture_state_log_message("stopped", interface))
-                packet_capture_show_file_info(app)
+                if _packet_capture_has_existing_file(app):
+                    packet_capture_show_file_info(app)
                 packet_capture_update_runtime(app)
 
             call_in_ui_thread(app, finish_success)

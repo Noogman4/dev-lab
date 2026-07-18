@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NetMonRoots | Security Audit 2026</title>
+  <title>NetMonRoots | Security Audit 2026 — Round 9</title>
   <meta
     name="description"
-    content="Independent security audit summary for the NetMon source code (branch main, June 2026). No critical security issue found."
+    content="Ninth independent security audit of the NetMon source code on the final v1.1.19 release state. 0 critical, 0 high, 2 medium findings — both fixed and verified."
   >
   <link rel="icon" type="image/png" href="../favicon.png">
   <link rel="apple-touch-icon" href="../favicon.png">
@@ -14,8 +14,8 @@
   <link rel="alternate" hreflang="de" href="https://netmonroots.com/security-audit.html">
   <link rel="alternate" hreflang="en" href="https://netmonroots.com/en/security-audit.html">
   <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/security-audit.html">
-  <meta property="og:title" content="NetMonRoots | Security Audit 2026">
-  <meta property="og:description" content="Independent security audit summary for the NetMon source code (branch main, June 2026). No critical security issue found.">
+  <meta property="og:title" content="NetMonRoots | Security Audit 2026 — Round 9">
+  <meta property="og:description" content="Ninth independent security audit of the NetMon source code on the final v1.1.19 release state. 0 critical, 0 high, 2 medium findings — both fixed and verified.">
   <meta property="og:url" content="https://netmonroots.com/en/security-audit.html">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="NetMon Roots">
@@ -23,8 +23,8 @@
   <meta property="og:locale:alternate" content="de_DE">
   <meta property="og:image" content="https://netmonroots.com/favicon.png">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="NetMonRoots | Security Audit 2026">
-  <meta name="twitter:description" content="Independent security audit summary for the NetMon source code (branch main, June 2026). No critical security issue found.">
+  <meta name="twitter:title" content="NetMonRoots | Security Audit 2026 — Round 9">
+  <meta name="twitter:description" content="Ninth independent security audit of the NetMon source code on the final v1.1.19 release state. 0 critical, 0 high, 2 medium findings — both fixed and verified.">
   <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
   <link rel="stylesheet" href="../styles.css">
   <style>
@@ -122,6 +122,7 @@
         <a href="./tour.html">Tour</a>
         <a href="./downloads.html">Download</a>
         <a href="./updates.html">Updates</a>
+        <a href="./changelog.html">Changelog</a>
         <a href="./docs.html">Docs</a>
         <a href="./legal.html">Legal</a>
       </nav>
@@ -133,31 +134,37 @@
 
     <main>
       <section class="audit-hero">
-        <p class="eyebrow">Security Audit — June 2026</p>
+        <p class="eyebrow">Security Audit — July 2026 — Round 9</p>
         <h1 style="font-size:clamp(2rem,4vw,3rem);margin:0 0 20px;color:var(--text);">
           Code Security Review<br>
-          <span style="color:var(--accent);">NetMon Roots v1.1.11</span>
+          <span style="color:var(--accent);">NetMon Roots v1.1.19 — release state</span>
         </h1>
         <p style="max-width:680px;color:var(--muted);line-height:1.65;font-size:1.05rem;">
-          Static security review of the relevant NetMon branch diff by an automated
-          multi-agent workflow based on Claude Sonnet 4.6. The goal was to identify
-          exploitable weaknesses in the changed code.
+          Ninth automated security review based on Claude Fable 5, performed on the
+          <strong>final 1.1.19 release state</strong> rather than on an intermediate
+          snapshot. This round focused on the <strong>VPN/UFW killswitch reconcile</strong>,
+          <strong>DNS startup recovery</strong>, the <strong>in-app update check</strong>,
+          <strong>Debian maintainer scripts</strong>, and the complete
+          <strong>release verification chain</strong> via
+          <code>SHA256SUMS</code> and <code>minisign</code>.
         </p>
       </section>
 
       <div style="margin-bottom:32px;">
-        <a class="button button-primary" href="../netmon_security_audit_2026.pdf" download>Download PDF</a>
+        <a class="button button-primary" href="../netmon_security_audit_2026_r9.pdf" download>Download PDF</a>
         <a class="button button-secondary" href="#summary">Summary</a>
-        <a class="button button-secondary" href="#hardening">Hardening</a>
+        <a class="button button-secondary" href="#findings">Findings</a>
+        <a class="button button-secondary" href="#release">Release verification</a>
       </div>
 
       <div class="verdict-banner" id="summary">
         <div class="verdict-icon">&#10003;</div>
         <div class="verdict-text">
-          <h2>No critical vulnerabilities found</h2>
+          <h2>0 critical — 0 high — 2 medium findings</h2>
           <p>
-            The reviewed code did not produce a critical, confirmed attack path.
-            The current audit state reports zero critical findings in scope.
+            Two medium-severity issues were confirmed, fixed, regression-tested,
+            and re-verified on the final release build. No critical or high findings
+            remained open in scope.
           </p>
         </div>
       </div>
@@ -165,27 +172,27 @@
       <div class="audit-meta-grid">
         <div class="audit-meta-card">
           <div class="label">Date</div>
-          <div class="value">June 21, 2026</div>
+          <div class="value">July 18, 2026</div>
         </div>
         <div class="audit-meta-card">
           <div class="label">Reviewed version</div>
-          <div class="value">v1.1.11 — branch main</div>
-        </div>
-        <div class="audit-meta-card">
-          <div class="label">Changed files</div>
-          <div class="value">60+</div>
-        </div>
-        <div class="audit-meta-card">
-          <div class="label">Commits in scope</div>
-          <div class="value">10</div>
+          <div class="value">v1.1.19 — final release state</div>
         </div>
         <div class="audit-meta-card">
           <div class="label">Critical findings</div>
           <div class="value ok">0</div>
         </div>
         <div class="audit-meta-card">
-          <div class="label">Method</div>
-          <div class="value">Static analysis</div>
+          <div class="label">High findings</div>
+          <div class="value ok">0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Medium findings</div>
+          <div class="value">2 — both fixed</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Release signature</div>
+          <div class="value ok">validated</div>
         </div>
       </div>
 
@@ -194,74 +201,67 @@
         <div class="section-rule"></div>
         <div class="audit-card">
           <p>
-            The review followed a staged process: diff inspection, candidate extraction,
-            focused security validation, and false-positive filtering. The audit focused on
-            subprocess usage, file/path handling, privilege boundaries, configuration flow,
-            service logic, and API-connected components.
+            The reviewed scope was the final 1.1.19 release state, including version
+            consistency across the application, Debian package, download pages, and
+            release metadata. The audit concentrated on privileged or externally
+            influenced paths with release impact.
           </p>
           <ul>
-            <li>Command execution and subprocess safety</li>
-            <li>Path handling and traversal-related risks</li>
-            <li>Privilege escalation via sudo-using workflows</li>
-            <li>Security-sensitive service and controller logic</li>
-            <li>AI-connected file and prompt handling</li>
+            <li>VPN/UFW/killswitch reconcile and recovery behavior</li>
+            <li>DNS startup recovery and fallback handling</li>
+            <li>Remote update metadata and URL opening flow</li>
+            <li>Debian package maintainer scripts and install-time behavior</li>
+            <li>Release verification with SHA256SUMS and minisign</li>
           </ul>
         </div>
       </div>
 
-      <div class="audit-section">
-        <h2>Reviewed candidate classes</h2>
+      <div class="audit-section" id="findings">
+        <h2>Confirmed findings</h2>
+        <div class="section-rule"></div>
+        <div class="audit-card">
+          <p><strong>F1 — Update URL allowlist gap:</strong> the in-app update check accepted a server-provided <code>download_url</code> without a strict scheme/host allowlist before handing it to <code>xdg-open</code>. This was fixed with a web-only scheme restriction plus trusted-host pinning for the update path.</p>
+          <p><strong>F2 — Killswitch fail-open on early VPN switch failure:</strong> early VPN slot switch error paths could reset outbound firewall policy too broadly even when the user intended killswitch protection to stay active. This was fixed with a killswitch-preserving recovery path and regression coverage.</p>
+        </div>
+      </div>
+
+      <div class="audit-section" id="release">
+        <h2>Release verification</h2>
         <div class="section-rule"></div>
         <div class="audit-card">
           <p>
-            The German full report lists candidate classes in detail. For the English web
-            mirror, the outcome is summarized: reviewed candidates did not cross the threshold
-            for a confirmed exploit path in the audited scope.
+            The release artifacts were cross-checked via <code>sha256sum -c SHA256SUMS</code>
+            and verified against the shipped minisign signature and public key. The
+            signature chain for the 1.1.19 release bundle validated successfully.
           </p>
           <ul>
-            <li>Git subprocess passthrough patterns</li>
-            <li>WireGuard endpoint handling in firewall workflows</li>
-            <li>Firewall rule forms with intentionally broad options</li>
-            <li>Predictable temporary-path handling in AV-related logic</li>
-            <li>Image/file path use in AI-connected helper functions</li>
-          </ul>
-        </div>
-      </div>
-
-      <div class="audit-section">
-        <h2>Issues already fixed during the audit period</h2>
-        <div class="section-rule"></div>
-        <div class="audit-card">
-          <ul>
-            <li>Mountpoint path validation hardening in HDD-related workflows</li>
-            <li>Removal of risky current-working-directory fallback in Linux help import flow</li>
-            <li>PID lock handling fix for EPERM-related false stale-lock behavior</li>
-            <li>DNS token validation edge-case fix</li>
-            <li>Startup Guard baseline visibility fix for newly introduced files</li>
+            <li><code>netmon_1.1.19_all.deb</code> matched the published SHA256 sums</li>
+            <li><code>netmon_dokumentation_1.1.19.html</code> and <code>.pdf</code> matched the published SHA256 sums</li>
+            <li><code>SHA256SUMS.minisig</code> validated against the shipped minisign public key</li>
           </ul>
         </div>
       </div>
 
       <div class="audit-section" id="hardening">
-        <h2>Hardening recommendations</h2>
+        <h2>Implemented hardening</h2>
         <div class="section-rule"></div>
         <div class="audit-card">
           <ul>
-            <li>Add a stricter subcommand allowlist if LLM output ever reaches command execution paths.</li>
-            <li>Validate WireGuard endpoint host values more aggressively before embedding them in UFW-related workflows.</li>
-            <li>Optionally narrow AI image helper inputs to known file classes and expected directories.</li>
-            <li>Further harden temporary-directory handling against symlink-based local misuse.</li>
+            <li>Trusted-host and scheme checks for the automatic update URL path</li>
+            <li>Killswitch-preserving firewall recovery for early VPN switch failure paths</li>
+            <li>Regression coverage for both confirmed findings</li>
+            <li>Re-validation of the release signature chain for the final 1.1.19 bundle</li>
           </ul>
         </div>
       </div>
 
       <div class="signature-block">
         <p>
-          <strong>Auditor:</strong> Claude Sonnet 4.6 (Anthropic) — automated multi-agent security review<br>
+          <strong>Auditor:</strong> Claude Fable 5 (Anthropic) — automated multi-agent security review<br>
           <strong>Project owner:</strong> Sven Froehlich<br>
-          <strong>Date:</strong> June 21, 2026<br>
-          <strong>Commit range:</strong> <code>e334324a</code> … <code>920cfc9b</code><br>
-          <strong>Method:</strong> Static code analysis — no runtime penetration test
+          <strong>Date:</strong> July 18, 2026<br>
+          <strong>Reviewed state:</strong> final NetMon 1.1.19 release build<br>
+          <strong>Method:</strong> static security review with targeted validation and regression confirmation
         </p>
         <p style="margin-top:16px;">
           <a href="./downloads.html" style="color:var(--accent);">Download page</a>
@@ -277,6 +277,7 @@
 
     <footer class="footer">
       <a href="./legal.html">License & Credits</a>
+      <a href="https://github.com/Noogman4/dev-lab" target="_blank" rel="noopener noreferrer">GitHub</a>
     </footer>
   </div>
   <script src="../app.js"></script>

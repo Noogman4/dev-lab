@@ -17,8 +17,7 @@ from . import _scanning as _scanning_mod
 from ._core import (
     build_security_chad_curated_summary, build_security_chad_summary, connected_device_inventory, current_input_access_inventory,
     detect_portscan, format_connected_device_inventory, get_ufw_logging_level, on_connected_device_select,
-    on_security_event_select, parse_ufw_block_line, prepare_security_chad_analysis, prepare_security_chad_curated_analysis,
-    prepare_security_chad_technical_analysis, read_ufw_log_tail, refresh_connected_device_table, refresh_input_access_table,
+    on_security_event_select, parse_ufw_block_line, read_ufw_log_tail, refresh_connected_device_table, refresh_input_access_table,
     refresh_security_table, security_clear_events, security_clear_views, security_compute_stats,
     security_filter_all, security_filter_external, security_filter_portscan, security_filter_relevant,
     security_filtered_events, security_integrity_ignore_path, security_open_tab, security_refresh_table_action,

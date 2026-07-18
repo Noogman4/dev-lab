@@ -1062,6 +1062,25 @@ def clear_vpn_slot(app, confirm=False):
 def delete_selected_vpn_profile(app):
     profile = app._base_wg_profile_name(app.vpn_profile_var.get())
     if not profile:
+        table = app.__dict__.get("vpn_table")
+        if table is not None:
+            try:
+                selection = table.selection()
+            except Exception:
+                selection = ()
+            if selection:
+                try:
+                    values = table.item(selection[0], "values")
+                except Exception:
+                    values = ()
+                if values and len(values) >= 3:
+                    profile = app._base_wg_profile_name(values[2])
+                    if profile:
+                        try:
+                            app.vpn_profile_var.set(profile)
+                        except Exception:
+                            pass
+    if not profile:
         app.log("Bitte erst ein WireGuard-Profil auswählen.")
         return
 
@@ -1216,6 +1235,8 @@ def delete_selected_vpn_profile(app):
     original_deleted = any(candidate == profile for _label, candidate in deleted)
 
     slots_cleared = 0
+    primary_slots_cleared = 0
+    privacy_profile_cleared = False
     if original_deleted:
         previous_slots = [dict(existing_slot) for existing_slot in app.vpn_slots]
         for slot in app.vpn_slots:
@@ -1233,6 +1254,41 @@ def delete_selected_vpn_profile(app):
                 app.log(
                     "VPN-Slot-Bereinigung nach Profil-Löschung fehlgeschlagen – Slot-Änderungen wurden zurückgesetzt."
                 )
+
+        previous_primary_slots = [
+            dict(existing_slot)
+            for existing_slot in app.__dict__.get("primary_vpn_slots", [])
+        ]
+        for slot in app.__dict__.get("primary_vpn_slots", []):
+            slot_profile = app._base_wg_profile_name(slot.get("profile"))
+            if slot_profile != profile:
+                continue
+            slot["profile"] = ""
+            slot["custom_name"] = ""
+            primary_slots_cleared += 1
+        if primary_slots_cleared:
+            try:
+                app.save_primary_vpn_slots_config()
+            except Exception as exc:
+                app.primary_vpn_slots = previous_primary_slots
+                primary_slots_cleared = 0
+                app.log(
+                    "Primäre VPN-Slot-Bereinigung nach Profil-Löschung fehlgeschlagen – Änderungen wurden zurückgesetzt."
+                )
+                app.log_debug_safe(
+                    f"Primäre VPN-Slot-Bereinigung fehlgeschlagen: {exc}"
+                )
+
+        privacy_config = _privacy_config_dict(app)
+        privacy_profile = app._base_wg_profile_name(privacy_config.get("vpn_profile"))
+        if privacy_profile == profile:
+            privacy_config["vpn_profile"] = ""
+            _app_var_set(app, "isp_stealth_vpn_profile", "")
+            _app_var_set(app, "isp_stealth_vpn_choice", "")
+            privacy_profile_cleared = _save_privacy_config_safe(
+                app,
+                "Privacy-Konfig konnte nach Profil-Löschung nicht gespeichert werden",
+            )
         new_referenced_profiles = app._collect_referenced_vpn_profiles(
             include_active=True
         )
@@ -1283,6 +1339,10 @@ def delete_selected_vpn_profile(app):
         app.log(f"{label} löschen fehlgeschlagen ({candidate}): {reason}")
     if slots_cleared:
         app.log(f"VPN-Slots bereinigt: {slots_cleared}")
+    if primary_slots_cleared:
+        app.log(f"Primäre VPN-Slots bereinigt: {primary_slots_cleared}")
+    if privacy_profile_cleared:
+        app.log("Privacy-VPN-Profil zurückgesetzt.")
     if original_deleted:
         app.log(f"WireGuard-Profil gelöscht: {profile}")
 
@@ -1353,14 +1413,31 @@ def open_vpn_slot(app, idx):
             app.load_vpn_slot_into_form(idx + 1)
         return
 
-    if profile not in (app.wg_profiles or []):
+    resolved_profile = app._resolve_vpn_profile_input(profile, refresh_profiles=False)
+
+    def profile_is_available(candidate):
+        if not candidate:
+            return False
+        if candidate in (app.wg_profiles or []):
+            return True
+        try:
+            return bool(app._wg_profile_exists(candidate))
+        except Exception:
+            return False
+
+    if not profile_is_available(resolved_profile):
+        resolved_profile = app._resolve_vpn_profile_input(
+            profile, refresh_profiles=True
+        )
+
+    if not profile_is_available(resolved_profile):
         app.log(f"VPN-Slot {idx + 1}: Profil '{profile}' nicht gefunden.")
         if hasattr(app, "tab_vpn_slots"):
             app._select_system_tab(app.tab_vpn_slots)
             app.load_vpn_slot_into_form(idx + 1)
         return
 
-    app._start_vpn_slot_profile(profile, slot_no=idx + 1)
+    app._start_vpn_slot_profile(resolved_profile, slot_no=idx + 1)
 
 
 def clear_manual_wireguard_form(app):
@@ -1369,6 +1446,7 @@ def clear_manual_wireguard_form(app):
     app.manual_wg_profile_name_var.set("")
     app.manual_wg_private_key_var.set("")
     app.manual_wg_public_key_var.set("")
+    app.manual_wg_preshared_key_var.set("")
     app.manual_wg_endpoint_var.set("")
     app.manual_wg_address_var.set("")
     app.manual_wg_allowed_ips_var.set("0.0.0.0/0")
@@ -1417,6 +1495,7 @@ def manual_wireguard_error_widget_name(_app, error_text):
         ("Profilname", "manual_wg_profile_name_entry"),
         ("Private Key", "manual_wg_private_key_entry"),
         ("Public Key", "manual_wg_public_key_entry"),
+        ("Preshared Key", "manual_wg_preshared_key_entry"),
         ("Endpoint", "manual_wg_endpoint_entry"),
         ("Address", "manual_wg_address_entry"),
         ("Allowed IP", "manual_wg_allowed_ips_entry"),
@@ -1459,6 +1538,9 @@ def validate_manual_wireguard_form(app):
     profile = (app.manual_wg_profile_name_var.get() or "").strip()
     private_key_raw = app.manual_wg_private_key_var.get() or ""
     public_key_raw = app.manual_wg_public_key_var.get() or ""
+    preshared_key_var = app.__dict__.get("manual_wg_preshared_key_var")
+    preshared_key_raw = preshared_key_var.get() if preshared_key_var is not None else ""
+    preshared_key_raw = preshared_key_raw or ""
     endpoint = (app.manual_wg_endpoint_var.get() or "").strip()
     address_raw = (app.manual_wg_address_var.get() or "").strip()
     allowed_ips_raw = (app.manual_wg_allowed_ips_var.get() or "").strip()
@@ -1485,6 +1567,13 @@ def validate_manual_wireguard_form(app):
     )
     if public_key_err:
         return None, public_key_err
+    preshared_key = ""
+    if preshared_key_raw.strip():
+        preshared_key, preshared_key_err = app._validate_wireguard_key_value(
+            preshared_key_raw, "Preshared Key"
+        )
+        if preshared_key_err:
+            return None, preshared_key_err
 
     endpoint_host, endpoint_port, endpoint_err = app._parse_manual_wireguard_endpoint(
         endpoint
@@ -1541,6 +1630,7 @@ def validate_manual_wireguard_form(app):
         "profile": profile,
         "private_key": private_key,
         "public_key": public_key,
+        "preshared_key": preshared_key,
         "endpoint": normalized_endpoint,
         "address": ", ".join(address_values),
         "allowed_ips": ", ".join(allowed_ips),
@@ -1567,6 +1657,8 @@ def build_manual_wireguard_config_text(_app, payload):
             f"Endpoint = {payload['endpoint']}",
         ]
     )
+    if payload.get("preshared_key"):
+        lines.append(f"PresharedKey = {payload['preshared_key']}")
     if payload.get("keepalive"):
         lines.append(f"PersistentKeepalive = {payload['keepalive']}")
 
@@ -1795,7 +1887,13 @@ def collect_endpoint_rules_for_profiles(app, profiles):
         resolved = app.resolve_profile_family_runtime(base_profile, log_missing=False)
         candidates = resolved.get("endpoint_profiles") or [base_profile]
         for candidate in candidates:
-            endpoint_ip, endpoint_port = app.parse_vpn_endpoint(candidate)
+            try:
+                endpoint_ip, endpoint_port = app.parse_vpn_endpoint(candidate)
+            except Exception as exc:
+                app.log_debug(
+                    f"[DEBUG] Endpoint fuer Profil {candidate} konnte nicht gelesen werden: {exc}"
+                )
+                continue
             if endpoint_ip and endpoint_port:
                 endpoints.add((endpoint_ip, endpoint_port))
     return endpoints
@@ -1832,8 +1930,18 @@ def apply_profile_ufw_rules_non_killswitch(app, interfaces, endpoints):
         return True
 
     network_service = app._network_service()
-    with app.ufw_lock:
-        rc_status, out_status = app._read_ufw_status(verbose=True)
+    ufw_lock = app.__dict__.get("ufw_lock")
+    if ufw_lock is None:
+        ufw_lock = threading.Lock()
+        app.ufw_lock = ufw_lock
+    with ufw_lock:
+        try:
+            rc_status, out_status = app._read_ufw_status(verbose=True)
+        except Exception as exc:
+            app.log_debug(
+                f"VPN/UFW-Reconcile: UFW-Status konnte nicht gelesen werden: {exc}"
+            )
+            return True
         if rc_status != 0:
             app.log(
                 "VPN/UFW-Reconcile: UFW-Status nicht lesbar – Regelsetzung übersprungen."
@@ -2430,9 +2538,7 @@ def cleanup_wireguard_interfaces(app):
             final_ifaces = []
     if final_ifaces:
         app.log_safe(
-            "WG Cleanup fehlgeschlagen: "
-            + ", ".join(final_ifaces)
-            + " weiterhin aktiv"
+            "WG Cleanup fehlgeschlagen: " + ", ".join(final_ifaces) + " weiterhin aktiv"
         )
         return False
 
@@ -2579,7 +2685,7 @@ def vpn_switch(
             app.log_safe(
                 app.tr("vpn_log_no_profile_selected", "Kein WireGuard-Profil gewählt.")
             )
-            app._recover_firewall_after_killswitch_failure()
+            app._recover_firewall_preserving_killswitch()
             if refresh_ui:
                 app.refresh_safe()
             return False
@@ -2599,7 +2705,7 @@ def vpn_switch(
         if not runtime_target:
             runtime_target = app.resolve_runtime_vpn_profile(target, log_missing=True)
         if not runtime_target:
-            app._recover_firewall_after_killswitch_failure()
+            app._recover_firewall_preserving_killswitch()
             if refresh_ui:
                 app.refresh_safe()
             return False
@@ -2672,7 +2778,7 @@ def vpn_switch(
                 "[DEBUG] WG Cleanup vor VPN Start übersprungen: bereits sauber."
             )
         elif not cleanup_wireguard_interfaces(app):
-            app._recover_firewall_after_killswitch_failure()
+            app._recover_firewall_preserving_killswitch()
             if refresh_ui:
                 app.refresh_safe()
             return False
@@ -2719,8 +2825,15 @@ def vpn_switch(
         app.refresh_wg_profiles()
         app.update_primary_vpn_form_controls()
         app.sync_primary_vpn_form_selection()
-        if rc == 0 and app.killswitch_is_on():
-            app._killswitch_on_sync(refresh_ui=False)
+        if rc == 0:
+            if app.killswitch_is_on():
+                app._killswitch_on_sync(refresh_ui=False)
+            else:
+                app.reconcile_vpn_slot_firewall_state(
+                    reason=f"VPN aktiv: {target}",
+                    touched_profiles=[target],
+                    refresh_ui=False,
+                )
         if rc == 0:
             app._schedule_dns_finalize_after_vpn_profile_switch(delay_ms=2500)
             app.run_async(lambda t=target: app.verify_vpn_exit_country(t))
@@ -2780,7 +2893,7 @@ def _vpn_switch_networkmanager(app, target, *, refresh_ui=True, force_reconnect=
     if not report.get("ready"):
         _vpn_user_log(
             app,
-            "NetworkManager-Wechselpfad blockiert: Phase-3-Prüfung ist noch nicht grün."
+            "NetworkManager-Wechselpfad blockiert: Phase-3-Prüfung ist noch nicht grün.",
         )
         if refresh_ui:
             app.refresh_safe()
@@ -2788,7 +2901,7 @@ def _vpn_switch_networkmanager(app, target, *, refresh_ui=True, force_reconnect=
     if target not in set(get_nm_wireguard_profiles(app)):
         _vpn_user_log(
             app,
-            f"VPN Start abgebrochen: NetworkManager-Connection '{target}' nicht gefunden."
+            f"VPN Start abgebrochen: NetworkManager-Connection '{target}' nicht gefunden.",
         )
         if refresh_ui:
             app.refresh_safe()
@@ -2837,7 +2950,7 @@ def _vpn_switch_networkmanager(app, target, *, refresh_ui=True, force_reconnect=
             _vpn_user_log(app, app.tr("vpn_log_connected", "VPN Verbindung aufgebaut."))
         _vpn_user_log(
             app,
-            app.tr("vpn_log_started", "VPN gestartet: {target}").format(target=target)
+            app.tr("vpn_log_started", "VPN gestartet: {target}").format(target=target),
         )
         app.log_debug_safe(out)
     else:
@@ -2969,7 +3082,9 @@ def read_wg_profile_text(app, profile_name):
 def sync_internal_ipv4_profiles(app, log_failures=True):
     # Laufzeitkopien werden bei Bedarf erzeugt; ein separater Global-Sync ist
     # aktuell nicht erforderlich.
-    app.log_debug("[VPN][PROFILE] Interne IPv4-Runtimeprofile werden on-demand gepflegt.")
+    app.log_debug(
+        "[VPN][PROFILE] Interne IPv4-Runtimeprofile werden on-demand gepflegt."
+    )
 
 
 def list_wg_profiles(app):
@@ -3254,9 +3369,7 @@ def import_wg_profiles_from_folder(app):
                 skipped += 1
                 app.after(
                     0,
-                    lambda n=name: app.log(
-                        f"Übersprungen (unsicherer Zielpfad): {n}"
-                    ),
+                    lambda n=name: app.log(f"Übersprungen (unsicherer Zielpfad): {n}"),
                 )
                 continue
             rc_cp, out_cp = run_cmd(
@@ -3265,7 +3378,9 @@ def import_wg_profiles_from_folder(app):
             if rc_cp == 0:
                 imported += 1
                 imported_profiles.append(name)
-                call_in_ui_thread(app, lambda n=name: app.log(f"Profil importiert: {n}"))
+                call_in_ui_thread(
+                    app, lambda n=name: app.log(f"Profil importiert: {n}")
+                )
             else:
                 failed += 1
                 app.after(
