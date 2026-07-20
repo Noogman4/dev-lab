@@ -69,8 +69,7 @@ def redact_diagnostic_value(value):
     return value
 
 
-def diagnostic_reports_dir() -> str:
-    path = os.path.join(get_netmon_documents_dir(), "diagnostics")
+def _ensure_dir(path: str) -> str:
     try:
         os.makedirs(path, exist_ok=True)
     except Exception:
@@ -78,10 +77,19 @@ def diagnostic_reports_dir() -> str:
     return path
 
 
+def _safe_report_kind(kind: str) -> str:
+    safe_kind = re.sub(r"[^a-z0-9_-]+", "-", str(kind or "report").strip().lower())
+    return safe_kind.strip("-") or "report"
+
+
+def diagnostic_reports_dir() -> str:
+    path = os.path.join(get_netmon_documents_dir(), "diagnostics")
+    return _ensure_dir(path)
+
+
 def diagnostic_report_path(kind: str, *, moment: datetime | None = None) -> str:
     stamp = (moment or datetime.now(timezone.utc)).strftime("%Y%m%d-%H%M%S")
-    safe_kind = re.sub(r"[^a-z0-9_-]+", "-", str(kind or "report").strip().lower())
-    safe_kind = safe_kind.strip("-") or "report"
+    safe_kind = _safe_report_kind(kind)
     return os.path.join(
         diagnostic_reports_dir(),
         f"netmon-{safe_kind}-{stamp}-{uuid4().hex[:8]}.json",
@@ -136,16 +144,21 @@ def diagnostic_system_info() -> dict:
     }
 
 
+def _diagnostic_report_candidates(base_dir: str) -> list[str]:
+    candidates = []
+    for name in os.listdir(base_dir):
+        if not name.startswith("netmon-") or not name.endswith(".json"):
+            continue
+        path = os.path.join(base_dir, name)
+        if os.path.isfile(path):
+            candidates.append(path)
+    return candidates
+
+
 def latest_diagnostic_report_path() -> str:
     try:
         base_dir = diagnostic_reports_dir()
-        candidates = []
-        for name in os.listdir(base_dir):
-            if not name.startswith("netmon-") or not name.endswith(".json"):
-                continue
-            path = os.path.join(base_dir, name)
-            if os.path.isfile(path):
-                candidates.append(path)
+        candidates = _diagnostic_report_candidates(base_dir)
         if not candidates:
             return ""
         candidates.sort(key=lambda path: os.path.getmtime(path), reverse=True)
