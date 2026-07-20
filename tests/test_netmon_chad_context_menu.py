@@ -19,7 +19,7 @@ def test_safe_attach_chad_context_menu_logs_attach_errors():
     app.some_text = widget
     app.log = logs.append
 
-    def fail_attach(_widget, _title):
+    def fail_attach(_widget, _title, **_kwargs):
         raise RuntimeError("boom")
 
     app.attach_chad_context_menu = fail_attach
@@ -35,29 +35,53 @@ def test_attach_all_chad_context_menus_registers_expected_targets():
     app = App.__new__(App)
     calls = []
 
-    app.safe_attach_chad_context_menu = lambda widget_name, title: calls.append(
-        (widget_name, title)
+    app.safe_attach_chad_context_menu = (
+        lambda widget_name, title, **kwargs: calls.append((widget_name, title, kwargs))
     )
 
     app.attach_all_chad_context_menus()
 
     assert calls == [
-        ("text", "NetMon Log Analyse"),
-        ("dns_text", "DNS Analyse"),
-        ("nmap_text", "Nmap Analyse"),
-        ("mtr_text", "MTR Analyse"),
-        ("iftop_text", "iftop Analyse"),
-        ("htop_text", "htop Analyse"),
-        ("linux_help_text", "Linux Hilfe Analyse"),
-        ("hdd_info_text", "HDD Analyse"),
-        ("security_detail", "Security Analyse"),
-        ("process_guard_detail", "Process Guard Analyse"),
-        ("clamav_output_text", "ClamAV Analyse"),
-        ("packet_capture_text", "Packet Capture Analyse"),
-        ("lynis_text", "Lynis Analyse"),
-        ("rkhunter_text", "rkhunter Analyse"),
-        ("startup_guard_details_text", "Startup Guard Eintrag Analyse"),
-        ("chad_analysis_text", "Chad Verlauf Analyse"),
+        ("text", "NetMon Log Analyse", {"include_translate_to_german": False}),
+        ("dns_text", "DNS Analyse", {"include_translate_to_german": False}),
+        ("nmap_text", "Nmap Analyse", {"include_translate_to_german": False}),
+        ("mtr_text", "MTR Analyse", {"include_translate_to_german": False}),
+        ("iftop_text", "iftop Analyse", {"include_translate_to_german": False}),
+        ("htop_text", "htop Analyse", {"include_translate_to_german": False}),
+        (
+            "linux_help_text",
+            "Linux Hilfe Analyse",
+            {"include_translate_to_german": False},
+        ),
+        ("hdd_info_text", "HDD Analyse", {"include_translate_to_german": False}),
+        ("security_detail", "Security Analyse", {"include_translate_to_german": False}),
+        (
+            "process_guard_detail",
+            "Process Guard Analyse",
+            {"include_translate_to_german": False},
+        ),
+        (
+            "clamav_output_text",
+            "ClamAV Analyse",
+            {"include_translate_to_german": False},
+        ),
+        (
+            "packet_capture_text",
+            "Packet Capture Analyse",
+            {"include_translate_to_german": False},
+        ),
+        ("lynis_text", "Lynis Analyse", {"include_translate_to_german": True}),
+        ("rkhunter_text", "rkhunter Analyse", {"include_translate_to_german": False}),
+        (
+            "startup_guard_details_text",
+            "Startup Guard Eintrag Analyse",
+            {"include_translate_to_german": False},
+        ),
+        (
+            "chad_analysis_text",
+            "Chad Verlauf Analyse",
+            {"include_translate_to_german": False},
+        ),
     ]
 
 
@@ -67,6 +91,14 @@ def test_attach_chad_context_menu_source_contains_paste_action():
     assert 'label="Einfügen"' in source
     assert "def paste_from_clipboard" in source
     assert "_show_chad_activation_required_popup" in source
+
+
+def test_attach_chad_context_menu_source_contains_lynis_translation_action():
+    source = inspect.getsource(App.attach_chad_context_menu)
+
+    assert "include_translate_to_german" in source
+    assert "Auswahl ins Deutsche übersetzen" in source
+    assert "Lynis Übersetzung Deutsch" in source
 
 
 def test_show_context_menu_source_contains_auto_close_support():

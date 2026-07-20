@@ -219,6 +219,201 @@ def _install_vertical_pane_drag_markers(
     return markers
 
 
+def _install_horizontal_pane_drag_markers(
+    container,
+    pane,
+    *,
+    color="#0a84ff",
+    min_pane_size=180,
+):
+    markers = []
+    drag_state = {
+        "active": None,
+        "root_x": 0,
+        "sash_x": 0,
+        "update_pending": False,
+    }
+
+    def _clamp_sash_pos(index, new_x):
+        if int(min_pane_size) <= 0:
+            return int(new_x)
+        try:
+            total_width = max(
+                int(container.winfo_width() or 0),
+                int(pane.winfo_width() or 0),
+            )
+        except Exception:
+            total_width = 0
+        if total_width <= 0:
+            return int(new_x)
+
+        sash_count = max(len(pane.panes()) - 1, 0)
+        lower_bound = int(min_pane_size)
+        upper_bound = max(total_width - int(min_pane_size), lower_bound)
+        if index > 0:
+            try:
+                lower_bound = max(
+                    lower_bound, int(pane.sashpos(index - 1)) + int(min_pane_size)
+                )
+            except Exception:
+                pass
+        if index < sash_count - 1:
+            try:
+                upper_bound = min(
+                    upper_bound, int(pane.sashpos(index + 1)) - int(min_pane_size)
+                )
+            except Exception:
+                pass
+        if upper_bound < lower_bound:
+            upper_bound = lower_bound
+        return max(lower_bound, min(int(new_x), upper_bound))
+
+    def _set_sash_pos(index, new_x):
+        new_x = _clamp_sash_pos(index, new_x)
+        try:
+            pane.sashpos(index, int(new_x))
+            return
+        except Exception:
+            pass
+        try:
+            pane.sash_place(index, int(new_x), 0)
+        except Exception:
+            pass
+
+    def _ensure_marker(index):
+        while len(markers) <= index:
+            marker = tk.Frame(
+                container,
+                bg=color,
+                bd=1,
+                relief="solid",
+            )
+            marker.rowconfigure(0, weight=1)
+            grip = tk.Label(
+                marker,
+                text="⋮",
+                bg=color,
+                fg="#ffffff",
+                font=("TkDefaultFont", 9, "bold"),
+                cursor="sb_h_double_arrow",
+                padx=0,
+                pady=0,
+                anchor="center",
+            )
+            grip.grid(row=0, column=0, sticky="nsew")
+            markers.append((marker, grip))
+        return markers[index]
+
+    def _place_marker(index, sash_x):
+        marker, _grip = _ensure_marker(index)
+        try:
+            height = max(int(container.winfo_height() or 0), 0)
+            marker_height = min(66, max(height - 24, 42))
+            y = max((height - marker_height) // 2, 8)
+            pane_offset_x = max(int(pane.winfo_x() or 0), 0)
+            x = max(pane_offset_x + int(sash_x) - 9, 2)
+            marker.place(x=x, y=y, width=12, height=marker_height)
+            marker.lift()
+        except Exception:
+            try:
+                marker.place_forget()
+            except Exception:
+                pass
+
+    def _hide_unused_markers(start_index):
+        for marker, _grip in markers[start_index:]:
+            try:
+                marker.place_forget()
+            except Exception:
+                pass
+
+    def _update_markers(_event=None):
+        sash_count = max(len(pane.panes()) - 1, 0)
+        for index in range(sash_count):
+            try:
+                _place_marker(index, int(pane.sashpos(index)))
+            except Exception:
+                pass
+        _hide_unused_markers(sash_count)
+
+    def _schedule_marker_update():
+        if drag_state["update_pending"]:
+            return
+        drag_state["update_pending"] = True
+
+        def _run():
+            drag_state["update_pending"] = False
+            _update_markers()
+
+        try:
+            container.after_idle(_run)
+        except Exception:
+            _run()
+
+    def _start_drag(event, index):
+        drag_state["active"] = index
+        try:
+            drag_state["root_x"] = int(event.x_root)
+            drag_state["sash_x"] = int(pane.sashpos(index))
+        except Exception:
+            drag_state["root_x"] = 0
+            drag_state["sash_x"] = 0
+        return "break"
+
+    def _drag(event, index):
+        if drag_state["active"] != index:
+            return "break"
+        try:
+            delta = int(event.x_root) - int(drag_state["root_x"])
+            new_sash = int(drag_state["sash_x"]) + delta
+            _set_sash_pos(index, new_sash)
+            _place_marker(index, new_sash)
+            _schedule_marker_update()
+        except Exception:
+            pass
+        return "break"
+
+    def _end_drag(_event=None):
+        drag_state["active"] = None
+        _update_markers()
+        return "break"
+
+    for widget in (container, pane):
+        try:
+            widget.bind("<Configure>", _update_markers, add="+")
+            widget.bind("<ButtonRelease-1>", _update_markers, add="+")
+            widget.bind("<B1-Motion>", _update_markers, add="+")
+        except Exception:
+            pass
+
+    for index in range(4):
+        marker, grip = _ensure_marker(index)
+        try:
+            grip.bind(
+                "<Button-1>",
+                lambda event, sash_index=index: _start_drag(event, sash_index),
+                add="+",
+            )
+            grip.bind(
+                "<B1-Motion>",
+                lambda event, sash_index=index: _drag(event, sash_index),
+                add="+",
+            )
+            grip.bind("<ButtonRelease-1>", _end_drag, add="+")
+        except Exception:
+            pass
+        try:
+            marker.place_forget()
+        except Exception:
+            pass
+
+    try:
+        container.after(0, _update_markers)
+    except Exception:
+        pass
+    return markers
+
+
 def _build_security_stats_row(parent, app, *, top_padding=8):
     stats_frame = ttk.Frame(parent)
     stats_frame.pack(fill="x", pady=(top_padding, 0))
@@ -621,12 +816,18 @@ def build_repository_guard_tab(app):
 
     top_actions_row = ttk.Frame(info_frame)
     top_actions_row.pack(fill="x", pady=(0, 6))
+    for column in range(3):
+        top_actions_row.columnconfigure(
+            column, weight=1, uniform="repository_guard_actions"
+        )
     app.btn_repository_guard_scan = ttk.Button(
         top_actions_row,
         text=app.tr("repository_guard_btn_scan", "Repository scan"),
         command=app.run_repository_guard_scan,
     )
-    app.btn_repository_guard_scan.pack(side="left")
+    app.btn_repository_guard_scan.grid(
+        row=0, column=0, sticky="ew", padx=(0, 8), pady=(0, 6)
+    )
     app.add_tooltip(
         app.btn_repository_guard_scan,
         app.tr(
@@ -635,14 +836,14 @@ def build_repository_guard_tab(app):
         ),
     )
 
-    action_buttons_row = ttk.Frame(top_actions_row)
-    action_buttons_row.pack(side="right")
     app.btn_repository_guard_baseline = ttk.Button(
-        action_buttons_row,
+        top_actions_row,
         text=app.tr("repository_guard_btn_baseline", "Save baseline"),
         command=app.create_repository_guard_baseline,
     )
-    app.btn_repository_guard_baseline.pack(side="left", padx=(0, 8))
+    app.btn_repository_guard_baseline.grid(
+        row=0, column=1, sticky="ew", padx=4, pady=(0, 6)
+    )
     app.add_tooltip(
         app.btn_repository_guard_baseline,
         app.tr(
@@ -651,11 +852,13 @@ def build_repository_guard_tab(app):
         ),
     )
     app.btn_repository_guard_reset_baseline = ttk.Button(
-        action_buttons_row,
+        top_actions_row,
         text=app.tr("repository_guard_btn_reset_baseline", "Reset baseline"),
         command=app.reset_repository_guard_baseline,
     )
-    app.btn_repository_guard_reset_baseline.pack(side="left", padx=(0, 8))
+    app.btn_repository_guard_reset_baseline.grid(
+        row=0, column=2, sticky="ew", padx=(8, 0), pady=(0, 6)
+    )
     app.add_tooltip(
         app.btn_repository_guard_reset_baseline,
         app.tr(
@@ -664,11 +867,13 @@ def build_repository_guard_tab(app):
         ),
     )
     app.btn_repository_guard_clear = ttk.Button(
-        action_buttons_row,
+        top_actions_row,
         text=app.tr("repository_guard_btn_clear", "Clear display"),
         command=app.clear_repository_guard_view,
     )
-    app.btn_repository_guard_clear.pack(side="left", padx=(0, 8))
+    app.btn_repository_guard_clear.grid(
+        row=1, column=0, sticky="ew", padx=(0, 8), pady=(0, 0)
+    )
     app.add_tooltip(
         app.btn_repository_guard_clear,
         app.tr(
@@ -677,11 +882,13 @@ def build_repository_guard_tab(app):
         ),
     )
     app.btn_repository_guard_copy = ttk.Button(
-        action_buttons_row,
+        top_actions_row,
         text=app.tr("repository_guard_btn_copy", "Copy result"),
         command=app.copy_repository_guard_report,
     )
-    app.btn_repository_guard_copy.pack(side="left", padx=(0, 8))
+    app.btn_repository_guard_copy.grid(
+        row=1, column=1, sticky="ew", padx=4, pady=(0, 0)
+    )
     app.add_tooltip(
         app.btn_repository_guard_copy,
         app.tr(
@@ -690,11 +897,13 @@ def build_repository_guard_tab(app):
         ),
     )
     app.btn_repository_guard_export = ttk.Button(
-        action_buttons_row,
+        top_actions_row,
         text=app.tr("repository_guard_btn_export", "Export result"),
         command=app.export_repository_guard_report,
     )
-    app.btn_repository_guard_export.pack(side="left")
+    app.btn_repository_guard_export.grid(
+        row=1, column=2, sticky="ew", padx=(8, 0), pady=(0, 0)
+    )
     app.add_tooltip(
         app.btn_repository_guard_export,
         app.tr(
@@ -702,6 +911,16 @@ def build_repository_guard_tab(app):
             "Exportiert das aktuelle Ergebnis als JSON oder Text.",
         ),
     )
+
+    ttk.Label(
+        info_frame,
+        text=app.tr(
+            "repository_guard_baseline_hint",
+            "Ablauf bei gewollten Repository-Aenderungen: Erst Repository-Scan ausfuehren, danach 'Baseline jetzt aktualisieren', damit der neue Soll-Zustand als Referenz gilt.",
+        ),
+        justify="left",
+        wraplength=920,
+    ).pack(fill="x", pady=(0, 6))
 
     source_filter_row = ttk.Frame(info_frame)
     source_filter_row.pack(fill="x", pady=(0, 6))
@@ -1781,10 +2000,23 @@ def build_firewall_tab(app):
     frame.columnconfigure(0, weight=1)
     frame.rowconfigure(0, weight=1)
 
-    app.firewall_tab_pane = ttk.Panedwindow(frame, orient="vertical")
+    app.firewall_subtabs = ttk.Notebook(frame)
+    app.firewall_subtabs.grid(row=0, column=0, sticky="nsew")
+
+    app.tab_firewall_overview = ttk.Frame(app.firewall_subtabs, padding=0)
+    app.firewall_subtabs.add(
+        app.tab_firewall_overview,
+        text=app.tr("firewall_subtab_overview", "Übersicht"),
+    )
+    app.tab_firewall_overview.columnconfigure(0, weight=1)
+    app.tab_firewall_overview.rowconfigure(0, weight=1)
+
+    app.firewall_tab_pane = ttk.Panedwindow(
+        app.tab_firewall_overview, orient="vertical"
+    )
     app.firewall_tab_pane.grid(row=0, column=0, sticky="nsew")
     app.firewall_tab_pane_markers = _install_vertical_pane_drag_markers(
-        frame, app.firewall_tab_pane
+        app.tab_firewall_overview, app.firewall_tab_pane
     )
 
     top = ttk.Frame(app.firewall_tab_pane, padding=0)
@@ -2186,29 +2418,9 @@ def build_security_tabs(app):
     security_body.columnconfigure(0, weight=1)
     security_body.rowconfigure(0, weight=1)
 
-    app.security_tab_pane = ttk.Panedwindow(security_body, orient="vertical")
-    app.security_tab_pane.grid(row=0, column=0, sticky="nsew")
-    app.security_tab_pane_markers = _install_vertical_pane_drag_markers(
-        security_body, app.security_tab_pane
-    )
-
-    security_overview = ttk.Frame(app.security_tab_pane, padding=0)
+    security_overview = ttk.Frame(security_body, padding=0)
+    security_overview.grid(row=0, column=0, sticky="nsew")
     security_overview.columnconfigure(0, weight=1)
-    security_events = ttk.Frame(app.security_tab_pane, padding=0)
-    security_events.columnconfigure(0, weight=1)
-    security_events.rowconfigure(0, weight=1)
-    security_detail_frame = ttk.LabelFrame(
-        app.security_tab_pane,
-        text=app.tr("security_details_title", "Details"),
-        padding=6,
-    )
-    app.security_detail_frame = security_detail_frame
-    security_detail_frame.columnconfigure(0, weight=1)
-    security_detail_frame.rowconfigure(0, weight=1)
-
-    app.security_tab_pane.add(security_overview, weight=3)
-    app.security_tab_pane.add(security_events, weight=3)
-    app.security_tab_pane.add(security_detail_frame, weight=2)
 
     security_devices_frame = ttk.LabelFrame(
         security_overview,
@@ -2227,11 +2439,61 @@ def build_security_tabs(app):
             "Live-Snapshot der aktuell erkannten Eingabe-Geräte.",
         ),
     ).pack(side="left")
+    app.security_device_detail_mode_var = tk.BooleanVar(value=False)
+    app.security_device_view_status_var = tk.StringVar(
+        value=app.tr("security_device_view_list", "Listenansicht")
+    )
+    ttk.Label(
+        security_devices_top,
+        textvariable=app.security_device_view_status_var,
+    ).pack(side="right", padx=(8, 0))
+    app.security_device_view_switch = ttk.Checkbutton(
+        security_devices_top,
+        text=app.tr("security_device_view_switch", "Detailschalter"),
+        variable=app.security_device_detail_mode_var,
+        command=app.on_security_device_view_toggle,
+    )
+    app.security_device_view_switch.pack(side="right")
 
-    security_devices_table_frame = ttk.Frame(security_devices_frame)
-    security_devices_table_frame.pack(fill="both", expand=True)
+    security_devices_filter_row = ttk.Frame(security_devices_frame)
+    security_devices_filter_row.pack(fill="x", pady=(0, 4))
+    ttk.Label(
+        security_devices_filter_row,
+        text=app.tr("security_device_filter_label", "Filter:"),
+    ).pack(side="left")
+    app.security_device_filter_var = tk.StringVar(value="all")
+    app.security_device_filter_buttons = []
+    for mode, label in [
+        ("all", app.tr("security_device_filter_all", "Alle")),
+        ("new", app.tr("security_device_filter_new", "Neu")),
+        ("known", app.tr("security_device_filter_known", "Bekannt")),
+        (
+            "mouse_keyboard",
+            app.tr("security_device_filter_mouse_keyboard", "Tastatur/Maus"),
+        ),
+        ("suspicious", app.tr("security_device_filter_suspicious", "Verdächtig")),
+    ]:
+        btn = ttk.Radiobutton(
+            security_devices_filter_row,
+            text=label,
+            value=mode,
+            variable=app.security_device_filter_var,
+            command=lambda selected=mode: app.set_connected_device_filter(selected),
+        )
+        btn.pack(side="left", padx=(8, 0))
+        app.security_device_filter_buttons.append(btn)
+
+    security_devices_content = ttk.Frame(security_devices_frame)
+    security_devices_content.pack(fill="both", expand=True)
+    security_devices_content.columnconfigure(0, weight=1)
+    security_devices_content.rowconfigure(0, weight=1)
+    app.security_devices_content = security_devices_content
+
+    security_devices_table_frame = ttk.Frame(security_devices_content)
     security_devices_table_frame.columnconfigure(0, weight=1)
     security_devices_table_frame.rowconfigure(0, weight=1)
+    security_devices_table_frame.grid(row=0, column=0, sticky="nsew")
+    app.security_devices_table_frame = security_devices_table_frame
     security_devices_scroll_y = ttk.Scrollbar(
         security_devices_table_frame,
         orient="vertical",
@@ -2269,6 +2531,27 @@ def build_security_tabs(app):
         app.on_connected_device_select,
     )
     app.attach_security_devices_tree_context_menu()
+
+    security_devices_detail_frame = ttk.Frame(security_devices_content)
+    security_devices_detail_frame.columnconfigure(0, weight=1)
+    security_devices_detail_frame.rowconfigure(0, weight=1)
+    app.security_devices_detail_frame = security_devices_detail_frame
+    security_devices_detail_scroll_y = ttk.Scrollbar(
+        security_devices_detail_frame,
+        orient="vertical",
+    )
+    security_devices_detail_scroll_y.grid(row=0, column=1, sticky="ns")
+    app.security_devices_detail = tk.Text(
+        security_devices_detail_frame,
+        wrap="word",
+        height=8,
+        yscrollcommand=security_devices_detail_scroll_y.set,
+    )
+    app.security_devices_detail.grid(row=0, column=0, sticky="nsew")
+    security_devices_detail_scroll_y.configure(
+        command=app.security_devices_detail.yview
+    )
+    app.attach_text_context_menu(app.security_devices_detail)
 
     sec_controls = ttk.Frame(security_overview)
     sec_controls.pack(fill="x", pady=(0, 8))
@@ -2739,11 +3022,59 @@ def build_security_tabs(app):
     app.process_guard_detail.configure(state="disabled")
     app.attach_text_context_menu(app.process_guard_detail)
 
+    app.tab_firewall_events = ttk.Frame(app.firewall_subtabs, padding=10)
+    app.firewall_subtabs.add(
+        app.tab_firewall_events,
+        text=app.tr("firewall_subtab_guard_events", "Guard Events"),
+    )
+    app.tab_firewall_events.columnconfigure(0, weight=1)
+    app.tab_firewall_events.rowconfigure(0, weight=1)
+
+    firewall_events_body = ttk.Frame(app.tab_firewall_events)
+    firewall_events_body.grid(row=0, column=0, sticky="nsew")
+    firewall_events_body.columnconfigure(0, weight=1)
+    firewall_events_body.rowconfigure(0, weight=1)
+
+    app.security_tab_pane = ttk.Panedwindow(firewall_events_body, orient="vertical")
+    app.security_tab_pane.grid(row=0, column=0, sticky="nsew")
+    app.security_tab_pane_markers = _install_vertical_pane_drag_markers(
+        firewall_events_body, app.security_tab_pane
+    )
+
+    security_events = ttk.Frame(app.security_tab_pane, padding=0)
+    security_events.columnconfigure(0, weight=1)
+    security_events.rowconfigure(0, weight=1)
+    security_detail_frame = ttk.LabelFrame(
+        app.security_tab_pane,
+        text=app.tr("security_details_title", "Details"),
+        padding=6,
+    )
+    app.security_detail_frame = security_detail_frame
+    security_detail_frame.columnconfigure(0, weight=1)
+    security_detail_frame.rowconfigure(0, weight=1)
+
+    app.security_tab_pane.add(security_events, weight=3)
+    app.security_tab_pane.add(security_detail_frame, weight=2)
+
     app.security_table = ttk.Treeview(
         security_events,
         columns=("time", "type", "src", "port", "proto", "level", "action"),
         show="headings",
         height=12,
+    )
+    security_events_scroll_y = ttk.Scrollbar(
+        security_events,
+        orient="vertical",
+        command=app.security_table.yview,
+    )
+    security_events_scroll_x = ttk.Scrollbar(
+        security_events,
+        orient="horizontal",
+        command=app.security_table.xview,
+    )
+    app.security_table.configure(
+        xscrollcommand=security_events_scroll_x.set,
+        yscrollcommand=security_events_scroll_y.set,
     )
     for col, title, w, anchor in [
         ("time", "Zeit", 150, "w"),
@@ -2757,6 +3088,8 @@ def build_security_tabs(app):
         app.security_table.heading(col, text=title)
         app.security_table.column(col, width=w, anchor=anchor)
     app.security_table.grid(row=0, column=0, sticky="nsew")
+    security_events_scroll_y.grid(row=0, column=1, sticky="ns")
+    security_events_scroll_x.grid(row=1, column=0, sticky="ew")
     app.security_table.bind("<<TreeviewSelect>>", app.on_security_event_select)
     app.attach_security_table_context_menu()
 
@@ -2774,6 +3107,7 @@ def build_security_tabs(app):
     app.security_detail.grid(row=0, column=0, sticky="nsew")
     security_detail_scroll_y.configure(command=app.security_detail.yview)
     app.attach_text_context_menu(app.security_detail)
+    app.on_security_device_view_toggle()
 
     app.tab_clamav = ttk.Frame(app.security_nb, padding=10)
     app.security_nb.add(

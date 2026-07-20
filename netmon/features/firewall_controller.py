@@ -182,6 +182,18 @@ def extract_ip_port_proto_from_ufw_to(to_text):
     return ip_val, port_val, proto_val
 
 
+def split_ufw_interface_clause(text):
+    value = str(text or "").strip()
+    match = re.search(
+        r"^(?P<base>.+?)\s+on\s+(?P<iface>[A-Za-z0-9_.:-]+)$",
+        value,
+        re.IGNORECASE,
+    )
+    if not match:
+        return value, None
+    return match.group("base").strip(), match.group("iface").strip()
+
+
 def is_ufw_non_rule_line(line):
     text = str(line or "").strip()
     if not text:
@@ -247,19 +259,21 @@ def parse_ufw_structured_rule(raw_line):
         return None
 
     is_ipv6 = "(v6)" in line.lower()
-    to_clean = re.sub(r"\s*\(v6\)\s*", "", to_field, flags=re.IGNORECASE).strip()
-    from_clean = re.sub(r"\s*\(v6\)\s*", "", from_field, flags=re.IGNORECASE).strip()
+    to_clean = re.sub(
+        r"\s+", " ", re.sub(r"\(v6\)", " ", to_field, flags=re.IGNORECASE)
+    ).strip()
+    from_clean = re.sub(
+        r"\s+", " ", re.sub(r"\(v6\)", " ", from_field, flags=re.IGNORECASE)
+    ).strip()
 
-    interface = None
-    target_base = to_clean
-    m_iface = re.search(
-        r"^(?P<target>.+?)\s+on\s+(?P<iface>[A-Za-z0-9_.:-]+)$",
-        to_clean,
-        re.IGNORECASE,
-    )
-    if m_iface:
-        target_base = m_iface.group("target").strip()
-        interface = m_iface.group("iface").strip()
+    target_base, target_interface = split_ufw_interface_clause(to_clean)
+    source_base, source_interface = split_ufw_interface_clause(from_clean)
+    interface = target_interface or source_interface
+
+    if target_interface:
+        to_clean = target_base
+    if source_interface:
+        from_clean = source_base
 
     ip_val, port_val, proto_val = extract_ip_port_proto_from_ufw_to(target_base)
 
@@ -344,6 +358,22 @@ def ufw_rule_sort_key(rule):
             policy,
         )
     return (rule.get("display") or rule.get("raw") or "",)
+
+
+def ufw_rule_identity_key(rule):
+    return (
+        str(rule.get("policy") or "").upper(),
+        str(rule.get("direction") or "").upper(),
+        str(rule.get("display") or rule.get("target_base") or rule.get("to") or "")
+        .strip()
+        .lower(),
+        str(rule.get("interface") or "").strip().lower(),
+        str(rule.get("proto") or "").strip().lower(),
+        str(rule.get("port") or "").strip().lower(),
+        bool(rule.get("is_ipv6")),
+        str(rule.get("ip") or "").strip().lower(),
+        str(rule.get("from") or "").strip().lower(),
+    )
 
 
 def _firewall_rule_matches_selected(candidate, selected):
@@ -469,38 +499,36 @@ def format_ufw_rule_lines(rules):
 
     dedup = {}
     for rule in rules:
-        action = (rule.get("policy") or "-").upper() or "-"
-        direction = (rule.get("direction") or "-").upper() or "-"
-        target = (
-            rule.get("display") or rule.get("to") or rule.get("raw") or "-"
-        ).strip() or "-"
-        iface = (rule.get("interface") or "-").strip() or "-"
-        key = (action, direction, target, iface)
-        dedup[key] = dedup.get(key, 0) + 1
+        key = ufw_rule_identity_key(rule)
+        current = dedup.get(key)
+        if current is None:
+            dedup[key] = {"rule": rule, "count": 1}
+        else:
+            current["count"] += 1
 
     rows = sorted(
-        dedup.items(),
-        key=lambda item: (item[0][0], item[0][1], item[0][2], item[0][3]),
+        dedup.values(),
+        key=lambda item: ufw_rule_sort_key(item["rule"]),
     )
 
-    action_w = 6
-    direction_w = 9
-    target_w = 30
-    iface_w = 18
+    return [
+        format_ufw_rule_line(item["rule"], duplicate_count=item["count"])
+        for item in rows
+    ]
 
-    header = f"{'AKTION':<6} {'RICHTUNG':<9} {'ZIEL':<30} {'INTERFACE':<18}"
-    sep = "-" * len(header)
 
-    lines = [header, sep]
-    for (action, direction, target, iface), count in rows:
-        action = (action or "-")[:action_w]
-        direction = (direction or "-")[:direction_w]
-        iface = (iface or "-")[:iface_w]
-        if len(target) > target_w:
-            target = target[: target_w - 1] + "…"
-        suffix = f" [DUP x{count}]" if count > 1 else ""
-        lines.append(f"{action:<6} {direction:<9} {target:<30} {iface:<18}{suffix}")
-    return lines
+def format_ufw_rule_line(rule, duplicate_count=1):
+    action = str(rule.get("policy") or "-").upper()
+    direction = str(rule.get("direction") or "-").upper()
+    target = str(rule.get("display") or rule.get("to") or rule.get("raw") or "-")
+    target = target.strip() or "-"
+    if rule.get("is_ipv6") and "(v6)" not in target.lower():
+        target = f"{target} (v6)"
+    interface = str(rule.get("interface") or "").strip()
+    if interface:
+        target = f"{target} on {interface}"
+    suffix = f" [DUP x{duplicate_count}]" if int(duplicate_count or 1) > 1 else ""
+    return f"{action:<5} {direction:<3} {target}{suffix}"
 
 
 def format_ufw_status_grouped(
@@ -702,7 +730,12 @@ def verify_killswitch_rules(
                 issues.append(
                     f"Handshake-Regel fehlt fuer {endpoint_ip}:{endpoint_port}/udp."
                 )
-        for port, proto in (("53", "udp"), ("53", "tcp"), ("80", "tcp"), ("443", "tcp")):
+        for port, proto in (
+            ("53", "udp"),
+            ("53", "tcp"),
+            ("80", "tcp"),
+            ("443", "tcp"),
+        ):
             if ufw_has_outgoing_port_rule(status_text, port, proto):
                 issues.append(
                     f"Globale OUT-Regel {port}/{proto} hebt den Killswitch auf."
@@ -1447,15 +1480,18 @@ def read_ufw_status(app=None, verbose=False):
     return run_cmd(cmd, timeout=12 if verbose else 8)
 
 
+def ufw_status_state(status_text):
+    for raw_line in (status_text or "").splitlines():
+        line = raw_line.strip().lower()
+        if line == "status: active":
+            return "active"
+        if line == "status: inactive":
+            return "inactive"
+    return None
+
+
 def ufw_status_is_active(status_text):
-    text = (status_text or "").strip().lower()
-    if "inactive" in text or "inaktiv" in text:
-        return False
-    if "status:" in text and ("active" in text or "aktiv" in text):
-        return True
-    if "status:" in text and ("inactive" not in text) and ("inaktiv" not in text):
-        return True
-    return False
+    return ufw_status_state(status_text) == "active"
 
 
 def ufw_rule_lines(status_text):
@@ -1644,18 +1680,7 @@ def dedupe_vpn_ufw_rules():
         if category not in {"interface", "vpn_endpoint"}:
             continue
 
-        key = (
-            (parsed.get("policy") or "").upper(),
-            (parsed.get("direction") or "").upper(),
-            bool(parsed.get("is_ipv6")),
-            category,
-            (parsed.get("interface") or "").strip().lower(),
-            (parsed.get("ip") or "").strip().lower(),
-            str(parsed.get("port") or "").strip().lower(),
-            (parsed.get("proto") or "").strip().lower(),
-            (parsed.get("to") or "").strip().lower(),
-            (parsed.get("from") or "").strip().lower(),
-        )
+        key = ufw_rule_identity_key(parsed)
         parsed_entries.append((num, key, parsed))
 
     buckets = {}
@@ -2100,7 +2125,6 @@ def remove_ssh_rule_async(app, auto=False):
         _schedule_firewall_refresh(app)
 
     threading.Thread(target=job, daemon=True).start()
-
 
 
 def _is_valid_port_token(port_text):

@@ -185,6 +185,31 @@ def _warn_non_ip_endpoint_once(app, profile_name: str, host: str) -> None:
     )
 
 
+def _show_killswitch_active_after_vpn_off_notice(app) -> bool:
+    try:
+        killswitch_active = bool(app.killswitch_is_on())
+    except Exception:
+        killswitch_active = False
+    if not killswitch_active:
+        return False
+
+    title = app.tr(
+        "vpn_off_killswitch_notice_title",
+        "Killswitch bleibt aktiv",
+    )
+    message = app.tr(
+        "vpn_off_killswitch_notice_message",
+        "VPN wurde deaktiviert, der Killswitch ist aber noch aktiv.\n\n"
+        "Bitte Killswitch deaktivieren, wenn du danach wieder normales Netz "
+        "verwenden möchtest.",
+    )
+    try:
+        messagebox.showwarning(title, message, parent=app)
+    except Exception:
+        pass
+    return True
+
+
 def collect_non_ip_endpoint_profiles(app, profiles):
     results = []
     seen = set()
@@ -2869,6 +2894,7 @@ def vpn_off(app, ensure_sudo=True, refresh_ui=True):
         app.prepare_dns_for_vpn_profile_switch()
         app._schedule_dns_finalize_after_vpn_profile_switch(delay_ms=2500)
         if app.killswitch_is_on():
+            _show_killswitch_active_after_vpn_off_notice(app)
             _vpn_user_log(
                 app,
                 app.tr(
@@ -2996,6 +3022,7 @@ def _vpn_off_networkmanager(app, *, refresh_ui=True):
     app.prepare_dns_for_vpn_profile_switch()
     app._schedule_dns_finalize_after_vpn_profile_switch(delay_ms=2500)
     if app.killswitch_is_on():
+        _show_killswitch_active_after_vpn_off_notice(app)
         _vpn_user_log(
             app,
             app.tr(

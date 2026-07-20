@@ -28,7 +28,7 @@
   <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
   <link rel="stylesheet" href="../styles.css">
 </head>
-<body class="downloads-page">
+<body class="downloads-page" data-disable-donation-gate="true">
   <div class="page-shell docs-page downloads-page-shell">
     <header class="topbar">
       <a class="brand" href="./index.html" aria-label="NetMon home page">
@@ -87,6 +87,13 @@
             <p><a href="/download.php?id=sha256sums&amp;src=downloads-en-hash&amp;lang=en"><code>/dist/SHA256SUMS</code></a></p>
             <pre><code>sha256sum -c SHA256SUMS</code></pre>
           </article>
+          <article class="download-card">
+            <h3>Support</h3>
+            <p>If NetMon is useful to you, support is welcome. The direct donation link will return once PayPal is wired up properly.</p>
+            <div class="inline-actions">
+              <a class="button button-secondary" href="https://github.com/Noogman4/dev-lab" target="_blank" rel="noopener noreferrer">View project on GitHub</a>
+            </div>
+          </article>
         </div>
       </section>
 
@@ -116,7 +123,7 @@
           <article class="download-card">
             <p class="download-label">Audit</p>
             <h3>Security Audit 2026</h3>
-            <p>Latest audit report: round 9 for the final NetMon v1.1.19 release state. Two medium findings (update-URL allowlist, killswitch fail-open) were fixed and verified; the release signature (SHA256SUMS + minisign) is valid.</p>
+            <p>Latest audit report: round 10 for NetMon v1.1.20. Two high findings (sysctl injection via imported baseline transfer packages, a test suite that really rebooted the host) were fixed and verified with regression tests.</p>
             <div class="inline-actions">
               <a class="button button-primary" href="./security-audit.html">Open HTML</a>
               <a class="button button-secondary" href="/download.php?id=audit-pdf&amp;src=downloads-en-audit-pdf&amp;lang=en">Open PDF</a>

@@ -1519,6 +1519,8 @@ def test_radio_integration_hooks_are_present():
     assert '"pactl": has_cmd("pactl")' in preflight_source
     assert '"mpv (Radio)", "mpv"' in manual_summary_source
     assert '"projectM Visualizer", "projectm_visualizer"' in manual_summary_source
+    assert '"timeshift": has_cmd("timeshift")' in preflight_source
+    assert '("Timeshift", "timeshift")' in manual_summary_source
     assert "return radio_controller.download_radio_db(self)" in download_source
     assert (
         'self.set_feature_enabled("radio", checks.get("mpv", False))'
@@ -1828,9 +1830,7 @@ def test_station_logo_url_allows_only_web_schemes():
         "example.com/logo.png",
     ):
         assert (
-            netmon_radio_app.NetMonRadioApp._station_logo_url(
-                app, {"favicon": blocked}
-            )
+            netmon_radio_app.NetMonRadioApp._station_logo_url(app, {"favicon": blocked})
             == ""
         )
 
@@ -2078,8 +2078,7 @@ def test_probe_radio_database_source_reachability_accepts_403(monkeypatch):
 
 
 def test_parse_icecast_entries_from_xml_maps_station_fields():
-    rows = radio_controller._parse_icecast_entries_from_xml(
-        """
+    rows = radio_controller._parse_icecast_entries_from_xml("""
         <directory>
           <entry>
             <server_name>Ice Station</server_name>
@@ -2092,8 +2091,7 @@ def test_parse_icecast_entries_from_xml_maps_station_fields():
             <language>de</language>
           </entry>
         </directory>
-        """
-    )
+        """)
 
     assert len(rows) == 1
     assert rows[0]["name"] == "Ice Station"
@@ -2515,6 +2513,13 @@ def test_radio_core_launch_radio_app_sets_desktop_file_hints(tmp_path, monkeypat
         "netmon.netmon_radio_core.ensure_radio_runtime_desktop_entry",
         lambda theme_name=None, started_from=None: "/tmp/netmon-radio-runtime.desktop",
     )
+    # Auf Hosts mit installiertem NetMon existiert die installierte
+    # netmon-radio.desktop und wird bevorzugt. Fuer den Test auf einen nicht
+    # vorhandenen Pfad zeigen, damit zuverlaessig der Runtime-Desktop-Zweig greift.
+    monkeypatch.setattr(
+        "netmon.netmon_radio_core.radio_desktop_entry_path",
+        lambda: str(tmp_path / "applications" / "netmon-radio.desktop"),
+    )
     monkeypatch.setattr(
         "netmon.netmon_radio_core.get_netmon_config_dir",
         lambda: str(tmp_path / "config"),
@@ -2564,6 +2569,13 @@ def test_radio_core_launch_radio_app_uses_runtime_desktop_id_for_gtk_launch(
     monkeypatch.setattr(
         "netmon.netmon_radio_core.ensure_radio_runtime_desktop_entry",
         lambda theme_name=None, started_from=None: "/tmp/netmon-radio-runtime.desktop",
+    )
+    # Auf Hosts mit installiertem NetMon existiert die installierte
+    # netmon-radio.desktop und wird bevorzugt. Fuer den Test auf einen nicht
+    # vorhandenen Pfad zeigen, damit zuverlaessig der Runtime-Desktop-Zweig greift.
+    monkeypatch.setattr(
+        "netmon.netmon_radio_core.radio_desktop_entry_path",
+        lambda: str(tmp_path / "applications" / "netmon-radio.desktop"),
     )
     monkeypatch.setattr(
         "netmon.netmon_radio_core.get_netmon_config_dir",
@@ -3093,16 +3105,14 @@ def test_projectm_sidecar_prefers_pulseaudio_command_variants(monkeypatch):
 
 
 def test_projectm_sidecar_parses_optional_apt_candidates():
-    result = netmon_projectm_sidecar._parse_apt_policy_output(
-        """
+    result = netmon_projectm_sidecar._parse_apt_policy_output("""
 projectm-pulseaudio:
   Installed: (none)
   Candidate: 3.1.12-3
   Version table:
      3.1.12-3 500
         500 http://deb.debian.org/debian bookworm/main amd64 Packages
-"""
-    )
+""")
 
     assert result["installable"] is True
     assert result["available_packages"] == ["projectm-pulseaudio"]

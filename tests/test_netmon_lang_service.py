@@ -222,7 +222,7 @@ def test_link_slot_and_vpn_slot_buttons_keep_original_per_button_size():
     assert 'style="LinkSlot.TButton"' in init_source
     assert "width=19," in init_source
     assert init_source.count("padding=(8, 6),") >= 2
-    assert 'pady=(0, 6) if idx < LINK_SLOT_COUNT - 1 else 0' in init_source
+    assert "pady=(0, 6) if idx < LINK_SLOT_COUNT - 1 else 0" in init_source
     assert "command=lambda i=idx: self.open_link_slot(i)," in init_source
     assert "command=lambda i=idx: self.open_vpn_slot(i)," in init_source
 
@@ -314,8 +314,12 @@ def test_download_scan_workspace_and_systemcheck_use_translation_keys():
     update_text_source = inspect.getsource(App._update_download_scan_result_text)
     choose_file_source = inspect.getsource(App.choose_download_scan_file)
     disable_temp_source = inspect.getsource(App.disable_download_scan_temp_folder)
-    missing_rkhunter_source = inspect.getsource(App._missing_rkhunter_for_chad_systemcheck_message)
-    missing_clamav_source = inspect.getsource(App._missing_clamav_for_chad_systemcheck_message)
+    missing_rkhunter_source = inspect.getsource(
+        App._missing_rkhunter_for_chad_systemcheck_message
+    )
+    missing_clamav_source = inspect.getsource(
+        App._missing_clamav_for_chad_systemcheck_message
+    )
 
     assert "download_scan_result_text_default" in update_text_source
     assert "download_scan_import_failed" in choose_file_source
@@ -482,9 +486,19 @@ def test_german_repository_guard_and_lynis_strings_do_not_use_known_english_ui_l
     assert de["lynis_btn_full_scan"] == "Vollständiger Sicherheitsscan (sudo)"
     assert de["settings_systemcheck_lynis"] == "Lynis Schnellaudit"
     assert de["repository_guard_btn_scan"] == "Repository-Scan"
-    assert de["repository_guard_scan_unavailable"] == "Repository-Scan: Noch nicht verfügbar"
-    assert de["repository_guard_findings_hint"] == "Bewertete Befunde erscheinen hier nach dem Scan."
-    assert de["chad_status_repository_guard_findings_copied"] == "Repository-Guard-Befunde in Zwischenablage kopiert."
+    assert de["repository_guard_btn_baseline"] == "Baseline jetzt aktualisieren"
+    assert (
+        de["repository_guard_scan_unavailable"]
+        == "Repository-Scan: Noch nicht verfügbar"
+    )
+    assert (
+        de["repository_guard_findings_hint"]
+        == "Bewertete Befunde erscheinen hier nach dem Scan."
+    )
+    assert (
+        de["chad_status_repository_guard_findings_copied"]
+        == "Repository-Guard-Befunde in Zwischenablage kopiert."
+    )
     assert de["dns_group_control"] == "DNS-Steuerung"
     assert de["dns_btn_health_check"] == "DNS-Health-Check"
     assert de["dns_btn_leak_check"] == "DNS-Leak-Check"

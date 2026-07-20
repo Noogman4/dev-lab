@@ -592,7 +592,9 @@ def format_repository_guard_source_details(source: dict, app=None) -> str:
             "repository_guard_source_details_trust",
             "Vertrauen: {value}",
             "Trust: {value}",
-        ).format(value=_repository_guard_trust_state_label(app, source.get("trust_state"))),
+        ).format(
+            value=_repository_guard_trust_state_label(app, source.get("trust_state"))
+        ),
         _repo_text(
             app,
             "repository_guard_source_details_suite",
@@ -764,19 +766,19 @@ def get_repository_guard_finding_recommendations(
         ],
         "repo_baseline_new": [
             "Prüfen, wann und wodurch diese Quelle neu hinzugekommen ist.",
-            "Wenn die Änderung gewollt ist, nach Kontrolle eine neue Baseline speichern.",
+            "Wenn die Änderung gewollt ist, nach Kontrolle die Baseline jetzt aktualisieren.",
         ],
         "repo_baseline_removed": [
             "Prüfen, ob die entfernte Quelle bewusst entfernt oder unbeabsichtigt verloren gegangen ist.",
-            "Wenn die Änderung gewollt ist, nach Kontrolle eine neue Baseline speichern.",
+            "Wenn die Änderung gewollt ist, nach Kontrolle die Baseline jetzt aktualisieren.",
         ],
         "repo_baseline_changed": [
             "Prüfen, welche Felder sich seit der Baseline geändert haben und ob die Änderung erwartet war.",
-            "Wenn die Änderung gewollt ist, nach Kontrolle eine neue Baseline speichern.",
+            "Wenn die Änderung gewollt ist, nach Kontrolle die Baseline jetzt aktualisieren.",
         ],
         "repo_baseline_moved": [
             "Prüfen, ob die Quelle nur organisatorisch verschoben wurde oder ob parallel weitere Änderungen erfolgt sind.",
-            "Wenn alles plausibel ist, kann die neue Position mit einer frischen Baseline bestätigt werden.",
+            "Wenn alles plausibel ist, kann die neue Position mit 'Baseline jetzt aktualisieren' als Referenz übernommen werden.",
         ],
         "repo_empty_components": [
             "Prüfen, ob der Eintrag unvollständig ist oder bewusst keine Komponenten verwendet.",
@@ -897,7 +899,7 @@ def clear_repository_guard_view(app):
         app,
         app.tr(
             "repository_guard_detail_placeholder",
-            "Repository-Guard-Details erscheinen hier.\n",
+            "Repository-Guard-Details erscheinen hier.\n\nNach gewollten Repository-Aenderungen: Erst scannen, dann die Baseline aktualisieren.\n",
         ),
     )
     app.log("Repository Guard: Anzeige geleert.")
@@ -969,7 +971,7 @@ def get_repository_guard_primary_action(
 ) -> dict:
     code = str((finding or {}).get("code") or "").strip()
     if code in BASELINE_RELATED_CODES:
-        return {"type": "save_baseline", "label": "Baseline speichern"}
+        return {"type": "save_baseline", "label": "Baseline jetzt aktualisieren"}
     if (
         source
         and str(source.get("origin_class") or "") == "unknown"
@@ -1018,7 +1020,7 @@ def get_repository_guard_quick_action_snippet(
             f"grep -Rni -- {quoted_host} /etc/apt/sources.list /etc/apt/sources.list.d"
         )
     if code in BASELINE_RELATED_CODES:
-        return "Repository Guard: Nach Prüfung 'Baseline speichern' im Tab ausführen."
+        return "Repository Guard: Nach Prüfung 'Baseline jetzt aktualisieren' im Tab ausführen."
     if path:
         return f"grep -n . {quoted_path}"
     return ""
@@ -1260,9 +1262,11 @@ def create_repository_guard_baseline(app):
         app.log(_repository_guard_missing_baseline_path_message())
         return
 
+    baseline_exists = os.path.isfile(baseline_path)
+
     ok, err = service.save_baseline(baseline_path, list(result.get("sources") or []))
     if not ok:
-        app.log(f"Repository Guard: Baseline speichern fehlgeschlagen: {err}")
+        app.log(f"Repository Guard: Baseline aktualisieren fehlgeschlagen: {err}")
         return
 
     result["baseline"] = {
@@ -1273,7 +1277,10 @@ def create_repository_guard_baseline(app):
         "unchanged": list(result.get("sources") or []),
     }
     show_repository_guard_result(app, result)
-    app.log(f"Repository Guard: Baseline erstellt: {baseline_path}")
+    if baseline_exists:
+        app.log(f"Repository Guard: Baseline aktualisiert: {baseline_path}")
+    else:
+        app.log(f"Repository Guard: Baseline erstellt: {baseline_path}")
 
 
 def reset_repository_guard_baseline(app):

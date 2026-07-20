@@ -982,12 +982,14 @@ def test_settings_tab_source_and_hooks_are_present():
     assert "variable=self.var_auto_log_clear" in build_source
     assert "variable=self.var_debug_network_logging" in build_source
     assert "textvariable=self.var_ufw_logging_default" in build_source
+    assert 'text=self.tr("settings_tab_backup", "Backup")' in build_source
     assert 'self.tr("settings_group_donation", "NetMon unterstützen")' in build_source
     assert "variable=self.var_donation_popup_enabled" in build_source
     assert (
         'self.tr(\n                "settings_donation_support_button",' in build_source
     )
     assert 'self.tr("settings_group_system", "System")' in build_source
+    assert "self._build_settings_backup_tab(settings_backup_tab)" in build_source
     assert "command=self.restart_netmon_only" in build_source
     assert "def build_theme_studio_tab(self):" in app_source
     assert "def apply_theme_studio_settings(self):" in app_source

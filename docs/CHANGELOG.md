@@ -2,6 +2,16 @@
 
 Automatisch aus der Git-Historie des Repositories erzeugt.
 
+## 2026-07-19 - Unreleased
+
+- UFW-Statusprüfung sprachunabhängig umgesetzt.
+- UMASK-027-Pruefung wertbasiert und mit nachvollziehbaren Quellen umgesetzt.
+- UFW-Regelerkennung korrigiert: nummerierte Firewall-Regeln werden nun sprachunabhängig erkannt und gezählt.
+- Home-Verzeichnisprüfung erweitert: Rechte, Eigentümer und optionale ACLs werden nun automatisch bewertet.
+- APT-Prüfung fachlich korrigiert: verfügbare Paketupdates werden nun von tatsächlichen Sicherheitslücken klar abgegrenzt.
+- Prüfung kritischer Systemdateirechte erweitert: Dateirechte, Eigentümer und Gruppen werden nun automatisch gegen sichere Standardwerte bewertet.
+- Secure-Boot-Prüfung erweitert: Secure-Boot-Status, UEFI-Plattformmodus und profilabhängige Bewertung werden nun getrennt dargestellt.
+
 ## 2026-07-18 - Version 1.1.19
 
 - DNS-Startup-Fallback und Startup-Reparatur fuer verwaiste Killswitch-Zustaende robuster gemacht.

@@ -66,7 +66,7 @@ def test_evaluate_process_flags_temp_shell_started_by_browser():
         "pid": 8421,
         "ppid": 1337,
         "name": "bash",
-        "exe": "/usr/bin/bash",
+        "exe": "/tmp/bash",
         "cmdline": ["bash", "/tmp/update.sh"],
         "cwd": "/tmp",
         "username": "sven",
@@ -82,6 +82,50 @@ def test_evaluate_process_flags_temp_shell_started_by_browser():
     assert finding["risk_score"] >= 6
     assert any("temporärem Pfad" in reason for reason in finding["reasons"])
     assert any("Parent-Prozess ist firefox" in reason for reason in finding["reasons"])
+
+
+def test_evaluate_process_does_not_flag_temp_argument_as_temp_execution():
+    service = ProcessGuardService()
+    proc = {
+        "pid": 8422,
+        "ppid": 1337,
+        "name": "crashhelper",
+        "exe": "/home/happy/Dokumente/NetMon/Secure Browser/Chad/firefox/crashhelper",
+        "cmdline": [
+            "/home/happy/Dokumente/NetMon/Secure Browser/Chad/firefox/crashhelper",
+            "/tmp/firefox-crash",
+        ],
+        "cwd": "/tmp",
+        "username": "happy",
+        "create_time": 1.0,
+        "status": "sleeping",
+    }
+    parent = {"pid": 1337, "name": "firefox"}
+
+    finding = service.evaluate_process(proc, parent=parent)
+
+    assert finding is None
+
+
+def test_evaluate_process_flags_run_user_executable_as_temp_execution():
+    service = ProcessGuardService()
+    proc = {
+        "pid": 8423,
+        "ppid": 1,
+        "name": "helper",
+        "exe": "/run/user/1000/helper",
+        "cmdline": ["/run/user/1000/helper"],
+        "cwd": "/home/happy",
+        "username": "happy",
+        "create_time": 1.0,
+        "status": "running",
+    }
+
+    finding = service.evaluate_process(proc, parent={"pid": 1, "name": "systemd"})
+
+    assert finding is not None
+    assert finding["risk_level"] == "high"
+    assert "Ausführung aus temporärem Pfad: /run/user/1000/helper" in finding["reasons"]
 
 
 def test_run_check_summarizes_findings_from_snapshot(monkeypatch):
@@ -131,7 +175,7 @@ def test_detect_new_findings_only_reports_unknown_signatures():
             "pid": 50,
             "ppid": 1,
             "name": "bash",
-            "exe": "/usr/bin/bash",
+            "exe": "/tmp/bash",
             "cmdline": ["bash", "/tmp/run.sh"],
             "cwd": "/tmp",
             "username": "user",

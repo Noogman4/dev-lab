@@ -41,6 +41,63 @@ def test_add_firewall_rule_protocols_expand_tcp_udp_combo():
     )
 
 
+def test_parse_ufw_structured_rule_extracts_out_interface_from_source_field():
+    rule = firewall_controller.parse_ufw_structured_rule(
+        "Anywhere ALLOW OUT Anywhere on CH-685"
+    )
+
+    assert rule["policy"] == "ALLOW"
+    assert rule["direction"] == "OUT"
+    assert rule["display"] == "Anywhere"
+    assert rule["interface"] == "CH-685"
+    assert rule["to"] == "Anywhere"
+    assert rule["from"] == "Anywhere"
+
+
+def test_format_ufw_rule_lines_formats_interface_rules_with_spacing():
+    rules = [
+        firewall_controller.parse_ufw_structured_rule(
+            "Anywhere on lo ALLOW IN Anywhere"
+        ),
+        firewall_controller.parse_ufw_structured_rule(
+            "Anywhere on CH-685 ALLOW IN Anywhere"
+        ),
+        firewall_controller.parse_ufw_structured_rule(
+            "Anywhere (v6) on CH-685 ALLOW IN Anywhere (v6)"
+        ),
+    ]
+
+    assert firewall_controller.format_ufw_rule_lines(rules) == [
+        "ALLOW IN  Anywhere on CH-685",
+        "ALLOW IN  Anywhere (v6) on CH-685",
+        "ALLOW IN  Anywhere on lo",
+    ]
+
+
+def test_format_ufw_rule_lines_only_marks_true_duplicates():
+    rules = [
+        firewall_controller.parse_ufw_structured_rule(
+            "Anywhere on CH-685 ALLOW IN Anywhere"
+        ),
+        firewall_controller.parse_ufw_structured_rule(
+            "Anywhere on CH-685 ALLOW IN Anywhere"
+        ),
+        firewall_controller.parse_ufw_structured_rule(
+            "Anywhere ALLOW OUT Anywhere on CH-685"
+        ),
+        firewall_controller.parse_ufw_structured_rule(
+            "Anywhere (v6) on CH-685 ALLOW IN Anywhere (v6)"
+        ),
+    ]
+
+    lines = firewall_controller.format_ufw_rule_lines(rules)
+
+    assert "ALLOW IN  Anywhere on CH-685 [DUP x2]" in lines
+    assert "ALLOW OUT Anywhere on CH-685" in lines
+    assert "ALLOW IN  Anywhere (v6) on CH-685" in lines
+    assert all("Anywhereon" not in line for line in lines)
+
+
 def test_refresh_firewall_transparency_view_keeps_active_text_selection():
     app = netmon.App.__new__(netmon.App)
 
@@ -261,3 +318,26 @@ def test_collect_firewall_transparency_snapshot_uses_english_translations_when_l
 
     assert snapshot["last_check"] == "No check yet"
     assert snapshot["listeners"][0]["rating"] == "bound locally only"
+
+
+def test_collect_firewall_transparency_snapshot_marks_auth_pending_without_sudo(
+    monkeypatch,
+):
+    app = netmon.App.__new__(netmon.App)
+    app.lang = {}
+    app._read_ufw_status = lambda verbose=True: (1, "")
+    app._security_query_log_level = lambda: "LOW"
+    app.__dict__["port_reality_last_scan"] = {}
+
+    def fake_run_cmd(cmd, timeout=8):
+        return (
+            0,
+            "tcp LISTEN 0 0 127.0.0.53%lo:53 0.0.0.0:* uid:991 ino:1 sk:1",
+        )
+
+    monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
+    monkeypatch.setattr(netmon, "check_sudo_nopasswd", lambda: False)
+
+    snapshot = app._collect_firewall_transparency_snapshot()
+
+    assert snapshot["status_label"] == "Autorisierung ausstehend"

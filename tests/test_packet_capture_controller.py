@@ -57,6 +57,9 @@ def test_packet_capture_set_running_state_updates_button_states():
     app.dep_status = {"tshark": True, "dumpcap": False}
     app.btn_packet_capture_start = DummyButton()
     app.btn_packet_capture_stop = DummyButton()
+    app.l_capture = object()
+    light_calls = []
+    app.set_light = lambda light, color: light_calls.append((light, color))
 
     packet_capture_controller.packet_capture_set_running_state(app, True)
     packet_capture_controller.packet_capture_set_running_state(app, False)
@@ -65,6 +68,19 @@ def test_packet_capture_set_running_state_updates_button_states():
     assert app.btn_packet_capture_stop.calls[0]["state"] == "normal"
     assert app.btn_packet_capture_start.calls[1]["state"] == "normal"
     assert app.btn_packet_capture_stop.calls[1]["state"] == "disabled"
+    assert light_calls == [(app.l_capture, "green"), (app.l_capture, "red")]
+
+
+def test_packet_capture_app_value_falls_back_to_bound_methods():
+    app = type(
+        "DummyApp",
+        (),
+        {"set_light": lambda self, light, color: (light, color)},
+    )()
+
+    value = packet_capture_controller._app_value(app, "set_light")
+
+    assert callable(value)
 
 
 def test_packet_capture_ready_returns_true_if_any_capture_tool_exists():
@@ -219,8 +235,14 @@ def test_packet_capture_has_existing_file_returns_true_only_for_real_file(tmp_pa
     missing_app = type("DummyApp", (), {})()
     missing_app.packet_capture_output_path = str(missing_file)
 
-    assert packet_capture_controller._packet_capture_has_existing_file(existing_app) is True
-    assert packet_capture_controller._packet_capture_has_existing_file(missing_app) is False
+    assert (
+        packet_capture_controller._packet_capture_has_existing_file(existing_app)
+        is True
+    )
+    assert (
+        packet_capture_controller._packet_capture_has_existing_file(missing_app)
+        is False
+    )
 
 
 def test_packet_capture_start_async_skips_file_info_for_permission_error_without_capture_file(
@@ -270,18 +292,23 @@ def test_packet_capture_start_async_skips_file_info_for_permission_error_without
     app._looks_like_dumpcap_permission_issue = (
         lambda text: "operation not permitted" in str(text).lower()
     )
-    app.show_dumpcap_permission_hint = (
-        lambda: setattr(app, "permission_hint_calls", app.permission_hint_calls + 1)
+    app.show_dumpcap_permission_hint = lambda: setattr(
+        app, "permission_hint_calls", app.permission_hint_calls + 1
     )
     app.after = lambda _delay, callback: callback()
 
     monkeypatch.setattr(packet_capture_controller.subprocess, "Popen", FakeProc)
     monkeypatch.setattr(packet_capture_controller.threading, "Thread", ImmediateThread)
-    monkeypatch.setattr(packet_capture_controller, "call_in_ui_thread", lambda _app, fn: fn())
+    monkeypatch.setattr(
+        packet_capture_controller, "call_in_ui_thread", lambda _app, fn: fn()
+    )
 
     packet_capture_controller.packet_capture_start_async(app)
 
-    assert "You do not have permission to capture on device" not in app.packet_capture_text.value
+    assert (
+        "You do not have permission to capture on device"
+        not in app.packet_capture_text.value
+    )
     assert "Capture fehlgeschlagen: keine Berechtigung" in app.packet_capture_text.value
     assert "Hinweis: Capture wurde mit Fehler beendet." in app.packet_capture_text.value
     assert "Capture-Datei nicht gefunden" not in app.packet_capture_text.value

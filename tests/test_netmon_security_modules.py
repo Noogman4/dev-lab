@@ -7051,6 +7051,7 @@ def test_security_baseline_payload_handles_missing_state():
         "integrity": {},
         "device": {},
         "input_access": {},
+        "lynis_security_baseline": {},
         "ts": "2026-06-06T12:00:00",
     }
 
@@ -7072,6 +7073,7 @@ def test_current_security_baseline_payload_uses_current_iso_timestamp(monkeypatc
         "integrity": {"a": {"sha": "1"}},
         "device": {},
         "input_access": {},
+        "lynis_security_baseline": {},
         "ts": "2026-06-06T15:30:00",
     }
 

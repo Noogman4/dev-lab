@@ -30,7 +30,7 @@ except ModuleNotFoundError:
 class ProcessGuardService:
     def __init__(self):
         home = str(Path.home())
-        self.temp_prefixes = ("/tmp", "/var/tmp", "/dev/shm")
+        self.temp_prefixes = ("/tmp", "/var/tmp", "/dev/shm", "/run/user")
         self.user_suspicious_prefixes = (
             os.path.join(home, "Downloads"),
             os.path.join(home, ".cache"),
@@ -258,11 +258,15 @@ class ProcessGuardService:
         cmdline_text = " ".join(part for part in cmdline if part).strip().lower()
         parent_name = str((parent or {}).get("name") or "").strip().lower()
 
+        temp_candidate_paths = [exe] if exe else []
         candidate_paths = [path for path in [exe, cwd, *cmdline[1:]] if path]
 
-        temp_hit = self._first_matching_prefix(candidate_paths, self.temp_prefixes)
+        temp_hit = self._first_matching_prefix(
+            temp_candidate_paths,
+            self.temp_prefixes,
+        )
         if temp_hit:
-            score += 5
+            score += 6
             reasons.append(f"Ausführung aus temporärem Pfad: {temp_hit}")
 
         user_path_hit = self._first_matching_prefix(

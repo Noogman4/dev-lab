@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PKG_NAME="netmon"
-PKG_VERSION="1.1.19"
+PKG_VERSION="1.1.20"
 DOCS_VERSION="1.1.19"
 PKG_ARCH="all"
 MAINTAINER="Mr. Happy <netmon.proglab@protonmail.ch>"

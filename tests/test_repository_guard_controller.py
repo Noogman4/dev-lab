@@ -118,6 +118,7 @@ def test_primary_action_prefers_baseline_for_baseline_findings():
     )
 
     assert action["type"] == "save_baseline"
+    assert action["label"] == "Baseline jetzt aktualisieren"
 
 
 def test_primary_action_prefers_trust_for_untrusted_third_party_source():
@@ -151,6 +152,15 @@ def test_quick_action_snippet_shell_quotes_special_characters():
     )
 
     assert snippet == "grep -n 'signed-by\\|^deb' '/tmp/demo repo'\"'\"'s.list'"
+
+
+def test_quick_action_snippet_for_baseline_findings_mentions_new_button_text():
+    snippet = repository_guard_controller.get_repository_guard_quick_action_snippet(
+        {"code": "repo_baseline_changed"},
+        source={},
+    )
+
+    assert "Baseline jetzt aktualisieren" in snippet
 
 
 def test_reset_repository_guard_baseline_removes_file(tmp_path):
@@ -194,6 +204,60 @@ def test_reset_repository_guard_baseline_removes_file(tmp_path):
     repository_guard_controller.reset_repository_guard_baseline(app)
 
     assert not baseline_path.exists()
+
+
+def test_create_repository_guard_baseline_logs_update_when_file_exists(tmp_path):
+    baseline_path = tmp_path / "repository_guard_baseline.json"
+    baseline_path.write_text("{}", encoding="utf-8")
+
+    class DummyService:
+        def load_trustlist(self, _path):
+            return {}
+
+        def scan(self, trustlist=None):
+            return {
+                "status": "ok",
+                "checked_at": "2026-07-19T10:00:00Z",
+                "summary": {
+                    "repositories_total": 1,
+                    "findings_total": 0,
+                    "warning": 0,
+                    "notice": 0,
+                    "info": 0,
+                    "critical": 0,
+                    "errors": 0,
+                },
+                "sources": [{"id": "src-1", "uri": "https://example.invalid/repo"}],
+                "findings": [],
+                "errors": [],
+            }
+
+        def save_baseline(self, path, sources):
+            assert path == str(baseline_path)
+            assert len(sources) == 1
+            return True, ""
+
+    class DummyApp:
+        repository_guard_baseline_path = str(baseline_path)
+        repository_guard_trustlist_path = ""
+        repository_guard_service = DummyService()
+        repository_guard_last_result = {}
+        repository_guard_selected_source = None
+        repository_guard_selected_finding = None
+
+        def __init__(self):
+            self.logs = []
+
+        def log(self, message):
+            self.logs.append(message)
+
+        def tr(self, _key, fallback):
+            return fallback
+
+    app = DummyApp()
+    repository_guard_controller.create_repository_guard_baseline(app)
+
+    assert any("Baseline aktualisiert" in message for message in app.logs)
 
 
 def test_copy_repository_guard_selected_uri_uses_selected_finding_source_lookup():

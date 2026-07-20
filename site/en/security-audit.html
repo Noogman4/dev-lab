@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NetMonRoots | Security Audit 2026 — Round 9</title>
+  <title>NetMonRoots | Security Audit 2026 — Round 10</title>
   <meta
     name="description"
-    content="Ninth independent security audit of the NetMon source code on the final v1.1.19 release state. 0 critical, 0 high, 2 medium findings — both fixed and verified."
+    content="Tenth independent security audit of the NetMon source code on the v1.1.20 state. Focus: the new security-baseline/sysctl apply stage, baseline transfer packages, locale-independent UFW parsing, and the test infrastructure. 0 critical, 2 high, 0 medium findings — both fixed and verified."
   >
   <link rel="icon" type="image/png" href="../favicon.png">
   <link rel="apple-touch-icon" href="../favicon.png">
@@ -14,8 +14,8 @@
   <link rel="alternate" hreflang="de" href="https://netmonroots.com/security-audit.html">
   <link rel="alternate" hreflang="en" href="https://netmonroots.com/en/security-audit.html">
   <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/security-audit.html">
-  <meta property="og:title" content="NetMonRoots | Security Audit 2026 — Round 9">
-  <meta property="og:description" content="Ninth independent security audit of the NetMon source code on the final v1.1.19 release state. 0 critical, 0 high, 2 medium findings — both fixed and verified.">
+  <meta property="og:title" content="NetMonRoots | Security Audit 2026 — Round 10">
+  <meta property="og:description" content="Tenth independent security audit of the NetMon source code on the v1.1.20 state. 0 critical, 2 high, 0 medium findings — both fixed and verified.">
   <meta property="og:url" content="https://netmonroots.com/en/security-audit.html">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="NetMon Roots">
@@ -23,8 +23,8 @@
   <meta property="og:locale:alternate" content="de_DE">
   <meta property="og:image" content="https://netmonroots.com/favicon.png">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="NetMonRoots | Security Audit 2026 — Round 9">
-  <meta name="twitter:description" content="Ninth independent security audit of the NetMon source code on the final v1.1.19 release state. 0 critical, 0 high, 2 medium findings — both fixed and verified.">
+  <meta name="twitter:title" content="NetMonRoots | Security Audit 2026 — Round 10">
+  <meta name="twitter:description" content="Tenth independent security audit of the NetMon source code on the v1.1.20 state. 0 critical, 2 high, 0 medium findings — both fixed and verified.">
   <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
   <link rel="stylesheet" href="../styles.css">
   <style>
@@ -134,37 +134,52 @@
 
     <main>
       <section class="audit-hero">
-        <p class="eyebrow">Security Audit — July 2026 — Round 9</p>
+        <p class="eyebrow">Security Audit — July 2026 — Round 10</p>
         <h1 style="font-size:clamp(2rem,4vw,3rem);margin:0 0 20px;color:var(--text);">
           Code Security Review<br>
-          <span style="color:var(--accent);">NetMon Roots v1.1.19 — release state</span>
+          <span style="color:var(--accent);">NetMon Roots v1.1.20</span>
         </h1>
         <p style="max-width:680px;color:var(--muted);line-height:1.65;font-size:1.05rem;">
-          Ninth automated security review based on Claude Fable 5, performed on the
-          <strong>final 1.1.19 release state</strong> rather than on an intermediate
-          snapshot. This round focused on the <strong>VPN/UFW killswitch reconcile</strong>,
-          <strong>DNS startup recovery</strong>, the <strong>in-app update check</strong>,
-          <strong>Debian maintainer scripts</strong>, and the complete
-          <strong>release verification chain</strong> via
-          <code>SHA256SUMS</code> and <code>minisign</code>.
+          Tenth automated security review based on Claude Fable 5, covering the full
+          code diff since the round 9 state. This round focused on the largest change
+          since 1.1.19: the new <strong>security-baseline / sysctl apply stage</strong>
+          and the <strong>baseline transfer package</strong> (import/export between
+          machines), plus the <strong>locale-independent UFW parsing</strong>, the new
+          <strong>data backup</strong>, and the <strong>test/development
+          infrastructure</strong>. Two high-severity issues were confirmed and fixed —
+          a <strong>sysctl directive injection</strong> via an imported transfer
+          package (a path to root privilege escalation) and, discovered empirically
+          rather than statically, a <strong>test suite that really rebooted the
+          host</strong> because two tests executed a real
+          <code>systemctl&nbsp;reboot</code>.
         </p>
       </section>
 
       <div style="margin-bottom:32px;">
-        <a class="button button-primary" href="../netmon_security_audit_2026_r9.pdf" download>Download PDF</a>
+        <a class="button button-primary" href="../netmon_security_audit_2026_r10.pdf" download>Download PDF</a>
         <a class="button button-secondary" href="#summary">Summary</a>
         <a class="button button-secondary" href="#findings">Findings</a>
-        <a class="button button-secondary" href="#release">Release verification</a>
+        <a class="button button-secondary" href="#hardening">Hardening</a>
       </div>
 
       <div class="verdict-banner" id="summary">
         <div class="verdict-icon">&#10003;</div>
         <div class="verdict-text">
-          <h2>0 critical — 0 high — 2 medium findings</h2>
+          <h2>0 critical — 2 high — 0 medium findings (both fixed &amp; verified)</h2>
           <p>
-            Two medium-severity issues were confirmed, fixed, regression-tested,
-            and re-verified on the final release build. No critical or high findings
-            remained open in scope.
+            Two high-severity issues were confirmed and fixed. <strong>F1:</strong> the
+            new baseline transfer package passed imported <code>id</code>/
+            <code>expected</code> fields into an <code>/etc/sysctl.d/</code> file loaded
+            as root, with no character or allowlist check — a crafted file could set
+            <code>kernel.core_pattern&nbsp;=&nbsp;|/path/script</code> (root code
+            execution on the next crash). A dedicated validation sub-agent confirmed it
+            at <strong>confidence 9/10</strong> with a working repro. <strong>F2:</strong>
+            two tests let a command generator return a real
+            <code>systemctl&nbsp;reboot</code> without mocking execution — and since an
+            active desktop user may reboot via polkit without a password, every test run
+            actually restarted the host. Both were fixed (strict sysctl allowlist and
+            value validation; defused tests plus a suite-wide guard against destructive
+            commands), regression-tested, and re-verified.
           </p>
         </div>
       </div>
@@ -172,11 +187,11 @@
       <div class="audit-meta-grid">
         <div class="audit-meta-card">
           <div class="label">Date</div>
-          <div class="value">July 18, 2026</div>
+          <div class="value">July 19, 2026</div>
         </div>
         <div class="audit-meta-card">
           <div class="label">Reviewed version</div>
-          <div class="value">v1.1.19 — final release state</div>
+          <div class="value">v1.1.20</div>
         </div>
         <div class="audit-meta-card">
           <div class="label">Critical findings</div>
@@ -184,15 +199,15 @@
         </div>
         <div class="audit-meta-card">
           <div class="label">High findings</div>
-          <div class="value ok">0</div>
-        </div>
-        <div class="audit-meta-card">
-          <div class="label">Medium findings</div>
           <div class="value">2 — both fixed</div>
         </div>
         <div class="audit-meta-card">
-          <div class="label">Release signature</div>
-          <div class="value ok">validated</div>
+          <div class="label">Medium findings</div>
+          <div class="value ok">0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Test suite</div>
+          <div class="value ok">2133 passed</div>
         </div>
       </div>
 
@@ -201,17 +216,17 @@
         <div class="section-rule"></div>
         <div class="audit-card">
           <p>
-            The reviewed scope was the final 1.1.19 release state, including version
-            consistency across the application, Debian package, download pages, and
-            release metadata. The audit concentrated on privileged or externally
-            influenced paths with release impact.
+            The reviewed scope was the full code diff since the round 9 state
+            (~15,300 new lines), with version consistency across the application,
+            Debian package, and changelog (all 1.1.20). The audit concentrated on the
+            new functionality and on privileged or externally influenced paths.
           </p>
           <ul>
-            <li>VPN/UFW/killswitch reconcile and recovery behavior</li>
-            <li>DNS startup recovery and fallback handling</li>
-            <li>Remote update metadata and URL opening flow</li>
-            <li>Debian package maintainer scripts and install-time behavior</li>
-            <li>Release verification with SHA256SUMS and minisign</li>
+            <li>New security-baseline / sysctl apply stage and the baseline transfer package (import/export)</li>
+            <li>Locale-independent UFW and Lynis output parsing</li>
+            <li>New data backup and the "game mode" firewall exceptions</li>
+            <li>Native permission checks (home/critical-file rights, Secure Boot) and the root network service</li>
+            <li>Test / development / CI infrastructure</li>
           </ul>
         </div>
       </div>
@@ -220,25 +235,8 @@
         <h2>Confirmed findings</h2>
         <div class="section-rule"></div>
         <div class="audit-card">
-          <p><strong>F1 — Update URL allowlist gap:</strong> the in-app update check accepted a server-provided <code>download_url</code> without a strict scheme/host allowlist before handing it to <code>xdg-open</code>. This was fixed with a web-only scheme restriction plus trusted-host pinning for the update path.</p>
-          <p><strong>F2 — Killswitch fail-open on early VPN switch failure:</strong> early VPN slot switch error paths could reset outbound firewall policy too broadly even when the user intended killswitch protection to stay active. This was fixed with a killswitch-preserving recovery path and regression coverage.</p>
-        </div>
-      </div>
-
-      <div class="audit-section" id="release">
-        <h2>Release verification</h2>
-        <div class="section-rule"></div>
-        <div class="audit-card">
-          <p>
-            The release artifacts were cross-checked via <code>sha256sum -c SHA256SUMS</code>
-            and verified against the shipped minisign signature and public key. The
-            signature chain for the 1.1.19 release bundle validated successfully.
-          </p>
-          <ul>
-            <li><code>netmon_1.1.19_all.deb</code> matched the published SHA256 sums</li>
-            <li><code>netmon_dokumentation_1.1.19.html</code> and <code>.pdf</code> matched the published SHA256 sums</li>
-            <li><code>SHA256SUMS.minisig</code> validated against the shipped minisign public key</li>
-          </ul>
+          <p><strong>F1 — Sysctl directive injection via imported baseline transfer package [HIGH, 9/10, fixed]:</strong> imported <code>id</code>/<code>key</code>/<code>expected</code> fields were only checked for non-emptiness, then written as <code>key = value</code> into <code>/etc/sysctl.d/</code> and loaded as root via <code>sudo -n sysctl --system</code>. A crafted file could set <code>kernel.core_pattern = |/tmp/evil.sh</code> (root code execution on the next crash) or silently downgrade kernel hardening via embedded newlines. Fixed with an allowlist of the ten documented baseline keys plus strict key/value format validation (no newlines, pipes, or shell metacharacters), deriving the drop-in id only from the validated key, and a second defense-in-depth filter at the write sink.</p>
+          <p><strong>F2 — Test suite executed a real <code>systemctl reboot</code> (host restart) [HIGH, empirical, fixed]:</strong> two tests for the new system actions returned the real <code>["systemctl","reboot"]</code> without mocking the execution path, so every test run on a desktop system actually rebooted the host (discovered empirically — the audit host restarted reproducibly during test runs). This affects the test/development and CI infrastructure, not the shipped application code (whose release path is guarded by a confirmation dialog, safety phrase, and strict protection). Fixed by defusing both tests and adding a suite-wide guard (<code>tests/conftest.py</code>) that blocks destructive commands at the subprocess level, even behind <code>sudo</code>/<code>pkexec</code> wrappers.</p>
         </div>
       </div>
 
@@ -247,10 +245,10 @@
         <div class="section-rule"></div>
         <div class="audit-card">
           <ul>
-            <li>Trusted-host and scheme checks for the automatic update URL path</li>
-            <li>Killswitch-preserving firewall recovery for early VPN switch failure paths</li>
-            <li>Regression coverage for both confirmed findings</li>
-            <li>Re-validation of the release signature chain for the final 1.1.19 bundle</li>
+            <li>Sysctl key allowlist and strict value validation for imported transfer packages</li>
+            <li>Suite-wide guard blocking destructive system commands (reboot/poweroff/shutdown/logout) in tests</li>
+            <li>15 new regression tests (8 for the sysctl allowlist, 7 for the command guard)</li>
+            <li>Regression re-check of the round 7/8/9 hardening — all intact</li>
           </ul>
         </div>
       </div>
@@ -259,9 +257,9 @@
         <p>
           <strong>Auditor:</strong> Claude Fable 5 (Anthropic) — automated multi-agent security review<br>
           <strong>Project owner:</strong> Sven Froehlich<br>
-          <strong>Date:</strong> July 18, 2026<br>
-          <strong>Reviewed state:</strong> final NetMon 1.1.19 release build<br>
-          <strong>Method:</strong> static security review with targeted validation and regression confirmation
+          <strong>Date:</strong> July 19, 2026<br>
+          <strong>Reviewed state:</strong> NetMon 1.1.20 working state (diff since round 9)<br>
+          <strong>Method:</strong> static security review with confidence-scored validation (with repro) and regression confirmation
         </p>
         <p style="margin-top:16px;">
           <a href="./downloads.html" style="color:var(--accent);">Download page</a>

@@ -27,20 +27,36 @@ class NetmonNetworkService:
         return self.run(["sudo", "-n", "ufw", "--force", "enable"], timeout=timeout)
 
     def ufw_status(self, verbose: bool = False, timeout: int = 12) -> Tuple[int, str]:
+        cmd = ["sudo", "-n", "env", "LANG=C", "LC_ALL=C", "ufw", "status"]
         if verbose:
-            return self.run(["sudo", "-n", "ufw", "status", "verbose"], timeout=timeout)
-        return self.run(["sudo", "-n", "ufw", "status"], timeout=timeout)
+            cmd.append("verbose")
+        return self.run(cmd, timeout=timeout)
 
-    def ufw_default(self, action: str, direction: str, timeout: int = 20) -> Tuple[int, str]:
-        return self.run(["sudo", "-n", "ufw", "default", action, direction], timeout=timeout)
+    def ufw_default(
+        self, action: str, direction: str, timeout: int = 20
+    ) -> Tuple[int, str]:
+        return self.run(
+            ["sudo", "-n", "ufw", "default", action, direction], timeout=timeout
+        )
 
-    def ufw_allow_on_iface(self, direction: str, iface: str, timeout: int = 20) -> Tuple[int, str]:
-        return self.run(["sudo", "-n", "ufw", "allow", direction, "on", iface], timeout=timeout)
+    def ufw_allow_on_iface(
+        self, direction: str, iface: str, timeout: int = 20
+    ) -> Tuple[int, str]:
+        return self.run(
+            ["sudo", "-n", "ufw", "allow", direction, "on", iface], timeout=timeout
+        )
 
-    def ufw_delete_allow_on_iface(self, direction: str, iface: str, timeout: int = 20) -> Tuple[int, str]:
-        return self.run(["sudo", "-n", "ufw", "delete", "allow", direction, "on", iface], timeout=timeout)
+    def ufw_delete_allow_on_iface(
+        self, direction: str, iface: str, timeout: int = 20
+    ) -> Tuple[int, str]:
+        return self.run(
+            ["sudo", "-n", "ufw", "delete", "allow", direction, "on", iface],
+            timeout=timeout,
+        )
 
-    def ufw_allow_udp_endpoint(self, ip: str, port: str, timeout: int = 20) -> Tuple[int, str]:
+    def ufw_allow_udp_endpoint(
+        self, ip: str, port: str, timeout: int = 20
+    ) -> Tuple[int, str]:
         return self.run(
             [
                 "sudo",
@@ -58,7 +74,9 @@ class NetmonNetworkService:
             timeout=timeout,
         )
 
-    def ufw_delete_allow_udp_endpoint(self, ip: str, port: str, timeout: int = 20) -> Tuple[int, str]:
+    def ufw_delete_allow_udp_endpoint(
+        self, ip: str, port: str, timeout: int = 20
+    ) -> Tuple[int, str]:
         return self.run(
             [
                 "sudo",
@@ -76,4 +94,3 @@ class NetmonNetworkService:
             ],
             timeout=timeout,
         )
-

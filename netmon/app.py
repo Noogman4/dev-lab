@@ -642,7 +642,10 @@ except ModuleNotFoundError:
     from ui.tabs.hdd_tab import build_hdd_tab
     from ui.tabs.linux_help_tab import build_linux_help_tab
     from ui.tabs.links_tab import build_links_tab
-    from ui.tabs.security_tabs import build_security_tabs, build_startup_guard_tab
+    from ui.tabs.security_tabs import (
+        build_security_tabs,
+        build_startup_guard_tab,
+    )
     from ui.tabs.settings_tab import build_settings_tab as build_settings_tab_ui
     from ui.tabs.system_tab import build_system_tab
     from ui.tabs.tools_tabs import build_basic_tools_tabs
@@ -881,6 +884,36 @@ DEPENDENCIES = {
         "checks": ["cryptsetup"],
         "apt_packages": ["cryptsetup"],
         "pip_packages": [],
+    },
+    "timeshift": {
+        "label": "Timeshift",
+        "category": "Security",
+        "description": "Snapshot-Backups vor Hardening oder grösseren Systemänderungen",
+        "checks": ["timeshift"],
+        "apt_packages": ["timeshift"],
+        "pip_packages": [],
+        "type": "optional_backend",
+        "availability_check": "timeshift_installable",
+    },
+    "mintbackup": {
+        "label": "Linux Mint Datensicherung",
+        "category": "Backup",
+        "description": "Desktop-Datensicherung für Linux Mint",
+        "checks": ["mintbackup"],
+        "apt_packages": ["mintbackup"],
+        "pip_packages": [],
+        "type": "optional_backend",
+        "availability_check": "mintbackup_installable",
+    },
+    "deja_dup": {
+        "label": "Deja Dup",
+        "category": "Backup",
+        "description": "Desktop-Datensicherung für Ubuntu-, Debian- und Zorin-Systeme",
+        "checks": ["deja_dup"],
+        "apt_packages": ["deja-dup"],
+        "pip_packages": [],
+        "type": "optional_backend",
+        "availability_check": "deja_dup_installable",
     },
     "python3_runtime": {
         "label": "python3",
@@ -2674,6 +2707,10 @@ class App(TkBase):
             self.netmon_state_dir,
             SECURITY_BASELINE_FILE,
         )
+        self.security_baseline_transfer_dir = get_netmon_documents_subdir(
+            "Security",
+            "Transferpakete",
+        )
         self.startup_guard_baseline_path = _prepare_documents_data_path(
             "Security",
             self.netmon_state_dir,
@@ -3075,6 +3112,67 @@ class App(TkBase):
                 or self._default_download_scan_target_dir()
             )
         )
+        self.backup_target_dir_var = tk.StringVar(
+            value=str(
+                self.settings.get(
+                    "backup_data_target_dir",
+                    self._default_backup_data_target_dir(),
+                )
+                or self._default_backup_data_target_dir()
+            )
+        )
+        self.backup_include_documents_var = tk.BooleanVar(
+            value=bool(self.settings.get("backup_include_documents", True))
+        )
+        self.backup_include_pictures_var = tk.BooleanVar(
+            value=bool(self.settings.get("backup_include_pictures", True))
+        )
+        self.backup_include_desktop_var = tk.BooleanVar(
+            value=bool(self.settings.get("backup_include_desktop", True))
+        )
+        self.backup_include_music_var = tk.BooleanVar(
+            value=bool(self.settings.get("backup_include_music", True))
+        )
+        self.backup_include_videos_var = tk.BooleanVar(
+            value=bool(self.settings.get("backup_include_videos", True))
+        )
+        self.backup_include_downloads_var = tk.BooleanVar(
+            value=bool(self.settings.get("backup_include_downloads", True))
+        )
+        self.backup_include_netmon_documents_var = tk.BooleanVar(
+            value=bool(self.settings.get("backup_include_netmon_documents", True))
+        )
+        self.backup_netmon_full_var = tk.BooleanVar(
+            value=bool(self.settings.get("backup_netmon_full", False))
+        )
+        self.backup_netmon_selected_dir_keys = list(
+            self.settings.get("backup_netmon_selected_dirs", []) or []
+        )
+        self.backup_netmon_dir_vars = {}
+        self.backup_status_var = tk.StringVar(
+            value="Backup-Bereich bereit. Vor dem Hardening zuerst Snapshot und Datenbackup erstellen."
+        )
+        self.backup_timeshift_status_var = tk.StringVar(value="Timeshift: wird geprüft")
+        self.backup_root_status_var = tk.StringVar(value="Root: wird geprüft")
+        self.backup_last_snapshot_var = tk.StringVar(
+            value="Letzter Snapshot: noch nicht erkannt"
+        )
+        self.backup_data_tool_status_var = tk.StringVar(
+            value="Datensicherung: wird geprüft"
+        )
+        self.backup_data_tool_hint_var = tk.StringVar(
+            value="Datensicherung-Hinweis: wird geprüft"
+        )
+        self.backup_last_data_backup_var = tk.StringVar(
+            value="Letztes Datenbackup: noch keines"
+        )
+        self.backup_target_status_var = tk.StringVar(value="Backup-Ziel: -")
+        self.backup_free_space_var = tk.StringVar(value="Freier Speicher: -")
+        self.backup_transfer_status_var = tk.StringVar(
+            value="Transferpaket: keines geladen"
+        )
+        self.backup_selected_sources_var = tk.StringVar(value="Auswahl: wird geprüft")
+        self.backup_data_running = False
         self.download_scan_prequarantine_startup_var = tk.BooleanVar(
             value=bool(self.settings.get("download_scan_prequarantine_startup", False))
         )
@@ -3184,11 +3282,92 @@ class App(TkBase):
         self.lynis_status_var = tk.StringVar(
             value=self.tr("status_ready_short", "ready")
         )
+        self.lynis_hardening_index_var = tk.StringVar(
+            value=self.tr("lynis_hardening_index_default", "Hardening Index: -")
+        )
         self.lynis_summary_var = tk.StringVar(
             value=self.tr("lynis_summary_default", "Noch kein Audit ausgeführt.")
         )
         self.lynis_last_result = {}
         self.lynis_last_output = ""
+        self.security_baseline_profile_id = (
+            str(
+                self.settings.get(
+                    "security_baseline_profile_id", "zorin_desktop_development"
+                )
+                or "zorin_desktop_development"
+            ).strip()
+            or "zorin_desktop_development"
+        )
+        self.security_baseline_profile_choice_var = tk.StringVar(value="")
+        self.security_baseline_profile_var = tk.StringVar(
+            value=self.tr("baseline_profile_value", "Profil: {value}").format(
+                value="Desktop / Development"
+            )
+        )
+        self.security_baseline_version_var = tk.StringVar(
+            value=self.tr(
+                "baseline_version_value", "Baseline: {name} {version}"
+            ).format(
+                name="NetMon Security Baseline",
+                version="1.0",
+            )
+        )
+        self.security_baseline_reference_var = tk.StringVar(
+            value=self.tr("baseline_reference_value", "Referenz: {value}").format(
+                value="Zorin OS 18 / Ubuntu 24.04"
+            )
+        )
+        self.security_baseline_date_var = tk.StringVar(
+            value=self.tr("baseline_date_value", "Stand: {value}").format(
+                value="19.07.2026"
+            )
+        )
+        self.security_baseline_last_check_var = tk.StringVar(
+            value=self.tr(
+                "baseline_last_check_default",
+                "Letzte Baseline-Pruefung: noch nicht durchgeführt",
+            )
+        )
+        self.security_baseline_status_var = tk.StringVar(
+            value=self.tr(
+                "baseline_status_default",
+                "Gesamtstatus: noch keine Baseline-Pruefung",
+            )
+        )
+        self.security_baseline_lynis_summary_var = tk.StringVar(
+            value=self.tr("baseline_lynis_summary_default", "Lynis: keine Daten")
+        )
+        self.security_baseline_transfer_var = tk.StringVar(
+            value=self.tr(
+                "baseline_transfer_status_default",
+                "Transferpaket: keines geladen",
+            )
+        )
+        self.security_baseline_optional_services_var = tk.StringVar(
+            value=self.tr(
+                "baseline_optional_services_overview_none",
+                "Optionale Dienste im Profil: keine.",
+            )
+        )
+        self.security_game_mode_preset_var = tk.StringVar(
+            value=str(
+                self.settings.get("security_game_mode_preset", "online") or "online"
+            )
+        )
+        self.security_game_mode_profile_hint_var = tk.StringVar(
+            value="Spielprofil: Online. Kernel-Haertung bleibt aktiv; nur netzbezogene Kompatibilitaet wird angepasst."
+        )
+        self.security_game_mode_status_var = tk.StringVar(
+            value="Spielmodus: aus. Pausiert bei Bedarf Killswitch, DNS Guard und aggressives UFW-Logging fuer Spiele."
+        )
+        self.security_baseline_results = []
+        self.security_baseline_visible_rows = []
+        self.security_baseline_filter_mode = "all"
+        self.security_baseline_last_checked = ""
+        self.security_baseline_transfer_package = None
+        self.security_baseline_transfer_source_path = ""
+        self.game_mode_state = {}
         self.rkhunter_running = False
         self.rkhunter_updating = False
         self.rkhunter_active_process = None
@@ -3961,6 +4140,19 @@ class App(TkBase):
                 "Aktiviert die Netzwerkverbindung systemweit wieder über NetworkManager.",
             ),
         )
+        self.btn_sudo_auth = ttk.Button(
+            inet_row,
+            text=self.tr("btn_sudo_auth_unlock", "Systemrechte freischalten"),
+            command=self.setup_sudo_auth,
+        )
+        self.btn_sudo_auth.pack(side="right", padx=(0, 8))
+        self.add_tooltip(
+            self.btn_sudo_auth,
+            self.tr(
+                "tooltip_sudo_auth_unlock",
+                "Fordert einmalig sudo fuer NetMon an, damit Firewall- und Security-Status direkt gelesen werden koennen.",
+            ),
+        )
 
         btn_ip_country = ttk.Button(
             inet_row,
@@ -4031,6 +4223,8 @@ class App(TkBase):
         self.l_startup_guard = self.make_light(amp_core, "Startup Guard")
         self.l_process_guard = self.make_light(amp_extra, "Process Guard")
         self.l_path_guard = self.make_light(amp_extra, "PATH Guard")
+        self.l_capture = self.make_light(amp_extra, "Capture")
+        self.l_game_mode = self.make_light(amp_extra, "Spielmodus")
         self._bind_light_click(self.l_inet, "connections")
         self._bind_light_click(self.l_vpn, "vpn")
         self.l_vpn[2].bind(
@@ -4143,6 +4337,8 @@ class App(TkBase):
         self._bind_light_click(self.l_startup_guard, "startup_guard")
         self._bind_light_click(self.l_process_guard, "process_guard")
         self._bind_light_click(self.l_path_guard, "path_guard")
+        self._bind_light_click(self.l_capture, "capture")
+        self._bind_light_click(self.l_game_mode, "game_mode")
         self.l_startup_guard[2].bind(
             "<Button-3>",
             lambda e: self.show_startup_guard_menu(e),
@@ -4183,12 +4379,44 @@ class App(TkBase):
             "<Button-3>",
             lambda e: self.show_path_guard_menu(e),
         )
+        self.l_capture[2].bind(
+            "<Button-3>",
+            lambda e: self.show_capture_menu(e),
+        )
+        self.l_capture[0].bind(
+            "<Button-3>",
+            lambda e: self.show_capture_menu(e),
+        )
+        self.l_game_mode[2].bind(
+            "<Button-3>",
+            lambda e: self.show_game_mode_menu(e),
+        )
+        self.l_game_mode[0].bind(
+            "<Button-3>",
+            lambda e: self.show_game_mode_menu(e),
+        )
         try:
             self.l_path_guard[0].configure(cursor="hand2")
         except Exception:
             pass
         try:
             self.l_path_guard[2].configure(cursor="hand2")
+        except Exception:
+            pass
+        try:
+            self.l_capture[0].configure(cursor="hand2")
+        except Exception:
+            pass
+        try:
+            self.l_capture[2].configure(cursor="hand2")
+        except Exception:
+            pass
+        try:
+            self.l_game_mode[0].configure(cursor="hand2")
+        except Exception:
+            pass
+        try:
+            self.l_game_mode[2].configure(cursor="hand2")
         except Exception:
             pass
         self.add_tooltip(
@@ -4261,6 +4489,48 @@ class App(TkBase):
                 "Grau: noch nicht geprüft\n\n"
                 "Linksklick: Security Tab öffnen\n"
                 "Rechtsklick: PATH Guard prüfen",
+            ),
+        )
+        self.add_tooltip(
+            self.l_capture[0],
+            self.tr(
+                "tooltip_capture_light",
+                "Zeigt, ob aktuell ein Packet Capture läuft.\n"
+                "Grün: Capture läuft\n"
+                "Rot: kein Capture aktiv\n\n"
+                "Linksklick: Capture-Tab öffnen",
+            ),
+        )
+        self.add_tooltip(
+            self.l_capture[2],
+            self.tr(
+                "tooltip_capture_light",
+                "Zeigt, ob aktuell ein Packet Capture läuft.\n"
+                "Grün: Capture läuft\n"
+                "Rot: kein Capture aktiv\n\n"
+                "Linksklick: Capture-Tab öffnen",
+            ),
+        )
+        self.add_tooltip(
+            self.l_game_mode[0],
+            self.tr(
+                "tooltip_game_mode_light",
+                "Zeigt den aktuellen Status des Spielemodus.\n"
+                "Grün: Spielemodus aktiv\n"
+                "Rot: Spielemodus aus\n\n"
+                "Linksklick: Lynis-Härtung öffnen\n"
+                "Rechtsklick: Spielemodus aktivieren/deaktivieren",
+            ),
+        )
+        self.add_tooltip(
+            self.l_game_mode[2],
+            self.tr(
+                "tooltip_game_mode_light",
+                "Zeigt den aktuellen Status des Spielemodus.\n"
+                "Grün: Spielemodus aktiv\n"
+                "Rot: Spielemodus aus\n\n"
+                "Linksklick: Lynis-Härtung öffnen\n"
+                "Rechtsklick: Spielemodus aktivieren/deaktivieren",
             ),
         )
         self.dns_guard_indicator = self.l_dnscons
@@ -5414,6 +5684,73 @@ class App(TkBase):
             row=5, column=1, sticky="w", padx=(8, 0), pady=(2, 0)
         )
 
+        right_quick_actions = ttk.LabelFrame(
+            self.right_reserve_space,
+            text=self.tr("group_right_quick_actions", "Schnellzugriff"),
+            padding=8,
+        )
+        right_quick_actions.grid(row=3, column=0, sticky="new", pady=(8, 0))
+        right_quick_actions.columnconfigure(0, weight=1)
+
+        self.btn_right_quick_timeshift = ttk.Button(
+            right_quick_actions,
+            text=self.tr("baseline_btn_timeshift", "Timeshift starten"),
+            command=self.launch_timeshift_snapshot_tool,
+        )
+        self.btn_right_quick_timeshift.pack(fill="x", pady=(0, 6))
+        self.add_tooltip(
+            self.btn_right_quick_timeshift,
+            self.tr(
+                "tooltip_right_quick_timeshift",
+                "Startet Timeshift direkt fuer einen Snapshot oder eine Wiederherstellung.",
+            ),
+        )
+
+        btn_right_quick_apt_update = ttk.Button(
+            right_quick_actions,
+            text=self.tr("maintenance_btn_apt_update", "Update package lists"),
+            command=self.run_apt_update_in_terminal,
+        )
+        btn_right_quick_apt_update.pack(fill="x", pady=(0, 6))
+
+        btn_right_quick_apt_upgrade = ttk.Button(
+            right_quick_actions,
+            text=self.tr("maintenance_btn_apt_upgrade", "Upgrade system"),
+            command=self.run_apt_upgrade_in_terminal,
+        )
+        btn_right_quick_apt_upgrade.pack(fill="x", pady=(0, 6))
+
+        btn_right_quick_network_reset = ttk.Button(
+            right_quick_actions,
+            text=self.tr("settings_reset_network_stack", "Reset network stack"),
+            command=self.reset_network_stack,
+        )
+        btn_right_quick_network_reset.pack(fill="x", pady=(0, 6))
+
+        btn_right_quick_apt_autoremove = ttk.Button(
+            right_quick_actions,
+            text=self.tr(
+                "maintenance_btn_apt_autoremove",
+                "Remove unused packages",
+            ),
+            command=self.run_apt_autoremove_in_terminal,
+        )
+        btn_right_quick_apt_autoremove.pack(fill="x", pady=(0, 6))
+
+        btn_right_quick_restart = ttk.Button(
+            right_quick_actions,
+            text=self.tr("settings_restart_netmon_only", "Restart NetMon"),
+            command=self.restart_netmon_only,
+        )
+        btn_right_quick_restart.pack(fill="x", pady=(0, 6))
+
+        btn_right_quick_menu_refresh = ttk.Button(
+            right_quick_actions,
+            text=self.tr("maintenance_btn_refresh_menu", "Refresh menu"),
+            command=self.run_menu_refresh_in_terminal,
+        )
+        btn_right_quick_menu_refresh.pack(fill="x")
+
         self.update_speedtest_panel(self.speedtest_last_result)
 
         self.nb = ttk.Notebook(self.main_work_area, width=main_work_width)
@@ -5487,7 +5824,6 @@ class App(TkBase):
             pass
 
         self.log(self.tr("log_startup", "Start."))
-        self.setup_sudo_auth()
         self.refresh_wg_profiles()
         self.update_startup_vpn_profile_options()
         self.refresh_radio_ui()
@@ -5656,6 +5992,7 @@ class App(TkBase):
             "startup_guard_tree",
             "startup_guard_details_text",
             "settings_support_details_text",
+            "settings_backup_log_text",
         ]
         self._local_mousewheel_target_names = tuple(targets)
         for widget_name in targets:
@@ -10872,6 +11209,12 @@ class App(TkBase):
             tab = self.__dict__.get("tab_process_guard")
             if tab is not None:
                 self._select_security_tab(tab)
+        elif key == "capture":
+            tab = self.__dict__.get("tab_packet_capture")
+            if tab is not None:
+                self._select_security_tab(tab)
+        elif key == "game_mode":
+            self.open_game_mode_tab()
         elif key == "dot":
             tab = self.__dict__.get("tab_dns")
             if nb is not None and tab is not None:
@@ -11119,6 +11462,66 @@ class App(TkBase):
         )
         return self._show_context_menu(menu, event)
 
+    def show_capture_menu(self, event):
+        menu = tk.Menu(self, tearoff=0)
+        menu.add_command(
+            label="Capture starten",
+            command=lambda: self._run_security_monitor_menu_action(
+                self.packet_capture_start_async,
+                target_tab="capture",
+                action_delay_ms=140,
+            ),
+        )
+        menu.add_command(
+            label="Capture stoppen",
+            command=lambda: self._run_security_monitor_menu_action(
+                self.packet_capture_stop,
+                target_tab="capture",
+                action_delay_ms=140,
+            ),
+        )
+        menu.add_separator()
+        menu.add_command(
+            label="In Wireshark öffnen",
+            command=lambda: self._run_security_monitor_menu_action(
+                self.open_packet_capture_in_wireshark,
+                target_tab="capture",
+                action_delay_ms=140,
+            ),
+        )
+        return self._show_context_menu(menu, event)
+
+    def show_game_mode_menu(self, event):
+        menu = tk.Menu(self, tearoff=0)
+        for preset_id in (
+            "singleplayer",
+            "online",
+            "steam",
+            "heroic",
+            "lutris",
+            "lan_host",
+            "steam_remote_play",
+            "minecraft_lan",
+        ):
+            menu.add_command(
+                label=self._game_mode_preset_label(preset_id),
+                command=lambda selected_preset=preset_id: self._run_security_monitor_menu_action(
+                    lambda: self.enable_game_mode_with_preset(selected_preset),
+                    target_tab="game_mode",
+                    action_delay_ms=140,
+                ),
+            )
+        menu.add_separator()
+        menu.add_command(
+            label="Spielemodus deaktivieren",
+            command=lambda: self._run_security_monitor_menu_action(
+                self.disable_game_mode,
+                target_tab="game_mode",
+                action_delay_ms=140,
+            ),
+        )
+        return self._show_context_menu(menu, event)
+
     def show_startup_guard_menu(self, event):
         menu = tk.Menu(self, tearoff=0)
         menu.add_command(
@@ -11247,24 +11650,95 @@ class App(TkBase):
         normalized = str(target_tab or "").strip().lower()
         if normalized == "firewall":
             tab = self.__dict__.get("tab_firewall") or self.__dict__.get("tab_security")
+            subtab = self.__dict__.get("tab_firewall_overview")
+        elif normalized == "guard_events":
+            tab = self.__dict__.get("tab_firewall") or self.__dict__.get("tab_security")
+            subtab = self.__dict__.get("tab_firewall_events")
         elif normalized == "guards":
             tab = self.__dict__.get("tab_security") or self.__dict__.get("tab_firewall")
+            subtab = None
         elif normalized == "path_guard":
             tab = self.__dict__.get("tab_path_guard") or self.__dict__.get(
                 "tab_security"
             )
+            subtab = None
         elif normalized == "process_guard":
             tab = self.__dict__.get("tab_process_guard") or self.__dict__.get(
                 "tab_security"
             )
+            subtab = None
+        elif normalized in {"capture", "packet_capture"}:
+            tab = self.__dict__.get("tab_packet_capture") or self.__dict__.get(
+                "tab_security"
+            )
+            subtab = None
+        elif normalized == "game_mode":
+            self.open_game_mode_tab()
+            return
         elif normalized == "startup_guard":
             tab = self.__dict__.get("tab_startup_guard") or self.__dict__.get(
                 "tab_security"
             )
+            subtab = None
         else:
             tab = self.__dict__.get("tab_firewall") or self.__dict__.get("tab_security")
+            subtab = self.__dict__.get("tab_firewall_overview")
         if tab is not None:
             self._select_security_tab(tab)
+        firewall_subtabs = self.__dict__.get("firewall_subtabs")
+        if firewall_subtabs is not None and subtab is not None:
+            try:
+                firewall_subtabs.select(subtab)
+            except Exception:
+                pass
+
+    def open_game_mode_tab(self):
+        tab = self.__dict__.get("tab_lynis")
+        if tab is not None:
+            self._select_security_tab(tab)
+        lynis_sections = self.__dict__.get("lynis_sections")
+        hardening_tab = self.__dict__.get("tab_lynis_hardening")
+        if lynis_sections is not None and hardening_tab is not None:
+            try:
+                lynis_sections.select(hardening_tab)
+            except Exception:
+                pass
+
+    def enable_game_mode_with_preset(self, preset_id):
+        normalized = self._normalize_game_mode_preset(preset_id)
+        preset = dict(self._game_mode_presets().get(normalized, {}) or {})
+        if not preset:
+            self.log_safe(f"Spielmodus-Profil unbekannt: {preset_id}")
+            return False
+
+        current_state = dict(self.__dict__.get("game_mode_state", {}) or {})
+        active_preset_id = str(current_state.get("preset_id") or "").strip()
+        if bool(current_state.get("active")) and active_preset_id == normalized:
+            self.refresh_game_mode_status()
+            self.log_safe(
+                f"Spielmodus-Profil {str(preset.get('label') or normalized)} ist bereits aktiv."
+            )
+            return True
+
+        if bool(current_state.get("active")) and not self.disable_game_mode():
+            return False
+
+        preset_label = str(preset.get("label") or normalized).strip() or normalized
+        preset_var = self.__dict__.get("security_game_mode_preset_var")
+        if preset_var is not None:
+            try:
+                preset_var.set(preset_label)
+            except Exception:
+                pass
+        settings = self.__dict__.setdefault("settings", {})
+        settings["security_game_mode_preset"] = normalized
+        try:
+            self.save_settings(log_success=False)
+        except Exception:
+            pass
+        self.refresh_game_mode_preset_ui()
+        self.refresh_game_mode_status()
+        return self.enable_game_mode()
 
     def _run_security_monitor_menu_action(
         self,
@@ -11824,6 +12298,10 @@ class App(TkBase):
             return False
         try:
             self._select_security_tab(tab)
+            firewall_subtabs = self.__dict__.get("firewall_subtabs")
+            firewall_overview = self.__dict__.get("tab_firewall_overview")
+            if firewall_subtabs is not None and firewall_overview is not None:
+                firewall_subtabs.select(firewall_overview)
             return True
         except Exception:
             return False
@@ -16446,11 +16924,7 @@ class App(TkBase):
             score = (
                 100
                 if "edge" in label_low
-                else 80
-                if "junction" in label_low
-                else 60
-                if "mem" in label_low
-                else 40
+                else 80 if "junction" in label_low else 60 if "mem" in label_low else 40
             )
             ranked.append((score, cur, label))
         if ranked:
@@ -16542,9 +17016,9 @@ class App(TkBase):
                     )
                 )
                 self.system_temp_bar["bar"]["value"] = 0
-                self.system_temp_bar["bar"]["style"] = (
-                    "SystemGreen.Horizontal.TProgressbar"
-                )
+                self.system_temp_bar["bar"][
+                    "style"
+                ] = "SystemGreen.Horizontal.TProgressbar"
                 self.system_temp_bar["status"].config(text="–", fg="#666666")
             else:
                 sensor_hint = f" ({cpu_temp_label})" if cpu_temp_label else ""
@@ -16562,9 +17036,9 @@ class App(TkBase):
                     )
                 )
                 self.system_gpu_temp_bar["bar"]["value"] = 0
-                self.system_gpu_temp_bar["bar"]["style"] = (
-                    "SystemGreen.Horizontal.TProgressbar"
-                )
+                self.system_gpu_temp_bar["bar"][
+                    "style"
+                ] = "SystemGreen.Horizontal.TProgressbar"
                 self.system_gpu_temp_bar["status"].config(text="–", fg="#666666")
             else:
                 gpu_hint = f" ({gpu_temp_label})" if gpu_temp_label else ""
@@ -18528,6 +19002,331 @@ class App(TkBase):
         self.wait_window(win)
         return result["ok"]
 
+    def confirm_security_baseline_apply(
+        self,
+        title: str,
+        *,
+        profile_name: str,
+        preview_text: str = "",
+        rollback_text: str = "",
+    ) -> bool:
+        intro_text = self.tr(
+            "baseline_apply_all_confirm_intro",
+            "NetMon wendet jetzt alle freigegebenen Hardening-Schritte fuer das aktive Baseline-Profil an.",
+        )
+        preview_body = str(preview_text or "").strip() or "-"
+        rollback_body = str(rollback_text or "").strip() or "-"
+        if tk is None or ttk is None:
+            fallback_text = (
+                f"{intro_text}\n\n"
+                f"{self.tr('baseline_transfer_compare_section_profile', 'Profil')}: {profile_name}\n\n"
+                f"{self.tr('baseline_apply_all_preview_label', 'Vorschau')}:\n{preview_body}\n\n"
+                f"{self.tr('baseline_apply_all_rollback_label', 'Rollback-Hinweise')}:\n{rollback_body}\n\n"
+                f"{self.tr('btn_continue', 'Fortfahren')}?"
+            )
+            return messagebox.askyesno(title, fallback_text, parent=self)
+
+        result = {"ok": False}
+        win = tk.Toplevel(self)
+        win.title(title)
+        win.withdraw()
+        win.minsize(860, 620)
+        win.resizable(True, True)
+        win.transient(self)
+
+        outer = ttk.Frame(win, padding=12)
+        outer.pack(fill="both", expand=True)
+        outer.columnconfigure(0, weight=1)
+        outer.rowconfigure(2, weight=3)
+        outer.rowconfigure(3, weight=2)
+
+        ttk.Label(
+            outer,
+            text=intro_text,
+            justify="left",
+            wraplength=760,
+            font=("TkDefaultFont", 11, "bold"),
+        ).grid(row=0, column=0, sticky="w")
+
+        ttk.Label(
+            outer,
+            text=(
+                f"{self.tr('baseline_transfer_compare_section_profile', 'Profil')}: "
+                f"{profile_name}"
+            ),
+            justify="left",
+            wraplength=920,
+        ).grid(row=1, column=0, sticky="w", pady=(8, 10))
+
+        preview_frame = ttk.LabelFrame(
+            outer,
+            text=self.tr("baseline_apply_all_preview_label", "Vorschau"),
+            padding=6,
+        )
+        preview_frame.grid(row=2, column=0, sticky="nsew")
+        preview_frame.columnconfigure(0, weight=1)
+        preview_frame.rowconfigure(0, weight=1)
+
+        preview_scroll_y = ttk.Scrollbar(preview_frame, orient="vertical")
+        preview_scroll_y.grid(row=0, column=1, sticky="ns")
+        preview_scroll_x = ttk.Scrollbar(preview_frame, orient="horizontal")
+        preview_scroll_x.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+        preview_widget = tk.Text(
+            preview_frame,
+            wrap="none",
+            yscrollcommand=preview_scroll_y.set,
+            xscrollcommand=preview_scroll_x.set,
+            height=14,
+            relief="solid",
+            borderwidth=1,
+            font=("TkFixedFont", 10),
+        )
+        preview_widget.grid(row=0, column=0, sticky="nsew")
+        preview_scroll_y.configure(command=preview_widget.yview)
+        preview_scroll_x.configure(command=preview_widget.xview)
+        preview_widget.insert("1.0", preview_body)
+        preview_widget.configure(state="disabled")
+
+        rollback_frame = ttk.LabelFrame(
+            outer,
+            text=self.tr("baseline_apply_all_rollback_label", "Rollback-Hinweise"),
+            padding=6,
+        )
+        rollback_frame.grid(row=3, column=0, sticky="nsew", pady=(10, 0))
+        rollback_frame.columnconfigure(0, weight=1)
+        rollback_frame.rowconfigure(0, weight=1)
+
+        rollback_scroll_y = ttk.Scrollbar(rollback_frame, orient="vertical")
+        rollback_scroll_y.grid(row=0, column=1, sticky="ns")
+        rollback_scroll_x = ttk.Scrollbar(rollback_frame, orient="horizontal")
+        rollback_scroll_x.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+        rollback_widget = tk.Text(
+            rollback_frame,
+            wrap="none",
+            yscrollcommand=rollback_scroll_y.set,
+            xscrollcommand=rollback_scroll_x.set,
+            height=8,
+            relief="solid",
+            borderwidth=1,
+            font=("TkFixedFont", 10),
+        )
+        rollback_widget.grid(row=0, column=0, sticky="nsew")
+        rollback_scroll_y.configure(command=rollback_widget.yview)
+        rollback_scroll_x.configure(command=rollback_widget.xview)
+        rollback_widget.insert("1.0", rollback_body)
+        rollback_widget.configure(state="disabled")
+
+        btn_row = ttk.Frame(outer)
+        btn_row.grid(row=4, column=0, sticky="ew", pady=(12, 0))
+
+        def _close(ok: bool):
+            result["ok"] = bool(ok)
+            try:
+                win.grab_release()
+            except Exception:
+                pass
+            try:
+                win.destroy()
+            except Exception:
+                pass
+
+        ttk.Button(
+            btn_row,
+            text=self.tr("btn_cancel", "Abbrechen"),
+            command=lambda: _close(False),
+        ).pack(side="right")
+        ttk.Button(
+            btn_row,
+            text=self.tr("btn_continue", "Fortfahren"),
+            command=lambda: _close(True),
+        ).pack(side="right", padx=(0, 8))
+
+        win.protocol("WM_DELETE_WINDOW", lambda: _close(False))
+        try:
+            win.update_idletasks()
+            width = max(980, min(win.winfo_reqwidth() + 32, 1280))
+            height = max(760, min(win.winfo_reqheight() + 32, 920))
+            parent_x = self.winfo_rootx()
+            parent_y = self.winfo_rooty()
+            parent_w = max(self.winfo_width(), 1)
+            parent_h = max(self.winfo_height(), 1)
+            x = parent_x + max((parent_w - width) // 2, 20)
+            y = parent_y + max((parent_h - height) // 2, 20)
+            win.geometry(f"{width}x{height}+{x}+{y}")
+            win.deiconify()
+            win.grab_set()
+            win.focus_force()
+            preview_widget.focus_set()
+        except Exception:
+            pass
+        self.wait_window(win)
+        return result["ok"]
+
+    def confirm_game_mode_apply(
+        self,
+        title: str,
+        *,
+        preset_name: str,
+        actions_text: str = "",
+        profile_note: str = "",
+        kernel_note: str = "",
+    ) -> bool:
+        intro_text = self.tr(
+            "game_mode_enable_intro",
+            "NetMon schaltet jetzt einen temporaeren Kompatibilitaetsmodus fuer Spiele ein.",
+        )
+        actions_body = (
+            str(actions_text or "").strip() or "- keine Aenderungen notwendig"
+        )
+        profile_body = str(profile_note or "").strip() or "-"
+        kernel_body = str(kernel_note or "").strip() or "-"
+
+        if tk is None or ttk is None or self.__dict__.get("tk") is None:
+            fallback_text = self.tr(
+                "game_mode_enable_prompt",
+                "NetMon schaltet jetzt einen temporaeren Kompatibilitaetsmodus fuer Spiele ein.\n\n"
+                "Profil: {preset}\n\n"
+                "Geplante Schritte:\n{actions}\n\n"
+                "Profilhinweis:\n{profile_note}\n\n"
+                "Kernel-Hinweis:\n{kernel_note}\n\n"
+                "Beim Deaktivieren versucht NetMon den vorherigen Zustand wiederherzustellen.\n\n"
+                "Fortfahren?",
+            ).format(
+                preset=preset_name,
+                actions=actions_body,
+                profile_note=profile_body,
+                kernel_note=kernel_body,
+            )
+            return messagebox.askyesno(title, fallback_text, parent=self)
+
+        result = {"ok": False}
+        win = tk.Toplevel(self)
+        win.title(title)
+        win.withdraw()
+        win.minsize(840, 620)
+        win.resizable(True, True)
+        win.transient(self)
+
+        outer = ttk.Frame(win, padding=12)
+        outer.pack(fill="both", expand=True)
+        outer.columnconfigure(0, weight=1)
+        outer.rowconfigure(2, weight=1)
+        outer.rowconfigure(3, weight=1)
+        outer.rowconfigure(4, weight=1)
+
+        ttk.Label(
+            outer,
+            text=intro_text,
+            justify="left",
+            wraplength=760,
+            font=("TkDefaultFont", 11, "bold"),
+        ).grid(row=0, column=0, sticky="w")
+
+        ttk.Label(
+            outer,
+            text=f"{self.tr('baseline_transfer_compare_section_profile', 'Profil')}: {preset_name}",
+            justify="left",
+            wraplength=760,
+        ).grid(row=1, column=0, sticky="w", pady=(8, 10))
+
+        section_specs = [
+            (
+                self.tr("game_mode_enable_actions_label", "Geplante Schritte"),
+                actions_body,
+                10,
+            ),
+            (
+                self.tr("game_mode_enable_profile_note_label", "Profilhinweis"),
+                profile_body,
+                8,
+            ),
+            (
+                self.tr("game_mode_enable_kernel_note_label", "Kernel-Hinweis"),
+                kernel_body
+                + "\n\n"
+                + self.tr(
+                    "game_mode_enable_rollback_note",
+                    "Beim Deaktivieren versucht NetMon den vorherigen Zustand wiederherzustellen.",
+                ),
+                8,
+            ),
+        ]
+
+        for row_index, (section_title, section_body, height) in enumerate(
+            section_specs,
+            start=2,
+        ):
+            frame = ttk.LabelFrame(outer, text=section_title, padding=6)
+            frame.grid(
+                row=row_index,
+                column=0,
+                sticky="nsew",
+                pady=(0, 10) if row_index < 4 else (0, 0),
+            )
+            frame.columnconfigure(0, weight=1)
+            frame.rowconfigure(0, weight=1)
+
+            scroll_y = ttk.Scrollbar(frame, orient="vertical")
+            scroll_y.grid(row=0, column=1, sticky="ns")
+            widget = tk.Text(
+                frame,
+                wrap="word",
+                yscrollcommand=scroll_y.set,
+                height=height,
+                relief="solid",
+                borderwidth=1,
+                font=("TkDefaultFont", 10),
+            )
+            widget.grid(row=0, column=0, sticky="nsew")
+            scroll_y.configure(command=widget.yview)
+            widget.insert("1.0", section_body)
+            widget.configure(state="disabled")
+
+        btn_row = ttk.Frame(outer)
+        btn_row.grid(row=5, column=0, sticky="ew", pady=(12, 0))
+
+        def _close(ok: bool):
+            result["ok"] = bool(ok)
+            try:
+                win.grab_release()
+            except Exception:
+                pass
+            try:
+                win.destroy()
+            except Exception:
+                pass
+
+        ttk.Button(
+            btn_row,
+            text=self.tr("button_no", "Nein"),
+            command=lambda: _close(False),
+        ).pack(side="right")
+        ttk.Button(
+            btn_row,
+            text=self.tr("button_yes", "Ja"),
+            command=lambda: _close(True),
+        ).pack(side="right", padx=(0, 8))
+
+        win.protocol("WM_DELETE_WINDOW", lambda: _close(False))
+        try:
+            win.update_idletasks()
+            width = max(960, min(win.winfo_reqwidth() + 32, 1260))
+            height = max(760, min(win.winfo_reqheight() + 32, 920))
+            parent_x = self.winfo_rootx()
+            parent_y = self.winfo_rooty()
+            parent_w = max(self.winfo_width(), 1)
+            parent_h = max(self.winfo_height(), 1)
+            x = parent_x + max((parent_w - width) // 2, 20)
+            y = parent_y + max((parent_h - height) // 2, 20)
+            win.geometry(f"{width}x{height}+{x}+{y}")
+            win.deiconify()
+            win.grab_set()
+            win.focus_force()
+        except Exception:
+            pass
+        self.wait_window(win)
+        return result["ok"]
+
     def _get_about_program_system_info(self):
         distro_name = "folgt"
         try:
@@ -19268,6 +20067,9 @@ class App(TkBase):
     def _default_download_scan_target_dir(self) -> str:
         return os.path.expanduser("~/Downloads")
 
+    def _default_backup_data_target_dir(self) -> str:
+        return os.path.abspath(os.path.expanduser("~/NetMon-Backups"))
+
     def _download_scan_temp_dir_candidates(
         self, preferred: str | None = None
     ) -> list[str]:
@@ -19705,6 +20507,8 @@ class App(TkBase):
             "systemcheck_lynis": True,
             "systemcheck_rkhunter": False,
             "systemcheck_clamav": False,
+            "security_baseline_profile_id": "zorin_desktop_development",
+            "security_game_mode_preset": "online",
             "wireshark_launch_blocked": False,
             "guided_tour_offer_on_startup": True,
             "guided_tour_startup_mode": "quickstart",
@@ -19722,6 +20526,18 @@ class App(TkBase):
             "clamav_quickscan_custom_paths": [],
             "download_scan_temp_dir": self._default_download_scan_temp_dir(),
             "download_scan_target_dir": self._default_download_scan_target_dir(),
+            "backup_data_target_dir": self._default_backup_data_target_dir(),
+            "backup_include_documents": True,
+            "backup_include_pictures": True,
+            "backup_include_desktop": True,
+            "backup_include_music": True,
+            "backup_include_videos": True,
+            "backup_include_downloads": True,
+            "backup_include_netmon_documents": True,
+            "backup_netmon_full": False,
+            "backup_netmon_selected_dirs": [],
+            "backup_last_data_backup_path": "",
+            "backup_last_data_backup_at": "",
             "download_scan_prequarantine_startup": False,
             "download_scan_auto_move": False,
             "download_scan_ask_before_move": True,
@@ -19845,6 +20661,9 @@ class App(TkBase):
             "var_systemcheck_clamav": bool(
                 self.settings.get("systemcheck_clamav", False)
             ),
+            "security_game_mode_preset_var": str(
+                self.settings.get("security_game_mode_preset", "online") or "online"
+            ),
             "var_wireshark_launch_blocked": bool(
                 self.settings.get("wireshark_launch_blocked", False)
             ),
@@ -19870,6 +20689,34 @@ class App(TkBase):
                     self._default_download_scan_target_dir(),
                 )
                 or self._default_download_scan_target_dir()
+            ),
+            "backup_target_dir_var": str(
+                self.settings.get(
+                    "backup_data_target_dir",
+                    self._default_backup_data_target_dir(),
+                )
+                or self._default_backup_data_target_dir()
+            ),
+            "backup_include_documents_var": bool(
+                self.settings.get("backup_include_documents", True)
+            ),
+            "backup_include_pictures_var": bool(
+                self.settings.get("backup_include_pictures", True)
+            ),
+            "backup_include_desktop_var": bool(
+                self.settings.get("backup_include_desktop", True)
+            ),
+            "backup_include_music_var": bool(
+                self.settings.get("backup_include_music", True)
+            ),
+            "backup_include_videos_var": bool(
+                self.settings.get("backup_include_videos", True)
+            ),
+            "backup_include_downloads_var": bool(
+                self.settings.get("backup_include_downloads", True)
+            ),
+            "backup_include_netmon_documents_var": bool(
+                self.settings.get("backup_include_netmon_documents", True)
             ),
             "download_scan_prequarantine_startup_var": bool(
                 self.settings.get("download_scan_prequarantine_startup", False)
@@ -20230,6 +21077,25 @@ class App(TkBase):
             self.var_systemcheck_rkhunter.get()
         )
         self.settings["systemcheck_clamav"] = bool(self.var_systemcheck_clamav.get())
+        self.settings["security_baseline_profile_id"] = (
+            str(
+                self.__dict__.get(
+                    "security_baseline_profile_id",
+                    self.settings.get(
+                        "security_baseline_profile_id",
+                        "zorin_desktop_development",
+                    ),
+                )
+                or "zorin_desktop_development"
+            ).strip()
+            or "zorin_desktop_development"
+        )
+        self.settings["security_game_mode_preset"] = self._normalize_game_mode_preset(
+            _var_value(
+                "security_game_mode_preset_var",
+                self.settings.get("security_game_mode_preset", "online"),
+            )
+        )
         self.settings["wireshark_launch_blocked"] = bool(
             _var_value(
                 "var_wireshark_launch_blocked",
@@ -20297,6 +21163,70 @@ class App(TkBase):
             ).strip()
             or self._default_download_scan_target_dir()
         )
+        self.settings["backup_data_target_dir"] = (
+            str(
+                _var_value(
+                    "backup_target_dir_var",
+                    self._default_backup_data_target_dir(),
+                )
+                or self._default_backup_data_target_dir()
+            ).strip()
+            or self._default_backup_data_target_dir()
+        )
+        self.settings["backup_include_documents"] = bool(
+            _var_value(
+                "backup_include_documents_var",
+                self.settings.get("backup_include_documents", True),
+            )
+        )
+        self.settings["backup_include_pictures"] = bool(
+            _var_value(
+                "backup_include_pictures_var",
+                self.settings.get("backup_include_pictures", True),
+            )
+        )
+        self.settings["backup_include_desktop"] = bool(
+            _var_value(
+                "backup_include_desktop_var",
+                self.settings.get("backup_include_desktop", True),
+            )
+        )
+        self.settings["backup_include_music"] = bool(
+            _var_value(
+                "backup_include_music_var",
+                self.settings.get("backup_include_music", True),
+            )
+        )
+        self.settings["backup_include_videos"] = bool(
+            _var_value(
+                "backup_include_videos_var",
+                self.settings.get("backup_include_videos", True),
+            )
+        )
+        self.settings["backup_include_downloads"] = bool(
+            _var_value(
+                "backup_include_downloads_var",
+                self.settings.get("backup_include_downloads", True),
+            )
+        )
+        self.settings["backup_include_netmon_documents"] = bool(
+            _var_value(
+                "backup_include_netmon_documents_var",
+                self.settings.get("backup_include_netmon_documents", True),
+            )
+        )
+        backup_netmon_dir_vars = self.__dict__.get("backup_netmon_dir_vars") or {}
+        self.settings["backup_netmon_full"] = bool(
+            _var_value(
+                "backup_netmon_full_var",
+                self.settings.get("backup_netmon_full", False),
+            )
+        )
+        self.settings["backup_netmon_selected_dirs"] = [
+            str(key)
+            for key, var in sorted(backup_netmon_dir_vars.items())
+            if bool(getattr(var, "get", lambda: False)())
+        ]
         self.settings["download_scan_prequarantine_startup"] = bool(
             _var_value(
                 "download_scan_prequarantine_startup_var",
@@ -21033,6 +21963,806 @@ class App(TkBase):
                 "Zielordner gesetzt: {path}",
             ).format(path=normalized),
         )
+
+    def _normalized_backup_data_target_dir(self) -> str:
+        raw = str(self.backup_target_dir_var.get() or "").strip()
+        target = raw or self._default_backup_data_target_dir()
+        return os.path.abspath(os.path.expanduser(target))
+
+    def _backup_source_specs(self):
+        home = os.path.expanduser("~")
+        pictures_dir = ""
+        try:
+            pictures_dir = str(get_user_pictures_dir() or "").strip()
+        except Exception:
+            pictures_dir = ""
+        return (
+            (
+                self.tr("backup_source_documents", "Dokumente"),
+                "backup_include_documents_var",
+                [os.path.join(home, "Dokumente"), os.path.join(home, "Documents")],
+            ),
+            (
+                self.tr("backup_source_pictures", "Bilder"),
+                "backup_include_pictures_var",
+                [
+                    pictures_dir,
+                    os.path.join(home, "Bilder"),
+                    os.path.join(home, "Pictures"),
+                ],
+            ),
+            (
+                self.tr("backup_source_desktop", "Desktop"),
+                "backup_include_desktop_var",
+                [os.path.join(home, "Desktop"), os.path.join(home, "Schreibtisch")],
+            ),
+            (
+                self.tr("backup_source_music", "Musik"),
+                "backup_include_music_var",
+                [os.path.join(home, "Musik"), os.path.join(home, "Music")],
+            ),
+            (
+                self.tr("backup_source_videos", "Videos"),
+                "backup_include_videos_var",
+                [os.path.join(home, "Videos")],
+            ),
+            (
+                self.tr("backup_source_downloads", "Downloads"),
+                "backup_include_downloads_var",
+                [os.path.join(home, "Downloads")],
+            ),
+            (
+                self.tr("backup_source_netmon_documents", "NetMon-Ordner"),
+                "backup_include_netmon_documents_var",
+                [
+                    os.path.join(home, "Dokumente", "NetMon"),
+                    os.path.join(home, "Documents", "NetMon"),
+                ],
+            ),
+        )
+
+    def _selected_backup_source_entries(self) -> list[dict]:
+        selected = []
+        seen_paths = set()
+        for label, var_name, candidates in self._backup_source_specs():
+            var = self.__dict__.get(var_name)
+            enabled = True
+            if var is not None:
+                try:
+                    enabled = bool(var.get())
+                except Exception:
+                    enabled = True
+            if not enabled:
+                continue
+            chosen = ""
+            for candidate in candidates:
+                path = os.path.abspath(os.path.expanduser(str(candidate or "").strip()))
+                if not path or not os.path.exists(path):
+                    continue
+                chosen = path
+                break
+            if not chosen:
+                continue
+            key = os.path.normcase(chosen)
+            if key in seen_paths:
+                continue
+            skip_nested = False
+            for existing in selected:
+                existing_path = os.path.abspath(
+                    os.path.expanduser(str(existing.get("path") or "").strip())
+                )
+                if not existing_path:
+                    continue
+                try:
+                    if os.path.commonpath([chosen, existing_path]) == existing_path:
+                        skip_nested = True
+                        break
+                except Exception:
+                    continue
+            if skip_nested:
+                continue
+            seen_paths.add(key)
+            selected.append({"label": label, "path": chosen})
+        return selected
+
+    def _backup_target_conflict(self, target_dir: str, sources: list[dict]):
+        normalized_target = os.path.abspath(
+            os.path.expanduser(str(target_dir or "").strip())
+        )
+        if not normalized_target:
+            return None
+        for item in sources:
+            source_path = os.path.abspath(
+                os.path.expanduser(str(item.get("path") or "").strip())
+            )
+            if not source_path:
+                continue
+            try:
+                if os.path.commonpath([normalized_target, source_path]) == source_path:
+                    return {
+                        "label": str(item.get("label") or source_path),
+                        "path": source_path,
+                    }
+            except Exception:
+                continue
+        return None
+
+    def _append_backup_log(self, text: str, *, clear: bool = False):
+        message = str(text or "").strip()
+        if not message:
+            return
+        widget = self.__dict__.get("settings_backup_log_text")
+        if widget is None:
+            self.log_safe(message)
+            return
+        try:
+            widget.configure(state="normal")
+            if clear:
+                widget.delete("1.0", "end")
+            elif str(widget.get("1.0", "end-1c") or "").strip():
+                widget.insert("end", "\n\n")
+            widget.insert("end", message)
+            widget.see("end")
+            widget.configure(state="disabled")
+        except Exception:
+            self.log_safe(message)
+
+    def _netmon_backup_dir_entries(self) -> list[dict]:
+        base_dir = os.path.abspath(os.path.expanduser(get_netmon_documents_dir()))
+        label_map = {
+            "Config": "Config",
+            "Security": "Security",
+            "Logs": "Logs",
+            "Log-Pics": "Log-Pics",
+            "Secure Browser": "Secure Browser",
+            "support": "Support",
+            "diagnostics": "Diagnostik",
+            "ThemeStudio": "ThemeStudio",
+            "WireGuard": "WireGuard",
+        }
+        entries = []
+        if not os.path.isdir(base_dir):
+            return entries
+        try:
+            child_names = sorted(os.listdir(base_dir), key=lambda item: item.lower())
+        except Exception:
+            return entries
+        for name in child_names:
+            path = os.path.join(base_dir, name)
+            if not os.path.isdir(path):
+                continue
+            entries.append(
+                {
+                    "key": name,
+                    "label": label_map.get(name, name),
+                    "path": path,
+                }
+            )
+        return entries
+
+    def _netmon_backup_selected_entries(self) -> list[dict]:
+        base_dir = os.path.abspath(os.path.expanduser(get_netmon_documents_dir()))
+        if bool(self.backup_netmon_full_var.get()):
+            if os.path.isdir(base_dir):
+                return [
+                    {
+                        "key": "__all__",
+                        "label": "NetMon komplett",
+                        "path": base_dir,
+                    }
+                ]
+            return []
+        selected = []
+        for entry in self._netmon_backup_dir_entries():
+            key = str(entry.get("key") or "").strip()
+            var = (self.__dict__.get("backup_netmon_dir_vars") or {}).get(key)
+            if var is None:
+                continue
+            try:
+                enabled = bool(var.get())
+            except Exception:
+                enabled = False
+            if enabled:
+                selected.append(entry)
+        return selected
+
+    def _update_netmon_backup_selection_summary(self):
+        selected = self._netmon_backup_selected_entries()
+        if selected:
+            if selected[0].get("key") == "__all__":
+                self.backup_selected_sources_var.set(
+                    "NetMon-Auswahl: kompletter Dokumente/NetMon-Ordner"
+                )
+            else:
+                labels = ", ".join(item["label"] for item in selected)
+                self.backup_selected_sources_var.set(
+                    f"NetMon-Auswahl: {len(selected)} Ordner -> {labels}"
+                )
+        else:
+            self.backup_selected_sources_var.set(
+                "NetMon-Auswahl: keine Ordner markiert"
+            )
+
+    def _on_backup_netmon_full_toggle(self):
+        if bool(self.backup_netmon_full_var.get()):
+            for var in (self.__dict__.get("backup_netmon_dir_vars") or {}).values():
+                try:
+                    var.set(False)
+                except Exception:
+                    pass
+        self._update_netmon_backup_selection_summary()
+
+    def _on_backup_netmon_item_toggle(self, key: str = ""):
+        if key:
+            self.backup_netmon_selected_dir_keys = [
+                k for k in self.backup_netmon_selected_dir_keys if k != key
+            ]
+        try:
+            if bool(self.backup_netmon_full_var.get()):
+                self.backup_netmon_full_var.set(False)
+        except Exception:
+            pass
+        self._update_netmon_backup_selection_summary()
+
+    def refresh_netmon_backup_folder_options(self):
+        frame = self.__dict__.get("backup_netmon_select_frame")
+        if frame is None:
+            return False
+        previous_selection = set(
+            self.settings.get("backup_netmon_selected_dirs", []) or []
+        )
+        current_vars = self.__dict__.get("backup_netmon_dir_vars") or {}
+        for key, var in current_vars.items():
+            try:
+                if bool(var.get()):
+                    previous_selection.add(str(key))
+            except Exception:
+                pass
+        for child in frame.winfo_children():
+            try:
+                child.destroy()
+            except Exception:
+                pass
+        self.backup_netmon_dir_vars = {}
+
+        full_toggle = ttk.Checkbutton(
+            frame,
+            text=self.tr(
+                "backup_netmon_full_folder",
+                "NetMon-Ordner komplett",
+            ),
+            variable=self.backup_netmon_full_var,
+            command=self._on_backup_netmon_full_toggle,
+        )
+        full_toggle.grid(row=0, column=0, sticky="w")
+
+        entries = self._netmon_backup_dir_entries()
+        for column in range(2):
+            frame.columnconfigure(column, weight=1)
+        for idx, entry in enumerate(entries, start=1):
+            key = str(entry.get("key") or "").strip()
+            var = tk.BooleanVar(value=key in previous_selection)
+            self.backup_netmon_dir_vars[key] = var
+            ttk.Checkbutton(
+                frame,
+                text=str(entry.get("label") or key),
+                variable=var,
+                command=lambda selected_key=key: self._on_backup_netmon_item_toggle(
+                    selected_key
+                ),
+            ).grid(
+                row=1 + ((idx - 1) // 2),
+                column=(idx - 1) % 2,
+                sticky="w",
+                padx=(0, 12) if (idx - 1) % 2 == 0 else (0, 0),
+                pady=(4, 0),
+            )
+        self._update_netmon_backup_selection_summary()
+        return True
+
+    def open_netmon_documents_folder(self):
+        target = os.path.abspath(os.path.expanduser(get_netmon_documents_dir()))
+        if not os.path.isdir(target):
+            try:
+                os.makedirs(target, exist_ok=True)
+            except Exception:
+                pass
+        opened = self._open_path_with_xdg_open(target, label="NetMon-Ordner")
+        if opened:
+            self.backup_status_var.set(f"NetMon-Ordner geöffnet: {target}")
+        return opened
+
+    def export_netmon_documents_backup(self):
+        selected = self._netmon_backup_selected_entries()
+        if not selected:
+            messagebox.showinfo(
+                self.tr("backup_netmon_export_title", "NetMon-Sicherung exportieren"),
+                self.tr(
+                    "backup_netmon_export_no_selection",
+                    "Es sind keine NetMon-Ordner für den Export ausgewählt.",
+                ),
+                parent=self,
+            )
+            self.backup_status_var.set(
+                "NetMon-Sicherung nicht gestartet: keine Auswahl."
+            )
+            return False
+
+        target_root = filedialog.askdirectory(
+            title=self.tr(
+                "backup_netmon_export_target_title",
+                "Externes Ziel für NetMon-Sicherung wählen",
+            ),
+            initialdir=os.path.expanduser("~"),
+        )
+        if not target_root:
+            self.backup_status_var.set("NetMon-Sicherung abgebrochen.")
+            return False
+        target_root = os.path.abspath(os.path.expanduser(target_root))
+
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        export_dir = os.path.join(target_root, f"netmon_documents_backup_{timestamp}")
+        self._append_backup_log(
+            "NetMon-Sicherung gestartet:\n"
+            + f"- Ziel: {export_dir}\n"
+            + "\n".join(f"- {item['label']}: {item['path']}" for item in selected),
+            clear=False,
+        )
+        copied = []
+        try:
+            os.makedirs(export_dir, exist_ok=False)
+            if selected[0].get("key") == "__all__":
+                target_path = os.path.join(export_dir, "NetMon")
+                shutil.copytree(
+                    selected[0]["path"],
+                    target_path,
+                    dirs_exist_ok=True,
+                    symlinks=True,
+                    copy_function=shutil.copy2,
+                )
+                copied.append({"label": "NetMon komplett", "target": target_path})
+            else:
+                for item in selected:
+                    target_path = os.path.join(
+                        export_dir, os.path.basename(item["path"])
+                    )
+                    shutil.copytree(
+                        item["path"],
+                        target_path,
+                        dirs_exist_ok=True,
+                        symlinks=True,
+                        copy_function=shutil.copy2,
+                    )
+                    copied.append({"label": item["label"], "target": target_path})
+
+            manifest = {
+                "created_at": datetime.now().isoformat(timespec="seconds"),
+                "export_dir": export_dir,
+                "selection": copied,
+            }
+            manifest_path = os.path.join(
+                export_dir, "netmon_documents_backup_manifest.json"
+            )
+            ok, err = safe_write_json(
+                manifest_path,
+                manifest,
+                indent=2,
+                ensure_ascii=False,
+            )
+            if not ok:
+                raise RuntimeError(
+                    str(err or "Manifest konnte nicht geschrieben werden.")
+                )
+        except Exception as exc:
+            self.backup_status_var.set("NetMon-Sicherung fehlgeschlagen.")
+            self._append_backup_log(f"NetMon-Sicherung fehlgeschlagen:\n- {exc}")
+            messagebox.showerror(
+                self.tr("backup_netmon_export_title", "NetMon-Sicherung exportieren"),
+                self.tr(
+                    "backup_netmon_export_failed",
+                    "Die NetMon-Sicherung konnte nicht exportiert werden.",
+                )
+                + f"\n\n{exc}",
+                parent=self,
+            )
+            return False
+
+        self.backup_status_var.set(
+            f"NetMon-Sicherung exportiert: {os.path.basename(export_dir)}"
+        )
+        self._append_backup_log(
+            "NetMon-Sicherung abgeschlossen:\n"
+            + f"- Ziel: {export_dir}\n"
+            + "\n".join(f"- {item['label']} -> {item['target']}" for item in copied)
+        )
+        return True
+
+    def _latest_data_backup_directory(self) -> str:
+        remembered = str(
+            self.settings.get("backup_last_data_backup_path", "") or ""
+        ).strip()
+        if remembered and os.path.isdir(remembered):
+            return os.path.abspath(os.path.expanduser(remembered))
+        target_root = self._normalized_backup_data_target_dir()
+        if not os.path.isdir(target_root):
+            return ""
+        candidates = []
+        try:
+            for name in os.listdir(target_root):
+                path = os.path.join(target_root, name)
+                if not os.path.isdir(path):
+                    continue
+                if not name.startswith("netmon_fullbackup_"):
+                    continue
+                try:
+                    stamp = os.path.getmtime(path)
+                except Exception:
+                    stamp = 0.0
+                candidates.append((stamp, path))
+        except Exception:
+            return ""
+        if not candidates:
+            return ""
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        return candidates[0][1]
+
+    def _latest_timeshift_snapshot_directory(self) -> str:
+        candidate_roots = [
+            "/timeshift/snapshots",
+            "/run/timeshift/backup/timeshift/snapshots",
+        ]
+        snapshots = []
+        for root in candidate_roots:
+            if not os.path.isdir(root):
+                continue
+            try:
+                for name in os.listdir(root):
+                    path = os.path.join(root, name)
+                    if not os.path.isdir(path):
+                        continue
+                    try:
+                        stamp = os.path.getmtime(path)
+                    except Exception:
+                        stamp = 0.0
+                    snapshots.append((stamp, path))
+            except Exception:
+                continue
+        if not snapshots:
+            return ""
+        snapshots.sort(key=lambda item: item[0], reverse=True)
+        return snapshots[0][1]
+
+    def choose_backup_target_dir(self):
+        folder = filedialog.askdirectory(
+            title=self.tr("backup_target_dialog_title", "Backup-Ziel waehlen"),
+            initialdir=self._normalized_backup_data_target_dir(),
+        )
+        if not folder:
+            return False
+        normalized = os.path.abspath(os.path.expanduser(folder))
+        self.backup_target_dir_var.set(normalized)
+        self.settings["backup_data_target_dir"] = normalized
+        self.save_settings(log_success=False)
+        self.backup_status_var.set(f"Backup-Ziel aktualisiert: {normalized}")
+        self._append_backup_log(f"Backup-Ziel gesetzt: {normalized}")
+        self.refresh_backup_overview()
+        return True
+
+    def open_backup_target_dir(self):
+        target = self._normalized_backup_data_target_dir()
+        try:
+            os.makedirs(target, exist_ok=True)
+        except Exception:
+            pass
+        opened = self._open_path_with_xdg_open(target, label="Backup-Ordner")
+        if opened:
+            self.backup_status_var.set(f"Backup-Ordner geoeffnet: {target}")
+        return opened
+
+    def open_security_baseline_transfer_folder(self):
+        target = self._security_baseline_transfer_directory()
+        opened = self._open_path_with_xdg_open(target, label="Transfer-Ordner")
+        if opened:
+            self.backup_status_var.set(f"Transfer-Ordner geoeffnet: {target}")
+        return opened
+
+    def refresh_backup_overview(self):
+        command, path = self._resolve_timeshift_launch_command()
+        if command is not None:
+            self.backup_timeshift_status_var.set(
+                f"Timeshift: installiert ({path or command[0]})"
+            )
+        elif has_cmd("timeshift"):
+            self.backup_timeshift_status_var.set(
+                "Timeshift: CLI vorhanden, grafischer Launcher fehlt"
+            )
+        else:
+            self.backup_timeshift_status_var.set("Timeshift: nicht installiert")
+
+        if os.geteuid() == 0:
+            self.backup_root_status_var.set("Root: aktiv")
+        elif bool(getattr(self, "sudo_nopasswd", False)):
+            self.backup_root_status_var.set("Root: sudo-Session aktiv")
+        else:
+            self.backup_root_status_var.set("Root: aktuell nicht aktiv")
+
+        snapshot_dir = self._latest_timeshift_snapshot_directory()
+        if snapshot_dir:
+            try:
+                stamp = datetime.fromtimestamp(os.path.getmtime(snapshot_dir)).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+            except Exception:
+                stamp = "unbekannt"
+            self.backup_last_snapshot_var.set(
+                f"Letzter Snapshot: {stamp} ({os.path.basename(snapshot_dir)})"
+            )
+        else:
+            self.backup_last_snapshot_var.set(
+                "Letzter Snapshot: noch nicht automatisch erkannt"
+            )
+
+        backup_tool = self._resolve_data_backup_tool(restore=False)
+        restore_tool = self._resolve_data_backup_tool(restore=True)
+        if backup_tool is not None:
+            label = str(backup_tool.get("label") or "Desktop-Backup-Tool").strip()
+            self.backup_data_tool_status_var.set(f"Datensicherung: {label}")
+            if restore_tool is not None and not bool(
+                backup_tool.get("supports_restore_mode", False)
+            ):
+                self.backup_data_tool_hint_var.set(
+                    f"Hinweis: {label} verwaltet Sicherung und Wiederherstellung im selben Fenster."
+                )
+            else:
+                self.backup_data_tool_hint_var.set(
+                    f"Hinweis: {label} wird direkt aus NetMon geöffnet."
+                )
+            self.backup_last_data_backup_var.set(
+                "Letztes Datenbackup: wird vom Desktop-Tool selbst verwaltet"
+            )
+        else:
+            self.backup_data_tool_status_var.set(
+                "Datensicherung: kein unterstütztes Desktop-Tool erkannt"
+            )
+            self.backup_last_data_backup_var.set("Letztes Datenbackup: unbekannt")
+            self.backup_data_tool_hint_var.set(
+                "Hinweis: unterstützt werden aktuell Linux Mint Datensicherung und Deja Dup."
+            )
+
+        target_dir = self._security_baseline_transfer_directory()
+        self.backup_target_status_var.set(f"NetMon-Transferordner: {target_dir}")
+        usage_base = (
+            target_dir if os.path.isdir(target_dir) else os.path.expanduser("~")
+        )
+        try:
+            usage = shutil.disk_usage(usage_base)
+            self.backup_free_space_var.set(f"Freier Speicher: {human_size(usage.free)}")
+        except Exception:
+            self.backup_free_space_var.set("Freier Speicher: unbekannt")
+
+        loaded_transfer = bool(
+            getattr(self, "security_baseline_transfer_package", None)
+        )
+        if loaded_transfer:
+            source_path = str(
+                getattr(self, "security_baseline_transfer_source_path", "") or ""
+            ).strip()
+            detail = f" ({os.path.basename(source_path)})" if source_path else ""
+            self.backup_transfer_status_var.set(f"Transferpaket: geladen{detail}")
+        else:
+            self.backup_transfer_status_var.set("Transferpaket: keines geladen")
+        self._update_netmon_backup_selection_summary()
+        return True
+
+    def run_data_backup_async(self):
+        if bool(getattr(self, "backup_data_running", False)):
+            self.backup_status_var.set("Datenbackup laeuft bereits.")
+            return False
+
+        target_root = self._normalized_backup_data_target_dir()
+        sources = self._selected_backup_source_entries()
+        if not sources:
+            messagebox.showinfo(
+                self.tr("backup_run_title", "Komplettbackup starten"),
+                self.tr(
+                    "backup_no_sources",
+                    "Es sind keine vorhandenen Quellordner fuer das Datenbackup ausgewaehlt.",
+                ),
+                parent=self,
+            )
+            self.backup_status_var.set("Datenbackup nicht gestartet: keine Quellen.")
+            return False
+
+        conflict = self._backup_target_conflict(target_root, sources)
+        if conflict is not None:
+            messagebox.showerror(
+                self.tr("backup_run_title", "Komplettbackup starten"),
+                self.tr(
+                    "backup_target_conflict",
+                    "Das Backup-Ziel liegt innerhalb eines zu sichernden Ordners.\n\nBitte ein anderes Ziel waehlen, damit keine Rekursion entsteht.",
+                )
+                + f"\n\n{conflict['label']}: {conflict['path']}\nZiel: {target_root}",
+                parent=self,
+            )
+            self.backup_status_var.set(
+                "Datenbackup blockiert: Ziel liegt innerhalb der Quellauswahl."
+            )
+            return False
+
+        if not messagebox.askyesno(
+            self.tr("backup_run_title", "Komplettbackup starten"),
+            self.tr(
+                "backup_run_confirm",
+                "NetMon schreibt jetzt ein datiertes Komplettbackup der ausgewaehlten Benutzerordner.\n\nFortfahren?",
+            )
+            + "\n\n"
+            + "\n".join(f"- {item['label']}: {item['path']}" for item in sources)
+            + f"\n\nZiel: {target_root}",
+            parent=self,
+        ):
+            self.backup_status_var.set("Datenbackup abgebrochen.")
+            return False
+
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        backup_dir = os.path.join(target_root, f"netmon_fullbackup_{timestamp}")
+        source_log = "\n".join(f"- {item['label']}: {item['path']}" for item in sources)
+        self.backup_data_running = True
+        self.backup_status_var.set("Datenbackup laeuft ...")
+        self._append_backup_log(
+            f"Backup gestartet: {runtime_log_timestamp()}\nZiel: {backup_dir}\nQuellen:\n{source_log}",
+            clear=True,
+        )
+
+        def worker():
+            copied = []
+            errors = []
+            try:
+                os.makedirs(backup_dir, exist_ok=False)
+                for item in sources:
+                    source_path = item["path"]
+                    label = item["label"]
+                    target_name = os.path.basename(source_path.rstrip(os.sep)) or label
+                    target_path = os.path.join(backup_dir, target_name)
+                    if os.path.isdir(source_path):
+                        shutil.copytree(
+                            source_path,
+                            target_path,
+                            dirs_exist_ok=True,
+                            symlinks=True,
+                            copy_function=shutil.copy2,
+                        )
+                    else:
+                        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                        shutil.copy2(
+                            source_path,
+                            target_path,
+                            follow_symlinks=False,
+                        )
+                    copied.append(
+                        {"label": label, "source": source_path, "target": target_path}
+                    )
+                manifest = {
+                    "created_at": datetime.now().isoformat(timespec="seconds"),
+                    "target_dir": backup_dir,
+                    "sources": copied,
+                }
+                manifest_path = os.path.join(backup_dir, "netmon_backup_manifest.json")
+                ok, err = safe_write_json(
+                    manifest_path,
+                    manifest,
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                if not ok:
+                    errors.append(
+                        str(err or "Manifest konnte nicht geschrieben werden.")
+                    )
+            except Exception as exc:
+                errors.append(str(exc))
+
+            def finish():
+                self.backup_data_running = False
+                if errors:
+                    self.backup_status_var.set("Datenbackup fehlgeschlagen.")
+                    self._append_backup_log(
+                        "Backup fehlgeschlagen:\n"
+                        + "\n".join(f"- {err}" for err in errors)
+                    )
+                    self.refresh_backup_overview()
+                    return
+
+                self.settings["backup_data_target_dir"] = target_root
+                self.settings["backup_last_data_backup_path"] = backup_dir
+                self.settings["backup_last_data_backup_at"] = datetime.now().isoformat(
+                    timespec="seconds"
+                )
+                self.save_settings(log_success=False)
+                self.backup_status_var.set(
+                    f"Datenbackup abgeschlossen: {os.path.basename(backup_dir)}"
+                )
+                self._append_backup_log(
+                    "Backup abgeschlossen:\n"
+                    + f"- Ziel: {backup_dir}\n"
+                    + f"- Bereiche: {len(copied)}\n"
+                    + "\n".join(
+                        f"- {item['label']} -> {item['target']}" for item in copied
+                    )
+                )
+                self.refresh_backup_overview()
+
+            self.after(0, finish)
+
+        threading.Thread(target=worker, daemon=True).start()
+        return True
+
+    def verify_latest_data_backup(self):
+        latest_backup = self._latest_data_backup_directory()
+        if not latest_backup:
+            messagebox.showinfo(
+                self.tr("backup_verify_title", "Backup pruefen"),
+                self.tr(
+                    "backup_verify_missing",
+                    "Es wurde noch kein Datenbackup gefunden.",
+                ),
+                parent=self,
+            )
+            self.backup_status_var.set("Backup-Pruefung: kein Datenbackup gefunden.")
+            return False
+
+        manifest_path = os.path.join(latest_backup, "netmon_backup_manifest.json")
+        if not os.path.isfile(manifest_path):
+            self.backup_status_var.set(
+                "Backup-Pruefung: Manifest fehlt, Backup bitte manuell pruefen."
+            )
+            self._append_backup_log(
+                f"Backup-Pruefung: Manifest fehlt in {latest_backup}"
+            )
+            messagebox.showwarning(
+                self.tr("backup_verify_title", "Backup pruefen"),
+                self.tr(
+                    "backup_verify_manifest_missing",
+                    "Das letzte Datenbackup wurde gefunden, aber die Manifest-Datei fehlt. Bitte den Ordner manuell pruefen.",
+                )
+                + f"\n\n{latest_backup}",
+                parent=self,
+            )
+            self.refresh_backup_overview()
+            return False
+
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as handle:
+                manifest = json.load(handle)
+        except Exception as exc:
+            self.backup_status_var.set("Backup-Pruefung fehlgeschlagen.")
+            self._append_backup_log(f"Backup-Pruefung Fehler: {exc}")
+            messagebox.showerror(
+                self.tr("backup_verify_title", "Backup pruefen"),
+                self.tr(
+                    "backup_verify_failed",
+                    "Das Backup konnte nicht gelesen werden.",
+                )
+                + f"\n\n{exc}",
+                parent=self,
+            )
+            return False
+
+        sources = list(manifest.get("sources") or [])
+        summary_lines = [
+            f"Backup geprueft: {runtime_log_timestamp()}",
+            f"Ordner: {latest_backup}",
+            f"Manifest: {manifest_path}",
+            f"Bereiche: {len(sources)}",
+        ]
+        for item in sources:
+            summary_lines.append(
+                f"- {item.get('label', '-')}: {item.get('target', item.get('source', '-'))}"
+            )
+        self.backup_status_var.set(
+            f"Backup geprueft: {os.path.basename(latest_backup)}"
+        )
+        self._append_backup_log("\n".join(summary_lines))
+        self.refresh_backup_overview()
+        return True
 
     def clear_download_scan_temp_folder(self):
         target = self._normalized_download_scan_temp_dir()
@@ -21807,7 +23537,9 @@ class App(TkBase):
         try:
             return bool(self.is_vpn_active())
         except Exception as exc:
-            self.log_debug_safe(f"Startup-Killswitch: VPN-Prüfung fehlgeschlagen: {exc}")
+            self.log_debug_safe(
+                f"Startup-Killswitch: VPN-Prüfung fehlgeschlagen: {exc}"
+            )
             return False
 
     def repair_orphaned_killswitch_on_startup(self) -> bool:
@@ -23040,12 +24772,17 @@ class App(TkBase):
         self.settings_nb.grid(row=0, column=0, sticky="nsew")
 
         settings_general_tab = ttk.Frame(self.settings_nb, padding=12)
+        settings_backup_tab = ttk.Frame(self.settings_nb, padding=12)
         self.settings_tours_tab = ttk.Frame(self.settings_nb, padding=12)
         settings_support_tab = ttk.Frame(self.settings_nb, padding=12)
 
         self.settings_nb.add(
             settings_general_tab,
             text=self.tr("settings_tab_general", "Allgemein"),
+        )
+        self.settings_nb.add(
+            settings_backup_tab,
+            text=self.tr("settings_tab_backup", "Backup"),
         )
         self.settings_nb.add(
             self.settings_tours_tab,
@@ -23872,6 +25609,268 @@ class App(TkBase):
             ),
             command=self.run_menu_and_icon_refresh_in_terminal,
         ).grid(row=2, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
+        self._build_settings_backup_tab(settings_backup_tab)
+
+    def _build_settings_backup_tab(self, tab):
+        self.settings_backup_tab = tab
+
+        intro = ttk.LabelFrame(
+            tab,
+            text=self.tr("backup_group_overview", "Backup-Strategie"),
+            padding=10,
+        )
+        intro.pack(fill="x", pady=(0, 10))
+        ttk.Label(
+            intro,
+            text=self.tr(
+                "backup_intro_primary",
+                "Vor Hardening, Firewall-Aenderungen oder anderen tieferen Systemeingriffen zuerst einen Timeshift-Snapshot erstellen.",
+            ),
+            justify="left",
+            wraplength=820,
+        ).pack(anchor="w")
+        ttk.Label(
+            intro,
+            text=self.tr(
+                "backup_intro_secondary",
+                "Timeshift schuetzt den Systemzustand, ersetzt aber keine Datensicherung. Fuer Benutzerdateien deshalb zusaetzlich ein Komplettbackup auf ein getrenntes Ziel schreiben.",
+            ),
+            justify="left",
+            wraplength=820,
+        ).pack(anchor="w", pady=(6, 0))
+        ttk.Label(
+            intro,
+            textvariable=self.backup_status_var,
+            justify="left",
+            wraplength=820,
+        ).pack(anchor="w", pady=(8, 0))
+
+        content = ttk.Frame(tab)
+        content.pack(fill="both", expand=True)
+        content.columnconfigure(0, weight=1)
+        content.rowconfigure(4, weight=1)
+
+        snapshot_group = ttk.LabelFrame(
+            content,
+            text=self.tr("backup_group_snapshot", "System-Snapshot"),
+            padding=8,
+        )
+        snapshot_group.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        ttk.Label(
+            snapshot_group,
+            text=self.tr(
+                "backup_snapshot_hint",
+                "Timeshift fuer System-Rollback, Paketstand und Konfigurationsaenderungen.",
+            ),
+            justify="left",
+            wraplength=840,
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
+        for column in range(2):
+            snapshot_group.columnconfigure(column, weight=1, uniform="backup_snapshot")
+        self.btn_backup_timeshift_start = ttk.Button(
+            snapshot_group,
+            text=self.tr("baseline_btn_timeshift", "Timeshift starten"),
+            command=self.launch_timeshift_snapshot_tool,
+        )
+        self.btn_backup_timeshift_start.grid(
+            row=1, column=0, sticky="ew", padx=(0, 6), pady=(0, 6)
+        )
+        self.btn_backup_timeshift_snapshots = ttk.Button(
+            snapshot_group,
+            text=self.tr("backup_btn_show_snapshots", "Snapshots anzeigen"),
+            command=self.launch_timeshift_snapshot_tool,
+        )
+        self.btn_backup_timeshift_snapshots.grid(
+            row=1, column=1, sticky="ew", padx=(6, 0), pady=(0, 6)
+        )
+        self.btn_backup_timeshift_restore = ttk.Button(
+            snapshot_group,
+            text=self.tr("backup_btn_open_restore", "Wiederherstellung oeffnen"),
+            command=self.launch_timeshift_snapshot_tool,
+        )
+        self.btn_backup_timeshift_restore.grid(
+            row=2, column=0, sticky="ew", padx=(0, 6)
+        )
+        self.btn_backup_timeshift_check = ttk.Button(
+            snapshot_group,
+            text=self.tr("backup_btn_check_timeshift", "Timeshift pruefen"),
+            command=self.refresh_backup_overview,
+        )
+        self.btn_backup_timeshift_check.grid(row=2, column=1, sticky="ew", padx=(6, 0))
+
+        data_group = ttk.LabelFrame(
+            content,
+            text=self.tr("backup_group_data", "Datensicherung"),
+            padding=8,
+        )
+        data_group.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+        data_group.columnconfigure(0, weight=1)
+        ttk.Label(
+            data_group,
+            text=self.tr(
+                "backup_data_hint",
+                "Für Benutzerdateien wird bevorzugt das vorhandene Desktop-Backup-Tool verwendet. Unter Linux Mint ist das typischerweise die Datensicherung, alternativ Deja Dup.",
+            ),
+            justify="left",
+            wraplength=840,
+        ).grid(row=0, column=0, sticky="w", pady=(0, 8))
+        ttk.Label(
+            data_group,
+            text=self.tr(
+                "backup_data_hint_restore",
+                "NetMon verlinkt hier bewusst das Systemwerkzeug statt eine eigene Dateisicherung zu erzwingen.",
+            ),
+            justify="left",
+            wraplength=840,
+        ).grid(row=1, column=0, sticky="w", pady=(0, 8))
+
+        data_buttons = ttk.Frame(data_group)
+        data_buttons.grid(row=2, column=0, sticky="ew")
+        for column in range(2):
+            data_buttons.columnconfigure(column, weight=1, uniform="backup_data_tool")
+        self.btn_backup_open_data_tool = ttk.Button(
+            data_buttons,
+            text=self.tr("backup_btn_open_data_tool", "Datensicherung öffnen"),
+            command=lambda: self.launch_data_backup_tool(restore=False),
+        )
+        self.btn_backup_open_data_tool.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        self.btn_backup_open_restore_tool = ttk.Button(
+            data_buttons,
+            text=self.tr("backup_btn_open_restore_tool", "Wiederherstellung öffnen"),
+            command=lambda: self.launch_data_backup_tool(restore=True),
+        )
+        self.btn_backup_open_restore_tool.grid(
+            row=0, column=1, sticky="ew", padx=(6, 0)
+        )
+
+        netmon_group = ttk.LabelFrame(
+            content,
+            text=self.tr("backup_group_netmon", "NetMon-Sicherung"),
+            padding=8,
+        )
+        netmon_group.grid(row=2, column=0, sticky="ew", pady=(0, 10))
+        ttk.Label(
+            netmon_group,
+            text=self.tr(
+                "backup_netmon_hint",
+                "Eigene NetMon-Ordner aus Dokumente/NetMon extern sichern. Bei 'NetMon-Ordner komplett' werden die Einzelordner abgewählt.",
+            ),
+            justify="left",
+            wraplength=840,
+        ).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
+        self.backup_netmon_select_frame = ttk.Frame(netmon_group)
+        self.backup_netmon_select_frame.grid(
+            row=1, column=0, columnspan=4, sticky="ew", pady=(0, 10)
+        )
+        for column in range(4):
+            netmon_group.columnconfigure(column, weight=1, uniform="backup_netmon")
+        self.btn_backup_netmon_export = ttk.Button(
+            netmon_group,
+            text=self.tr(
+                "backup_btn_export_netmon_docs", "NetMon-Sicherung exportieren"
+            ),
+            command=self.export_netmon_documents_backup,
+        )
+        self.btn_backup_netmon_export.grid(
+            row=2, column=0, sticky="ew", padx=(0, 6), pady=(0, 6)
+        )
+        self.btn_backup_netmon_open_folder = ttk.Button(
+            netmon_group,
+            text=self.tr("backup_btn_open_netmon_folder", "NetMon-Ordner öffnen"),
+            command=self.open_netmon_documents_folder,
+        )
+        self.btn_backup_netmon_open_folder.grid(
+            row=2, column=1, sticky="ew", padx=(6, 6), pady=(0, 6)
+        )
+        ttk.Button(
+            netmon_group,
+            text=self.tr("baseline_btn_export_transfer", "Transferpaket exportieren"),
+            command=self.export_security_baseline_transfer,
+        ).grid(row=2, column=2, sticky="ew", padx=(6, 6), pady=(0, 6))
+        ttk.Button(
+            netmon_group,
+            text=self.tr("baseline_btn_show_transfer", "Transferpaket anzeigen"),
+            command=self.show_security_baseline_transfer_package,
+        ).grid(row=2, column=3, sticky="ew", padx=(6, 0), pady=(0, 6))
+        ttk.Button(
+            netmon_group,
+            text=self.tr("baseline_btn_import_transfer", "Transferpaket importieren"),
+            command=self.import_security_baseline_transfer,
+        ).grid(row=3, column=0, sticky="ew", padx=(0, 6))
+        ttk.Button(
+            netmon_group,
+            text=self.tr("backup_btn_open_transfer_dir", "Transfer-Ordner oeffnen"),
+            command=self.open_security_baseline_transfer_folder,
+        ).grid(row=3, column=1, sticky="ew", padx=(6, 6))
+        ttk.Button(
+            netmon_group,
+            text=self.tr("baseline_btn_compare_transfer", "Transferpaket vergleichen"),
+            command=self.show_security_baseline_transfer_comparison,
+        ).grid(row=3, column=2, sticky="ew", padx=(6, 6))
+        ttk.Button(
+            netmon_group,
+            text=self.tr("baseline_btn_clear_transfer", "Transferpaket entladen"),
+            command=self.clear_security_baseline_transfer,
+        ).grid(row=3, column=3, sticky="ew", padx=(6, 0))
+        self.refresh_netmon_backup_folder_options()
+
+        status_group = ttk.LabelFrame(
+            content,
+            text=self.tr("backup_group_status", "Status"),
+            padding=8,
+        )
+        status_group.grid(row=3, column=0, sticky="ew", pady=(0, 10))
+        status_group.columnconfigure(0, weight=1)
+        for row, var in enumerate(
+            (
+                self.backup_timeshift_status_var,
+                self.backup_root_status_var,
+                self.backup_last_snapshot_var,
+                self.backup_data_tool_status_var,
+                self.backup_data_tool_hint_var,
+                self.backup_last_data_backup_var,
+                self.backup_target_status_var,
+                self.backup_free_space_var,
+                self.backup_transfer_status_var,
+                self.backup_selected_sources_var,
+            )
+        ):
+            ttk.Label(
+                status_group,
+                textvariable=var,
+                justify="left",
+                wraplength=840,
+            ).grid(row=row, column=0, sticky="w", pady=(0, 6) if row < 7 else (0, 0))
+
+        log_group = ttk.LabelFrame(
+            content,
+            text=self.tr("backup_group_log", "Backup-Protokoll"),
+            padding=8,
+        )
+        log_group.grid(row=4, column=0, sticky="nsew")
+        log_group.columnconfigure(0, weight=1)
+        log_group.rowconfigure(0, weight=1)
+        log_scroll = ttk.Scrollbar(log_group, orient="vertical")
+        log_scroll.grid(row=0, column=1, sticky="ns")
+        self.settings_backup_log_text = tk.Text(
+            log_group,
+            height=18,
+            wrap="word",
+            yscrollcommand=log_scroll.set,
+        )
+        self.settings_backup_log_text.grid(row=0, column=0, sticky="nsew")
+        log_scroll.configure(command=self.settings_backup_log_text.yview)
+        self.settings_backup_log_text.insert(
+            "1.0",
+            self.tr(
+                "backup_log_placeholder",
+                "Backup-Aktionen und Pruefergebnisse erscheinen hier.",
+            ),
+        )
+        self.settings_backup_log_text.configure(state="disabled")
+        self.attach_selection_copy_shortcuts(self.settings_backup_log_text, "text")
+        self.attach_text_context_menu(self.settings_backup_log_text)
+        self.refresh_backup_overview()
 
     def build_download_scan_tab(self):
         frame = ttk.Frame(self.tab_download_scan, padding=12)
@@ -26828,7 +28827,9 @@ class App(TkBase):
         for widget_name in entry_targets:
             self.safe_attach_entry_edit_shortcuts(widget_name)
 
-    def attach_chad_context_menu(self, text_widget, title: str):
+    def attach_chad_context_menu(
+        self, text_widget, title: str, *, include_translate_to_german: bool = False
+    ):
         attached = self.__dict__.setdefault("_chad_context_menu_attached", set())
         widget_id = str(text_widget)
         if widget_id in attached:
@@ -26932,6 +28933,35 @@ class App(TkBase):
             except Exception:
                 pass
 
+        def translate_selection_to_german():
+            if not self.is_chad_enabled():
+                self._show_chad_activation_required_popup()
+                return
+
+            selected = get_selected_text()
+            if not selected:
+                try:
+                    self.chad_analysis_status_var.set(
+                        self.tr(
+                            "chad_status_no_selection_for_translation",
+                            "Keine Auswahl für Übersetzung markiert.",
+                        )
+                    )
+                except Exception:
+                    pass
+                return
+
+            prompt = (
+                "Übersetze die folgende Lynis-Ausgabe ins Deutsche.\n"
+                "Erhalte Lynis-Test-IDs, Befehle, Dateipfade, Paketnamen, "
+                "Konfigurationsschlüssel, Ports und Zahlen unverändert.\n"
+                "Gib zusätzlich kurze, verständliche Hinweise, falls ein Befund "
+                "eine Aktion nahelegt.\n\n"
+                "=== Lynis-Ausgabe ===\n"
+                f"{selected}"
+            )
+            self.prepare_chad_analysis("Lynis Übersetzung Deutsch", prompt)
+
         menu.add_command(label="Kopieren", command=copy_selection)
         menu.add_command(label="Einfügen", command=paste_from_clipboard)
         menu.add_command(label="Alles auswählen", command=select_all)
@@ -26940,6 +28970,11 @@ class App(TkBase):
             label="Auswahl an Chad Analyse senden",
             command=send_selection_to_chad,
         )
+        if include_translate_to_german:
+            menu.add_command(
+                label="Auswahl ins Deutsche übersetzen",
+                command=translate_selection_to_german,
+            )
         menu.add_command(
             label="Auswahl als Chad-Prompt kopieren",
             command=copy_selection_as_prompt,
@@ -26951,13 +28986,23 @@ class App(TkBase):
         text_widget.bind("<Button-3>", show_menu, add="+")
         text_widget._chad_context_menu = menu
 
-    def safe_attach_chad_context_menu(self, widget_name: str, title: str):
+    def safe_attach_chad_context_menu(
+        self,
+        widget_name: str,
+        title: str,
+        *,
+        include_translate_to_german: bool = False,
+    ):
         widget = self.__dict__.get(widget_name)
         if widget is None:
             return
 
         try:
-            self.attach_chad_context_menu(widget, title)
+            self.attach_chad_context_menu(
+                widget,
+                title,
+                include_translate_to_german=include_translate_to_german,
+            )
         except Exception as exc:
             try:
                 self.log(
@@ -27115,29 +29160,34 @@ class App(TkBase):
 
     def attach_all_chad_context_menus(self):
         targets = [
-            ("text", "NetMon Log Analyse"),
-            ("dns_text", "DNS Analyse"),
-            ("nmap_text", "Nmap Analyse"),
-            ("mtr_text", "MTR Analyse"),
-            ("iftop_text", "iftop Analyse"),
-            ("htop_text", "htop Analyse"),
-            ("linux_help_text", "Linux Hilfe Analyse"),
-            ("hdd_info_text", "HDD Analyse"),
-            ("security_detail", "Security Analyse"),
-            ("process_guard_detail", "Process Guard Analyse"),
-            ("clamav_output_text", "ClamAV Analyse"),
-            ("packet_capture_text", "Packet Capture Analyse"),
-            ("lynis_text", "Lynis Analyse"),
-            ("rkhunter_text", "rkhunter Analyse"),
+            ("text", "NetMon Log Analyse", False),
+            ("dns_text", "DNS Analyse", False),
+            ("nmap_text", "Nmap Analyse", False),
+            ("mtr_text", "MTR Analyse", False),
+            ("iftop_text", "iftop Analyse", False),
+            ("htop_text", "htop Analyse", False),
+            ("linux_help_text", "Linux Hilfe Analyse", False),
+            ("hdd_info_text", "HDD Analyse", False),
+            ("security_detail", "Security Analyse", False),
+            ("process_guard_detail", "Process Guard Analyse", False),
+            ("clamav_output_text", "ClamAV Analyse", False),
+            ("packet_capture_text", "Packet Capture Analyse", False),
+            ("lynis_text", "Lynis Analyse", True),
+            ("rkhunter_text", "rkhunter Analyse", False),
             (
                 "startup_guard_details_text",
                 "Startup Guard Eintrag Analyse",
+                False,
             ),
-            ("chad_analysis_text", "Chad Verlauf Analyse"),
+            ("chad_analysis_text", "Chad Verlauf Analyse", False),
         ]
 
-        for widget_name, title in targets:
-            self.safe_attach_chad_context_menu(widget_name, title)
+        for widget_name, title, include_translate_to_german in targets:
+            self.safe_attach_chad_context_menu(
+                widget_name,
+                title,
+                include_translate_to_german=include_translate_to_german,
+            )
 
     def set_chad_analysis(self, title: str, raw_text: str):
         chad_controller.set_chad_analysis(self, title, raw_text)
@@ -27606,9 +29656,7 @@ class App(TkBase):
             text=self.tr("packet_capture_btn_stop", "Stop capture"),
             command=self.packet_capture_stop,
         )
-        self.btn_packet_capture_stop.grid(
-            row=0, column=1, sticky="ew", padx=(8, 0)
-        )
+        self.btn_packet_capture_stop.grid(row=0, column=1, sticky="ew", padx=(8, 0))
         self.register_feature_button("packet_capture", self.btn_packet_capture_stop)
         self.add_tooltip(
             self.btn_packet_capture_stop,
@@ -27932,8 +29980,529 @@ class App(TkBase):
             pass
 
     def build_lynis_tab(self):
+        security_audit_controller.restore_security_baseline_state(self)
+        lynis_sections = ttk.Notebook(self.tab_lynis)
+        self.lynis_sections = lynis_sections
+        lynis_sections.pack(fill="both", expand=True)
+
+        baseline_tab = ttk.Frame(lynis_sections)
+        hardening_tab = ttk.Frame(lynis_sections)
+        audit_tab = ttk.Frame(lynis_sections)
+        self.tab_lynis_baseline = baseline_tab
+        self.tab_lynis_hardening = hardening_tab
+        self.tab_lynis_audit = audit_tab
+        lynis_sections.add(
+            baseline_tab,
+            text=self.tr("lynis_subtab_baseline", "Baseline"),
+        )
+        lynis_sections.add(
+            hardening_tab,
+            text=self.tr("lynis_subtab_hardening", "Haertung"),
+        )
+        lynis_sections.add(
+            audit_tab,
+            text=self.tr("lynis_subtab_audit", "Lynis"),
+        )
+
+        baseline_summary = ttk.LabelFrame(
+            baseline_tab,
+            text=self.tr("baseline_group_summary", "Security Baseline"),
+            padding=6,
+        )
+        baseline_summary.pack(fill="x", pady=(0, 8))
+        ttk.Label(
+            baseline_summary,
+            textvariable=self.security_baseline_profile_var,
+            justify="left",
+        ).pack(anchor="w")
+        baseline_profile_row = ttk.Frame(baseline_summary)
+        baseline_profile_row.pack(fill="x", pady=(6, 0))
+        ttk.Label(
+            baseline_profile_row,
+            text=self.tr("baseline_profile_select_label", "Profilauswahl:"),
+            justify="left",
+        ).pack(side="left")
+        baseline_profile_choices = (
+            security_audit_controller.baseline_profile_choice_items(self)
+        )
+        self.security_baseline_profile_choice_labels = {
+            profile_id: label for profile_id, label in baseline_profile_choices
+        }
+        self.security_baseline_profile_choice_ids_by_label = {
+            label: profile_id for profile_id, label in baseline_profile_choices
+        }
+        self.security_baseline_profile_combo = ttk.Combobox(
+            baseline_profile_row,
+            state="readonly",
+            textvariable=self.security_baseline_profile_choice_var,
+            values=[label for _profile_id, label in baseline_profile_choices],
+            width=42,
+        )
+        self.security_baseline_profile_combo.pack(side="left", padx=(8, 0))
+        self.security_baseline_profile_combo.bind(
+            "<<ComboboxSelected>>",
+            lambda _event: self.apply_security_baseline_profile_choice(
+                self.security_baseline_profile_choice_var.get()
+            ),
+        )
+        ttk.Label(
+            baseline_summary,
+            textvariable=self.security_baseline_version_var,
+            justify="left",
+        ).pack(anchor="w")
+        ttk.Label(
+            baseline_summary,
+            textvariable=self.security_baseline_reference_var,
+            justify="left",
+        ).pack(anchor="w")
+        ttk.Label(
+            baseline_summary,
+            textvariable=self.security_baseline_date_var,
+            justify="left",
+        ).pack(anchor="w")
+        ttk.Label(
+            baseline_summary,
+            textvariable=self.security_baseline_last_check_var,
+            justify="left",
+        ).pack(anchor="w", pady=(4, 0))
+        ttk.Label(
+            baseline_summary,
+            textvariable=self.security_baseline_status_var,
+            justify="left",
+        ).pack(anchor="w")
+        ttk.Label(
+            baseline_summary,
+            textvariable=self.security_baseline_lynis_summary_var,
+            justify="left",
+        ).pack(anchor="w")
+
+        baseline_actions = ttk.Frame(baseline_summary)
+        baseline_actions.pack(fill="x", pady=(6, 0))
+        self.btn_security_baseline_run = ttk.Button(
+            baseline_actions,
+            text=self.tr("baseline_btn_run", "Baseline pruefen"),
+            command=self.run_security_baseline_checks,
+        )
+        self.btn_security_baseline_run.pack(side="left")
+        self.btn_security_baseline_root_check = ttk.Button(
+            baseline_actions,
+            text=self.tr("baseline_btn_root_check", "Root-Check"),
+            command=self.check_security_baseline_privileges,
+        )
+        self.btn_security_baseline_root_check.pack(side="left", padx=(8, 0))
+        self.btn_security_baseline_show_all = ttk.Button(
+            baseline_actions,
+            text=self.tr("baseline_btn_show_all", "Alle anzeigen"),
+            command=lambda: self.apply_security_baseline_filter("all"),
+        )
+        self.btn_security_baseline_show_all.pack(side="left", padx=(8, 0))
+        self.btn_security_baseline_show_deviations = ttk.Button(
+            baseline_actions,
+            text=self.tr("baseline_btn_show_deviations", "Nur Abweichungen"),
+            command=lambda: self.apply_security_baseline_filter("deviations"),
+        )
+        self.btn_security_baseline_show_deviations.pack(side="left", padx=(8, 0))
+        self.btn_security_baseline_show_manual = ttk.Button(
+            baseline_actions,
+            text=self.tr("baseline_btn_show_manual", "Nur manuelle Pruefungen"),
+            command=lambda: self.apply_security_baseline_filter("manual"),
+        )
+        self.btn_security_baseline_show_manual.pack(side="left", padx=(8, 0))
+        self.btn_security_baseline_show_kernel = ttk.Button(
+            baseline_actions,
+            text=self.tr("baseline_btn_show_kernel", "Nur Kernel"),
+            command=lambda: self.apply_security_baseline_filter("kernel"),
+        )
+        self.btn_security_baseline_show_kernel.pack(side="left", padx=(8, 0))
+
+        ttk.Label(
+            baseline_summary,
+            text=self.tr(
+                "baseline_read_only_hint",
+                "Hinweis: Die Baseline fuehrt nur lesende Pruefungen aus und nimmt keine Systemaenderungen vor.",
+            ),
+            justify="left",
+        ).pack(anchor="w", pady=(6, 0))
+
+        baseline_content = ttk.LabelFrame(
+            baseline_tab,
+            text=self.tr("baseline_group_checks", "Baseline Checks"),
+            padding=6,
+        )
+        baseline_content.pack(fill="both", expand=True, pady=(0, 8))
+        baseline_content.columnconfigure(0, weight=1)
+        baseline_content.rowconfigure(0, weight=1)
+
+        self.security_baseline_list_view = ttk.Frame(baseline_content)
+        self.security_baseline_list_view.grid(row=0, column=0, sticky="nsew")
+        self.security_baseline_list_view.columnconfigure(0, weight=1)
+        self.security_baseline_list_view.rowconfigure(1, weight=1)
+
+        ttk.Label(
+            self.security_baseline_list_view,
+            text=self.tr(
+                "baseline_list_hint",
+                "Eintrag anklicken, um die Erklaerung im selben Fenster zu oeffnen.",
+            ),
+            justify="left",
+        ).grid(row=0, column=0, sticky="w", pady=(0, 6))
+
+        baseline_table_frame = ttk.Frame(self.security_baseline_list_view)
+        baseline_table_frame.grid(row=1, column=0, sticky="nsew")
+        baseline_table_frame.columnconfigure(0, weight=1)
+        baseline_table_frame.rowconfigure(0, weight=1)
+
+        baseline_tree_scroll_y = ttk.Scrollbar(
+            baseline_table_frame,
+            orient="vertical",
+        )
+        baseline_tree_scroll_y.grid(row=0, column=1, sticky="ns")
+        baseline_tree_scroll_x = ttk.Scrollbar(
+            baseline_table_frame,
+            orient="horizontal",
+        )
+        baseline_tree_scroll_x.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+
+        self.security_baseline_tree = ttk.Treeview(
+            baseline_table_frame,
+            columns=("status", "group", "title", "expected", "actual", "source"),
+            show="headings",
+            height=8,
+            yscrollcommand=baseline_tree_scroll_y.set,
+            xscrollcommand=baseline_tree_scroll_x.set,
+            selectmode="browse",
+        )
+        self.security_baseline_tree.grid(row=0, column=0, sticky="nsew")
+        baseline_tree_scroll_y.configure(command=self.security_baseline_tree.yview)
+        baseline_tree_scroll_x.configure(command=self.security_baseline_tree.xview)
+        for column, heading, width, stretch in [
+            ("status", "Status", 240, False),
+            ("group", "Gruppe", 180, False),
+            ("title", "Check", 420, True),
+            ("expected", "Soll", 180, False),
+            ("actual", "Ist", 220, False),
+            ("source", "Quelle", 260, False),
+        ]:
+            self.security_baseline_tree.heading(column, text=heading)
+            self.security_baseline_tree.column(
+                column,
+                width=width,
+                minwidth=width if not stretch else max(260, width),
+                stretch=stretch,
+                anchor="w",
+            )
+        self.security_baseline_tree.tag_configure("ok", foreground="#1b8a3a")
+        self.security_baseline_tree.tag_configure("error", foreground="#b22222")
+        self.security_baseline_tree.tag_configure("manual", foreground="#b36b00")
+        self.security_baseline_tree.tag_configure("deviation", foreground="#005fa3")
+        self.security_baseline_tree.tag_configure("na", foreground="#666666")
+        self.security_baseline_tree.tag_configure("unknown", foreground="#914f1e")
+        self.security_baseline_tree.tag_configure("idle", foreground="#666666")
+        self.security_baseline_tree.bind(
+            "<<TreeviewSelect>>",
+            self.on_security_baseline_select,
+        )
+        self.attach_selection_copy_shortcuts(self.security_baseline_tree, "treeview")
+
+        self.security_baseline_detail_view = ttk.Frame(baseline_content)
+        self.security_baseline_detail_view.grid(row=0, column=0, sticky="nsew")
+        self.security_baseline_detail_view.columnconfigure(0, weight=1)
+        self.security_baseline_detail_view.rowconfigure(1, weight=1)
+
+        detail_header = ttk.Frame(self.security_baseline_detail_view)
+        detail_header.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        detail_header.columnconfigure(1, weight=1)
+
+        self.btn_security_baseline_back = ttk.Button(
+            detail_header,
+            text=self.tr("baseline_btn_back_to_entries", "Zurueck zu den Eintraegen"),
+            command=self.show_security_baseline_list_view,
+        )
+        self.btn_security_baseline_back.grid(row=0, column=0, sticky="w")
+
+        self.security_baseline_detail_heading_var = tk.StringVar(
+            value=self.tr("baseline_group_details", "Check Details")
+        )
+        ttk.Label(
+            detail_header,
+            textvariable=self.security_baseline_detail_heading_var,
+            justify="left",
+            font=("TkDefaultFont", 10, "bold"),
+        ).grid(row=0, column=1, sticky="w", padx=(10, 0))
+
+        baseline_detail_frame = ttk.Frame(self.security_baseline_detail_view)
+        baseline_detail_frame.grid(row=1, column=0, sticky="nsew")
+        baseline_detail_frame.columnconfigure(0, weight=1)
+        baseline_detail_frame.rowconfigure(0, weight=1)
+
+        baseline_detail_scroll_y = ttk.Scrollbar(
+            baseline_detail_frame,
+            orient="vertical",
+        )
+        baseline_detail_scroll_y.grid(row=0, column=1, sticky="ns")
+        self.security_baseline_detail_text = tk.Text(
+            baseline_detail_frame,
+            wrap="word",
+            height=14,
+            yscrollcommand=baseline_detail_scroll_y.set,
+        )
+        self.security_baseline_detail_text.grid(row=0, column=0, sticky="nsew")
+        baseline_detail_scroll_y.configure(
+            command=self.security_baseline_detail_text.yview
+        )
+        self.security_baseline_detail_text.insert(
+            "1.0",
+            self.tr("baseline_detail_placeholder", "Noch kein Check ausgewaehlt."),
+        )
+        self.security_baseline_detail_text.configure(state="disabled")
+        self.attach_selection_copy_shortcuts(self.security_baseline_detail_text, "text")
+        self.attach_text_context_menu(self.security_baseline_detail_text)
+        self.security_baseline_detail_view.grid_remove()
+
+        hardening_summary = ttk.LabelFrame(
+            hardening_tab,
+            text=self.tr("baseline_group_hardening", "Baseline-Haertung"),
+            padding=6,
+        )
+        hardening_summary.pack(fill="x", pady=(0, 8))
+        ttk.Label(
+            hardening_summary,
+            textvariable=self.security_baseline_profile_var,
+            justify="left",
+        ).pack(anchor="w")
+        ttk.Label(
+            hardening_summary,
+            textvariable=self.security_baseline_version_var,
+            justify="left",
+        ).pack(anchor="w")
+        ttk.Label(
+            hardening_summary,
+            textvariable=self.security_baseline_last_check_var,
+            justify="left",
+        ).pack(anchor="w", pady=(4, 0))
+        ttk.Label(
+            hardening_summary,
+            textvariable=self.security_baseline_status_var,
+            justify="left",
+        ).pack(anchor="w")
+        ttk.Label(
+            hardening_summary,
+            text=self.tr(
+                "baseline_hardening_intro",
+                "Wendet freigegebene Hardening-Schritte fuer das aktive Baseline-Profil an.",
+            ),
+            justify="left",
+        ).pack(anchor="w", pady=(6, 0))
+        ttk.Label(
+            hardening_summary,
+            textvariable=self.security_baseline_transfer_var,
+            justify="left",
+        ).pack(anchor="w", pady=(4, 0))
+        ttk.Label(
+            hardening_summary,
+            text=self.tr(
+                "baseline_hardening_timeshift_hint",
+                "Empfehlung: Vor jeder Hardening-Aenderung zuerst einen Timeshift-Snapshot erstellen.",
+            ),
+            justify="left",
+            wraplength=900,
+        ).pack(anchor="w", pady=(6, 0))
+        ttk.Label(
+            hardening_summary,
+            textvariable=self.security_baseline_optional_services_var,
+            justify="left",
+            wraplength=900,
+        ).pack(anchor="w", pady=(4, 0))
+
+        hardening_actions = ttk.LabelFrame(
+            hardening_tab,
+            text=self.tr("baseline_group_hardening_actions", "Hardening-Aktionen"),
+            padding=6,
+        )
+        self.tab_lynis_hardening_actions_frame = hardening_actions
+        hardening_actions.pack(fill="x", pady=(0, 8))
+        for column in range(4):
+            hardening_actions.grid_columnconfigure(
+                column, weight=1, uniform="hardening_actions"
+            )
+        preset_row = ttk.Frame(hardening_actions)
+        preset_row.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 8))
+        preset_row.columnconfigure(1, weight=1)
+        ttk.Label(
+            preset_row,
+            text=self.tr("baseline_game_mode_preset_label", "Spielprofil:"),
+        ).grid(row=0, column=0, sticky="w", padx=(0, 8))
+        self.security_game_mode_preset_combo = ttk.Combobox(
+            preset_row,
+            textvariable=self.security_game_mode_preset_var,
+            values=[
+                self._game_mode_preset_label("singleplayer"),
+                self._game_mode_preset_label("online"),
+                self._game_mode_preset_label("steam"),
+                self._game_mode_preset_label("heroic"),
+                self._game_mode_preset_label("lutris"),
+                self._game_mode_preset_label("lan_host"),
+                self._game_mode_preset_label("steam_remote_play"),
+                self._game_mode_preset_label("minecraft_lan"),
+            ],
+            state="readonly",
+            width=26,
+        )
+        self.security_game_mode_preset_combo.grid(row=0, column=1, sticky="w")
+        self.security_game_mode_preset_combo.bind(
+            "<<ComboboxSelected>>",
+            self.on_game_mode_preset_selected,
+        )
+        self.btn_security_baseline_timeshift = ttk.Button(
+            hardening_actions,
+            text=self.tr("baseline_btn_timeshift", "Timeshift starten"),
+            command=self.launch_timeshift_snapshot_tool,
+        )
+        self.btn_security_baseline_apply_all = ttk.Button(
+            hardening_actions,
+            text=self.tr("baseline_btn_apply_all", "Profil-Haertung anwenden"),
+            command=self.apply_security_baseline_profile,
+        )
+        self.btn_security_baseline_apply_sysctl = ttk.Button(
+            hardening_actions,
+            text=self.tr("baseline_btn_apply_sysctl", "Kernel-Haertung anwenden"),
+            command=self.apply_security_baseline_sysctl,
+        )
+        self.btn_security_baseline_apply_ufw = ttk.Button(
+            hardening_actions,
+            text=self.tr("baseline_btn_apply_ufw", "Firewall-Haertung anwenden"),
+            command=self.apply_security_baseline_ufw,
+        )
+        self.btn_security_baseline_export_transfer = ttk.Button(
+            hardening_actions,
+            text=self.tr(
+                "baseline_btn_export_transfer",
+                "Transferpaket exportieren",
+            ),
+            command=self.export_security_baseline_transfer,
+        )
+        self.btn_security_baseline_import_transfer = ttk.Button(
+            hardening_actions,
+            text=self.tr(
+                "baseline_btn_import_transfer",
+                "Transferpaket importieren",
+            ),
+            command=self.import_security_baseline_transfer,
+        )
+        self.btn_security_baseline_show_transfer = ttk.Button(
+            hardening_actions,
+            text=self.tr(
+                "baseline_btn_show_transfer",
+                "Transferpaket anzeigen",
+            ),
+            command=self.show_security_baseline_transfer_package,
+        )
+        self.btn_security_baseline_compare_transfer = ttk.Button(
+            hardening_actions,
+            text=self.tr(
+                "baseline_btn_compare_transfer",
+                "Transferpaket vergleichen",
+            ),
+            command=self.show_security_baseline_transfer_comparison,
+        )
+        self.btn_security_baseline_clear_transfer = ttk.Button(
+            hardening_actions,
+            text=self.tr(
+                "baseline_btn_clear_transfer",
+                "Transferpaket entladen",
+            ),
+            command=self.clear_security_baseline_transfer,
+        )
+        self.btn_security_game_mode_on = ttk.Button(
+            hardening_actions,
+            text=self.tr("baseline_btn_game_mode_on", "Spielmodus aktivieren"),
+            command=self.enable_game_mode,
+        )
+        self.btn_security_game_mode_off = ttk.Button(
+            hardening_actions,
+            text=self.tr("baseline_btn_game_mode_off", "Spielmodus deaktivieren"),
+            command=self.disable_game_mode,
+        )
+        hardening_action_buttons = [
+            self.btn_security_baseline_timeshift,
+            self.btn_security_baseline_apply_all,
+            self.btn_security_baseline_apply_sysctl,
+            self.btn_security_baseline_apply_ufw,
+            self.btn_security_baseline_export_transfer,
+            self.btn_security_baseline_import_transfer,
+            self.btn_security_baseline_compare_transfer,
+            self.btn_security_baseline_clear_transfer,
+            self.btn_security_baseline_show_transfer,
+            self.btn_security_game_mode_on,
+            self.btn_security_game_mode_off,
+        ]
+        for index, button in enumerate(hardening_action_buttons):
+            button_row = index // 4
+            column = index % 4
+            padx = (0, 8) if column < 3 else (0, 0)
+            pady = (0, 8) if button_row < 2 else (0, 0)
+            button.grid(
+                row=1 + button_row,
+                column=column,
+                padx=padx,
+                pady=pady,
+                sticky="ew",
+            )
+        self.refresh_timeshift_launch_controls()
+        self.lbl_security_game_mode_profile_hint = ttk.Label(
+            hardening_actions,
+            textvariable=self.security_game_mode_profile_hint_var,
+            justify="left",
+            wraplength=360,
+        )
+        self.lbl_security_game_mode_profile_hint.grid(
+            row=4,
+            column=0,
+            columnspan=4,
+            sticky="ew",
+            pady=(8, 6),
+        )
+        self.lbl_security_game_mode_status = ttk.Label(
+            hardening_actions,
+            textvariable=self.security_game_mode_status_var,
+            justify="left",
+            wraplength=360,
+        )
+        self.lbl_security_game_mode_status.grid(
+            row=5,
+            column=0,
+            columnspan=4,
+            sticky="ew",
+            pady=(0, 8),
+        )
+        self.refresh_game_mode_preset_ui()
+        self.refresh_game_mode_status()
+
+        self.lbl_security_hardening_scope = ttk.Label(
+            hardening_actions,
+            text=self.tr(
+                "baseline_hardening_scope",
+                "Automatisiert sind nur klar begrenzte Sysctl-Drop-ins und UFW-Profilregeln. Dienst-, Port- und VPN-spezifische Freigaben bleiben bewusst manuell.",
+            ),
+            justify="left",
+            wraplength=360,
+        )
+        self.lbl_security_hardening_scope.grid(
+            row=6,
+            column=0,
+            columnspan=4,
+            sticky="ew",
+            pady=(0, 0),
+        )
+        hardening_actions.bind(
+            "<Configure>",
+            self._refresh_security_hardening_text_wrap,
+            add="+",
+        )
+        self._refresh_security_hardening_text_wrap()
+
         lynis_top = ttk.LabelFrame(
-            self.tab_lynis,
+            audit_tab,
             text=self.tr("lynis_group_actions", "Lynis actions"),
             padding=6,
         )
@@ -28023,6 +30592,10 @@ class App(TkBase):
         ttk.Label(lynis_status_row, textvariable=self.lynis_status_var).pack(
             side="left", padx=(6, 0)
         )
+        ttk.Label(
+            lynis_status_row,
+            textvariable=self.lynis_hardening_index_var,
+        ).pack(side="left", padx=(18, 0))
 
         lynis_filter_row = ttk.Frame(lynis_top)
         lynis_filter_row.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(6, 0))
@@ -28062,7 +30635,7 @@ class App(TkBase):
         )
 
         lynis_summary = ttk.LabelFrame(
-            self.tab_lynis,
+            audit_tab,
             text=self.tr("group_summary", "Summary"),
             padding=6,
         )
@@ -28073,7 +30646,7 @@ class App(TkBase):
             justify="left",
         ).pack(anchor="w")
 
-        lynis_output_frame = ttk.Frame(self.tab_lynis)
+        lynis_output_frame = ttk.Frame(audit_tab)
         lynis_output_frame.pack(fill="both", expand=True)
         lynis_output_frame.columnconfigure(0, weight=1)
         lynis_output_frame.rowconfigure(0, weight=1)
@@ -28097,6 +30670,8 @@ class App(TkBase):
             ),
         )
         self.lynis_text.configure(state="disabled")
+        self.refresh_security_baseline_overview()
+        self.refresh_security_baseline_table()
 
     def open_lynis_tab(self):
         security_audit_controller.open_lynis_tab(self)
@@ -28175,6 +30750,1485 @@ class App(TkBase):
 
     def run_lynis_full(self):
         security_audit_controller.run_lynis_full(self)
+
+    def refresh_security_baseline_overview(self):
+        security_audit_controller.refresh_security_baseline_overview(self)
+
+    def refresh_security_baseline_table(self):
+        security_audit_controller.refresh_security_baseline_table(self)
+
+    def apply_security_baseline_filter(self, mode: str):
+        security_audit_controller.apply_security_baseline_filter(self, mode)
+
+    def apply_security_baseline_profile_choice(self, choice_label: str):
+        security_audit_controller.apply_security_baseline_profile_choice(
+            self,
+            choice_label,
+        )
+
+    def show_security_baseline_list_view(self):
+        security_audit_controller.show_security_baseline_list_view(self)
+
+    def show_security_baseline_detail_view(self, *, title: str = ""):
+        security_audit_controller.show_security_baseline_detail_view(
+            self,
+            title=title,
+        )
+
+    def on_security_baseline_select(self, _event=None):
+        security_audit_controller.on_security_baseline_select(self, _event=_event)
+
+    def run_security_baseline_checks(self):
+        security_audit_controller.run_security_baseline_checks(self, run_cmd_fn=run_cmd)
+
+    def check_security_baseline_privileges(self):
+        return security_audit_controller.check_security_baseline_privileges(self)
+
+    def _apply_game_mode_dns_guard(self, enabled: bool):
+        enabled = bool(enabled)
+        self.dns_guard_enabled = enabled
+        guard_var = self.__dict__.get("dns_guard_enabled_var")
+        if guard_var is not None:
+            try:
+                guard_var.set(enabled)
+            except Exception:
+                pass
+        if enabled:
+            try:
+                self.rebuild_dns_guard_whitelist()
+            except Exception:
+                pass
+        try:
+            self.refresh_dns_policy_status()
+        except Exception:
+            pass
+        try:
+            self.update_dns_controls_state_safe()
+        except Exception:
+            pass
+        try:
+            self.run_dns_guard_check_once()
+        except Exception:
+            pass
+        try:
+            self.update_dns_guard_indicator()
+        except Exception:
+            pass
+
+    def _set_ufw_logging_sync(
+        self,
+        level,
+        *,
+        ensure_sudo: bool = True,
+        log_context: str = "",
+    ):
+        normalized = str(level or "").strip().lower()
+        if normalized not in {"off", "low", "medium", "high"}:
+            return False
+        if ensure_sudo and not self.ensure_sudo_session(
+            f"UFW Logging {normalized.upper()} setzen"
+        ):
+            return False
+
+        attempts = [["sudo", "-n", "ufw", "logging", normalized]]
+        if not ensure_sudo:
+            attempts.append(["ufw", "logging", normalized])
+
+        last_out = ""
+        for cmd in attempts:
+            rc, out = run_cmd(cmd, timeout=12)
+            last_out = str(out or "").strip()
+            if rc == 0:
+                context = f" ({log_context})" if str(log_context or "").strip() else ""
+                self.log_safe(
+                    f"Security: UFW Logging auf {normalized.upper()} gesetzt{context}"
+                )
+                try:
+                    self.update_ufw_logging_light()
+                except Exception:
+                    pass
+                try:
+                    self.refresh_firewall_transparency_view()
+                except Exception:
+                    pass
+                return True
+        self.log_safe(
+            "Security: Fehler beim Setzen von UFW Logging"
+            + (f" ({log_context})" if str(log_context or "").strip() else "")
+            + (f": {last_out}" if last_out else ".")
+        )
+        return False
+
+    def _game_mode_presets(self):
+        kernel_note = (
+            "Kernel-Haertung bleibt aktiv. Relevante Grenzfaelle fuer Spiele sind "
+            "eher perf_event_paranoid, unprivileged_bpf und rp_filter bei VPN/"
+            "Multi-Interface, nicht normales Online-Gameplay."
+        )
+        return {
+            "singleplayer": {
+                "id": "singleplayer",
+                "label": "Singleplayer",
+                "pause_dns_guard": False,
+                "pause_killswitch": False,
+                "lower_ufw_logging": True,
+                "profile_note": (
+                    "Fuer lokale oder offline-lastige Spiele. Netzwerk-Schutz bleibt "
+                    "weitgehend unveraendert; nur auffaelliges UFW-Logging wird entschärft."
+                ),
+                "kernel_note": kernel_note,
+            },
+            "online": {
+                "id": "online",
+                "label": "Online",
+                "pause_dns_guard": True,
+                "pause_killswitch": False,
+                "lower_ufw_logging": True,
+                "profile_note": (
+                    "Fuer Matchmaking, Launcher, Voice-Chat und Anti-Cheat-nahe Online-Pfade. "
+                    "DNS Guard wird pausiert, Killswitch bleibt standardmaessig aktiv."
+                ),
+                "kernel_note": kernel_note,
+            },
+            "steam": {
+                "id": "steam",
+                "label": "Steam",
+                "pause_dns_guard": True,
+                "pause_killswitch": False,
+                "lower_ufw_logging": True,
+                "profile_note": (
+                    "Fuer Steam, Proton und typische Matchmaking-/Workshop-/Cloud-Pfade. "
+                    "Netzwerk-Haertung wird leicht entschärft, Kernel-Haertung bleibt aktiv."
+                ),
+                "kernel_note": kernel_note,
+            },
+            "heroic": {
+                "id": "heroic",
+                "label": "Heroic",
+                "pause_dns_guard": True,
+                "pause_killswitch": False,
+                "lower_ufw_logging": True,
+                "profile_note": (
+                    "Fuer Heroic Games Launcher mit Epic- oder GOG-Titeln. "
+                    "DNS Guard wird pausiert, Killswitch bleibt standardmaessig aktiv."
+                ),
+                "kernel_note": kernel_note,
+            },
+            "lutris": {
+                "id": "lutris",
+                "label": "Lutris",
+                "pause_dns_guard": True,
+                "pause_killswitch": False,
+                "lower_ufw_logging": True,
+                "profile_note": (
+                    "Fuer Lutris, Wine-Runner und gemischte Launcher-/Emulator-Setups. "
+                    "Netzwerkpfade werden entschärft, Kernel-Werte bleiben unveraendert."
+                ),
+                "kernel_note": kernel_note,
+            },
+            "lan_host": {
+                "id": "lan_host",
+                "label": "LAN / Host",
+                "pause_dns_guard": True,
+                "pause_killswitch": True,
+                "lower_ufw_logging": True,
+                "profile_note": (
+                    "Fuer LAN-Erkennung, Listen-Server und Host-Betrieb. "
+                    "Eingehende UFW-Freigaben bleiben trotzdem manuell zu pruefen."
+                ),
+                "kernel_note": kernel_note,
+                "recommended_ufw_exception_sets": ["lan_discovery"],
+            },
+            "steam_remote_play": {
+                "id": "steam_remote_play",
+                "label": "Steam Remote Play",
+                "pause_dns_guard": True,
+                "pause_killswitch": True,
+                "lower_ufw_logging": True,
+                "profile_note": (
+                    "Fuer Steam Remote Play und aehnliche Streaming-Pfade. "
+                    "Broadcast/Multicast, lokale Discovery und Host-Freigaben muessen ggf. manuell ergaenzt werden."
+                ),
+                "kernel_note": kernel_note,
+                "recommended_ufw_exception_sets": [
+                    "lan_discovery",
+                    "steam_remote_play_outbound",
+                ],
+            },
+            "minecraft_lan": {
+                "id": "minecraft_lan",
+                "label": "Minecraft LAN",
+                "pause_dns_guard": True,
+                "pause_killswitch": True,
+                "lower_ufw_logging": True,
+                "profile_note": (
+                    "Fuer Minecraft-LAN-Sessions und lokale Host-Freigaben. "
+                    "Lokale Discovery wird unterstützt; eingehende Host-Ports bleiben bewusst manuell."
+                ),
+                "kernel_note": kernel_note,
+                "recommended_ufw_exception_sets": ["lan_discovery"],
+            },
+        }
+
+    def _game_mode_ufw_exception_sets(self):
+        return {
+            "lan_discovery": {
+                "label": "LAN Discovery",
+                "note": (
+                    "Erlaubt ausgehende mDNS- und SSDP-Anfragen fuer lokale "
+                    "Spielesuche. Host-spezifische eingehende Ports bleiben manuell."
+                ),
+                "rules": [
+                    {
+                        "type": "standard_port",
+                        "direction": "out",
+                        "port": "5353",
+                        "proto": "udp",
+                        "label": "mDNS ausgehend",
+                    },
+                    {
+                        "type": "standard_port",
+                        "direction": "out",
+                        "port": "1900",
+                        "proto": "udp",
+                        "label": "SSDP ausgehend",
+                    },
+                ],
+            },
+            "steam_remote_play_outbound": {
+                "label": "Steam Remote Play (Outbound)",
+                "note": (
+                    "Erlaubt ausgehende Steam-Remote-Play-Verbindungen. "
+                    "Eingehende Host-Freigaben und NAT-Themen bleiben bewusst manuell."
+                ),
+                "rules": [
+                    *[
+                        {
+                            "type": "standard_port",
+                            "direction": "out",
+                            "port": str(port),
+                            "proto": proto,
+                            "label": f"Steam Remote Play {port}/{proto}",
+                        }
+                        for port in range(27031, 27037)
+                        for proto in ("tcp", "udp")
+                    ]
+                ],
+            },
+        }
+
+    def _normalize_game_mode_preset(self, value) -> str:
+        presets = self._game_mode_presets()
+        raw = str(value or "").strip().lower()
+        if raw in presets:
+            return raw
+        for preset_id, preset in presets.items():
+            if raw == str(preset.get("label") or "").strip().lower():
+                return preset_id
+        return "online"
+
+    def _game_mode_preset_label(self, preset_id: str) -> str:
+        preset = self._game_mode_presets().get(
+            self._normalize_game_mode_preset(preset_id),
+            {},
+        )
+        return str(preset.get("label") or "Online").strip() or "Online"
+
+    def _active_game_mode_preset(self) -> dict:
+        settings = self.__dict__.get("settings", {}) or {}
+        preset_id = self._normalize_game_mode_preset(
+            getattr(self, "security_game_mode_preset_var", "").get()
+            if self.__dict__.get("security_game_mode_preset_var") is not None
+            else settings.get("security_game_mode_preset", "online")
+        )
+        preset = dict(self._game_mode_presets().get(preset_id, {}))
+        if not preset:
+            preset = dict(self._game_mode_presets()["online"])
+        return preset
+
+    def _game_mode_recommended_exception_sets(
+        self, preset: dict | None = None
+    ) -> list[dict]:
+        preset = dict(preset or self._active_game_mode_preset())
+        catalog = self._game_mode_ufw_exception_sets()
+        items = []
+        for set_id in list(preset.get("recommended_ufw_exception_sets") or []):
+            entry = dict(catalog.get(str(set_id).strip(), {}) or {})
+            if not entry:
+                continue
+            entry["id"] = str(set_id).strip()
+            items.append(entry)
+        return items
+
+    def _build_custom_game_mode_exception_set(
+        self,
+        port_text,
+        protocol_label,
+        custom_label="",
+    ) -> dict | None:
+        port = str(port_text or "").strip()
+        if not port.isdigit():
+            return None
+        port_value = int(port)
+        if port_value < 1 or port_value > 65535:
+            return None
+
+        normalized_proto = str(protocol_label or "").strip().lower()
+        protocol_map = {
+            "tcp": ("tcp",),
+            "udp": ("udp",),
+            "tcp + udp": ("tcp", "udp"),
+            "tcp+udp": ("tcp", "udp"),
+        }
+        protocols = protocol_map.get(normalized_proto)
+        if not protocols:
+            return None
+
+        custom_note = str(custom_label or "").strip()
+        label_suffix = f" ({custom_note})" if custom_note else ""
+
+        return {
+            "id": f"custom_host_port_{port_value}_{'_'.join(protocols)}",
+            "label": f"Benutzerdefinierter Host-Port {port_value}{label_suffix}",
+            "note": (
+                "Öffnet einen bewusst ausgewählten eingehenden Host-Port für "
+                "Listen-Server oder gezielte Direktverbindungen."
+            ),
+            "rules": [
+                {
+                    "type": "standard_port",
+                    "direction": "in",
+                    "port": str(port_value),
+                    "proto": proto,
+                    "label": f"Host-Port {port_value}/{proto}{label_suffix}",
+                }
+                for proto in protocols
+            ],
+        }
+
+    def _prompt_game_mode_ufw_exception_sets(
+        self,
+        *,
+        preset_label: str,
+        exception_sets: list[dict],
+    ) -> list[dict] | None:
+        options = [
+            dict(item) for item in list(exception_sets or []) if dict(item or {})
+        ]
+        if not options:
+            return []
+
+        if self.__dict__.get("tk") is None:
+            return options
+
+        parent = self if self.__dict__.get("tk") is not None else None
+        dialog = tk.Toplevel(parent)
+        dialog.title(
+            self.tr(
+                "game_mode_ufw_exceptions_title",
+                "Optionale UFW-Ausnahmen auswählen",
+            )
+        )
+        dialog.transient(parent)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+
+        frame = ttk.Frame(dialog, padding=12)
+        frame.grid(row=0, column=0, sticky="nsew")
+        frame.columnconfigure(0, weight=1)
+
+        ttk.Label(
+            frame,
+            text=self.tr(
+                "game_mode_ufw_exceptions_prompt",
+                "Für das Profil {preset} kann NetMon zusätzliche UFW-Ausnahmesets setzen.\n"
+                "Wähle gezielt aus, was wirklich gebraucht wird. Nicht gewählte Sets werden übersprungen.",
+            ).format(preset=preset_label),
+            justify="left",
+            wraplength=520,
+        ).grid(row=0, column=0, sticky="w", pady=(0, 10))
+
+        selected_vars = {}
+        for idx, item in enumerate(options, start=1):
+            row = ttk.Frame(frame)
+            row.grid(row=idx, column=0, sticky="ew", pady=(0, 8))
+            row.columnconfigure(0, weight=1)
+            var = tk.BooleanVar(value=True)
+            set_id = str(item.get("id") or "").strip()
+            selected_vars[set_id] = var
+            ttk.Checkbutton(
+                row,
+                text=str(item.get("label") or set_id or "UFW-Ausnahme"),
+                variable=var,
+            ).grid(row=0, column=0, sticky="w")
+            note = str(item.get("note") or "").strip()
+            if note:
+                ttk.Label(
+                    row,
+                    text=note,
+                    justify="left",
+                    wraplength=500,
+                ).grid(row=1, column=0, sticky="w", padx=(22, 0), pady=(2, 0))
+
+        custom_row_index = len(options) + 1
+        custom_frame = ttk.LabelFrame(
+            frame,
+            text=self.tr(
+                "game_mode_custom_host_port_title",
+                "Benutzerdefinierter Host-Port",
+            ),
+            padding=8,
+        )
+        custom_frame.grid(
+            row=custom_row_index,
+            column=0,
+            sticky="ew",
+            pady=(4, 0),
+        )
+        custom_frame.columnconfigure(1, weight=1)
+        custom_enabled_var = tk.BooleanVar(value=False)
+        custom_protocol_var = tk.StringVar(value="TCP")
+        custom_port_var = tk.StringVar(value="")
+        custom_label_var = tk.StringVar(value="")
+        ttk.Checkbutton(
+            custom_frame,
+            text=self.tr(
+                "game_mode_custom_host_port_enable",
+                "Zusätzlichen eingehenden Host-Port öffnen",
+            ),
+            variable=custom_enabled_var,
+        ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 6))
+        ttk.Label(
+            custom_frame,
+            text=self.tr("label_port", "Port:"),
+        ).grid(row=1, column=0, sticky="w", padx=(0, 8))
+        ttk.Entry(
+            custom_frame,
+            textvariable=custom_port_var,
+            width=10,
+        ).grid(row=1, column=1, sticky="w")
+        ttk.Label(
+            custom_frame,
+            text=self.tr(
+                "game_mode_custom_host_port_label",
+                "Bezeichnung:",
+            ),
+        ).grid(row=1, column=2, sticky="w", padx=(12, 8))
+        ttk.Entry(
+            custom_frame,
+            textvariable=custom_label_var,
+            width=18,
+        ).grid(row=1, column=3, sticky="w")
+        ttk.Label(
+            custom_frame,
+            text=self.tr("label_protocol", "Protokoll:"),
+        ).grid(row=2, column=0, sticky="w", padx=(0, 8), pady=(6, 0))
+        custom_protocol_combo = ttk.Combobox(
+            custom_frame,
+            textvariable=custom_protocol_var,
+            values=["TCP", "UDP", "TCP + UDP"],
+            state="readonly",
+            width=12,
+        )
+        custom_protocol_combo.grid(row=2, column=1, sticky="w", pady=(6, 0))
+        ttk.Label(
+            custom_frame,
+            text=self.tr(
+                "game_mode_custom_host_port_note",
+                "Optional eine Bezeichnung wie Minecraft, Valheim oder Factorio setzen. "
+                "Nur für bewusst benötigte Listen-Server oder Direktverbindungen verwenden.",
+            ),
+            justify="left",
+            wraplength=500,
+        ).grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 0))
+
+        result = {"selection": None}
+
+        button_row = ttk.Frame(frame)
+        button_row.grid(row=custom_row_index + 1, column=0, sticky="e", pady=(10, 0))
+        button_row.columnconfigure((0, 1, 2), weight=0)
+
+        def _apply():
+            selected = []
+            for item in options:
+                set_id = str(item.get("id") or "").strip()
+                var = selected_vars.get(set_id)
+                if var is not None and bool(var.get()):
+                    selected.append(dict(item))
+            if bool(custom_enabled_var.get()):
+                custom_set = self._build_custom_game_mode_exception_set(
+                    custom_port_var.get(),
+                    custom_protocol_var.get(),
+                    custom_label_var.get(),
+                )
+                if custom_set is None:
+                    messagebox.showwarning(
+                        self.tr(
+                            "game_mode_custom_host_port_invalid_title",
+                            "Host-Port ungültig",
+                        ),
+                        self.tr(
+                            "game_mode_custom_host_port_invalid_prompt",
+                            "Bitte einen gültigen Port zwischen 1 und 65535 sowie ein gültiges Protokoll auswählen.",
+                        ),
+                        parent=dialog,
+                    )
+                    return
+                selected.append(custom_set)
+            result["selection"] = selected
+            dialog.destroy()
+
+        def _skip():
+            result["selection"] = []
+            dialog.destroy()
+
+        def _cancel():
+            result["selection"] = None
+            dialog.destroy()
+
+        dialog.protocol("WM_DELETE_WINDOW", _cancel)
+
+        ttk.Button(
+            button_row,
+            text=self.tr("button_cancel", "Abbrechen"),
+            command=_cancel,
+        ).grid(row=0, column=0, padx=(0, 8))
+        ttk.Button(
+            button_row,
+            text=self.tr("button_skip", "Ohne Ausnahmen"),
+            command=_skip,
+        ).grid(row=0, column=1, padx=(0, 8))
+        ttk.Button(
+            button_row,
+            text=self.tr("button_apply", "Übernehmen"),
+            command=_apply,
+        ).grid(row=0, column=2)
+
+        try:
+            dialog.wait_visibility()
+        except Exception:
+            pass
+        try:
+            dialog.focus_set()
+        except Exception:
+            pass
+        dialog.wait_window()
+        return result["selection"]
+
+    def _game_mode_ufw_rule_exists(self, status_text: str, rule: dict) -> bool:
+        if str(rule.get("type") or "").strip() != "standard_port":
+            return False
+        direction = str(rule.get("direction") or "").strip().upper()
+        port = str(rule.get("port") or "").strip()
+        proto = str(rule.get("proto") or "").strip().lower()
+        if direction not in {"IN", "OUT"} or not port or proto not in {"tcp", "udp"}:
+            return False
+        for raw_line in (status_text or "").splitlines():
+            parsed = self._parse_ufw_structured_rule(raw_line)
+            if not parsed:
+                continue
+            if str(parsed.get("policy") or "").upper() != "ALLOW":
+                continue
+            if str(parsed.get("direction") or "").upper() != direction:
+                continue
+            if str(parsed.get("port") or "").strip() != port:
+                continue
+            if str(parsed.get("proto") or "").strip().lower() != proto:
+                continue
+            return True
+        return False
+
+    def _refresh_security_hardening_text_wrap(self, _event=None):
+        frame = self.__dict__.get("tab_lynis_hardening_actions_frame")
+        if frame is None:
+            return
+        try:
+            width = int(frame.winfo_width() or frame.winfo_reqwidth() or 0)
+        except Exception:
+            width = 0
+        wraplength = max(260, width - 20) if width > 0 else 360
+        for attr_name in (
+            "lbl_security_game_mode_profile_hint",
+            "lbl_security_game_mode_status",
+            "lbl_security_hardening_scope",
+        ):
+            widget = self.__dict__.get(attr_name)
+            if widget is None:
+                continue
+            try:
+                widget.configure(wraplength=wraplength)
+            except Exception:
+                pass
+
+    def _apply_game_mode_ufw_exception_rules(
+        self, rules: list[dict]
+    ) -> tuple[bool, list[dict], str]:
+        if not rules:
+            return True, [], ""
+        rc_status, status_text = self._read_ufw_status(verbose=True)
+        if rc_status != 0:
+            return (
+                False,
+                [],
+                str(status_text or "").strip() or "UFW-Status nicht lesbar",
+            )
+
+        current_status = str(status_text or "")
+        added_rules = []
+        for rule in list(rules or []):
+            if self._game_mode_ufw_rule_exists(current_status, rule):
+                continue
+            if str(rule.get("type") or "").strip() != "standard_port":
+                return False, added_rules, "ungueltige Spielmodus-UFW-Regel"
+            direction = str(rule.get("direction") or "").strip().lower()
+            port = str(rule.get("port") or "").strip()
+            proto = str(rule.get("proto") or "").strip().lower()
+            if (
+                direction not in {"in", "out"}
+                or not port
+                or proto not in {"tcp", "udp"}
+            ):
+                return False, added_rules, "ungueltige Spielmodus-UFW-Regel"
+            rc_cmd, out_cmd = run_cmd(
+                ["sudo", "-n", "ufw", "allow", direction, f"{port}/{proto}"],
+                timeout=20,
+            )
+            if rc_cmd != 0:
+                return (
+                    False,
+                    added_rules,
+                    str(out_cmd or "").strip() or "UFW-Regel fehlgeschlagen",
+                )
+            added_rules.append(dict(rule))
+            current_status += f"\nALLOW {direction.upper()} {port}/{proto}"
+        return True, added_rules, ""
+
+    def _rollback_game_mode_ufw_exception_rules(
+        self, rules: list[dict]
+    ) -> tuple[bool, list[str]]:
+        errors = []
+        for rule in reversed(list(rules or [])):
+            if str(rule.get("type") or "").strip() != "standard_port":
+                continue
+            direction = str(rule.get("direction") or "").strip().lower()
+            port = str(rule.get("port") or "").strip()
+            proto = str(rule.get("proto") or "").strip().lower()
+            if (
+                direction not in {"in", "out"}
+                or not port
+                or proto not in {"tcp", "udp"}
+            ):
+                continue
+            rc_cmd, out_cmd = run_cmd(
+                ["sudo", "-n", "ufw", "delete", "allow", direction, f"{port}/{proto}"],
+                timeout=20,
+            )
+            if rc_cmd != 0:
+                errors.append(
+                    str(out_cmd or "").strip() or f"{direction} {port}/{proto}"
+                )
+        return not errors, errors
+
+    def refresh_game_mode_preset_ui(self):
+        preset = self._active_game_mode_preset()
+        preset_label = str(preset.get("label") or "Online").strip() or "Online"
+        preset_var = self.__dict__.get("security_game_mode_preset_var")
+        if preset_var is not None:
+            try:
+                preset_var.set(preset_label)
+            except Exception:
+                pass
+        hint_var = self.__dict__.get("security_game_mode_profile_hint_var")
+        if hint_var is not None:
+            exception_sets = self._game_mode_recommended_exception_sets(preset)
+            exception_hint = ""
+            if exception_sets:
+                labels = ", ".join(
+                    str(item.get("label") or "").strip()
+                    for item in exception_sets
+                    if str(item.get("label") or "").strip()
+                )
+                if labels:
+                    exception_hint = f" Empfohlene UFW-Ausnahmen: {labels}."
+            try:
+                hint_var.set(
+                    f"Spielprofil: {preset_label}. "
+                    f"{str(preset.get('profile_note') or '').strip()} "
+                    f"Kernel-Hinweis: {str(preset.get('kernel_note') or '').strip()}"
+                    f"{exception_hint}"
+                )
+            except Exception:
+                pass
+        return preset
+
+    def on_game_mode_preset_selected(self, _event=None):
+        preset = self.refresh_game_mode_preset_ui()
+        settings = self.__dict__.setdefault("settings", {})
+        settings["security_game_mode_preset"] = (
+            str(preset.get("id") or "online").strip() or "online"
+        )
+        try:
+            self.save_settings(log_success=False)
+        except Exception:
+            pass
+        self.refresh_game_mode_status()
+        return preset
+
+    def refresh_game_mode_status(self):
+        state = dict(self.__dict__.get("game_mode_state", {}) or {})
+        settings = self.__dict__.get("settings", {}) or {}
+        active = bool(state.get("active"))
+        if active:
+            preset_label = self._game_mode_preset_label(
+                state.get("preset_id", "online")
+            )
+        else:
+            preset_label = self._game_mode_preset_label(
+                self._normalize_game_mode_preset(
+                    settings.get("security_game_mode_preset", "online")
+                )
+            )
+        details = []
+        if active:
+            details.append(f"Preset {preset_label}")
+            if bool(state.get("dns_guard_paused")):
+                details.append("DNS Guard pausiert")
+            if bool(state.get("killswitch_paused")):
+                details.append("Killswitch pausiert")
+            if bool(state.get("ufw_logging_lowered")):
+                details.append("UFW Logging LOW")
+            if list(state.get("ufw_exception_sets") or []):
+                details.append(
+                    "UFW-Ausnahmen: "
+                    + ", ".join(
+                        str(item)
+                        for item in list(state.get("ufw_exception_sets") or [])
+                    )
+                )
+            if bool(state.get("dot_active")):
+                details.append("DoT unveraendert")
+            if bool(state.get("vpn_active")):
+                details.append("VPN unveraendert")
+            status_text = "Spielmodus: aktiv"
+            if details:
+                status_text += " | " + " | ".join(details)
+        else:
+            status_text = (
+                f"Spielmodus: aus. Vorauswahl {preset_label}. "
+                "Kernel-Haertung bleibt aktiv; nur netzbezogene Kompatibilitaet wird angepasst."
+            )
+
+        status_var = self.__dict__.get("security_game_mode_status_var")
+        if status_var is not None:
+            try:
+                status_var.set(status_text)
+            except Exception:
+                pass
+        self.update_game_mode_light(active)
+
+        btn_on = self.__dict__.get("btn_security_game_mode_on")
+        if btn_on is not None:
+            try:
+                btn_on.configure(state="disabled" if active else "normal")
+            except Exception:
+                pass
+        btn_off = self.__dict__.get("btn_security_game_mode_off")
+        if btn_off is not None:
+            try:
+                btn_off.configure(state="normal" if active else "disabled")
+            except Exception:
+                pass
+        return status_text
+
+    def update_game_mode_light(self, active=None):
+        if active is None:
+            active = bool(
+                dict(self.__dict__.get("game_mode_state", {}) or {}).get("active")
+            )
+        light = self.__dict__.get("l_game_mode")
+        if light is not None:
+            self.set_light(light, "green" if bool(active) else "red")
+
+    def enable_game_mode(self):
+        current_state = dict(self.__dict__.get("game_mode_state", {}) or {})
+        if bool(current_state.get("active")):
+            self.refresh_game_mode_status()
+            self.log_safe("Spielmodus ist bereits aktiv.")
+            return True
+
+        preset = self._active_game_mode_preset()
+        pause_dns_guard = bool(preset.get("pause_dns_guard"))
+        pause_killswitch = bool(preset.get("pause_killswitch"))
+        lower_ufw_logging = bool(preset.get("lower_ufw_logging"))
+        preset_label = str(preset.get("label") or "Online").strip() or "Online"
+        guard_var = self.__dict__.get("dns_guard_enabled_var")
+        dns_guard_enabled = bool(guard_var.get()) if guard_var is not None else False
+        killswitch_active = bool(self.killswitch_is_on())
+        ufw_logging_level = str(self._security_query_log_level() or "").strip().upper()
+        if ufw_logging_level not in {"OFF", "LOW", "MEDIUM", "HIGH"}:
+            ufw_logging_level = "UNKNOWN"
+        dot_active = bool(self.is_dot_active())
+        vpn_active = bool(self.is_vpn_active())
+
+        actions = []
+        if pause_dns_guard and dns_guard_enabled:
+            actions.append("- DNS Guard temporaer pausieren")
+        if pause_killswitch and killswitch_active:
+            actions.append("- Killswitch temporaer deaktivieren")
+        if lower_ufw_logging and ufw_logging_level in {"HIGH", "MEDIUM"}:
+            actions.append("- UFW Logging auf LOW reduzieren")
+        actions.append("- VPN und DoT bleiben unveraendert")
+        profile_note = str(preset.get("profile_note") or "").strip()
+        kernel_note = str(preset.get("kernel_note") or "").strip()
+        exception_sets = self._game_mode_recommended_exception_sets(preset)
+        selected_exception_sets = [dict(item) for item in exception_sets]
+        exception_labels = [
+            str(item.get("label") or "").strip()
+            for item in selected_exception_sets
+            if str(item.get("label") or "").strip()
+        ]
+        if exception_labels:
+            actions.append("- optionale UFW-Ausnahmen: " + ", ".join(exception_labels))
+
+        if not self.confirm_game_mode_apply(
+            self.tr("game_mode_enable_title", "Spielmodus aktivieren"),
+            preset_name=preset_label,
+            actions_text="\n".join(actions) or "- keine Aenderungen notwendig",
+            profile_note=profile_note or "-",
+            kernel_note=kernel_note or "-",
+        ):
+            return False
+
+        if selected_exception_sets:
+            chosen_exception_sets = self._prompt_game_mode_ufw_exception_sets(
+                preset_label=preset_label,
+                exception_sets=selected_exception_sets,
+            )
+            if chosen_exception_sets is None:
+                self.log_safe(
+                    "Spielmodus abgebrochen: UFW-Ausnahmendialog geschlossen."
+                )
+                return False
+            selected_exception_sets = [
+                dict(item) for item in list(chosen_exception_sets or [])
+            ]
+            exception_labels = [
+                str(item.get("label") or "").strip()
+                for item in selected_exception_sets
+                if str(item.get("label") or "").strip()
+            ]
+
+        requires_root = (
+            (pause_killswitch and killswitch_active)
+            or (lower_ufw_logging and ufw_logging_level in {"HIGH", "MEDIUM"})
+            or bool(selected_exception_sets)
+        )
+        if requires_root and not self.ensure_sudo_session(
+            "NetMon-Spielmodus aktivieren"
+        ):
+            return False
+
+        snapshot = {
+            "active": True,
+            "enabled_at": datetime.now().isoformat(timespec="seconds"),
+            "preset_id": str(preset.get("id") or "online").strip() or "online",
+            "preset_label": preset_label,
+            "dns_guard_enabled": dns_guard_enabled,
+            "killswitch_was_on": killswitch_active,
+            "ufw_logging_level": ufw_logging_level,
+            "dot_active": dot_active,
+            "vpn_active": vpn_active,
+            "dns_guard_paused": pause_dns_guard and dns_guard_enabled,
+            "killswitch_paused": False,
+            "ufw_logging_lowered": False,
+            "ufw_exception_sets": [],
+            "ufw_exception_rules_added": [],
+        }
+
+        if pause_dns_guard:
+            self._apply_game_mode_dns_guard(False)
+        if pause_killswitch and killswitch_active:
+            if not self.killswitch_off(
+                async_mode=False,
+                ensure_sudo=False,
+                refresh_ui=True,
+                interactive_guard=False,
+            ):
+                if pause_dns_guard:
+                    self._apply_game_mode_dns_guard(dns_guard_enabled)
+                self.log_safe(
+                    "Spielmodus fehlgeschlagen: Killswitch konnte nicht pausiert werden."
+                )
+                return False
+            snapshot["killswitch_paused"] = True
+
+        if lower_ufw_logging and ufw_logging_level in {"HIGH", "MEDIUM"}:
+            if not self._set_ufw_logging_sync(
+                "low",
+                ensure_sudo=False,
+                log_context="Spielmodus",
+            ):
+                if snapshot["killswitch_paused"]:
+                    self.killswitch_on(
+                        async_mode=False,
+                        ensure_sudo=False,
+                        refresh_ui=True,
+                        interactive_guard=False,
+                    )
+                if pause_dns_guard:
+                    self._apply_game_mode_dns_guard(dns_guard_enabled)
+                self.log_safe(
+                    "Spielmodus fehlgeschlagen: UFW Logging konnte nicht auf LOW reduziert werden."
+                )
+                return False
+            snapshot["ufw_logging_lowered"] = True
+
+        if selected_exception_sets:
+            exception_rules = []
+            for item in selected_exception_sets:
+                exception_rules.extend(list(item.get("rules") or []))
+            ok_rules, added_rules, error_detail = (
+                self._apply_game_mode_ufw_exception_rules(exception_rules)
+            )
+            if not ok_rules:
+                if snapshot["ufw_logging_lowered"]:
+                    self._set_ufw_logging_sync(
+                        ufw_logging_level.lower(),
+                        ensure_sudo=False,
+                        log_context="Spielmodus-Rollback",
+                    )
+                if snapshot["killswitch_paused"]:
+                    self.killswitch_on(
+                        async_mode=False,
+                        ensure_sudo=False,
+                        refresh_ui=True,
+                        interactive_guard=False,
+                    )
+                if pause_dns_guard:
+                    self._apply_game_mode_dns_guard(dns_guard_enabled)
+                self.log_safe(
+                    "Spielmodus fehlgeschlagen: UFW-Ausnahmen konnten nicht gesetzt werden."
+                    + (f" ({error_detail})" if error_detail else "")
+                )
+                return False
+            snapshot["ufw_exception_sets"] = [
+                str(item.get("label") or "").strip()
+                for item in selected_exception_sets
+                if str(item.get("label") or "").strip()
+            ]
+            snapshot["ufw_exception_rules_added"] = list(added_rules)
+
+        self.game_mode_state = snapshot
+        self.refresh_game_mode_status()
+        self.log_safe("Spielmodus aktiviert.")
+        return True
+
+    def disable_game_mode(self):
+        state = dict(self.__dict__.get("game_mode_state", {}) or {})
+        if not bool(state.get("active")):
+            self.refresh_game_mode_status()
+            self.log_safe("Spielmodus ist bereits aus.")
+            return True
+
+        requires_root = bool(state.get("killswitch_paused")) or bool(
+            state.get("ufw_logging_lowered")
+        )
+        if requires_root and not self.ensure_sudo_session(
+            "NetMon-Spielmodus deaktivieren"
+        ):
+            return False
+
+        errors = []
+        original_logging = str(state.get("ufw_logging_level") or "").strip().lower()
+        if bool(state.get("ufw_logging_lowered")) and original_logging in {
+            "off",
+            "low",
+            "medium",
+            "high",
+        }:
+            if not self._set_ufw_logging_sync(
+                original_logging,
+                ensure_sudo=False,
+                log_context="Spielmodus-Rollback",
+            ):
+                errors.append("UFW Logging")
+
+        if list(state.get("ufw_exception_rules_added") or []):
+            rollback_ok, rollback_errors = self._rollback_game_mode_ufw_exception_rules(
+                list(state.get("ufw_exception_rules_added") or [])
+            )
+            if not rollback_ok:
+                errors.append("UFW-Ausnahmen")
+                for item in rollback_errors[:2]:
+                    self.log_safe(f"Spielmodus-UFW-Rollback Hinweis: {item}")
+
+        if bool(state.get("killswitch_was_on")) and not self.killswitch_is_on():
+            if not self.killswitch_on(
+                async_mode=False,
+                ensure_sudo=False,
+                refresh_ui=True,
+                interactive_guard=False,
+            ):
+                errors.append("Killswitch")
+
+        self._apply_game_mode_dns_guard(bool(state.get("dns_guard_enabled")))
+
+        if errors:
+            self.refresh_game_mode_status()
+            self.log_safe(
+                "Spielmodus-Rollback unvollstaendig: "
+                + ", ".join(errors)
+                + " bitte manuell pruefen."
+            )
+            return False
+
+        self.game_mode_state = {}
+        self.refresh_game_mode_status()
+        self.log_safe(
+            "Spielmodus deaktiviert und vorheriger Zustand wiederhergestellt."
+        )
+        return True
+
+    def apply_security_baseline_sysctl(self):
+        return security_audit_controller.apply_security_baseline_sysctl(
+            self,
+            run_cmd_fn=run_cmd,
+        )
+
+    def apply_security_baseline_profile(self):
+        return security_audit_controller.apply_security_baseline_profile(
+            self,
+            run_cmd_fn=run_cmd,
+        )
+
+    def _security_baseline_transfer_directory(self) -> str:
+        transfer_dir = str(
+            getattr(self, "security_baseline_transfer_dir", "") or ""
+        ).strip()
+        if transfer_dir:
+            try:
+                os.makedirs(transfer_dir, exist_ok=True)
+            except Exception:
+                pass
+            return transfer_dir
+        return get_netmon_documents_subdir("Security", "Transferpakete")
+
+    def export_security_baseline_transfer(self):
+        initial_dir = self._security_baseline_transfer_directory()
+        initial_file = (
+            security_audit_controller.default_security_baseline_transfer_filename(self)
+        )
+        file_path = filedialog.asksaveasfilename(
+            title=self.tr(
+                "baseline_transfer_export_title",
+                "Baseline-Transferpaket exportieren",
+            ),
+            initialdir=initial_dir,
+            initialfile=initial_file,
+            defaultextension=".json",
+            filetypes=[("JSON", "*.json"), ("All files", "*.*")],
+        )
+        if not file_path:
+            return False
+        return security_audit_controller.export_security_baseline_transfer(
+            self,
+            file_path,
+        )
+
+    def import_security_baseline_transfer(self):
+        initial_dir = self._security_baseline_transfer_directory()
+        file_path = filedialog.askopenfilename(
+            title=self.tr(
+                "baseline_transfer_import_title",
+                "Baseline-Transferpaket importieren",
+            ),
+            initialdir=initial_dir,
+            filetypes=[("JSON", "*.json"), ("All files", "*.*")],
+        )
+        if not file_path:
+            return False
+        return security_audit_controller.import_security_baseline_transfer(
+            self,
+            file_path,
+            run_cmd_fn=run_cmd,
+        )
+
+    def _resolve_timeshift_launch_command(self):
+        for binary in ("timeshift-launcher", "timeshift-gtk"):
+            path = get_cmd_path(binary)
+            if path:
+                return [binary], path
+        return None, ""
+
+    def _resolve_data_backup_tool(self, *, restore: bool = False):
+        mintbackup_path = get_cmd_path("mintbackup")
+        if mintbackup_path:
+            return {
+                "label": "Linux Mint Datensicherung",
+                "command": ["mintbackup"],
+                "path": mintbackup_path,
+                "supports_restore_mode": False,
+            }
+
+        deja_dup_path = get_cmd_path("deja-dup")
+        if deja_dup_path:
+            command = ["deja-dup", "--restore"] if restore else ["deja-dup"]
+            return {
+                "label": "Deja Dup",
+                "command": command,
+                "path": deja_dup_path,
+                "supports_restore_mode": True,
+            }
+        return None
+
+    def _desktop_backup_preference(self):
+        os_release = self._read_os_release()
+        distro_id = str(os_release.get("ID") or "").strip().lower()
+        like_tokens = {
+            token.strip().lower()
+            for token in str(os_release.get("ID_LIKE") or "").split()
+            if token.strip()
+        }
+        if distro_id in {"linuxmint", "mint"}:
+            return {
+                "dependency_key": "mintbackup",
+                "check_key": "mintbackup",
+                "installable_key": "mintbackup_installable",
+                "label": "Linux Mint Datensicherung",
+                "fallback_dependency_key": "deja_dup",
+            }
+        if distro_id in {"ubuntu", "zorin", "pop", "elementary", "neon", "debian"} or (
+            {"ubuntu", "debian"} & like_tokens
+        ):
+            return {
+                "dependency_key": "deja_dup",
+                "check_key": "deja_dup",
+                "installable_key": "deja_dup_installable",
+                "label": "Deja Dup",
+                "fallback_dependency_key": "",
+            }
+        return {
+            "dependency_key": "deja_dup",
+            "check_key": "deja_dup",
+            "installable_key": "deja_dup_installable",
+            "label": "Deja Dup",
+            "fallback_dependency_key": "",
+        }
+
+    def _preferred_desktop_backup_preflight_spec(self, checks: dict):
+        preference = self._desktop_backup_preference()
+        dep_key = str(preference.get("dependency_key") or "").strip()
+        check_key = str(preference.get("check_key") or dep_key).strip()
+        installable_key = str(preference.get("installable_key") or "").strip()
+        base_label = str(preference.get("label") or dep_key).strip() or dep_key
+        fallback_dep_key = str(preference.get("fallback_dependency_key") or "").strip()
+        path_map = {
+            "mintbackup": get_cmd_path("mintbackup"),
+            "deja_dup": get_cmd_path("deja-dup"),
+        }
+        path = str(path_map.get(dep_key) or "").strip()
+        ok = bool(checks.get(check_key, False))
+        if not ok and fallback_dep_key:
+            fallback_check_key = fallback_dep_key
+            fallback_path = str(path_map.get(fallback_dep_key) or "").strip()
+            if checks.get(fallback_check_key, False):
+                fallback_label = str(
+                    DEPENDENCIES.get(fallback_dep_key, {}).get(
+                        "label", fallback_dep_key
+                    )
+                    or fallback_dep_key
+                ).strip()
+                return f"Desktop-Datensicherung: {fallback_label}", True, fallback_path
+        if not path and installable_key and checks.get(installable_key, False):
+            path = "Optional"
+        return f"Desktop-Datensicherung: {base_label}", ok, path
+
+    def _log_preflight_desktop_backup_tool(self, checks: dict):
+        label, ok, path = self._preferred_desktop_backup_preflight_spec(checks)
+        self._log_preflight_tool_state(label, ok, path)
+
+    def refresh_timeshift_launch_controls(self):
+        command, _path = self._resolve_timeshift_launch_command()
+        for button_name in (
+            "btn_security_baseline_timeshift",
+            "btn_right_quick_timeshift",
+            "btn_backup_timeshift_start",
+            "btn_backup_timeshift_snapshots",
+            "btn_backup_timeshift_restore",
+        ):
+            button = self.__dict__.get(button_name)
+            if button is None:
+                continue
+            try:
+                button.configure(state="normal" if command is not None else "disabled")
+            except Exception:
+                pass
+        if "backup_timeshift_status_var" in self.__dict__:
+            self.refresh_backup_overview()
+
+    def refresh_data_backup_launch_controls(self):
+        backup_tool = self._resolve_data_backup_tool(restore=False)
+        restore_tool = self._resolve_data_backup_tool(restore=True)
+        for button_name, enabled in (
+            ("btn_backup_open_data_tool", backup_tool is not None),
+            ("btn_backup_open_restore_tool", restore_tool is not None),
+        ):
+            button = self.__dict__.get(button_name)
+            if button is None:
+                continue
+            try:
+                button.configure(state="normal" if enabled else "disabled")
+            except Exception:
+                pass
+        self.refresh_backup_overview()
+
+    def launch_timeshift_snapshot_tool(self):
+        command, path = self._resolve_timeshift_launch_command()
+        if command is None:
+            self.log_safe(
+                self.tr(
+                    "baseline_timeshift_missing_log",
+                    "Timeshift-Launcher nicht gefunden. Bitte Timeshift ueber den Setup Assistant oder den Paketmanager installieren.",
+                )
+            )
+            messagebox.showinfo(
+                self.tr(
+                    "baseline_timeshift_title",
+                    "Timeshift starten",
+                ),
+                self.tr(
+                    "baseline_timeshift_missing",
+                    "Es wurde kein startbarer Timeshift-Launcher gefunden.\n\nBitte Timeshift zuerst installieren oder manuell ueber das Systemmenue starten.",
+                ),
+                parent=self,
+            )
+            return False
+
+        try:
+            subprocess.Popen(
+                command,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            self.log_safe(
+                self.tr(
+                    "baseline_timeshift_started_log",
+                    "Timeshift gestartet: {path}",
+                ).format(path=path or command[0])
+            )
+            return True
+        except Exception as exc:
+            self.log_safe(
+                self.tr(
+                    "baseline_timeshift_failed_log",
+                    "Timeshift konnte nicht gestartet werden: {error}",
+                ).format(error=exc)
+            )
+            messagebox.showerror(
+                self.tr(
+                    "baseline_timeshift_title",
+                    "Timeshift starten",
+                ),
+                self.tr(
+                    "baseline_timeshift_failed",
+                    "Timeshift konnte nicht gestartet werden.",
+                )
+                + f"\n\n{exc}",
+                parent=self,
+            )
+            return False
+
+    def launch_data_backup_tool(self, *, restore: bool = False):
+        tool = self._resolve_data_backup_tool(restore=restore)
+        if tool is None:
+            mode_label = (
+                self.tr("backup_btn_open_restore_tool", "Wiederherstellung öffnen")
+                if restore
+                else self.tr("backup_btn_open_data_tool", "Datensicherung öffnen")
+            )
+            self.log_safe(
+                f"{mode_label} nicht verfügbar: kein passendes Desktop-Backup-Tool gefunden."
+            )
+            messagebox.showinfo(
+                self.tr("backup_data_tool_title", "Datensicherung"),
+                self.tr(
+                    "backup_data_tool_missing",
+                    "Es wurde kein unterstütztes Desktop-Backup-Tool gefunden.\n\nUnterstützt werden aktuell Linux Mint Datensicherung und Deja Dup.",
+                ),
+                parent=self,
+            )
+            return False
+
+        command = list(tool.get("command") or [])
+        if not command:
+            return False
+
+        try:
+            subprocess.Popen(
+                command,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            action = "Wiederherstellung" if restore else "Datensicherung"
+            label = str(tool.get("label") or command[0]).strip() or command[0]
+            self.log_safe(f"{action} gestartet: {label}")
+            self.backup_status_var.set(f"{action} geöffnet: {label}")
+            return True
+        except Exception as exc:
+            self.log_safe(f"Desktop-Backup-Tool konnte nicht gestartet werden: {exc}")
+            messagebox.showerror(
+                self.tr("backup_data_tool_title", "Datensicherung"),
+                self.tr(
+                    "backup_data_tool_failed",
+                    "Das Desktop-Backup-Tool konnte nicht gestartet werden.",
+                )
+                + f"\n\n{exc}",
+                parent=self,
+            )
+            return False
+
+    def clear_security_baseline_transfer(self):
+        return security_audit_controller.clear_security_baseline_transfer(self)
+
+    def _show_security_baseline_transfer_text_window(
+        self,
+        *,
+        window_attr: str,
+        title: str,
+        heading: str,
+        text: str,
+    ):
+        existing = self.__dict__.get(window_attr)
+        if existing is not None:
+            try:
+                if existing.winfo_exists():
+                    existing.destroy()
+            except Exception:
+                pass
+
+        win = tk.Toplevel(self)
+        self.__dict__[window_attr] = win
+        win.title(title)
+        win.transient(self)
+        win.geometry("760x560")
+        win.minsize(620, 420)
+
+        def _close():
+            self.__dict__[window_attr] = None
+            try:
+                win.destroy()
+            except Exception:
+                pass
+
+        win.protocol("WM_DELETE_WINDOW", _close)
+
+        container = ttk.Frame(win, padding=12)
+        container.pack(fill="both", expand=True)
+        ttk.Label(
+            container,
+            text=heading,
+            font=("TkDefaultFont", 11, "bold"),
+            justify="left",
+        ).pack(anchor="w", pady=(0, 8))
+
+        text_frame = ttk.Frame(container)
+        text_frame.pack(fill="both", expand=True)
+        text_frame.columnconfigure(0, weight=1)
+        text_frame.rowconfigure(0, weight=1)
+
+        scroll_y = ttk.Scrollbar(text_frame, orient="vertical")
+        scroll_y.grid(row=0, column=1, sticky="ns")
+        body = tk.Text(
+            text_frame,
+            wrap="word",
+            height=24,
+            yscrollcommand=scroll_y.set,
+        )
+        body.grid(row=0, column=0, sticky="nsew")
+        scroll_y.configure(command=body.yview)
+        body.insert("1.0", text)
+        body.configure(state="disabled")
+        self.attach_selection_copy_shortcuts(body, "text")
+        self.attach_text_context_menu(body)
+
+        actions = ttk.Frame(container)
+        actions.pack(fill="x", pady=(10, 0))
+        ttk.Button(
+            actions,
+            text=self.tr("btn_close", "Close"),
+            command=_close,
+        ).pack(side="right")
+        return True
+
+    def show_security_baseline_transfer_package(self):
+        text = security_audit_controller.security_baseline_transfer_package_text(self)
+        if not text:
+            messagebox.showinfo(
+                self.tr(
+                    "baseline_transfer_show_title",
+                    "Transferpaket anzeigen",
+                ),
+                self.tr(
+                    "baseline_transfer_show_missing",
+                    "Aktuell ist kein importiertes Transferpaket geladen.",
+                ),
+                parent=self,
+            )
+            return False
+
+        return self._show_security_baseline_transfer_text_window(
+            window_attr="security_baseline_transfer_show_window",
+            title=self.tr(
+                "baseline_transfer_show_title",
+                "Transferpaket anzeigen",
+            ),
+            heading=self.tr(
+                "baseline_transfer_show_heading",
+                "Geladenes Transferpaket",
+            ),
+            text=text,
+        )
+
+    def show_security_baseline_transfer_comparison(self):
+        text = security_audit_controller.security_baseline_transfer_comparison_text(
+            self
+        )
+        if not text:
+            messagebox.showinfo(
+                self.tr(
+                    "baseline_transfer_compare_title",
+                    "Transferpaket vergleichen",
+                ),
+                self.tr(
+                    "baseline_transfer_compare_missing",
+                    "Aktuell ist kein importiertes Transferpaket geladen.",
+                ),
+                parent=self,
+            )
+            return False
+        return self._show_security_baseline_transfer_text_window(
+            window_attr="security_baseline_transfer_compare_window",
+            title=self.tr(
+                "baseline_transfer_compare_title",
+                "Transferpaket vergleichen",
+            ),
+            heading=self.tr(
+                "baseline_transfer_compare_heading",
+                "Vergleich lokales Profil vs. importiertes Transferpaket",
+            ),
+            text=text,
+        )
+
+    def apply_security_baseline_ufw(self):
+        return security_audit_controller.apply_security_baseline_ufw(
+            self,
+            run_cmd_fn=run_cmd,
+        )
+
+    def restore_security_baseline_state(self):
+        return security_audit_controller.restore_security_baseline_state(self)
 
     def build_rkhunter_tab(self):
         rkh_top = ttk.LabelFrame(
@@ -29861,11 +33915,17 @@ class App(TkBase):
     def refresh_connected_device_table(self):
         return security_monitoring_controller.refresh_connected_device_table(self)
 
+    def set_connected_device_filter(self, mode: str):
+        return security_monitoring_controller.set_connected_device_filter(self, mode)
+
     def on_connected_device_select(self, _event=None):
         security_monitoring_controller.on_connected_device_select(self, _event=_event)
 
     def security_show_connected_devices(self):
         security_monitoring_controller.security_show_connected_devices(self)
+
+    def on_security_device_view_toggle(self):
+        security_monitoring_controller.on_security_device_view_toggle(self)
 
     def refresh_input_access_table(self, log_result=True):
         return security_monitoring_controller.refresh_input_access_table(
@@ -30041,7 +34101,7 @@ class App(TkBase):
         message: str,
         events=None,
     ) -> None:
-        self._open_security_menu_target_tab("guards")
+        self._open_security_menu_target_tab("guard_events")
         detail_widget = self.__dict__.get("security_detail")
         if detail_widget is None:
             return
@@ -33099,6 +37159,9 @@ class App(TkBase):
         if (
             "projectm_visualizer" not in missing_keys
             and "nvidia_smi" not in missing_keys
+            and "timeshift" not in missing_keys
+            and "mintbackup" not in missing_keys
+            and "deja_dup" not in missing_keys
         ):
             return
 
@@ -33215,6 +37278,72 @@ class App(TkBase):
                 command=lambda: self._select_only_missing_dependency("nvidia_smi"),
             ).pack(anchor="w", pady=(6, 0))
 
+        if "timeshift" in missing_keys:
+            box = ttk.Frame(frame, padding=(8, 6))
+            box.pack(fill="x", pady=(0, 8))
+            ttk.Label(
+                box,
+                text=self.tr(
+                    "setup_assistant_optional_timeshift",
+                    "Optional empfohlen: Timeshift Snapshots",
+                ),
+                font=("TkDefaultFont", 10, "bold"),
+            ).pack(anchor="w")
+            ttk.Label(
+                box,
+                text=self.tr(
+                    "setup_assistant_optional_timeshift_detail",
+                    "Vor Hardening, Firewall-Aenderungen oder anderen tieferen Systemeingriffen sollte ein Timeshift-Snapshot vorhanden sein. Installation ist ueber APT moeglich.",
+                ),
+                foreground="#555555",
+                wraplength=680,
+                justify="left",
+            ).pack(anchor="w", pady=(2, 0))
+            ttk.Button(
+                box,
+                text=self.tr(
+                    "setup_assistant_btn_select_only_timeshift",
+                    "Nur Timeshift auswaehlen",
+                ),
+                command=lambda: self._select_only_missing_dependency("timeshift"),
+            ).pack(anchor="w", pady=(6, 0))
+
+        preference = self._desktop_backup_preference()
+        preferred_dep_key = str(preference.get("dependency_key") or "").strip()
+        if preferred_dep_key in missing_keys:
+            info = DEPENDENCIES.get(preferred_dep_key, {})
+            label = str(
+                info.get("label", preferred_dep_key) or preferred_dep_key
+            ).strip()
+            detail = str(info.get("description", "") or "").strip()
+            box = ttk.Frame(frame, padding=(8, 6))
+            box.pack(fill="x", pady=(0, 8))
+            ttk.Label(
+                box,
+                text=self.tr(
+                    "setup_assistant_optional_desktop_backup",
+                    "Optional empfohlen: Desktop-Datensicherung",
+                ),
+                font=("TkDefaultFont", 10, "bold"),
+            ).pack(anchor="w")
+            ttk.Label(
+                box,
+                text=f"{label}: {detail or 'Desktop-Backup-Tool per APT installierbar.'}",
+                foreground="#555555",
+                wraplength=680,
+                justify="left",
+            ).pack(anchor="w", pady=(2, 0))
+            ttk.Button(
+                box,
+                text=self.tr(
+                    "setup_assistant_btn_select_only_desktop_backup",
+                    "Nur Desktop-Datensicherung auswählen",
+                ),
+                command=lambda dep_key=preferred_dep_key: self._select_only_missing_dependency(
+                    dep_key
+                ),
+            ).pack(anchor="w", pady=(6, 0))
+
     def _select_only_missing_dependency(self, dep_key):
         has_match = False
         for key, var in (self.dep_installer_vars or {}).items():
@@ -33238,6 +37367,9 @@ class App(TkBase):
             "projectm_visualizer": 0,
             "mpv": 1,
             "nvidia_smi": 2,
+            "timeshift": 3,
+            "mintbackup": 4,
+            "deja_dup": 5,
         }
         info = DEPENDENCIES.get(dep_key, {})
         category = str(info.get("category", "") or "").strip().lower()
@@ -33845,6 +37977,7 @@ class App(TkBase):
             ("capinfos", "capinfos"),
             ("lynis", "lynis"),
             ("rkhunter", "rkhunter"),
+            ("Timeshift", "timeshift"),
             ("whois", "whois"),
             ("nvidia-smi", "nvidia-smi"),
             ("mpv (Radio)", "mpv"),
@@ -33873,6 +38006,10 @@ class App(TkBase):
                         )
                 elif checks.get("projectm_visualizer_installable", False):
                     path = "Optional"
+            elif key == "timeshift":
+                path = get_cmd_path(key)
+                if not path and checks.get("timeshift_installable", False):
+                    path = "Optional"
             elif key == "nvidia-smi":
                 path = get_cmd_path(key)
                 if not path and checks.get("nvidia_smi_installable", False):
@@ -33882,6 +38019,7 @@ class App(TkBase):
             else:
                 path = get_cmd_path(key)
             self._log_preflight_tool_state(label, checks.get(key, False), path)
+        self._log_preflight_desktop_backup_tool(checks)
 
         speedtest_path = get_cmd_path("speedtest") or get_cmd_path("speedtest-cli")
         self._log_preflight_tool_state(
@@ -33985,6 +38123,9 @@ class App(TkBase):
             "capinfos": has_cmd("capinfos"),
             "lynis": has_cmd("lynis"),
             "rkhunter": has_cmd("rkhunter"),
+            "timeshift": has_cmd("timeshift"),
+            "mintbackup": has_cmd("mintbackup"),
+            "deja_dup": has_cmd("deja-dup"),
             "clamav": has_cmd("clamscan"),
             "freshclam": has_cmd("freshclam"),
             "pillow": (Image is not None and ImageTk is not None)
@@ -34040,6 +38181,19 @@ class App(TkBase):
             checks.get("nvidia_gpu_present", False)
             and nvidia_smi_probe.get("installable", False)
         )
+        backup_preference = self._desktop_backup_preference()
+        preferred_backup_dep = str(
+            backup_preference.get("dependency_key") or ""
+        ).strip()
+        checks["mintbackup_installable"] = bool(
+            preferred_backup_dep == "mintbackup"
+            and (has_cmd("apt") or has_cmd("apt-get"))
+        )
+        checks["deja_dup_installable"] = bool(
+            preferred_backup_dep == "deja_dup"
+            and (has_cmd("apt") or has_cmd("apt-get"))
+        )
+        checks["timeshift_installable"] = bool(has_cmd("apt") or has_cmd("apt-get"))
         checks["flatpak"] = bool(projectm_probe.get("flatpak_available", False))
         checks["projectm_visualizer"] = bool(projectm_state.installed)
         checks["projectm_preset_pack_available"] = bool(
@@ -34118,6 +38272,15 @@ class App(TkBase):
                 )
 
             self._log_strict_protection_state()
+            timeshift_path = get_cmd_path("timeshift")
+            if not timeshift_path and checks.get("timeshift_installable", False):
+                timeshift_path = "Optional"
+            self._log_preflight_tool_state(
+                "Timeshift",
+                checks.get("timeshift", False),
+                timeshift_path,
+            )
+            self._log_preflight_desktop_backup_tool(checks)
             if checks.get("speedtest") and not checks.get("speedtest_module"):
                 self.log(
                     self.tr(
@@ -34206,6 +38369,8 @@ class App(TkBase):
 
         self._update_clamav_findings_buttons_state()
         self._update_dependency_installer_button()
+        self.refresh_timeshift_launch_controls()
+        self.refresh_data_backup_launch_controls()
         self.refresh_wireshark_launch_controls()
         self.update_radio_dependency_state()
         self.refresh_fun_games()
@@ -34258,12 +38423,26 @@ class App(TkBase):
         def _widget_exists(widget):
             if widget is None:
                 return False
-            if hasattr(widget, "configure") or hasattr(widget, "config"):
-                return True
             try:
-                return bool(int(widget.winfo_exists()))
+                exists_fn = getattr(widget, "winfo_exists", None)
+                if callable(exists_fn):
+                    return bool(int(exists_fn()))
             except Exception:
                 return False
+            return bool(hasattr(widget, "configure") or hasattr(widget, "config"))
+
+        def _configure_existing_widget(widget, **kwargs):
+            if not _widget_exists(widget):
+                return False
+            try:
+                widget.configure(**kwargs)
+                return True
+            except Exception:
+                try:
+                    widget.config(**kwargs)
+                    return True
+                except Exception:
+                    return False
 
         active_profile = (self.active_wg_profile() or "").strip()
         selected_profile = ""
@@ -34324,7 +38503,11 @@ class App(TkBase):
                 hint_color = "#2e7d32"
             else:
                 hint_color = "#c62828"
-            ipv6_controls_hint.config(text=ipv6_hint, foreground=hint_color)
+            _configure_existing_widget(
+                ipv6_controls_hint,
+                text=ipv6_hint,
+                foreground=hint_color,
+            )
 
         privacy_profile = active_profile or selected_profile
         privacy_enabled = True
@@ -34348,7 +38531,7 @@ class App(TkBase):
                     pass
         privacy_ipv6_hint = self.__dict__.get("privacy_ipv6_hint")
         if _widget_exists(privacy_ipv6_hint):
-            privacy_ipv6_hint.config(text=privacy_hint)
+            _configure_existing_widget(privacy_ipv6_hint, text=privacy_hint)
 
     def ipv6_disable(self, refresh_ui=True):
         ok = True
@@ -36446,6 +40629,12 @@ class App(TkBase):
             rc, out = self._read_ufw_status(verbose=True)
         except Exception:
             rc, out = 1, ""
+
+        if rc != 0 and not check_sudo_nopasswd():
+            snapshot["status_label"] = self.tr(
+                "firewall_status_auth_pending_short",
+                "Autorisierung ausstehend",
+            )
 
         metadata_lines = []
         structured_rules = []
@@ -42119,9 +46308,20 @@ class App(TkBase):
             inet_state = self._update_internet_indicator_state(bool(inet))
         vpn_profile = self.active_wg_profile()
 
-        fw = self.check_ufw_active()
-        ssh_rule = self.check_ssh_rule_active() if fw else None
-        ks = self.killswitch_is_on()
+        fw = False
+        fw_readable = True
+        if "check_ufw_active" in self.__dict__:
+            fw = self.check_ufw_active()
+        else:
+            try:
+                rc_fw, out_fw = self._read_ufw_status()
+            except Exception:
+                rc_fw, out_fw = 1, ""
+            fw_readable = rc_fw == 0
+            if fw_readable:
+                fw = self._ufw_status_is_active(out_fw)
+        ssh_rule = self.check_ssh_rule_active() if fw_readable and fw else None
+        ks = self.killswitch_is_on() if fw_readable else None
 
         self.update_ipv6_controls_state()
         if hasattr(self, "vpn_profile_combo"):
@@ -42144,7 +46344,10 @@ class App(TkBase):
             self.set_light(self.l_inet, "red")
         self.set_light(self.l_vpn, "green" if vpn_profile else "gray")
         self.update_vpn_status_text()
-        self.set_light(self.l_fw, "green" if fw else "red")
+        if fw_readable:
+            self.set_light(self.l_fw, "green" if fw else "red")
+        else:
+            self.set_light(self.l_fw, "gray")
         if ssh_rule is True:
             self.set_light(self.l_ssh, "green")
         elif ssh_rule is False:
@@ -42152,7 +46355,13 @@ class App(TkBase):
         else:
             self.set_light(self.l_ssh, "gray")
         self.update_ufw_logging_light()
-        self.set_light(self.l_ks, "green" if ks else "red")
+        if ks is True:
+            self.set_light(self.l_ks, "green")
+        elif ks is False:
+            self.set_light(self.l_ks, "red")
+        else:
+            self.set_light(self.l_ks, "gray")
+        self.update_game_mode_light()
         active_profile_for_ipv6 = (vpn_profile or "").strip()
         active_iface_for_ipv6 = (self.get_wg_iface() or "").strip()
         if not active_profile_for_ipv6:

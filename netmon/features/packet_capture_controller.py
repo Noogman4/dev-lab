@@ -26,7 +26,15 @@ except ModuleNotFoundError:
 
 
 def _app_value(app, name: str, default=None):
-    return app.__dict__.get(name, default)
+    if app is None:
+        return default
+    data = getattr(app, "__dict__", None)
+    if isinstance(data, dict) and name in data:
+        return data.get(name, default)
+    try:
+        return object.__getattribute__(app, name)
+    except AttributeError:
+        return default
 
 
 def _app_var_get(app, name: str, default=""):
@@ -440,6 +448,13 @@ def packet_capture_set_running_state(app, running):
     packet_capture_ready = _packet_capture_ready(app)
     states = _packet_capture_button_states(running, packet_capture_ready)
     _packet_capture_apply_button_states(app, states)
+    light = _app_value(app, "l_capture")
+    set_light = _app_value(app, "set_light")
+    if light is not None and callable(set_light):
+        try:
+            set_light(light, "green" if running else "red")
+        except Exception:
+            pass
 
 
 def append_packet_capture_output(app, text: str, replace: bool = False):
@@ -820,7 +835,10 @@ def packet_capture_stop(app):
 
 
 def open_packet_capture_in_wireshark(app):
-    if callable(getattr(app, "wireshark_launch_blocked", None)) and app.wireshark_launch_blocked():
+    if (
+        callable(getattr(app, "wireshark_launch_blocked", None))
+        and app.wireshark_launch_blocked()
+    ):
         message = (
             "Wireshark launch is blocked in NetMon.\n"
             "Note: this option only blocks it inside NetMon. "

@@ -343,6 +343,8 @@ def test_fun_integration_hooks_are_present():
         in preflight_source
     )
     assert '("python3 (Fun)", "python3")' in manual_summary_source
+    assert '"timeshift": has_cmd("timeshift")' in preflight_source
+    assert '("Timeshift", "timeshift")' in manual_summary_source
     assert "Code the Classics Spiele: FEHLT" in manual_summary_source
     assert (
         'self.set_feature_enabled("fun", checks.get("python3", False))'

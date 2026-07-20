@@ -28,7 +28,7 @@
   <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
   <link rel="stylesheet" href="./styles.css">
 </head>
-<body class="downloads-page">
+<body class="downloads-page" data-disable-donation-gate="true">
   <div class="page-shell docs-page downloads-page-shell">
     <header class="topbar">
       <a class="brand" href="./index.html" aria-label="NetMon Startseite">
@@ -87,6 +87,13 @@
             <p><a href="/download.php?id=sha256sums&amp;src=downloads-de-hash&amp;lang=de"><code>/dist/SHA256SUMS</code></a></p>
             <pre><code>sha256sum -c SHA256SUMS</code></pre>
           </article>
+          <article class="download-card">
+            <h3>Support</h3>
+            <p>Wenn dir NetMon hilft, freuen wir uns ueber Unterstuetzung. Der direkte Spendenlink folgt wieder, sobald PayPal sauber angebunden ist.</p>
+            <div class="inline-actions">
+              <a class="button button-secondary" href="https://github.com/Noogman4/dev-lab" target="_blank" rel="noopener noreferrer">Projekt auf GitHub ansehen</a>
+            </div>
+          </article>
         </div>
       </section>
 
@@ -116,7 +123,7 @@
           <article class="download-card">
             <p class="download-label">Audit</p>
             <h3>Sicherheits-Audit 2026</h3>
-            <p>Aktueller Auditbericht: Runde 9 fuer den finalen Release-Stand NetMon v1.1.19. Zwei mittlere Findings (Update-URL-Allowlist, Killswitch-Fail-Open) wurden umgesetzt und verifiziert; die Release-Signatur (SHA256SUMS + minisign) ist gueltig.</p>
+            <p>Aktueller Auditbericht: Runde 10 fuer NetMon v1.1.20. Zwei hohe Findings (Sysctl-Injektion ueber importierte Baseline-Transferpakete, Testsuite mit echtem Host-Neustart) wurden umgesetzt und mit Regressionstests verifiziert.</p>
             <div class="inline-actions">
               <a class="button button-primary" href="./security-audit.html">HTML oeffnen</a>
               <a class="button button-secondary" href="/download.php?id=audit-pdf&amp;src=downloads-de-audit-pdf&amp;lang=de">PDF laden</a>

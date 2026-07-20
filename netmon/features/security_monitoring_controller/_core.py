@@ -102,6 +102,13 @@ def _security_detail_widget(app):
     return _app_widget_value(app, "security_detail")
 
 
+def _security_devices_detail_widget(app):
+    detail_widget = _app_widget_value(app, "security_devices_detail")
+    if detail_widget is not None:
+        return detail_widget
+    return _security_detail_widget(app)
+
+
 def _security_table(app):
     return _app_widget_value(app, "security_table")
 
@@ -353,9 +360,12 @@ def _security_summary_context(app) -> dict:
     }
 
 
-
 def _security_baseline_payload(app, timestamp: str) -> dict:
-    return {**_security_baseline_state(app), "ts": timestamp}
+    return {
+        **_security_baseline_state(app),
+        "lynis_security_baseline": _app_value(app, "lynis_security_baseline_state", {}),
+        "ts": timestamp,
+    }
 
 
 def _current_security_baseline_payload(app) -> dict:
@@ -1417,8 +1427,6 @@ def _log_ufw_logging_debug(app, level, out):
         logger(f"[DEBUG] UFW verbose output:\n{out}")
 
 
-
-
 def security_filtered_events(app):
     store = app._security_store()
     filter_mode = _security_filter_mode(app)
@@ -1644,6 +1652,8 @@ def security_clear_views(app):
 
 def _finish_security_clear_views(app) -> None:
     _set_security_detail_text_safe(app, _security_views_cleared_detail_text())
+    _set_security_devices_detail_text(app, _security_views_cleared_detail_text())
+    show_security_device_list_view(app)
     app.log(_security_views_cleared_log_message())
 
 
@@ -1656,12 +1666,71 @@ def _set_security_detail_text(app, text: str):
     detail_widget.see("1.0")
 
 
+def _set_security_devices_detail_text(app, text: str):
+    detail_widget = _security_devices_detail_widget(app)
+    if detail_widget is None:
+        return
+    detail_widget.delete("1.0", "end")
+    detail_widget.insert("end", text)
+    see = getattr(detail_widget, "see", None)
+    if callable(see):
+        see("1.0")
+
+
 def _set_security_detail_text_safe(app, text: str) -> bool:
     try:
         _set_security_detail_text(app, text)
     except Exception:
         return False
     return True
+
+
+def security_device_view_status_text(app, detail_mode: bool) -> str:
+    if detail_mode:
+        return app.tr("security_device_view_detail", "Detailansicht")
+    return app.tr("security_device_view_list", "Listenansicht")
+
+
+def sync_security_device_view(app) -> None:
+    mode_var = _app_value(app, "security_device_detail_mode_var")
+    detail_frame = _app_widget_value(app, "security_devices_detail_frame")
+    table_frame = _app_widget_value(app, "security_devices_table_frame")
+    status_var = _app_value(app, "security_device_view_status_var")
+    detail_mode = bool(mode_var.get()) if hasattr(mode_var, "get") else bool(mode_var)
+    if hasattr(status_var, "set"):
+        status_var.set(security_device_view_status_text(app, detail_mode))
+    if table_frame is None or detail_frame is None:
+        return
+    if detail_mode:
+        try:
+            table_frame.grid_remove()
+        except Exception:
+            pass
+        detail_frame.grid(row=0, column=0, sticky="nsew")
+        return
+    try:
+        detail_frame.grid_remove()
+    except Exception:
+        pass
+    table_frame.grid(row=0, column=0, sticky="nsew")
+
+
+def show_security_device_list_view(app) -> None:
+    mode_var = _app_value(app, "security_device_detail_mode_var")
+    if hasattr(mode_var, "set"):
+        mode_var.set(False)
+    sync_security_device_view(app)
+
+
+def show_security_device_detail_view(app) -> None:
+    mode_var = _app_value(app, "security_device_detail_mode_var")
+    if hasattr(mode_var, "set"):
+        mode_var.set(True)
+    sync_security_device_view(app)
+
+
+def on_security_device_view_toggle(app) -> None:
+    sync_security_device_view(app)
 
 
 def _device_base_name(path: str) -> str:
@@ -2100,8 +2169,83 @@ def _connected_device_row_id(index: int) -> str:
     return f"dev-{index}"
 
 
+def _connected_device_filter_mode(app) -> str:
+    mode_var = _app_value(app, "security_device_filter_var", None)
+    if hasattr(mode_var, "get"):
+        value = mode_var.get()
+    else:
+        value = _app_value(app, "security_device_filter_mode", "all")
+    mode = str(value or "all").strip().lower()
+    valid_modes = {"all", "new", "known", "mouse_keyboard", "suspicious"}
+    return mode if mode in valid_modes else "all"
+
+
+def _connected_device_text_blob(device) -> str:
+    item = dict(device or {})
+    return " ".join(
+        str(item.get(key) or "").strip().lower()
+        for key in ("name", "type", "path", "sys_name")
+    )
+
+
+def _connected_device_is_mouse_or_keyboard(device) -> bool:
+    text = _connected_device_text_blob(device)
+    return any(
+        marker in text for marker in ("mouse", "maus", "keyboard", "tastatur", "kbd")
+    )
+
+
+def _connected_device_has_incomplete_metadata(device) -> bool:
+    item = dict(device or {})
+    return any(
+        not str(item.get(key) or "").strip()
+        for key in ("vendor", "product", "phys", "uniq")
+    )
+
+
+def _connected_device_matches_filter(device, mode: str) -> bool:
+    if mode == "new":
+        return not _connected_device_known_in_baseline(device)
+    if mode == "known":
+        return _connected_device_known_in_baseline(device)
+    if mode == "mouse_keyboard":
+        return _connected_device_is_mouse_or_keyboard(device)
+    if mode == "suspicious":
+        return not _connected_device_known_in_baseline(
+            device
+        ) and _connected_device_has_incomplete_metadata(device)
+    return True
+
+
+def _connected_device_inventory_index(position: int, device) -> int:
+    try:
+        return int(dict(device or {}).get("_inventory_index", position))
+    except Exception:
+        return position
+
+
+def _connected_device_with_inventory_index(index: int, device):
+    item = dict(device or {})
+    item["_inventory_index"] = index
+    return item
+
+
+def _filtered_connected_device_inventory(app, inventory):
+    mode = _connected_device_filter_mode(app)
+    if mode == "all":
+        return inventory
+    return [
+        _connected_device_with_inventory_index(idx, device)
+        for idx, device in enumerate(inventory or [])
+        if _connected_device_matches_filter(device, mode)
+    ]
+
+
 def _connected_device_inventory_items(inventory):
-    return list(enumerate(inventory or []))
+    return [
+        (_connected_device_inventory_index(idx, device), device)
+        for idx, device in enumerate(inventory or [])
+    ]
 
 
 def _populate_connected_device_table(table, inventory) -> None:
@@ -2134,7 +2278,10 @@ def _connected_device_table(app):
 def _refresh_connected_device_table_view(app, table, inventory) -> None:
     _configure_connected_device_table_tags(app, table)
     _clear_connected_device_table(table)
-    _populate_connected_device_table(table, inventory)
+    _populate_connected_device_table(
+        table,
+        _filtered_connected_device_inventory(app, inventory),
+    )
 
 
 def _refresh_connected_device_table_if_present(app, inventory) -> None:
@@ -2148,6 +2295,17 @@ def refresh_connected_device_table(app):
     inventory = _connected_device_table_inventory(app)
     _refresh_connected_device_table_if_present(app, inventory)
     return inventory
+
+
+def set_connected_device_filter(app, mode: str):
+    normalized = str(mode or "all").strip().lower()
+    if normalized not in {"all", "new", "known", "mouse_keyboard", "suspicious"}:
+        normalized = "all"
+    app.security_device_filter_mode = normalized
+    mode_var = _app_value(app, "security_device_filter_var", None)
+    if hasattr(mode_var, "set"):
+        mode_var.set(normalized)
+    refresh_connected_device_table(app)
 
 
 def on_connected_device_select(app, _event=None):
@@ -2171,7 +2329,8 @@ def _selected_connected_device_text(app, table) -> str:
 
 
 def _finish_connected_device_select(app, text: str) -> None:
-    _set_security_detail_text(app, text)
+    _set_security_devices_detail_text(app, text)
+    show_security_device_detail_view(app)
 
 
 def _connected_device_display_log_text(app, inventory) -> str:
@@ -2183,7 +2342,8 @@ def _connected_device_display_log_text(app, inventory) -> str:
 
 
 def _finish_security_show_connected_devices(app, text: str, inventory) -> None:
-    _set_security_detail_text(app, text)
+    _set_security_devices_detail_text(app, text)
+    show_security_device_detail_view(app)
     app.log(_connected_device_display_log_text(app, inventory))
 
 

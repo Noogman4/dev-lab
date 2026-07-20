@@ -1,4 +1,4 @@
-netmon (1.1.19) unstable; urgency=medium
+netmon (1.1.20) unstable; urgency=medium
 
   * Repair DNS fallback and orphaned killswitch handling during startup.
   * Protect the Secure Browser Firefox base from inventory removal.

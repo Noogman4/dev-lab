@@ -65,9 +65,11 @@ if (galleryImages.length > 0) {
   });
 }
 
-const gatedDownloadLinks = document.querySelectorAll(
-  '.downloads-page a.button[href*="/download.php"]'
-);
+const donationGateDisabled =
+  document.body?.dataset?.disableDonationGate === "true";
+const gatedDownloadLinks = donationGateDisabled
+  ? []
+  : document.querySelectorAll('.downloads-page a.button[href*="/download.php"]');
 
 if (gatedDownloadLinks.length > 0) {
   const isEnglish = document.documentElement.lang === "en";
