@@ -21,6 +21,11 @@ from netmon.core.state import (
     get_netmon_state_dir,
 )
 
+try:
+    from netmon.core.performance_monitor import measure
+except ModuleNotFoundError:
+    from core.performance_monitor import measure
+
 
 def support_packages_dir() -> str:
     path = os.path.join(get_netmon_documents_dir(), "support")
@@ -66,7 +71,14 @@ def _existing_unique_files(paths) -> list[str]:
 
 
 def support_bundle_inputs() -> list[str]:
-    return _existing_unique_files(_support_bundle_candidate_paths())
+    with measure(
+        area="diagnostics",
+        operation="support_bundle_inputs",
+        mode="detailed",
+    ) as measurement:
+        files = _existing_unique_files(_support_bundle_candidate_paths())
+        measurement.add_metadata(file_count=len(files))
+        return files
 
 
 def build_support_manifest(*, metadata: dict | None = None, files=None) -> dict:
@@ -82,27 +94,35 @@ def build_support_manifest(*, metadata: dict | None = None, files=None) -> dict:
 
 
 def create_support_package(*, metadata: dict | None = None) -> str:
-    package_path = support_package_path()
-    files = support_bundle_inputs()
-    manifest = build_support_manifest(metadata=metadata, files=files)
+    with measure(
+        area="diagnostics",
+        operation="create_support_package",
+        mode="basic",
+    ) as measurement:
+        package_path = support_package_path()
+        files = support_bundle_inputs()
+        measurement.add_metadata(file_count=len(files))
+        manifest = build_support_manifest(metadata=metadata, files=files)
 
-    try:
-        os.makedirs(os.path.dirname(package_path), exist_ok=True)
-    except Exception:
-        pass
+        try:
+            os.makedirs(os.path.dirname(package_path), exist_ok=True)
+        except Exception:
+            pass
 
-    with zipfile.ZipFile(
-        package_path,
-        mode="w",
-        compression=zipfile.ZIP_DEFLATED,
-    ) as archive:
-        archive.writestr(
-            "manifest.json",
-            json.dumps(manifest, indent=2, ensure_ascii=False),
-        )
-        for path in files:
-            archive.write(path, arcname=os.path.join("files", os.path.basename(path)))
-    return package_path
+        with zipfile.ZipFile(
+            package_path,
+            mode="w",
+            compression=zipfile.ZIP_DEFLATED,
+        ) as archive:
+            archive.writestr(
+                "manifest.json",
+                json.dumps(manifest, indent=2, ensure_ascii=False),
+            )
+            for path in files:
+                archive.write(
+                    path, arcname=os.path.join("files", os.path.basename(path))
+                )
+        return package_path
 
 
 __all__ = [

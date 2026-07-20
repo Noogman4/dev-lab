@@ -6,6 +6,11 @@ import os
 import shutil
 import subprocess
 
+try:
+    from netmon.core.performance_monitor import measure, safe_command_name
+except ModuleNotFoundError:
+    from core.performance_monitor import measure, safe_command_name
+
 
 def _is_ufw_status_command(args) -> bool:
     tokens = [str(part) for part in args]
@@ -43,15 +48,25 @@ def run_cmd(args, timeout=15, text=True):
     try:
         exec_args = _with_ufw_status_locale(args)
 
-        p = subprocess.run(
-            exec_args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=text,
-            timeout=timeout,
-            check=False,
-            env=_command_env(exec_args),
-        )
+        with measure(
+            area="system_command",
+            operation="run_cmd",
+            command_name=safe_command_name(exec_args),
+            mode="detailed",
+        ) as measurement:
+            p = subprocess.run(
+                exec_args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=text,
+                timeout=timeout,
+                check=False,
+                env=_command_env(exec_args),
+            )
+            measurement.set_status(
+                "success" if p.returncode == 0 else "error",
+                return_code=p.returncode,
+            )
         out = (p.stdout or "").strip()
         return p.returncode, out
     except subprocess.TimeoutExpired:
@@ -66,15 +81,25 @@ def run_cmd_with_input(args, input_text="", timeout=20):
         exec_args = list(args)
         payload = input_text or ""
 
-        p = subprocess.run(
-            exec_args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            timeout=timeout,
-            check=False,
-            input=payload,
-        )
+        with measure(
+            area="system_command",
+            operation="run_cmd_with_input",
+            command_name=safe_command_name(exec_args),
+            mode="detailed",
+        ) as measurement:
+            p = subprocess.run(
+                exec_args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=timeout,
+                check=False,
+                input=payload,
+            )
+            measurement.set_status(
+                "success" if p.returncode == 0 else "error",
+                return_code=p.returncode,
+            )
         out = (p.stdout or "").strip()
         return p.returncode, out
     except subprocess.TimeoutExpired:
