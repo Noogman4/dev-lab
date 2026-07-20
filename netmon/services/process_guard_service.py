@@ -305,16 +305,8 @@ class ProcessGuardService:
         if score <= 0:
             return None
 
-        if score >= 6:
-            risk_level = "high"
-        elif score >= 3:
-            risk_level = "medium"
-        else:
-            risk_level = "low"
-
-        display_exe = exe or "-"
-        if not exe and not cwd and not any(cmdline):
-            display_exe = "Kernel-Thread"
+        risk_level = self._risk_level_for_score(score)
+        display_exe = self._display_exe(exe=exe, cwd=cwd, cmdline=cmdline)
 
         return {
             "pid": int(proc.get("pid") or 0),
@@ -464,6 +456,20 @@ class ProcessGuardService:
         if lowered.count(".") >= 2:
             return True
         return lowered in {"systemd-update", "chrome-update", "firefox-update"}
+
+    def _risk_level_for_score(self, score: int) -> str:
+        if score >= 6:
+            return "high"
+        if score >= 3:
+            return "medium"
+        return "low"
+
+    def _display_exe(self, *, exe: str, cwd: str, cmdline: list[str]) -> str:
+        if exe:
+            return exe
+        if not cwd and not any(cmdline):
+            return "Kernel-Thread"
+        return "-"
 
     def _build_summary(self, name: str, risk_level: str, reasons: list[str]) -> str:
         if reasons:

@@ -128,6 +128,48 @@ def test_evaluate_process_flags_run_user_executable_as_temp_execution():
     assert "Ausführung aus temporärem Pfad: /run/user/1000/helper" in finding["reasons"]
 
 
+def test_evaluate_process_maps_downloads_only_to_medium_risk():
+    service = ProcessGuardService()
+    proc = {
+        "pid": 8424,
+        "ppid": 1,
+        "name": "python3",
+        "exe": "/usr/bin/python3",
+        "cmdline": ["python3"],
+        "cwd": "/home/happy/Downloads",
+        "username": "happy",
+        "create_time": 1.0,
+        "status": "running",
+    }
+
+    finding = service.evaluate_process(proc, parent={"pid": 1, "name": "systemd"})
+
+    assert finding is not None
+    assert finding["risk_score"] == 3
+    assert finding["risk_level"] == "medium"
+
+
+def test_evaluate_process_uses_kernel_thread_display_for_empty_paths():
+    service = ProcessGuardService()
+    proc = {
+        "pid": 8425,
+        "ppid": 2,
+        "name": "abcdefghijkl",
+        "exe": "",
+        "cmdline": [],
+        "cwd": "",
+        "username": "root",
+        "create_time": 1.0,
+        "status": "sleeping",
+    }
+
+    finding = service.evaluate_process(proc, parent={"pid": 2, "name": "kthreadd"})
+
+    assert finding is not None
+    assert finding["risk_level"] == "low"
+    assert finding["exe"] == "Kernel-Thread"
+
+
 def test_run_check_summarizes_findings_from_snapshot(monkeypatch):
     service = ProcessGuardService()
     monkeypatch.setattr(service, "is_available", lambda: True)
