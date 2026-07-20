@@ -258,6 +258,49 @@ def test_scan_reports_global_third_party_keyrings(tmp_path):
     assert codes.count("repo_global_third_party_keyring") == 1
 
 
+def test_build_findings_adds_auxiliary_file_findings():
+    service = RepositoryGuardService(flatpak_available_fn=lambda: False)
+
+    findings = service.build_findings(
+        [],
+        [],
+        auxiliary_files=[
+            {"file_path": "/tmp/old.distUpgrade", "state": "distupgrade"},
+            {"file_path": "/tmp/demo.disabled", "state": "disabled"},
+            {"file_path": "/tmp/demo.bak", "state": "backup"},
+        ],
+    )
+
+    codes = {item["code"] for item in findings}
+    assert codes == {
+        "repo_legacy_distupgrade_file",
+        "repo_disabled_file_present",
+        "repo_backup_file_present",
+    }
+
+
+def test_build_findings_adds_global_third_party_keyring_only():
+    service = RepositoryGuardService(flatpak_available_fn=lambda: False)
+
+    findings = service.build_findings(
+        [],
+        [],
+        global_keyrings=[
+            {
+                "file_path": "/etc/apt/trusted.gpg.d/vendor.gpg",
+                "scope": "third_party",
+            },
+            {
+                "file_path": "/etc/apt/trusted.gpg.d/ubuntu-keyring-demo.gpg",
+                "scope": "core",
+            },
+        ],
+    )
+
+    codes = [item["code"] for item in findings]
+    assert codes == ["repo_global_third_party_keyring"]
+
+
 def test_scan_marks_duplicate_sources(tmp_path):
     first = tmp_path / "first.list"
     second = tmp_path / "second.list"

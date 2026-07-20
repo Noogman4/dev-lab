@@ -410,6 +410,57 @@ class RepositoryGuardService:
             duplicate_key = self._source_identity_key(source)
             duplicate_groups.setdefault(duplicate_key, []).append(source)
 
+        findings.extend(self._auxiliary_file_findings(auxiliary_files))
+        findings.extend(self._global_keyring_findings(global_keyrings))
+
+        for duplicate_sources in duplicate_groups.values():
+            if len(duplicate_sources) < 2:
+                continue
+            config_fingerprints = {
+                self._duplicate_config_fingerprint(source)
+                for source in duplicate_sources
+            }
+            if len(config_fingerprints) == 1:
+                duplicate_code = "repo_duplicate_source"
+                duplicate_title = "Doppelte Repository-Quelle"
+                duplicate_summary = "Diese Paketquelle ist mehrfach konfiguriert."
+            else:
+                duplicate_code = "repo_duplicate_source_variant"
+                duplicate_title = "Repository mehrfach mit Abweichungen"
+                duplicate_summary = (
+                    "Diese Paketquelle ist mehrfach vorhanden und nutzt "
+                    "abweichende Konfigurationsdetails."
+                )
+            duplicate_ids = [str(item.get("id") or "") for item in duplicate_sources]
+            for source in duplicate_sources:
+                findings.append(
+                    self._finding(
+                        source=source,
+                        severity="warning",
+                        code=duplicate_code,
+                        title=duplicate_title,
+                        summary=duplicate_summary,
+                        details={
+                            "duplicate_source_ids": list(duplicate_ids),
+                            "duplicate_count": len(duplicate_sources),
+                        },
+                    )
+                )
+
+        findings.extend(self._repository_error_findings(errors))
+        flatpak_missing_finding = self._flatpak_missing_finding()
+        if flatpak_missing_finding:
+            findings.append(flatpak_missing_finding)
+
+        findings.sort(
+            key=lambda item: (self._severity_rank(item.get("severity")), item["id"])
+        )
+        return findings
+
+    def _auxiliary_file_findings(
+        self, auxiliary_files: list[dict] | None
+    ) -> list[dict]:
+        findings: list[dict] = []
         for item in list(auxiliary_files or []):
             state = str(item.get("state") or "").strip().lower()
             source = {
@@ -448,7 +499,12 @@ class RepositoryGuardService:
                         summary="Eine gesicherte oder archivierte Repositorydatei wurde erkannt.",
                     )
                 )
+        return findings
 
+    def _global_keyring_findings(
+        self, global_keyrings: list[dict] | None
+    ) -> list[dict]:
+        findings: list[dict] = []
         for item in list(global_keyrings or []):
             if str(item.get("scope") or "") != "third_party":
                 continue
@@ -467,41 +523,10 @@ class RepositoryGuardService:
                     summary="Ein Drittanbieter-Schluessel liegt global unter trusted.gpg.d und ist nicht repository-spezifisch eingeschraenkt.",
                 )
             )
+        return findings
 
-        for duplicate_sources in duplicate_groups.values():
-            if len(duplicate_sources) < 2:
-                continue
-            config_fingerprints = {
-                self._duplicate_config_fingerprint(source)
-                for source in duplicate_sources
-            }
-            if len(config_fingerprints) == 1:
-                duplicate_code = "repo_duplicate_source"
-                duplicate_title = "Doppelte Repository-Quelle"
-                duplicate_summary = "Diese Paketquelle ist mehrfach konfiguriert."
-            else:
-                duplicate_code = "repo_duplicate_source_variant"
-                duplicate_title = "Repository mehrfach mit Abweichungen"
-                duplicate_summary = (
-                    "Diese Paketquelle ist mehrfach vorhanden und nutzt "
-                    "abweichende Konfigurationsdetails."
-                )
-            duplicate_ids = [str(item.get("id") or "") for item in duplicate_sources]
-            for source in duplicate_sources:
-                findings.append(
-                    self._finding(
-                        source=source,
-                        severity="warning",
-                        code=duplicate_code,
-                        title=duplicate_title,
-                        summary=duplicate_summary,
-                        details={
-                            "duplicate_source_ids": list(duplicate_ids),
-                            "duplicate_count": len(duplicate_sources),
-                        },
-                    )
-                )
-
+    def _repository_error_findings(self, errors: list[dict]) -> list[dict]:
+        findings: list[dict] = []
         for error in errors:
             findings.append(
                 {
@@ -516,24 +541,20 @@ class RepositoryGuardService:
                     },
                 }
             )
-
-        if self.flatpak_status == "missing":
-            findings.append(
-                {
-                    "id": "finding:repo_flatpak_not_installed",
-                    "severity": "info",
-                    "code": "repo_flatpak_not_installed",
-                    "title": "Flatpak nicht installiert",
-                    "summary": "Flatpak-Remotes konnten nicht geprüft werden, da Flatpak nicht verfügbar ist.",
-                    "source_id": "",
-                    "details": {},
-                }
-            )
-
-        findings.sort(
-            key=lambda item: (self._severity_rank(item.get("severity")), item["id"])
-        )
         return findings
+
+    def _flatpak_missing_finding(self) -> dict | None:
+        if self.flatpak_status != "missing":
+            return None
+        return {
+            "id": "finding:repo_flatpak_not_installed",
+            "severity": "info",
+            "code": "repo_flatpak_not_installed",
+            "title": "Flatpak nicht installiert",
+            "summary": "Flatpak-Remotes konnten nicht geprüft werden, da Flatpak nicht verfügbar ist.",
+            "source_id": "",
+            "details": {},
+        }
 
     def build_summary(
         self,
