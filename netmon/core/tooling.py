@@ -16,6 +16,17 @@ def get_cmd_path(name: str) -> str:
     return shutil.which(name) or ""
 
 
+def _existing_dir(path: str) -> str:
+    return path if path and os.path.isdir(path) else ""
+
+
+def _picture_fallback_dirs() -> list[str]:
+    return [
+        os.path.expanduser("~/Bilder"),
+        os.path.expanduser("~/Pictures"),
+    ]
+
+
 def get_user_pictures_dir() -> str:
     if has_cmd("xdg-user-dir"):
         try:
@@ -28,23 +39,21 @@ def get_user_pictures_dir() -> str:
                 check=False,
             )
             pic_dir = (proc.stdout or "").strip()
-            if proc.returncode == 0 and pic_dir and os.path.isdir(pic_dir):
+            if proc.returncode == 0 and _existing_dir(pic_dir):
                 return pic_dir
         except Exception:
             pass
 
-    bilder = os.path.expanduser("~/Bilder")
-    if os.path.isdir(bilder):
-        return bilder
-
-    pictures = os.path.expanduser("~/Pictures")
-    if os.path.isdir(pictures):
-        return pictures
+    for candidate in _picture_fallback_dirs():
+        if _existing_dir(candidate):
+            return candidate
 
     return os.path.expanduser("~")
 
 
-def load_speedtest_module_from_file(*, app_file: str, repo_root: str, search_paths):
+def _speedtest_module_candidates(
+    *, app_file: str, repo_root: str, search_paths
+) -> list[str]:
     base_dir = os.path.dirname(os.path.abspath(app_file))
     candidates = [
         os.path.join(base_dir, "modules", "speedtest.py"),
@@ -59,15 +68,32 @@ def load_speedtest_module_from_file(*, app_file: str, repo_root: str, search_pat
             continue
         candidates.append(os.path.join(path_entry, "netmon", "modules", "speedtest.py"))
         candidates.append(os.path.join(path_entry, "modules", "speedtest.py"))
+    return candidates
 
+
+def _unique_absolute_paths(paths) -> tuple[list[str], list[str]]:
     checked = []
     seen = set()
-    for module_file in candidates:
-        module_file = os.path.abspath(module_file)
-        if module_file in seen:
+    unique = []
+    for path in paths:
+        abs_path = os.path.abspath(path)
+        if abs_path in seen:
             continue
-        seen.add(module_file)
-        checked.append(module_file)
+        seen.add(abs_path)
+        checked.append(abs_path)
+        unique.append(abs_path)
+    return unique, checked
+
+
+def load_speedtest_module_from_file(*, app_file: str, repo_root: str, search_paths):
+    candidates, checked = _unique_absolute_paths(
+        _speedtest_module_candidates(
+            app_file=app_file,
+            repo_root=repo_root,
+            search_paths=search_paths,
+        )
+    )
+    for module_file in candidates:
         if not os.path.isfile(module_file):
             continue
 
