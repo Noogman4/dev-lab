@@ -1,5 +1,13 @@
 from netmon.services.rkhunter_analysis_service import (
+    CATEGORY_CRITICAL,
+    CATEGORY_EXPECTED,
+    CATEGORY_REVIEW,
+    RISK_HIGH,
+    RISK_LOW,
+    RISK_MEDIUM,
     _extract_unique_paths_from_lines,
+    _rkhunter_critical_flags,
+    _rkhunter_risk_from_categories,
     analyze_rkhunter_output,
     extract_replaced_script_paths,
     extract_warning_command_paths,
@@ -298,3 +306,38 @@ def test_propupd_requires_complete_scan_and_successful_dpkg_verification():
 
     assert incomplete["propupd_allowed"] is False
     assert failed_dpkg["propupd_allowed"] is False
+
+
+def test_rkhunter_risk_from_categories_prioritizes_critical_findings():
+    categories = {
+        CATEGORY_EXPECTED: [],
+        CATEGORY_REVIEW: [{"code": "review"}],
+        CATEGORY_CRITICAL: [{"code": "rootkit"}],
+    }
+
+    assert _rkhunter_risk_from_categories(categories, 0) == RISK_HIGH
+
+
+def test_rkhunter_risk_from_categories_uses_review_and_rc_status():
+    clean = {CATEGORY_EXPECTED: [], CATEGORY_REVIEW: [], CATEGORY_CRITICAL: []}
+    review = {
+        CATEGORY_EXPECTED: [],
+        CATEGORY_REVIEW: [{"code": "review"}],
+        CATEGORY_CRITICAL: [],
+    }
+
+    assert _rkhunter_risk_from_categories(clean, 0) == RISK_LOW
+    assert _rkhunter_risk_from_categories(clean, 2) == RISK_MEDIUM
+    assert _rkhunter_risk_from_categories(review, 0) == RISK_MEDIUM
+
+
+def test_rkhunter_critical_flags_maps_codes_to_gate_fields():
+    flags = _rkhunter_critical_flags({"rootkit", "pam_module", "suspicious_runtime"})
+
+    assert flags == {
+        "rootkits": True,
+        "backdoors": False,
+        "suspicious_runtime": True,
+        "system_programs": True,
+        "critical_network": True,
+    }

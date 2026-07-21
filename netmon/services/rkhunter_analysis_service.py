@@ -424,6 +424,26 @@ def _classify_dpkg_line(line: str):
     )
 
 
+def _rkhunter_risk_from_categories(categories: dict, rc: int) -> str:
+    if categories[CATEGORY_CRITICAL]:
+        return RISK_HIGH
+    if categories[CATEGORY_REVIEW] or rc not in (0, 1):
+        return RISK_MEDIUM
+    return RISK_LOW
+
+
+def _rkhunter_critical_flags(codes: set[str]) -> dict[str, bool]:
+    return {
+        "rootkits": "rootkit" in codes,
+        "backdoors": "backdoor" in codes,
+        "suspicious_runtime": "suspicious_runtime" in codes,
+        "system_programs": bool(
+            {"system_program", "dpkg_system_program", "pam_module"} & codes
+        ),
+        "critical_network": bool({"backdoor", "suspicious_runtime"} & codes),
+    }
+
+
 def analyze_rkhunter_output(
     output: str,
     rc: int,
@@ -525,12 +545,7 @@ def analyze_rkhunter_output(
         category: [item for item in findings if item["category"] == category]
         for category in (CATEGORY_EXPECTED, CATEGORY_REVIEW, CATEGORY_CRITICAL)
     }
-    if categories[CATEGORY_CRITICAL]:
-        risk = RISK_HIGH
-    elif categories[CATEGORY_REVIEW] or rc not in (0, 1):
-        risk = RISK_MEDIUM
-    else:
-        risk = RISK_LOW
+    risk = _rkhunter_risk_from_categories(categories, rc)
 
     codes = {item["code"] for item in findings}
     scan_completed = rc in (0, 1) and bool(
@@ -544,15 +559,7 @@ def analyze_rkhunter_output(
         item["category"] in (CATEGORY_REVIEW, CATEGORY_CRITICAL)
         for item in dpkg_findings
     )
-    critical_flags = {
-        "rootkits": "rootkit" in codes,
-        "backdoors": "backdoor" in codes,
-        "suspicious_runtime": "suspicious_runtime" in codes,
-        "system_programs": bool(
-            {"system_program", "dpkg_system_program", "pam_module"} & codes
-        ),
-        "critical_network": bool({"backdoor", "suspicious_runtime"} & codes),
-    }
+    critical_flags = _rkhunter_critical_flags(codes)
     propupd_allowed = (
         scan_completed
         and dpkg_verified
