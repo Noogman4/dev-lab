@@ -32,6 +32,28 @@ def test_radio_launcher_status_text_covers_known_states():
     )
 
 
+def test_radio_detached_placeholder_texts_use_fallbacks():
+    assert radio_tab._radio_detached_placeholder_texts() == (
+        "NetMon Radio als externe App",
+        "Radio laeuft gerade standalone. Zum Wieder-Anheften bitte in der externen Radio-App auf 'Radio anheften' klicken.",
+        "Radio anheften",
+    )
+
+
+def test_radio_detached_placeholder_texts_use_translations_and_handle_failures():
+    class DummyApp:
+        def tr(self, key, fallback):
+            if key == "radio_launcher_detached_hint":
+                raise RuntimeError("boom")
+            return f"translated:{key}"
+
+    assert radio_tab._radio_detached_placeholder_texts(DummyApp()) == (
+        "translated:radio_launcher_title",
+        "Radio laeuft gerade standalone. Zum Wieder-Anheften bitte in der externen Radio-App auf 'Radio anheften' klicken.",
+        "translated:radio_launcher_reattach",
+    )
+
+
 def test_radio_launcher_runtime_state_reads_radio_core():
     class DummyCore:
         def radio_is_detached(self):
