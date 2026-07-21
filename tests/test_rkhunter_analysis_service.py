@@ -1,4 +1,5 @@
 from netmon.services.rkhunter_analysis_service import (
+    _extract_unique_paths_from_lines,
     analyze_rkhunter_output,
     extract_replaced_script_paths,
     extract_warning_command_paths,
@@ -201,6 +202,30 @@ def test_packaged_replaced_script_warning_is_expected_false_positive():
         == "Kein Hinweis auf Manipulation. Wahrscheinlich distributionsbedingter Fehlalarm."
     )
     assert result["propupd_allowed"] is True
+
+
+def test_extract_unique_paths_from_lines_deduplicates_matching_lines():
+    paths = _extract_unique_paths_from_lines(
+        "Warning: /usr/bin/one has changed\n"
+        "OK: /usr/bin/skip\n"
+        "Warning: /usr/bin/one has changed\n"
+        "Warning: /usr/bin/two. has changed\n",
+        lambda line: line.startswith("Warning:"),
+    )
+
+    assert paths == ["/usr/bin/one", "/usr/bin/two"]
+
+
+def test_extract_unique_paths_from_lines_applies_path_filter():
+    paths = _extract_unique_paths_from_lines(
+        "/usr/bin/keep [ Warning ]\n"
+        "/tmp/skip [ Warning ]\n"
+        "/bin/also-keep [ Warning ]\n",
+        lambda line: "[ Warning ]" in line,
+        lambda path: path.startswith(("/usr/bin/", "/bin/")),
+    )
+
+    assert paths == ["/usr/bin/keep", "/bin/also-keep"]
 
 
 def test_packaged_warning_command_is_expected_false_positive_with_evidence():
