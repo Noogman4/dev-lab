@@ -42,6 +42,28 @@ def test_radio_launcher_status_var_creates_empty_var_with_factory():
     assert var.value == ""
 
 
+def test_init_radio_tab_state_sets_host_sections_and_launcher_defaults():
+    app = type("DummyApp", (), {})()
+    app.radio_embedded_panel = object()
+    app.radio_launcher_mode = "detached"
+    host = object()
+    top_section = object()
+    bottom_section = object()
+
+    radio_tab._init_radio_tab_state(
+        app,
+        host=host,
+        top_section=top_section,
+        bottom_section=bottom_section,
+    )
+
+    assert app.radio_tab_host is host
+    assert app.radio_tab_top_section is top_section
+    assert app.radio_tab_bottom_section is bottom_section
+    assert app.radio_embedded_panel is None
+    assert app.radio_launcher_mode == ""
+
+
 def test_radio_launcher_status_text_covers_known_states():
     assert (
         radio_tab._radio_launcher_status_text(

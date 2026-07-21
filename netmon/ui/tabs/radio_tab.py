@@ -53,6 +53,14 @@ def _radio_launcher_status_var(app, *, var_factory=tk.StringVar):
     return _app_value(app, "radio_launcher_status_var") or var_factory(value="")
 
 
+def _init_radio_tab_state(app, *, host, top_section, bottom_section) -> None:
+    app.radio_tab_host = host
+    app.radio_tab_top_section = top_section
+    app.radio_tab_bottom_section = bottom_section
+    app.radio_embedded_panel = None
+    app.radio_launcher_mode = ""
+
+
 def _radio_launcher_status_text(
     app=None, *, detached: bool, launcher_state: str
 ) -> str:
@@ -309,11 +317,12 @@ def build_radio_tab(app):
     pane.add(top_section, weight=3)
     pane.add(bottom_section, weight=2)
 
-    app.radio_tab_host = host
-    app.radio_tab_top_section = top_section
-    app.radio_tab_bottom_section = bottom_section
-    app.radio_embedded_panel = None
-    app.radio_launcher_mode = ""
+    _init_radio_tab_state(
+        app,
+        host=host,
+        top_section=top_section,
+        bottom_section=bottom_section,
+    )
     _show_bottom_placeholder()
 
     def _clear_host():
