@@ -277,27 +277,20 @@ def parse_ufw_structured_rule(raw_line):
 
     ip_val, port_val, proto_val = extract_ip_port_proto_from_ufw_to(target_base)
 
-    category = "other"
-    if interface:
-        category = "interface"
-    elif proto_val.lower() == "udp" and ip_val and port_val:
-        category = "vpn_endpoint"
-    elif port_val:
-        category = "standard_port"
-
-    if category == "interface":
-        display = target_base or "Anywhere"
-    elif category == "vpn_endpoint":
-        display = f"{ip_val}:{port_val}/{proto_val}"
-    elif category == "standard_port":
-        if ip_val and proto_val:
-            display = f"{ip_val}:{port_val}/{proto_val}"
-        elif proto_val:
-            display = f"{port_val}/{proto_val}"
-        else:
-            display = f"{port_val}"
-    else:
-        display = target_base or line_norm
+    category = _ufw_rule_category(
+        interface=interface,
+        ip_val=ip_val,
+        port_val=port_val,
+        proto_val=proto_val,
+    )
+    display = _ufw_rule_display(
+        category=category,
+        target_base=target_base,
+        line_norm=line_norm,
+        ip_val=ip_val,
+        port_val=port_val,
+        proto_val=proto_val,
+    )
 
     return {
         "direction": direction,
@@ -314,6 +307,38 @@ def parse_ufw_structured_rule(raw_line):
         "target_base": target_base,
         "display": display,
     }
+
+
+def _ufw_rule_category(*, interface, ip_val, port_val, proto_val):
+    if interface:
+        return "interface"
+    if str(proto_val or "").lower() == "udp" and ip_val and port_val:
+        return "vpn_endpoint"
+    if port_val:
+        return "standard_port"
+    return "other"
+
+
+def _ufw_rule_display(
+    *,
+    category,
+    target_base,
+    line_norm,
+    ip_val,
+    port_val,
+    proto_val,
+):
+    if category == "interface":
+        return target_base or "Anywhere"
+    if category == "vpn_endpoint":
+        return f"{ip_val}:{port_val}/{proto_val}"
+    if category == "standard_port":
+        if ip_val and proto_val:
+            return f"{ip_val}:{port_val}/{proto_val}"
+        if proto_val:
+            return f"{port_val}/{proto_val}"
+        return f"{port_val}"
+    return target_base or line_norm
 
 
 def parse_ufw_numbered_rule(raw_line):

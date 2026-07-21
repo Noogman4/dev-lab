@@ -54,6 +54,27 @@ def test_parse_ufw_structured_rule_extracts_out_interface_from_source_field():
     assert rule["from"] == "Anywhere"
 
 
+def test_parse_ufw_structured_rule_formats_standard_port_display():
+    rule = firewall_controller.parse_ufw_structured_rule("22/tcp ALLOW IN Anywhere")
+
+    assert rule["category"] == "standard_port"
+    assert rule["display"] == "22/tcp"
+    assert rule["port"] == "22"
+    assert rule["proto"] == "tcp"
+
+
+def test_parse_ufw_structured_rule_formats_vpn_endpoint_display():
+    rule = firewall_controller.parse_ufw_structured_rule(
+        "66.234.146.66 51820/udp ALLOW OUT Anywhere"
+    )
+
+    assert rule["category"] == "vpn_endpoint"
+    assert rule["display"] == "66.234.146.66:51820/udp"
+    assert rule["ip"] == "66.234.146.66"
+    assert rule["port"] == "51820"
+    assert rule["proto"] == "udp"
+
+
 def test_format_ufw_rule_lines_formats_interface_rules_with_spacing():
     rules = [
         firewall_controller.parse_ufw_structured_rule(
