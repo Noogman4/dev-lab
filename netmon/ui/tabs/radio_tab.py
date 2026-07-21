@@ -103,6 +103,13 @@ def _radio_detached_placeholder_texts(app=None) -> tuple[str, str, str]:
     )
 
 
+def _radio_bottom_placeholder_text(app) -> str:
+    return app.tr(
+        "radio_bottom_media_hint",
+        "This lower area is reserved for playlists and files.",
+    )
+
+
 def _radio_launcher_runtime_state(app):
     detached = False
     launcher_state = ""
@@ -308,10 +315,7 @@ def build_radio_tab(app):
     def _show_bottom_placeholder():
         _show_radio_bottom_placeholder(
             bottom_section,
-            text=app.tr(
-                "radio_bottom_media_hint",
-                "This lower area is reserved for playlists and files.",
-            ),
+            text=_radio_bottom_placeholder_text(app),
         )
 
     pane.add(top_section, weight=3)

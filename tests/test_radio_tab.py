@@ -117,6 +117,26 @@ def test_radio_detached_placeholder_texts_use_translations_and_handle_failures()
     )
 
 
+def test_radio_bottom_placeholder_text_uses_app_translation():
+    calls = []
+
+    class DummyApp:
+        def tr(self, key, fallback):
+            calls.append((key, fallback))
+            return f"translated:{key}"
+
+    assert (
+        radio_tab._radio_bottom_placeholder_text(DummyApp())
+        == "translated:radio_bottom_media_hint"
+    )
+    assert calls == [
+        (
+            "radio_bottom_media_hint",
+            "This lower area is reserved for playlists and files.",
+        )
+    ]
+
+
 def test_radio_launcher_runtime_state_reads_radio_core():
     class DummyCore:
         def radio_is_detached(self):
