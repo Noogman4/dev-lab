@@ -433,6 +433,18 @@ def _compact_internal_ipv4_profile_name(base_profile):
     return f"{INTERNAL_IPV4_PROFILE_PREFIX}{stem}{digest}"
 
 
+def _unique_profile_names(candidates):
+    unique = []
+    seen = set()
+    for candidate in candidates:
+        name = str(candidate or "").strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        unique.append(name)
+    return unique
+
+
 def _read_internal_ipv4_base_profile_marker(app, profile_name):
     rc, out = read_wg_profile_text(app, profile_name)
     if rc != 0:
@@ -470,15 +482,7 @@ def internal_ipv4_profile_candidates(app, profile_name):
     candidates = [preferred_name]
     if legacy_name != preferred_name:
         candidates.append(legacy_name)
-    unique = []
-    seen = set()
-    for candidate in candidates:
-        candidate = str(candidate or "").strip()
-        if not candidate or candidate in seen:
-            continue
-        seen.add(candidate)
-        unique.append(candidate)
-    return unique
+    return _unique_profile_names(candidates)
 
 
 def internal_ipv4_profile_name(app, profile_name):

@@ -1277,6 +1277,25 @@ def test_base_wg_profile_name_strips_internal_ipv4_suffix():
     assert app._base_wg_profile_name("") == ""
 
 
+def test_internal_ipv4_profile_candidates_keep_legacy_name_for_short_profile():
+    app = netmon.App.__new__(netmon.App)
+
+    assert app._internal_ipv4_profile_candidates("proton") == ["proton__ipv4"]
+
+
+def test_internal_ipv4_profile_candidates_prefer_compact_name_for_long_profile():
+    app = netmon.App.__new__(netmon.App)
+
+    candidates = app._internal_ipv4_profile_candidates(
+        "very-long-profile-name-for-wireguard"
+    )
+
+    assert len(candidates) == 2
+    assert candidates[0].startswith("n4_")
+    assert len(candidates[0]) <= 15
+    assert candidates[1] == "very-long-profile-name-for-wireguard__ipv4"
+
+
 def test_privacy_vpn_options_and_mappings_from_netmon_profiles():
     app = netmon.App.__new__(netmon.App)
     app.wg_profiles = ["proton", "user-vpn", "custom", "custom-other"]
