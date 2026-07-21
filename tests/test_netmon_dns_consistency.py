@@ -977,6 +977,51 @@ Link 2 (enp4s0)
     assert servers == ["10.2.0.1", "2a07:b944::2:1"]
 
 
+def test_parse_active_dns_servers_includes_continuation_lines():
+    service = netmon.DNSControlService(
+        lambda *_args, **_kwargs: (0, ""),
+        lambda _name: False,
+        dot_dropin_path="/tmp/netmon-dot.conf",
+        dot_dropin_dir="/tmp",
+    )
+
+    servers = service.parse_active_dns_servers("""
+Global
+    DNS Servers: 1.1.1.1
+                 8.8.8.8 2606:4700:4700::1111
+    DNSSEC setting: no
+""")
+
+    assert servers == ["1.1.1.1", "2606:4700:4700::1111", "8.8.8.8"]
+
+
+def test_parse_link_sections_stops_dns_collection_on_non_dns_line():
+    service = netmon.DNSControlService(
+        lambda *_args, **_kwargs: (0, ""),
+        lambda _name: False,
+        dot_dropin_path="/tmp/netmon-dot.conf",
+        dot_dropin_dir="/tmp",
+    )
+
+    sections = service.parse_link_sections("""
+Link 2 (enp4s0)
+    DNS Servers: 192.168.1.1
+                 1.1.1.1
+    DNS Domain: lan
+                 not-a-dns-token
+""")
+
+    assert sections == [
+        {
+            "header": "Link 2 (enp4s0)",
+            "iface": "enp4s0",
+            "is_vpn": False,
+            "dns_servers": ["1.1.1.1", "192.168.1.1"],
+            "current_dns_server": "",
+        }
+    ]
+
+
 def test_dns_private_detection_normalizes_hostname_suffixes():
     app = netmon.App.__new__(netmon.App)
     service = app._dns_control_service()

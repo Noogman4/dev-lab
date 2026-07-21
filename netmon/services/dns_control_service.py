@@ -110,8 +110,8 @@ class DNSControlService:
                 continue
 
             if collecting and not stripped.endswith(":"):
-                tokens = stripped.split()
-                if tokens and all(token.count(".") > 0 or ":" in token for token in tokens):
+                tokens = self._dns_server_continuation_tokens(stripped)
+                if tokens:
                     servers.extend(tokens)
                     continue
                 collecting = False
@@ -268,14 +268,22 @@ class DNSControlService:
                 continue
 
             if collecting and not stripped.endswith(":"):
-                tokens = stripped.split()
-                if tokens and all(token.count(".") or ":" in token for token in tokens):
+                tokens = self._dns_server_continuation_tokens(stripped)
+                if tokens:
                     current["dns_servers"].extend(tokens)
                     continue
                 collecting = False
 
         finalize_current()
         return sections
+
+    def _dns_server_continuation_tokens(self, line: str) -> list[str]:
+        tokens = str(line or "").strip().split()
+        if not tokens:
+            return []
+        if all(token.count(".") > 0 or ":" in token for token in tokens):
+            return tokens
+        return []
 
     def find_vpn_dns_servers(self, resolvectl_output: str) -> tuple[str, list[str]]:
         for section in self.parse_link_sections(resolvectl_output):
@@ -588,7 +596,9 @@ class DNSControlService:
         )
 
         if evaluation.get("dnssec_strict"):
-            lines.append(_tr("dns_health_dnssec_strict", "✔ DNSSEC: active (Strict Mode)"))
+            lines.append(
+                _tr("dns_health_dnssec_strict", "✔ DNSSEC: active (Strict Mode)")
+            )
         elif evaluation.get("dnssec_allow_downgrade"):
             lines.append(
                 _tr(
@@ -601,19 +611,18 @@ class DNSControlService:
 
         lines.extend(["", _tr("result_section_title", "=== Result ===")])
         if primary_dns and dot_active and dnssec_active and not conflict:
-            lines.append(
-                _tr("dns_health_result_stable", "✔ DNS configuration stable")
-            )
-            lines.append(
-                _tr("dns_health_result_no_issues", "✔ No anomalies detected")
-            )
+            lines.append(_tr("dns_health_result_stable", "✔ DNS configuration stable"))
+            lines.append(_tr("dns_health_result_no_issues", "✔ No anomalies detected"))
         else:
             if conflict:
                 lines.append(
                     _tr("dns_health_result_conflict", "✖ DNS-Konfiguration auffällig")
                 )
                 lines.append(
-                    _tr("dns_health_result_conflict_hint", "✖ Möglicher DNS-Konflikt erkannt")
+                    _tr(
+                        "dns_health_result_conflict_hint",
+                        "✖ Möglicher DNS-Konflikt erkannt",
+                    )
                 )
             else:
                 lines.append(
@@ -624,7 +633,9 @@ class DNSControlService:
                         f"✖ {self._translate_policy_warning(warnings[0], tr=tr)}"
                     )
                 else:
-                    lines.append(_tr("dns_health_result_issues", "✖ Anomalies detected"))
+                    lines.append(
+                        _tr("dns_health_result_issues", "✖ Anomalies detected")
+                    )
         return "\n".join(lines).rstrip()
 
     def build_dns_leak_check_result(
@@ -694,13 +705,17 @@ class DNSControlService:
             for dns in dns_servers:
                 lines.append(f"- {dns}")
         else:
-            lines.append(f"- {_tr('dns_leak_no_dns_servers', 'No DNS servers detected')}")
+            lines.append(
+                f"- {_tr('dns_leak_no_dns_servers', 'No DNS servers detected')}"
+            )
 
         lines.extend(
             [
                 "",
                 _tr("dns_leak_detected", "Leak detected: {value}").format(
-                    value=_tr("dns_leak_yes", "YES") if leak else _tr("dns_leak_no", "NO")
+                    value=(
+                        _tr("dns_leak_yes", "YES") if leak else _tr("dns_leak_no", "NO")
+                    )
                 ),
                 _tr("dns_leak_status_line", "Status: {status}").format(status=status),
                 _tr("dns_leak_risk_line", "Risk: {risk}").format(risk=risk),
@@ -712,15 +727,17 @@ class DNSControlService:
             lines.append(_tr("dns_leak_findings", "Findings:"))
             for dns in evaluation["global_dns"]:
                 lines.append(
-                    _tr("dns_leak_public_dns_detected", "Public DNS detected: {dns}").format(
-                        dns=dns
-                    )
+                    _tr(
+                        "dns_leak_public_dns_detected", "Public DNS detected: {dns}"
+                    ).format(dns=dns)
                 )
             lines.append("")
 
         lines.append(_tr("dns_leak_recommendation", "Recommendation:"))
         if leak:
-            lines.append(f"- {_tr('dns_leak_action_enforce_vpn_dns', 'Enforce VPN DNS')}")
+            lines.append(
+                f"- {_tr('dns_leak_action_enforce_vpn_dns', 'Enforce VPN DNS')}"
+            )
             lines.append(
                 f"- {_tr('dns_leak_action_check_resolved', 'Check systemd-resolved')}"
             )
@@ -894,12 +911,16 @@ class DNSControlService:
             f"Ergebnis: {'erfolgreich' if success else 'fehlgeschlagen'}",
             "",
             "[System]",
-            "✔ NetMon DoT-Konfiguration entfernt"
-            if rm_ok
-            else f"✖ Fehler beim Entfernen der NetMon DoT-Konfiguration: {rm_detail or 'unknown'}",
-            "✔ systemd-resolved neu gestartet"
-            if restart_ok
-            else f"✖ Fehler beim Neustarten von systemd-resolved: {restart_detail or 'fehlgeschlagen'}",
+            (
+                "✔ NetMon DoT-Konfiguration entfernt"
+                if rm_ok
+                else f"✖ Fehler beim Entfernen der NetMon DoT-Konfiguration: {rm_detail or 'unknown'}"
+            ),
+            (
+                "✔ systemd-resolved neu gestartet"
+                if restart_ok
+                else f"✖ Fehler beim Neustarten von systemd-resolved: {restart_detail or 'fehlgeschlagen'}"
+            ),
             "",
             "[NetworkManager]",
             *nm_details,
