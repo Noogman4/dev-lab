@@ -39,7 +39,9 @@ def _radio_launcher_mode(app) -> str:
     return str(_app_value(app, "radio_launcher_mode", "") or "").strip()
 
 
-def _radio_launcher_status_text(app=None, *, detached: bool, launcher_state: str) -> str:
+def _radio_launcher_status_text(
+    app=None, *, detached: bool, launcher_state: str
+) -> str:
     state = str(launcher_state or "").strip().lower()
     tr = getattr(app, "tr", None)
 
@@ -84,6 +86,13 @@ def _radio_launcher_runtime_state(app):
         except Exception:
             launcher_state = ""
     return detached, launcher_state
+
+
+def _radio_launcher_target_mode(detached: bool, launcher_state: str) -> str:
+    state = str(launcher_state or "").strip().lower()
+    if bool(detached) or state == "detaching":
+        return "detached"
+    return "embedded"
 
 
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
@@ -340,7 +349,7 @@ def build_radio_tab(app):
                 launcher_state=launcher_state,
             ),
         )
-        if detached or launcher_state == "detaching":
+        if _radio_launcher_target_mode(detached, launcher_state) == "detached":
             _show_detached_placeholder()
         else:
             _show_embedded_panel()

@@ -56,3 +56,13 @@ def test_radio_launcher_runtime_state_handles_core_failures():
     app = type("DummyApp", (), {"netmon_radio_core": DummyCore()})()
 
     assert radio_tab._radio_launcher_runtime_state(app) == (False, "")
+
+
+def test_radio_launcher_target_mode_selects_detached_for_detached_state():
+    assert radio_tab._radio_launcher_target_mode(True, "") == "detached"
+    assert radio_tab._radio_launcher_target_mode(False, "detaching") == "detached"
+
+
+def test_radio_launcher_target_mode_selects_embedded_for_attached_states():
+    assert radio_tab._radio_launcher_target_mode(False, "") == "embedded"
+    assert radio_tab._radio_launcher_target_mode(False, "attaching") == "embedded"
