@@ -827,6 +827,40 @@ def test_extract_lynis_issues_and_recommendations_filters_relevant_lines():
     assert "[ OK ] Service gefunden" not in filtered
 
 
+def test_lynis_issue_line_relevance_keeps_warning_suggestion_and_hardening():
+    assert security_audit_controller._lynis_issue_line_is_relevant(
+        "Warning: Firewall disabled"
+    )
+    assert security_audit_controller._lynis_issue_line_is_relevant(
+        "Suggestion: Enable auditd"
+    )
+    assert security_audit_controller._lynis_issue_line_is_relevant(
+        "Hardening index : 72"
+    )
+
+
+def test_lynis_issue_line_relevance_skips_generic_found_line():
+    assert (
+        security_audit_controller._lynis_issue_line_is_relevant(
+            "[ OK ] Service gefunden"
+        )
+        is False
+    )
+    assert security_audit_controller._lynis_issue_line_is_relevant(
+        "Dateien gefunden: 3 verdächtige Dateien"
+    )
+
+
+def test_lynis_relevant_issue_lines_preserves_order_and_line_text():
+    lines = security_audit_controller._lynis_relevant_issue_lines(
+        "[ OK ] Service gefunden\n"
+        "Warning: Firewall disabled\n"
+        "Suggestion: Enable auditd\n"
+    )
+
+    assert lines == ["Warning: Firewall disabled", "Suggestion: Enable auditd"]
+
+
 def test_show_lynis_issues_only_updates_text_widget():
     app = netmon_app.App.__new__(netmon_app.App)
     app.lynis_last_output = "Warning: Firewall disabled\nOK"

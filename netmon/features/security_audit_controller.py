@@ -177,43 +177,55 @@ def update_lynis_output(app, text: str, *, append: bool = False, normalize_outpu
     _set_text_widget_content(widget, clean_text, append=append)
 
 
+LYNIS_ISSUE_KEEP_KEYWORDS = (
+    "warning",
+    "warnings",
+    "suggestion",
+    "suggestions",
+    "recommendation",
+    "recommendations",
+    "found",
+    "not found",
+    "disabled",
+    "not enabled",
+    "nicht gefunden",
+    "nicht aktiviert",
+    "dateien gefunden",
+    "unsicher",
+    "fehler",
+    "problem",
+    "hardening",
+)
+
+
+def _lynis_issue_line_is_relevant(line: str) -> bool:
+    low = str(line or "").lower()
+    if not any(keyword in low for keyword in LYNIS_ISSUE_KEEP_KEYWORDS):
+        return False
+    if "gefunden" in low and not (
+        "dateien gefunden" in low
+        or "warn" in low
+        or "problem" in low
+        or "fehler" in low
+    ):
+        return False
+    return True
+
+
+def _lynis_relevant_issue_lines(text: str) -> list[str]:
+    return [
+        line
+        for line in str(text or "").splitlines()
+        if _lynis_issue_line_is_relevant(line)
+    ]
+
+
 def extract_lynis_issues_and_recommendations(
     app, text: str, *, normalize_output_fn
 ) -> str:
     text = normalize_output_fn(text)
 
-    keep_keywords = [
-        "warning",
-        "warnings",
-        "suggestion",
-        "suggestions",
-        "recommendation",
-        "recommendations",
-        "found",
-        "not found",
-        "disabled",
-        "not enabled",
-        "nicht gefunden",
-        "nicht aktiviert",
-        "dateien gefunden",
-        "unsicher",
-        "fehler",
-        "problem",
-        "hardening",
-    ]
-
-    lines = []
-    for line in text.splitlines():
-        low = line.lower()
-        if any(keyword in low for keyword in keep_keywords):
-            if "gefunden" in low and not (
-                "dateien gefunden" in low
-                or "warn" in low
-                or "problem" in low
-                or "fehler" in low
-            ):
-                continue
-            lines.append(line)
+    lines = _lynis_relevant_issue_lines(text)
 
     if not lines:
         return app.tr(
