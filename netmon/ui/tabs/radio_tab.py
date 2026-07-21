@@ -95,6 +95,19 @@ def _radio_launcher_target_mode(detached: bool, launcher_state: str) -> str:
     return "embedded"
 
 
+def _clear_radio_host(host, panel=None) -> None:
+    if panel is not None:
+        try:
+            panel.stop_radio_playback(async_mode=False)
+        except Exception:
+            pass
+    for child in host.winfo_children():
+        try:
+            child.destroy()
+        except Exception:
+            pass
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
     marker = tk.Frame(
         container,
@@ -273,17 +286,7 @@ def build_radio_tab(app):
     _show_bottom_placeholder()
 
     def _clear_host():
-        panel = _app_value(app, "radio_embedded_panel")
-        if panel is not None:
-            try:
-                panel.stop_radio_playback(async_mode=False)
-            except Exception:
-                pass
-        for child in host.winfo_children():
-            try:
-                child.destroy()
-            except Exception:
-                pass
+        _clear_radio_host(host, _app_value(app, "radio_embedded_panel"))
         app.radio_embedded_panel = None
         _show_bottom_placeholder()
 

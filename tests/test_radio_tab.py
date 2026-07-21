@@ -66,3 +66,46 @@ def test_radio_launcher_target_mode_selects_detached_for_detached_state():
 def test_radio_launcher_target_mode_selects_embedded_for_attached_states():
     assert radio_tab._radio_launcher_target_mode(False, "") == "embedded"
     assert radio_tab._radio_launcher_target_mode(False, "attaching") == "embedded"
+
+
+def test_clear_radio_host_stops_panel_and_destroys_children():
+    events = []
+
+    class DummyPanel:
+        def stop_radio_playback(self, async_mode=False):
+            events.append(("stop", async_mode))
+
+    class DummyChild:
+        def __init__(self, name):
+            self.name = name
+
+        def destroy(self):
+            events.append(("destroy", self.name))
+
+    class DummyHost:
+        def winfo_children(self):
+            return [DummyChild("one"), DummyChild("two")]
+
+    radio_tab._clear_radio_host(DummyHost(), DummyPanel())
+
+    assert events == [
+        ("stop", False),
+        ("destroy", "one"),
+        ("destroy", "two"),
+    ]
+
+
+def test_clear_radio_host_ignores_stop_and_destroy_failures():
+    class FailingPanel:
+        def stop_radio_playback(self, async_mode=False):
+            raise RuntimeError("stop failed")
+
+    class FailingChild:
+        def destroy(self):
+            raise RuntimeError("destroy failed")
+
+    class DummyHost:
+        def winfo_children(self):
+            return [FailingChild()]
+
+    radio_tab._clear_radio_host(DummyHost(), FailingPanel())
