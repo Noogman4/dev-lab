@@ -137,6 +137,18 @@ def test_radio_bottom_placeholder_text_uses_app_translation():
     ]
 
 
+def test_detach_radio_from_tab_delegates_to_app():
+    calls = []
+
+    class DummyApp:
+        def open_radio_external_app(self):
+            calls.append("open")
+            return "opened"
+
+    assert radio_tab._detach_radio_from_tab(DummyApp()) == "opened"
+    assert calls == ["open"]
+
+
 def test_radio_launcher_runtime_state_reads_radio_core():
     class DummyCore:
         def radio_is_detached(self):

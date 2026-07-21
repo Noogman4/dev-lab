@@ -110,6 +110,10 @@ def _radio_bottom_placeholder_text(app) -> str:
     )
 
 
+def _detach_radio_from_tab(app):
+    return app.open_radio_external_app()
+
+
 def _radio_launcher_runtime_state(app):
     detached = False
     launcher_state = ""
@@ -375,7 +379,7 @@ def build_radio_tab(app):
         _clear_host()
 
         def _detach_from_tab():
-            return app.open_radio_external_app()
+            return _detach_radio_from_tab(app)
 
         panel = NetMonRadioPanel(host, on_detach=_detach_from_tab, host_app=app)
         panel.grid(row=0, column=0, sticky="nsew")
