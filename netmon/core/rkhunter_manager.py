@@ -138,6 +138,31 @@ def detect_update_failure(output):
     return "web_cmd" in text
 
 
+def _repair_config_content(config_text: str, repair_targets: dict) -> str:
+    lines = (config_text or "").splitlines()
+    replaced = set()
+    result_lines = []
+
+    for raw_line in lines:
+        line = raw_line.rstrip("\n")
+        stripped = line.strip()
+        replaced_line = False
+        for key, value in repair_targets.items():
+            if re.match(rf"^\s*{re.escape(key)}\s*=", stripped):
+                result_lines.append(f"{key}={value}")
+                replaced.add(key)
+                replaced_line = True
+                break
+        if not replaced_line:
+            result_lines.append(line)
+
+    for key, value in repair_targets.items():
+        if key not in replaced:
+            result_lines.append(f"{key}={value}")
+
+    return "\n".join(result_lines).rstrip() + "\n"
+
+
 def backup_config(
     config_path=RKHUNTER_CONFIG_PATH,
     backup_path=RKHUNTER_BACKUP_PATH,
@@ -196,29 +221,8 @@ def repair_config(config_path=RKHUNTER_CONFIG_PATH):
     if rc != 0:
         return rc, out or "rkhunter-Konfiguration konnte nicht gelesen werden."
 
-    lines = (out or "").splitlines()
-    replaced = set()
-    result_lines = []
-
     repair_targets = dict(REPAIR_TARGETS)
     repair_targets["WEB_CMD"] = _preferred_web_cmd()
 
-    for raw_line in lines:
-        line = raw_line.rstrip("\n")
-        stripped = line.strip()
-        replaced_line = False
-        for key, value in repair_targets.items():
-            if re.match(rf"^\s*{re.escape(key)}\s*=", stripped):
-                result_lines.append(f"{key}={value}")
-                replaced.add(key)
-                replaced_line = True
-                break
-        if not replaced_line:
-            result_lines.append(line)
-
-    for key, value in repair_targets.items():
-        if key not in replaced:
-            result_lines.append(f"{key}={value}")
-
-    new_content = "\n".join(result_lines).rstrip() + "\n"
+    new_content = _repair_config_content(out, repair_targets)
     return _write_config(new_content, config_path)

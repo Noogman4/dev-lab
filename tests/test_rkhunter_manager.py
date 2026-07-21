@@ -59,6 +59,44 @@ def test_detect_update_failure_matches_invalid_web_cmd_message():
     assert rkhunter_manager.detect_update_failure(output) is True
 
 
+def test_repair_config_content_replaces_targets_and_preserves_other_lines():
+    repaired = rkhunter_manager._repair_config_content(
+        "UPDATE_MIRRORS=0\n"
+        "  MIRRORS_MODE = 1\n"
+        "# keep comment\n"
+        "WEB_CMD=/bin/false\n"
+        "OTHER=keep\n",
+        {
+            "UPDATE_MIRRORS": "1",
+            "MIRRORS_MODE": "0",
+            "WEB_CMD": "/usr/bin/wget",
+        },
+    )
+
+    assert repaired == (
+        "UPDATE_MIRRORS=1\n"
+        "MIRRORS_MODE=0\n"
+        "# keep comment\n"
+        "WEB_CMD=/usr/bin/wget\n"
+        "OTHER=keep\n"
+    )
+
+
+def test_repair_config_content_appends_missing_targets_in_order():
+    repaired = rkhunter_manager._repair_config_content(
+        "OTHER=keep\n",
+        {
+            "UPDATE_MIRRORS": "1",
+            "MIRRORS_MODE": "0",
+            "WEB_CMD": "/usr/bin/wget",
+        },
+    )
+
+    assert repaired == (
+        "OTHER=keep\n" "UPDATE_MIRRORS=1\n" "MIRRORS_MODE=0\n" "WEB_CMD=/usr/bin/wget\n"
+    )
+
+
 def test_run_rkhunter_propupd_uses_fixed_noninteractive_sudo_command(monkeypatch):
     calls = []
 
