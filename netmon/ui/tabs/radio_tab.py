@@ -114,6 +114,13 @@ def _detach_radio_from_tab(app):
     return app.open_radio_external_app()
 
 
+def _attach_embedded_radio_panel(app, host, panel) -> None:
+    panel.grid(row=0, column=0, sticky="nsew")
+    host.rowconfigure(0, weight=1)
+    app.radio_embedded_panel = panel
+    app.radio_launcher_mode = "embedded"
+
+
 def _radio_launcher_runtime_state(app):
     detached = False
     launcher_state = ""
@@ -382,10 +389,7 @@ def build_radio_tab(app):
             return _detach_radio_from_tab(app)
 
         panel = NetMonRadioPanel(host, on_detach=_detach_from_tab, host_app=app)
-        panel.grid(row=0, column=0, sticky="nsew")
-        host.rowconfigure(0, weight=1)
-        app.radio_embedded_panel = panel
-        app.radio_launcher_mode = "embedded"
+        _attach_embedded_radio_panel(app, host, panel)
 
     def refresh_radio_launcher_state():
         detached, launcher_state = _radio_launcher_runtime_state(app)

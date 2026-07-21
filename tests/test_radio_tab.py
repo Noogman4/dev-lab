@@ -149,6 +149,31 @@ def test_detach_radio_from_tab_delegates_to_app():
     assert calls == ["open"]
 
 
+def test_attach_embedded_radio_panel_grids_panel_and_sets_app_state():
+    events = []
+
+    class DummyPanel:
+        def grid(self, **kwargs):
+            events.append(("grid", kwargs))
+
+    class DummyHost:
+        def rowconfigure(self, row, weight=0):
+            events.append(("rowconfigure", row, weight))
+
+    app = type("DummyApp", (), {})()
+    host = DummyHost()
+    panel = DummyPanel()
+
+    radio_tab._attach_embedded_radio_panel(app, host, panel)
+
+    assert events == [
+        ("grid", {"row": 0, "column": 0, "sticky": "nsew"}),
+        ("rowconfigure", 0, 1),
+    ]
+    assert app.radio_embedded_panel is panel
+    assert app.radio_launcher_mode == "embedded"
+
+
 def test_radio_launcher_runtime_state_reads_radio_core():
     class DummyCore:
         def radio_is_detached(self):
