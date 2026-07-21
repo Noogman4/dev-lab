@@ -249,6 +249,38 @@ def test_scan_worker_collects_dpkg_verification(monkeypatch):
     ]
 
 
+def test_rkhunter_log_line_evidence_matches_warning_and_hidden_entries():
+    assert controller._rkhunter_log_line_is_evidence(
+        "[12:00:00] Warning: Hidden file found: /etc/.java"
+    )
+    assert controller._rkhunter_log_line_is_evidence(
+        "[12:00:01] Hidden directory found: /dev/.udev"
+    )
+    assert controller._rkhunter_log_line_is_evidence(
+        "[12:00:02] [ Warning ] Suspect file: /usr/bin/lwp-request"
+    )
+
+
+def test_rkhunter_log_line_evidence_ignores_non_evidence_entries():
+    assert controller._rkhunter_log_line_is_evidence("[12:00:00] Info: OK") is False
+    assert controller._rkhunter_log_line_is_evidence("") is False
+
+
+def test_extract_rkhunter_log_evidence_keeps_original_relevant_lines():
+    evidence = controller._extract_rkhunter_log_evidence(
+        "[12:00:00] Info: OK\n"
+        "[12:00:01] Warning: Hidden file found: /etc/.java\n"
+        "[12:00:02] [ Warning ] Suspect file: /usr/bin/lwp-request\n"
+    )
+
+    assert evidence == (
+        "\n"
+        "=== rkhunter log evidence ===\n"
+        "[12:00:01] Warning: Hidden file found: /etc/.java\n"
+        "[12:00:02] [ Warning ] Suspect file: /usr/bin/lwp-request"
+    )
+
+
 def test_successful_propupd_revokes_gate_and_displays_success(monkeypatch):
     app = _app()
     app.rkhunter_last_result = _valid_result()

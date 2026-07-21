@@ -7525,17 +7525,21 @@ def rkhunter_revoke_reference_async(app, *, is_rkhunter_installed_fn):
 def _extract_rkhunter_log_evidence(log_output: str) -> str:
     evidence_lines = []
     for line in (log_output or "").splitlines():
-        lowered = line.lower()
-        if (
-            "hidden file" in lowered
-            or "hidden directory" in lowered
-            or "suspect file" in lowered
-            or "[ warning ]" in lowered
-        ):
+        if _rkhunter_log_line_is_evidence(line):
             evidence_lines.append(line.strip())
     if not evidence_lines:
         return ""
     return "\n".join(["", "=== rkhunter log evidence ===", *evidence_lines])
+
+
+def _rkhunter_log_line_is_evidence(line: str) -> bool:
+    lowered = str(line or "").lower()
+    return (
+        "hidden file" in lowered
+        or "hidden directory" in lowered
+        or "suspect file" in lowered
+        or "[ warning ]" in lowered
+    )
 
 
 def rkhunter_scan_async(
