@@ -108,6 +108,22 @@ def _clear_radio_host(host, panel=None) -> None:
             pass
 
 
+def _show_radio_bottom_placeholder(container, text: str, *, label_factory=ttk.Label):
+    for child in container.winfo_children():
+        try:
+            child.destroy()
+        except Exception:
+            pass
+    label = label_factory(
+        container,
+        text=text,
+        justify="left",
+        wraplength=900,
+    )
+    label.grid(row=0, column=0, sticky="nw")
+    return label
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
     marker = tk.Frame(
         container,
@@ -260,20 +276,13 @@ def build_radio_tab(app):
     bottom_section.rowconfigure(0, weight=1)
 
     def _show_bottom_placeholder():
-        for child in bottom_section.winfo_children():
-            try:
-                child.destroy()
-            except Exception:
-                pass
-        ttk.Label(
+        _show_radio_bottom_placeholder(
             bottom_section,
             text=app.tr(
                 "radio_bottom_media_hint",
                 "This lower area is reserved for playlists and files.",
             ),
-            justify="left",
-            wraplength=900,
-        ).grid(row=0, column=0, sticky="nw")
+        )
 
     pane.add(top_section, weight=3)
     pane.add(bottom_section, weight=2)

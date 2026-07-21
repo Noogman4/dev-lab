@@ -109,3 +109,67 @@ def test_clear_radio_host_ignores_stop_and_destroy_failures():
             return [FailingChild()]
 
     radio_tab._clear_radio_host(DummyHost(), FailingPanel())
+
+
+def test_show_radio_bottom_placeholder_replaces_children_with_label():
+    events = []
+
+    class DummyChild:
+        def __init__(self, name):
+            self.name = name
+
+        def destroy(self):
+            events.append(("destroy", self.name))
+
+    class DummyContainer:
+        def winfo_children(self):
+            return [DummyChild("old")]
+
+    class DummyLabel:
+        def __init__(self, container, **kwargs):
+            events.append(("label", container, kwargs))
+
+        def grid(self, **kwargs):
+            events.append(("grid", kwargs))
+
+    container = DummyContainer()
+
+    label = radio_tab._show_radio_bottom_placeholder(
+        container,
+        "reserved",
+        label_factory=DummyLabel,
+    )
+
+    assert isinstance(label, DummyLabel)
+    assert events == [
+        ("destroy", "old"),
+        (
+            "label",
+            container,
+            {"text": "reserved", "justify": "left", "wraplength": 900},
+        ),
+        ("grid", {"row": 0, "column": 0, "sticky": "nw"}),
+    ]
+
+
+def test_show_radio_bottom_placeholder_ignores_destroy_failures():
+    class FailingChild:
+        def destroy(self):
+            raise RuntimeError("destroy failed")
+
+    class DummyContainer:
+        def winfo_children(self):
+            return [FailingChild()]
+
+    class DummyLabel:
+        def __init__(self, container, **kwargs):
+            pass
+
+        def grid(self, **kwargs):
+            pass
+
+    radio_tab._show_radio_bottom_placeholder(
+        DummyContainer(),
+        "reserved",
+        label_factory=DummyLabel,
+    )
