@@ -63,6 +63,47 @@ def _packet_capture_dep_enabled(app, name: str) -> bool:
     return bool((_app_value(app, "dep_status", {}) or {}).get(name))
 
 
+def _packet_capture_interfaces_from_tshark_output(
+    output: str,
+) -> tuple[list[str], list[str]]:
+    interfaces = []
+    details = []
+    for line in str(output or "").splitlines():
+        raw = line.strip()
+        if not raw:
+            continue
+        entry = raw.split(".", 1)[-1].strip() if "." in raw else raw
+        name = entry.split(" ", 1)[0].strip()
+        if name:
+            interfaces.append(name)
+            details.append(raw)
+    return interfaces, details
+
+
+def _packet_capture_interfaces_from_ip_output(output: str) -> list[str]:
+    interfaces = []
+    for line in str(output or "").splitlines():
+        parts = line.split(":", 2)
+        if len(parts) < 2:
+            continue
+        name = parts[1].strip().split("@", 1)[0]
+        if name:
+            interfaces.append(name)
+    return interfaces
+
+
+def _packet_capture_unique_interfaces(interfaces) -> list[str]:
+    unique = []
+    seen = set()
+    for name in interfaces:
+        value = str(name or "").strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        unique.append(value)
+    return unique
+
+
 def _packet_capture_text_widget(app):
     return _app_value(app, "packet_capture_text")
 
@@ -510,15 +551,10 @@ def refresh_packet_capture_interfaces(app):
     if _packet_capture_dep_enabled(app, "tshark"):
         rc, out = run_cmd(["tshark", "-D"], timeout=8)
         if rc == 0:
-            for line in (out or "").splitlines():
-                raw = line.strip()
-                if not raw:
-                    continue
-                entry = raw.split(".", 1)[-1].strip() if "." in raw else raw
-                name = entry.split(" ", 1)[0].strip()
-                if name:
-                    interfaces.append(name)
-                    details.append(raw)
+            parsed_interfaces, details = _packet_capture_interfaces_from_tshark_output(
+                out
+            )
+            interfaces.extend(parsed_interfaces)
         elif _packet_capture_looks_like_permission_issue(app, out):
             app.packet_capture_status_var.set("permission missing")
             append_packet_capture_output(
@@ -530,20 +566,8 @@ def refresh_packet_capture_interfaces(app):
     if not interfaces and _packet_capture_dep_enabled(app, "ip"):
         rc, out = run_cmd(["ip", "-o", "link", "show"], timeout=6)
         if rc == 0:
-            for line in (out or "").splitlines():
-                parts = line.split(":", 2)
-                if len(parts) < 2:
-                    continue
-                name = parts[1].strip().split("@", 1)[0]
-                if name:
-                    interfaces.append(name)
-    unique = []
-    seen = set()
-    for name in interfaces:
-        if name in seen:
-            continue
-        seen.add(name)
-        unique.append(name)
+            interfaces.extend(_packet_capture_interfaces_from_ip_output(out))
+    unique = _packet_capture_unique_interfaces(interfaces)
     app.packet_capture_interfaces = unique
     app.dep_status["packet_capture_interfaces"] = bool(unique)
     interface_combo = _app_value(app, "packet_capture_interface_combo")

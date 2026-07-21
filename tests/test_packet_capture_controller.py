@@ -20,6 +20,14 @@ class DummyButton:
         self.calls.append(kwargs)
 
 
+class DummyCombo:
+    def __init__(self):
+        self.calls = []
+
+    def configure(self, **kwargs):
+        self.calls.append(kwargs)
+
+
 class DummyText:
     def __init__(self):
         self.value = ""
@@ -916,6 +924,60 @@ def test_packet_capture_no_interfaces_message_mentions_required_tools():
 
     assert "tshark" in message
     assert "iproute2" in message
+
+
+def test_packet_capture_interfaces_from_tshark_output_extracts_names_and_details():
+    interfaces, details = (
+        packet_capture_controller._packet_capture_interfaces_from_tshark_output(
+            "1. eth0\n2. any (Pseudo-device)\n\nlo\n"
+        )
+    )
+
+    assert interfaces == ["eth0", "any", "lo"]
+    assert details == ["1. eth0", "2. any (Pseudo-device)", "lo"]
+
+
+def test_packet_capture_interfaces_from_ip_output_strips_peer_suffix():
+    assert packet_capture_controller._packet_capture_interfaces_from_ip_output(
+        "1: lo: <LOOPBACK>\n" "2: enp4s0@if3: <BROADCAST>\n" "invalid\n"
+    ) == ["lo", "enp4s0"]
+
+
+def test_packet_capture_unique_interfaces_keeps_first_seen_order():
+    assert packet_capture_controller._packet_capture_unique_interfaces(
+        ["eth0", "lo", "eth0", "", " wlan0 "]
+    ) == ["eth0", "lo", "wlan0"]
+
+
+def test_refresh_packet_capture_interfaces_deduplicates_tshark_interfaces(monkeypatch):
+    app = type("DummyApp", (), {})()
+    app.dep_status = {"tshark": True, "ip": False}
+    app.tab_packet_capture = object()
+    app.packet_capture_interface_var = DummyVar("")
+    app.packet_capture_status_var = DummyVar("")
+    app.packet_capture_text = DummyText()
+    app.packet_capture_interface_combo = DummyCombo()
+    app.selected_tabs = []
+    app._select_security_tab = lambda tab: app.selected_tabs.append(tab)
+    app.show_dumpcap_permission_hint = lambda: None
+
+    def fake_run_cmd(args, timeout=0):
+        assert args == ["tshark", "-D"]
+        assert timeout == 8
+        return 0, "1. eth0\n2. lo\n3. eth0\n"
+
+    monkeypatch.setattr(packet_capture_controller, "run_cmd", fake_run_cmd)
+
+    packet_capture_controller.refresh_packet_capture_interfaces(app)
+
+    assert app.packet_capture_interfaces == ["eth0", "lo"]
+    assert app.dep_status["packet_capture_interfaces"] is True
+    assert app.packet_capture_interface_var.get() == "eth0"
+    assert app.packet_capture_status_var.get() == "interfaces ready"
+    assert app.packet_capture_interface_combo.calls == [{"values": ["eth0", "lo"]}]
+    assert app.packet_capture_text.value == (
+        "Verfügbare Interfaces: eth0, lo\n\n1. eth0\n2. lo\n3. eth0\n"
+    )
 
 
 def test_packet_capture_dumpcap_permission_message_matches_expected_text():
