@@ -18,6 +18,30 @@ def test_safe_translate_uses_translation_and_handles_failures():
     assert radio_tab._safe_translate(app, "broken", "fallback") == "fallback"
 
 
+def test_radio_launcher_status_var_reuses_existing_var():
+    existing = object()
+    app = type("DummyApp", (), {})()
+    app.radio_launcher_status_var = existing
+
+    assert radio_tab._radio_launcher_status_var(app) is existing
+
+
+def test_radio_launcher_status_var_creates_empty_var_with_factory():
+    created = []
+
+    class DummyVar:
+        def __init__(self, value=""):
+            self.value = value
+            created.append(self)
+
+    app = type("DummyApp", (), {})()
+
+    var = radio_tab._radio_launcher_status_var(app, var_factory=DummyVar)
+
+    assert var is created[0]
+    assert var.value == ""
+
+
 def test_radio_launcher_status_text_covers_known_states():
     assert (
         radio_tab._radio_launcher_status_text(

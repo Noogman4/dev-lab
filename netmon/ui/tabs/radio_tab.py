@@ -49,6 +49,10 @@ def _safe_translate(app, key: str, fallback: str) -> str:
     return fallback
 
 
+def _radio_launcher_status_var(app, *, var_factory=tk.StringVar):
+    return _app_value(app, "radio_launcher_status_var") or var_factory(value="")
+
+
 def _radio_launcher_status_text(
     app=None, *, detached: bool, launcher_state: str
 ) -> str:
@@ -270,9 +274,7 @@ def build_radio_tab(app):
     body.pack(fill="both", expand=True)
     body.columnconfigure(0, weight=1)
     body.rowconfigure(0, weight=1)
-    app.radio_launcher_status_var = _app_value(
-        app, "radio_launcher_status_var"
-    ) or tk.StringVar(value="")
+    app.radio_launcher_status_var = _radio_launcher_status_var(app)
 
     pane = ttk.Panedwindow(body, orient="vertical")
     pane.grid(row=0, column=0, sticky="nsew")
