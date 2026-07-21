@@ -1,6 +1,23 @@
 from netmon.ui.tabs import radio_tab
 
 
+def test_safe_translate_uses_fallback_without_translator():
+    assert radio_tab._safe_translate(object(), "missing", "fallback") == "fallback"
+
+
+def test_safe_translate_uses_translation_and_handles_failures():
+    class DummyApp:
+        def tr(self, key, fallback):
+            if key == "broken":
+                raise RuntimeError("boom")
+            return f"translated:{key}"
+
+    app = DummyApp()
+
+    assert radio_tab._safe_translate(app, "ok", "fallback") == "translated:ok"
+    assert radio_tab._safe_translate(app, "broken", "fallback") == "fallback"
+
+
 def test_radio_launcher_status_text_covers_known_states():
     assert (
         radio_tab._radio_launcher_status_text(

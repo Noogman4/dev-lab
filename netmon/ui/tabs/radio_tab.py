@@ -39,56 +39,55 @@ def _radio_launcher_mode(app) -> str:
     return str(_app_value(app, "radio_launcher_mode", "") or "").strip()
 
 
+def _safe_translate(app, key: str, fallback: str) -> str:
+    tr = getattr(app, "tr", None)
+    if callable(tr):
+        try:
+            return tr(key, fallback)
+        except Exception:
+            pass
+    return fallback
+
+
 def _radio_launcher_status_text(
     app=None, *, detached: bool, launcher_state: str
 ) -> str:
     state = str(launcher_state or "").strip().lower()
-    tr = getattr(app, "tr", None)
-
-    def _t(key: str, fallback: str) -> str:
-        if callable(tr):
-            try:
-                return tr(key, fallback)
-            except Exception:
-                pass
-        return fallback
 
     if state == "detaching":
-        return _t(
+        return _safe_translate(
+            app,
             "radio_status_detaching",
             "Radio wird gerade als Standalone-App gestartet.",
         )
     if state == "attaching":
-        return _t(
+        return _safe_translate(
+            app,
             "radio_status_attaching",
             "Radio wird gerade wieder an NetMon angeheftet.",
         )
     if detached:
-        return _t(
+        return _safe_translate(
+            app,
             "radio_status_detached",
             "Radio-App ist geloest und laeuft als Standalone weiter.",
         )
-    return _t("radio_status_attached", "Radio-App ist an NetMon angeheftet.")
+    return _safe_translate(
+        app,
+        "radio_status_attached",
+        "Radio-App ist an NetMon angeheftet.",
+    )
 
 
 def _radio_detached_placeholder_texts(app=None) -> tuple[str, str, str]:
-    tr = getattr(app, "tr", None)
-
-    def _t(key: str, fallback: str) -> str:
-        if callable(tr):
-            try:
-                return tr(key, fallback)
-            except Exception:
-                pass
-        return fallback
-
     return (
-        _t("radio_launcher_title", "NetMon Radio als externe App"),
-        _t(
+        _safe_translate(app, "radio_launcher_title", "NetMon Radio als externe App"),
+        _safe_translate(
+            app,
             "radio_launcher_detached_hint",
             "Radio laeuft gerade standalone. Zum Wieder-Anheften bitte in der externen Radio-App auf 'Radio anheften' klicken.",
         ),
-        _t("radio_launcher_reattach", "Radio anheften"),
+        _safe_translate(app, "radio_launcher_reattach", "Radio anheften"),
     )
 
 
