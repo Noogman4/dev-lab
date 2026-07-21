@@ -266,24 +266,28 @@ def analyze_lynis_issues_with_chad(app, *, normalize_output_fn):
     )
 
 
+def _lynis_summary_value(cleaned_output: str, label: str) -> str:
+    label_text = str(label or "").strip()
+    if not label_text:
+        return "-"
+    patterns = [
+        rf"{re.escape(label_text)}\s*\((\d+)\)",
+        rf"{re.escape(label_text)}\s*:?\s*(\d+)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, cleaned_output or "", re.IGNORECASE)
+        if match:
+            return match.group(1)
+    return "-"
+
+
 def update_lynis_summary_from_output(app, output: str, rc: int, *, normalize_output_fn):
     cleaned_output = normalize_output_fn(output)
 
-    def extract_value(label):
-        patterns = [
-            rf"{label}\s*\((\d+)\)",
-            rf"{label}\s*:?\s*(\d+)",
-        ]
-        for pattern in patterns:
-            match = re.search(pattern, cleaned_output, re.IGNORECASE)
-            if match:
-                return match.group(1)
-        return "-"
-
-    hardening = extract_value("Hardening index")
-    warnings_count = extract_value("Warnings")
-    suggestions_count = extract_value("Suggestions")
-    tests_count = extract_value("Tests performed")
+    hardening = _lynis_summary_value(cleaned_output, "Hardening index")
+    warnings_count = _lynis_summary_value(cleaned_output, "Warnings")
+    suggestions_count = _lynis_summary_value(cleaned_output, "Suggestions")
+    tests_count = _lynis_summary_value(cleaned_output, "Tests performed")
     _app_var_set(
         app,
         "lynis_hardening_index_var",

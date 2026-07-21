@@ -128,6 +128,31 @@ def test_lynis_finish_log_message_covers_success_timeout_and_error():
     )
 
 
+def test_lynis_summary_value_reads_colon_and_parenthesized_counts():
+    output = "Hardening index : 88\nWarnings (3)\nSuggestions : 12\n"
+
+    assert (
+        security_audit_controller._lynis_summary_value(output, "Hardening index")
+        == "88"
+    )
+    assert security_audit_controller._lynis_summary_value(output, "Warnings") == "3"
+    assert security_audit_controller._lynis_summary_value(output, "Suggestions") == "12"
+
+
+def test_lynis_summary_value_returns_dash_for_missing_or_invalid_values():
+    assert (
+        security_audit_controller._lynis_summary_value(
+            "Hardening index : unknown\n", "Hardening index"
+        )
+        == "-"
+    )
+    assert (
+        security_audit_controller._lynis_summary_value("Suggestions : 2\n", "Warnings")
+        == "-"
+    )
+    assert security_audit_controller._lynis_summary_value("Warnings : 1\n", "") == "-"
+
+
 def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     source = inspect.getsource(netmon_app.App.build_lynis_tab)
     game_mode_source = inspect.getsource(netmon_app.App.enable_game_mode)
