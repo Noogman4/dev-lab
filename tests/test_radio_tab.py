@@ -539,6 +539,70 @@ def test_build_radio_pane_marker_widgets_creates_marker_and_grip():
     assert events[3] == ("grid", grip, {"row": 0, "column": 0, "sticky": "ew"})
 
 
+def test_update_radio_pane_marker_from_sash_places_current_sash():
+    calls = []
+    marker = object()
+
+    class DummyPane:
+        def sashpos(self, index):
+            calls.append(("sashpos", index))
+            return "240"
+
+    radio_tab._update_radio_pane_marker_from_sash(
+        DummyPane(),
+        lambda sash_y: calls.append(("place", sash_y)),
+        marker,
+    )
+
+    assert calls == [("sashpos", 0), ("place", 240)]
+
+
+def test_update_radio_pane_marker_from_sash_forgets_marker_on_sash_failure():
+    calls = []
+
+    class DummyPane:
+        def sashpos(self, index):
+            calls.append(("sashpos", index))
+            raise RuntimeError("sashpos failed")
+
+    class DummyMarker:
+        def place_forget(self):
+            calls.append("place_forget")
+
+    radio_tab._update_radio_pane_marker_from_sash(
+        DummyPane(),
+        lambda sash_y: calls.append(("place", sash_y)),
+        DummyMarker(),
+    )
+
+    assert calls == [("sashpos", 0), "place_forget"]
+
+
+def test_update_radio_pane_marker_from_sash_forgets_marker_on_place_failure():
+    calls = []
+
+    class DummyPane:
+        def sashpos(self, index):
+            calls.append(("sashpos", index))
+            return 240
+
+    class DummyMarker:
+        def place_forget(self):
+            calls.append("place_forget")
+
+    def place_marker(sash_y):
+        calls.append(("place", sash_y))
+        raise RuntimeError("place failed")
+
+    radio_tab._update_radio_pane_marker_from_sash(
+        DummyPane(),
+        place_marker,
+        DummyMarker(),
+    )
+
+    assert calls == [("sashpos", 0), ("place", 240), "place_forget"]
+
+
 def test_build_detached_radio_placeholder_creates_expected_widgets():
     events = []
     host = object()
