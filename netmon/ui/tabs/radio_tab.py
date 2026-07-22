@@ -211,6 +211,12 @@ def _clear_radio_host(host, panel=None) -> None:
             pass
 
 
+def _clear_radio_tab_host(app, host, show_bottom_placeholder) -> None:
+    _clear_radio_host(host, _app_value(app, "radio_embedded_panel"))
+    app.radio_embedded_panel = None
+    show_bottom_placeholder()
+
+
 def _show_radio_bottom_placeholder(container, text: str, *, label_factory=ttk.Label):
     for child in container.winfo_children():
         try:
@@ -566,9 +572,7 @@ def build_radio_tab(app):
     _show_bottom_placeholder()
 
     def _clear_host():
-        _clear_radio_host(host, _app_value(app, "radio_embedded_panel"))
-        app.radio_embedded_panel = None
-        _show_bottom_placeholder()
+        _clear_radio_tab_host(app, host, _show_bottom_placeholder)
 
     def _show_detached_placeholder():
         if _radio_launcher_mode(app) == "detached":

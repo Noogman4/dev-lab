@@ -1262,6 +1262,57 @@ def test_clear_radio_host_ignores_stop_and_destroy_failures():
     radio_tab._clear_radio_host(DummyHost(), FailingPanel())
 
 
+def test_clear_radio_tab_host_stops_panel_resets_state_and_shows_placeholder():
+    events = []
+
+    class DummyPanel:
+        def stop_radio_playback(self, async_mode=False):
+            events.append(("stop", async_mode))
+
+    class DummyChild:
+        def destroy(self):
+            events.append("destroy")
+
+    class DummyHost:
+        def winfo_children(self):
+            return [DummyChild()]
+
+    app = type("DummyApp", (), {})()
+    app.radio_embedded_panel = DummyPanel()
+
+    radio_tab._clear_radio_tab_host(
+        app,
+        DummyHost(),
+        lambda: events.append("placeholder"),
+    )
+
+    assert app.radio_embedded_panel is None
+    assert events == [("stop", False), "destroy", "placeholder"]
+
+
+def test_clear_radio_tab_host_handles_missing_panel_and_shows_placeholder():
+    events = []
+
+    class DummyChild:
+        def destroy(self):
+            events.append("destroy")
+
+    class DummyHost:
+        def winfo_children(self):
+            return [DummyChild()]
+
+    app = type("DummyApp", (), {})()
+
+    radio_tab._clear_radio_tab_host(
+        app,
+        DummyHost(),
+        lambda: events.append("placeholder"),
+    )
+
+    assert app.radio_embedded_panel is None
+    assert events == ["destroy", "placeholder"]
+
+
 def test_show_radio_bottom_placeholder_replaces_children_with_label():
     events = []
 
