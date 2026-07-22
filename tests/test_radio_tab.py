@@ -1264,6 +1264,62 @@ def test_show_radio_detached_placeholder_clears_builds_and_sets_state():
     ]
 
 
+def test_show_radio_embedded_panel_skips_when_already_embedded():
+    events = []
+    app = type("DummyApp", (), {})()
+    app.radio_launcher_mode = "embedded"
+
+    radio_tab._show_radio_embedded_panel(
+        app,
+        object(),
+        lambda: events.append("clear"),
+        panel_factory=lambda host, **kwargs: events.append("panel"),
+        attach_panel=lambda app, host, panel: events.append("attach"),
+    )
+
+    assert events == []
+
+
+def test_show_radio_embedded_panel_clears_builds_attaches_and_detaches():
+    events = []
+    host = object()
+    panel = object()
+
+    class DummyApp:
+        radio_launcher_mode = ""
+
+        def open_radio_external_app(self):
+            events.append("open")
+            return "opened"
+
+    app = DummyApp()
+    detach_callbacks = []
+
+    def panel_factory(built_host, **kwargs):
+        events.append(("panel", built_host, kwargs["host_app"]))
+        detach_callbacks.append(kwargs["on_detach"])
+        return panel
+
+    def attach_panel(attach_app, attach_host, attach_panel_obj):
+        events.append(("attach", attach_app, attach_host, attach_panel_obj))
+
+    radio_tab._show_radio_embedded_panel(
+        app,
+        host,
+        lambda: events.append("clear"),
+        panel_factory=panel_factory,
+        attach_panel=attach_panel,
+    )
+
+    assert detach_callbacks[0]() == "opened"
+    assert events == [
+        "clear",
+        ("panel", host, app),
+        ("attach", app, host, panel),
+        "open",
+    ]
+
+
 def test_radio_launcher_runtime_state_reads_radio_core():
     class DummyCore:
         def radio_is_detached(self):

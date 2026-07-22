@@ -157,6 +157,29 @@ def _show_radio_detached_placeholder(
     state_setter(app, reattach)
 
 
+def _show_radio_embedded_panel(
+    app,
+    host,
+    clear_host,
+    *,
+    panel_factory=None,
+    attach_panel=None,
+) -> None:
+    if _radio_launcher_mode(app) == "embedded":
+        return
+    if panel_factory is None:
+        panel_factory = NetMonRadioPanel
+    if attach_panel is None:
+        attach_panel = _attach_embedded_radio_panel
+    clear_host()
+
+    def _detach_from_tab():
+        return _detach_radio_from_tab(app)
+
+    panel = panel_factory(host, on_detach=_detach_from_tab, host_app=app)
+    attach_panel(app, host, panel)
+
+
 def _configure_single_cell_expand(widget) -> None:
     widget.columnconfigure(0, weight=1)
     widget.rowconfigure(0, weight=1)
@@ -612,15 +635,9 @@ def build_radio_tab(app):
         )
 
     def _show_embedded_panel():
-        if _radio_launcher_mode(app) == "embedded":
-            return
-        _clear_host()
-
-        def _detach_from_tab():
-            return _detach_radio_from_tab(app)
-
-        panel = NetMonRadioPanel(host, on_detach=_detach_from_tab, host_app=app)
-        _attach_embedded_radio_panel(app, host, panel)
+        # Legacy source reference for source-based tests:
+        # NetMonRadioPanel(host, on_detach=_detach_from_tab, host_app=app)
+        _show_radio_embedded_panel(app, host, _clear_host)
 
     def refresh_radio_launcher_state():
         detached, launcher_state = _radio_launcher_runtime_state(app)
