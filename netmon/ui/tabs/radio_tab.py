@@ -130,6 +130,33 @@ def _set_detached_radio_placeholder_state(app, reattach_button) -> None:
     app.radio_launcher_mode = "detached"
 
 
+def _show_radio_detached_placeholder(
+    app,
+    host,
+    clear_host,
+    *,
+    placeholder_builder=None,
+    state_setter=None,
+) -> None:
+    if _radio_launcher_mode(app) == "detached":
+        return
+    if placeholder_builder is None:
+        placeholder_builder = _build_detached_radio_placeholder
+    if state_setter is None:
+        state_setter = _set_detached_radio_placeholder_state
+    clear_host()
+    title_text, hint_text, reattach_text = _radio_detached_placeholder_texts(app)
+    reattach = placeholder_builder(
+        host,
+        title_text=title_text,
+        hint_text=hint_text,
+        status_var=app.radio_launcher_status_var,
+        reattach_text=reattach_text,
+        reattach_command=app.reattach_radio_app,
+    )
+    state_setter(app, reattach)
+
+
 def _configure_single_cell_expand(widget) -> None:
     widget.columnconfigure(0, weight=1)
     widget.rowconfigure(0, weight=1)
@@ -575,22 +602,14 @@ def build_radio_tab(app):
         _clear_radio_tab_host(app, host, _show_bottom_placeholder)
 
     def _show_detached_placeholder():
-        if _radio_launcher_mode(app) == "detached":
-            return
-        _clear_host()
-        title_text, hint_text, reattach_text = _radio_detached_placeholder_texts(app)
         # Legacy source references for source-based tests:
         # app.tr("radio_launcher_title", "NetMon Radio als externe App")
         # app.tr("radio_launcher_reattach", "Radio anheften")
-        reattach = _build_detached_radio_placeholder(
+        _show_radio_detached_placeholder(
+            app,
             host,
-            title_text=title_text,
-            hint_text=hint_text,
-            status_var=app.radio_launcher_status_var,
-            reattach_text=reattach_text,
-            reattach_command=app.reattach_radio_app,
+            _clear_host,
         )
-        _set_detached_radio_placeholder_state(app, reattach)
 
     def _show_embedded_panel():
         if _radio_launcher_mode(app) == "embedded":

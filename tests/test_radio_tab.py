@@ -1183,6 +1183,87 @@ def test_build_detached_radio_placeholder_creates_expected_widgets():
     )
 
 
+def test_show_radio_detached_placeholder_skips_when_already_detached():
+    events = []
+    app = type("DummyApp", (), {})()
+    app.radio_launcher_mode = "detached"
+
+    radio_tab._show_radio_detached_placeholder(
+        app,
+        object(),
+        lambda: events.append("clear"),
+        placeholder_builder=lambda host, **kwargs: events.append("placeholder"),
+        state_setter=lambda app, reattach: events.append("state"),
+    )
+
+    assert events == []
+
+
+def test_show_radio_detached_placeholder_clears_builds_and_sets_state():
+    events = []
+    host = object()
+    status_var = object()
+    reattach_command = object()
+    reattach_button = object()
+
+    class DummyApp:
+        radio_launcher_mode = ""
+        radio_launcher_status_var = status_var
+        reattach_radio_app = reattach_command
+
+        def tr(self, key, fallback):
+            events.append(("tr", key, fallback))
+            return f"translated:{key}"
+
+    app = DummyApp()
+
+    def placeholder_builder(built_host, **kwargs):
+        events.append(("placeholder", built_host, kwargs))
+        return reattach_button
+
+    def state_setter(state_app, button):
+        events.append(("state", state_app, button))
+
+    radio_tab._show_radio_detached_placeholder(
+        app,
+        host,
+        lambda: events.append("clear"),
+        placeholder_builder=placeholder_builder,
+        state_setter=state_setter,
+    )
+
+    assert events == [
+        "clear",
+        (
+            "tr",
+            "radio_launcher_title",
+            "NetMon Radio als externe App",
+        ),
+        (
+            "tr",
+            "radio_launcher_detached_hint",
+            "Radio laeuft gerade standalone. Zum Wieder-Anheften bitte in der externen Radio-App auf 'Radio anheften' klicken.",
+        ),
+        (
+            "tr",
+            "radio_launcher_reattach",
+            "Radio anheften",
+        ),
+        (
+            "placeholder",
+            host,
+            {
+                "title_text": "translated:radio_launcher_title",
+                "hint_text": "translated:radio_launcher_detached_hint",
+                "status_var": status_var,
+                "reattach_text": "translated:radio_launcher_reattach",
+                "reattach_command": reattach_command,
+            },
+        ),
+        ("state", app, reattach_button),
+    ]
+
+
 def test_radio_launcher_runtime_state_reads_radio_core():
     class DummyCore:
         def radio_is_detached(self):
