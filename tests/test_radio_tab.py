@@ -137,6 +137,21 @@ def test_radio_bottom_placeholder_text_uses_app_translation():
     ]
 
 
+def test_radio_bottom_section_title_uses_app_translation():
+    calls = []
+
+    class DummyApp:
+        def tr(self, key, fallback):
+            calls.append((key, fallback))
+            return f"translated:{key}"
+
+    assert (
+        radio_tab._radio_bottom_section_title(DummyApp())
+        == "translated:radio_bottom_media_title"
+    )
+    assert calls == [("radio_bottom_media_title", "Playlists and files")]
+
+
 def test_detach_radio_from_tab_delegates_to_app():
     calls = []
 

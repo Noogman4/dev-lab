@@ -110,6 +110,10 @@ def _radio_bottom_placeholder_text(app) -> str:
     )
 
 
+def _radio_bottom_section_title(app) -> str:
+    return app.tr("radio_bottom_media_title", "Playlists and files")
+
+
 def _detach_radio_from_tab(app):
     return app.open_radio_external_app()
 
@@ -361,7 +365,7 @@ def build_radio_tab(app):
 
     bottom_section = ttk.LabelFrame(
         pane,
-        text=app.tr("radio_bottom_media_title", "Playlists and files"),
+        text=_radio_bottom_section_title(app),
         padding=10,
     )
     bottom_section.columnconfigure(0, weight=1)
