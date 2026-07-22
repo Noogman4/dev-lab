@@ -343,18 +343,25 @@ def _update_radio_pane_marker_from_sash(pane, place_marker, marker) -> None:
         _forget_radio_pane_marker(marker)
 
 
+def _place_radio_pane_marker(marker, geometry) -> None:
+    try:
+        marker.place(**geometry)
+        marker.lift()
+    except Exception:
+        _forget_radio_pane_marker(marker)
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
     marker, grip = _build_radio_pane_marker_widgets(container, color=color)
     drag_state = _radio_pane_drag_state()
 
     def _place_marker_for_sash(sash_y):
-        try:
-            # Legacy source reference for source-based tests:
-            # marker_width = min(66, max(width - 24, 42))
-            marker.place(**_radio_pane_marker_geometry(container.winfo_width(), sash_y))
-            marker.lift()
-        except Exception:
-            _forget_radio_pane_marker(marker)
+        # Legacy source reference for source-based tests:
+        # marker_width = min(66, max(width - 24, 42))
+        _place_radio_pane_marker(
+            marker,
+            _radio_pane_marker_geometry(container.winfo_width(), sash_y),
+        )
 
     def _update_marker(_event=None):
         _update_radio_pane_marker_from_sash(pane, _place_marker_for_sash, marker)

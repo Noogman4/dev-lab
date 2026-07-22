@@ -603,6 +603,63 @@ def test_update_radio_pane_marker_from_sash_forgets_marker_on_place_failure():
     assert calls == [("sashpos", 0), ("place", 240), "place_forget"]
 
 
+def test_place_radio_pane_marker_places_and_lifts_marker():
+    calls = []
+    geometry = {"x": 1, "y": 2, "width": 3, "height": 4}
+
+    class DummyMarker:
+        def place(self, **kwargs):
+            calls.append(("place", kwargs))
+
+        def lift(self):
+            calls.append("lift")
+
+        def place_forget(self):
+            calls.append("place_forget")
+
+    radio_tab._place_radio_pane_marker(DummyMarker(), geometry)
+
+    assert calls == [("place", geometry), "lift"]
+
+
+def test_place_radio_pane_marker_forgets_marker_on_place_failure():
+    calls = []
+
+    class DummyMarker:
+        def place(self, **kwargs):
+            calls.append(("place", kwargs))
+            raise RuntimeError("place failed")
+
+        def lift(self):
+            calls.append("lift")
+
+        def place_forget(self):
+            calls.append("place_forget")
+
+    radio_tab._place_radio_pane_marker(DummyMarker(), {"x": 1})
+
+    assert calls == [("place", {"x": 1}), "place_forget"]
+
+
+def test_place_radio_pane_marker_forgets_marker_on_lift_failure():
+    calls = []
+
+    class DummyMarker:
+        def place(self, **kwargs):
+            calls.append(("place", kwargs))
+
+        def lift(self):
+            calls.append("lift")
+            raise RuntimeError("lift failed")
+
+        def place_forget(self):
+            calls.append("place_forget")
+
+    radio_tab._place_radio_pane_marker(DummyMarker(), {"x": 1})
+
+    assert calls == [("place", {"x": 1}), "lift", "place_forget"]
+
+
 def test_build_detached_radio_placeholder_creates_expected_widgets():
     events = []
     host = object()
