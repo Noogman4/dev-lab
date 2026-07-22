@@ -398,6 +398,24 @@ def _handle_radio_pane_marker_drag(
         pass
 
 
+def _handle_radio_pane_marker_drag_event(
+    event,
+    *,
+    drag_state,
+    pane,
+    place_marker,
+    schedule_marker_update,
+) -> str:
+    _handle_radio_pane_marker_drag(
+        event,
+        drag_state=drag_state,
+        pane=pane,
+        place_marker=place_marker,
+        schedule_marker_update=schedule_marker_update,
+    )
+    return "break"
+
+
 def _handle_radio_pane_marker_drag_start(drag_state, event, pane) -> str:
     _record_radio_pane_drag_start(drag_state, event, pane)
     return "break"
@@ -427,14 +445,13 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
         return _handle_radio_pane_marker_drag_start(drag_state, event, pane)
 
     def _drag(event):
-        _handle_radio_pane_marker_drag(
+        return _handle_radio_pane_marker_drag_event(
             event,
             drag_state=drag_state,
             pane=pane,
             place_marker=_place_marker_for_sash,
             schedule_marker_update=_schedule_marker_update,
         )
-        return "break"
 
     def _end_drag(_event=None):
         return _handle_radio_pane_marker_drag_end(_update_marker)

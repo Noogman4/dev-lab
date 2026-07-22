@@ -890,6 +890,55 @@ def test_handle_radio_pane_marker_drag_ignores_place_failures():
     ]
 
 
+def test_handle_radio_pane_marker_drag_event_handles_motion_and_breaks():
+    calls = []
+    drag_state = {"root_y": "310", "sash_y": "240"}
+
+    class DummyEvent:
+        y_root = "330"
+
+    class DummyPane:
+        def sashpos(self, index, value):
+            calls.append(("sashpos", index, value))
+
+        def sash_place(self, index, x, y):
+            calls.append(("sash_place", index, x, y))
+
+    result = radio_tab._handle_radio_pane_marker_drag_event(
+        DummyEvent(),
+        drag_state=drag_state,
+        pane=DummyPane(),
+        place_marker=lambda sash_y: calls.append(("place", sash_y)),
+        schedule_marker_update=lambda: calls.append("schedule"),
+    )
+
+    assert result == "break"
+    assert calls == [
+        ("sashpos", 0, 260),
+        ("place", 260),
+        "schedule",
+    ]
+
+
+def test_handle_radio_pane_marker_drag_event_breaks_after_ignored_motion_failure():
+    calls = []
+    drag_state = {"root_y": "bad", "sash_y": "240"}
+
+    class DummyEvent:
+        y_root = "330"
+
+    result = radio_tab._handle_radio_pane_marker_drag_event(
+        DummyEvent(),
+        drag_state=drag_state,
+        pane=object(),
+        place_marker=lambda sash_y: calls.append(("place", sash_y)),
+        schedule_marker_update=lambda: calls.append("schedule"),
+    )
+
+    assert result == "break"
+    assert calls == []
+
+
 def test_handle_radio_pane_marker_drag_end_updates_marker_and_breaks():
     calls = []
 
