@@ -398,6 +398,11 @@ def _handle_radio_pane_marker_drag(
         pass
 
 
+def _handle_radio_pane_marker_drag_end(update_marker) -> str:
+    update_marker()
+    return "break"
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
     marker, grip = _build_radio_pane_marker_widgets(container, color=color)
     drag_state = _radio_pane_drag_state()
@@ -428,8 +433,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
         return "break"
 
     def _end_drag(_event=None):
-        _update_marker()
-        return "break"
+        return _handle_radio_pane_marker_drag_end(_update_marker)
 
     for widget in (container, pane):
         _bind_radio_pane_marker_events(

@@ -849,6 +849,25 @@ def test_handle_radio_pane_marker_drag_ignores_place_failures():
     ]
 
 
+def test_handle_radio_pane_marker_drag_end_updates_marker_and_breaks():
+    calls = []
+
+    result = radio_tab._handle_radio_pane_marker_drag_end(
+        lambda: calls.append("update"),
+    )
+
+    assert result == "break"
+    assert calls == ["update"]
+
+
+def test_handle_radio_pane_marker_drag_end_propagates_update_failures():
+    def update_marker():
+        raise RuntimeError("update failed")
+
+    with pytest.raises(RuntimeError, match="update failed"):
+        radio_tab._handle_radio_pane_marker_drag_end(update_marker)
+
+
 def test_build_detached_radio_placeholder_creates_expected_widgets():
     events = []
     host = object()
