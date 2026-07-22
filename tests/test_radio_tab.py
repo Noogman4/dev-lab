@@ -344,6 +344,15 @@ def test_forget_radio_pane_marker_ignores_failures():
     radio_tab._forget_radio_pane_marker(DummyMarker())
 
 
+def test_radio_pane_drag_state_returns_defaults_and_new_dict():
+    first = radio_tab._radio_pane_drag_state()
+    second = radio_tab._radio_pane_drag_state()
+
+    assert first == {"root_y": 0, "sash_y": 0, "update_pending": False}
+    assert second == {"root_y": 0, "sash_y": 0, "update_pending": False}
+    assert first is not second
+
+
 def test_build_detached_radio_placeholder_creates_expected_widgets():
     events = []
     host = object()

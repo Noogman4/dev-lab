@@ -269,6 +269,14 @@ def _forget_radio_pane_marker(marker) -> None:
         pass
 
 
+def _radio_pane_drag_state() -> dict[str, int | bool]:
+    return {
+        "root_y": 0,
+        "sash_y": 0,
+        "update_pending": False,
+    }
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
     marker = tk.Frame(
         container,
@@ -289,11 +297,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
         anchor="center",
     )
     grip.grid(row=0, column=0, sticky="ew")
-    drag_state = {
-        "root_y": 0,
-        "sash_y": 0,
-        "update_pending": False,
-    }
+    drag_state = _radio_pane_drag_state()
 
     def _place_marker_for_sash(sash_y):
         try:
