@@ -174,6 +174,22 @@ def test_attach_embedded_radio_panel_grids_panel_and_sets_app_state():
     assert app.radio_launcher_mode == "embedded"
 
 
+def test_set_detached_radio_placeholder_state_registers_button_and_mode():
+    calls = []
+
+    class DummyApp:
+        def register_feature_button(self, feature, button):
+            calls.append((feature, button))
+
+    app = DummyApp()
+    button = object()
+
+    radio_tab._set_detached_radio_placeholder_state(app, button)
+
+    assert calls == [("radio", button)]
+    assert app.radio_launcher_mode == "detached"
+
+
 def test_radio_launcher_runtime_state_reads_radio_core():
     class DummyCore:
         def radio_is_detached(self):

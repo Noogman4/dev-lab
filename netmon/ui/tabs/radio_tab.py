@@ -121,6 +121,11 @@ def _attach_embedded_radio_panel(app, host, panel) -> None:
     app.radio_launcher_mode = "embedded"
 
 
+def _set_detached_radio_placeholder_state(app, reattach_button) -> None:
+    app.register_feature_button("radio", reattach_button)
+    app.radio_launcher_mode = "detached"
+
+
 def _radio_launcher_runtime_state(app):
     detached = False
     launcher_state = ""
@@ -377,8 +382,7 @@ def build_radio_tab(app):
             command=app.reattach_radio_app,
         )
         reattach.grid(row=3, column=0, sticky="w", pady=(8, 0))
-        app.register_feature_button("radio", reattach)
-        app.radio_launcher_mode = "detached"
+        _set_detached_radio_placeholder_state(app, reattach)
 
     def _show_embedded_panel():
         if _radio_launcher_mode(app) == "embedded":
