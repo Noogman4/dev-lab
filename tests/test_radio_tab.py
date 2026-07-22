@@ -804,6 +804,75 @@ def test_radio_pane_grip_bindings_use_drag_callbacks():
     )
 
 
+def test_bind_radio_pane_marker_callbacks_binds_update_and_grip_events():
+    calls = []
+
+    class DummyWidget:
+        def __init__(self, name):
+            self.name = name
+
+        def bind(self, event_name, callback, add=None):
+            calls.append((self.name, event_name, callback, add))
+
+    container = DummyWidget("container")
+    pane = DummyWidget("pane")
+    grip = DummyWidget("grip")
+    update_marker = object()
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+
+    radio_tab._bind_radio_pane_marker_callbacks(
+        container,
+        pane,
+        grip,
+        update_marker=update_marker,
+        start_drag=start_drag,
+        drag=drag,
+        end_drag=end_drag,
+    )
+
+    assert calls == [
+        ("container", "<Configure>", update_marker, "+"),
+        ("container", "<ButtonRelease-1>", update_marker, "+"),
+        ("container", "<B1-Motion>", update_marker, "+"),
+        ("pane", "<Configure>", update_marker, "+"),
+        ("pane", "<ButtonRelease-1>", update_marker, "+"),
+        ("pane", "<B1-Motion>", update_marker, "+"),
+        ("grip", "<Button-1>", start_drag, "+"),
+        ("grip", "<B1-Motion>", drag, "+"),
+        ("grip", "<ButtonRelease-1>", end_drag, "+"),
+    ]
+
+
+def test_bind_radio_pane_marker_callbacks_ignores_widget_bind_failures():
+    calls = []
+
+    class FailingWidget:
+        def __init__(self, name):
+            self.name = name
+
+        def bind(self, event_name, callback, add=None):
+            calls.append((self.name, event_name, add))
+            raise RuntimeError("bind failed")
+
+    radio_tab._bind_radio_pane_marker_callbacks(
+        FailingWidget("container"),
+        FailingWidget("pane"),
+        FailingWidget("grip"),
+        update_marker=object(),
+        start_drag=object(),
+        drag=object(),
+        end_drag=object(),
+    )
+
+    assert calls == [
+        ("container", "<Configure>", "+"),
+        ("pane", "<Configure>", "+"),
+        ("grip", "<Button-1>", "+"),
+    ]
+
+
 def test_handle_radio_pane_marker_drag_sets_sash_places_marker_and_schedules():
     calls = []
     drag_state = {"root_y": "310", "sash_y": "240"}
