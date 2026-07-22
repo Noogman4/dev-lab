@@ -367,6 +367,23 @@ def _radio_pane_grip_bindings(start_drag, drag, end_drag):
     )
 
 
+def _handle_radio_pane_marker_drag(
+    event,
+    *,
+    drag_state,
+    pane,
+    place_marker,
+    schedule_marker_update,
+) -> None:
+    try:
+        new_sash = _radio_pane_drag_target_sash(event, drag_state)
+        _set_radio_pane_sash_position(pane, new_sash)
+        place_marker(new_sash)
+        schedule_marker_update()
+    except Exception:
+        pass
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
     marker, grip = _build_radio_pane_marker_widgets(container, color=color)
     drag_state = _radio_pane_drag_state()
@@ -392,13 +409,13 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
         return "break"
 
     def _drag(event):
-        try:
-            new_sash = _radio_pane_drag_target_sash(event, drag_state)
-            _set_radio_pane_sash_position(pane, new_sash)
-            _place_marker_for_sash(new_sash)
-            _schedule_marker_update()
-        except Exception:
-            pass
+        _handle_radio_pane_marker_drag(
+            event,
+            drag_state=drag_state,
+            pane=pane,
+            place_marker=_place_marker_for_sash,
+            schedule_marker_update=_schedule_marker_update,
+        )
         return "break"
 
     def _end_drag(_event=None):

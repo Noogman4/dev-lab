@@ -682,6 +682,92 @@ def test_radio_pane_grip_bindings_use_drag_callbacks():
     )
 
 
+def test_handle_radio_pane_marker_drag_sets_sash_places_marker_and_schedules():
+    calls = []
+    drag_state = {"root_y": "310", "sash_y": "240"}
+
+    class DummyEvent:
+        y_root = "330"
+
+    class DummyPane:
+        def sashpos(self, index, value):
+            calls.append(("sashpos", index, value))
+
+        def sash_place(self, index, x, y):
+            calls.append(("sash_place", index, x, y))
+
+    radio_tab._handle_radio_pane_marker_drag(
+        DummyEvent(),
+        drag_state=drag_state,
+        pane=DummyPane(),
+        place_marker=lambda sash_y: calls.append(("place", sash_y)),
+        schedule_marker_update=lambda: calls.append("schedule"),
+    )
+
+    assert calls == [
+        ("sashpos", 0, 260),
+        ("place", 260),
+        "schedule",
+    ]
+
+
+def test_handle_radio_pane_marker_drag_ignores_target_failures():
+    calls = []
+    drag_state = {"root_y": "bad", "sash_y": "240"}
+
+    class DummyEvent:
+        y_root = "330"
+
+    class DummyPane:
+        def sashpos(self, index, value):
+            calls.append(("sashpos", index, value))
+
+        def sash_place(self, index, x, y):
+            calls.append(("sash_place", index, x, y))
+
+    radio_tab._handle_radio_pane_marker_drag(
+        DummyEvent(),
+        drag_state=drag_state,
+        pane=DummyPane(),
+        place_marker=lambda sash_y: calls.append(("place", sash_y)),
+        schedule_marker_update=lambda: calls.append("schedule"),
+    )
+
+    assert calls == []
+
+
+def test_handle_radio_pane_marker_drag_ignores_place_failures():
+    calls = []
+    drag_state = {"root_y": "310", "sash_y": "240"}
+
+    class DummyEvent:
+        y_root = "330"
+
+    class DummyPane:
+        def sashpos(self, index, value):
+            calls.append(("sashpos", index, value))
+
+        def sash_place(self, index, x, y):
+            calls.append(("sash_place", index, x, y))
+
+    def place_marker(sash_y):
+        calls.append(("place", sash_y))
+        raise RuntimeError("place failed")
+
+    radio_tab._handle_radio_pane_marker_drag(
+        DummyEvent(),
+        drag_state=drag_state,
+        pane=DummyPane(),
+        place_marker=place_marker,
+        schedule_marker_update=lambda: calls.append("schedule"),
+    )
+
+    assert calls == [
+        ("sashpos", 0, 260),
+        ("place", 260),
+    ]
+
+
 def test_build_detached_radio_placeholder_creates_expected_widgets():
     events = []
     host = object()
