@@ -455,6 +455,33 @@ def test_schedule_radio_pane_marker_update_runs_immediately_on_after_idle_failur
     assert drag_state["update_pending"] is False
 
 
+def test_schedule_initial_radio_pane_marker_update_uses_after_zero():
+    calls = []
+    callback = object()
+
+    class DummyContainer:
+        def after(self, delay, scheduled_callback):
+            calls.append((delay, scheduled_callback))
+
+    radio_tab._schedule_initial_radio_pane_marker_update(
+        DummyContainer(),
+        callback,
+    )
+
+    assert calls == [(0, callback)]
+
+
+def test_schedule_initial_radio_pane_marker_update_ignores_after_failures():
+    class DummyContainer:
+        def after(self, delay, scheduled_callback):
+            raise RuntimeError("after failed")
+
+    radio_tab._schedule_initial_radio_pane_marker_update(
+        DummyContainer(),
+        object(),
+    )
+
+
 def test_build_detached_radio_placeholder_creates_expected_widgets():
     events = []
     host = object()

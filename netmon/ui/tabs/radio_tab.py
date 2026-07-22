@@ -300,6 +300,13 @@ def _schedule_radio_pane_marker_update(container, drag_state, update_marker) -> 
         _run()
 
 
+def _schedule_initial_radio_pane_marker_update(container, update_marker) -> None:
+    try:
+        container.after(0, update_marker)
+    except Exception:
+        pass
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
     marker = tk.Frame(
         container,
@@ -378,10 +385,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
                 ("<ButtonRelease-1>", _end_drag),
             ),
         )
-    try:
-        container.after(0, _update_marker)
-    except Exception:
-        pass
+    _schedule_initial_radio_pane_marker_update(container, _update_marker)
     return marker
 
 
