@@ -529,6 +529,48 @@ def test_schedule_radio_pane_marker_update_runs_immediately_on_after_idle_failur
     assert drag_state["update_pending"] is False
 
 
+def test_request_radio_pane_marker_update_schedules_update():
+    calls = []
+    drag_state = {"update_pending": False}
+
+    class DummyContainer:
+        def after_idle(self, callback):
+            calls.append(("after_idle", callback))
+
+    radio_tab._request_radio_pane_marker_update(
+        DummyContainer(),
+        drag_state,
+        lambda: calls.append("update"),
+    )
+
+    callback = calls[0][1]
+
+    assert drag_state["update_pending"] is True
+
+    callback()
+
+    assert calls == [("after_idle", callback), "update"]
+    assert drag_state["update_pending"] is False
+
+
+def test_request_radio_pane_marker_update_keeps_pending_update():
+    calls = []
+    drag_state = {"update_pending": True}
+
+    class DummyContainer:
+        def after_idle(self, callback):
+            calls.append(("after_idle", callback))
+
+    radio_tab._request_radio_pane_marker_update(
+        DummyContainer(),
+        drag_state,
+        lambda: calls.append("update"),
+    )
+
+    assert calls == []
+    assert drag_state["update_pending"] is True
+
+
 def test_schedule_initial_radio_pane_marker_update_uses_after_zero():
     calls = []
     callback = object()

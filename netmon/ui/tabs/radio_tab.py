@@ -307,6 +307,10 @@ def _schedule_radio_pane_marker_update(container, drag_state, update_marker) -> 
         _run()
 
 
+def _request_radio_pane_marker_update(container, drag_state, update_marker) -> None:
+    _schedule_radio_pane_marker_update(container, drag_state, update_marker)
+
+
 def _schedule_initial_radio_pane_marker_update(container, update_marker) -> None:
     try:
         container.after(0, update_marker)
@@ -475,7 +479,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
         )
 
     def _schedule_marker_update():
-        _schedule_radio_pane_marker_update(container, drag_state, _update_marker)
+        _request_radio_pane_marker_update(container, drag_state, _update_marker)
 
     def _start_drag(event):
         return _handle_radio_pane_marker_drag_start(drag_state, event, pane)
