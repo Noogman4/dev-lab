@@ -306,6 +306,37 @@ def test_radio_pane_drag_start_state_returns_zeroes_on_failure():
     assert radio_tab._radio_pane_drag_start_state(DummyEvent(), DummyPane()) == (0, 0)
 
 
+def test_record_radio_pane_drag_start_updates_drag_state():
+    class DummyEvent:
+        y_root = "310"
+
+    class DummyPane:
+        def sashpos(self, index):
+            assert index == 0
+            return "240"
+
+    drag_state = {"root_y": 0, "sash_y": 0}
+
+    radio_tab._record_radio_pane_drag_start(drag_state, DummyEvent(), DummyPane())
+
+    assert drag_state == {"root_y": 310, "sash_y": 240}
+
+
+def test_record_radio_pane_drag_start_uses_zeroes_on_failure():
+    class DummyEvent:
+        y_root = "310"
+
+    class DummyPane:
+        def sashpos(self, index):
+            raise RuntimeError("sashpos failed")
+
+    drag_state = {"root_y": 99, "sash_y": 88}
+
+    radio_tab._record_radio_pane_drag_start(drag_state, DummyEvent(), DummyPane())
+
+    assert drag_state == {"root_y": 0, "sash_y": 0}
+
+
 def test_radio_pane_drag_target_sash_adds_positive_delta():
     class DummyEvent:
         y_root = "330"

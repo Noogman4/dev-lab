@@ -257,6 +257,13 @@ def _radio_pane_drag_start_state(event, pane) -> tuple[int, int]:
         return 0, 0
 
 
+def _record_radio_pane_drag_start(drag_state, event, pane) -> None:
+    drag_state["root_y"], drag_state["sash_y"] = _radio_pane_drag_start_state(
+        event,
+        pane,
+    )
+
+
 def _radio_pane_drag_target_sash(event, drag_state) -> int:
     delta = int(event.y_root) - int(drag_state["root_y"])
     return int(drag_state["sash_y"]) + delta
@@ -403,9 +410,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
         _schedule_radio_pane_marker_update(container, drag_state, _update_marker)
 
     def _start_drag(event):
-        drag_state["root_y"], drag_state["sash_y"] = _radio_pane_drag_start_state(
-            event, pane
-        )
+        _record_radio_pane_drag_start(drag_state, event, pane)
         return "break"
 
     def _drag(event):
