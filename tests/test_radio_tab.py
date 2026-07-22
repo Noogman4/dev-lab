@@ -1,3 +1,5 @@
+import pytest
+
 from netmon.ui.tabs import radio_tab
 
 
@@ -689,6 +691,54 @@ def test_place_radio_pane_marker_forgets_marker_on_lift_failure():
     radio_tab._place_radio_pane_marker(DummyMarker(), {"x": 1})
 
     assert calls == [("place", {"x": 1}), "lift", "place_forget"]
+
+
+def test_place_radio_pane_marker_for_sash_uses_container_width_and_sash():
+    calls = []
+
+    class DummyContainer:
+        def winfo_width(self):
+            calls.append("winfo_width")
+            return 320
+
+    class DummyMarker:
+        def place(self, **kwargs):
+            calls.append(("place", kwargs))
+
+        def lift(self):
+            calls.append("lift")
+
+        def place_forget(self):
+            calls.append("place_forget")
+
+    radio_tab._place_radio_pane_marker_for_sash(
+        DummyContainer(),
+        DummyMarker(),
+        240,
+    )
+
+    assert calls == [
+        "winfo_width",
+        ("place", {"x": 127, "y": 235, "width": 66, "height": 12}),
+        "lift",
+    ]
+
+
+def test_place_radio_pane_marker_for_sash_propagates_width_failures():
+    class DummyContainer:
+        def winfo_width(self):
+            raise RuntimeError("width failed")
+
+    class DummyMarker:
+        def place(self, **kwargs):
+            raise AssertionError("place should not be called")
+
+    with pytest.raises(RuntimeError, match="width failed"):
+        radio_tab._place_radio_pane_marker_for_sash(
+            DummyContainer(),
+            DummyMarker(),
+            240,
+        )
 
 
 def test_radio_pane_update_bindings_use_update_callback_for_all_events():
