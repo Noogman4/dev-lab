@@ -277,6 +277,14 @@ def _radio_pane_drag_state() -> dict[str, int | bool]:
     }
 
 
+def _bind_radio_pane_marker_events(widget, bindings) -> None:
+    try:
+        for event_name, callback in bindings:
+            widget.bind(event_name, callback, add="+")
+    except Exception:
+        pass
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
     marker = tk.Frame(
         container,
@@ -349,19 +357,23 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
         return "break"
 
     for widget in (container, pane):
-        try:
-            widget.bind("<Configure>", _update_marker, add="+")
-            widget.bind("<ButtonRelease-1>", _update_marker, add="+")
-            widget.bind("<B1-Motion>", _update_marker, add="+")
-        except Exception:
-            pass
+        _bind_radio_pane_marker_events(
+            widget,
+            (
+                ("<Configure>", _update_marker),
+                ("<ButtonRelease-1>", _update_marker),
+                ("<B1-Motion>", _update_marker),
+            ),
+        )
     for widget in (grip,):
-        try:
-            widget.bind("<Button-1>", _start_drag, add="+")
-            widget.bind("<B1-Motion>", _drag, add="+")
-            widget.bind("<ButtonRelease-1>", _end_drag, add="+")
-        except Exception:
-            pass
+        _bind_radio_pane_marker_events(
+            widget,
+            (
+                ("<Button-1>", _start_drag),
+                ("<B1-Motion>", _drag),
+                ("<ButtonRelease-1>", _end_drag),
+            ),
+        )
     try:
         container.after(0, _update_marker)
     except Exception:
