@@ -235,6 +235,51 @@ def test_radio_pane_marker_geometry_centers_and_clamps_marker():
     }
 
 
+def test_set_radio_pane_sash_position_uses_sashpos():
+    calls = []
+
+    class DummyPane:
+        def sashpos(self, index, value):
+            calls.append(("sashpos", index, value))
+
+        def sash_place(self, index, x, y):
+            calls.append(("sash_place", index, x, y))
+
+    radio_tab._set_radio_pane_sash_position(DummyPane(), "240")
+
+    assert calls == [("sashpos", 0, 240)]
+
+
+def test_set_radio_pane_sash_position_falls_back_to_sash_place():
+    calls = []
+
+    class DummyPane:
+        def sashpos(self, index, value):
+            calls.append(("sashpos", index, value))
+            raise RuntimeError("sashpos failed")
+
+        def sash_place(self, index, x, y):
+            calls.append(("sash_place", index, x, y))
+
+    radio_tab._set_radio_pane_sash_position(DummyPane(), 240)
+
+    assert calls == [
+        ("sashpos", 0, 240),
+        ("sash_place", 0, 0, 240),
+    ]
+
+
+def test_set_radio_pane_sash_position_ignores_failures():
+    class DummyPane:
+        def sashpos(self, index, value):
+            raise RuntimeError("sashpos failed")
+
+        def sash_place(self, index, x, y):
+            raise RuntimeError("sash_place failed")
+
+    radio_tab._set_radio_pane_sash_position(DummyPane(), 240)
+
+
 def test_build_detached_radio_placeholder_creates_expected_widgets():
     events = []
     host = object()
