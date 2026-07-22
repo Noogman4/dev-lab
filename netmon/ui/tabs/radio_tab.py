@@ -350,6 +350,15 @@ def _update_radio_pane_marker_from_sash(pane, place_marker, marker) -> None:
         _forget_radio_pane_marker(marker)
 
 
+def _handle_radio_pane_marker_update_event(
+    pane,
+    place_marker,
+    marker,
+    _event=None,
+) -> None:
+    _update_radio_pane_marker_from_sash(pane, place_marker, marker)
+
+
 def _place_radio_pane_marker(marker, geometry) -> None:
     try:
         marker.place(**geometry)
@@ -458,7 +467,12 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
         _place_radio_pane_marker_for_sash(container, marker, sash_y)
 
     def _update_marker(_event=None):
-        _update_radio_pane_marker_from_sash(pane, _place_marker_for_sash, marker)
+        _handle_radio_pane_marker_update_event(
+            pane,
+            _place_marker_for_sash,
+            marker,
+            _event,
+        )
 
     def _schedule_marker_update():
         _schedule_radio_pane_marker_update(container, drag_state, _update_marker)

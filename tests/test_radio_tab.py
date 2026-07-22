@@ -677,6 +677,47 @@ def test_update_radio_pane_marker_from_sash_forgets_marker_on_place_failure():
     assert calls == [("sashpos", 0), ("place", 240), "place_forget"]
 
 
+def test_handle_radio_pane_marker_update_event_ignores_event_and_places_sash():
+    calls = []
+    marker = object()
+    event = object()
+
+    class DummyPane:
+        def sashpos(self, index):
+            calls.append(("sashpos", index))
+            return "240"
+
+    radio_tab._handle_radio_pane_marker_update_event(
+        DummyPane(),
+        lambda sash_y: calls.append(("place", sash_y)),
+        marker,
+        event,
+    )
+
+    assert calls == [("sashpos", 0), ("place", 240)]
+
+
+def test_handle_radio_pane_marker_update_event_forgets_marker_on_failure():
+    calls = []
+
+    class DummyPane:
+        def sashpos(self, index):
+            calls.append(("sashpos", index))
+            raise RuntimeError("sash failed")
+
+    class DummyMarker:
+        def place_forget(self):
+            calls.append("place_forget")
+
+    radio_tab._handle_radio_pane_marker_update_event(
+        DummyPane(),
+        lambda sash_y: calls.append(("place", sash_y)),
+        DummyMarker(),
+    )
+
+    assert calls == [("sashpos", 0), "place_forget"]
+
+
 def test_place_radio_pane_marker_places_and_lifts_marker():
     calls = []
     geometry = {"x": 1, "y": 2, "width": 3, "height": 4}
