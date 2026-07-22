@@ -395,6 +395,66 @@ def test_bind_radio_pane_marker_events_stops_and_ignores_failures():
     assert calls == [("<Configure>", "+")]
 
 
+def test_schedule_radio_pane_marker_update_skips_pending_update():
+    calls = []
+    drag_state = {"update_pending": True}
+
+    class DummyContainer:
+        def after_idle(self, callback):
+            calls.append(("after_idle", callback))
+
+    radio_tab._schedule_radio_pane_marker_update(
+        DummyContainer(),
+        drag_state,
+        lambda: calls.append("update"),
+    )
+
+    assert calls == []
+    assert drag_state["update_pending"] is True
+
+
+def test_schedule_radio_pane_marker_update_uses_after_idle_callback():
+    calls = []
+    drag_state = {"update_pending": False}
+
+    class DummyContainer:
+        def after_idle(self, callback):
+            calls.append(("after_idle", callback))
+
+    radio_tab._schedule_radio_pane_marker_update(
+        DummyContainer(),
+        drag_state,
+        lambda: calls.append("update"),
+    )
+
+    callback = calls[0][1]
+    assert drag_state["update_pending"] is True
+
+    callback()
+
+    assert calls == [("after_idle", callback), "update"]
+    assert drag_state["update_pending"] is False
+
+
+def test_schedule_radio_pane_marker_update_runs_immediately_on_after_idle_failure():
+    calls = []
+    drag_state = {"update_pending": False}
+
+    class DummyContainer:
+        def after_idle(self, callback):
+            calls.append("after_idle")
+            raise RuntimeError("after_idle failed")
+
+    radio_tab._schedule_radio_pane_marker_update(
+        DummyContainer(),
+        drag_state,
+        lambda: calls.append("update"),
+    )
+
+    assert calls == ["after_idle", "update"]
+    assert drag_state["update_pending"] is False
+
+
 def test_build_detached_radio_placeholder_creates_expected_widgets():
     events = []
     host = object()

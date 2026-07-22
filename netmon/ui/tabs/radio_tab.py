@@ -285,6 +285,21 @@ def _bind_radio_pane_marker_events(widget, bindings) -> None:
         pass
 
 
+def _schedule_radio_pane_marker_update(container, drag_state, update_marker) -> None:
+    if drag_state["update_pending"]:
+        return
+    drag_state["update_pending"] = True
+
+    def _run():
+        drag_state["update_pending"] = False
+        update_marker()
+
+    try:
+        container.after_idle(_run)
+    except Exception:
+        _run()
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
     marker = tk.Frame(
         container,
@@ -323,18 +338,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
             _forget_radio_pane_marker(marker)
 
     def _schedule_marker_update():
-        if drag_state["update_pending"]:
-            return
-        drag_state["update_pending"] = True
-
-        def _run():
-            drag_state["update_pending"] = False
-            _update_marker()
-
-        try:
-            container.after_idle(_run)
-        except Exception:
-            _run()
+        _schedule_radio_pane_marker_update(container, drag_state, _update_marker)
 
     def _start_drag(event):
         drag_state["root_y"], drag_state["sash_y"] = _radio_pane_drag_start_state(
