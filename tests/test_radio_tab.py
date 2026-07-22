@@ -205,6 +205,21 @@ def test_set_detached_radio_placeholder_state_registers_button_and_mode():
     assert app.radio_launcher_mode == "detached"
 
 
+def test_configure_single_cell_expand_sets_column_and_row_weight():
+    calls = []
+
+    class DummyWidget:
+        def columnconfigure(self, column, weight=0):
+            calls.append(("column", column, weight))
+
+        def rowconfigure(self, row, weight=0):
+            calls.append(("row", row, weight))
+
+    radio_tab._configure_single_cell_expand(DummyWidget())
+
+    assert calls == [("column", 0, 1), ("row", 0, 1)]
+
+
 def test_build_detached_radio_placeholder_creates_expected_widgets():
     events = []
     host = object()

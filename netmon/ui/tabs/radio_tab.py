@@ -130,6 +130,11 @@ def _set_detached_radio_placeholder_state(app, reattach_button) -> None:
     app.radio_launcher_mode = "detached"
 
 
+def _configure_single_cell_expand(widget) -> None:
+    widget.columnconfigure(0, weight=1)
+    widget.rowconfigure(0, weight=1)
+
+
 def _build_detached_radio_placeholder(
     host,
     *,
@@ -346,8 +351,7 @@ def build_radio_tab(app):
     app.tools_nb.add(app.tab_radio, text=app.tr("tools_tab_radio", "Radio"))
     body = ttk.Frame(app.tab_radio, padding=0)
     body.pack(fill="both", expand=True)
-    body.columnconfigure(0, weight=1)
-    body.rowconfigure(0, weight=1)
+    _configure_single_cell_expand(body)
     app.radio_launcher_status_var = _radio_launcher_status_var(app)
 
     pane = ttk.Panedwindow(body, orient="vertical")
@@ -356,20 +360,17 @@ def build_radio_tab(app):
     app.radio_tab_pane_marker = _install_pane_drag_marker(body, pane)
 
     top_section = ttk.Frame(pane, padding=0)
-    top_section.columnconfigure(0, weight=1)
-    top_section.rowconfigure(0, weight=1)
+    _configure_single_cell_expand(top_section)
     host = ttk.Frame(top_section)
     host.grid(row=0, column=0, sticky="nsew")
-    host.columnconfigure(0, weight=1)
-    host.rowconfigure(0, weight=1)
+    _configure_single_cell_expand(host)
 
     bottom_section = ttk.LabelFrame(
         pane,
         text=_radio_bottom_section_title(app),
         padding=10,
     )
-    bottom_section.columnconfigure(0, weight=1)
-    bottom_section.rowconfigure(0, weight=1)
+    _configure_single_cell_expand(bottom_section)
 
     def _show_bottom_placeholder():
         _show_radio_bottom_placeholder(
