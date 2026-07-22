@@ -190,6 +190,79 @@ def test_set_detached_radio_placeholder_state_registers_button_and_mode():
     assert app.radio_launcher_mode == "detached"
 
 
+def test_build_detached_radio_placeholder_creates_expected_widgets():
+    events = []
+    host = object()
+    status_var = object()
+    command = object()
+
+    class DummyWidget:
+        def __init__(self, parent, **kwargs):
+            self.parent = parent
+            self.kwargs = kwargs
+
+        def grid(self, **kwargs):
+            events.append(("grid", self, kwargs))
+
+    class DummyFrame(DummyWidget):
+        def __init__(self, parent, **kwargs):
+            super().__init__(parent, **kwargs)
+            events.append(("frame", parent, kwargs, self))
+
+    class DummyLabel(DummyWidget):
+        def __init__(self, parent, **kwargs):
+            super().__init__(parent, **kwargs)
+            events.append(("label", parent, kwargs, self))
+
+    class DummyButton(DummyWidget):
+        def __init__(self, parent, **kwargs):
+            super().__init__(parent, **kwargs)
+            events.append(("button", parent, kwargs, self))
+
+    reattach = radio_tab._build_detached_radio_placeholder(
+        host,
+        title_text="title",
+        hint_text="hint",
+        status_var=status_var,
+        reattach_text="reattach",
+        reattach_command=command,
+        frame_factory=DummyFrame,
+        label_factory=DummyLabel,
+        button_factory=DummyButton,
+    )
+
+    box = events[0][3]
+    button = events[8][3]
+    assert reattach is button
+    assert events[0] == ("frame", host, {"padding": 18}, box)
+    assert events[1] == ("grid", box, {"row": 0, "column": 0, "sticky": "nw"})
+    assert events[2][0:3] == (
+        "label",
+        box,
+        {"text": "title", "font": ("TkDefaultFont", 12, "bold")},
+    )
+    assert events[4][0:3] == (
+        "label",
+        box,
+        {"text": "hint", "justify": "left", "wraplength": 760},
+    )
+    assert events[6][0:3] == (
+        "label",
+        box,
+        {"textvariable": status_var, "justify": "left"},
+    )
+    assert events[8][0:3] == (
+        "button",
+        box,
+        {"text": "reattach", "command": command},
+    )
+    assert events[9] == (
+        "grid",
+        button,
+        {"row": 3, "column": 0, "sticky": "w", "pady": (8, 0)},
+    )
+
+
 def test_radio_launcher_runtime_state_reads_radio_core():
     class DummyCore:
         def radio_is_detached(self):

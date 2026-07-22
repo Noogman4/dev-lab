@@ -126,6 +126,45 @@ def _set_detached_radio_placeholder_state(app, reattach_button) -> None:
     app.radio_launcher_mode = "detached"
 
 
+def _build_detached_radio_placeholder(
+    host,
+    *,
+    title_text: str,
+    hint_text: str,
+    status_var,
+    reattach_text: str,
+    reattach_command,
+    frame_factory=ttk.Frame,
+    label_factory=ttk.Label,
+    button_factory=ttk.Button,
+):
+    box = frame_factory(host, padding=18)
+    box.grid(row=0, column=0, sticky="nw")
+    label_factory(
+        box,
+        text=title_text,
+        font=("TkDefaultFont", 12, "bold"),
+    ).grid(row=0, column=0, sticky="w")
+    label_factory(
+        box,
+        text=hint_text,
+        justify="left",
+        wraplength=760,
+    ).grid(row=1, column=0, sticky="w", pady=(10, 12))
+    label_factory(
+        box,
+        textvariable=status_var,
+        justify="left",
+    ).grid(row=2, column=0, sticky="w", pady=(0, 12))
+    reattach = button_factory(
+        box,
+        text=reattach_text,
+        command=reattach_command,
+    )
+    reattach.grid(row=3, column=0, sticky="w", pady=(8, 0))
+    return reattach
+
+
 def _radio_launcher_runtime_state(app):
     detached = False
     launcher_state = ""
@@ -358,30 +397,14 @@ def build_radio_tab(app):
         # Legacy source references for source-based tests:
         # app.tr("radio_launcher_title", "NetMon Radio als externe App")
         # app.tr("radio_launcher_reattach", "Radio anheften")
-        box = ttk.Frame(host, padding=18)
-        box.grid(row=0, column=0, sticky="nw")
-        ttk.Label(
-            box,
-            text=title_text,
-            font=("TkDefaultFont", 12, "bold"),
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Label(
-            box,
-            text=hint_text,
-            justify="left",
-            wraplength=760,
-        ).grid(row=1, column=0, sticky="w", pady=(10, 12))
-        ttk.Label(
-            box,
-            textvariable=app.radio_launcher_status_var,
-            justify="left",
-        ).grid(row=2, column=0, sticky="w", pady=(0, 12))
-        reattach = ttk.Button(
-            box,
-            text=reattach_text,
-            command=app.reattach_radio_app,
+        reattach = _build_detached_radio_placeholder(
+            host,
+            title_text=title_text,
+            hint_text=hint_text,
+            status_var=app.radio_launcher_status_var,
+            reattach_text=reattach_text,
+            reattach_command=app.reattach_radio_app,
         )
-        reattach.grid(row=3, column=0, sticky="w", pady=(8, 0))
         _set_detached_radio_placeholder_state(app, reattach)
 
     def _show_embedded_panel():
