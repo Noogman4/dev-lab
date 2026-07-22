@@ -262,6 +262,13 @@ def _radio_pane_drag_target_sash(event, drag_state) -> int:
     return int(drag_state["sash_y"]) + delta
 
 
+def _forget_radio_pane_marker(marker) -> None:
+    try:
+        marker.place_forget()
+    except Exception:
+        pass
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
     marker = tk.Frame(
         container,
@@ -295,19 +302,13 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
             marker.place(**_radio_pane_marker_geometry(container.winfo_width(), sash_y))
             marker.lift()
         except Exception:
-            try:
-                marker.place_forget()
-            except Exception:
-                pass
+            _forget_radio_pane_marker(marker)
 
     def _update_marker(_event=None):
         try:
             _place_marker_for_sash(int(pane.sashpos(0)))
         except Exception:
-            try:
-                marker.place_forget()
-            except Exception:
-                pass
+            _forget_radio_pane_marker(marker)
 
     def _schedule_marker_update():
         if drag_state["update_pending"]:

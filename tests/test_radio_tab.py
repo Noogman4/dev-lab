@@ -324,6 +324,26 @@ def test_radio_pane_drag_target_sash_adds_negative_delta():
     assert radio_tab._radio_pane_drag_target_sash(DummyEvent(), drag_state) == 220
 
 
+def test_forget_radio_pane_marker_calls_place_forget():
+    calls = []
+
+    class DummyMarker:
+        def place_forget(self):
+            calls.append("place_forget")
+
+    radio_tab._forget_radio_pane_marker(DummyMarker())
+
+    assert calls == ["place_forget"]
+
+
+def test_forget_radio_pane_marker_ignores_failures():
+    class DummyMarker:
+        def place_forget(self):
+            raise RuntimeError("place_forget failed")
+
+    radio_tab._forget_radio_pane_marker(DummyMarker())
+
+
 def test_build_detached_radio_placeholder_creates_expected_widgets():
     events = []
     host = object()
