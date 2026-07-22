@@ -306,6 +306,24 @@ def test_radio_pane_drag_start_state_returns_zeroes_on_failure():
     assert radio_tab._radio_pane_drag_start_state(DummyEvent(), DummyPane()) == (0, 0)
 
 
+def test_radio_pane_drag_target_sash_adds_positive_delta():
+    class DummyEvent:
+        y_root = "330"
+
+    drag_state = {"root_y": "310", "sash_y": "240"}
+
+    assert radio_tab._radio_pane_drag_target_sash(DummyEvent(), drag_state) == 260
+
+
+def test_radio_pane_drag_target_sash_adds_negative_delta():
+    class DummyEvent:
+        y_root = "290"
+
+    drag_state = {"root_y": "310", "sash_y": "240"}
+
+    assert radio_tab._radio_pane_drag_target_sash(DummyEvent(), drag_state) == 220
+
+
 def test_build_detached_radio_placeholder_creates_expected_widgets():
     events = []
     host = object()

@@ -257,6 +257,11 @@ def _radio_pane_drag_start_state(event, pane) -> tuple[int, int]:
         return 0, 0
 
 
+def _radio_pane_drag_target_sash(event, drag_state) -> int:
+    delta = int(event.y_root) - int(drag_state["root_y"])
+    return int(drag_state["sash_y"]) + delta
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
     marker = tk.Frame(
         container,
@@ -326,8 +331,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
 
     def _drag(event):
         try:
-            delta = int(event.y_root) - int(drag_state["root_y"])
-            new_sash = int(drag_state["sash_y"]) + delta
+            new_sash = _radio_pane_drag_target_sash(event, drag_state)
             _set_radio_pane_sash_position(pane, new_sash)
             _place_marker_for_sash(new_sash)
             _schedule_marker_update()
