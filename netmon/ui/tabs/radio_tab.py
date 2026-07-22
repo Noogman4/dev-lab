@@ -248,6 +248,27 @@ def _radio_launcher_target_mode(detached: bool, launcher_state: str) -> str:
     return "embedded"
 
 
+def _refresh_radio_launcher_state(
+    app,
+    show_detached_placeholder,
+    show_embedded_panel,
+) -> None:
+    detached, launcher_state = _radio_launcher_runtime_state(app)
+    _app_var_set(
+        app,
+        "radio_launcher_status_var",
+        _radio_launcher_status_text(
+            app,
+            detached=detached,
+            launcher_state=launcher_state,
+        ),
+    )
+    if _radio_launcher_target_mode(detached, launcher_state) == "detached":
+        show_detached_placeholder()
+    else:
+        show_embedded_panel()
+
+
 def _clear_radio_host(host, panel=None) -> None:
     if panel is not None:
         try:
@@ -640,23 +661,16 @@ def build_radio_tab(app):
         _show_radio_embedded_panel(app, host, _clear_host)
 
     def refresh_radio_launcher_state():
-        detached, launcher_state = _radio_launcher_runtime_state(app)
         # Legacy source references for source-based tests:
         # "Radio wird gerade als Standalone-App gestartet."
         # "Radio wird gerade wieder an NetMon angeheftet."
-        _app_var_set(
+        # _show_detached_placeholder()
+        # _show_embedded_panel()
+        _refresh_radio_launcher_state(
             app,
-            "radio_launcher_status_var",
-            _radio_launcher_status_text(
-                app,
-                detached=detached,
-                launcher_state=launcher_state,
-            ),
+            _show_detached_placeholder,
+            _show_embedded_panel,
         )
-        if _radio_launcher_target_mode(detached, launcher_state) == "detached":
-            _show_detached_placeholder()
-        else:
-            _show_embedded_panel()
 
     app.refresh_radio_launcher_state = refresh_radio_launcher_state
     refresh_radio_launcher_state()

@@ -1356,6 +1356,84 @@ def test_radio_launcher_target_mode_selects_embedded_for_attached_states():
     assert radio_tab._radio_launcher_target_mode(False, "attaching") == "embedded"
 
 
+def test_refresh_radio_launcher_state_sets_status_and_shows_detached():
+    events = []
+
+    class DummyVar:
+        def set(self, value):
+            events.append(("set", value))
+
+    class DummyCore:
+        def radio_is_detached(self):
+            events.append("detached")
+            return True
+
+        def read_radio_host_state(self):
+            events.append("state")
+            return {"launcher_state": ""}
+
+    class DummyApp:
+        def __init__(self):
+            self.radio_launcher_status_var = DummyVar()
+            self.netmon_radio_core = DummyCore()
+
+        def tr(self, key, fallback):
+            events.append(("tr", key, fallback))
+            return f"translated:{key}"
+
+    radio_tab._refresh_radio_launcher_state(
+        DummyApp(),
+        lambda: events.append("show_detached"),
+        lambda: events.append("show_embedded"),
+    )
+
+    assert events == [
+        "detached",
+        "state",
+        (
+            "tr",
+            "radio_status_detached",
+            "Radio-App ist geloest und laeuft als Standalone weiter.",
+        ),
+        ("set", "translated:radio_status_detached"),
+        "show_detached",
+    ]
+
+
+def test_refresh_radio_launcher_state_sets_status_and_shows_embedded():
+    events = []
+
+    class DummyVar:
+        def set(self, value):
+            events.append(("set", value))
+
+    class DummyCore:
+        def radio_is_detached(self):
+            events.append("detached")
+            return False
+
+        def read_radio_host_state(self):
+            events.append("state")
+            return {"launcher_state": ""}
+
+    app = type("DummyApp", (), {})()
+    app.radio_launcher_status_var = DummyVar()
+    app.netmon_radio_core = DummyCore()
+
+    radio_tab._refresh_radio_launcher_state(
+        app,
+        lambda: events.append("show_detached"),
+        lambda: events.append("show_embedded"),
+    )
+
+    assert events == [
+        "detached",
+        "state",
+        ("set", "Radio-App ist an NetMon angeheftet."),
+        "show_embedded",
+    ]
+
+
 def test_clear_radio_host_stops_panel_and_destroys_children():
     events = []
 
