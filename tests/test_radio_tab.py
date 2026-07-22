@@ -280,6 +280,32 @@ def test_set_radio_pane_sash_position_ignores_failures():
     radio_tab._set_radio_pane_sash_position(DummyPane(), 240)
 
 
+def test_radio_pane_drag_start_state_reads_event_and_sash():
+    class DummyEvent:
+        y_root = "310"
+
+    class DummyPane:
+        def sashpos(self, index):
+            assert index == 0
+            return "240"
+
+    assert radio_tab._radio_pane_drag_start_state(DummyEvent(), DummyPane()) == (
+        310,
+        240,
+    )
+
+
+def test_radio_pane_drag_start_state_returns_zeroes_on_failure():
+    class DummyEvent:
+        y_root = "310"
+
+    class DummyPane:
+        def sashpos(self, index):
+            raise RuntimeError("sashpos failed")
+
+    assert radio_tab._radio_pane_drag_start_state(DummyEvent(), DummyPane()) == (0, 0)
+
+
 def test_build_detached_radio_placeholder_creates_expected_widgets():
     events = []
     host = object()
