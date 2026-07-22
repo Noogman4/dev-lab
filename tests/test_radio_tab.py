@@ -220,6 +220,21 @@ def test_configure_single_cell_expand_sets_column_and_row_weight():
     assert calls == [("column", 0, 1), ("row", 0, 1)]
 
 
+def test_radio_pane_marker_geometry_centers_and_clamps_marker():
+    assert radio_tab._radio_pane_marker_geometry(800, 240) == {
+        "x": 367,
+        "y": 235,
+        "width": 66,
+        "height": 12,
+    }
+    assert radio_tab._radio_pane_marker_geometry(40, 4) == {
+        "x": 8,
+        "y": 2,
+        "width": 42,
+        "height": 12,
+    }
+
+
 def test_build_detached_radio_placeholder_creates_expected_widgets():
     events = []
     host = object()

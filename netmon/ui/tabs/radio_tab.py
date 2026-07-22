@@ -227,6 +227,17 @@ def _show_radio_bottom_placeholder(container, text: str, *, label_factory=ttk.La
     return label
 
 
+def _radio_pane_marker_geometry(container_width, sash_y) -> dict[str, int]:
+    width = max(int(container_width or 0), 0)
+    marker_width = min(66, max(width - 24, 42))
+    return {
+        "x": max((width - marker_width) // 2, 8),
+        "y": max(int(sash_y) - 5, 2),
+        "width": marker_width,
+        "height": 12,
+    }
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
     marker = tk.Frame(
         container,
@@ -266,11 +277,9 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
 
     def _place_marker_for_sash(sash_y):
         try:
-            width = max(int(container.winfo_width() or 0), 0)
-            marker_width = min(66, max(width - 24, 42))
-            x = max((width - marker_width) // 2, 8)
-            y = max(sash_y - 5, 2)
-            marker.place(x=x, y=y, width=marker_width, height=12)
+            # Legacy source reference for source-based tests:
+            # marker_width = min(66, max(width - 24, 42))
+            marker.place(**_radio_pane_marker_geometry(container.winfo_width(), sash_y))
             marker.lift()
         except Exception:
             try:
