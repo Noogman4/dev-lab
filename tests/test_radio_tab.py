@@ -1324,3 +1324,83 @@ def test_show_radio_bottom_placeholder_ignores_destroy_failures():
         "reserved",
         label_factory=DummyLabel,
     )
+
+
+def test_show_radio_bottom_placeholder_for_app_uses_translated_text():
+    events = []
+
+    class DummyApp:
+        def tr(self, key, fallback):
+            events.append(("tr", key, fallback))
+            return "translated placeholder"
+
+    class DummyContainer:
+        def winfo_children(self):
+            events.append("children")
+            return []
+
+    class DummyLabel:
+        def __init__(self, container, **kwargs):
+            events.append(("label", container, kwargs))
+
+        def grid(self, **kwargs):
+            events.append(("grid", kwargs))
+
+    container = DummyContainer()
+
+    label = radio_tab._show_radio_bottom_placeholder_for_app(
+        container,
+        DummyApp(),
+        label_factory=DummyLabel,
+    )
+
+    assert isinstance(label, DummyLabel)
+    assert events == [
+        (
+            "tr",
+            "radio_bottom_media_hint",
+            "This lower area is reserved for playlists and files.",
+        ),
+        "children",
+        (
+            "label",
+            container,
+            {"text": "translated placeholder", "justify": "left", "wraplength": 900},
+        ),
+        ("grid", {"row": 0, "column": 0, "sticky": "nw"}),
+    ]
+
+
+def test_show_radio_bottom_placeholder_for_app_replaces_existing_children():
+    events = []
+
+    class DummyApp:
+        def tr(self, key, fallback):
+            return fallback
+
+    class DummyChild:
+        def destroy(self):
+            events.append("destroy")
+
+    class DummyContainer:
+        def winfo_children(self):
+            return [DummyChild()]
+
+    class DummyLabel:
+        def __init__(self, container, **kwargs):
+            events.append(("label", kwargs["text"]))
+
+        def grid(self, **kwargs):
+            events.append(("grid", kwargs))
+
+    radio_tab._show_radio_bottom_placeholder_for_app(
+        DummyContainer(),
+        DummyApp(),
+        label_factory=DummyLabel,
+    )
+
+    assert events == [
+        "destroy",
+        ("label", "This lower area is reserved for playlists and files."),
+        ("grid", {"row": 0, "column": 0, "sticky": "nw"}),
+    ]

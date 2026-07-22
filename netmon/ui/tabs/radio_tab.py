@@ -227,6 +227,19 @@ def _show_radio_bottom_placeholder(container, text: str, *, label_factory=ttk.La
     return label
 
 
+def _show_radio_bottom_placeholder_for_app(
+    container,
+    app,
+    *,
+    label_factory=ttk.Label,
+):
+    return _show_radio_bottom_placeholder(
+        container,
+        text=_radio_bottom_placeholder_text(app),
+        label_factory=label_factory,
+    )
+
+
 def _radio_pane_marker_geometry(container_width, sash_y) -> dict[str, int]:
     width = max(int(container_width or 0), 0)
     marker_width = min(66, max(width - 24, 42))
@@ -536,9 +549,9 @@ def build_radio_tab(app):
     _configure_single_cell_expand(bottom_section)
 
     def _show_bottom_placeholder():
-        _show_radio_bottom_placeholder(
+        _show_radio_bottom_placeholder_for_app(
             bottom_section,
-            text=_radio_bottom_placeholder_text(app),
+            app,
         )
 
     pane.add(top_section, weight=3)
