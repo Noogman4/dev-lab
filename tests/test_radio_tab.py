@@ -482,6 +482,63 @@ def test_schedule_initial_radio_pane_marker_update_ignores_after_failures():
     )
 
 
+def test_build_radio_pane_marker_widgets_creates_marker_and_grip():
+    events = []
+    container = object()
+
+    class DummyWidget:
+        def __init__(self, parent, **kwargs):
+            self.parent = parent
+            self.kwargs = kwargs
+
+        def columnconfigure(self, column, weight=0):
+            events.append(("columnconfigure", self, column, weight))
+
+        def grid(self, **kwargs):
+            events.append(("grid", self, kwargs))
+
+    class DummyFrame(DummyWidget):
+        def __init__(self, parent, **kwargs):
+            super().__init__(parent, **kwargs)
+            events.append(("frame", parent, kwargs, self))
+
+    class DummyLabel(DummyWidget):
+        def __init__(self, parent, **kwargs):
+            super().__init__(parent, **kwargs)
+            events.append(("label", parent, kwargs, self))
+
+    marker, grip = radio_tab._build_radio_pane_marker_widgets(
+        container,
+        color="#123456",
+        frame_factory=DummyFrame,
+        label_factory=DummyLabel,
+    )
+
+    assert events[0] == (
+        "frame",
+        container,
+        {"bg": "#123456", "bd": 1, "relief": "solid"},
+        marker,
+    )
+    assert events[1] == ("columnconfigure", marker, 0, 1)
+    assert events[2] == (
+        "label",
+        marker,
+        {
+            "text": "\u2261",
+            "bg": "#123456",
+            "fg": "#ffffff",
+            "font": ("TkDefaultFont", 9, "bold"),
+            "cursor": "sb_v_double_arrow",
+            "padx": 0,
+            "pady": 0,
+            "anchor": "center",
+        },
+        grip,
+    )
+    assert events[3] == ("grid", grip, {"row": 0, "column": 0, "sticky": "ew"})
+
+
 def test_build_detached_radio_placeholder_creates_expected_widgets():
     events = []
     host = object()

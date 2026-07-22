@@ -307,15 +307,21 @@ def _schedule_initial_radio_pane_marker_update(container, update_marker) -> None
         pass
 
 
-def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
-    marker = tk.Frame(
+def _build_radio_pane_marker_widgets(
+    container,
+    *,
+    color="#0a84ff",
+    frame_factory=tk.Frame,
+    label_factory=tk.Label,
+):
+    marker = frame_factory(
         container,
         bg=color,
         bd=1,
         relief="solid",
     )
     marker.columnconfigure(0, weight=1)
-    grip = tk.Label(
+    grip = label_factory(
         marker,
         text="≡",
         bg=color,
@@ -327,6 +333,11 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
         anchor="center",
     )
     grip.grid(row=0, column=0, sticky="ew")
+    return marker, grip
+
+
+def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
+    marker, grip = _build_radio_pane_marker_widgets(container, color=color)
     drag_state = _radio_pane_drag_state()
 
     def _place_marker_for_sash(sash_y):
