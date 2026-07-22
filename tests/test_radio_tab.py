@@ -660,6 +660,28 @@ def test_place_radio_pane_marker_forgets_marker_on_lift_failure():
     assert calls == [("place", {"x": 1}), "lift", "place_forget"]
 
 
+def test_radio_pane_update_bindings_use_update_callback_for_all_events():
+    update_marker = object()
+
+    assert radio_tab._radio_pane_update_bindings(update_marker) == (
+        ("<Configure>", update_marker),
+        ("<ButtonRelease-1>", update_marker),
+        ("<B1-Motion>", update_marker),
+    )
+
+
+def test_radio_pane_grip_bindings_use_drag_callbacks():
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+
+    assert radio_tab._radio_pane_grip_bindings(start_drag, drag, end_drag) == (
+        ("<Button-1>", start_drag),
+        ("<B1-Motion>", drag),
+        ("<ButtonRelease-1>", end_drag),
+    )
+
+
 def test_build_detached_radio_placeholder_creates_expected_widgets():
     events = []
     host = object()

@@ -351,6 +351,22 @@ def _place_radio_pane_marker(marker, geometry) -> None:
         _forget_radio_pane_marker(marker)
 
 
+def _radio_pane_update_bindings(update_marker):
+    return (
+        ("<Configure>", update_marker),
+        ("<ButtonRelease-1>", update_marker),
+        ("<B1-Motion>", update_marker),
+    )
+
+
+def _radio_pane_grip_bindings(start_drag, drag, end_drag):
+    return (
+        ("<Button-1>", start_drag),
+        ("<B1-Motion>", drag),
+        ("<ButtonRelease-1>", end_drag),
+    )
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
     marker, grip = _build_radio_pane_marker_widgets(container, color=color)
     drag_state = _radio_pane_drag_state()
@@ -392,20 +408,12 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
     for widget in (container, pane):
         _bind_radio_pane_marker_events(
             widget,
-            (
-                ("<Configure>", _update_marker),
-                ("<ButtonRelease-1>", _update_marker),
-                ("<B1-Motion>", _update_marker),
-            ),
+            _radio_pane_update_bindings(_update_marker),
         )
     for widget in (grip,):
         _bind_radio_pane_marker_events(
             widget,
-            (
-                ("<Button-1>", _start_drag),
-                ("<B1-Motion>", _drag),
-                ("<ButtonRelease-1>", _end_drag),
-            ),
+            _radio_pane_grip_bindings(_start_drag, _drag, _end_drag),
         )
     _schedule_initial_radio_pane_marker_update(container, _update_marker)
     return marker
