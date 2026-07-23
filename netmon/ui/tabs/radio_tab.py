@@ -212,6 +212,22 @@ def _add_radio_pane_sections(pane, top_section, bottom_section) -> None:
     pane.add(bottom_section, weight=2)
 
 
+def _build_radio_tab_pane(
+    app,
+    body,
+    *,
+    panedwindow_factory=ttk.Panedwindow,
+    marker_installer=None,
+):
+    if marker_installer is None:
+        marker_installer = _install_pane_drag_marker
+    pane = panedwindow_factory(body, orient="vertical")
+    pane.grid(row=0, column=0, sticky="nsew")
+    app.radio_tab_pane = pane
+    app.radio_tab_pane_marker = marker_installer(body, pane)
+    return pane
+
+
 def _build_detached_radio_placeholder(
     host,
     *,
@@ -634,10 +650,7 @@ def build_radio_tab(app):
     _configure_single_cell_expand(body)
     app.radio_launcher_status_var = _radio_launcher_status_var(app)
 
-    pane = ttk.Panedwindow(body, orient="vertical")
-    pane.grid(row=0, column=0, sticky="nsew")
-    app.radio_tab_pane = pane
-    app.radio_tab_pane_marker = _install_pane_drag_marker(body, pane)
+    pane = _build_radio_tab_pane(app, body)
 
     top_section, host, bottom_section = _build_radio_pane_sections(pane, app)
 

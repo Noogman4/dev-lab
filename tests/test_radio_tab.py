@@ -329,6 +329,60 @@ def test_add_radio_pane_sections_adds_top_and_bottom_with_weights():
     ]
 
 
+def test_build_radio_tab_pane_creates_pane_marker_and_app_state():
+    calls = []
+    body = object()
+    marker = object()
+
+    class DummyPane:
+        def __init__(self, parent, **kwargs):
+            calls.append(("pane", parent, kwargs))
+
+        def grid(self, **kwargs):
+            calls.append(("grid", self, kwargs))
+
+    def marker_installer(marker_body, pane):
+        calls.append(("marker", marker_body, pane))
+        return marker
+
+    app = type("DummyApp", (), {})()
+
+    pane = radio_tab._build_radio_tab_pane(
+        app,
+        body,
+        panedwindow_factory=DummyPane,
+        marker_installer=marker_installer,
+    )
+
+    assert app.radio_tab_pane is pane
+    assert app.radio_tab_pane_marker is marker
+    assert calls == [
+        ("pane", body, {"orient": "vertical"}),
+        ("grid", pane, {"row": 0, "column": 0, "sticky": "nsew"}),
+        ("marker", body, pane),
+    ]
+
+
+def test_build_radio_tab_pane_returns_created_pane():
+    class DummyPane:
+        def __init__(self, parent, **kwargs):
+            pass
+
+        def grid(self, **kwargs):
+            pass
+
+    app = type("DummyApp", (), {})()
+
+    pane = radio_tab._build_radio_tab_pane(
+        app,
+        object(),
+        panedwindow_factory=DummyPane,
+        marker_installer=lambda body, pane: object(),
+    )
+
+    assert pane is app.radio_tab_pane
+
+
 def test_radio_pane_marker_geometry_centers_and_clamps_marker():
     assert radio_tab._radio_pane_marker_geometry(800, 240) == {
         "x": 367,
