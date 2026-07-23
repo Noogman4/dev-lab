@@ -1000,6 +1000,44 @@ def test_handle_radio_pane_marker_update_event_forgets_marker_on_failure():
     assert calls == [("sashpos", 0), "place_forget"]
 
 
+def test_make_radio_pane_marker_update_callback_binds_update_dependencies():
+    calls = []
+    pane = object()
+    place_marker = object()
+    marker = object()
+    event = object()
+
+    callback = radio_tab._make_radio_pane_marker_update_callback(
+        pane,
+        place_marker,
+        marker,
+        update_handler=lambda pane_arg, place_arg, marker_arg, event_arg: calls.append(
+            (pane_arg, place_arg, marker_arg, event_arg)
+        ),
+    )
+
+    callback(event)
+
+    assert calls == [(pane, place_marker, marker, event)]
+
+
+def test_make_radio_pane_marker_update_callback_defaults_event_to_none():
+    calls = []
+
+    callback = radio_tab._make_radio_pane_marker_update_callback(
+        object(),
+        object(),
+        object(),
+        update_handler=lambda _pane, _place, _marker, event_arg: calls.append(
+            event_arg
+        ),
+    )
+
+    callback()
+
+    assert calls == [None]
+
+
 def test_place_radio_pane_marker_places_and_lifts_marker():
     calls = []
     geometry = {"x": 1, "y": 2, "width": 3, "height": 4}
