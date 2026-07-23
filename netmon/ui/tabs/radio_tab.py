@@ -584,14 +584,18 @@ def _bind_radio_pane_marker_events(widget, bindings) -> None:
         pass
 
 
+def _run_radio_pane_marker_update(drag_state, update_marker) -> None:
+    drag_state["update_pending"] = False
+    update_marker()
+
+
 def _schedule_radio_pane_marker_update(container, drag_state, update_marker) -> None:
     if drag_state["update_pending"]:
         return
     drag_state["update_pending"] = True
 
     def _run():
-        drag_state["update_pending"] = False
-        update_marker()
+        _run_radio_pane_marker_update(drag_state, update_marker)
 
     try:
         container.after_idle(_run)

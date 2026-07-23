@@ -755,6 +755,19 @@ def test_bind_radio_pane_marker_events_stops_and_ignores_failures():
     assert calls == [("<Configure>", "+")]
 
 
+def test_run_radio_pane_marker_update_clears_pending_before_update():
+    calls = []
+    drag_state = {"update_pending": True}
+
+    radio_tab._run_radio_pane_marker_update(
+        drag_state,
+        lambda: calls.append(("update", drag_state["update_pending"])),
+    )
+
+    assert calls == [("update", False)]
+    assert drag_state["update_pending"] is False
+
+
 def test_schedule_radio_pane_marker_update_skips_pending_update():
     calls = []
     drag_state = {"update_pending": True}
