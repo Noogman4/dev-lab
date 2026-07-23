@@ -222,6 +222,96 @@ def test_configure_single_cell_expand_sets_column_and_row_weight():
     assert calls == [("column", 0, 1), ("row", 0, 1)]
 
 
+def test_build_radio_pane_sections_creates_top_host_and_bottom():
+    events = []
+    pane = object()
+
+    class DummyApp:
+        def tr(self, key, fallback):
+            events.append(("tr", key, fallback))
+            return "translated title"
+
+    class DummyWidget:
+        def __init__(self, parent, **kwargs):
+            self.parent = parent
+            self.kwargs = kwargs
+
+        def columnconfigure(self, column, weight=0):
+            events.append(("column", self, column, weight))
+
+        def rowconfigure(self, row, weight=0):
+            events.append(("row", self, row, weight))
+
+        def grid(self, **kwargs):
+            events.append(("grid", self, kwargs))
+
+    class DummyFrame(DummyWidget):
+        def __init__(self, parent, **kwargs):
+            super().__init__(parent, **kwargs)
+            events.append(("frame", parent, kwargs, self))
+
+    class DummyLabelFrame(DummyWidget):
+        def __init__(self, parent, **kwargs):
+            super().__init__(parent, **kwargs)
+            events.append(("label_frame", parent, kwargs, self))
+
+    top_section, host, bottom_section = radio_tab._build_radio_pane_sections(
+        pane,
+        DummyApp(),
+        frame_factory=DummyFrame,
+        label_frame_factory=DummyLabelFrame,
+    )
+
+    assert events == [
+        ("frame", pane, {"padding": 0}, top_section),
+        ("column", top_section, 0, 1),
+        ("row", top_section, 0, 1),
+        ("frame", top_section, {}, host),
+        ("grid", host, {"row": 0, "column": 0, "sticky": "nsew"}),
+        ("column", host, 0, 1),
+        ("row", host, 0, 1),
+        ("tr", "radio_bottom_media_title", "Playlists and files"),
+        (
+            "label_frame",
+            pane,
+            {"text": "translated title", "padding": 10},
+            bottom_section,
+        ),
+        ("column", bottom_section, 0, 1),
+        ("row", bottom_section, 0, 1),
+    ]
+
+
+def test_build_radio_pane_sections_returns_distinct_widgets():
+    class DummyApp:
+        def tr(self, key, fallback):
+            return fallback
+
+    class DummyWidget:
+        def __init__(self, parent, **kwargs):
+            pass
+
+        def columnconfigure(self, column, weight=0):
+            pass
+
+        def rowconfigure(self, row, weight=0):
+            pass
+
+        def grid(self, **kwargs):
+            pass
+
+    top_section, host, bottom_section = radio_tab._build_radio_pane_sections(
+        object(),
+        DummyApp(),
+        frame_factory=DummyWidget,
+        label_frame_factory=DummyWidget,
+    )
+
+    assert top_section is not host
+    assert top_section is not bottom_section
+    assert host is not bottom_section
+
+
 def test_radio_pane_marker_geometry_centers_and_clamps_marker():
     assert radio_tab._radio_pane_marker_geometry(800, 240) == {
         "x": 367,

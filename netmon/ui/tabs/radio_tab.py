@@ -185,6 +185,28 @@ def _configure_single_cell_expand(widget) -> None:
     widget.rowconfigure(0, weight=1)
 
 
+def _build_radio_pane_sections(
+    pane,
+    app,
+    *,
+    frame_factory=ttk.Frame,
+    label_frame_factory=ttk.LabelFrame,
+):
+    top_section = frame_factory(pane, padding=0)
+    _configure_single_cell_expand(top_section)
+    host = frame_factory(top_section)
+    host.grid(row=0, column=0, sticky="nsew")
+    _configure_single_cell_expand(host)
+
+    bottom_section = label_frame_factory(
+        pane,
+        text=_radio_bottom_section_title(app),
+        padding=10,
+    )
+    _configure_single_cell_expand(bottom_section)
+    return top_section, host, bottom_section
+
+
 def _build_detached_radio_placeholder(
     host,
     *,
@@ -612,18 +634,7 @@ def build_radio_tab(app):
     app.radio_tab_pane = pane
     app.radio_tab_pane_marker = _install_pane_drag_marker(body, pane)
 
-    top_section = ttk.Frame(pane, padding=0)
-    _configure_single_cell_expand(top_section)
-    host = ttk.Frame(top_section)
-    host.grid(row=0, column=0, sticky="nsew")
-    _configure_single_cell_expand(host)
-
-    bottom_section = ttk.LabelFrame(
-        pane,
-        text=_radio_bottom_section_title(app),
-        padding=10,
-    )
-    _configure_single_cell_expand(bottom_section)
+    top_section, host, bottom_section = _build_radio_pane_sections(pane, app)
 
     def _show_bottom_placeholder():
         _show_radio_bottom_placeholder_for_app(
