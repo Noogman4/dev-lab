@@ -620,6 +620,35 @@ def test_handle_radio_pane_marker_drag_start_uses_zeroes_and_breaks_on_failure()
     assert drag_state == {"root_y": 0, "sash_y": 0}
 
 
+def test_make_radio_pane_marker_drag_start_callback_binds_state_event_and_pane():
+    calls = []
+    drag_state = object()
+    pane = object()
+    event = object()
+
+    callback = radio_tab._make_radio_pane_marker_drag_start_callback(
+        drag_state,
+        pane,
+        drag_start_handler=lambda state_arg, event_arg, pane_arg: calls.append(
+            (state_arg, event_arg, pane_arg)
+        )
+        or "break",
+    )
+
+    assert callback(event) == "break"
+    assert calls == [(drag_state, event, pane)]
+
+
+def test_make_radio_pane_marker_drag_start_callback_returns_handler_result():
+    callback = radio_tab._make_radio_pane_marker_drag_start_callback(
+        object(),
+        object(),
+        drag_start_handler=lambda _state, _event, _pane: "handled",
+    )
+
+    assert callback(object()) == "handled"
+
+
 def test_radio_pane_drag_target_sash_adds_positive_delta():
     class DummyEvent:
         y_root = "330"

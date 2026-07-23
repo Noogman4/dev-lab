@@ -768,6 +768,18 @@ def _make_radio_pane_marker_schedule_callback(
     return _schedule_marker_update
 
 
+def _make_radio_pane_marker_drag_start_callback(
+    drag_state,
+    pane,
+    *,
+    drag_start_handler=_handle_radio_pane_marker_drag_start,
+):
+    def _start_drag(event):
+        return drag_start_handler(drag_state, event, pane)
+
+    return _start_drag
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
     marker, grip = _build_radio_pane_marker_widgets(container, color=color)
     drag_state = _radio_pane_drag_state()
@@ -787,9 +799,10 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
         drag_state,
         _update_marker,
     )
-
-    def _start_drag(event):
-        return _handle_radio_pane_marker_drag_start(drag_state, event, pane)
+    _start_drag = _make_radio_pane_marker_drag_start_callback(
+        drag_state,
+        pane,
+    )
 
     def _drag(event):
         return _handle_radio_pane_marker_drag_event(
