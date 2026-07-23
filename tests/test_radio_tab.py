@@ -312,6 +312,23 @@ def test_build_radio_pane_sections_returns_distinct_widgets():
     assert host is not bottom_section
 
 
+def test_add_radio_pane_sections_adds_top_and_bottom_with_weights():
+    calls = []
+    top_section = object()
+    bottom_section = object()
+
+    class DummyPane:
+        def add(self, section, weight=0):
+            calls.append((section, weight))
+
+    radio_tab._add_radio_pane_sections(DummyPane(), top_section, bottom_section)
+
+    assert calls == [
+        (top_section, 3),
+        (bottom_section, 2),
+    ]
+
+
 def test_radio_pane_marker_geometry_centers_and_clamps_marker():
     assert radio_tab._radio_pane_marker_geometry(800, 240) == {
         "x": 367,

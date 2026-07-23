@@ -207,6 +207,11 @@ def _build_radio_pane_sections(
     return top_section, host, bottom_section
 
 
+def _add_radio_pane_sections(pane, top_section, bottom_section) -> None:
+    pane.add(top_section, weight=3)
+    pane.add(bottom_section, weight=2)
+
+
 def _build_detached_radio_placeholder(
     host,
     *,
@@ -642,8 +647,7 @@ def build_radio_tab(app):
             app,
         )
 
-    pane.add(top_section, weight=3)
-    pane.add(bottom_section, weight=2)
+    _add_radio_pane_sections(pane, top_section, bottom_section)
 
     _init_radio_tab_state(
         app,
