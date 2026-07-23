@@ -1317,6 +1317,14 @@ def test_place_radio_pane_marker_forgets_marker_on_lift_failure():
     assert calls == [("place", {"x": 1}), "lift", "place_forget"]
 
 
+def test_radio_pane_container_width_reads_widget_width_as_int():
+    class DummyContainer:
+        def winfo_width(self):
+            return "320"
+
+    assert radio_tab._radio_pane_container_width(DummyContainer()) == 320
+
+
 def test_place_radio_pane_marker_for_sash_uses_container_width_and_sash():
     calls = []
 

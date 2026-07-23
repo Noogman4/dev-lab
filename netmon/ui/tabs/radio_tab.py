@@ -720,10 +720,14 @@ def _place_radio_pane_marker(marker, geometry) -> None:
         _forget_radio_pane_marker(marker)
 
 
+def _radio_pane_container_width(container) -> int:
+    return int(container.winfo_width())
+
+
 def _place_radio_pane_marker_for_sash(container, marker, sash_y) -> None:
     _place_radio_pane_marker(
         marker,
-        _radio_pane_marker_geometry(container.winfo_width(), sash_y),
+        _radio_pane_marker_geometry(_radio_pane_container_width(container), sash_y),
     )
 
 
