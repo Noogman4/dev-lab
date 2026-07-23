@@ -1529,6 +1529,32 @@ def test_handle_radio_pane_marker_drag_end_propagates_update_failures():
         radio_tab._handle_radio_pane_marker_drag_end(update_marker)
 
 
+def test_make_radio_pane_marker_drag_end_callback_binds_update_marker():
+    calls = []
+    update_marker = object()
+    event = object()
+
+    callback = radio_tab._make_radio_pane_marker_drag_end_callback(
+        update_marker,
+        drag_end_handler=lambda update_arg: calls.append(update_arg) or "break",
+    )
+
+    assert callback(event) == "break"
+    assert calls == [update_marker]
+
+
+def test_make_radio_pane_marker_drag_end_callback_defaults_event_to_none():
+    calls = []
+
+    callback = radio_tab._make_radio_pane_marker_drag_end_callback(
+        object(),
+        drag_end_handler=lambda update_arg: calls.append(update_arg) or "break",
+    )
+
+    assert callback() == "break"
+    assert len(calls) == 1
+
+
 def test_build_detached_radio_placeholder_creates_expected_widgets():
     events = []
     host = object()
