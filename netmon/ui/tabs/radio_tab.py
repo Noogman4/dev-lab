@@ -755,6 +755,19 @@ def _make_radio_pane_marker_update_callback(
     return _update_marker
 
 
+def _make_radio_pane_marker_schedule_callback(
+    container,
+    drag_state,
+    update_marker,
+    *,
+    update_requester=_request_radio_pane_marker_update,
+):
+    def _schedule_marker_update():
+        update_requester(container, drag_state, update_marker)
+
+    return _schedule_marker_update
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
     marker, grip = _build_radio_pane_marker_widgets(container, color=color)
     drag_state = _radio_pane_drag_state()
@@ -769,9 +782,11 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
         _place_marker_for_sash,
         marker,
     )
-
-    def _schedule_marker_update():
-        _request_radio_pane_marker_update(container, drag_state, _update_marker)
+    _schedule_marker_update = _make_radio_pane_marker_schedule_callback(
+        container,
+        drag_state,
+        _update_marker,
+    )
 
     def _start_drag(event):
         return _handle_radio_pane_marker_drag_start(drag_state, event, pane)

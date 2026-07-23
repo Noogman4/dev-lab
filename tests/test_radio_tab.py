@@ -811,6 +811,42 @@ def test_request_radio_pane_marker_update_keeps_pending_update():
     assert drag_state["update_pending"] is True
 
 
+def test_make_radio_pane_marker_schedule_callback_binds_update_dependencies():
+    calls = []
+    container = object()
+    drag_state = object()
+    update_marker = object()
+
+    callback = radio_tab._make_radio_pane_marker_schedule_callback(
+        container,
+        drag_state,
+        update_marker,
+        update_requester=lambda container_arg, state_arg, update_arg: calls.append(
+            (container_arg, state_arg, update_arg)
+        ),
+    )
+
+    callback()
+
+    assert calls == [(container, drag_state, update_marker)]
+
+
+def test_make_radio_pane_marker_schedule_callback_invokes_requester_each_time():
+    calls = []
+
+    callback = radio_tab._make_radio_pane_marker_schedule_callback(
+        object(),
+        object(),
+        object(),
+        update_requester=lambda _container, _state, _update: calls.append("request"),
+    )
+
+    callback()
+    callback()
+
+    assert calls == ["request", "request"]
+
+
 def test_schedule_initial_radio_pane_marker_update_uses_after_zero():
     calls = []
     callback = object()
