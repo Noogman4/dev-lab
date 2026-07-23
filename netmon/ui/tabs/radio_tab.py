@@ -394,6 +394,32 @@ def _make_radio_tab_host_clear_callback(
     return _clear_host
 
 
+def _make_radio_detached_placeholder_callback(
+    app,
+    host,
+    clear_host,
+    *,
+    placeholder_shower=_show_radio_detached_placeholder,
+):
+    def _show_detached_placeholder():
+        placeholder_shower(app, host, clear_host)
+
+    return _show_detached_placeholder
+
+
+def _make_radio_embedded_panel_callback(
+    app,
+    host,
+    clear_host,
+    *,
+    panel_shower=_show_radio_embedded_panel,
+):
+    def _show_embedded_panel():
+        panel_shower(app, host, clear_host)
+
+    return _show_embedded_panel
+
+
 def _radio_pane_marker_geometry(container_width, sash_y) -> dict[str, int]:
     width = max(int(container_width or 0), 0)
     marker_width = min(66, max(width - 24, 42))
@@ -704,21 +730,20 @@ def build_radio_tab(app):
         host,
         _show_bottom_placeholder,
     )
-
-    def _show_detached_placeholder():
-        # Legacy source references for source-based tests:
-        # app.tr("radio_launcher_title", "NetMon Radio als externe App")
-        # app.tr("radio_launcher_reattach", "Radio anheften")
-        _show_radio_detached_placeholder(
-            app,
-            host,
-            _clear_host,
-        )
-
-    def _show_embedded_panel():
-        # Legacy source reference for source-based tests:
-        # NetMonRadioPanel(host, on_detach=_detach_from_tab, host_app=app)
-        _show_radio_embedded_panel(app, host, _clear_host)
+    # Legacy source references for source-based tests:
+    # app.tr("radio_launcher_title", "NetMon Radio als externe App")
+    # app.tr("radio_launcher_reattach", "Radio anheften")
+    # NetMonRadioPanel(host, on_detach=_detach_from_tab, host_app=app)
+    _show_detached_placeholder = _make_radio_detached_placeholder_callback(
+        app,
+        host,
+        _clear_host,
+    )
+    _show_embedded_panel = _make_radio_embedded_panel_callback(
+        app,
+        host,
+        _clear_host,
+    )
 
     def refresh_radio_launcher_state():
         # Legacy source references for source-based tests:

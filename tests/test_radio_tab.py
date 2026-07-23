@@ -1504,6 +1504,42 @@ def test_show_radio_detached_placeholder_clears_builds_and_sets_state():
     ]
 
 
+def test_make_radio_detached_placeholder_callback_binds_app_host_and_clearer():
+    calls = []
+    app = object()
+    host = object()
+    clear_host = object()
+
+    callback = radio_tab._make_radio_detached_placeholder_callback(
+        app,
+        host,
+        clear_host,
+        placeholder_shower=lambda app_arg, host_arg, clear_arg: calls.append(
+            (app_arg, host_arg, clear_arg)
+        ),
+    )
+
+    callback()
+
+    assert calls == [(app, host, clear_host)]
+
+
+def test_make_radio_detached_placeholder_callback_invokes_shower_each_time():
+    calls = []
+
+    callback = radio_tab._make_radio_detached_placeholder_callback(
+        object(),
+        object(),
+        object(),
+        placeholder_shower=lambda _app, _host, _clear: calls.append("show"),
+    )
+
+    callback()
+    callback()
+
+    assert calls == ["show", "show"]
+
+
 def test_show_radio_embedded_panel_skips_when_already_embedded():
     events = []
     app = type("DummyApp", (), {})()
@@ -1558,6 +1594,42 @@ def test_show_radio_embedded_panel_clears_builds_attaches_and_detaches():
         ("attach", app, host, panel),
         "open",
     ]
+
+
+def test_make_radio_embedded_panel_callback_binds_app_host_and_clearer():
+    calls = []
+    app = object()
+    host = object()
+    clear_host = object()
+
+    callback = radio_tab._make_radio_embedded_panel_callback(
+        app,
+        host,
+        clear_host,
+        panel_shower=lambda app_arg, host_arg, clear_arg: calls.append(
+            (app_arg, host_arg, clear_arg)
+        ),
+    )
+
+    callback()
+
+    assert calls == [(app, host, clear_host)]
+
+
+def test_make_radio_embedded_panel_callback_invokes_shower_each_time():
+    calls = []
+
+    callback = radio_tab._make_radio_embedded_panel_callback(
+        object(),
+        object(),
+        object(),
+        panel_shower=lambda _app, _host, _clear: calls.append("show"),
+    )
+
+    callback()
+    callback()
+
+    assert calls == ["show", "show"]
 
 
 def test_radio_launcher_runtime_state_reads_radio_core():
