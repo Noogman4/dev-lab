@@ -768,6 +768,24 @@ def test_run_radio_pane_marker_update_clears_pending_before_update():
     assert drag_state["update_pending"] is False
 
 
+def test_make_radio_pane_marker_update_runner_binds_update_dependencies():
+    calls = []
+    drag_state = object()
+    update_marker = object()
+
+    runner = radio_tab._make_radio_pane_marker_update_runner(
+        drag_state,
+        update_marker,
+        update_runner=lambda state_arg, update_arg: calls.append(
+            (state_arg, update_arg)
+        ),
+    )
+
+    runner()
+
+    assert calls == [(drag_state, update_marker)]
+
+
 def test_schedule_radio_pane_marker_update_skips_pending_update():
     calls = []
     drag_state = {"update_pending": True}
