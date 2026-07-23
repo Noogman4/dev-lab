@@ -971,7 +971,7 @@ def test_make_radio_pane_marker_schedule_callback_invokes_requester_each_time():
     assert calls == ["request", "request"]
 
 
-def test_schedule_initial_radio_pane_marker_update_uses_after_zero():
+def test_request_initial_radio_pane_marker_update_uses_after_zero():
     calls = []
     callback = object()
 
@@ -979,7 +979,7 @@ def test_schedule_initial_radio_pane_marker_update_uses_after_zero():
         def after(self, delay, scheduled_callback):
             calls.append((delay, scheduled_callback))
 
-    radio_tab._schedule_initial_radio_pane_marker_update(
+    radio_tab._request_initial_radio_pane_marker_update(
         DummyContainer(),
         callback,
     )
@@ -987,15 +987,31 @@ def test_schedule_initial_radio_pane_marker_update_uses_after_zero():
     assert calls == [(0, callback)]
 
 
-def test_schedule_initial_radio_pane_marker_update_ignores_after_failures():
+def test_request_initial_radio_pane_marker_update_ignores_after_failures():
     class DummyContainer:
         def after(self, delay, scheduled_callback):
             raise RuntimeError("after failed")
 
-    radio_tab._schedule_initial_radio_pane_marker_update(
+    radio_tab._request_initial_radio_pane_marker_update(
         DummyContainer(),
         object(),
     )
+
+
+def test_schedule_initial_radio_pane_marker_update_delegates_request(monkeypatch):
+    calls = []
+    container = object()
+    callback = object()
+
+    monkeypatch.setattr(
+        radio_tab,
+        "_request_initial_radio_pane_marker_update",
+        lambda container_arg, callback_arg: calls.append((container_arg, callback_arg)),
+    )
+
+    radio_tab._schedule_initial_radio_pane_marker_update(container, callback)
+
+    assert calls == [(container, callback)]
 
 
 def test_build_radio_pane_marker_widgets_creates_marker_and_grip():

@@ -626,11 +626,15 @@ def _request_radio_pane_marker_update(container, drag_state, update_marker) -> N
     _schedule_radio_pane_marker_update(container, drag_state, update_marker)
 
 
-def _schedule_initial_radio_pane_marker_update(container, update_marker) -> None:
+def _request_initial_radio_pane_marker_update(container, update_marker) -> None:
     try:
         container.after(0, update_marker)
     except Exception:
         pass
+
+
+def _schedule_initial_radio_pane_marker_update(container, update_marker) -> None:
+    _request_initial_radio_pane_marker_update(container, update_marker)
 
 
 def _build_radio_pane_marker_widgets(
