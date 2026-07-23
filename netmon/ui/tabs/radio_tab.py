@@ -875,7 +875,6 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
         drag=_drag,
         end_drag=_end_drag,
     )
-    _schedule_initial_radio_pane_marker_update(container, _update_marker)
     return marker
 
 

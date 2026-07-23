@@ -1387,6 +1387,117 @@ def test_activate_radio_pane_marker_callbacks_propagates_binding_failures():
         )
 
 
+def test_install_pane_drag_marker_activates_callbacks_without_direct_reschedule(
+    monkeypatch,
+):
+    events = []
+    container = object()
+    pane = object()
+    marker = object()
+    grip = object()
+    drag_state = object()
+    place_marker = object()
+    update_marker = object()
+    schedule_marker_update = object()
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+
+    monkeypatch.setattr(
+        radio_tab,
+        "_build_radio_pane_marker_widgets",
+        lambda container_arg, color="#0a84ff": events.append(
+            ("widgets", container_arg, color)
+        )
+        or (marker, grip),
+    )
+    monkeypatch.setattr(
+        radio_tab,
+        "_radio_pane_drag_state",
+        lambda: events.append("drag_state") or drag_state,
+    )
+    monkeypatch.setattr(
+        radio_tab,
+        "_make_radio_pane_marker_place_callback",
+        lambda container_arg, marker_arg: events.append(
+            ("place_factory", container_arg, marker_arg)
+        )
+        or place_marker,
+    )
+    monkeypatch.setattr(
+        radio_tab,
+        "_make_radio_pane_marker_update_callback",
+        lambda pane_arg, place_arg, marker_arg: events.append(
+            ("update_factory", pane_arg, place_arg, marker_arg)
+        )
+        or update_marker,
+    )
+    monkeypatch.setattr(
+        radio_tab,
+        "_make_radio_pane_marker_schedule_callback",
+        lambda container_arg, state_arg, update_arg: events.append(
+            ("schedule_factory", container_arg, state_arg, update_arg)
+        )
+        or schedule_marker_update,
+    )
+    monkeypatch.setattr(
+        radio_tab,
+        "_make_radio_pane_marker_drag_start_callback",
+        lambda state_arg, pane_arg: events.append(
+            ("start_factory", state_arg, pane_arg)
+        )
+        or start_drag,
+    )
+    monkeypatch.setattr(
+        radio_tab,
+        "_make_radio_pane_marker_drag_event_callback",
+        lambda state_arg, pane_arg, place_arg, schedule_arg: events.append(
+            ("drag_factory", state_arg, pane_arg, place_arg, schedule_arg)
+        )
+        or drag,
+    )
+    monkeypatch.setattr(
+        radio_tab,
+        "_make_radio_pane_marker_drag_end_callback",
+        lambda update_arg: events.append(("end_factory", update_arg)) or end_drag,
+    )
+    monkeypatch.setattr(
+        radio_tab,
+        "_activate_radio_pane_marker_callbacks",
+        lambda *args, **kwargs: events.append(("activate", args, kwargs)),
+    )
+    monkeypatch.setattr(
+        radio_tab,
+        "_schedule_initial_radio_pane_marker_update",
+        lambda *_args: events.append("direct_schedule"),
+    )
+
+    result = radio_tab._install_pane_drag_marker(container, pane)
+
+    assert result is marker
+    assert "direct_schedule" not in events
+    assert events == [
+        ("widgets", container, "#0a84ff"),
+        "drag_state",
+        ("place_factory", container, marker),
+        ("update_factory", pane, place_marker, marker),
+        ("schedule_factory", container, drag_state, update_marker),
+        ("start_factory", drag_state, pane),
+        ("drag_factory", drag_state, pane, place_marker, schedule_marker_update),
+        ("end_factory", update_marker),
+        (
+            "activate",
+            (container, pane, grip),
+            {
+                "update_marker": update_marker,
+                "start_drag": start_drag,
+                "drag": drag,
+                "end_drag": end_drag,
+            },
+        ),
+    ]
+
+
 def test_handle_radio_pane_marker_drag_sets_sash_places_marker_and_schedules():
     calls = []
     drag_state = {"root_y": "310", "sash_y": "240"}
