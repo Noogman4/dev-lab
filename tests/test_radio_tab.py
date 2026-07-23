@@ -222,6 +222,85 @@ def test_configure_single_cell_expand_sets_column_and_row_weight():
     assert calls == [("column", 0, 1), ("row", 0, 1)]
 
 
+def test_build_radio_tab_body_creates_tab_adds_notebook_and_body():
+    events = []
+
+    class DummyNotebook:
+        def add(self, tab, text=None):
+            events.append(("add", tab, text))
+
+    class DummyApp:
+        def __init__(self):
+            self.tools_nb = DummyNotebook()
+
+        def tr(self, key, fallback):
+            events.append(("tr", key, fallback))
+            return "translated tab"
+
+    class DummyFrame:
+        def __init__(self, parent, **kwargs):
+            self.parent = parent
+            self.kwargs = kwargs
+            events.append(("frame", parent, kwargs, self))
+
+        def pack(self, **kwargs):
+            events.append(("pack", self, kwargs))
+
+        def columnconfigure(self, column, weight=0):
+            events.append(("column", self, column, weight))
+
+        def rowconfigure(self, row, weight=0):
+            events.append(("row", self, row, weight))
+
+    app = DummyApp()
+
+    body = radio_tab._build_radio_tab_body(app, frame_factory=DummyFrame)
+
+    assert app.tab_radio is events[0][3]
+    assert body is events[3][3]
+    assert events == [
+        ("frame", app.tools_nb, {"padding": (2, 0, 2, 2)}, app.tab_radio),
+        ("tr", "tools_tab_radio", "Radio"),
+        ("add", app.tab_radio, "translated tab"),
+        ("frame", app.tab_radio, {"padding": 0}, body),
+        ("pack", body, {"fill": "both", "expand": True}),
+        ("column", body, 0, 1),
+        ("row", body, 0, 1),
+    ]
+
+
+def test_build_radio_tab_body_returns_body_frame():
+    class DummyNotebook:
+        def add(self, tab, text=None):
+            pass
+
+    class DummyApp:
+        def __init__(self):
+            self.tools_nb = DummyNotebook()
+
+        def tr(self, key, fallback):
+            return fallback
+
+    class DummyFrame:
+        def __init__(self, parent, **kwargs):
+            pass
+
+        def pack(self, **kwargs):
+            pass
+
+        def columnconfigure(self, column, weight=0):
+            pass
+
+        def rowconfigure(self, row, weight=0):
+            pass
+
+    app = DummyApp()
+
+    body = radio_tab._build_radio_tab_body(app, frame_factory=DummyFrame)
+
+    assert isinstance(body, DummyFrame)
+
+
 def test_build_radio_pane_sections_creates_top_host_and_bottom():
     events = []
     pane = object()

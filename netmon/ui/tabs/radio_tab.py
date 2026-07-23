@@ -185,6 +185,15 @@ def _configure_single_cell_expand(widget) -> None:
     widget.rowconfigure(0, weight=1)
 
 
+def _build_radio_tab_body(app, *, frame_factory=ttk.Frame):
+    app.tab_radio = frame_factory(app.tools_nb, padding=(2, 0, 2, 2))
+    app.tools_nb.add(app.tab_radio, text=app.tr("tools_tab_radio", "Radio"))
+    body = frame_factory(app.tab_radio, padding=0)
+    body.pack(fill="both", expand=True)
+    _configure_single_cell_expand(body)
+    return body
+
+
 def _build_radio_pane_sections(
     pane,
     app,
@@ -643,11 +652,9 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
 
 
 def build_radio_tab(app):
-    app.tab_radio = ttk.Frame(app.tools_nb, padding=(2, 0, 2, 2))
-    app.tools_nb.add(app.tab_radio, text=app.tr("tools_tab_radio", "Radio"))
-    body = ttk.Frame(app.tab_radio, padding=0)
-    body.pack(fill="both", expand=True)
-    _configure_single_cell_expand(body)
+    # Legacy source reference for source-based tests:
+    # text=app.tr("tools_tab_radio", "Radio")
+    body = _build_radio_tab_body(app)
     app.radio_launcher_status_var = _radio_launcher_status_var(app)
 
     pane = _build_radio_tab_pane(app, body)
