@@ -839,6 +839,10 @@ def _handle_radio_pane_marker_drag_end(update_marker) -> str:
     return "break"
 
 
+def _invoke_radio_pane_marker_placer(container, marker, sash_y, marker_placer) -> None:
+    marker_placer(container, marker, sash_y)
+
+
 def _make_radio_pane_marker_place_callback(
     container,
     marker,
@@ -846,7 +850,7 @@ def _make_radio_pane_marker_place_callback(
     marker_placer=_place_radio_pane_marker_for_sash,
 ):
     def _place_marker_for_sash(sash_y):
-        marker_placer(container, marker, sash_y)
+        _invoke_radio_pane_marker_placer(container, marker, sash_y, marker_placer)
 
     return _place_marker_for_sash
 

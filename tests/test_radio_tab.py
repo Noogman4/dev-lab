@@ -1389,6 +1389,23 @@ def test_place_radio_pane_marker_for_sash_propagates_width_failures():
         )
 
 
+def test_invoke_radio_pane_marker_placer_forwards_dependencies():
+    calls = []
+    container = object()
+    marker = object()
+
+    radio_tab._invoke_radio_pane_marker_placer(
+        container,
+        marker,
+        240,
+        lambda container_arg, marker_arg, sash_y: calls.append(
+            (container_arg, marker_arg, sash_y)
+        ),
+    )
+
+    assert calls == [(container, marker, 240)]
+
+
 def test_make_radio_pane_marker_place_callback_binds_container_and_marker():
     calls = []
     container = object()
