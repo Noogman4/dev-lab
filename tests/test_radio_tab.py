@@ -1332,6 +1332,61 @@ def test_bind_radio_pane_marker_callbacks_ignores_widget_bind_failures():
     ]
 
 
+def test_activate_radio_pane_marker_callbacks_binds_then_schedules_initial_update():
+    events = []
+    container = object()
+    pane = object()
+    grip = object()
+    update_marker = object()
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+
+    radio_tab._activate_radio_pane_marker_callbacks(
+        container,
+        pane,
+        grip,
+        update_marker=update_marker,
+        start_drag=start_drag,
+        drag=drag,
+        end_drag=end_drag,
+        callback_binder=lambda *args, **kwargs: events.append(("bind", args, kwargs)),
+        initial_update_scheduler=lambda *args: events.append(("schedule", args)),
+    )
+
+    assert events == [
+        (
+            "bind",
+            (container, pane, grip),
+            {
+                "update_marker": update_marker,
+                "start_drag": start_drag,
+                "drag": drag,
+                "end_drag": end_drag,
+            },
+        ),
+        ("schedule", (container, update_marker)),
+    ]
+
+
+def test_activate_radio_pane_marker_callbacks_propagates_binding_failures():
+    def failing_binder(*_args, **_kwargs):
+        raise RuntimeError("bind failed")
+
+    with pytest.raises(RuntimeError, match="bind failed"):
+        radio_tab._activate_radio_pane_marker_callbacks(
+            object(),
+            object(),
+            object(),
+            update_marker=object(),
+            start_drag=object(),
+            drag=object(),
+            end_drag=object(),
+            callback_binder=failing_binder,
+            initial_update_scheduler=lambda *_args: None,
+        )
+
+
 def test_handle_radio_pane_marker_drag_sets_sash_places_marker_and_schedules():
     calls = []
     drag_state = {"root_y": "310", "sash_y": "240"}
