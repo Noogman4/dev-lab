@@ -1910,3 +1910,36 @@ def test_show_radio_bottom_placeholder_for_app_replaces_existing_children():
         ("label", "This lower area is reserved for playlists and files."),
         ("grid", {"row": 0, "column": 0, "sticky": "nw"}),
     ]
+
+
+def test_make_radio_bottom_placeholder_callback_binds_app_and_section():
+    calls = []
+    app = object()
+    bottom_section = object()
+
+    callback = radio_tab._make_radio_bottom_placeholder_callback(
+        app,
+        bottom_section,
+        placeholder_shower=lambda container, app_arg: calls.append(
+            (container, app_arg)
+        ),
+    )
+
+    callback()
+
+    assert calls == [(bottom_section, app)]
+
+
+def test_make_radio_bottom_placeholder_callback_invokes_shower_each_time():
+    calls = []
+
+    callback = radio_tab._make_radio_bottom_placeholder_callback(
+        object(),
+        object(),
+        placeholder_shower=lambda _container, _app: calls.append("show"),
+    )
+
+    callback()
+    callback()
+
+    assert calls == ["show", "show"]

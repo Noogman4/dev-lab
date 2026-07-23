@@ -369,6 +369,18 @@ def _show_radio_bottom_placeholder_for_app(
     )
 
 
+def _make_radio_bottom_placeholder_callback(
+    app,
+    bottom_section,
+    *,
+    placeholder_shower=_show_radio_bottom_placeholder_for_app,
+):
+    def _show_bottom_placeholder():
+        placeholder_shower(bottom_section, app)
+
+    return _show_bottom_placeholder
+
+
 def _radio_pane_marker_geometry(container_width, sash_y) -> dict[str, int]:
     width = max(int(container_width or 0), 0)
     marker_width = min(66, max(width - 24, 42))
@@ -660,12 +672,10 @@ def build_radio_tab(app):
     pane = _build_radio_tab_pane(app, body)
 
     top_section, host, bottom_section = _build_radio_pane_sections(pane, app)
-
-    def _show_bottom_placeholder():
-        _show_radio_bottom_placeholder_for_app(
-            bottom_section,
-            app,
-        )
+    _show_bottom_placeholder = _make_radio_bottom_placeholder_callback(
+        app,
+        bottom_section,
+    )
 
     _add_radio_pane_sections(pane, top_section, bottom_section)
 
