@@ -819,6 +819,20 @@ def test_request_radio_pane_marker_after_idle_runs_on_failure():
     assert calls[1:] == ["run"]
 
 
+def test_claim_radio_pane_marker_update_skips_pending_state():
+    drag_state = {"update_pending": True}
+
+    assert radio_tab._claim_radio_pane_marker_update(drag_state) is False
+    assert drag_state["update_pending"] is True
+
+
+def test_claim_radio_pane_marker_update_marks_available_state():
+    drag_state = {"update_pending": False}
+
+    assert radio_tab._claim_radio_pane_marker_update(drag_state) is True
+    assert drag_state["update_pending"] is True
+
+
 def test_schedule_radio_pane_marker_update_skips_pending_update():
     calls = []
     drag_state = {"update_pending": True}

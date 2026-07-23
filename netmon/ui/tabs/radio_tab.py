@@ -608,10 +608,16 @@ def _request_radio_pane_marker_after_idle(container, run_update) -> None:
         run_update()
 
 
-def _schedule_radio_pane_marker_update(container, drag_state, update_marker) -> None:
+def _claim_radio_pane_marker_update(drag_state) -> bool:
     if drag_state["update_pending"]:
-        return
+        return False
     drag_state["update_pending"] = True
+    return True
+
+
+def _schedule_radio_pane_marker_update(container, drag_state, update_marker) -> None:
+    if not _claim_radio_pane_marker_update(drag_state):
+        return
     run_update = _make_radio_pane_marker_update_runner(drag_state, update_marker)
     _request_radio_pane_marker_after_idle(container, run_update)
 
