@@ -1244,6 +1244,22 @@ def test_make_radio_pane_marker_update_callback_defaults_event_to_none():
     assert calls == [None]
 
 
+def test_show_radio_pane_marker_places_and_lifts_marker():
+    calls = []
+    geometry = {"x": 1, "y": 2, "width": 3, "height": 4}
+
+    class DummyMarker:
+        def place(self, **kwargs):
+            calls.append(("place", kwargs))
+
+        def lift(self):
+            calls.append("lift")
+
+    radio_tab._show_radio_pane_marker(DummyMarker(), geometry)
+
+    assert calls == [("place", geometry), "lift"]
+
+
 def test_place_radio_pane_marker_places_and_lifts_marker():
     calls = []
     geometry = {"x": 1, "y": 2, "width": 3, "height": 4}

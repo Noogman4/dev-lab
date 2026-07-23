@@ -708,10 +708,14 @@ def _handle_radio_pane_marker_update_event(
     _update_radio_pane_marker_from_sash(pane, place_marker, marker)
 
 
+def _show_radio_pane_marker(marker, geometry) -> None:
+    marker.place(**geometry)
+    marker.lift()
+
+
 def _place_radio_pane_marker(marker, geometry) -> None:
     try:
-        marker.place(**geometry)
-        marker.lift()
+        _show_radio_pane_marker(marker, geometry)
     except Exception:
         _forget_radio_pane_marker(marker)
 
