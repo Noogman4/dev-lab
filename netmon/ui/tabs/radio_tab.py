@@ -464,6 +464,33 @@ def _build_radio_tab_scaffold(
     return host, show_bottom_placeholder
 
 
+def _install_radio_launcher_refresh(
+    app,
+    host,
+    show_bottom_placeholder,
+    *,
+    host_clear_callback_factory=_make_radio_tab_host_clear_callback,
+    detached_callback_factory=_make_radio_detached_placeholder_callback,
+    embedded_callback_factory=_make_radio_embedded_panel_callback,
+    refresh_callback_factory=_make_radio_launcher_refresh_callback,
+):
+    clear_host = host_clear_callback_factory(
+        app,
+        host,
+        show_bottom_placeholder,
+    )
+    show_detached_placeholder = detached_callback_factory(app, host, clear_host)
+    show_embedded_panel = embedded_callback_factory(app, host, clear_host)
+    refresh_radio_launcher_state = refresh_callback_factory(
+        app,
+        show_detached_placeholder,
+        show_embedded_panel,
+    )
+    app.refresh_radio_launcher_state = refresh_radio_launcher_state
+    refresh_radio_launcher_state()
+    return refresh_radio_launcher_state
+
+
 def _radio_pane_marker_geometry(container_width, sash_y) -> dict[str, int]:
     width = max(int(container_width or 0), 0)
     marker_width = min(66, max(width - 24, 42))
@@ -752,35 +779,17 @@ def build_radio_tab(app):
     host, _show_bottom_placeholder = _build_radio_tab_scaffold(
         app,
     )
-    _clear_host = _make_radio_tab_host_clear_callback(
-        app,
-        host,
-        _show_bottom_placeholder,
-    )
     # Legacy source references for source-based tests:
     # app.tr("radio_launcher_title", "NetMon Radio als externe App")
     # app.tr("radio_launcher_reattach", "Radio anheften")
     # NetMonRadioPanel(host, on_detach=_detach_from_tab, host_app=app)
-    _show_detached_placeholder = _make_radio_detached_placeholder_callback(
-        app,
-        host,
-        _clear_host,
-    )
-    _show_embedded_panel = _make_radio_embedded_panel_callback(
-        app,
-        host,
-        _clear_host,
-    )
-    # Legacy source references for source-based tests:
     # "Radio wird gerade als Standalone-App gestartet."
     # "Radio wird gerade wieder an NetMon angeheftet."
     # _show_detached_placeholder()
     # _show_embedded_panel()
-    refresh_radio_launcher_state = _make_radio_launcher_refresh_callback(
+    # app.refresh_radio_launcher_state = refresh_radio_launcher_state
+    _install_radio_launcher_refresh(
         app,
-        _show_detached_placeholder,
-        _show_embedded_panel,
+        host,
+        _show_bottom_placeholder,
     )
-
-    app.refresh_radio_launcher_state = refresh_radio_launcher_state
-    refresh_radio_launcher_state()

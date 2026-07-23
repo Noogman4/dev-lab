@@ -1863,6 +1863,71 @@ def test_build_radio_tab_scaffold_returns_host_and_bottom_callback():
     assert result == (host, show_bottom_placeholder)
 
 
+def test_install_radio_launcher_refresh_wires_assigns_and_runs_refresh():
+    events = []
+    app = type("DummyApp", (), {})()
+    host = object()
+    show_bottom = object()
+    clear_host = object()
+    show_detached = object()
+    show_embedded = object()
+
+    def refresh_radio_launcher_state():
+        events.append("refresh")
+
+    result = radio_tab._install_radio_launcher_refresh(
+        app,
+        host,
+        show_bottom,
+        host_clear_callback_factory=lambda app_arg, host_arg, bottom_arg: events.append(
+            ("clear_factory", app_arg, host_arg, bottom_arg)
+        )
+        or clear_host,
+        detached_callback_factory=lambda app_arg, host_arg, clear_arg: events.append(
+            ("detached_factory", app_arg, host_arg, clear_arg)
+        )
+        or show_detached,
+        embedded_callback_factory=lambda app_arg, host_arg, clear_arg: events.append(
+            ("embedded_factory", app_arg, host_arg, clear_arg)
+        )
+        or show_embedded,
+        refresh_callback_factory=lambda app_arg, detached_arg, embedded_arg: events.append(
+            ("refresh_factory", app_arg, detached_arg, embedded_arg)
+        )
+        or refresh_radio_launcher_state,
+    )
+
+    assert result is refresh_radio_launcher_state
+    assert app.refresh_radio_launcher_state is refresh_radio_launcher_state
+    assert events == [
+        ("clear_factory", app, host, show_bottom),
+        ("detached_factory", app, host, clear_host),
+        ("embedded_factory", app, host, clear_host),
+        ("refresh_factory", app, show_detached, show_embedded),
+        "refresh",
+    ]
+
+
+def test_install_radio_launcher_refresh_returns_assigned_callback():
+    app = type("DummyApp", (), {})()
+
+    def refresh_radio_launcher_state():
+        pass
+
+    result = radio_tab._install_radio_launcher_refresh(
+        app,
+        object(),
+        object(),
+        host_clear_callback_factory=lambda _app, _host, _bottom: "clear",
+        detached_callback_factory=lambda _app, _host, _clear: "detached",
+        embedded_callback_factory=lambda _app, _host, _clear: "embedded",
+        refresh_callback_factory=lambda _app, _detached, _embedded: refresh_radio_launcher_state,
+    )
+
+    assert result is refresh_radio_launcher_state
+    assert app.refresh_radio_launcher_state is refresh_radio_launcher_state
+
+
 def test_clear_radio_host_stops_panel_and_destroys_children():
     events = []
 
