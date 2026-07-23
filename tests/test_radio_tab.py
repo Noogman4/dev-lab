@@ -494,6 +494,10 @@ def test_radio_pane_marker_y_offsets_and_clamps_top_padding():
     assert radio_tab._radio_pane_marker_y(4) == 2
 
 
+def test_radio_pane_marker_height_returns_fixed_drag_target_height():
+    assert radio_tab._radio_pane_marker_height() == 12
+
+
 def test_set_radio_pane_sash_position_uses_sashpos():
     calls = []
 
