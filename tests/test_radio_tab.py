@@ -786,6 +786,39 @@ def test_make_radio_pane_marker_update_runner_binds_update_dependencies():
     assert calls == [(drag_state, update_marker)]
 
 
+def test_request_radio_pane_marker_after_idle_schedules_runner():
+    calls = []
+    run_update = object()
+
+    class DummyContainer:
+        def after_idle(self, callback):
+            calls.append(("after_idle", callback))
+
+    radio_tab._request_radio_pane_marker_after_idle(
+        DummyContainer(),
+        run_update,
+    )
+
+    assert calls == [("after_idle", run_update)]
+
+
+def test_request_radio_pane_marker_after_idle_runs_on_failure():
+    calls = []
+
+    class DummyContainer:
+        def after_idle(self, callback):
+            calls.append(("after_idle", callback))
+            raise RuntimeError("after_idle failed")
+
+    radio_tab._request_radio_pane_marker_after_idle(
+        DummyContainer(),
+        lambda: calls.append("run"),
+    )
+
+    assert calls[0][0] == "after_idle"
+    assert calls[1:] == ["run"]
+
+
 def test_schedule_radio_pane_marker_update_skips_pending_update():
     calls = []
     drag_state = {"update_pending": True}

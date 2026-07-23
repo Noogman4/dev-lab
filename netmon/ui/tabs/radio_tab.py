@@ -601,16 +601,19 @@ def _make_radio_pane_marker_update_runner(
     return _run
 
 
+def _request_radio_pane_marker_after_idle(container, run_update) -> None:
+    try:
+        container.after_idle(run_update)
+    except Exception:
+        run_update()
+
+
 def _schedule_radio_pane_marker_update(container, drag_state, update_marker) -> None:
     if drag_state["update_pending"]:
         return
     drag_state["update_pending"] = True
     run_update = _make_radio_pane_marker_update_runner(drag_state, update_marker)
-
-    try:
-        container.after_idle(run_update)
-    except Exception:
-        run_update()
+    _request_radio_pane_marker_after_idle(container, run_update)
 
 
 def _request_radio_pane_marker_update(container, drag_state, update_marker) -> None:
