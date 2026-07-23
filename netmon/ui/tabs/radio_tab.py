@@ -515,9 +515,14 @@ def _install_radio_launcher_refresh(
     return refresh_radio_launcher_state
 
 
+def _radio_pane_marker_width(container_width) -> int:
+    width = max(int(container_width or 0), 0)
+    return min(66, max(width - 24, 42))
+
+
 def _radio_pane_marker_geometry(container_width, sash_y) -> dict[str, int]:
     width = max(int(container_width or 0), 0)
-    marker_width = min(66, max(width - 24, 42))
+    marker_width = _radio_pane_marker_width(width)
     return {
         "x": max((width - marker_width) // 2, 8),
         "y": max(int(sash_y) - 5, 2),

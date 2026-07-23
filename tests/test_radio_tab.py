@@ -477,6 +477,13 @@ def test_radio_pane_marker_geometry_centers_and_clamps_marker():
     }
 
 
+def test_radio_pane_marker_width_clamps_between_min_and_max():
+    assert radio_tab._radio_pane_marker_width(800) == 66
+    assert radio_tab._radio_pane_marker_width(90) == 66
+    assert radio_tab._radio_pane_marker_width(40) == 42
+    assert radio_tab._radio_pane_marker_width(None) == 42
+
+
 def test_set_radio_pane_sash_position_uses_sashpos():
     calls = []
 
