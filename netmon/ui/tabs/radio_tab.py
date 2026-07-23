@@ -19,6 +19,12 @@ class _RadioPaneMarkerCallbacks(NamedTuple):
     end_drag: object
 
 
+class _RadioPaneMarkerBase(NamedTuple):
+    marker: object
+    grip: object
+    drag_state: object
+
+
 class _RadioPaneMarkerInstallation(NamedTuple):
     marker: object
     grip: object
@@ -898,7 +904,7 @@ def _build_radio_pane_marker_base(
 ):
     marker, grip = widget_builder(container, color=color)
     drag_state = drag_state_factory()
-    return marker, grip, drag_state
+    return _RadioPaneMarkerBase(marker, grip, drag_state)
 
 
 def _build_radio_pane_marker_installation(
@@ -909,19 +915,19 @@ def _build_radio_pane_marker_installation(
     marker_base_builder=_build_radio_pane_marker_base,
     callback_builder=_build_radio_pane_marker_callbacks,
 ):
-    marker, grip, drag_state = marker_base_builder(
+    base = marker_base_builder(
         container,
         color=color,
     )
     callbacks = callback_builder(
         container,
         pane,
-        marker,
-        drag_state,
+        base.marker,
+        base.drag_state,
     )
     return _RadioPaneMarkerInstallation(
-        marker,
-        grip,
+        base.marker,
+        base.grip,
         callbacks.update_marker,
         callbacks.start_drag,
         callbacks.drag,

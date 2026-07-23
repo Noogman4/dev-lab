@@ -1489,7 +1489,10 @@ def test_build_radio_pane_marker_base_builds_widgets_then_drag_state():
         drag_state_factory=lambda: events.append("drag_state") or drag_state,
     )
 
-    assert result == (marker, grip, drag_state)
+    assert isinstance(result, radio_tab._RadioPaneMarkerBase)
+    assert result.marker is marker
+    assert result.grip is grip
+    assert result.drag_state is drag_state
     assert events == [("widgets", container, "#123456"), "drag_state"]
 
 
@@ -1520,7 +1523,7 @@ def test_build_radio_pane_marker_installation_builds_base_then_callbacks():
 
     def marker_base_builder(container_arg, color="#0a84ff"):
         events.append(("base", container_arg, color))
-        return marker, grip, drag_state
+        return radio_tab._RadioPaneMarkerBase(marker, grip, drag_state)
 
     def callback_builder(container_arg, pane_arg, marker_arg, state_arg):
         events.append(("callbacks", container_arg, pane_arg, marker_arg, state_arg))
@@ -1559,7 +1562,7 @@ def test_build_radio_pane_marker_installation_uses_default_color_for_base():
         object(),
         object(),
         marker_base_builder=lambda _container, color="#0a84ff": calls.append(color)
-        or (object(), object(), object()),
+        or radio_tab._RadioPaneMarkerBase(object(), object(), object()),
         callback_builder=lambda *_args: radio_tab._RadioPaneMarkerCallbacks(
             object(),
             object(),
