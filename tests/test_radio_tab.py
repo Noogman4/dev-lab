@@ -1464,6 +1464,40 @@ def test_build_radio_pane_marker_callbacks_returns_activation_callbacks():
     assert result == (update_marker, start_drag, drag, end_drag)
 
 
+def test_build_radio_pane_marker_base_builds_widgets_then_drag_state():
+    events = []
+    container = object()
+    marker = object()
+    grip = object()
+    drag_state = object()
+
+    result = radio_tab._build_radio_pane_marker_base(
+        container,
+        color="#123456",
+        widget_builder=lambda container_arg, color="#0a84ff": events.append(
+            ("widgets", container_arg, color)
+        )
+        or (marker, grip),
+        drag_state_factory=lambda: events.append("drag_state") or drag_state,
+    )
+
+    assert result == (marker, grip, drag_state)
+    assert events == [("widgets", container, "#123456"), "drag_state"]
+
+
+def test_build_radio_pane_marker_base_uses_default_color_for_widgets():
+    calls = []
+
+    radio_tab._build_radio_pane_marker_base(
+        object(),
+        widget_builder=lambda _container, color="#0a84ff": calls.append(color)
+        or (object(), object()),
+        drag_state_factory=lambda: object(),
+    )
+
+    assert calls == ["#0a84ff"]
+
+
 def test_install_pane_drag_marker_activates_callbacks_without_direct_reschedule(
     monkeypatch,
 ):
@@ -1480,16 +1514,11 @@ def test_install_pane_drag_marker_activates_callbacks_without_direct_reschedule(
 
     monkeypatch.setattr(
         radio_tab,
-        "_build_radio_pane_marker_widgets",
+        "_build_radio_pane_marker_base",
         lambda container_arg, color="#0a84ff": events.append(
-            ("widgets", container_arg, color)
+            ("base", container_arg, color)
         )
-        or (marker, grip),
-    )
-    monkeypatch.setattr(
-        radio_tab,
-        "_radio_pane_drag_state",
-        lambda: events.append("drag_state") or drag_state,
+        or (marker, grip, drag_state),
     )
     monkeypatch.setattr(
         radio_tab,
@@ -1515,8 +1544,7 @@ def test_install_pane_drag_marker_activates_callbacks_without_direct_reschedule(
     assert result is marker
     assert "direct_schedule" not in events
     assert events == [
-        ("widgets", container, "#0a84ff"),
-        "drag_state",
+        ("base", container, "#0a84ff"),
         ("callbacks", container, pane, marker, drag_state),
         (
             "activate",
