@@ -696,6 +696,23 @@ def test_radio_pane_drag_state_returns_defaults_and_new_dict():
     assert first is not second
 
 
+def test_bind_radio_pane_marker_event_binds_with_add():
+    calls = []
+    callback = object()
+
+    class DummyWidget:
+        def bind(self, event_name, callback_arg, add=None):
+            calls.append((event_name, callback_arg, add))
+
+    radio_tab._bind_radio_pane_marker_event(
+        DummyWidget(),
+        "<Configure>",
+        callback,
+    )
+
+    assert calls == [("<Configure>", callback, "+")]
+
+
 def test_bind_radio_pane_marker_events_binds_all_events_with_add():
     calls = []
     first_callback = object()

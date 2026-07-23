@@ -572,10 +572,14 @@ def _radio_pane_drag_state() -> dict[str, int | bool]:
     }
 
 
+def _bind_radio_pane_marker_event(widget, event_name, callback) -> None:
+    widget.bind(event_name, callback, add="+")
+
+
 def _bind_radio_pane_marker_events(widget, bindings) -> None:
     try:
         for event_name, callback in bindings:
-            widget.bind(event_name, callback, add="+")
+            _bind_radio_pane_marker_event(widget, event_name, callback)
     except Exception:
         pass
 
