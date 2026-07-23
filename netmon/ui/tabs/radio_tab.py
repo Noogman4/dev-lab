@@ -1,13 +1,24 @@
 """Radio tab launcher for NetMon."""
 
 from __future__ import annotations
+
 import tkinter as tk
 from tkinter import ttk
+from typing import NamedTuple
 
 try:
     from netmon.netmon_radio_app import NetMonRadioPanel
 except ModuleNotFoundError:
     from netmon_radio_app import NetMonRadioPanel
+
+
+class _RadioPaneMarkerInstallation(NamedTuple):
+    marker: object
+    grip: object
+    update_marker: object
+    start_drag: object
+    drag: object
+    end_drag: object
 
 
 def _app_value(app, name: str, default=None):
@@ -896,29 +907,34 @@ def _build_radio_pane_marker_installation(
         marker,
         drag_state,
     )
-    return marker, grip, update_marker, start_drag, drag, end_drag
+    return _RadioPaneMarkerInstallation(
+        marker,
+        grip,
+        update_marker,
+        start_drag,
+        drag,
+        end_drag,
+    )
 
 
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
-    marker, grip, _update_marker, _start_drag, _drag, _end_drag = (
-        _build_radio_pane_marker_installation(
-            container,
-            pane,
-            color=color,
-        )
+    installation = _build_radio_pane_marker_installation(
+        container,
+        pane,
+        color=color,
     )
     # Legacy source reference for source-based tests:
     # marker_width = min(66, max(width - 24, 42))
     _activate_radio_pane_marker_callbacks(
         container,
         pane,
-        grip,
-        update_marker=_update_marker,
-        start_drag=_start_drag,
-        drag=_drag,
-        end_drag=_end_drag,
+        installation.grip,
+        update_marker=installation.update_marker,
+        start_drag=installation.start_drag,
+        drag=installation.drag,
+        end_drag=installation.end_drag,
     )
-    return marker
+    return installation.marker
 
 
 def build_radio_tab(app):

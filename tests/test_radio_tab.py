@@ -1526,7 +1526,13 @@ def test_build_radio_pane_marker_installation_builds_base_then_callbacks():
         callback_builder=callback_builder,
     )
 
-    assert result == (marker, grip, update_marker, start_drag, drag, end_drag)
+    assert isinstance(result, radio_tab._RadioPaneMarkerInstallation)
+    assert result.marker is marker
+    assert result.grip is grip
+    assert result.update_marker is update_marker
+    assert result.start_drag is start_drag
+    assert result.drag is drag
+    assert result.end_drag is end_drag
     assert events == [
         ("base", container, "#123456"),
         ("callbacks", container, pane, marker, drag_state),
@@ -1559,6 +1565,14 @@ def test_install_pane_drag_marker_activates_callbacks_without_direct_reschedule(
     start_drag = object()
     drag = object()
     end_drag = object()
+    installation = radio_tab._RadioPaneMarkerInstallation(
+        marker,
+        grip,
+        update_marker,
+        start_drag,
+        drag,
+        end_drag,
+    )
 
     monkeypatch.setattr(
         radio_tab,
@@ -1566,7 +1580,7 @@ def test_install_pane_drag_marker_activates_callbacks_without_direct_reschedule(
         lambda container_arg, pane_arg, color="#0a84ff": events.append(
             ("installation", container_arg, pane_arg, color)
         )
-        or (marker, grip, update_marker, start_drag, drag, end_drag),
+        or installation,
     )
     monkeypatch.setattr(
         radio_tab,
