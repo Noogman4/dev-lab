@@ -1768,6 +1768,42 @@ def test_clear_radio_tab_host_handles_missing_panel_and_shows_placeholder():
     assert events == ["destroy", "placeholder"]
 
 
+def test_make_radio_tab_host_clear_callback_binds_app_host_and_placeholder():
+    calls = []
+    app = object()
+    host = object()
+    show_bottom_placeholder = object()
+
+    callback = radio_tab._make_radio_tab_host_clear_callback(
+        app,
+        host,
+        show_bottom_placeholder,
+        host_clearer=lambda app_arg, host_arg, placeholder_arg: calls.append(
+            (app_arg, host_arg, placeholder_arg)
+        ),
+    )
+
+    callback()
+
+    assert calls == [(app, host, show_bottom_placeholder)]
+
+
+def test_make_radio_tab_host_clear_callback_invokes_clearer_each_time():
+    calls = []
+
+    callback = radio_tab._make_radio_tab_host_clear_callback(
+        object(),
+        object(),
+        object(),
+        host_clearer=lambda _app, _host, _placeholder: calls.append("clear"),
+    )
+
+    callback()
+    callback()
+
+    assert calls == ["clear", "clear"]
+
+
 def test_show_radio_bottom_placeholder_replaces_children_with_label():
     events = []
 

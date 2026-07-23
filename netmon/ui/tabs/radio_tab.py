@@ -381,6 +381,19 @@ def _make_radio_bottom_placeholder_callback(
     return _show_bottom_placeholder
 
 
+def _make_radio_tab_host_clear_callback(
+    app,
+    host,
+    show_bottom_placeholder,
+    *,
+    host_clearer=_clear_radio_tab_host,
+):
+    def _clear_host():
+        host_clearer(app, host, show_bottom_placeholder)
+
+    return _clear_host
+
+
 def _radio_pane_marker_geometry(container_width, sash_y) -> dict[str, int]:
     width = max(int(container_width or 0), 0)
     marker_width = min(66, max(width - 24, 42))
@@ -686,9 +699,11 @@ def build_radio_tab(app):
         bottom_section=bottom_section,
     )
     _show_bottom_placeholder()
-
-    def _clear_host():
-        _clear_radio_tab_host(app, host, _show_bottom_placeholder)
+    _clear_host = _make_radio_tab_host_clear_callback(
+        app,
+        host,
+        _show_bottom_placeholder,
+    )
 
     def _show_detached_placeholder():
         # Legacy source references for source-based tests:
