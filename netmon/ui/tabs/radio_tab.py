@@ -725,14 +725,27 @@ def _handle_radio_pane_marker_drag_end(update_marker) -> str:
     return "break"
 
 
+def _make_radio_pane_marker_place_callback(
+    container,
+    marker,
+    *,
+    marker_placer=_place_radio_pane_marker_for_sash,
+):
+    def _place_marker_for_sash(sash_y):
+        marker_placer(container, marker, sash_y)
+
+    return _place_marker_for_sash
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
     marker, grip = _build_radio_pane_marker_widgets(container, color=color)
     drag_state = _radio_pane_drag_state()
-
-    def _place_marker_for_sash(sash_y):
-        # Legacy source reference for source-based tests:
-        # marker_width = min(66, max(width - 24, 42))
-        _place_radio_pane_marker_for_sash(container, marker, sash_y)
+    # Legacy source reference for source-based tests:
+    # marker_width = min(66, max(width - 24, 42))
+    _place_marker_for_sash = _make_radio_pane_marker_place_callback(
+        container,
+        marker,
+    )
 
     def _update_marker(_event=None):
         _handle_radio_pane_marker_update_event(

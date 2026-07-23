@@ -1105,6 +1105,39 @@ def test_place_radio_pane_marker_for_sash_propagates_width_failures():
         )
 
 
+def test_make_radio_pane_marker_place_callback_binds_container_and_marker():
+    calls = []
+    container = object()
+    marker = object()
+
+    callback = radio_tab._make_radio_pane_marker_place_callback(
+        container,
+        marker,
+        marker_placer=lambda container_arg, marker_arg, sash_y: calls.append(
+            (container_arg, marker_arg, sash_y)
+        ),
+    )
+
+    callback(240)
+
+    assert calls == [(container, marker, 240)]
+
+
+def test_make_radio_pane_marker_place_callback_invokes_placer_each_time():
+    calls = []
+
+    callback = radio_tab._make_radio_pane_marker_place_callback(
+        object(),
+        object(),
+        marker_placer=lambda _container, _marker, sash_y: calls.append(sash_y),
+    )
+
+    callback(120)
+    callback(240)
+
+    assert calls == [120, 240]
+
+
 def test_radio_pane_update_bindings_use_update_callback_for_all_events():
     update_marker = object()
 
