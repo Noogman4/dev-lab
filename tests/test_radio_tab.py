@@ -498,6 +498,15 @@ def test_radio_pane_marker_height_returns_fixed_drag_target_height():
     assert radio_tab._radio_pane_marker_height() == 12
 
 
+def test_radio_pane_marker_place_geometry_builds_int_place_kwargs():
+    assert radio_tab._radio_pane_marker_place_geometry("1", 2, "3", 4) == {
+        "x": 1,
+        "y": 2,
+        "width": 3,
+        "height": 4,
+    }
+
+
 def test_set_radio_pane_sash_position_uses_sashpos():
     calls = []
 
