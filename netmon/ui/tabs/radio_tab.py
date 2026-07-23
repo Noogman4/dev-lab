@@ -878,20 +878,37 @@ def _build_radio_pane_marker_base(
     return marker, grip, drag_state
 
 
-def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
-    marker, grip, drag_state = _build_radio_pane_marker_base(
+def _build_radio_pane_marker_installation(
+    container,
+    pane,
+    *,
+    color="#0a84ff",
+    marker_base_builder=_build_radio_pane_marker_base,
+    callback_builder=_build_radio_pane_marker_callbacks,
+):
+    marker, grip, drag_state = marker_base_builder(
         container,
         color=color,
     )
-    # Legacy source reference for source-based tests:
-    # marker_width = min(66, max(width - 24, 42))
-    _update_marker, _start_drag, _drag, _end_drag = _build_radio_pane_marker_callbacks(
+    update_marker, start_drag, drag, end_drag = callback_builder(
         container,
         pane,
         marker,
         drag_state,
     )
+    return marker, grip, update_marker, start_drag, drag, end_drag
 
+
+def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
+    marker, grip, _update_marker, _start_drag, _drag, _end_drag = (
+        _build_radio_pane_marker_installation(
+            container,
+            pane,
+            color=color,
+        )
+    )
+    # Legacy source reference for source-based tests:
+    # marker_width = min(66, max(width - 24, 42))
     _activate_radio_pane_marker_callbacks(
         container,
         pane,

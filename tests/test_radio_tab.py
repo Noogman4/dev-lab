@@ -1498,9 +1498,7 @@ def test_build_radio_pane_marker_base_uses_default_color_for_widgets():
     assert calls == ["#0a84ff"]
 
 
-def test_install_pane_drag_marker_activates_callbacks_without_direct_reschedule(
-    monkeypatch,
-):
+def test_build_radio_pane_marker_installation_builds_base_then_callbacks():
     events = []
     container = object()
     pane = object()
@@ -1512,21 +1510,63 @@ def test_install_pane_drag_marker_activates_callbacks_without_direct_reschedule(
     drag = object()
     end_drag = object()
 
-    monkeypatch.setattr(
-        radio_tab,
-        "_build_radio_pane_marker_base",
-        lambda container_arg, color="#0a84ff": events.append(
-            ("base", container_arg, color)
-        )
-        or (marker, grip, drag_state),
+    def marker_base_builder(container_arg, color="#0a84ff"):
+        events.append(("base", container_arg, color))
+        return marker, grip, drag_state
+
+    def callback_builder(container_arg, pane_arg, marker_arg, state_arg):
+        events.append(("callbacks", container_arg, pane_arg, marker_arg, state_arg))
+        return update_marker, start_drag, drag, end_drag
+
+    result = radio_tab._build_radio_pane_marker_installation(
+        container,
+        pane,
+        color="#123456",
+        marker_base_builder=marker_base_builder,
+        callback_builder=callback_builder,
     )
+
+    assert result == (marker, grip, update_marker, start_drag, drag, end_drag)
+    assert events == [
+        ("base", container, "#123456"),
+        ("callbacks", container, pane, marker, drag_state),
+    ]
+
+
+def test_build_radio_pane_marker_installation_uses_default_color_for_base():
+    calls = []
+
+    radio_tab._build_radio_pane_marker_installation(
+        object(),
+        object(),
+        marker_base_builder=lambda _container, color="#0a84ff": calls.append(color)
+        or (object(), object(), object()),
+        callback_builder=lambda *_args: (object(), object(), object(), object()),
+    )
+
+    assert calls == ["#0a84ff"]
+
+
+def test_install_pane_drag_marker_activates_callbacks_without_direct_reschedule(
+    monkeypatch,
+):
+    events = []
+    container = object()
+    pane = object()
+    marker = object()
+    grip = object()
+    update_marker = object()
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+
     monkeypatch.setattr(
         radio_tab,
-        "_build_radio_pane_marker_callbacks",
-        lambda container_arg, pane_arg, marker_arg, state_arg: events.append(
-            ("callbacks", container_arg, pane_arg, marker_arg, state_arg)
+        "_build_radio_pane_marker_installation",
+        lambda container_arg, pane_arg, color="#0a84ff": events.append(
+            ("installation", container_arg, pane_arg, color)
         )
-        or (update_marker, start_drag, drag, end_drag),
+        or (marker, grip, update_marker, start_drag, drag, end_drag),
     )
     monkeypatch.setattr(
         radio_tab,
@@ -1544,8 +1584,7 @@ def test_install_pane_drag_marker_activates_callbacks_without_direct_reschedule(
     assert result is marker
     assert "direct_schedule" not in events
     assert events == [
-        ("base", container, "#0a84ff"),
-        ("callbacks", container, pane, marker, drag_state),
+        ("installation", container, pane, "#0a84ff"),
         (
             "activate",
             (container, pane, grip),
