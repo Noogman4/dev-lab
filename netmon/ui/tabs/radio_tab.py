@@ -420,6 +420,23 @@ def _make_radio_embedded_panel_callback(
     return _show_embedded_panel
 
 
+def _make_radio_launcher_refresh_callback(
+    app,
+    show_detached_placeholder,
+    show_embedded_panel,
+    *,
+    launcher_refresher=_refresh_radio_launcher_state,
+):
+    def refresh_radio_launcher_state():
+        launcher_refresher(
+            app,
+            show_detached_placeholder,
+            show_embedded_panel,
+        )
+
+    return refresh_radio_launcher_state
+
+
 def _radio_pane_marker_geometry(container_width, sash_y) -> dict[str, int]:
     width = max(int(container_width or 0), 0)
     marker_width = min(66, max(width - 24, 42))
@@ -744,18 +761,16 @@ def build_radio_tab(app):
         host,
         _clear_host,
     )
-
-    def refresh_radio_launcher_state():
-        # Legacy source references for source-based tests:
-        # "Radio wird gerade als Standalone-App gestartet."
-        # "Radio wird gerade wieder an NetMon angeheftet."
-        # _show_detached_placeholder()
-        # _show_embedded_panel()
-        _refresh_radio_launcher_state(
-            app,
-            _show_detached_placeholder,
-            _show_embedded_panel,
-        )
+    # Legacy source references for source-based tests:
+    # "Radio wird gerade als Standalone-App gestartet."
+    # "Radio wird gerade wieder an NetMon angeheftet."
+    # _show_detached_placeholder()
+    # _show_embedded_panel()
+    refresh_radio_launcher_state = _make_radio_launcher_refresh_callback(
+        app,
+        _show_detached_placeholder,
+        _show_embedded_panel,
+    )
 
     app.refresh_radio_launcher_state = refresh_radio_launcher_state
     refresh_radio_launcher_state()

@@ -1746,6 +1746,42 @@ def test_refresh_radio_launcher_state_sets_status_and_shows_embedded():
     ]
 
 
+def test_make_radio_launcher_refresh_callback_binds_refresh_dependencies():
+    calls = []
+    app = object()
+    show_detached = object()
+    show_embedded = object()
+
+    callback = radio_tab._make_radio_launcher_refresh_callback(
+        app,
+        show_detached,
+        show_embedded,
+        launcher_refresher=lambda app_arg, detached_arg, embedded_arg: calls.append(
+            (app_arg, detached_arg, embedded_arg)
+        ),
+    )
+
+    callback()
+
+    assert calls == [(app, show_detached, show_embedded)]
+
+
+def test_make_radio_launcher_refresh_callback_invokes_refresher_each_time():
+    calls = []
+
+    callback = radio_tab._make_radio_launcher_refresh_callback(
+        object(),
+        object(),
+        object(),
+        launcher_refresher=lambda _app, _detached, _embedded: calls.append("refresh"),
+    )
+
+    callback()
+    callback()
+
+    assert calls == ["refresh", "refresh"]
+
+
 def test_clear_radio_host_stops_panel_and_destroys_children():
     events = []
 
