@@ -682,6 +682,24 @@ def _radio_pane_grip_bindings(start_drag, drag, end_drag):
     )
 
 
+def _radio_pane_marker_binding_plan(
+    container,
+    pane,
+    grip,
+    *,
+    update_marker,
+    start_drag,
+    drag,
+    end_drag,
+):
+    update_bindings = _radio_pane_update_bindings(update_marker)
+    return (
+        (container, update_bindings),
+        (pane, update_bindings),
+        (grip, _radio_pane_grip_bindings(start_drag, drag, end_drag)),
+    )
+
+
 def _bind_radio_pane_marker_callbacks(
     container,
     pane,
@@ -692,15 +710,18 @@ def _bind_radio_pane_marker_callbacks(
     drag,
     end_drag,
 ) -> None:
-    for widget in (container, pane):
+    for widget, bindings in _radio_pane_marker_binding_plan(
+        container,
+        pane,
+        grip,
+        update_marker=update_marker,
+        start_drag=start_drag,
+        drag=drag,
+        end_drag=end_drag,
+    ):
         _bind_radio_pane_marker_events(
             widget,
-            _radio_pane_update_bindings(update_marker),
-        )
-    for widget in (grip,):
-        _bind_radio_pane_marker_events(
-            widget,
-            _radio_pane_grip_bindings(start_drag, drag, end_drag),
+            bindings,
         )
 
 

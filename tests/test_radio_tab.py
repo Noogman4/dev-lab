@@ -1263,6 +1263,30 @@ def test_radio_pane_grip_bindings_use_drag_callbacks():
     )
 
 
+def test_radio_pane_marker_binding_plan_maps_widgets_to_bindings():
+    container = object()
+    pane = object()
+    grip = object()
+    update_marker = object()
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+
+    assert radio_tab._radio_pane_marker_binding_plan(
+        container,
+        pane,
+        grip,
+        update_marker=update_marker,
+        start_drag=start_drag,
+        drag=drag,
+        end_drag=end_drag,
+    ) == (
+        (container, radio_tab._radio_pane_update_bindings(update_marker)),
+        (pane, radio_tab._radio_pane_update_bindings(update_marker)),
+        (grip, radio_tab._radio_pane_grip_bindings(start_drag, drag, end_drag)),
+    )
+
+
 def test_bind_radio_pane_marker_callbacks_binds_update_and_grip_events():
     calls = []
 
