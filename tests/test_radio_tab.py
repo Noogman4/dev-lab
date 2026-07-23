@@ -1574,6 +1574,45 @@ def test_build_radio_pane_marker_installation_uses_default_color_for_base():
     assert calls == ["#0a84ff"]
 
 
+def test_activate_radio_pane_marker_installation_passes_named_fields():
+    events = []
+    container = object()
+    pane = object()
+    marker = object()
+    grip = object()
+    update_marker = object()
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+    installation = radio_tab._RadioPaneMarkerInstallation(
+        marker,
+        grip,
+        update_marker,
+        start_drag,
+        drag,
+        end_drag,
+    )
+
+    radio_tab._activate_radio_pane_marker_installation(
+        container,
+        pane,
+        installation,
+        callback_activator=lambda *args, **kwargs: events.append((args, kwargs)),
+    )
+
+    assert events == [
+        (
+            (container, pane, grip),
+            {
+                "update_marker": update_marker,
+                "start_drag": start_drag,
+                "drag": drag,
+                "end_drag": end_drag,
+            },
+        )
+    ]
+
+
 def test_install_pane_drag_marker_activates_callbacks_without_direct_reschedule(
     monkeypatch,
 ):
@@ -1605,7 +1644,7 @@ def test_install_pane_drag_marker_activates_callbacks_without_direct_reschedule(
     )
     monkeypatch.setattr(
         radio_tab,
-        "_activate_radio_pane_marker_callbacks",
+        "_activate_radio_pane_marker_installation",
         lambda *args, **kwargs: events.append(("activate", args, kwargs)),
     )
     monkeypatch.setattr(
@@ -1622,13 +1661,8 @@ def test_install_pane_drag_marker_activates_callbacks_without_direct_reschedule(
         ("installation", container, pane, "#0a84ff"),
         (
             "activate",
-            (container, pane, grip),
-            {
-                "update_marker": update_marker,
-                "start_drag": start_drag,
-                "drag": drag,
-                "end_drag": end_drag,
-            },
+            (container, pane, installation),
+            {},
         ),
     ]
 

@@ -935,6 +935,24 @@ def _build_radio_pane_marker_installation(
     )
 
 
+def _activate_radio_pane_marker_installation(
+    container,
+    pane,
+    installation,
+    *,
+    callback_activator=_activate_radio_pane_marker_callbacks,
+) -> None:
+    callback_activator(
+        container,
+        pane,
+        installation.grip,
+        update_marker=installation.update_marker,
+        start_drag=installation.start_drag,
+        drag=installation.drag,
+        end_drag=installation.end_drag,
+    )
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
     installation = _build_radio_pane_marker_installation(
         container,
@@ -943,14 +961,10 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
     )
     # Legacy source reference for source-based tests:
     # marker_width = min(66, max(width - 24, 42))
-    _activate_radio_pane_marker_callbacks(
+    _activate_radio_pane_marker_installation(
         container,
         pane,
-        installation.grip,
-        update_marker=installation.update_marker,
-        start_drag=installation.start_drag,
-        drag=installation.drag,
-        end_drag=installation.end_drag,
+        installation,
     )
     return installation.marker
 
