@@ -437,6 +437,33 @@ def _make_radio_launcher_refresh_callback(
     return refresh_radio_launcher_state
 
 
+def _build_radio_tab_scaffold(
+    app,
+    *,
+    body_builder=_build_radio_tab_body,
+    status_var_factory=_radio_launcher_status_var,
+    pane_builder=_build_radio_tab_pane,
+    sections_builder=_build_radio_pane_sections,
+    bottom_callback_factory=_make_radio_bottom_placeholder_callback,
+    pane_sections_adder=_add_radio_pane_sections,
+    state_initializer=_init_radio_tab_state,
+):
+    body = body_builder(app)
+    app.radio_launcher_status_var = status_var_factory(app)
+    pane = pane_builder(app, body)
+    top_section, host, bottom_section = sections_builder(pane, app)
+    show_bottom_placeholder = bottom_callback_factory(app, bottom_section)
+    pane_sections_adder(pane, top_section, bottom_section)
+    state_initializer(
+        app,
+        host=host,
+        top_section=top_section,
+        bottom_section=bottom_section,
+    )
+    show_bottom_placeholder()
+    return host, show_bottom_placeholder
+
+
 def _radio_pane_marker_geometry(container_width, sash_y) -> dict[str, int]:
     width = max(int(container_width or 0), 0)
     marker_width = min(66, max(width - 24, 42))
@@ -722,26 +749,9 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
 def build_radio_tab(app):
     # Legacy source reference for source-based tests:
     # text=app.tr("tools_tab_radio", "Radio")
-    body = _build_radio_tab_body(app)
-    app.radio_launcher_status_var = _radio_launcher_status_var(app)
-
-    pane = _build_radio_tab_pane(app, body)
-
-    top_section, host, bottom_section = _build_radio_pane_sections(pane, app)
-    _show_bottom_placeholder = _make_radio_bottom_placeholder_callback(
+    host, _show_bottom_placeholder = _build_radio_tab_scaffold(
         app,
-        bottom_section,
     )
-
-    _add_radio_pane_sections(pane, top_section, bottom_section)
-
-    _init_radio_tab_state(
-        app,
-        host=host,
-        top_section=top_section,
-        bottom_section=bottom_section,
-    )
-    _show_bottom_placeholder()
     _clear_host = _make_radio_tab_host_clear_callback(
         app,
         host,
