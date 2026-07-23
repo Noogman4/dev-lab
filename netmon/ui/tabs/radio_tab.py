@@ -12,6 +12,13 @@ except ModuleNotFoundError:
     from netmon_radio_app import NetMonRadioPanel
 
 
+class _RadioPaneMarkerCallbacks(NamedTuple):
+    update_marker: object
+    start_drag: object
+    drag: object
+    end_drag: object
+
+
 class _RadioPaneMarkerInstallation(NamedTuple):
     marker: object
     grip: object
@@ -874,7 +881,12 @@ def _build_radio_pane_marker_callbacks(
         schedule_marker_update,
     )
     end_drag = drag_end_callback_factory(update_marker)
-    return update_marker, start_drag, drag, end_drag
+    return _RadioPaneMarkerCallbacks(
+        update_marker,
+        start_drag,
+        drag,
+        end_drag,
+    )
 
 
 def _build_radio_pane_marker_base(
@@ -901,7 +913,7 @@ def _build_radio_pane_marker_installation(
         container,
         color=color,
     )
-    update_marker, start_drag, drag, end_drag = callback_builder(
+    callbacks = callback_builder(
         container,
         pane,
         marker,
@@ -910,10 +922,10 @@ def _build_radio_pane_marker_installation(
     return _RadioPaneMarkerInstallation(
         marker,
         grip,
-        update_marker,
-        start_drag,
-        drag,
-        end_drag,
+        callbacks.update_marker,
+        callbacks.start_drag,
+        callbacks.drag,
+        callbacks.end_drag,
     )
 
 

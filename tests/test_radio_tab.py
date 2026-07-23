@@ -1431,7 +1431,11 @@ def test_build_radio_pane_marker_callbacks_builds_callbacks_in_dependency_order(
         or end_drag,
     )
 
-    assert result == (update_marker, start_drag, drag, end_drag)
+    assert isinstance(result, radio_tab._RadioPaneMarkerCallbacks)
+    assert result.update_marker is update_marker
+    assert result.start_drag is start_drag
+    assert result.drag is drag
+    assert result.end_drag is end_drag
     assert events == [
         ("place_factory", container, marker),
         ("update_factory", pane, place_marker, marker),
@@ -1461,7 +1465,11 @@ def test_build_radio_pane_marker_callbacks_returns_activation_callbacks():
         drag_end_callback_factory=lambda _update: end_drag,
     )
 
-    assert result == (update_marker, start_drag, drag, end_drag)
+    assert isinstance(result, radio_tab._RadioPaneMarkerCallbacks)
+    assert result.update_marker is update_marker
+    assert result.start_drag is start_drag
+    assert result.drag is drag
+    assert result.end_drag is end_drag
 
 
 def test_build_radio_pane_marker_base_builds_widgets_then_drag_state():
@@ -1516,7 +1524,12 @@ def test_build_radio_pane_marker_installation_builds_base_then_callbacks():
 
     def callback_builder(container_arg, pane_arg, marker_arg, state_arg):
         events.append(("callbacks", container_arg, pane_arg, marker_arg, state_arg))
-        return update_marker, start_drag, drag, end_drag
+        return radio_tab._RadioPaneMarkerCallbacks(
+            update_marker,
+            start_drag,
+            drag,
+            end_drag,
+        )
 
     result = radio_tab._build_radio_pane_marker_installation(
         container,
@@ -1547,7 +1560,12 @@ def test_build_radio_pane_marker_installation_uses_default_color_for_base():
         object(),
         marker_base_builder=lambda _container, color="#0a84ff": calls.append(color)
         or (object(), object(), object()),
-        callback_builder=lambda *_args: (object(), object(), object(), object()),
+        callback_builder=lambda *_args: radio_tab._RadioPaneMarkerCallbacks(
+            object(),
+            object(),
+            object(),
+            object(),
+        ),
     )
 
     assert calls == ["#0a84ff"]
