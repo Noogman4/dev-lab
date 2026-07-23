@@ -489,6 +489,11 @@ def test_radio_pane_marker_x_centers_and_clamps_left_padding():
     assert radio_tab._radio_pane_marker_x(40, 42) == 8
 
 
+def test_radio_pane_marker_y_offsets_and_clamps_top_padding():
+    assert radio_tab._radio_pane_marker_y(240) == 235
+    assert radio_tab._radio_pane_marker_y(4) == 2
+
+
 def test_set_radio_pane_sash_position_uses_sashpos():
     calls = []
 

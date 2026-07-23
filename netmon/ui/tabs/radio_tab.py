@@ -524,12 +524,16 @@ def _radio_pane_marker_x(container_width, marker_width) -> int:
     return max((int(container_width) - int(marker_width)) // 2, 8)
 
 
+def _radio_pane_marker_y(sash_y) -> int:
+    return max(int(sash_y) - 5, 2)
+
+
 def _radio_pane_marker_geometry(container_width, sash_y) -> dict[str, int]:
     width = max(int(container_width or 0), 0)
     marker_width = _radio_pane_marker_width(width)
     return {
         "x": _radio_pane_marker_x(width, marker_width),
-        "y": max(int(sash_y) - 5, 2),
+        "y": _radio_pane_marker_y(sash_y),
         "width": marker_width,
         "height": 12,
     }
