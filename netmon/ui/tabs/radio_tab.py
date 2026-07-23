@@ -724,10 +724,14 @@ def _radio_pane_container_width(container) -> int:
     return int(container.winfo_width())
 
 
+def _radio_pane_marker_geometry_for_container(container, sash_y) -> dict[str, int]:
+    return _radio_pane_marker_geometry(_radio_pane_container_width(container), sash_y)
+
+
 def _place_radio_pane_marker_for_sash(container, marker, sash_y) -> None:
     _place_radio_pane_marker(
         marker,
-        _radio_pane_marker_geometry(_radio_pane_container_width(container), sash_y),
+        _radio_pane_marker_geometry_for_container(container, sash_y),
     )
 
 

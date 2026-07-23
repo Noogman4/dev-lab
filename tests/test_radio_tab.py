@@ -1325,6 +1325,22 @@ def test_radio_pane_container_width_reads_widget_width_as_int():
     assert radio_tab._radio_pane_container_width(DummyContainer()) == 320
 
 
+def test_radio_pane_marker_geometry_for_container_uses_width_and_sash():
+    class DummyContainer:
+        def winfo_width(self):
+            return 320
+
+    assert radio_tab._radio_pane_marker_geometry_for_container(
+        DummyContainer(),
+        240,
+    ) == {
+        "x": 127,
+        "y": 235,
+        "width": 66,
+        "height": 12,
+    }
+
+
 def test_place_radio_pane_marker_for_sash_uses_container_width_and_sash():
     calls = []
 
