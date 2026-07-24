@@ -737,22 +737,34 @@ def _standalone_radio_pane_marker_frame(
     )
 
 
+def _standalone_radio_pane_marker_grip(
+    marker,
+    color,
+    *,
+    label_builder=tk.Label,
+    grip_options_builder=_standalone_radio_pane_marker_grip_options,
+):
+    return label_builder(
+        marker,
+        **grip_options_builder(color),
+    )
+
+
 def _standalone_radio_pane_marker_widgets(
     container,
     color,
     *,
     marker_frame_builder=_standalone_radio_pane_marker_frame,
-    label_builder=tk.Label,
-    grip_options_builder=_standalone_radio_pane_marker_grip_options,
+    marker_grip_builder=_standalone_radio_pane_marker_grip,
     configure_widgets=_standalone_radio_pane_configure_marker_widgets,
 ):
     marker = marker_frame_builder(
         container,
         color,
     )
-    grip = label_builder(
+    grip = marker_grip_builder(
         marker,
-        **grip_options_builder(color),
+        color,
     )
     configure_widgets(marker, grip)
     return marker, grip
