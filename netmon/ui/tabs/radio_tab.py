@@ -1024,6 +1024,15 @@ def _build_radio_pane_marker_update_callback(
     return update_callback_factory(pane, place_marker, marker)
 
 
+def _build_radio_pane_marker_schedule_callback(
+    container,
+    drag_state,
+    update_marker,
+    schedule_callback_factory,
+):
+    return schedule_callback_factory(container, drag_state, update_marker)
+
+
 def _activate_radio_pane_marker_callbacks(
     container,
     pane,
@@ -1076,10 +1085,11 @@ def _build_radio_pane_marker_callbacks(
         marker,
         update_callback_factory,
     )
-    schedule_marker_update = schedule_callback_factory(
+    schedule_marker_update = _build_radio_pane_marker_schedule_callback(
         container,
         drag_state,
         update_marker,
+        schedule_callback_factory,
     )
     start_drag = drag_start_callback_factory(drag_state, pane)
     drag = drag_event_callback_factory(

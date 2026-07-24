@@ -1719,6 +1719,27 @@ def test_build_radio_pane_marker_update_callback_forwards_dependencies():
     assert calls == [(pane, place_marker, marker)]
 
 
+def test_build_radio_pane_marker_schedule_callback_forwards_dependencies():
+    calls = []
+    container = object()
+    drag_state = object()
+    update_marker = object()
+    schedule_marker_update = object()
+
+    result = radio_tab._build_radio_pane_marker_schedule_callback(
+        container,
+        drag_state,
+        update_marker,
+        lambda container_arg, state_arg, update_arg: calls.append(
+            (container_arg, state_arg, update_arg)
+        )
+        or schedule_marker_update,
+    )
+
+    assert result is schedule_marker_update
+    assert calls == [(container, drag_state, update_marker)]
+
+
 def test_build_radio_pane_marker_callbacks_builds_callbacks_in_dependency_order():
     events = []
     container = object()
