@@ -2042,6 +2042,28 @@ def test_standalone_radio_pane_start_drag_uses_zeroes_on_failure():
     assert state == {"root_y": 0, "sash_y": 0}
 
 
+def test_standalone_radio_pane_drag_motion_moves_places_and_schedules():
+    calls = []
+    state = {"root_y": "310", "sash_y": "240"}
+
+    class DummyEvent:
+        y_root = "330"
+
+    netmon_radio_app._standalone_radio_pane_drag_motion(
+        state,
+        DummyEvent(),
+        lambda sash_y: calls.append(("set_sash", sash_y)),
+        lambda sash_y: calls.append(("place", sash_y)),
+        lambda: calls.append("schedule"),
+    )
+
+    assert calls == [
+        ("set_sash", 260),
+        ("place", 260),
+        "schedule",
+    ]
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
