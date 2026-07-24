@@ -2827,9 +2827,8 @@ def test_standalone_radio_pane_marker_grip_options_use_marker_style():
     }
 
 
-def test_standalone_radio_pane_marker_widgets_builds_marker_and_grip():
+def test_standalone_radio_pane_configure_marker_widgets_applies_layout():
     calls = []
-    container = object()
 
     class DummyMarker:
         def columnconfigure(self, column, weight):
@@ -2839,8 +2838,35 @@ def test_standalone_radio_pane_marker_widgets_builds_marker_and_grip():
         def grid(self, **kwargs):
             calls.append(("grid", kwargs))
 
-    marker = DummyMarker()
-    grip = DummyGrip()
+    netmon_radio_app._standalone_radio_pane_configure_marker_widgets(
+        DummyMarker(),
+        DummyGrip(),
+    )
+
+    assert calls == [
+        ("columnconfigure", 0, 1),
+        ("grid", {"row": 0, "column": 0, "sticky": "ew"}),
+    ]
+
+
+def test_standalone_radio_pane_configure_marker_widgets_propagates_layout_failures():
+    class FailingMarker:
+        def columnconfigure(self, _column, weight):
+            raise RuntimeError("column failed")
+
+    with pytest.raises(RuntimeError, match="column failed"):
+        netmon_radio_app._standalone_radio_pane_configure_marker_widgets(
+            FailingMarker(),
+            object(),
+        )
+
+
+def test_standalone_radio_pane_marker_widgets_builds_marker_and_grip():
+    calls = []
+    container = object()
+
+    marker = object()
+    grip = object()
 
     result = netmon_radio_app._standalone_radio_pane_marker_widgets(
         container,
@@ -2862,6 +2888,9 @@ def test_standalone_radio_pane_marker_widgets_builds_marker_and_grip():
             "pady": 0,
             "anchor": "center",
         },
+        configure_widgets=lambda marker_arg, grip_arg: calls.append(
+            ("configure", marker_arg, grip_arg)
+        ),
     )
 
     assert result == (marker, grip)
@@ -2872,7 +2901,6 @@ def test_standalone_radio_pane_marker_widgets_builds_marker_and_grip():
             (container,),
             {"bg": "#123456", "bd": 1, "relief": "solid"},
         ),
-        ("columnconfigure", 0, 1),
         ("grip_options", "#123456"),
         (
             "label",
@@ -2888,7 +2916,7 @@ def test_standalone_radio_pane_marker_widgets_builds_marker_and_grip():
                 "anchor": "center",
             },
         ),
-        ("grid", {"row": 0, "column": 0, "sticky": "ew"}),
+        ("configure", marker, grip),
     ]
 
 
