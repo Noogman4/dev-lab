@@ -650,6 +650,26 @@ def test_handle_radio_pane_marker_drag_start_uses_zeroes_and_breaks_on_failure()
     assert drag_state == {"root_y": 0, "sash_y": 0}
 
 
+def test_invoke_radio_pane_marker_drag_start_handler_forwards_dependencies():
+    calls = []
+    drag_state = object()
+    event = object()
+    pane = object()
+
+    result = radio_tab._invoke_radio_pane_marker_drag_start_handler(
+        drag_state,
+        event,
+        pane,
+        lambda state_arg, event_arg, pane_arg: calls.append(
+            (state_arg, event_arg, pane_arg)
+        )
+        or "break",
+    )
+
+    assert result == "break"
+    assert calls == [(drag_state, event, pane)]
+
+
 def test_make_radio_pane_marker_drag_start_callback_binds_state_event_and_pane():
     calls = []
     drag_state = object()
