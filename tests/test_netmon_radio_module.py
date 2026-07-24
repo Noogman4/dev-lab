@@ -2936,6 +2936,51 @@ def test_standalone_radio_pane_marker_callbacks_propagates_builder_failures():
         )
 
 
+def test_standalone_radio_pane_install_marker_parts_builds_callbacks_and_activates():
+    events = []
+    container = object()
+    pane = object()
+    marker = object()
+    grip = object()
+    callbacks = (object(), object(), object(), object())
+
+    result = netmon_radio_app._standalone_radio_pane_install_marker_parts(
+        container,
+        pane,
+        marker,
+        grip,
+        12,
+        callbacks_builder=lambda *args: events.append(("callbacks", args)) or callbacks,
+        bindings_activator=lambda *args: events.append(("activate", args)),
+    )
+
+    assert result is marker
+    assert events == [
+        ("callbacks", (container, pane, marker, 12)),
+        ("activate", (container, pane, grip, *callbacks)),
+    ]
+
+
+def test_standalone_radio_pane_install_marker_parts_propagates_activation_failure():
+    def fail_activate(*_args):
+        raise RuntimeError("activate failed")
+
+    with pytest.raises(RuntimeError, match="activate failed"):
+        netmon_radio_app._standalone_radio_pane_install_marker_parts(
+            object(),
+            object(),
+            object(),
+            object(),
+            callbacks_builder=lambda *_args: (
+                object(),
+                object(),
+                object(),
+                object(),
+            ),
+            bindings_activator=fail_activate,
+        )
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"

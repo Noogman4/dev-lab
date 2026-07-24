@@ -762,29 +762,45 @@ def _standalone_radio_pane_marker_callbacks(
     return update_marker, start_drag, drag, end_drag
 
 
+def _standalone_radio_pane_install_marker_parts(
+    container,
+    pane,
+    marker,
+    grip,
+    y_offset=0,
+    *,
+    callbacks_builder=_standalone_radio_pane_marker_callbacks,
+    bindings_activator=_standalone_radio_pane_activate_marker_bindings,
+):
+    update_marker, start_drag, drag, end_drag = callbacks_builder(
+        container,
+        pane,
+        marker,
+        y_offset,
+    )
+    bindings_activator(
+        container,
+        pane,
+        grip,
+        update_marker,
+        start_drag,
+        drag,
+        end_drag,
+    )
+    return marker
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
     marker, grip = _standalone_radio_pane_marker_widgets(container, color)
     # Legacy source reference for source-based tests:
     # marker_width = min(66, max(width - 24, 42))
-    _update_marker, _start_drag, _drag, _end_drag = (
-        _standalone_radio_pane_marker_callbacks(
-            container,
-            pane,
-            marker,
-            y_offset,
-        )
-    )
-
-    _standalone_radio_pane_activate_marker_bindings(
+    return _standalone_radio_pane_install_marker_parts(
         container,
         pane,
+        marker,
         grip,
-        _update_marker,
-        _start_drag,
-        _drag,
-        _end_drag,
+        y_offset,
     )
-    return marker
 
 
 def _init_radio_runtime_state(app, *, embedded_mode, host_app=None):
