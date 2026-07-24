@@ -2126,6 +2126,31 @@ def test_activate_radio_pane_marker_installation_passes_named_fields():
     ]
 
 
+def test_activate_radio_pane_marker_and_return_marker_activates_then_returns_marker():
+    events = []
+    container = object()
+    pane = object()
+    marker = object()
+    installation = radio_tab._RadioPaneMarkerInstallation(
+        marker,
+        object(),
+        object(),
+        object(),
+        object(),
+        object(),
+    )
+
+    result = radio_tab._activate_radio_pane_marker_and_return_marker(
+        container,
+        pane,
+        installation,
+        installation_activator=lambda *args: events.append(args),
+    )
+
+    assert result is marker
+    assert events == [(container, pane, installation)]
+
+
 def test_install_pane_drag_marker_activates_callbacks_without_direct_reschedule(
     monkeypatch,
 ):
