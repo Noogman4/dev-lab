@@ -336,6 +336,10 @@ def _standalone_radio_pane_place_marker(marker, geometry) -> None:
     marker.lift()
 
 
+def _standalone_radio_pane_forget_marker(marker) -> None:
+    marker.place_forget()
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
     marker = tk.Frame(
         container,
@@ -381,7 +385,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
             _standalone_radio_pane_place_marker(marker, geometry)
         except Exception:
             try:
-                marker.place_forget()
+                _standalone_radio_pane_forget_marker(marker)
             except Exception:
                 pass
 
@@ -390,7 +394,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
             _place_marker_for_sash(int(pane.sashpos(0)))
         except Exception:
             try:
-                marker.place_forget()
+                _standalone_radio_pane_forget_marker(marker)
             except Exception:
                 pass
 

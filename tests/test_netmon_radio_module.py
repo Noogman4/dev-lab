@@ -1841,6 +1841,18 @@ def test_standalone_radio_pane_place_marker_places_and_lifts():
     ]
 
 
+def test_standalone_radio_pane_forget_marker_forgets_place():
+    calls = []
+
+    class DummyMarker:
+        def place_forget(self):
+            calls.append("place_forget")
+
+    netmon_radio_app._standalone_radio_pane_forget_marker(DummyMarker())
+
+    assert calls == ["place_forget"]
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
