@@ -391,6 +391,23 @@ def _standalone_radio_pane_update_marker(pane, place_marker_for_sash) -> None:
     place_marker_for_sash(int(pane.sashpos(0)))
 
 
+def _standalone_radio_pane_update_marker_safe(
+    pane,
+    place_marker_for_sash,
+    marker,
+    *,
+    update_marker=_standalone_radio_pane_update_marker,
+    forget_marker=_standalone_radio_pane_forget_marker,
+) -> None:
+    try:
+        update_marker(pane, place_marker_for_sash)
+    except Exception:
+        try:
+            forget_marker(marker)
+        except Exception:
+            pass
+
+
 def _standalone_radio_pane_schedule_marker_update(
     container,
     drag_state,
@@ -507,13 +524,11 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
         )
 
     def _update_marker(_event=None):
-        try:
-            _standalone_radio_pane_update_marker(pane, _place_marker_for_sash)
-        except Exception:
-            try:
-                _standalone_radio_pane_forget_marker(marker)
-            except Exception:
-                pass
+        _standalone_radio_pane_update_marker_safe(
+            pane,
+            _place_marker_for_sash,
+            marker,
+        )
 
     def _schedule_marker_update():
         _standalone_radio_pane_schedule_marker_update(

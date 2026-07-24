@@ -2003,6 +2003,71 @@ def test_standalone_radio_pane_update_marker_places_current_sash():
     ]
 
 
+def test_standalone_radio_pane_update_marker_safe_updates_marker():
+    events = []
+    pane = object()
+    marker = object()
+    place_marker = object()
+
+    netmon_radio_app._standalone_radio_pane_update_marker_safe(
+        pane,
+        place_marker,
+        marker,
+        update_marker=lambda pane_arg, place_arg: events.append(
+            ("update", pane_arg, place_arg)
+        ),
+        forget_marker=lambda marker_arg: events.append(("forget", marker_arg)),
+    )
+
+    assert events == [
+        ("update", pane, place_marker),
+    ]
+
+
+def test_standalone_radio_pane_update_marker_safe_forgets_on_update_failure():
+    events = []
+    marker = object()
+
+    def fail_update(*_args):
+        events.append("update")
+        raise RuntimeError("update failed")
+
+    netmon_radio_app._standalone_radio_pane_update_marker_safe(
+        object(),
+        object(),
+        marker,
+        update_marker=fail_update,
+        forget_marker=lambda marker_arg: events.append(("forget", marker_arg)),
+    )
+
+    assert events == [
+        "update",
+        ("forget", marker),
+    ]
+
+
+def test_standalone_radio_pane_update_marker_safe_ignores_forget_failure():
+    events = []
+
+    def fail_update(*_args):
+        events.append("update")
+        raise RuntimeError("update failed")
+
+    def fail_forget(_marker):
+        events.append("forget")
+        raise RuntimeError("forget failed")
+
+    netmon_radio_app._standalone_radio_pane_update_marker_safe(
+        object(),
+        object(),
+        object(),
+        update_marker=fail_update,
+        forget_marker=fail_forget,
+    )
+
+    assert events == ["update", "forget"]
+
+
 def test_standalone_radio_pane_schedule_marker_update_skips_pending_state():
     calls = []
 
