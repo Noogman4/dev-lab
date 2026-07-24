@@ -1277,15 +1277,26 @@ def _activate_radio_pane_marker_and_return_marker(
     return installation.marker
 
 
-def _install_pane_drag_marker(container, pane, *, color="#0a84ff"):
-    installation = _build_radio_pane_marker_installation(
+def _install_pane_drag_marker(
+    container,
+    pane,
+    *,
+    color="#0a84ff",
+    installation_builder=None,
+    marker_activator=None,
+):
+    if installation_builder is None:
+        installation_builder = _build_radio_pane_marker_installation
+    if marker_activator is None:
+        marker_activator = _activate_radio_pane_marker_and_return_marker
+    installation = installation_builder(
         container,
         pane,
         color=color,
     )
     # Legacy source reference for source-based tests:
     # marker_width = min(66, max(width - 24, 42))
-    return _activate_radio_pane_marker_and_return_marker(
+    return marker_activator(
         container,
         pane,
         installation,

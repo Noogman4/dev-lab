@@ -2205,6 +2205,40 @@ def test_install_pane_drag_marker_activates_callbacks_without_direct_reschedule(
     ]
 
 
+def test_install_pane_drag_marker_uses_injected_builder_and_activator():
+    events = []
+    container = object()
+    pane = object()
+    marker = object()
+    returned_marker = object()
+    installation = radio_tab._RadioPaneMarkerInstallation(
+        marker,
+        object(),
+        object(),
+        object(),
+        object(),
+        object(),
+    )
+
+    result = radio_tab._install_pane_drag_marker(
+        container,
+        pane,
+        color="#123456",
+        installation_builder=lambda *args, **kwargs: events.append(
+            ("build", args, kwargs)
+        )
+        or installation,
+        marker_activator=lambda *args: events.append(("activate", args))
+        or returned_marker,
+    )
+
+    assert result is returned_marker
+    assert events == [
+        ("build", (container, pane), {"color": "#123456"}),
+        ("activate", (container, pane, installation)),
+    ]
+
+
 def test_handle_radio_pane_marker_drag_sets_sash_places_marker_and_schedules():
     calls = []
     drag_state = {"root_y": "310", "sash_y": "240"}
