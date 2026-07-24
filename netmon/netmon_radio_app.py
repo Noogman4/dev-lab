@@ -410,6 +410,32 @@ def _standalone_radio_pane_activate_marker_callbacks(
     )
 
 
+def _standalone_radio_pane_activate_marker_bindings(
+    container,
+    pane,
+    grip,
+    update_marker,
+    start_drag,
+    drag,
+    end_drag,
+    *,
+    update_bindings_builder=_standalone_radio_pane_update_bindings,
+    grip_bindings_builder=_standalone_radio_pane_grip_bindings,
+    binding_plan_builder=_standalone_radio_pane_marker_binding_plan,
+    activate_marker_callbacks=_standalone_radio_pane_activate_marker_callbacks,
+) -> None:
+    update_bindings = update_bindings_builder(update_marker)
+    grip_bindings = grip_bindings_builder(start_drag, drag, end_drag)
+    binding_plan = binding_plan_builder(
+        container,
+        pane,
+        grip,
+        update_bindings=update_bindings,
+        grip_bindings=grip_bindings,
+    )
+    activate_marker_callbacks(container, binding_plan, update_marker)
+
+
 def _standalone_radio_pane_marker_geometry(
     container_width,
     sash_y,
@@ -720,21 +746,14 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
     )
     _end_drag = _standalone_radio_pane_end_callback(_update_marker)
 
-    update_bindings = _standalone_radio_pane_update_bindings(_update_marker)
-    _standalone_radio_pane_activate_marker_callbacks(
+    _standalone_radio_pane_activate_marker_bindings(
         container,
-        _standalone_radio_pane_marker_binding_plan(
-            container,
-            pane,
-            grip,
-            update_bindings=update_bindings,
-            grip_bindings=_standalone_radio_pane_grip_bindings(
-                _start_drag,
-                _drag,
-                _end_drag,
-            ),
-        ),
+        pane,
+        grip,
         _update_marker,
+        _start_drag,
+        _drag,
+        _end_drag,
     )
     return marker
 

@@ -2040,6 +2040,72 @@ def test_standalone_radio_pane_activate_marker_callbacks_propagates_binding_fail
         )
 
 
+def test_standalone_radio_pane_activate_marker_bindings_builds_and_activates():
+    events = []
+    container = object()
+    pane = object()
+    grip = object()
+    update_marker = object()
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+    update_bindings = object()
+    grip_bindings = object()
+    binding_plan = object()
+
+    netmon_radio_app._standalone_radio_pane_activate_marker_bindings(
+        container,
+        pane,
+        grip,
+        update_marker,
+        start_drag,
+        drag,
+        end_drag,
+        update_bindings_builder=lambda update_arg: events.append(
+            ("update_bindings", update_arg)
+        )
+        or update_bindings,
+        grip_bindings_builder=lambda *args: events.append(("grip_bindings", args))
+        or grip_bindings,
+        binding_plan_builder=lambda *args, **kwargs: events.append(
+            ("binding_plan", args, kwargs)
+        )
+        or binding_plan,
+        activate_marker_callbacks=lambda *args: events.append(("activate", args)),
+    )
+
+    assert events == [
+        ("update_bindings", update_marker),
+        ("grip_bindings", (start_drag, drag, end_drag)),
+        (
+            "binding_plan",
+            (container, pane, grip),
+            {"update_bindings": update_bindings, "grip_bindings": grip_bindings},
+        ),
+        ("activate", (container, binding_plan, update_marker)),
+    ]
+
+
+def test_standalone_radio_pane_activate_marker_bindings_propagates_activation_failure():
+    def fail_activate(_container, _binding_plan, _update_marker):
+        raise RuntimeError("activate failed")
+
+    with pytest.raises(RuntimeError, match="activate failed"):
+        netmon_radio_app._standalone_radio_pane_activate_marker_bindings(
+            object(),
+            object(),
+            object(),
+            object(),
+            object(),
+            object(),
+            object(),
+            update_bindings_builder=lambda _update_marker: object(),
+            grip_bindings_builder=lambda _start, _drag, _end: object(),
+            binding_plan_builder=lambda *_args, **_kwargs: object(),
+            activate_marker_callbacks=fail_activate,
+        )
+
+
 def test_standalone_radio_pane_marker_geometry_centers_and_offsets_marker():
     assert netmon_radio_app._standalone_radio_pane_marker_geometry(
         120,
