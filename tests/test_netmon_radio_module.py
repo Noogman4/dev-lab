@@ -2659,6 +2659,42 @@ def test_standalone_radio_pane_drag_event_breaks_after_ignored_motion_failure():
     assert calls == ["motion"]
 
 
+def test_standalone_radio_pane_drag_callback_binds_drag_context():
+    calls = []
+    state = {}
+    event = object()
+    set_sash = object()
+    place_marker = object()
+    schedule_marker = object()
+
+    callback = netmon_radio_app._standalone_radio_pane_drag_callback(
+        state,
+        set_sash,
+        place_marker,
+        schedule_marker,
+        drag_event=lambda *args: calls.append(args) or "break",
+    )
+
+    assert callback(event) == "break"
+    assert calls == [(state, event, set_sash, place_marker, schedule_marker)]
+
+
+def test_standalone_radio_pane_drag_callback_propagates_drag_failures():
+    def fail_drag_event(_state, _event, _set_sash, _place_marker, _schedule):
+        raise RuntimeError("drag failed")
+
+    callback = netmon_radio_app._standalone_radio_pane_drag_callback(
+        {},
+        object(),
+        object(),
+        object(),
+        drag_event=fail_drag_event,
+    )
+
+    with pytest.raises(RuntimeError, match="drag failed"):
+        callback(object())
+
+
 def test_standalone_radio_pane_end_drag_updates_marker_and_breaks():
     calls = []
 
