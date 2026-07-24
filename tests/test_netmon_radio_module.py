@@ -1986,6 +1986,20 @@ def test_standalone_radio_pane_schedule_initial_marker_update_delegates_request(
     assert calls == [(container, callback)]
 
 
+def test_standalone_radio_pane_schedule_active_marker_initial_update_forwards_dependencies():
+    calls = []
+    container = object()
+    callback = object()
+
+    netmon_radio_app._standalone_radio_pane_schedule_active_marker_initial_update(
+        container,
+        callback,
+        lambda container_arg, callback_arg: calls.append((container_arg, callback_arg)),
+    )
+
+    assert calls == [(container, callback)]
+
+
 def test_standalone_radio_pane_marker_geometry_centers_and_offsets_marker():
     assert netmon_radio_app._standalone_radio_pane_marker_geometry(
         120,
