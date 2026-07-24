@@ -1612,6 +1612,20 @@ def test_bind_radio_pane_marker_callbacks_ignores_widget_bind_failures():
     ]
 
 
+def test_schedule_active_radio_pane_marker_initial_update_forwards_dependencies():
+    calls = []
+    container = object()
+    update_marker = object()
+
+    radio_tab._schedule_active_radio_pane_marker_initial_update(
+        container,
+        update_marker,
+        lambda container_arg, update_arg: calls.append((container_arg, update_arg)),
+    )
+
+    assert calls == [(container, update_marker)]
+
+
 def test_activate_radio_pane_marker_callbacks_binds_then_schedules_initial_update():
     events = []
     container = object()

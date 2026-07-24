@@ -999,6 +999,14 @@ def _make_radio_pane_marker_drag_end_callback(
     return _end_drag
 
 
+def _schedule_active_radio_pane_marker_initial_update(
+    container,
+    update_marker,
+    initial_update_scheduler,
+) -> None:
+    initial_update_scheduler(container, update_marker)
+
+
 def _activate_radio_pane_marker_callbacks(
     container,
     pane,
@@ -1020,7 +1028,11 @@ def _activate_radio_pane_marker_callbacks(
         drag=drag,
         end_drag=end_drag,
     )
-    initial_update_scheduler(container, update_marker)
+    _schedule_active_radio_pane_marker_initial_update(
+        container,
+        update_marker,
+        initial_update_scheduler,
+    )
 
 
 def _build_radio_pane_marker_callbacks(
