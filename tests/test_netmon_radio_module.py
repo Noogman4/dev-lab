@@ -2453,6 +2453,39 @@ def test_standalone_radio_pane_schedule_marker_update_runs_on_after_idle_failure
     assert calls[1:] == ["update"]
 
 
+def test_standalone_radio_pane_schedule_callback_binds_update_context():
+    calls = []
+    container = object()
+    state = {"update_pending": False}
+    update_marker = object()
+
+    callback = netmon_radio_app._standalone_radio_pane_schedule_callback(
+        container,
+        state,
+        update_marker,
+        schedule_marker_update=lambda *args: calls.append(args),
+    )
+
+    callback()
+
+    assert calls == [(container, state, update_marker)]
+
+
+def test_standalone_radio_pane_schedule_callback_propagates_schedule_failures():
+    def fail_schedule(_container, _state, _update_marker):
+        raise RuntimeError("schedule failed")
+
+    callback = netmon_radio_app._standalone_radio_pane_schedule_callback(
+        object(),
+        {"update_pending": False},
+        object(),
+        schedule_marker_update=fail_schedule,
+    )
+
+    with pytest.raises(RuntimeError, match="schedule failed"):
+        callback()
+
+
 def test_standalone_radio_pane_start_drag_records_event_and_sash():
     state = {}
 
