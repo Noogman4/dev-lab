@@ -367,6 +367,16 @@ def _standalone_radio_pane_bind_marker_callbacks(
         bind_events(widget, bindings)
 
 
+def _standalone_radio_pane_request_initial_marker_update(
+    container,
+    update_marker,
+) -> None:
+    try:
+        container.after(0, update_marker)
+    except Exception:
+        pass
+
+
 def _standalone_radio_pane_marker_geometry(
     container_width,
     sash_y,
@@ -614,10 +624,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
             ),
         ),
     )
-    try:
-        container.after(0, _update_marker)
-    except Exception:
-        pass
+    _standalone_radio_pane_request_initial_marker_update(container, _update_marker)
     return marker
 
 

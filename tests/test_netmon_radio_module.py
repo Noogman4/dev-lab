@@ -1938,6 +1938,38 @@ def test_standalone_radio_pane_bind_marker_callbacks_propagates_binder_failure()
     assert calls == [("widget", "bindings")]
 
 
+def test_standalone_radio_pane_request_initial_marker_update_uses_after_zero():
+    calls = []
+    callback = object()
+
+    class DummyContainer:
+        def after(self, delay, scheduled_callback):
+            calls.append((delay, scheduled_callback))
+
+    netmon_radio_app._standalone_radio_pane_request_initial_marker_update(
+        DummyContainer(),
+        callback,
+    )
+
+    assert calls == [(0, callback)]
+
+
+def test_standalone_radio_pane_request_initial_marker_update_ignores_after_failure():
+    calls = []
+
+    class DummyContainer:
+        def after(self, _delay, _scheduled_callback):
+            calls.append("after")
+            raise RuntimeError("after failed")
+
+    netmon_radio_app._standalone_radio_pane_request_initial_marker_update(
+        DummyContainer(),
+        object(),
+    )
+
+    assert calls == ["after"]
+
+
 def test_standalone_radio_pane_marker_geometry_centers_and_offsets_marker():
     assert netmon_radio_app._standalone_radio_pane_marker_geometry(
         120,
