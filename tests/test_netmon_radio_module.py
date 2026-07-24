@@ -2045,6 +2045,45 @@ def test_standalone_radio_pane_start_drag_uses_zeroes_on_failure():
     assert state == {"root_y": 0, "sash_y": 0}
 
 
+def test_standalone_radio_pane_start_drag_event_records_state_and_breaks():
+    state = {}
+
+    class DummyEvent:
+        y_root = "310"
+
+    class DummyPane:
+        def sashpos(self, index):
+            assert index == 0
+            return "240"
+
+    result = netmon_radio_app._standalone_radio_pane_start_drag_event(
+        state,
+        DummyEvent(),
+        DummyPane(),
+    )
+
+    assert result == "break"
+    assert state == {"root_y": 310, "sash_y": 240}
+
+
+def test_standalone_radio_pane_start_drag_event_propagates_start_failures():
+    calls = []
+
+    def fail_start(*_args):
+        calls.append("start")
+        raise RuntimeError("start failed")
+
+    with pytest.raises(RuntimeError, match="start failed"):
+        netmon_radio_app._standalone_radio_pane_start_drag_event(
+            object(),
+            object(),
+            object(),
+            start_drag=fail_start,
+        )
+
+    assert calls == ["start"]
+
+
 def test_standalone_radio_pane_drag_motion_moves_places_and_schedules():
     calls = []
     state = {"root_y": "310", "sash_y": "240"}

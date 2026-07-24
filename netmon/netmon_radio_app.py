@@ -401,6 +401,17 @@ def _standalone_radio_pane_start_drag(drag_state, event, pane) -> None:
         drag_state["sash_y"] = 0
 
 
+def _standalone_radio_pane_start_drag_event(
+    drag_state,
+    event,
+    pane,
+    *,
+    start_drag=_standalone_radio_pane_start_drag,
+) -> str:
+    start_drag(drag_state, event, pane)
+    return "break"
+
+
 def _standalone_radio_pane_drag_motion(
     drag_state,
     event,
@@ -500,8 +511,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
         )
 
     def _start_drag(event):
-        _standalone_radio_pane_start_drag(drag_state, event, pane)
-        return "break"
+        return _standalone_radio_pane_start_drag_event(drag_state, event, pane)
 
     def _drag(event):
         return _standalone_radio_pane_drag_event(
