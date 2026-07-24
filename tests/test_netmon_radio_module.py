@@ -3138,6 +3138,44 @@ def test_standalone_radio_pane_install_marker_parts_propagates_activation_failur
         )
 
 
+def test_standalone_radio_pane_install_marker_builds_widgets_and_installs_parts():
+    events = []
+    container = object()
+    pane = object()
+    marker = object()
+    grip = object()
+    installed_marker = object()
+
+    result = netmon_radio_app._standalone_radio_pane_install_marker(
+        container,
+        pane,
+        color="#123456",
+        y_offset=12,
+        widgets_builder=lambda *args: events.append(("widgets", args))
+        or (marker, grip),
+        install_parts=lambda *args: events.append(("install", args))
+        or installed_marker,
+    )
+
+    assert result is installed_marker
+    assert events == [
+        ("widgets", (container, "#123456")),
+        ("install", (container, pane, marker, grip, 12)),
+    ]
+
+
+def test_standalone_radio_pane_install_marker_propagates_widget_failures():
+    def fail_widgets(*_args):
+        raise RuntimeError("widgets failed")
+
+    with pytest.raises(RuntimeError, match="widgets failed"):
+        netmon_radio_app._standalone_radio_pane_install_marker(
+            object(),
+            object(),
+            widgets_builder=fail_widgets,
+        )
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
