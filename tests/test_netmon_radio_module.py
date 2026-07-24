@@ -2564,6 +2564,36 @@ def test_standalone_radio_pane_start_drag_event_propagates_start_failures():
     assert calls == ["start"]
 
 
+def test_standalone_radio_pane_start_callback_binds_drag_context():
+    calls = []
+    state = {}
+    pane = object()
+    event = object()
+
+    callback = netmon_radio_app._standalone_radio_pane_start_callback(
+        state,
+        pane,
+        start_drag_event=lambda *args: calls.append(args) or "break",
+    )
+
+    assert callback(event) == "break"
+    assert calls == [(state, event, pane)]
+
+
+def test_standalone_radio_pane_start_callback_propagates_start_failures():
+    def fail_start_event(_state, _event, _pane):
+        raise RuntimeError("start failed")
+
+    callback = netmon_radio_app._standalone_radio_pane_start_callback(
+        {},
+        object(),
+        start_drag_event=fail_start_event,
+    )
+
+    with pytest.raises(RuntimeError, match="start failed"):
+        callback(object())
+
+
 def test_standalone_radio_pane_drag_motion_moves_places_and_schedules():
     calls = []
     state = {"root_y": "310", "sash_y": "240"}

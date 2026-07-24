@@ -588,6 +588,18 @@ def _standalone_radio_pane_start_drag_event(
     return "break"
 
 
+def _standalone_radio_pane_start_callback(
+    drag_state,
+    pane,
+    *,
+    start_drag_event=_standalone_radio_pane_start_drag_event,
+):
+    def _start_drag(event):
+        return start_drag_event(drag_state, event, pane)
+
+    return _start_drag
+
+
 def _standalone_radio_pane_drag_motion(
     drag_state,
     event,
@@ -668,9 +680,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
         drag_state,
         _update_marker,
     )
-
-    def _start_drag(event):
-        return _standalone_radio_pane_start_drag_event(drag_state, event, pane)
+    _start_drag = _standalone_radio_pane_start_callback(drag_state, pane)
 
     def _drag(event):
         return _standalone_radio_pane_drag_event(
