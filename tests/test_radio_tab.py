@@ -1740,6 +1740,22 @@ def test_build_radio_pane_marker_schedule_callback_forwards_dependencies():
     assert calls == [(container, drag_state, update_marker)]
 
 
+def test_build_radio_pane_marker_drag_start_callback_forwards_dependencies():
+    calls = []
+    drag_state = object()
+    pane = object()
+    start_drag = object()
+
+    result = radio_tab._build_radio_pane_marker_drag_start_callback(
+        drag_state,
+        pane,
+        lambda state_arg, pane_arg: calls.append((state_arg, pane_arg)) or start_drag,
+    )
+
+    assert result is start_drag
+    assert calls == [(drag_state, pane)]
+
+
 def test_build_radio_pane_marker_callbacks_builds_callbacks_in_dependency_order():
     events = []
     container = object()
