@@ -698,15 +698,21 @@ def _standalone_radio_pane_end_callback(
     return _end_drag
 
 
-def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
-    marker = tk.Frame(
+def _standalone_radio_pane_marker_widgets(
+    container,
+    color,
+    *,
+    frame_builder=tk.Frame,
+    label_builder=tk.Label,
+):
+    marker = frame_builder(
         container,
         bg=color,
         bd=1,
         relief="solid",
     )
     marker.columnconfigure(0, weight=1)
-    grip = tk.Label(
+    grip = label_builder(
         marker,
         text="≡",
         bg=color,
@@ -718,6 +724,11 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
         anchor="center",
     )
     grip.grid(row=0, column=0, sticky="ew")
+    return marker, grip
+
+
+def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
+    marker, grip = _standalone_radio_pane_marker_widgets(container, color)
     drag_state = _standalone_radio_pane_drag_state()
     _set_sash_pos = _standalone_radio_pane_sash_callback(pane)
     # Legacy source reference for source-based tests:

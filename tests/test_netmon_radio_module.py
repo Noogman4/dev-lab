@@ -2806,6 +2806,68 @@ def test_standalone_radio_pane_end_callback_propagates_end_failures():
         callback()
 
 
+def test_standalone_radio_pane_marker_widgets_builds_marker_and_grip():
+    calls = []
+    container = object()
+
+    class DummyMarker:
+        def columnconfigure(self, column, weight):
+            calls.append(("columnconfigure", column, weight))
+
+    class DummyGrip:
+        def grid(self, **kwargs):
+            calls.append(("grid", kwargs))
+
+    marker = DummyMarker()
+    grip = DummyGrip()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_widgets(
+        container,
+        "#123456",
+        frame_builder=lambda *args, **kwargs: calls.append(("frame", args, kwargs))
+        or marker,
+        label_builder=lambda *args, **kwargs: calls.append(("label", args, kwargs))
+        or grip,
+    )
+
+    assert result == (marker, grip)
+    assert calls == [
+        (
+            "frame",
+            (container,),
+            {"bg": "#123456", "bd": 1, "relief": "solid"},
+        ),
+        ("columnconfigure", 0, 1),
+        (
+            "label",
+            (marker,),
+            {
+                "text": "≡",
+                "bg": "#123456",
+                "fg": "#ffffff",
+                "font": ("TkDefaultFont", 9, "bold"),
+                "cursor": "sb_v_double_arrow",
+                "padx": 0,
+                "pady": 0,
+                "anchor": "center",
+            },
+        ),
+        ("grid", {"row": 0, "column": 0, "sticky": "ew"}),
+    ]
+
+
+def test_standalone_radio_pane_marker_widgets_propagates_frame_failures():
+    def fail_frame(*_args, **_kwargs):
+        raise RuntimeError("frame failed")
+
+    with pytest.raises(RuntimeError, match="frame failed"):
+        netmon_radio_app._standalone_radio_pane_marker_widgets(
+            object(),
+            "#123456",
+            frame_builder=fail_frame,
+        )
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
