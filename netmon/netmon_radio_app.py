@@ -828,6 +828,14 @@ def _standalone_radio_pane_marker_drag_pair(
     return start_drag, drag
 
 
+def _standalone_radio_pane_marker_end_callback(
+    update_marker,
+    *,
+    end_callback_builder=_standalone_radio_pane_end_callback,
+):
+    return end_callback_builder(update_marker)
+
+
 def _standalone_radio_pane_marker_drag_callbacks(
     drag_state,
     pane,
@@ -837,7 +845,7 @@ def _standalone_radio_pane_marker_drag_callbacks(
     update_marker,
     *,
     drag_pair_builder=_standalone_radio_pane_marker_drag_pair,
-    end_callback_builder=_standalone_radio_pane_end_callback,
+    end_callback_builder=_standalone_radio_pane_marker_end_callback,
 ):
     start_drag, drag = drag_pair_builder(
         drag_state,

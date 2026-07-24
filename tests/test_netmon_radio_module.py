@@ -3136,6 +3136,34 @@ def test_standalone_radio_pane_marker_drag_pair_propagates_builder_failures():
         )
 
 
+def test_standalone_radio_pane_marker_end_callback_builds_end_callback():
+    events = []
+    update_marker = object()
+    end_drag = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_end_callback(
+        update_marker,
+        end_callback_builder=lambda update_arg: events.append(("end", update_arg))
+        or end_drag,
+    )
+
+    assert result is end_drag
+    assert events == [
+        ("end", update_marker),
+    ]
+
+
+def test_standalone_radio_pane_marker_end_callback_propagates_builder_failures():
+    def fail_end(_update_marker):
+        raise RuntimeError("end failed")
+
+    with pytest.raises(RuntimeError, match="end failed"):
+        netmon_radio_app._standalone_radio_pane_marker_end_callback(
+            object(),
+            end_callback_builder=fail_end,
+        )
+
+
 def test_standalone_radio_pane_marker_drag_callbacks_builds_pair_then_end():
     events = []
     pane = object()
