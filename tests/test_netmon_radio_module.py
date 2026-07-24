@@ -3056,6 +3056,42 @@ def test_standalone_radio_pane_marker_start_callback_propagates_builder_failures
         )
 
 
+def test_standalone_radio_pane_marker_drag_callback_builds_drag_callback():
+    events = []
+    drag_state = {"update_pending": False}
+    set_sash = object()
+    place_marker = object()
+    schedule_marker = object()
+    drag = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_drag_callback(
+        drag_state,
+        set_sash,
+        place_marker,
+        schedule_marker,
+        drag_callback_builder=lambda *args: events.append(("drag", args)) or drag,
+    )
+
+    assert result is drag
+    assert events == [
+        ("drag", (drag_state, set_sash, place_marker, schedule_marker)),
+    ]
+
+
+def test_standalone_radio_pane_marker_drag_callback_propagates_builder_failures():
+    def fail_drag(*_args):
+        raise RuntimeError("drag failed")
+
+    with pytest.raises(RuntimeError, match="drag failed"):
+        netmon_radio_app._standalone_radio_pane_marker_drag_callback(
+            {},
+            object(),
+            object(),
+            object(),
+            drag_callback_builder=fail_drag,
+        )
+
+
 def test_standalone_radio_pane_marker_drag_pair_builds_start_then_drag():
     events = []
     pane = object()
