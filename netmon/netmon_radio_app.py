@@ -661,6 +661,17 @@ def _standalone_radio_pane_end_drag(update_marker):
     return "break"
 
 
+def _standalone_radio_pane_end_callback(
+    update_marker,
+    *,
+    end_drag=_standalone_radio_pane_end_drag,
+):
+    def _end_drag(_event=None):
+        return end_drag(update_marker)
+
+    return _end_drag
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
     marker = tk.Frame(
         container,
@@ -707,9 +718,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
         _place_marker_for_sash,
         _schedule_marker_update,
     )
-
-    def _end_drag(_event=None):
-        return _standalone_radio_pane_end_drag(_update_marker)
+    _end_drag = _standalone_radio_pane_end_callback(_update_marker)
 
     update_bindings = _standalone_radio_pane_update_bindings(_update_marker)
     _standalone_radio_pane_activate_marker_callbacks(

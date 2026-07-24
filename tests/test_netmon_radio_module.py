@@ -2714,6 +2714,32 @@ def test_standalone_radio_pane_end_drag_propagates_update_failures():
         netmon_radio_app._standalone_radio_pane_end_drag(fail_update)
 
 
+def test_standalone_radio_pane_end_callback_binds_update_and_event():
+    calls = []
+    update_marker = object()
+
+    callback = netmon_radio_app._standalone_radio_pane_end_callback(
+        update_marker,
+        end_drag=lambda marker_arg: calls.append(marker_arg) or "break",
+    )
+
+    assert callback(object()) == "break"
+    assert calls == [update_marker]
+
+
+def test_standalone_radio_pane_end_callback_propagates_end_failures():
+    def fail_end(_update_marker):
+        raise RuntimeError("end failed")
+
+    callback = netmon_radio_app._standalone_radio_pane_end_callback(
+        object(),
+        end_drag=fail_end,
+    )
+
+    with pytest.raises(RuntimeError, match="end failed"):
+        callback()
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
