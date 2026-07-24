@@ -724,19 +724,31 @@ def _standalone_radio_pane_configure_marker_widgets(marker, grip) -> None:
     grip.grid(row=0, column=0, sticky="ew")
 
 
-def _standalone_radio_pane_marker_widgets(
+def _standalone_radio_pane_marker_frame(
     container,
     color,
     *,
     frame_builder=tk.Frame,
-    label_builder=tk.Label,
     frame_options_builder=_standalone_radio_pane_marker_frame_options,
+):
+    return frame_builder(
+        container,
+        **frame_options_builder(color),
+    )
+
+
+def _standalone_radio_pane_marker_widgets(
+    container,
+    color,
+    *,
+    marker_frame_builder=_standalone_radio_pane_marker_frame,
+    label_builder=tk.Label,
     grip_options_builder=_standalone_radio_pane_marker_grip_options,
     configure_widgets=_standalone_radio_pane_configure_marker_widgets,
 ):
-    marker = frame_builder(
+    marker = marker_frame_builder(
         container,
-        **frame_options_builder(color),
+        color,
     )
     grip = label_builder(
         marker,

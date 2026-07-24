@@ -2861,6 +2861,43 @@ def test_standalone_radio_pane_configure_marker_widgets_propagates_layout_failur
         )
 
 
+def test_standalone_radio_pane_marker_frame_builds_with_options():
+    calls = []
+    container = object()
+    marker = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_frame(
+        container,
+        "#123456",
+        frame_builder=lambda *args, **kwargs: calls.append(("frame", args, kwargs))
+        or marker,
+        frame_options_builder=lambda color: calls.append(("frame_options", color))
+        or {"bg": color, "bd": 1, "relief": "solid"},
+    )
+
+    assert result is marker
+    assert calls == [
+        ("frame_options", "#123456"),
+        (
+            "frame",
+            (container,),
+            {"bg": "#123456", "bd": 1, "relief": "solid"},
+        ),
+    ]
+
+
+def test_standalone_radio_pane_marker_frame_propagates_builder_failures():
+    def fail_frame(*_args, **_kwargs):
+        raise RuntimeError("frame failed")
+
+    with pytest.raises(RuntimeError, match="frame failed"):
+        netmon_radio_app._standalone_radio_pane_marker_frame(
+            object(),
+            "#123456",
+            frame_builder=fail_frame,
+        )
+
+
 def test_standalone_radio_pane_marker_widgets_builds_marker_and_grip():
     calls = []
     container = object()
@@ -2871,12 +2908,9 @@ def test_standalone_radio_pane_marker_widgets_builds_marker_and_grip():
     result = netmon_radio_app._standalone_radio_pane_marker_widgets(
         container,
         "#123456",
-        frame_builder=lambda *args, **kwargs: calls.append(("frame", args, kwargs))
-        or marker,
+        marker_frame_builder=lambda *args: calls.append(("frame", args)) or marker,
         label_builder=lambda *args, **kwargs: calls.append(("label", args, kwargs))
         or grip,
-        frame_options_builder=lambda color: calls.append(("frame_options", color))
-        or {"bg": color, "bd": 1, "relief": "solid"},
         grip_options_builder=lambda color: calls.append(("grip_options", color))
         or {
             "text": "≡",
@@ -2895,12 +2929,7 @@ def test_standalone_radio_pane_marker_widgets_builds_marker_and_grip():
 
     assert result == (marker, grip)
     assert calls == [
-        ("frame_options", "#123456"),
-        (
-            "frame",
-            (container,),
-            {"bg": "#123456", "bd": 1, "relief": "solid"},
-        ),
+        ("frame", (container, "#123456")),
         ("grip_options", "#123456"),
         (
             "label",
@@ -2928,7 +2957,7 @@ def test_standalone_radio_pane_marker_widgets_propagates_frame_failures():
         netmon_radio_app._standalone_radio_pane_marker_widgets(
             object(),
             "#123456",
-            frame_builder=fail_frame,
+            marker_frame_builder=fail_frame,
         )
 
 
