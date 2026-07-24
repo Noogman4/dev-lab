@@ -2868,6 +2868,74 @@ def test_standalone_radio_pane_marker_widgets_propagates_frame_failures():
         )
 
 
+def test_standalone_radio_pane_marker_callbacks_builds_callbacks_in_order():
+    events = []
+    container = object()
+    pane = object()
+    marker = object()
+    drag_state = {"update_pending": False}
+    set_sash = object()
+    place_marker = object()
+    update_marker = object()
+    schedule_marker = object()
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_callbacks(
+        container,
+        pane,
+        marker,
+        12,
+        drag_state_builder=lambda: events.append("drag_state") or drag_state,
+        sash_callback_builder=lambda pane_arg: events.append(("sash", pane_arg))
+        or set_sash,
+        place_callback_builder=lambda *args: events.append(("place", args))
+        or place_marker,
+        update_callback_builder=lambda *args: events.append(("update", args))
+        or update_marker,
+        schedule_callback_builder=lambda *args: events.append(("schedule", args))
+        or schedule_marker,
+        start_callback_builder=lambda *args: events.append(("start", args))
+        or start_drag,
+        drag_callback_builder=lambda *args: events.append(("drag", args)) or drag,
+        end_callback_builder=lambda update_arg: events.append(("end", update_arg))
+        or end_drag,
+    )
+
+    assert result == (update_marker, start_drag, drag, end_drag)
+    assert events == [
+        "drag_state",
+        ("sash", pane),
+        ("place", (container, marker, 12)),
+        ("update", (pane, place_marker, marker)),
+        ("schedule", (container, drag_state, update_marker)),
+        ("start", (drag_state, pane)),
+        ("drag", (drag_state, set_sash, place_marker, schedule_marker)),
+        ("end", update_marker),
+    ]
+
+
+def test_standalone_radio_pane_marker_callbacks_propagates_builder_failures():
+    def fail_end(_update_marker):
+        raise RuntimeError("end failed")
+
+    with pytest.raises(RuntimeError, match="end failed"):
+        netmon_radio_app._standalone_radio_pane_marker_callbacks(
+            object(),
+            object(),
+            object(),
+            drag_state_builder=lambda: {},
+            sash_callback_builder=lambda _pane: object(),
+            place_callback_builder=lambda *_args: object(),
+            update_callback_builder=lambda *_args: object(),
+            schedule_callback_builder=lambda *_args: object(),
+            start_callback_builder=lambda *_args: object(),
+            drag_callback_builder=lambda *_args: object(),
+            end_callback_builder=fail_end,
+        )
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
