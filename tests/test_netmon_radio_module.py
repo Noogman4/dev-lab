@@ -2003,6 +2003,45 @@ def test_standalone_radio_pane_schedule_marker_update_runs_on_after_idle_failure
     assert calls[1:] == ["update"]
 
 
+def test_standalone_radio_pane_start_drag_records_event_and_sash():
+    state = {}
+
+    class DummyEvent:
+        y_root = "310"
+
+    class DummyPane:
+        def sashpos(self, index):
+            assert index == 0
+            return "240"
+
+    netmon_radio_app._standalone_radio_pane_start_drag(
+        state,
+        DummyEvent(),
+        DummyPane(),
+    )
+
+    assert state == {"root_y": 310, "sash_y": 240}
+
+
+def test_standalone_radio_pane_start_drag_uses_zeroes_on_failure():
+    state = {"root_y": 5, "sash_y": 6}
+
+    class DummyEvent:
+        y_root = "bad"
+
+    class DummyPane:
+        def sashpos(self, index):
+            return "240"
+
+    netmon_radio_app._standalone_radio_pane_start_drag(
+        state,
+        DummyEvent(),
+        DummyPane(),
+    )
+
+    assert state == {"root_y": 0, "sash_y": 0}
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"

@@ -392,6 +392,15 @@ def _standalone_radio_pane_schedule_marker_update(
         _run()
 
 
+def _standalone_radio_pane_start_drag(drag_state, event, pane) -> None:
+    try:
+        drag_state["root_y"] = int(event.y_root)
+        drag_state["sash_y"] = int(pane.sashpos(0))
+    except Exception:
+        drag_state["root_y"] = 0
+        drag_state["sash_y"] = 0
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
     marker = tk.Frame(
         container,
@@ -450,12 +459,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
         )
 
     def _start_drag(event):
-        try:
-            drag_state["root_y"] = int(event.y_root)
-            drag_state["sash_y"] = int(pane.sashpos(0))
-        except Exception:
-            drag_state["root_y"] = 0
-            drag_state["sash_y"] = 0
+        _standalone_radio_pane_start_drag(drag_state, event, pane)
         return "break"
 
     def _drag(event):
