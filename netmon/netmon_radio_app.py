@@ -817,6 +817,27 @@ def _standalone_radio_pane_marker_drag_setup(
     return drag_state, set_sash_pos
 
 
+def _standalone_radio_pane_marker_update_callbacks(
+    container,
+    pane,
+    marker,
+    drag_state,
+    y_offset=0,
+    *,
+    place_callback_builder=_standalone_radio_pane_place_callback,
+    update_callback_builder=_standalone_radio_pane_update_callback,
+    schedule_callback_builder=_standalone_radio_pane_schedule_callback,
+):
+    place_marker_for_sash = place_callback_builder(container, marker, y_offset)
+    update_marker = update_callback_builder(pane, place_marker_for_sash, marker)
+    schedule_marker_update = schedule_callback_builder(
+        container,
+        drag_state,
+        update_marker,
+    )
+    return place_marker_for_sash, update_marker, schedule_marker_update
+
+
 def _standalone_radio_pane_marker_base_callbacks(
     container,
     pane,
@@ -824,17 +845,19 @@ def _standalone_radio_pane_marker_base_callbacks(
     y_offset=0,
     *,
     drag_setup_builder=_standalone_radio_pane_marker_drag_setup,
-    place_callback_builder=_standalone_radio_pane_place_callback,
-    update_callback_builder=_standalone_radio_pane_update_callback,
-    schedule_callback_builder=_standalone_radio_pane_schedule_callback,
+    update_callbacks_builder=_standalone_radio_pane_marker_update_callbacks,
 ):
     drag_state, set_sash_pos = drag_setup_builder(pane)
-    place_marker_for_sash = place_callback_builder(container, marker, y_offset)
-    update_marker = update_callback_builder(pane, place_marker_for_sash, marker)
-    schedule_marker_update = schedule_callback_builder(
-        container,
-        drag_state,
+    (
+        place_marker_for_sash,
         update_marker,
+        schedule_marker_update,
+    ) = update_callbacks_builder(
+        container,
+        pane,
+        marker,
+        drag_state,
+        y_offset,
     )
     return (
         drag_state,

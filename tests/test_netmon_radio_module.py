@@ -3109,6 +3109,54 @@ def test_standalone_radio_pane_marker_drag_setup_propagates_builder_failures():
         )
 
 
+def test_standalone_radio_pane_marker_update_callbacks_builds_callbacks_in_order():
+    events = []
+    container = object()
+    pane = object()
+    marker = object()
+    drag_state = {"update_pending": False}
+    place_marker = object()
+    update_marker = object()
+    schedule_marker = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_update_callbacks(
+        container,
+        pane,
+        marker,
+        drag_state,
+        12,
+        place_callback_builder=lambda *args: events.append(("place", args))
+        or place_marker,
+        update_callback_builder=lambda *args: events.append(("update", args))
+        or update_marker,
+        schedule_callback_builder=lambda *args: events.append(("schedule", args))
+        or schedule_marker,
+    )
+
+    assert result == (place_marker, update_marker, schedule_marker)
+    assert events == [
+        ("place", (container, marker, 12)),
+        ("update", (pane, place_marker, marker)),
+        ("schedule", (container, drag_state, update_marker)),
+    ]
+
+
+def test_standalone_radio_pane_marker_update_callbacks_propagates_builder_failures():
+    def fail_schedule(*_args):
+        raise RuntimeError("schedule failed")
+
+    with pytest.raises(RuntimeError, match="schedule failed"):
+        netmon_radio_app._standalone_radio_pane_marker_update_callbacks(
+            object(),
+            object(),
+            object(),
+            {},
+            place_callback_builder=lambda *_args: object(),
+            update_callback_builder=lambda *_args: object(),
+            schedule_callback_builder=fail_schedule,
+        )
+
+
 def test_standalone_radio_pane_marker_base_callbacks_builds_callbacks_in_order():
     events = []
     container = object()
@@ -3127,12 +3175,8 @@ def test_standalone_radio_pane_marker_base_callbacks_builds_callbacks_in_order()
         12,
         drag_setup_builder=lambda pane_arg: events.append(("drag_setup", pane_arg))
         or (drag_state, set_sash),
-        place_callback_builder=lambda *args: events.append(("place", args))
-        or place_marker,
-        update_callback_builder=lambda *args: events.append(("update", args))
-        or update_marker,
-        schedule_callback_builder=lambda *args: events.append(("schedule", args))
-        or schedule_marker,
+        update_callbacks_builder=lambda *args: events.append(("update_callbacks", args))
+        or (place_marker, update_marker, schedule_marker),
     )
 
     assert result == (
@@ -3144,25 +3188,21 @@ def test_standalone_radio_pane_marker_base_callbacks_builds_callbacks_in_order()
     )
     assert events == [
         ("drag_setup", pane),
-        ("place", (container, marker, 12)),
-        ("update", (pane, place_marker, marker)),
-        ("schedule", (container, drag_state, update_marker)),
+        ("update_callbacks", (container, pane, marker, drag_state, 12)),
     ]
 
 
 def test_standalone_radio_pane_marker_base_callbacks_propagates_builder_failures():
-    def fail_schedule(*_args):
-        raise RuntimeError("schedule failed")
+    def fail_update_callbacks(*_args):
+        raise RuntimeError("update callbacks failed")
 
-    with pytest.raises(RuntimeError, match="schedule failed"):
+    with pytest.raises(RuntimeError, match="update callbacks failed"):
         netmon_radio_app._standalone_radio_pane_marker_base_callbacks(
             object(),
             object(),
             object(),
             drag_setup_builder=lambda _pane: ({}, object()),
-            place_callback_builder=lambda *_args: object(),
-            update_callback_builder=lambda *_args: object(),
-            schedule_callback_builder=fail_schedule,
+            update_callbacks_builder=fail_update_callbacks,
         )
 
 
