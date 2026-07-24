@@ -942,6 +942,24 @@ def _make_radio_pane_marker_drag_start_callback(
     return _start_drag
 
 
+def _invoke_radio_pane_marker_drag_event_handler(
+    event,
+    *,
+    drag_state,
+    pane,
+    place_marker,
+    schedule_marker_update,
+    drag_event_handler,
+):
+    return drag_event_handler(
+        event,
+        drag_state=drag_state,
+        pane=pane,
+        place_marker=place_marker,
+        schedule_marker_update=schedule_marker_update,
+    )
+
+
 def _make_radio_pane_marker_drag_event_callback(
     drag_state,
     pane,
@@ -951,12 +969,13 @@ def _make_radio_pane_marker_drag_event_callback(
     drag_event_handler=_handle_radio_pane_marker_drag_event,
 ):
     def _drag(event):
-        return drag_event_handler(
+        return _invoke_radio_pane_marker_drag_event_handler(
             event,
             drag_state=drag_state,
             pane=pane,
             place_marker=place_marker,
             schedule_marker_update=schedule_marker_update,
+            drag_event_handler=drag_event_handler,
         )
 
     return _drag

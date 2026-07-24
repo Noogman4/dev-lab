@@ -2082,6 +2082,38 @@ def test_handle_radio_pane_marker_drag_event_breaks_after_ignored_motion_failure
     assert calls == []
 
 
+def test_invoke_radio_pane_marker_drag_event_handler_forwards_dependencies():
+    calls = []
+    event = object()
+    drag_state = object()
+    pane = object()
+    place_marker = object()
+    schedule_marker_update = object()
+
+    result = radio_tab._invoke_radio_pane_marker_drag_event_handler(
+        event,
+        drag_state=drag_state,
+        pane=pane,
+        place_marker=place_marker,
+        schedule_marker_update=schedule_marker_update,
+        drag_event_handler=lambda event_arg, **kwargs: calls.append((event_arg, kwargs))
+        or "break",
+    )
+
+    assert result == "break"
+    assert calls == [
+        (
+            event,
+            {
+                "drag_state": drag_state,
+                "pane": pane,
+                "place_marker": place_marker,
+                "schedule_marker_update": schedule_marker_update,
+            },
+        )
+    ]
+
+
 def test_make_radio_pane_marker_drag_event_callback_binds_drag_dependencies():
     calls = []
     drag_state = object()
