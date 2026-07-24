@@ -1813,6 +1813,48 @@ def test_standalone_radio_pane_drag_state_uses_initial_values():
     assert other_state is not state
 
 
+def test_standalone_radio_pane_bind_marker_events_binds_all_with_add():
+    calls = []
+    first_callback = object()
+    second_callback = object()
+
+    class DummyWidget:
+        def bind(self, event_name, callback, add=None):
+            calls.append((event_name, callback, add))
+
+    netmon_radio_app._standalone_radio_pane_bind_marker_events(
+        DummyWidget(),
+        (
+            ("<Configure>", first_callback),
+            ("<B1-Motion>", second_callback),
+        ),
+    )
+
+    assert calls == [
+        ("<Configure>", first_callback, "+"),
+        ("<B1-Motion>", second_callback, "+"),
+    ]
+
+
+def test_standalone_radio_pane_bind_marker_events_stops_and_ignores_failures():
+    calls = []
+
+    class DummyWidget:
+        def bind(self, event_name, _callback, add=None):
+            calls.append((event_name, add))
+            raise RuntimeError("bind failed")
+
+    netmon_radio_app._standalone_radio_pane_bind_marker_events(
+        DummyWidget(),
+        (
+            ("<Configure>", object()),
+            ("<B1-Motion>", object()),
+        ),
+    )
+
+    assert calls == [("<Configure>", "+")]
+
+
 def test_standalone_radio_pane_marker_geometry_centers_and_offsets_marker():
     assert netmon_radio_app._standalone_radio_pane_marker_geometry(
         120,

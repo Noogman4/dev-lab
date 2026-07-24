@@ -319,6 +319,14 @@ def _standalone_radio_pane_drag_state() -> dict[str, int | bool]:
     }
 
 
+def _standalone_radio_pane_bind_marker_events(widget, bindings) -> None:
+    try:
+        for event_name, callback in bindings:
+            widget.bind(event_name, callback, add="+")
+    except Exception:
+        pass
+
+
 def _standalone_radio_pane_marker_geometry(
     container_width,
     sash_y,
@@ -553,19 +561,23 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
         return _standalone_radio_pane_end_drag(_update_marker)
 
     for widget in (container, pane):
-        try:
-            widget.bind("<Configure>", _update_marker, add="+")
-            widget.bind("<ButtonRelease-1>", _update_marker, add="+")
-            widget.bind("<B1-Motion>", _update_marker, add="+")
-        except Exception:
-            pass
+        _standalone_radio_pane_bind_marker_events(
+            widget,
+            (
+                ("<Configure>", _update_marker),
+                ("<ButtonRelease-1>", _update_marker),
+                ("<B1-Motion>", _update_marker),
+            ),
+        )
     for widget in (grip,):
-        try:
-            widget.bind("<Button-1>", _start_drag, add="+")
-            widget.bind("<B1-Motion>", _drag, add="+")
-            widget.bind("<ButtonRelease-1>", _end_drag, add="+")
-        except Exception:
-            pass
+        _standalone_radio_pane_bind_marker_events(
+            widget,
+            (
+                ("<Button-1>", _start_drag),
+                ("<B1-Motion>", _drag),
+                ("<ButtonRelease-1>", _end_drag),
+            ),
+        )
     try:
         container.after(0, _update_marker)
     except Exception:
