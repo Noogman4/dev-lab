@@ -2117,6 +2117,33 @@ def test_standalone_radio_pane_set_sash_pos_falls_back_to_sash_place():
     ]
 
 
+def test_standalone_radio_pane_sash_callback_binds_pane():
+    calls = []
+    pane = object()
+
+    callback = netmon_radio_app._standalone_radio_pane_sash_callback(
+        pane,
+        set_sash_pos=lambda pane_arg, new_y: calls.append((pane_arg, new_y)),
+    )
+
+    callback("240")
+
+    assert calls == [(pane, "240")]
+
+
+def test_standalone_radio_pane_sash_callback_propagates_set_failures():
+    def fail_set(_pane, _new_y):
+        raise RuntimeError("set failed")
+
+    callback = netmon_radio_app._standalone_radio_pane_sash_callback(
+        object(),
+        set_sash_pos=fail_set,
+    )
+
+    with pytest.raises(RuntimeError, match="set failed"):
+        callback(240)
+
+
 def test_standalone_radio_pane_place_marker_for_sash_builds_geometry_then_places():
     events = []
     marker = object()

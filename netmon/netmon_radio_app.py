@@ -443,6 +443,17 @@ def _standalone_radio_pane_set_sash_pos(pane, new_y) -> None:
         pass
 
 
+def _standalone_radio_pane_sash_callback(
+    pane,
+    *,
+    set_sash_pos=_standalone_radio_pane_set_sash_pos,
+):
+    def _set_sash_pos(new_y):
+        set_sash_pos(pane, new_y)
+
+    return _set_sash_pos
+
+
 def _standalone_radio_pane_place_marker_for_sash(
     container,
     marker,
@@ -600,9 +611,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
     )
     grip.grid(row=0, column=0, sticky="ew")
     drag_state = _standalone_radio_pane_drag_state()
-
-    def _set_sash_pos(new_y):
-        _standalone_radio_pane_set_sash_pos(pane, new_y)
+    _set_sash_pos = _standalone_radio_pane_sash_callback(pane)
 
     def _place_marker_for_sash(sash_y):
         # Legacy source reference for source-based tests:
