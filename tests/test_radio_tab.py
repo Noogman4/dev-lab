@@ -1898,6 +1898,19 @@ def test_build_radio_pane_marker_callbacks_returns_activation_callbacks():
     assert result.end_drag is end_drag
 
 
+def test_radio_pane_marker_base_groups_widget_and_drag_state():
+    marker = object()
+    grip = object()
+    drag_state = object()
+
+    result = radio_tab._radio_pane_marker_base(marker, grip, drag_state)
+
+    assert isinstance(result, radio_tab._RadioPaneMarkerBase)
+    assert result.marker is marker
+    assert result.grip is grip
+    assert result.drag_state is drag_state
+
+
 def test_build_radio_pane_marker_base_builds_widgets_then_drag_state():
     events = []
     container = object()

@@ -1159,6 +1159,10 @@ def _build_radio_pane_marker_callbacks(
     )
 
 
+def _radio_pane_marker_base(marker, grip, drag_state) -> _RadioPaneMarkerBase:
+    return _RadioPaneMarkerBase(marker, grip, drag_state)
+
+
 def _radio_pane_marker_installation(
     marker,
     grip,
@@ -1186,7 +1190,7 @@ def _build_radio_pane_marker_base(
 ):
     marker, grip = widget_builder(container, color=color)
     drag_state = drag_state_factory()
-    return _RadioPaneMarkerBase(marker, grip, drag_state)
+    return _radio_pane_marker_base(marker, grip, drag_state)
 
 
 def _build_radio_pane_marker_installation(
