@@ -1970,6 +1970,22 @@ def test_standalone_radio_pane_request_initial_marker_update_ignores_after_failu
     assert calls == ["after"]
 
 
+def test_standalone_radio_pane_schedule_initial_marker_update_delegates_request():
+    calls = []
+    container = object()
+    callback = object()
+
+    netmon_radio_app._standalone_radio_pane_schedule_initial_marker_update(
+        container,
+        callback,
+        request_update=lambda container_arg, callback_arg: calls.append(
+            (container_arg, callback_arg)
+        ),
+    )
+
+    assert calls == [(container, callback)]
+
+
 def test_standalone_radio_pane_marker_geometry_centers_and_offsets_marker():
     assert netmon_radio_app._standalone_radio_pane_marker_geometry(
         120,

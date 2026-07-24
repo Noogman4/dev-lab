@@ -377,6 +377,15 @@ def _standalone_radio_pane_request_initial_marker_update(
         pass
 
 
+def _standalone_radio_pane_schedule_initial_marker_update(
+    container,
+    update_marker,
+    *,
+    request_update=_standalone_radio_pane_request_initial_marker_update,
+) -> None:
+    request_update(container, update_marker)
+
+
 def _standalone_radio_pane_marker_geometry(
     container_width,
     sash_y,
@@ -624,7 +633,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
             ),
         ),
     )
-    _standalone_radio_pane_request_initial_marker_update(container, _update_marker)
+    _standalone_radio_pane_schedule_initial_marker_update(container, _update_marker)
     return marker
 
 
