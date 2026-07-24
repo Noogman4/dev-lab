@@ -1159,6 +1159,24 @@ def _build_radio_pane_marker_callbacks(
     )
 
 
+def _radio_pane_marker_installation(
+    marker,
+    grip,
+    update_marker,
+    start_drag,
+    drag,
+    end_drag,
+) -> _RadioPaneMarkerInstallation:
+    return _RadioPaneMarkerInstallation(
+        marker,
+        grip,
+        update_marker,
+        start_drag,
+        drag,
+        end_drag,
+    )
+
+
 def _build_radio_pane_marker_base(
     container,
     *,
@@ -1189,7 +1207,7 @@ def _build_radio_pane_marker_installation(
         base.marker,
         base.drag_state,
     )
-    return _RadioPaneMarkerInstallation(
+    return _radio_pane_marker_installation(
         base.marker,
         base.grip,
         callbacks.update_marker,

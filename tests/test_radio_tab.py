@@ -1935,6 +1935,32 @@ def test_build_radio_pane_marker_base_uses_default_color_for_widgets():
     assert calls == ["#0a84ff"]
 
 
+def test_radio_pane_marker_installation_groups_marker_dependencies():
+    marker = object()
+    grip = object()
+    update_marker = object()
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+
+    result = radio_tab._radio_pane_marker_installation(
+        marker,
+        grip,
+        update_marker,
+        start_drag,
+        drag,
+        end_drag,
+    )
+
+    assert isinstance(result, radio_tab._RadioPaneMarkerInstallation)
+    assert result.marker is marker
+    assert result.grip is grip
+    assert result.update_marker is update_marker
+    assert result.start_drag is start_drag
+    assert result.drag is drag
+    assert result.end_drag is end_drag
+
+
 def test_build_radio_pane_marker_installation_builds_base_then_callbacks():
     events = []
     container = object()
