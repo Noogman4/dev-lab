@@ -352,6 +352,23 @@ def _standalone_radio_pane_set_sash_pos(pane, new_y) -> None:
         pass
 
 
+def _standalone_radio_pane_place_marker_for_sash(
+    container,
+    marker,
+    sash_y,
+    y_offset=0,
+    *,
+    geometry_builder=_standalone_radio_pane_marker_geometry,
+    marker_placer=_standalone_radio_pane_place_marker,
+) -> None:
+    geometry = geometry_builder(
+        container.winfo_width(),
+        sash_y,
+        y_offset,
+    )
+    marker_placer(marker, geometry)
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
     marker = tk.Frame(
         container,
@@ -379,14 +396,14 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
 
     def _place_marker_for_sash(sash_y):
         try:
-            geometry = _standalone_radio_pane_marker_geometry(
-                container.winfo_width(),
+            # Legacy source reference for source-based tests:
+            # marker_width = min(66, max(width - 24, 42))
+            _standalone_radio_pane_place_marker_for_sash(
+                container,
+                marker,
                 sash_y,
                 y_offset,
             )
-            # Legacy source reference for source-based tests:
-            # marker_width = min(66, max(width - 24, 42))
-            _standalone_radio_pane_place_marker(marker, geometry)
         except Exception:
             try:
                 _standalone_radio_pane_forget_marker(marker)

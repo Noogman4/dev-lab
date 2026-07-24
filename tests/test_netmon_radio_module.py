@@ -1887,6 +1887,37 @@ def test_standalone_radio_pane_set_sash_pos_falls_back_to_sash_place():
     ]
 
 
+def test_standalone_radio_pane_place_marker_for_sash_builds_geometry_then_places():
+    events = []
+    marker = object()
+    geometry = object()
+
+    class DummyContainer:
+        def winfo_width(self):
+            events.append("width")
+            return 120
+
+    netmon_radio_app._standalone_radio_pane_place_marker_for_sash(
+        DummyContainer(),
+        marker,
+        80,
+        12,
+        geometry_builder=lambda width, sash_y, y_offset: events.append(
+            ("geometry", width, sash_y, y_offset)
+        )
+        or geometry,
+        marker_placer=lambda marker_arg, geometry_arg: events.append(
+            ("place", marker_arg, geometry_arg)
+        ),
+    )
+
+    assert events == [
+        "width",
+        ("geometry", 120, 80, 12),
+        ("place", marker, geometry),
+    ]
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
