@@ -3109,7 +3109,47 @@ def test_standalone_radio_pane_marker_drag_setup_propagates_builder_failures():
         )
 
 
-def test_standalone_radio_pane_marker_update_callbacks_builds_callbacks_in_order():
+def test_standalone_radio_pane_marker_update_pair_builds_place_then_update():
+    events = []
+    container = object()
+    pane = object()
+    marker = object()
+    place_marker = object()
+    update_marker = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_update_pair(
+        container,
+        pane,
+        marker,
+        12,
+        place_callback_builder=lambda *args: events.append(("place", args))
+        or place_marker,
+        update_callback_builder=lambda *args: events.append(("update", args))
+        or update_marker,
+    )
+
+    assert result == (place_marker, update_marker)
+    assert events == [
+        ("place", (container, marker, 12)),
+        ("update", (pane, place_marker, marker)),
+    ]
+
+
+def test_standalone_radio_pane_marker_update_pair_propagates_builder_failures():
+    def fail_update(*_args):
+        raise RuntimeError("update failed")
+
+    with pytest.raises(RuntimeError, match="update failed"):
+        netmon_radio_app._standalone_radio_pane_marker_update_pair(
+            object(),
+            object(),
+            object(),
+            place_callback_builder=lambda *_args: object(),
+            update_callback_builder=fail_update,
+        )
+
+
+def test_standalone_radio_pane_marker_update_callbacks_builds_pair_then_schedule():
     events = []
     container = object()
     pane = object()
@@ -3125,18 +3165,15 @@ def test_standalone_radio_pane_marker_update_callbacks_builds_callbacks_in_order
         marker,
         drag_state,
         12,
-        place_callback_builder=lambda *args: events.append(("place", args))
-        or place_marker,
-        update_callback_builder=lambda *args: events.append(("update", args))
-        or update_marker,
+        update_pair_builder=lambda *args: events.append(("update_pair", args))
+        or (place_marker, update_marker),
         schedule_callback_builder=lambda *args: events.append(("schedule", args))
         or schedule_marker,
     )
 
     assert result == (place_marker, update_marker, schedule_marker)
     assert events == [
-        ("place", (container, marker, 12)),
-        ("update", (pane, place_marker, marker)),
+        ("update_pair", (container, pane, marker, 12)),
         ("schedule", (container, drag_state, update_marker)),
     ]
 
@@ -3151,8 +3188,7 @@ def test_standalone_radio_pane_marker_update_callbacks_propagates_builder_failur
             object(),
             object(),
             {},
-            place_callback_builder=lambda *_args: object(),
-            update_callback_builder=lambda *_args: object(),
+            update_pair_builder=lambda *_args: (object(), object()),
             schedule_callback_builder=fail_schedule,
         )
 
