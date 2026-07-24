@@ -1974,6 +1974,27 @@ def test_radio_pane_marker_installation_groups_marker_dependencies():
     assert result.end_drag is end_drag
 
 
+def test_build_radio_pane_marker_callbacks_for_base_passes_base_fields():
+    events = []
+    container = object()
+    pane = object()
+    marker = object()
+    grip = object()
+    drag_state = object()
+    callbacks = object()
+    base = radio_tab._RadioPaneMarkerBase(marker, grip, drag_state)
+
+    result = radio_tab._build_radio_pane_marker_callbacks_for_base(
+        container,
+        pane,
+        base,
+        lambda *args: events.append(args) or callbacks,
+    )
+
+    assert result is callbacks
+    assert events == [(container, pane, marker, drag_state)]
+
+
 def test_build_radio_pane_marker_installation_builds_base_then_callbacks():
     events = []
     container = object()

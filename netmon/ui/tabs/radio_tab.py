@@ -1193,6 +1193,20 @@ def _build_radio_pane_marker_base(
     return _radio_pane_marker_base(marker, grip, drag_state)
 
 
+def _build_radio_pane_marker_callbacks_for_base(
+    container,
+    pane,
+    base,
+    callback_builder,
+):
+    return callback_builder(
+        container,
+        pane,
+        base.marker,
+        base.drag_state,
+    )
+
+
 def _build_radio_pane_marker_installation(
     container,
     pane,
@@ -1205,11 +1219,11 @@ def _build_radio_pane_marker_installation(
         container,
         color=color,
     )
-    callbacks = callback_builder(
+    callbacks = _build_radio_pane_marker_callbacks_for_base(
         container,
         pane,
-        base.marker,
-        base.drag_state,
+        base,
+        callback_builder,
     )
     return _radio_pane_marker_installation(
         base.marker,
