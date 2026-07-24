@@ -3077,6 +3077,66 @@ def test_standalone_radio_pane_marker_drag_callbacks_propagates_builder_failures
         )
 
 
+def test_standalone_radio_pane_marker_base_callbacks_builds_callbacks_in_order():
+    events = []
+    container = object()
+    pane = object()
+    marker = object()
+    drag_state = {"update_pending": False}
+    set_sash = object()
+    place_marker = object()
+    update_marker = object()
+    schedule_marker = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_base_callbacks(
+        container,
+        pane,
+        marker,
+        12,
+        drag_state_builder=lambda: events.append("drag_state") or drag_state,
+        sash_callback_builder=lambda pane_arg: events.append(("sash", pane_arg))
+        or set_sash,
+        place_callback_builder=lambda *args: events.append(("place", args))
+        or place_marker,
+        update_callback_builder=lambda *args: events.append(("update", args))
+        or update_marker,
+        schedule_callback_builder=lambda *args: events.append(("schedule", args))
+        or schedule_marker,
+    )
+
+    assert result == (
+        drag_state,
+        set_sash,
+        place_marker,
+        update_marker,
+        schedule_marker,
+    )
+    assert events == [
+        "drag_state",
+        ("sash", pane),
+        ("place", (container, marker, 12)),
+        ("update", (pane, place_marker, marker)),
+        ("schedule", (container, drag_state, update_marker)),
+    ]
+
+
+def test_standalone_radio_pane_marker_base_callbacks_propagates_builder_failures():
+    def fail_schedule(*_args):
+        raise RuntimeError("schedule failed")
+
+    with pytest.raises(RuntimeError, match="schedule failed"):
+        netmon_radio_app._standalone_radio_pane_marker_base_callbacks(
+            object(),
+            object(),
+            object(),
+            drag_state_builder=lambda: {},
+            sash_callback_builder=lambda _pane: object(),
+            place_callback_builder=lambda *_args: object(),
+            update_callback_builder=lambda *_args: object(),
+            schedule_callback_builder=fail_schedule,
+        )
+
+
 def test_standalone_radio_pane_marker_callbacks_builds_callbacks_in_order():
     events = []
     container = object()
@@ -3096,26 +3156,15 @@ def test_standalone_radio_pane_marker_callbacks_builds_callbacks_in_order():
         pane,
         marker,
         12,
-        drag_state_builder=lambda: events.append("drag_state") or drag_state,
-        sash_callback_builder=lambda pane_arg: events.append(("sash", pane_arg))
-        or set_sash,
-        place_callback_builder=lambda *args: events.append(("place", args))
-        or place_marker,
-        update_callback_builder=lambda *args: events.append(("update", args))
-        or update_marker,
-        schedule_callback_builder=lambda *args: events.append(("schedule", args))
-        or schedule_marker,
+        base_callbacks_builder=lambda *args: events.append(("base", args))
+        or (drag_state, set_sash, place_marker, update_marker, schedule_marker),
         drag_callbacks_builder=lambda *args: events.append(("drag_callbacks", args))
         or (start_drag, drag, end_drag),
     )
 
     assert result == (update_marker, start_drag, drag, end_drag)
     assert events == [
-        "drag_state",
-        ("sash", pane),
-        ("place", (container, marker, 12)),
-        ("update", (pane, place_marker, marker)),
-        ("schedule", (container, drag_state, update_marker)),
+        ("base", (container, pane, marker, 12)),
         (
             "drag_callbacks",
             (drag_state, pane, set_sash, place_marker, schedule_marker, update_marker),
@@ -3132,11 +3181,13 @@ def test_standalone_radio_pane_marker_callbacks_propagates_builder_failures():
             object(),
             object(),
             object(),
-            drag_state_builder=lambda: {},
-            sash_callback_builder=lambda _pane: object(),
-            place_callback_builder=lambda *_args: object(),
-            update_callback_builder=lambda *_args: object(),
-            schedule_callback_builder=lambda *_args: object(),
+            base_callbacks_builder=lambda *_args: (
+                {},
+                object(),
+                object(),
+                object(),
+                object(),
+            ),
             drag_callbacks_builder=fail_drag_callbacks,
         )
 
