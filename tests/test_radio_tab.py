@@ -2176,6 +2176,19 @@ def test_handle_radio_pane_marker_drag_end_propagates_update_failures():
         radio_tab._handle_radio_pane_marker_drag_end(update_marker)
 
 
+def test_invoke_radio_pane_marker_drag_end_handler_forwards_update_marker():
+    calls = []
+    update_marker = object()
+
+    result = radio_tab._invoke_radio_pane_marker_drag_end_handler(
+        update_marker,
+        lambda update_arg: calls.append(update_arg) or "break",
+    )
+
+    assert result == "break"
+    assert calls == [update_marker]
+
+
 def test_make_radio_pane_marker_drag_end_callback_binds_update_marker():
     calls = []
     update_marker = object()

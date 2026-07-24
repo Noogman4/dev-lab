@@ -981,13 +981,20 @@ def _make_radio_pane_marker_drag_event_callback(
     return _drag
 
 
+def _invoke_radio_pane_marker_drag_end_handler(update_marker, drag_end_handler):
+    return drag_end_handler(update_marker)
+
+
 def _make_radio_pane_marker_drag_end_callback(
     update_marker,
     *,
     drag_end_handler=_handle_radio_pane_marker_drag_end,
 ):
     def _end_drag(_event=None):
-        return drag_end_handler(update_marker)
+        return _invoke_radio_pane_marker_drag_end_handler(
+            update_marker,
+            drag_end_handler,
+        )
 
     return _end_drag
 
