@@ -415,6 +415,11 @@ def _standalone_radio_pane_drag_motion(
     schedule_marker_update()
 
 
+def _standalone_radio_pane_end_drag(update_marker):
+    update_marker()
+    return "break"
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
     marker = tk.Frame(
         container,
@@ -490,8 +495,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
         return "break"
 
     def _end_drag(_event=None):
-        _update_marker()
-        return "break"
+        return _standalone_radio_pane_end_drag(_update_marker)
 
     for widget in (container, pane):
         try:

@@ -5,6 +5,9 @@ import threading
 import http.client
 import zipfile
 from types import SimpleNamespace
+
+import pytest
+
 from netmon.app import App
 from netmon import netmon_projectm_sidecar
 from netmon import netmon_radio_app
@@ -2062,6 +2065,25 @@ def test_standalone_radio_pane_drag_motion_moves_places_and_schedules():
         ("place", 260),
         "schedule",
     ]
+
+
+def test_standalone_radio_pane_end_drag_updates_marker_and_breaks():
+    calls = []
+
+    result = netmon_radio_app._standalone_radio_pane_end_drag(
+        lambda: calls.append("update")
+    )
+
+    assert result == "break"
+    assert calls == ["update"]
+
+
+def test_standalone_radio_pane_end_drag_propagates_update_failures():
+    def fail_update():
+        raise RuntimeError("update failed")
+
+    with pytest.raises(RuntimeError, match="update failed"):
+        netmon_radio_app._standalone_radio_pane_end_drag(fail_update)
 
 
 def test_station_online_indicator_uses_lastcheckok():
