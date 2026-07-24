@@ -394,6 +394,22 @@ def _standalone_radio_pane_schedule_active_marker_initial_update(
     initial_update_scheduler(container, update_marker)
 
 
+def _standalone_radio_pane_activate_marker_callbacks(
+    container,
+    binding_plan,
+    update_marker,
+    *,
+    callback_binder=_standalone_radio_pane_bind_marker_callbacks,
+    initial_update_scheduler=_standalone_radio_pane_schedule_initial_marker_update,
+) -> None:
+    callback_binder(binding_plan)
+    _standalone_radio_pane_schedule_active_marker_initial_update(
+        container,
+        update_marker,
+        initial_update_scheduler,
+    )
+
+
 def _standalone_radio_pane_marker_geometry(
     container_width,
     sash_y,
@@ -628,7 +644,8 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
         return _standalone_radio_pane_end_drag(_update_marker)
 
     update_bindings = _standalone_radio_pane_update_bindings(_update_marker)
-    _standalone_radio_pane_bind_marker_callbacks(
+    _standalone_radio_pane_activate_marker_callbacks(
+        container,
         _standalone_radio_pane_marker_binding_plan(
             container,
             pane,
@@ -640,11 +657,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
                 _end_drag,
             ),
         ),
-    )
-    _standalone_radio_pane_schedule_active_marker_initial_update(
-        container,
         _update_marker,
-        _standalone_radio_pane_schedule_initial_marker_update,
     )
     return marker
 

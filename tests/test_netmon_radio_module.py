@@ -2000,6 +2000,46 @@ def test_standalone_radio_pane_schedule_active_marker_initial_update_forwards_de
     assert calls == [(container, callback)]
 
 
+def test_standalone_radio_pane_activate_marker_callbacks_binds_then_schedules():
+    events = []
+    container = object()
+    binding_plan = object()
+    update_marker = object()
+
+    netmon_radio_app._standalone_radio_pane_activate_marker_callbacks(
+        container,
+        binding_plan,
+        update_marker,
+        callback_binder=lambda plan: events.append(("bind", plan)),
+        initial_update_scheduler=lambda container_arg, update_arg: events.append(
+            ("schedule", container_arg, update_arg)
+        ),
+    )
+
+    assert events == [
+        ("bind", binding_plan),
+        (
+            "schedule",
+            container,
+            update_marker,
+        ),
+    ]
+
+
+def test_standalone_radio_pane_activate_marker_callbacks_propagates_binding_failure():
+    def fail_bind(_binding_plan):
+        raise RuntimeError("bind failed")
+
+    with pytest.raises(RuntimeError, match="bind failed"):
+        netmon_radio_app._standalone_radio_pane_activate_marker_callbacks(
+            object(),
+            object(),
+            object(),
+            callback_binder=fail_bind,
+            initial_update_scheduler=lambda *_args: None,
+        )
+
+
 def test_standalone_radio_pane_marker_geometry_centers_and_offsets_marker():
     assert netmon_radio_app._standalone_radio_pane_marker_geometry(
         120,
