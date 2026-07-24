@@ -750,13 +750,12 @@ def _standalone_radio_pane_marker_grip(
     )
 
 
-def _standalone_radio_pane_marker_widgets(
+def _standalone_radio_pane_marker_widget_pair(
     container,
     color,
     *,
     marker_frame_builder=_standalone_radio_pane_marker_frame,
     marker_grip_builder=_standalone_radio_pane_marker_grip,
-    configure_widgets=_standalone_radio_pane_configure_marker_widgets,
 ):
     marker = marker_frame_builder(
         container,
@@ -764,6 +763,20 @@ def _standalone_radio_pane_marker_widgets(
     )
     grip = marker_grip_builder(
         marker,
+        color,
+    )
+    return marker, grip
+
+
+def _standalone_radio_pane_marker_widgets(
+    container,
+    color,
+    *,
+    marker_pair_builder=_standalone_radio_pane_marker_widget_pair,
+    configure_widgets=_standalone_radio_pane_configure_marker_widgets,
+):
+    marker, grip = marker_pair_builder(
+        container,
         color,
     )
     configure_widgets(marker, grip)

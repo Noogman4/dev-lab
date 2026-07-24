@@ -2953,7 +2953,43 @@ def test_standalone_radio_pane_marker_grip_propagates_builder_failures():
         )
 
 
-def test_standalone_radio_pane_marker_widgets_builds_marker_and_grip():
+def test_standalone_radio_pane_marker_widget_pair_builds_frame_then_grip():
+    calls = []
+    container = object()
+
+    marker = object()
+    grip = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_widget_pair(
+        container,
+        "#123456",
+        marker_frame_builder=lambda *args: calls.append(("frame", args)) or marker,
+        marker_grip_builder=lambda *args: calls.append(("grip", args)) or grip,
+    )
+
+    assert result == (marker, grip)
+    assert calls == [
+        ("frame", (container, "#123456")),
+        ("grip", (marker, "#123456")),
+    ]
+
+
+def test_standalone_radio_pane_marker_widget_pair_propagates_grip_failures():
+    marker = object()
+
+    def fail_grip(*_args):
+        raise RuntimeError("grip failed")
+
+    with pytest.raises(RuntimeError, match="grip failed"):
+        netmon_radio_app._standalone_radio_pane_marker_widget_pair(
+            object(),
+            "#123456",
+            marker_frame_builder=lambda *_args: marker,
+            marker_grip_builder=fail_grip,
+        )
+
+
+def test_standalone_radio_pane_marker_widgets_builds_pair_and_configures_layout():
     calls = []
     container = object()
 
@@ -2963,8 +2999,8 @@ def test_standalone_radio_pane_marker_widgets_builds_marker_and_grip():
     result = netmon_radio_app._standalone_radio_pane_marker_widgets(
         container,
         "#123456",
-        marker_frame_builder=lambda *args: calls.append(("frame", args)) or marker,
-        marker_grip_builder=lambda *args: calls.append(("grip", args)) or grip,
+        marker_pair_builder=lambda *args: calls.append(("pair", args))
+        or (marker, grip),
         configure_widgets=lambda marker_arg, grip_arg: calls.append(
             ("configure", marker_arg, grip_arg)
         ),
@@ -2972,21 +3008,20 @@ def test_standalone_radio_pane_marker_widgets_builds_marker_and_grip():
 
     assert result == (marker, grip)
     assert calls == [
-        ("frame", (container, "#123456")),
-        ("grip", (marker, "#123456")),
+        ("pair", (container, "#123456")),
         ("configure", marker, grip),
     ]
 
 
 def test_standalone_radio_pane_marker_widgets_propagates_frame_failures():
-    def fail_frame(*_args, **_kwargs):
-        raise RuntimeError("frame failed")
+    def fail_pair(*_args):
+        raise RuntimeError("pair failed")
 
-    with pytest.raises(RuntimeError, match="frame failed"):
+    with pytest.raises(RuntimeError, match="pair failed"):
         netmon_radio_app._standalone_radio_pane_marker_widgets(
             object(),
             "#123456",
-            marker_frame_builder=fail_frame,
+            marker_pair_builder=fail_pair,
         )
 
 
