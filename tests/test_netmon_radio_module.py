@@ -1881,6 +1881,26 @@ def test_standalone_radio_pane_grip_bindings_use_drag_callbacks():
     )
 
 
+def test_standalone_radio_pane_marker_binding_plan_maps_widgets_to_bindings():
+    container = object()
+    pane = object()
+    grip = object()
+    update_bindings = object()
+    grip_bindings = object()
+
+    assert netmon_radio_app._standalone_radio_pane_marker_binding_plan(
+        container,
+        pane,
+        grip,
+        update_bindings=update_bindings,
+        grip_bindings=grip_bindings,
+    ) == (
+        (container, update_bindings),
+        (pane, update_bindings),
+        (grip, grip_bindings),
+    )
+
+
 def test_standalone_radio_pane_marker_geometry_centers_and_offsets_marker():
     assert netmon_radio_app._standalone_radio_pane_marker_geometry(
         120,
