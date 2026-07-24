@@ -2354,6 +2354,39 @@ def test_standalone_radio_pane_update_marker_safe_ignores_forget_failure():
     assert events == ["update", "forget"]
 
 
+def test_standalone_radio_pane_update_callback_binds_marker_context_and_event():
+    calls = []
+    pane = object()
+    place_marker = object()
+    marker = object()
+
+    callback = netmon_radio_app._standalone_radio_pane_update_callback(
+        pane,
+        place_marker,
+        marker,
+        update_marker_safe=lambda *args: calls.append(args),
+    )
+
+    callback(object())
+
+    assert calls == [(pane, place_marker, marker)]
+
+
+def test_standalone_radio_pane_update_callback_propagates_update_failures():
+    def fail_update(_pane, _place_marker, _marker):
+        raise RuntimeError("update failed")
+
+    callback = netmon_radio_app._standalone_radio_pane_update_callback(
+        object(),
+        object(),
+        object(),
+        update_marker_safe=fail_update,
+    )
+
+    with pytest.raises(RuntimeError, match="update failed"):
+        callback()
+
+
 def test_standalone_radio_pane_schedule_marker_update_skips_pending_state():
     calls = []
 

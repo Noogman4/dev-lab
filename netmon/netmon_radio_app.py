@@ -523,6 +523,19 @@ def _standalone_radio_pane_update_marker_safe(
             pass
 
 
+def _standalone_radio_pane_update_callback(
+    pane,
+    place_marker_for_sash,
+    marker,
+    *,
+    update_marker_safe=_standalone_radio_pane_update_marker_safe,
+):
+    def _update_marker(_event=None):
+        update_marker_safe(pane, place_marker_for_sash, marker)
+
+    return _update_marker
+
+
 def _standalone_radio_pane_schedule_marker_update(
     container,
     drag_state,
@@ -632,13 +645,11 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
         marker,
         y_offset,
     )
-
-    def _update_marker(_event=None):
-        _standalone_radio_pane_update_marker_safe(
-            pane,
-            _place_marker_for_sash,
-            marker,
-        )
+    _update_marker = _standalone_radio_pane_update_callback(
+        pane,
+        _place_marker_for_sash,
+        marker,
+    )
 
     def _schedule_marker_update():
         _standalone_radio_pane_schedule_marker_update(
