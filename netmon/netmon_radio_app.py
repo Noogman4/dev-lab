@@ -818,22 +818,15 @@ def _standalone_radio_pane_marker_callbacks(
     return update_marker, start_drag, drag, end_drag
 
 
-def _standalone_radio_pane_install_marker_parts(
+def _standalone_radio_pane_activate_marker_parts(
     container,
     pane,
-    marker,
     grip,
-    y_offset=0,
+    callbacks,
     *,
-    callbacks_builder=_standalone_radio_pane_marker_callbacks,
     bindings_activator=_standalone_radio_pane_activate_marker_bindings,
-):
-    update_marker, start_drag, drag, end_drag = callbacks_builder(
-        container,
-        pane,
-        marker,
-        y_offset,
-    )
+) -> None:
+    update_marker, start_drag, drag, end_drag = callbacks
     bindings_activator(
         container,
         pane,
@@ -842,6 +835,30 @@ def _standalone_radio_pane_install_marker_parts(
         start_drag,
         drag,
         end_drag,
+    )
+
+
+def _standalone_radio_pane_install_marker_parts(
+    container,
+    pane,
+    marker,
+    grip,
+    y_offset=0,
+    *,
+    callbacks_builder=_standalone_radio_pane_marker_callbacks,
+    marker_parts_activator=_standalone_radio_pane_activate_marker_parts,
+):
+    callbacks = callbacks_builder(
+        container,
+        pane,
+        marker,
+        y_offset,
+    )
+    marker_parts_activator(
+        container,
+        pane,
+        grip,
+        callbacks,
     )
     return marker
 
