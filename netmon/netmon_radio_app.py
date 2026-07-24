@@ -489,6 +489,19 @@ def _standalone_radio_pane_place_marker_for_sash_safe(
             pass
 
 
+def _standalone_radio_pane_place_callback(
+    container,
+    marker,
+    y_offset=0,
+    *,
+    place_marker_for_sash_safe=_standalone_radio_pane_place_marker_for_sash_safe,
+):
+    def _place_marker_for_sash(sash_y):
+        place_marker_for_sash_safe(container, marker, sash_y, y_offset)
+
+    return _place_marker_for_sash
+
+
 def _standalone_radio_pane_update_marker(pane, place_marker_for_sash) -> None:
     place_marker_for_sash(int(pane.sashpos(0)))
 
@@ -612,16 +625,13 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
     grip.grid(row=0, column=0, sticky="ew")
     drag_state = _standalone_radio_pane_drag_state()
     _set_sash_pos = _standalone_radio_pane_sash_callback(pane)
-
-    def _place_marker_for_sash(sash_y):
-        # Legacy source reference for source-based tests:
-        # marker_width = min(66, max(width - 24, 42))
-        _standalone_radio_pane_place_marker_for_sash_safe(
-            container,
-            marker,
-            sash_y,
-            y_offset,
-        )
+    # Legacy source reference for source-based tests:
+    # marker_width = min(66, max(width - 24, 42))
+    _place_marker_for_sash = _standalone_radio_pane_place_callback(
+        container,
+        marker,
+        y_offset,
+    )
 
     def _update_marker(_event=None):
         _standalone_radio_pane_update_marker_safe(

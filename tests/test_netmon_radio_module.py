@@ -2238,6 +2238,38 @@ def test_standalone_radio_pane_place_marker_for_sash_safe_ignores_forget_failure
     assert events == ["place", "forget"]
 
 
+def test_standalone_radio_pane_place_callback_binds_marker_context():
+    calls = []
+    container = object()
+    marker = object()
+
+    callback = netmon_radio_app._standalone_radio_pane_place_callback(
+        container,
+        marker,
+        7,
+        place_marker_for_sash_safe=lambda *args: calls.append(args),
+    )
+
+    callback("240")
+
+    assert calls == [(container, marker, "240", 7)]
+
+
+def test_standalone_radio_pane_place_callback_propagates_place_failures():
+    def fail_place(_container, _marker, _sash_y, _y_offset):
+        raise RuntimeError("place failed")
+
+    callback = netmon_radio_app._standalone_radio_pane_place_callback(
+        object(),
+        object(),
+        7,
+        place_marker_for_sash_safe=fail_place,
+    )
+
+    with pytest.raises(RuntimeError, match="place failed"):
+        callback(240)
+
+
 def test_standalone_radio_pane_update_marker_places_current_sash():
     events = []
 
