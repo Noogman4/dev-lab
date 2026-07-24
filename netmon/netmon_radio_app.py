@@ -311,6 +311,14 @@ RADIO_DATABASE_EXCLUSIVE_COUNTRY_SOURCE_IDS = {
 }
 
 
+def _standalone_radio_pane_drag_state() -> dict[str, int | bool]:
+    return {
+        "root_y": 0,
+        "sash_y": 0,
+        "update_pending": False,
+    }
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
     marker = tk.Frame(
         container,
@@ -331,11 +339,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
         anchor="center",
     )
     grip.grid(row=0, column=0, sticky="ew")
-    drag_state = {
-        "root_y": 0,
-        "sash_y": 0,
-        "update_pending": False,
-    }
+    drag_state = _standalone_radio_pane_drag_state()
 
     def _set_sash_pos(new_y):
         try:

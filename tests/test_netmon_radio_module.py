@@ -1797,6 +1797,19 @@ def test_standalone_radio_app_ui_contains_player_and_projectm():
     )
 
 
+def test_standalone_radio_pane_drag_state_uses_initial_values():
+    state = netmon_radio_app._standalone_radio_pane_drag_state()
+    other_state = netmon_radio_app._standalone_radio_pane_drag_state()
+
+    assert state == {
+        "root_y": 0,
+        "sash_y": 0,
+        "update_pending": False,
+    }
+    assert other_state == state
+    assert other_state is not state
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
