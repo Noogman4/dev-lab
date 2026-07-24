@@ -3025,7 +3025,51 @@ def test_standalone_radio_pane_marker_widgets_propagates_frame_failures():
         )
 
 
-def test_standalone_radio_pane_marker_drag_callbacks_builds_callbacks_in_order():
+def test_standalone_radio_pane_marker_drag_pair_builds_start_then_drag():
+    events = []
+    pane = object()
+    drag_state = {"update_pending": False}
+    set_sash = object()
+    place_marker = object()
+    schedule_marker = object()
+    start_drag = object()
+    drag = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_drag_pair(
+        drag_state,
+        pane,
+        set_sash,
+        place_marker,
+        schedule_marker,
+        start_callback_builder=lambda *args: events.append(("start", args))
+        or start_drag,
+        drag_callback_builder=lambda *args: events.append(("drag", args)) or drag,
+    )
+
+    assert result == (start_drag, drag)
+    assert events == [
+        ("start", (drag_state, pane)),
+        ("drag", (drag_state, set_sash, place_marker, schedule_marker)),
+    ]
+
+
+def test_standalone_radio_pane_marker_drag_pair_propagates_builder_failures():
+    def fail_drag(*_args):
+        raise RuntimeError("drag failed")
+
+    with pytest.raises(RuntimeError, match="drag failed"):
+        netmon_radio_app._standalone_radio_pane_marker_drag_pair(
+            {},
+            object(),
+            object(),
+            object(),
+            object(),
+            start_callback_builder=lambda *_args: object(),
+            drag_callback_builder=fail_drag,
+        )
+
+
+def test_standalone_radio_pane_marker_drag_callbacks_builds_pair_then_end():
     events = []
     pane = object()
     drag_state = {"update_pending": False}
@@ -3044,17 +3088,15 @@ def test_standalone_radio_pane_marker_drag_callbacks_builds_callbacks_in_order()
         place_marker,
         schedule_marker,
         update_marker,
-        start_callback_builder=lambda *args: events.append(("start", args))
-        or start_drag,
-        drag_callback_builder=lambda *args: events.append(("drag", args)) or drag,
+        drag_pair_builder=lambda *args: events.append(("drag_pair", args))
+        or (start_drag, drag),
         end_callback_builder=lambda update_arg: events.append(("end", update_arg))
         or end_drag,
     )
 
     assert result == (start_drag, drag, end_drag)
     assert events == [
-        ("start", (drag_state, pane)),
-        ("drag", (drag_state, set_sash, place_marker, schedule_marker)),
+        ("drag_pair", (drag_state, pane, set_sash, place_marker, schedule_marker)),
         ("end", update_marker),
     ]
 
@@ -3071,8 +3113,7 @@ def test_standalone_radio_pane_marker_drag_callbacks_propagates_builder_failures
             object(),
             object(),
             object(),
-            start_callback_builder=lambda *_args: object(),
-            drag_callback_builder=lambda *_args: object(),
+            drag_pair_builder=lambda *_args: (object(), object()),
             end_callback_builder=fail_end,
         )
 
