@@ -1901,6 +1901,43 @@ def test_standalone_radio_pane_marker_binding_plan_maps_widgets_to_bindings():
     )
 
 
+def test_standalone_radio_pane_bind_marker_callbacks_binds_plan_in_order():
+    calls = []
+    first_widget = object()
+    first_bindings = object()
+    second_widget = object()
+    second_bindings = object()
+
+    netmon_radio_app._standalone_radio_pane_bind_marker_callbacks(
+        (
+            (first_widget, first_bindings),
+            (second_widget, second_bindings),
+        ),
+        bind_events=lambda widget, bindings: calls.append((widget, bindings)),
+    )
+
+    assert calls == [
+        (first_widget, first_bindings),
+        (second_widget, second_bindings),
+    ]
+
+
+def test_standalone_radio_pane_bind_marker_callbacks_propagates_binder_failure():
+    calls = []
+
+    def fail_bind(widget, bindings):
+        calls.append((widget, bindings))
+        raise RuntimeError("bind failed")
+
+    with pytest.raises(RuntimeError, match="bind failed"):
+        netmon_radio_app._standalone_radio_pane_bind_marker_callbacks(
+            (("widget", "bindings"),),
+            bind_events=fail_bind,
+        )
+
+    assert calls == [("widget", "bindings")]
+
+
 def test_standalone_radio_pane_marker_geometry_centers_and_offsets_marker():
     assert netmon_radio_app._standalone_radio_pane_marker_geometry(
         120,

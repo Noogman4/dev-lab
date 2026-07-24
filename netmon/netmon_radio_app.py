@@ -358,6 +358,15 @@ def _standalone_radio_pane_marker_binding_plan(
     )
 
 
+def _standalone_radio_pane_bind_marker_callbacks(
+    binding_plan,
+    *,
+    bind_events=_standalone_radio_pane_bind_marker_events,
+) -> None:
+    for widget, bindings in binding_plan:
+        bind_events(widget, bindings)
+
+
 def _standalone_radio_pane_marker_geometry(
     container_width,
     sash_y,
@@ -592,21 +601,19 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
         return _standalone_radio_pane_end_drag(_update_marker)
 
     update_bindings = _standalone_radio_pane_update_bindings(_update_marker)
-    for widget, bindings in _standalone_radio_pane_marker_binding_plan(
-        container,
-        pane,
-        grip,
-        update_bindings=update_bindings,
-        grip_bindings=_standalone_radio_pane_grip_bindings(
-            _start_drag,
-            _drag,
-            _end_drag,
+    _standalone_radio_pane_bind_marker_callbacks(
+        _standalone_radio_pane_marker_binding_plan(
+            container,
+            pane,
+            grip,
+            update_bindings=update_bindings,
+            grip_bindings=_standalone_radio_pane_grip_bindings(
+                _start_drag,
+                _drag,
+                _end_drag,
+            ),
         ),
-    ):
-        _standalone_radio_pane_bind_marker_events(
-            widget,
-            bindings,
-        )
+    )
     try:
         container.after(0, _update_marker)
     except Exception:
