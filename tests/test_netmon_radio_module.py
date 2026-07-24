@@ -1853,6 +1853,40 @@ def test_standalone_radio_pane_forget_marker_forgets_place():
     assert calls == ["place_forget"]
 
 
+def test_standalone_radio_pane_set_sash_pos_prefers_sashpos():
+    calls = []
+
+    class DummyPane:
+        def sashpos(self, index, value):
+            calls.append(("sashpos", index, value))
+
+        def sash_place(self, index, x, y):
+            calls.append(("sash_place", index, x, y))
+
+    netmon_radio_app._standalone_radio_pane_set_sash_pos(DummyPane(), "120")
+
+    assert calls == [("sashpos", 0, 120)]
+
+
+def test_standalone_radio_pane_set_sash_pos_falls_back_to_sash_place():
+    calls = []
+
+    class DummyPane:
+        def sashpos(self, index, value):
+            calls.append(("sashpos", index, value))
+            raise RuntimeError("unsupported")
+
+        def sash_place(self, index, x, y):
+            calls.append(("sash_place", index, x, y))
+
+    netmon_radio_app._standalone_radio_pane_set_sash_pos(DummyPane(), "120")
+
+    assert calls == [
+        ("sashpos", 0, 120),
+        ("sash_place", 0, 0, 120),
+    ]
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"

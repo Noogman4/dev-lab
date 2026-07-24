@@ -340,6 +340,18 @@ def _standalone_radio_pane_forget_marker(marker) -> None:
     marker.place_forget()
 
 
+def _standalone_radio_pane_set_sash_pos(pane, new_y) -> None:
+    try:
+        pane.sashpos(0, int(new_y))
+        return
+    except Exception:
+        pass
+    try:
+        pane.sash_place(0, 0, int(new_y))
+    except Exception:
+        pass
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
     marker = tk.Frame(
         container,
@@ -363,15 +375,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
     drag_state = _standalone_radio_pane_drag_state()
 
     def _set_sash_pos(new_y):
-        try:
-            pane.sashpos(0, int(new_y))
-            return
-        except Exception:
-            pass
-        try:
-            pane.sash_place(0, 0, int(new_y))
-        except Exception:
-            pass
+        _standalone_radio_pane_set_sash_pos(pane, new_y)
 
     def _place_marker_for_sash(sash_y):
         try:
