@@ -373,6 +373,25 @@ def _standalone_radio_pane_update_marker(pane, place_marker_for_sash) -> None:
     place_marker_for_sash(int(pane.sashpos(0)))
 
 
+def _standalone_radio_pane_schedule_marker_update(
+    container,
+    drag_state,
+    update_marker,
+) -> None:
+    if drag_state["update_pending"]:
+        return
+    drag_state["update_pending"] = True
+
+    def _run():
+        drag_state["update_pending"] = False
+        update_marker()
+
+    try:
+        container.after_idle(_run)
+    except Exception:
+        _run()
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
     marker = tk.Frame(
         container,
@@ -424,18 +443,11 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
                 pass
 
     def _schedule_marker_update():
-        if drag_state["update_pending"]:
-            return
-        drag_state["update_pending"] = True
-
-        def _run():
-            drag_state["update_pending"] = False
-            _update_marker()
-
-        try:
-            container.after_idle(_run)
-        except Exception:
-            _run()
+        _standalone_radio_pane_schedule_marker_update(
+            container,
+            drag_state,
+            _update_marker,
+        )
 
     def _start_drag(event):
         try:

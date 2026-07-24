@@ -1937,6 +1937,72 @@ def test_standalone_radio_pane_update_marker_places_current_sash():
     ]
 
 
+def test_standalone_radio_pane_schedule_marker_update_skips_pending_state():
+    calls = []
+
+    class DummyContainer:
+        def after_idle(self, callback):
+            calls.append(("after_idle", callback))
+
+    state = {"update_pending": True}
+
+    netmon_radio_app._standalone_radio_pane_schedule_marker_update(
+        DummyContainer(),
+        state,
+        lambda: calls.append("update"),
+    )
+
+    assert state["update_pending"] is True
+    assert calls == []
+
+
+def test_standalone_radio_pane_schedule_marker_update_uses_after_idle_runner():
+    calls = []
+    runners = []
+
+    class DummyContainer:
+        def after_idle(self, callback):
+            calls.append("after_idle")
+            runners.append(callback)
+
+    state = {"update_pending": False}
+
+    netmon_radio_app._standalone_radio_pane_schedule_marker_update(
+        DummyContainer(),
+        state,
+        lambda: calls.append("update"),
+    )
+
+    assert state["update_pending"] is True
+    assert calls == ["after_idle"]
+
+    runners[0]()
+
+    assert state["update_pending"] is False
+    assert calls == ["after_idle", "update"]
+
+
+def test_standalone_radio_pane_schedule_marker_update_runs_on_after_idle_failure():
+    calls = []
+
+    class DummyContainer:
+        def after_idle(self, callback):
+            calls.append(("after_idle", callback))
+            raise RuntimeError("after idle failed")
+
+    state = {"update_pending": False}
+
+    netmon_radio_app._standalone_radio_pane_schedule_marker_update(
+        DummyContainer(),
+        state,
+        lambda: calls.append("update"),
+    )
+
+    assert state["update_pending"] is False
+    assert calls[0][0] == "after_idle"
+    assert calls[1:] == ["update"]
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
