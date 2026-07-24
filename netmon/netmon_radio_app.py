@@ -331,6 +331,11 @@ def _standalone_radio_pane_marker_geometry(
     return {"x": x, "y": y, "width": marker_width, "height": 12}
 
 
+def _standalone_radio_pane_place_marker(marker, geometry) -> None:
+    marker.place(**geometry)
+    marker.lift()
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
     marker = tk.Frame(
         container,
@@ -373,8 +378,7 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
             )
             # Legacy source reference for source-based tests:
             # marker_width = min(66, max(width - 24, 42))
-            marker.place(**geometry)
-            marker.lift()
+            _standalone_radio_pane_place_marker(marker, geometry)
         except Exception:
             try:
                 marker.place_forget()

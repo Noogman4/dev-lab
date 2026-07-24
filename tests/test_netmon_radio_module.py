@@ -1822,6 +1822,25 @@ def test_standalone_radio_pane_marker_geometry_centers_and_offsets_marker():
     ) == {"x": 8, "y": 2, "width": 42, "height": 12}
 
 
+def test_standalone_radio_pane_place_marker_places_and_lifts():
+    calls = []
+    geometry = {"x": 27, "y": 87, "width": 66, "height": 12}
+
+    class DummyMarker:
+        def place(self, **kwargs):
+            calls.append(("place", kwargs))
+
+        def lift(self):
+            calls.append("lift")
+
+    netmon_radio_app._standalone_radio_pane_place_marker(DummyMarker(), geometry)
+
+    assert calls == [
+        ("place", geometry),
+        "lift",
+    ]
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
