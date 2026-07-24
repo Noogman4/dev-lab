@@ -1995,6 +1995,33 @@ def test_build_radio_pane_marker_callbacks_for_base_passes_base_fields():
     assert events == [(container, pane, marker, drag_state)]
 
 
+def test_radio_pane_marker_installation_from_parts_groups_fields():
+    marker = object()
+    grip = object()
+    drag_state = object()
+    update_marker = object()
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+    base = radio_tab._RadioPaneMarkerBase(marker, grip, drag_state)
+    callbacks = radio_tab._RadioPaneMarkerCallbacks(
+        update_marker,
+        start_drag,
+        drag,
+        end_drag,
+    )
+
+    result = radio_tab._radio_pane_marker_installation_from_parts(base, callbacks)
+
+    assert isinstance(result, radio_tab._RadioPaneMarkerInstallation)
+    assert result.marker is marker
+    assert result.grip is grip
+    assert result.update_marker is update_marker
+    assert result.start_drag is start_drag
+    assert result.drag is drag
+    assert result.end_drag is end_drag
+
+
 def test_build_radio_pane_marker_installation_builds_base_then_callbacks():
     events = []
     container = object()

@@ -1207,6 +1207,20 @@ def _build_radio_pane_marker_callbacks_for_base(
     )
 
 
+def _radio_pane_marker_installation_from_parts(
+    base,
+    callbacks,
+) -> _RadioPaneMarkerInstallation:
+    return _radio_pane_marker_installation(
+        base.marker,
+        base.grip,
+        callbacks.update_marker,
+        callbacks.start_drag,
+        callbacks.drag,
+        callbacks.end_drag,
+    )
+
+
 def _build_radio_pane_marker_installation(
     container,
     pane,
@@ -1225,14 +1239,7 @@ def _build_radio_pane_marker_installation(
         base,
         callback_builder,
     )
-    return _radio_pane_marker_installation(
-        base.marker,
-        base.grip,
-        callbacks.update_marker,
-        callbacks.start_drag,
-        callbacks.drag,
-        callbacks.end_drag,
-    )
+    return _radio_pane_marker_installation_from_parts(base, callbacks)
 
 
 def _activate_radio_pane_marker_installation(
