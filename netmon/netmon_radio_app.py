@@ -698,30 +698,44 @@ def _standalone_radio_pane_end_callback(
     return _end_drag
 
 
+def _standalone_radio_pane_marker_frame_options(color):
+    return {
+        "bg": color,
+        "bd": 1,
+        "relief": "solid",
+    }
+
+
+def _standalone_radio_pane_marker_grip_options(color):
+    return {
+        "text": "≡",
+        "bg": color,
+        "fg": "#ffffff",
+        "font": ("TkDefaultFont", 9, "bold"),
+        "cursor": "sb_v_double_arrow",
+        "padx": 0,
+        "pady": 0,
+        "anchor": "center",
+    }
+
+
 def _standalone_radio_pane_marker_widgets(
     container,
     color,
     *,
     frame_builder=tk.Frame,
     label_builder=tk.Label,
+    frame_options_builder=_standalone_radio_pane_marker_frame_options,
+    grip_options_builder=_standalone_radio_pane_marker_grip_options,
 ):
     marker = frame_builder(
         container,
-        bg=color,
-        bd=1,
-        relief="solid",
+        **frame_options_builder(color),
     )
     marker.columnconfigure(0, weight=1)
     grip = label_builder(
         marker,
-        text="≡",
-        bg=color,
-        fg="#ffffff",
-        font=("TkDefaultFont", 9, "bold"),
-        cursor="sb_v_double_arrow",
-        padx=0,
-        pady=0,
-        anchor="center",
+        **grip_options_builder(color),
     )
     grip.grid(row=0, column=0, sticky="ew")
     return marker, grip

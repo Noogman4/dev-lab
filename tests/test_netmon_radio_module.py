@@ -2806,6 +2806,27 @@ def test_standalone_radio_pane_end_callback_propagates_end_failures():
         callback()
 
 
+def test_standalone_radio_pane_marker_frame_options_use_marker_style():
+    assert netmon_radio_app._standalone_radio_pane_marker_frame_options("#123456") == {
+        "bg": "#123456",
+        "bd": 1,
+        "relief": "solid",
+    }
+
+
+def test_standalone_radio_pane_marker_grip_options_use_marker_style():
+    assert netmon_radio_app._standalone_radio_pane_marker_grip_options("#123456") == {
+        "text": "≡",
+        "bg": "#123456",
+        "fg": "#ffffff",
+        "font": ("TkDefaultFont", 9, "bold"),
+        "cursor": "sb_v_double_arrow",
+        "padx": 0,
+        "pady": 0,
+        "anchor": "center",
+    }
+
+
 def test_standalone_radio_pane_marker_widgets_builds_marker_and_grip():
     calls = []
     container = object()
@@ -2828,16 +2849,31 @@ def test_standalone_radio_pane_marker_widgets_builds_marker_and_grip():
         or marker,
         label_builder=lambda *args, **kwargs: calls.append(("label", args, kwargs))
         or grip,
+        frame_options_builder=lambda color: calls.append(("frame_options", color))
+        or {"bg": color, "bd": 1, "relief": "solid"},
+        grip_options_builder=lambda color: calls.append(("grip_options", color))
+        or {
+            "text": "≡",
+            "bg": color,
+            "fg": "#ffffff",
+            "font": ("TkDefaultFont", 9, "bold"),
+            "cursor": "sb_v_double_arrow",
+            "padx": 0,
+            "pady": 0,
+            "anchor": "center",
+        },
     )
 
     assert result == (marker, grip)
     assert calls == [
+        ("frame_options", "#123456"),
         (
             "frame",
             (container,),
             {"bg": "#123456", "bd": 1, "relief": "solid"},
         ),
         ("columnconfigure", 0, 1),
+        ("grip_options", "#123456"),
         (
             "label",
             (marker,),
