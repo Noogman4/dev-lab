@@ -1206,6 +1206,26 @@ def test_handle_radio_pane_marker_update_event_forgets_marker_on_failure():
     assert calls == [("sashpos", 0), "place_forget"]
 
 
+def test_invoke_radio_pane_marker_update_handler_forwards_dependencies():
+    calls = []
+    pane = object()
+    place_marker = object()
+    marker = object()
+    event = object()
+
+    radio_tab._invoke_radio_pane_marker_update_handler(
+        pane,
+        place_marker,
+        marker,
+        event,
+        lambda pane_arg, place_arg, marker_arg, event_arg: calls.append(
+            (pane_arg, place_arg, marker_arg, event_arg)
+        ),
+    )
+
+    assert calls == [(pane, place_marker, marker, event)]
+
+
 def test_make_radio_pane_marker_update_callback_binds_update_dependencies():
     calls = []
     pane = object()

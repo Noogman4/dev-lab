@@ -855,6 +855,21 @@ def _make_radio_pane_marker_place_callback(
     return _place_marker_for_sash
 
 
+def _invoke_radio_pane_marker_update_handler(
+    pane,
+    place_marker,
+    marker,
+    event,
+    update_handler,
+) -> None:
+    update_handler(
+        pane,
+        place_marker,
+        marker,
+        event,
+    )
+
+
 def _make_radio_pane_marker_update_callback(
     pane,
     place_marker,
@@ -863,11 +878,12 @@ def _make_radio_pane_marker_update_callback(
     update_handler=_handle_radio_pane_marker_update_event,
 ):
     def _update_marker(_event=None):
-        update_handler(
+        _invoke_radio_pane_marker_update_handler(
             pane,
             place_marker,
             marker,
             _event,
+            update_handler,
         )
 
     return _update_marker
