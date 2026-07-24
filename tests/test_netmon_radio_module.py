@@ -2067,6 +2067,49 @@ def test_standalone_radio_pane_drag_motion_moves_places_and_schedules():
     ]
 
 
+def test_standalone_radio_pane_drag_event_handles_motion_and_breaks():
+    calls = []
+    state = {"root_y": "310", "sash_y": "240"}
+
+    class DummyEvent:
+        y_root = "330"
+
+    result = netmon_radio_app._standalone_radio_pane_drag_event(
+        state,
+        DummyEvent(),
+        lambda sash_y: calls.append(("set_sash", sash_y)),
+        lambda sash_y: calls.append(("place", sash_y)),
+        lambda: calls.append("schedule"),
+    )
+
+    assert result == "break"
+    assert calls == [
+        ("set_sash", 260),
+        ("place", 260),
+        "schedule",
+    ]
+
+
+def test_standalone_radio_pane_drag_event_breaks_after_ignored_motion_failure():
+    calls = []
+
+    def fail_motion(*_args):
+        calls.append("motion")
+        raise RuntimeError("motion failed")
+
+    result = netmon_radio_app._standalone_radio_pane_drag_event(
+        object(),
+        object(),
+        lambda sash_y: calls.append(("set_sash", sash_y)),
+        lambda sash_y: calls.append(("place", sash_y)),
+        lambda: calls.append("schedule"),
+        drag_motion=fail_motion,
+    )
+
+    assert result == "break"
+    assert calls == ["motion"]
+
+
 def test_standalone_radio_pane_end_drag_updates_marker_and_breaks():
     calls = []
 

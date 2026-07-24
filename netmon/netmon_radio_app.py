@@ -415,6 +415,28 @@ def _standalone_radio_pane_drag_motion(
     schedule_marker_update()
 
 
+def _standalone_radio_pane_drag_event(
+    drag_state,
+    event,
+    set_sash_pos,
+    place_marker_for_sash,
+    schedule_marker_update,
+    *,
+    drag_motion=_standalone_radio_pane_drag_motion,
+) -> str:
+    try:
+        drag_motion(
+            drag_state,
+            event,
+            set_sash_pos,
+            place_marker_for_sash,
+            schedule_marker_update,
+        )
+    except Exception:
+        pass
+    return "break"
+
+
 def _standalone_radio_pane_end_drag(update_marker):
     update_marker()
     return "break"
@@ -482,17 +504,13 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
         return "break"
 
     def _drag(event):
-        try:
-            _standalone_radio_pane_drag_motion(
-                drag_state,
-                event,
-                _set_sash_pos,
-                _place_marker_for_sash,
-                _schedule_marker_update,
-            )
-        except Exception:
-            pass
-        return "break"
+        return _standalone_radio_pane_drag_event(
+            drag_state,
+            event,
+            _set_sash_pos,
+            _place_marker_for_sash,
+            _schedule_marker_update,
+        )
 
     def _end_drag(_event=None):
         return _standalone_radio_pane_end_drag(_update_marker)
