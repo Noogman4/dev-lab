@@ -783,6 +783,15 @@ def _standalone_radio_pane_marker_widgets(
     return marker, grip
 
 
+def _standalone_radio_pane_marker_start_callback(
+    drag_state,
+    pane,
+    *,
+    start_callback_builder=_standalone_radio_pane_start_callback,
+):
+    return start_callback_builder(drag_state, pane)
+
+
 def _standalone_radio_pane_marker_drag_pair(
     drag_state,
     pane,
@@ -790,7 +799,7 @@ def _standalone_radio_pane_marker_drag_pair(
     place_marker_for_sash,
     schedule_marker_update,
     *,
-    start_callback_builder=_standalone_radio_pane_start_callback,
+    start_callback_builder=_standalone_radio_pane_marker_start_callback,
     drag_callback_builder=_standalone_radio_pane_drag_callback,
 ):
     start_drag = start_callback_builder(drag_state, pane)
