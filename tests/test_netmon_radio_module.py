@@ -1810,6 +1810,18 @@ def test_standalone_radio_pane_drag_state_uses_initial_values():
     assert other_state is not state
 
 
+def test_standalone_radio_pane_marker_geometry_centers_and_offsets_marker():
+    assert netmon_radio_app._standalone_radio_pane_marker_geometry(
+        120,
+        80,
+        y_offset=12,
+    ) == {"x": 27, "y": 87, "width": 66, "height": 12}
+    assert netmon_radio_app._standalone_radio_pane_marker_geometry(
+        20,
+        1,
+    ) == {"x": 8, "y": 2, "width": 42, "height": 12}
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"

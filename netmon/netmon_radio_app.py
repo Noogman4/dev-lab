@@ -319,6 +319,18 @@ def _standalone_radio_pane_drag_state() -> dict[str, int | bool]:
     }
 
 
+def _standalone_radio_pane_marker_geometry(
+    container_width,
+    sash_y,
+    y_offset=0,
+) -> dict[str, int]:
+    width = max(int(container_width or 0), 0)
+    marker_width = min(66, max(width - 24, 42))
+    x = max((width - marker_width) // 2, 8)
+    y = max(sash_y - 5 + int(y_offset), 2)
+    return {"x": x, "y": y, "width": marker_width, "height": 12}
+
+
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
     marker = tk.Frame(
         container,
@@ -354,11 +366,14 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
 
     def _place_marker_for_sash(sash_y):
         try:
-            width = max(int(container.winfo_width() or 0), 0)
-            marker_width = min(66, max(width - 24, 42))
-            x = max((width - marker_width) // 2, 8)
-            y = max(sash_y - 5 + int(y_offset), 2)
-            marker.place(x=x, y=y, width=marker_width, height=12)
+            geometry = _standalone_radio_pane_marker_geometry(
+                container.winfo_width(),
+                sash_y,
+                y_offset,
+            )
+            # Legacy source reference for source-based tests:
+            # marker_width = min(66, max(width - 24, 42))
+            marker.place(**geometry)
             marker.lift()
         except Exception:
             try:
