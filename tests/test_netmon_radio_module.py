@@ -3025,6 +3025,58 @@ def test_standalone_radio_pane_marker_widgets_propagates_frame_failures():
         )
 
 
+def test_standalone_radio_pane_marker_drag_callbacks_builds_callbacks_in_order():
+    events = []
+    pane = object()
+    drag_state = {"update_pending": False}
+    set_sash = object()
+    place_marker = object()
+    update_marker = object()
+    schedule_marker = object()
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_drag_callbacks(
+        drag_state,
+        pane,
+        set_sash,
+        place_marker,
+        schedule_marker,
+        update_marker,
+        start_callback_builder=lambda *args: events.append(("start", args))
+        or start_drag,
+        drag_callback_builder=lambda *args: events.append(("drag", args)) or drag,
+        end_callback_builder=lambda update_arg: events.append(("end", update_arg))
+        or end_drag,
+    )
+
+    assert result == (start_drag, drag, end_drag)
+    assert events == [
+        ("start", (drag_state, pane)),
+        ("drag", (drag_state, set_sash, place_marker, schedule_marker)),
+        ("end", update_marker),
+    ]
+
+
+def test_standalone_radio_pane_marker_drag_callbacks_propagates_builder_failures():
+    def fail_end(_update_marker):
+        raise RuntimeError("end failed")
+
+    with pytest.raises(RuntimeError, match="end failed"):
+        netmon_radio_app._standalone_radio_pane_marker_drag_callbacks(
+            {},
+            object(),
+            object(),
+            object(),
+            object(),
+            object(),
+            start_callback_builder=lambda *_args: object(),
+            drag_callback_builder=lambda *_args: object(),
+            end_callback_builder=fail_end,
+        )
+
+
 def test_standalone_radio_pane_marker_callbacks_builds_callbacks_in_order():
     events = []
     container = object()
@@ -3053,11 +3105,8 @@ def test_standalone_radio_pane_marker_callbacks_builds_callbacks_in_order():
         or update_marker,
         schedule_callback_builder=lambda *args: events.append(("schedule", args))
         or schedule_marker,
-        start_callback_builder=lambda *args: events.append(("start", args))
-        or start_drag,
-        drag_callback_builder=lambda *args: events.append(("drag", args)) or drag,
-        end_callback_builder=lambda update_arg: events.append(("end", update_arg))
-        or end_drag,
+        drag_callbacks_builder=lambda *args: events.append(("drag_callbacks", args))
+        or (start_drag, drag, end_drag),
     )
 
     assert result == (update_marker, start_drag, drag, end_drag)
@@ -3067,17 +3116,18 @@ def test_standalone_radio_pane_marker_callbacks_builds_callbacks_in_order():
         ("place", (container, marker, 12)),
         ("update", (pane, place_marker, marker)),
         ("schedule", (container, drag_state, update_marker)),
-        ("start", (drag_state, pane)),
-        ("drag", (drag_state, set_sash, place_marker, schedule_marker)),
-        ("end", update_marker),
+        (
+            "drag_callbacks",
+            (drag_state, pane, set_sash, place_marker, schedule_marker, update_marker),
+        ),
     ]
 
 
 def test_standalone_radio_pane_marker_callbacks_propagates_builder_failures():
-    def fail_end(_update_marker):
-        raise RuntimeError("end failed")
+    def fail_drag_callbacks(*_args):
+        raise RuntimeError("drag callbacks failed")
 
-    with pytest.raises(RuntimeError, match="end failed"):
+    with pytest.raises(RuntimeError, match="drag callbacks failed"):
         netmon_radio_app._standalone_radio_pane_marker_callbacks(
             object(),
             object(),
@@ -3087,9 +3137,7 @@ def test_standalone_radio_pane_marker_callbacks_propagates_builder_failures():
             place_callback_builder=lambda *_args: object(),
             update_callback_builder=lambda *_args: object(),
             schedule_callback_builder=lambda *_args: object(),
-            start_callback_builder=lambda *_args: object(),
-            drag_callback_builder=lambda *_args: object(),
-            end_callback_builder=fail_end,
+            drag_callbacks_builder=fail_drag_callbacks,
         )
 
 
