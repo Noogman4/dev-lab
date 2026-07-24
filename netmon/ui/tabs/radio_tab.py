@@ -889,6 +889,15 @@ def _make_radio_pane_marker_update_callback(
     return _update_marker
 
 
+def _invoke_radio_pane_marker_update_requester(
+    container,
+    drag_state,
+    update_marker,
+    update_requester,
+) -> None:
+    update_requester(container, drag_state, update_marker)
+
+
 def _make_radio_pane_marker_schedule_callback(
     container,
     drag_state,
@@ -897,7 +906,12 @@ def _make_radio_pane_marker_schedule_callback(
     update_requester=_request_radio_pane_marker_update,
 ):
     def _schedule_marker_update():
-        update_requester(container, drag_state, update_marker)
+        _invoke_radio_pane_marker_update_requester(
+            container,
+            drag_state,
+            update_marker,
+            update_requester,
+        )
 
     return _schedule_marker_update
 

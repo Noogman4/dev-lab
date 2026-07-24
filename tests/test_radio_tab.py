@@ -965,6 +965,24 @@ def test_request_radio_pane_marker_update_keeps_pending_update():
     assert drag_state["update_pending"] is True
 
 
+def test_invoke_radio_pane_marker_update_requester_forwards_dependencies():
+    calls = []
+    container = object()
+    drag_state = object()
+    update_marker = object()
+
+    radio_tab._invoke_radio_pane_marker_update_requester(
+        container,
+        drag_state,
+        update_marker,
+        lambda container_arg, state_arg, update_arg: calls.append(
+            (container_arg, state_arg, update_arg)
+        ),
+    )
+
+    assert calls == [(container, drag_state, update_marker)]
+
+
 def test_make_radio_pane_marker_schedule_callback_binds_update_dependencies():
     calls = []
     container = object()
