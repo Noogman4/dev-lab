@@ -3077,6 +3077,38 @@ def test_standalone_radio_pane_marker_drag_callbacks_propagates_builder_failures
         )
 
 
+def test_standalone_radio_pane_marker_drag_setup_builds_state_and_sash_callback():
+    events = []
+    pane = object()
+    drag_state = {"update_pending": False}
+    set_sash = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_drag_setup(
+        pane,
+        drag_state_builder=lambda: events.append("drag_state") or drag_state,
+        sash_callback_builder=lambda pane_arg: events.append(("sash", pane_arg))
+        or set_sash,
+    )
+
+    assert result == (drag_state, set_sash)
+    assert events == [
+        "drag_state",
+        ("sash", pane),
+    ]
+
+
+def test_standalone_radio_pane_marker_drag_setup_propagates_builder_failures():
+    def fail_sash(_pane):
+        raise RuntimeError("sash failed")
+
+    with pytest.raises(RuntimeError, match="sash failed"):
+        netmon_radio_app._standalone_radio_pane_marker_drag_setup(
+            object(),
+            drag_state_builder=lambda: {},
+            sash_callback_builder=fail_sash,
+        )
+
+
 def test_standalone_radio_pane_marker_base_callbacks_builds_callbacks_in_order():
     events = []
     container = object()
@@ -3093,9 +3125,8 @@ def test_standalone_radio_pane_marker_base_callbacks_builds_callbacks_in_order()
         pane,
         marker,
         12,
-        drag_state_builder=lambda: events.append("drag_state") or drag_state,
-        sash_callback_builder=lambda pane_arg: events.append(("sash", pane_arg))
-        or set_sash,
+        drag_setup_builder=lambda pane_arg: events.append(("drag_setup", pane_arg))
+        or (drag_state, set_sash),
         place_callback_builder=lambda *args: events.append(("place", args))
         or place_marker,
         update_callback_builder=lambda *args: events.append(("update", args))
@@ -3112,8 +3143,7 @@ def test_standalone_radio_pane_marker_base_callbacks_builds_callbacks_in_order()
         schedule_marker,
     )
     assert events == [
-        "drag_state",
-        ("sash", pane),
+        ("drag_setup", pane),
         ("place", (container, marker, 12)),
         ("update", (pane, place_marker, marker)),
         ("schedule", (container, drag_state, update_marker)),
@@ -3129,8 +3159,7 @@ def test_standalone_radio_pane_marker_base_callbacks_propagates_builder_failures
             object(),
             object(),
             object(),
-            drag_state_builder=lambda: {},
-            sash_callback_builder=lambda _pane: object(),
+            drag_setup_builder=lambda _pane: ({}, object()),
             place_callback_builder=lambda *_args: object(),
             update_callback_builder=lambda *_args: object(),
             schedule_callback_builder=fail_schedule,
