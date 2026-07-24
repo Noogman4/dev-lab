@@ -1918,6 +1918,25 @@ def test_standalone_radio_pane_place_marker_for_sash_builds_geometry_then_places
     ]
 
 
+def test_standalone_radio_pane_update_marker_places_current_sash():
+    events = []
+
+    class DummyPane:
+        def sashpos(self, index):
+            events.append(("sashpos", index))
+            return "80"
+
+    netmon_radio_app._standalone_radio_pane_update_marker(
+        DummyPane(),
+        lambda sash_y: events.append(("place", sash_y)),
+    )
+
+    assert events == [
+        ("sashpos", 0),
+        ("place", 80),
+    ]
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
