@@ -1698,6 +1698,27 @@ def test_build_radio_pane_marker_place_callback_forwards_dependencies():
     assert calls == [(container, marker)]
 
 
+def test_build_radio_pane_marker_update_callback_forwards_dependencies():
+    calls = []
+    pane = object()
+    place_marker = object()
+    marker = object()
+    update_marker = object()
+
+    result = radio_tab._build_radio_pane_marker_update_callback(
+        pane,
+        place_marker,
+        marker,
+        lambda pane_arg, place_arg, marker_arg: calls.append(
+            (pane_arg, place_arg, marker_arg)
+        )
+        or update_marker,
+    )
+
+    assert result is update_marker
+    assert calls == [(pane, place_marker, marker)]
+
+
 def test_build_radio_pane_marker_callbacks_builds_callbacks_in_dependency_order():
     events = []
     container = object()
