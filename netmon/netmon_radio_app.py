@@ -369,6 +369,24 @@ def _standalone_radio_pane_place_marker_for_sash(
     marker_placer(marker, geometry)
 
 
+def _standalone_radio_pane_place_marker_for_sash_safe(
+    container,
+    marker,
+    sash_y,
+    y_offset=0,
+    *,
+    place_marker_for_sash=_standalone_radio_pane_place_marker_for_sash,
+    forget_marker=_standalone_radio_pane_forget_marker,
+) -> None:
+    try:
+        place_marker_for_sash(container, marker, sash_y, y_offset)
+    except Exception:
+        try:
+            forget_marker(marker)
+        except Exception:
+            pass
+
+
 def _standalone_radio_pane_update_marker(pane, place_marker_for_sash) -> None:
     place_marker_for_sash(int(pane.sashpos(0)))
 
@@ -479,20 +497,14 @@ def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
         _standalone_radio_pane_set_sash_pos(pane, new_y)
 
     def _place_marker_for_sash(sash_y):
-        try:
-            # Legacy source reference for source-based tests:
-            # marker_width = min(66, max(width - 24, 42))
-            _standalone_radio_pane_place_marker_for_sash(
-                container,
-                marker,
-                sash_y,
-                y_offset,
-            )
-        except Exception:
-            try:
-                _standalone_radio_pane_forget_marker(marker)
-            except Exception:
-                pass
+        # Legacy source reference for source-based tests:
+        # marker_width = min(66, max(width - 24, 42))
+        _standalone_radio_pane_place_marker_for_sash_safe(
+            container,
+            marker,
+            sash_y,
+            y_offset,
+        )
 
     def _update_marker(_event=None):
         try:

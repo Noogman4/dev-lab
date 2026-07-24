@@ -1921,6 +1921,69 @@ def test_standalone_radio_pane_place_marker_for_sash_builds_geometry_then_places
     ]
 
 
+def test_standalone_radio_pane_place_marker_for_sash_safe_places_marker():
+    events = []
+    container = object()
+    marker = object()
+
+    netmon_radio_app._standalone_radio_pane_place_marker_for_sash_safe(
+        container,
+        marker,
+        80,
+        12,
+        place_marker_for_sash=lambda *args: events.append(("place", args)),
+        forget_marker=lambda marker_arg: events.append(("forget", marker_arg)),
+    )
+
+    assert events == [
+        ("place", (container, marker, 80, 12)),
+    ]
+
+
+def test_standalone_radio_pane_place_marker_for_sash_safe_forgets_on_place_failure():
+    events = []
+    marker = object()
+
+    def fail_place(*_args):
+        events.append("place")
+        raise RuntimeError("place failed")
+
+    netmon_radio_app._standalone_radio_pane_place_marker_for_sash_safe(
+        object(),
+        marker,
+        80,
+        place_marker_for_sash=fail_place,
+        forget_marker=lambda marker_arg: events.append(("forget", marker_arg)),
+    )
+
+    assert events == [
+        "place",
+        ("forget", marker),
+    ]
+
+
+def test_standalone_radio_pane_place_marker_for_sash_safe_ignores_forget_failure():
+    events = []
+
+    def fail_place(*_args):
+        events.append("place")
+        raise RuntimeError("place failed")
+
+    def fail_forget(_marker):
+        events.append("forget")
+        raise RuntimeError("forget failed")
+
+    netmon_radio_app._standalone_radio_pane_place_marker_for_sash_safe(
+        object(),
+        object(),
+        80,
+        place_marker_for_sash=fail_place,
+        forget_marker=fail_forget,
+    )
+
+    assert events == ["place", "forget"]
+
+
 def test_standalone_radio_pane_update_marker_places_current_sash():
     events = []
 
