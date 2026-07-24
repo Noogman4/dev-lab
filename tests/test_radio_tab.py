@@ -1793,6 +1793,26 @@ def test_build_radio_pane_marker_drag_end_callback_forwards_dependencies():
     assert calls == [update_marker]
 
 
+def test_radio_pane_marker_callbacks_groups_activation_callbacks():
+    update_marker = object()
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+
+    result = radio_tab._radio_pane_marker_callbacks(
+        update_marker,
+        start_drag,
+        drag,
+        end_drag,
+    )
+
+    assert isinstance(result, radio_tab._RadioPaneMarkerCallbacks)
+    assert result.update_marker is update_marker
+    assert result.start_drag is start_drag
+    assert result.drag is drag
+    assert result.end_drag is end_drag
+
+
 def test_build_radio_pane_marker_callbacks_builds_callbacks_in_dependency_order():
     events = []
     container = object()
