@@ -1584,6 +1584,44 @@ def _init_radio_ui_database_custom_vars(
     app.radio_custom_form_status_var = string_var_builder(value="")
 
 
+def _init_radio_ui_projectm_vars(
+    app,
+    *,
+    string_var_builder=tk.StringVar,
+) -> None:
+    app.radio_projectm_status_var = string_var_builder(
+        value=app.tr("radio_projectm_status_not_installed", "projectM not installed")
+    )
+    app.radio_projectm_meta_var = string_var_builder(
+        value=app.tr("radio_projectm_meta_default", "PID: - | Log: -")
+    )
+    app.radio_projectm_history_var = string_var_builder(
+        value=app.tr(
+            "radio_projectm_history_default",
+            "Last started: - | Last stopped: -",
+        )
+    )
+    app.radio_projectm_install_var = string_var_builder(
+        value=app.tr(
+            "radio_projectm_install_status_checking",
+            "Checking projectM package status.",
+        )
+    )
+    app.radio_projectm_preset_var = string_var_builder(
+        value=app.tr(
+            "radio_projectm_presets_preparing",
+            "projectM preset folder: preparing Documents/NetMon",
+        )
+    )
+    app.radio_projectm_preset_hint_var = string_var_builder(
+        value=app.tr(
+            "radio_projectm_preset_access_checking",
+            "Preset access: checking downloaded packs and custom imports",
+        )
+    )
+    app.radio_attach_status_var = string_var_builder(value="")
+
+
 def _init_radio_ui_state(app):
     volume_value = _radio_ui_volume_value(app.radio_settings)
     eq_bass_value, eq_mid_value, eq_treble_value = _radio_ui_eq_values(
@@ -1608,37 +1646,10 @@ def _init_radio_ui_state(app):
         "offline": _build_radio_status_indicator("#d9485f"),
     }
     _init_radio_ui_projectm_runtime_state(app)
-    app.radio_projectm_status_var = tk.StringVar(
-        value=app.tr("radio_projectm_status_not_installed", "projectM not installed")
-    )
-    app.radio_projectm_meta_var = tk.StringVar(
-        value=app.tr("radio_projectm_meta_default", "PID: - | Log: -")
-    )
-    app.radio_projectm_history_var = tk.StringVar(
-        value=app.tr(
-            "radio_projectm_history_default",
-            "Last started: - | Last stopped: -",
-        )
-    )
-    app.radio_projectm_install_var = tk.StringVar(
-        value=app.tr(
-            "radio_projectm_install_status_checking",
-            "Checking projectM package status.",
-        )
-    )
-    app.radio_projectm_preset_var = tk.StringVar(
-        value=app.tr(
-            "radio_projectm_presets_preparing",
-            "projectM preset folder: preparing Documents/NetMon",
-        )
-    )
-    app.radio_projectm_preset_hint_var = tk.StringVar(
-        value=app.tr(
-            "radio_projectm_preset_access_checking",
-            "Preset access: checking downloaded packs and custom imports",
-        )
-    )
-    app.radio_attach_status_var = tk.StringVar(value="")
+    # Source anchor for standalone projectM hook tests:
+    # projectM preset folder: preparing Documents/NetMon
+    # checking downloaded packs and custom imports
+    _init_radio_ui_projectm_vars(app)
     _init_radio_ui_recording_runtime_state(app)
     app.radio_record_status_var = tk.StringVar(
         value=app.tr("radio_record_status_off", "Recording off.")

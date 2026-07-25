@@ -4652,6 +4652,46 @@ def test_init_radio_ui_database_custom_vars_initializes_values():
     ]
 
 
+def test_init_radio_ui_projectm_vars_initializes_translated_values():
+    calls = []
+    app = SimpleNamespace(
+        tr=lambda key, default: {
+            "radio_projectm_status_not_installed": "projectM fehlt",
+            "radio_projectm_meta_default": "PID: - | Log: -",
+            "radio_projectm_history_default": "Start: - | Stopp: -",
+            "radio_projectm_install_status_checking": "Paketstatus pruefen.",
+            "radio_projectm_presets_preparing": "Preset-Ordner wird vorbereitet",
+            "radio_projectm_preset_access_checking": "Preset-Zugriff pruefen",
+        }.get(key, default)
+    )
+
+    def build_var(*, value):
+        calls.append(value)
+        return DummyVar(value)
+
+    netmon_radio_app._init_radio_ui_projectm_vars(
+        app,
+        string_var_builder=build_var,
+    )
+
+    assert app.radio_projectm_status_var.get() == "projectM fehlt"
+    assert app.radio_projectm_meta_var.get() == "PID: - | Log: -"
+    assert app.radio_projectm_history_var.get() == "Start: - | Stopp: -"
+    assert app.radio_projectm_install_var.get() == "Paketstatus pruefen."
+    assert app.radio_projectm_preset_var.get() == "Preset-Ordner wird vorbereitet"
+    assert app.radio_projectm_preset_hint_var.get() == "Preset-Zugriff pruefen"
+    assert app.radio_attach_status_var.get() == ""
+    assert calls == [
+        "projectM fehlt",
+        "PID: - | Log: -",
+        "Start: - | Stopp: -",
+        "Paketstatus pruefen.",
+        "Preset-Ordner wird vorbereitet",
+        "Preset-Zugriff pruefen",
+        "",
+    ]
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
