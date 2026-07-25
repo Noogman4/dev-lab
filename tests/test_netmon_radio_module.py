@@ -2000,24 +2000,51 @@ def test_standalone_radio_pane_schedule_active_marker_initial_update_forwards_de
     assert calls == [(container, callback)]
 
 
+def test_standalone_radio_pane_bind_active_marker_callbacks_delegates_binder():
+    events = []
+    binding_plan = object()
+
+    netmon_radio_app._standalone_radio_pane_bind_active_marker_callbacks(
+        binding_plan,
+        lambda plan: events.append(plan),
+    )
+
+    assert events == [binding_plan]
+
+
+def test_standalone_radio_pane_bind_active_marker_callbacks_propagates_failures():
+    def fail_bind(_binding_plan):
+        raise RuntimeError("active bind failed")
+
+    with pytest.raises(RuntimeError, match="active bind failed"):
+        netmon_radio_app._standalone_radio_pane_bind_active_marker_callbacks(
+            object(),
+            fail_bind,
+        )
+
+
 def test_standalone_radio_pane_activate_marker_callbacks_binds_then_schedules():
     events = []
     container = object()
     binding_plan = object()
     update_marker = object()
+    callback_binder = object()
 
     netmon_radio_app._standalone_radio_pane_activate_marker_callbacks(
         container,
         binding_plan,
         update_marker,
-        callback_binder=lambda plan: events.append(("bind", plan)),
+        callback_binder=callback_binder,
+        active_callback_binder=lambda plan, binder: events.append(
+            ("bind", plan, binder)
+        ),
         initial_update_scheduler=lambda container_arg, update_arg: events.append(
             ("schedule", container_arg, update_arg)
         ),
     )
 
     assert events == [
-        ("bind", binding_plan),
+        ("bind", binding_plan, callback_binder),
         (
             "schedule",
             container,
@@ -2036,6 +2063,20 @@ def test_standalone_radio_pane_activate_marker_callbacks_propagates_binding_fail
             object(),
             object(),
             callback_binder=fail_bind,
+            initial_update_scheduler=lambda *_args: None,
+        )
+
+
+def test_standalone_radio_pane_activate_marker_callbacks_propagates_active_binding_failure():
+    def fail_active_bind(*_args):
+        raise RuntimeError("active bind failed")
+
+    with pytest.raises(RuntimeError, match="active bind failed"):
+        netmon_radio_app._standalone_radio_pane_activate_marker_callbacks(
+            object(),
+            object(),
+            object(),
+            active_callback_binder=fail_active_bind,
             initial_update_scheduler=lambda *_args: None,
         )
 

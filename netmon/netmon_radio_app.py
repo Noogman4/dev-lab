@@ -394,15 +394,23 @@ def _standalone_radio_pane_schedule_active_marker_initial_update(
     initial_update_scheduler(container, update_marker)
 
 
+def _standalone_radio_pane_bind_active_marker_callbacks(
+    binding_plan,
+    callback_binder,
+) -> None:
+    callback_binder(binding_plan)
+
+
 def _standalone_radio_pane_activate_marker_callbacks(
     container,
     binding_plan,
     update_marker,
     *,
     callback_binder=_standalone_radio_pane_bind_marker_callbacks,
+    active_callback_binder=_standalone_radio_pane_bind_active_marker_callbacks,
     initial_update_scheduler=_standalone_radio_pane_schedule_initial_marker_update,
 ) -> None:
-    callback_binder(binding_plan)
+    active_callback_binder(binding_plan, callback_binder)
     _standalone_radio_pane_schedule_active_marker_initial_update(
         container,
         update_marker,
