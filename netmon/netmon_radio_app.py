@@ -1347,7 +1347,23 @@ def _init_radio_runtime_state(app, *, embedded_mode, host_app=None):
     )
 
 
+def _radio_ui_volume_value(settings) -> int:
+    return int(settings.get("volume", 50) or 50)
+
+
+def _radio_ui_eq_values(settings) -> tuple[int, int, int]:
+    return (
+        int(settings.get("eq_bass", 0) or 0),
+        int(settings.get("eq_mid", 0) or 0),
+        int(settings.get("eq_treble", 0) or 0),
+    )
+
+
 def _init_radio_ui_state(app):
+    volume_value = _radio_ui_volume_value(app.radio_settings)
+    eq_bass_value, eq_mid_value, eq_treble_value = _radio_ui_eq_values(
+        app.radio_settings
+    )
     app.radio_now_playing_var = tk.StringVar(
         value=app.tr("radio_header_off", "Radio: off")
     )
@@ -1371,35 +1387,19 @@ def _init_radio_ui_state(app):
     app.radio_list_status_var = tk.StringVar(
         value=app.tr("radio_station_count", "Stations: {count}").format(count=0)
     )
-    app.radio_volume_var = tk.IntVar(
-        value=int(app.radio_settings.get("volume", 50) or 50)
-    )
+    app.radio_volume_var = tk.IntVar(value=volume_value)
     app.radio_volume_text_var = tk.StringVar(
         value=app.tr("radio_volume_short_label", "Vol.: {value}%").format(
-            value=int(app.radio_settings.get("volume", 50) or 50)
+            value=volume_value
         )
     )
-    app.radio_volume_label_var = tk.StringVar(
-        value=f"{int(app.radio_settings.get('volume', 50) or 50)}%"
-    )
-    app.radio_eq_bass_var = tk.IntVar(
-        value=int(app.radio_settings.get("eq_bass", 0) or 0)
-    )
-    app.radio_eq_mid_var = tk.IntVar(
-        value=int(app.radio_settings.get("eq_mid", 0) or 0)
-    )
-    app.radio_eq_treble_var = tk.IntVar(
-        value=int(app.radio_settings.get("eq_treble", 0) or 0)
-    )
-    app.radio_eq_bass_label_var = tk.StringVar(
-        value=str(int(app.radio_settings.get("eq_bass", 0) or 0))
-    )
-    app.radio_eq_mid_label_var = tk.StringVar(
-        value=str(int(app.radio_settings.get("eq_mid", 0) or 0))
-    )
-    app.radio_eq_treble_label_var = tk.StringVar(
-        value=str(int(app.radio_settings.get("eq_treble", 0) or 0))
-    )
+    app.radio_volume_label_var = tk.StringVar(value=f"{volume_value}%")
+    app.radio_eq_bass_var = tk.IntVar(value=eq_bass_value)
+    app.radio_eq_mid_var = tk.IntVar(value=eq_mid_value)
+    app.radio_eq_treble_var = tk.IntVar(value=eq_treble_value)
+    app.radio_eq_bass_label_var = tk.StringVar(value=str(eq_bass_value))
+    app.radio_eq_mid_label_var = tk.StringVar(value=str(eq_mid_value))
+    app.radio_eq_treble_label_var = tk.StringVar(value=str(eq_treble_value))
     app.radio_search_var = tk.StringVar(
         value=str(app.radio_settings.get("last_search", "") or "")
     )

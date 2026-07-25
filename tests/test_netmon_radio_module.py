@@ -4282,6 +4282,27 @@ def test_init_radio_runtime_host_state_ignores_theme_failures():
     assert app.radio_settings == {}
 
 
+def test_radio_ui_volume_value_uses_setting_and_default():
+    assert netmon_radio_app._radio_ui_volume_value({"volume": "67"}) == 67
+    assert netmon_radio_app._radio_ui_volume_value({}) == 50
+    assert netmon_radio_app._radio_ui_volume_value({"volume": 0}) == 50
+
+
+def test_radio_ui_eq_values_use_settings_and_defaults():
+    assert netmon_radio_app._radio_ui_eq_values(
+        {"eq_bass": "3", "eq_mid": "-2", "eq_treble": "4"}
+    ) == (3, -2, 4)
+    assert netmon_radio_app._radio_ui_eq_values({}) == (0, 0, 0)
+
+
+def test_radio_ui_value_helpers_propagate_invalid_numbers():
+    with pytest.raises(ValueError):
+        netmon_radio_app._radio_ui_volume_value({"volume": "loud"})
+
+    with pytest.raises(ValueError):
+        netmon_radio_app._radio_ui_eq_values({"eq_bass": "deep"})
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
