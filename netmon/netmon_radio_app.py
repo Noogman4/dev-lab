@@ -1638,6 +1638,20 @@ def _init_radio_ui_recording_vars(
     )
 
 
+def _init_radio_ui_playlist_folder_vars(
+    app,
+    *,
+    string_var_builder=tk.StringVar,
+) -> None:
+    app.radio_playlist_status_var = string_var_builder(
+        value=app.tr("radio_playlist_status_default", "Playlist: 0 Dateien")
+    )
+    app.radio_folder_browser_title_var = string_var_builder(
+        value=app.tr("radio_folder_browser_title", "Aufnahmeordner")
+    )
+    app.radio_folder_browser_path_var = string_var_builder(value="")
+
+
 def _init_radio_ui_state(app):
     volume_value = _radio_ui_volume_value(app.radio_settings)
     eq_bass_value, eq_mid_value, eq_treble_value = _radio_ui_eq_values(
@@ -1669,13 +1683,7 @@ def _init_radio_ui_state(app):
     _init_radio_ui_recording_runtime_state(app)
     _init_radio_ui_recording_vars(app)
     _init_radio_ui_playlist_runtime_state(app)
-    app.radio_playlist_status_var = tk.StringVar(
-        value=app.tr("radio_playlist_status_default", "Playlist: 0 Dateien")
-    )
-    app.radio_folder_browser_title_var = tk.StringVar(
-        value=app.tr("radio_folder_browser_title", "Aufnahmeordner")
-    )
-    app.radio_folder_browser_path_var = tk.StringVar(value="")
+    _init_radio_ui_playlist_folder_vars(app)
     _init_radio_ui_folder_browser_runtime_state(app)
     app.radio_recordings_status_var = tk.StringVar(
         value=app.tr(

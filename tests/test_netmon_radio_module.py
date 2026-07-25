@@ -4717,6 +4717,30 @@ def test_init_radio_ui_recording_vars_initializes_translated_values():
     assert calls == ["Aufnahme aus.", "Ordner: -", "Datei: -"]
 
 
+def test_init_radio_ui_playlist_folder_vars_initializes_translated_values():
+    calls = []
+    app = SimpleNamespace(
+        tr=lambda key, default: {
+            "radio_playlist_status_default": "Playlist: 0 Titel",
+            "radio_folder_browser_title": "Ordner",
+        }.get(key, default)
+    )
+
+    def build_var(*, value):
+        calls.append(value)
+        return DummyVar(value)
+
+    netmon_radio_app._init_radio_ui_playlist_folder_vars(
+        app,
+        string_var_builder=build_var,
+    )
+
+    assert app.radio_playlist_status_var.get() == "Playlist: 0 Titel"
+    assert app.radio_folder_browser_title_var.get() == "Ordner"
+    assert app.radio_folder_browser_path_var.get() == ""
+    assert calls == ["Playlist: 0 Titel", "Ordner", ""]
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
