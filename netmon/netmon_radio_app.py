@@ -1359,11 +1359,21 @@ def _radio_ui_eq_values(settings) -> tuple[int, int, int]:
     )
 
 
+def _radio_ui_search_value(settings) -> str:
+    return str(settings.get("last_search", "") or "")
+
+
+def _radio_ui_database_count(app) -> int:
+    return len(getattr(app, "radio_db", []) or [])
+
+
 def _init_radio_ui_state(app):
     volume_value = _radio_ui_volume_value(app.radio_settings)
     eq_bass_value, eq_mid_value, eq_treble_value = _radio_ui_eq_values(
         app.radio_settings
     )
+    search_value = _radio_ui_search_value(app.radio_settings)
+    database_count = _radio_ui_database_count(app)
     app.radio_now_playing_var = tk.StringVar(
         value=app.tr("radio_header_off", "Radio: off")
     )
@@ -1400,9 +1410,7 @@ def _init_radio_ui_state(app):
     app.radio_eq_bass_label_var = tk.StringVar(value=str(eq_bass_value))
     app.radio_eq_mid_label_var = tk.StringVar(value=str(eq_mid_value))
     app.radio_eq_treble_label_var = tk.StringVar(value=str(eq_treble_value))
-    app.radio_search_var = tk.StringVar(
-        value=str(app.radio_settings.get("last_search", "") or "")
-    )
+    app.radio_search_var = tk.StringVar(value=search_value)
     app.radio_light_state = "gray"
     app.radio_context_station_id = ""
     app.radio_show_favorites_var = tk.BooleanVar(value=False)
@@ -1417,7 +1425,7 @@ def _init_radio_ui_state(app):
     app.radio_page_indicator_var = tk.StringVar(value="1/1")
     app.radio_database_count_var = tk.StringVar(
         value=app.tr("radio_database_count", "DB: {count} stations").format(
-            count=len(getattr(app, "radio_db", []) or [])
+            count=database_count
         )
     )
     app.radio_database_progress_var = tk.DoubleVar(value=0.0)

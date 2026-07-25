@@ -4303,6 +4303,27 @@ def test_radio_ui_value_helpers_propagate_invalid_numbers():
         netmon_radio_app._radio_ui_eq_values({"eq_bass": "deep"})
 
 
+def test_radio_ui_search_value_uses_setting_and_default():
+    assert netmon_radio_app._radio_ui_search_value({"last_search": "ambient"}) == (
+        "ambient"
+    )
+    assert netmon_radio_app._radio_ui_search_value({"last_search": None}) == ""
+    assert netmon_radio_app._radio_ui_search_value({}) == ""
+
+
+def test_radio_ui_database_count_handles_missing_and_empty_db():
+    assert (
+        netmon_radio_app._radio_ui_database_count(
+            SimpleNamespace(radio_db=[object(), object(), object()])
+        )
+        == 3
+    )
+    assert (
+        netmon_radio_app._radio_ui_database_count(SimpleNamespace(radio_db=None)) == 0
+    )
+    assert netmon_radio_app._radio_ui_database_count(SimpleNamespace()) == 0
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
