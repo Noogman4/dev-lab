@@ -4211,6 +4211,38 @@ def test_init_radio_runtime_paths_initializes_radio_paths():
     assert app.radio_logo_cache_dir == "/tmp/netmon-state/radio_station_logos"
 
 
+def test_init_radio_runtime_data_state_initializes_radio_data():
+    app = SimpleNamespace()
+    settings = {"volume": 77}
+
+    netmon_radio_app._init_radio_runtime_data_state(
+        app,
+        settings_builder=lambda: settings,
+    )
+
+    assert app.radio_proc is None
+    assert app.radio_stop_requested is False
+    assert app.radio_ipc_path == ""
+    assert app.radio_db == []
+    assert app.radio_favorites == []
+    assert app.radio_search_results == []
+    assert app.radio_settings is settings
+
+
+def test_init_radio_runtime_selection_state_initializes_selection_data():
+    app = SimpleNamespace()
+
+    netmon_radio_app._init_radio_runtime_selection_state(app)
+
+    assert app._app_theme is None
+    assert app.radio_current_station_id == ""
+    assert app.radio_current_station is None
+    assert app.radio_search_page == 0
+    assert app.radio_filtered_station_ids == []
+    assert app.radio_live_status_by_station_id == {}
+    assert app.radio_reachability_check_running is False
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"

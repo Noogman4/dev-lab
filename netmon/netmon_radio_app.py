@@ -1283,19 +1283,21 @@ def _init_radio_runtime_paths(app, *, paths_builder=build_radio_paths) -> None:
     )
 
 
-def _init_radio_runtime_state(app, *, embedded_mode, host_app=None):
-    _init_radio_runtime_widget_refs(app)
-    _init_radio_runtime_paths(app)
-
+def _init_radio_runtime_data_state(
+    app,
+    *,
+    settings_builder=radio_controller.default_radio_settings,
+) -> None:
     app.radio_proc = None
     app.radio_stop_requested = False
     app.radio_ipc_path = ""
     app.radio_db = []
     app.radio_favorites = []
     app.radio_search_results = []
-    app.radio_settings = radio_controller.default_radio_settings()
-    app.style = ttk.Style(app)
-    app._ensure_colorable_ttk_theme()
+    app.radio_settings = settings_builder()
+
+
+def _init_radio_runtime_selection_state(app) -> None:
     app._app_theme = None
     app.radio_current_station_id = ""
     app.radio_current_station = None
@@ -1303,6 +1305,16 @@ def _init_radio_runtime_state(app, *, embedded_mode, host_app=None):
     app.radio_filtered_station_ids = []
     app.radio_live_status_by_station_id = {}
     app.radio_reachability_check_running = False
+
+
+def _init_radio_runtime_state(app, *, embedded_mode, host_app=None):
+    _init_radio_runtime_widget_refs(app)
+    _init_radio_runtime_paths(app)
+    _init_radio_runtime_data_state(app)
+
+    app.style = ttk.Style(app)
+    app._ensure_colorable_ttk_theme()
+    _init_radio_runtime_selection_state(app)
     radio_controller.load_radio_runtime(app)
     try:
         netmon_projectm_sidecar.ensure_projectm_preset_dir(app)
