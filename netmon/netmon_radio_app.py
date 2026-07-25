@@ -377,13 +377,23 @@ def _standalone_radio_pane_request_initial_marker_update(
         pass
 
 
+def _standalone_radio_pane_initial_update_request_args(
+    container,
+    update_marker,
+):
+    return container, update_marker
+
+
 def _standalone_radio_pane_schedule_initial_marker_update(
     container,
     update_marker,
     *,
+    request_args_builder=_standalone_radio_pane_initial_update_request_args,
     request_update=_standalone_radio_pane_request_initial_marker_update,
 ) -> None:
-    request_update(container, update_marker)
+    request_args = request_args_builder(container, update_marker)
+    container_arg, update_arg = request_args
+    request_update(container_arg, update_arg)
 
 
 def _standalone_radio_pane_active_initial_update_args(

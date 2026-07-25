@@ -1970,6 +1970,16 @@ def test_standalone_radio_pane_request_initial_marker_update_ignores_after_failu
     assert calls == ["after"]
 
 
+def test_standalone_radio_pane_initial_update_request_args_combines_arguments():
+    container = object()
+    callback = object()
+
+    assert netmon_radio_app._standalone_radio_pane_initial_update_request_args(
+        container,
+        callback,
+    ) == (container, callback)
+
+
 def test_standalone_radio_pane_schedule_initial_marker_update_delegates_request():
     calls = []
     container = object()
@@ -1978,12 +1988,26 @@ def test_standalone_radio_pane_schedule_initial_marker_update_delegates_request(
     netmon_radio_app._standalone_radio_pane_schedule_initial_marker_update(
         container,
         callback,
+        request_args_builder=lambda *args: calls.append(("args", args))
+        or (container, callback),
         request_update=lambda container_arg, callback_arg: calls.append(
             (container_arg, callback_arg)
         ),
     )
 
-    assert calls == [(container, callback)]
+    assert calls == [
+        ("args", (container, callback)),
+        (container, callback),
+    ]
+
+
+def test_standalone_radio_pane_schedule_initial_marker_update_rejects_invalid_args():
+    with pytest.raises(ValueError):
+        netmon_radio_app._standalone_radio_pane_schedule_initial_marker_update(
+            object(),
+            object(),
+            request_args_builder=lambda *_args: (object(), object(), object()),
+        )
 
 
 def test_standalone_radio_pane_active_initial_update_args_combines_arguments():
