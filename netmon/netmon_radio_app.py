@@ -989,24 +989,32 @@ def _standalone_radio_pane_marker_callbacks(
     return callback_tuple_builder(update_marker, drag_callbacks)
 
 
+def _standalone_radio_pane_marker_activation_args(
+    container,
+    pane,
+    grip,
+    callbacks,
+):
+    update_marker, start_drag, drag, end_drag = callbacks
+    return container, pane, grip, update_marker, start_drag, drag, end_drag
+
+
 def _standalone_radio_pane_activate_marker_parts(
     container,
     pane,
     grip,
     callbacks,
     *,
+    activation_args_builder=_standalone_radio_pane_marker_activation_args,
     bindings_activator=_standalone_radio_pane_activate_marker_bindings,
 ) -> None:
-    update_marker, start_drag, drag, end_drag = callbacks
-    bindings_activator(
+    activation_args = activation_args_builder(
         container,
         pane,
         grip,
-        update_marker,
-        start_drag,
-        drag,
-        end_drag,
+        callbacks,
     )
+    bindings_activator(*activation_args)
 
 
 def _standalone_radio_pane_install_marker_parts(

@@ -3494,23 +3494,53 @@ def test_standalone_radio_pane_marker_callbacks_propagates_builder_failures():
         )
 
 
+def test_standalone_radio_pane_marker_activation_args_combines_arguments():
+    container = object()
+    pane = object()
+    grip = object()
+    callbacks = (object(), object(), object(), object())
+
+    result = netmon_radio_app._standalone_radio_pane_marker_activation_args(
+        container,
+        pane,
+        grip,
+        callbacks,
+    )
+
+    assert result == (container, pane, grip, *callbacks)
+
+
+def test_standalone_radio_pane_marker_activation_args_rejects_invalid_callbacks():
+    with pytest.raises(ValueError):
+        netmon_radio_app._standalone_radio_pane_marker_activation_args(
+            object(),
+            object(),
+            object(),
+            (object(), object(), object()),
+        )
+
+
 def test_standalone_radio_pane_activate_marker_parts_activates_bindings():
     events = []
     container = object()
     pane = object()
     grip = object()
     callbacks = (object(), object(), object(), object())
+    activation_args = (object(), object(), object(), object())
 
     netmon_radio_app._standalone_radio_pane_activate_marker_parts(
         container,
         pane,
         grip,
         callbacks,
+        activation_args_builder=lambda *args: events.append(("args", args))
+        or activation_args,
         bindings_activator=lambda *args: events.append(("activate", args)),
     )
 
     assert events == [
-        ("activate", (container, pane, grip, *callbacks)),
+        ("args", (container, pane, grip, callbacks)),
+        ("activate", activation_args),
     ]
 
 
@@ -3525,6 +3555,20 @@ def test_standalone_radio_pane_activate_marker_parts_propagates_activation_failu
             object(),
             (object(), object(), object(), object()),
             bindings_activator=fail_activate,
+        )
+
+
+def test_standalone_radio_pane_activate_marker_parts_propagates_args_failure():
+    def fail_activation_args(*_args):
+        raise RuntimeError("activation args failed")
+
+    with pytest.raises(RuntimeError, match="activation args failed"):
+        netmon_radio_app._standalone_radio_pane_activate_marker_parts(
+            object(),
+            object(),
+            object(),
+            (object(), object(), object(), object()),
+            activation_args_builder=fail_activation_args,
         )
 
 
