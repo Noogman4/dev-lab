@@ -4503,6 +4503,49 @@ def test_init_radio_ui_control_refs_initializes_fresh_state():
     assert app.radio_station_column_vars is not other.radio_station_column_vars
 
 
+def test_init_radio_ui_header_vars_initializes_translated_values():
+    calls = []
+    app = SimpleNamespace(
+        tr=lambda key, default: {
+            "radio_header_off": "Radio aus",
+            "radio_header_title_idle": "Titel: -",
+            "radio_stream_url_default": "Stream: -",
+            "radio_bitrate_label": "Bitrate: -",
+            "radio_status_ready": "Bereit.",
+            "radio_station_count": "Sender: {count}",
+        }.get(key, default)
+    )
+
+    def build_var(*, value):
+        calls.append(value)
+        return DummyVar(value)
+
+    netmon_radio_app._init_radio_ui_header_vars(
+        app,
+        string_var_builder=build_var,
+    )
+
+    assert app.radio_now_playing_var.get() == "Radio aus"
+    assert app.radio_status_var.get() == "Radio aus"
+    assert app.radio_title_var.get() == "Titel: -"
+    assert app.radio_header_status_var.get() == "Titel: -"
+    assert app.radio_handover_title == ""
+    assert app.radio_stream_url_var.get() == "Stream: -"
+    assert app.radio_bitrate_var.get() == "Bitrate: -"
+    assert app.radio_dependency_var.get() == "Bereit."
+    assert app.radio_list_status_var.get() == "Sender: 0"
+    assert calls == [
+        "Radio aus",
+        "Radio aus",
+        "Titel: -",
+        "Titel: -",
+        "Stream: -",
+        "Bitrate: -",
+        "Bereit.",
+        "Sender: 0",
+    ]
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"

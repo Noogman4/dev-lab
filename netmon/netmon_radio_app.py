@@ -1492,6 +1492,38 @@ def _init_radio_ui_control_refs(app) -> None:
     app.radio_projectm_preset_manager_window = None
 
 
+def _init_radio_ui_header_vars(
+    app,
+    *,
+    string_var_builder=tk.StringVar,
+) -> None:
+    app.radio_now_playing_var = string_var_builder(
+        value=app.tr("radio_header_off", "Radio: off")
+    )
+    app.radio_status_var = string_var_builder(
+        value=app.tr("radio_header_off", "Radio: off")
+    )
+    app.radio_title_var = string_var_builder(
+        value=app.tr("radio_header_title_idle", "Title: -")
+    )
+    app.radio_header_status_var = string_var_builder(
+        value=app.tr("radio_header_title_idle", "Title: -")
+    )
+    app.radio_handover_title = ""
+    app.radio_stream_url_var = string_var_builder(
+        value=app.tr("radio_stream_url_default", "Stream URL: -")
+    )
+    app.radio_bitrate_var = string_var_builder(
+        value=app.tr("radio_bitrate_label", "Bitrate: -")
+    )
+    app.radio_dependency_var = string_var_builder(
+        value=app.tr("radio_status_ready", "Radio ready.")
+    )
+    app.radio_list_status_var = string_var_builder(
+        value=app.tr("radio_station_count", "Stations: {count}").format(count=0)
+    )
+
+
 def _init_radio_ui_state(app):
     volume_value = _radio_ui_volume_value(app.radio_settings)
     eq_bass_value, eq_mid_value, eq_treble_value = _radio_ui_eq_values(
@@ -1499,29 +1531,7 @@ def _init_radio_ui_state(app):
     )
     search_value = _radio_ui_search_value(app.radio_settings)
     database_count = _radio_ui_database_count(app)
-    app.radio_now_playing_var = tk.StringVar(
-        value=app.tr("radio_header_off", "Radio: off")
-    )
-    app.radio_status_var = tk.StringVar(value=app.tr("radio_header_off", "Radio: off"))
-    app.radio_title_var = tk.StringVar(
-        value=app.tr("radio_header_title_idle", "Title: -")
-    )
-    app.radio_header_status_var = tk.StringVar(
-        value=app.tr("radio_header_title_idle", "Title: -")
-    )
-    app.radio_handover_title = ""
-    app.radio_stream_url_var = tk.StringVar(
-        value=app.tr("radio_stream_url_default", "Stream URL: -")
-    )
-    app.radio_bitrate_var = tk.StringVar(
-        value=app.tr("radio_bitrate_label", "Bitrate: -")
-    )
-    app.radio_dependency_var = tk.StringVar(
-        value=app.tr("radio_status_ready", "Radio ready.")
-    )
-    app.radio_list_status_var = tk.StringVar(
-        value=app.tr("radio_station_count", "Stations: {count}").format(count=0)
-    )
+    _init_radio_ui_header_vars(app)
     app.radio_volume_var = tk.IntVar(value=volume_value)
     app.radio_volume_text_var = tk.StringVar(
         value=app.tr("radio_volume_short_label", "Vol.: {value}%").format(
