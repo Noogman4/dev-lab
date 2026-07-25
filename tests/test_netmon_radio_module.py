@@ -3412,6 +3412,28 @@ def test_standalone_radio_pane_marker_base_callbacks_propagates_builder_failures
         )
 
 
+def test_standalone_radio_pane_marker_callback_tuple_combines_callbacks():
+    update_marker = object()
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_callback_tuple(
+        update_marker,
+        (start_drag, drag, end_drag),
+    )
+
+    assert result == (update_marker, start_drag, drag, end_drag)
+
+
+def test_standalone_radio_pane_marker_callback_tuple_rejects_invalid_callbacks():
+    with pytest.raises(ValueError):
+        netmon_radio_app._standalone_radio_pane_marker_callback_tuple(
+            object(),
+            (object(), object()),
+        )
+
+
 def test_standalone_radio_pane_marker_callbacks_builds_callbacks_in_order():
     events = []
     container = object()
@@ -3425,6 +3447,7 @@ def test_standalone_radio_pane_marker_callbacks_builds_callbacks_in_order():
     start_drag = object()
     drag = object()
     end_drag = object()
+    callback_tuple = object()
 
     result = netmon_radio_app._standalone_radio_pane_marker_callbacks(
         container,
@@ -3435,23 +3458,26 @@ def test_standalone_radio_pane_marker_callbacks_builds_callbacks_in_order():
         or (drag_state, set_sash, place_marker, update_marker, schedule_marker),
         drag_callbacks_builder=lambda *args: events.append(("drag_callbacks", args))
         or (start_drag, drag, end_drag),
+        callback_tuple_builder=lambda *args: events.append(("tuple", args))
+        or callback_tuple,
     )
 
-    assert result == (update_marker, start_drag, drag, end_drag)
+    assert result is callback_tuple
     assert events == [
         ("base", (container, pane, marker, 12)),
         (
             "drag_callbacks",
             (drag_state, pane, set_sash, place_marker, schedule_marker, update_marker),
         ),
+        ("tuple", (update_marker, (start_drag, drag, end_drag))),
     ]
 
 
 def test_standalone_radio_pane_marker_callbacks_propagates_builder_failures():
-    def fail_drag_callbacks(*_args):
-        raise RuntimeError("drag callbacks failed")
+    def fail_callback_tuple(*_args):
+        raise RuntimeError("callback tuple failed")
 
-    with pytest.raises(RuntimeError, match="drag callbacks failed"):
+    with pytest.raises(RuntimeError, match="callback tuple failed"):
         netmon_radio_app._standalone_radio_pane_marker_callbacks(
             object(),
             object(),
@@ -3463,7 +3489,8 @@ def test_standalone_radio_pane_marker_callbacks_propagates_builder_failures():
                 object(),
                 object(),
             ),
-            drag_callbacks_builder=fail_drag_callbacks,
+            drag_callbacks_builder=lambda *_args: (object(), object(), object()),
+            callback_tuple_builder=fail_callback_tuple,
         )
 
 

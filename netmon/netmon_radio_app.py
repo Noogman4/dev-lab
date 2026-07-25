@@ -951,6 +951,11 @@ def _standalone_radio_pane_marker_base_callbacks(
     )
 
 
+def _standalone_radio_pane_marker_callback_tuple(update_marker, drag_callbacks):
+    start_drag, drag, end_drag = drag_callbacks
+    return update_marker, start_drag, drag, end_drag
+
+
 def _standalone_radio_pane_marker_callbacks(
     container,
     pane,
@@ -959,6 +964,7 @@ def _standalone_radio_pane_marker_callbacks(
     *,
     base_callbacks_builder=_standalone_radio_pane_marker_base_callbacks,
     drag_callbacks_builder=_standalone_radio_pane_marker_drag_callbacks,
+    callback_tuple_builder=_standalone_radio_pane_marker_callback_tuple,
 ):
     (
         drag_state,
@@ -972,7 +978,7 @@ def _standalone_radio_pane_marker_callbacks(
         marker,
         y_offset,
     )
-    start_drag, drag, end_drag = drag_callbacks_builder(
+    drag_callbacks = drag_callbacks_builder(
         drag_state,
         pane,
         set_sash_pos,
@@ -980,7 +986,7 @@ def _standalone_radio_pane_marker_callbacks(
         schedule_marker_update,
         update_marker,
     )
-    return update_marker, start_drag, drag, end_drag
+    return callback_tuple_builder(update_marker, drag_callbacks)
 
 
 def _standalone_radio_pane_activate_marker_parts(
