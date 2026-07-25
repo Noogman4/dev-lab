@@ -4462,6 +4462,27 @@ def test_init_radio_ui_folder_browser_runtime_state_initializes_state():
     assert app.radio_playlist_index == -1
 
 
+def test_init_radio_ui_logo_runtime_state_initializes_fresh_state():
+    app = SimpleNamespace()
+    other = SimpleNamespace()
+
+    netmon_radio_app._init_radio_ui_logo_runtime_state(app)
+    netmon_radio_app._init_radio_ui_logo_runtime_state(other)
+
+    assert app.radio_projectm_last_started_at == ""
+    assert app.radio_projectm_last_stopped_at == ""
+    assert app.radio_logo_label is None
+    assert app.radio_mini_play_button is None
+    assert app.radio_mini_stop_button is None
+    assert app._radio_logo_photo is None
+    assert app._radio_mini_logo_photo is None
+    assert app._radio_logo_request_key == ""
+    assert app._radio_logo_loaded_key == ""
+    assert app._radio_miniplayer_var_traces == []
+    assert app._active_context_menu is None
+    assert app._radio_miniplayer_var_traces is not other._radio_miniplayer_var_traces
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"

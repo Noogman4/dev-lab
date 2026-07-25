@@ -1465,6 +1465,20 @@ def _init_radio_ui_folder_browser_runtime_state(app) -> None:
     app.radio_playlist_index = int(getattr(app, "radio_playlist_index", -1) or -1)
 
 
+def _init_radio_ui_logo_runtime_state(app) -> None:
+    app.radio_projectm_last_started_at = ""
+    app.radio_projectm_last_stopped_at = ""
+    app.radio_logo_label = None
+    app.radio_mini_play_button = None
+    app.radio_mini_stop_button = None
+    app._radio_logo_photo = None
+    app._radio_mini_logo_photo = None
+    app._radio_logo_request_key = ""
+    app._radio_logo_loaded_key = ""
+    app._radio_miniplayer_var_traces = []
+    app._active_context_menu = None
+
+
 def _init_radio_ui_state(app):
     volume_value = _radio_ui_volume_value(app.radio_settings)
     eq_bass_value, eq_mid_value, eq_treble_value = _radio_ui_eq_values(
@@ -1631,17 +1645,7 @@ def _init_radio_ui_state(app):
     app.radio_mini_detail_time_var = tk.StringVar(value="--:--:--")
     app.radio_mini_volume_var = tk.StringVar(value="50%")
     app.radio_mini_eq_var = tk.StringVar(value="EQ Flat")
-    app.radio_projectm_last_started_at = ""
-    app.radio_projectm_last_stopped_at = ""
-    app.radio_logo_label = None
-    app.radio_mini_play_button = None
-    app.radio_mini_stop_button = None
-    app._radio_logo_photo = None
-    app._radio_mini_logo_photo = None
-    app._radio_logo_request_key = ""
-    app._radio_logo_loaded_key = ""
-    app._radio_miniplayer_var_traces = []
-    app._active_context_menu = None
+    _init_radio_ui_logo_runtime_state(app)
     app.radio_theme_name_var = tk.StringVar(value="")
 
 
