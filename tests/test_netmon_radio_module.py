@@ -1901,24 +1901,57 @@ def test_standalone_radio_pane_marker_binding_plan_maps_widgets_to_bindings():
     )
 
 
+def test_standalone_radio_pane_bind_marker_callback_delegates_binding():
+    events = []
+    widget = object()
+    bindings = object()
+    binder = object()
+
+    netmon_radio_app._standalone_radio_pane_bind_marker_callback(
+        widget,
+        bindings,
+        lambda widget_arg, bindings_arg: events.append(
+            (widget_arg, bindings_arg, binder)
+        ),
+    )
+
+    assert events == [(widget, bindings, binder)]
+
+
+def test_standalone_radio_pane_bind_marker_callback_propagates_failures():
+    def fail_bind(_widget, _bindings):
+        raise RuntimeError("marker callback bind failed")
+
+    with pytest.raises(RuntimeError, match="marker callback bind failed"):
+        netmon_radio_app._standalone_radio_pane_bind_marker_callback(
+            object(),
+            object(),
+            fail_bind,
+        )
+
+
 def test_standalone_radio_pane_bind_marker_callbacks_binds_plan_in_order():
     calls = []
     first_widget = object()
     first_bindings = object()
     second_widget = object()
     second_bindings = object()
+    bind_events = object()
 
     netmon_radio_app._standalone_radio_pane_bind_marker_callbacks(
         (
             (first_widget, first_bindings),
             (second_widget, second_bindings),
         ),
-        bind_events=lambda widget, bindings: calls.append((widget, bindings)),
+        bind_callback=lambda widget, bindings, binder: calls.append(
+            (widget, bindings, binder)
+        ),
+        bind_events=bind_events,
     )
 
     assert calls == [
-        (first_widget, first_bindings),
-        (second_widget, second_bindings),
+        (first_widget, first_bindings, bind_events),
+        (second_widget, second_bindings, bind_events),
     ]
 
 

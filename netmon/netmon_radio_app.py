@@ -358,13 +358,22 @@ def _standalone_radio_pane_marker_binding_plan(
     )
 
 
+def _standalone_radio_pane_bind_marker_callback(
+    widget,
+    bindings,
+    bind_events,
+) -> None:
+    bind_events(widget, bindings)
+
+
 def _standalone_radio_pane_bind_marker_callbacks(
     binding_plan,
     *,
+    bind_callback=_standalone_radio_pane_bind_marker_callback,
     bind_events=_standalone_radio_pane_bind_marker_events,
 ) -> None:
     for widget, bindings in binding_plan:
-        bind_events(widget, bindings)
+        bind_callback(widget, bindings, bind_events)
 
 
 def _standalone_radio_pane_initial_update_after_args(update_marker):
