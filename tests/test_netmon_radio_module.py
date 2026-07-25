@@ -4243,6 +4243,45 @@ def test_init_radio_runtime_selection_state_initializes_selection_data():
     assert app.radio_reachability_check_running is False
 
 
+def test_init_radio_runtime_host_state_applies_host_theme():
+    host = SimpleNamespace(_app_theme={"name": " Dark "})
+    app = SimpleNamespace(radio_settings={})
+
+    netmon_radio_app._init_radio_runtime_host_state(
+        app,
+        embedded_mode=True,
+        host_app=host,
+    )
+
+    assert app.radio_embedded_mode is True
+    assert app.radio_detach_callback is None
+    assert app.radio_host_app is host
+    assert app._start_theme_name == "dark"
+    assert app.radio_settings["theme"] == "dark"
+
+
+def test_init_radio_runtime_host_state_ignores_theme_failures():
+    class FailingHost:
+        @property
+        def _app_theme(self):
+            raise RuntimeError("theme failed")
+
+    app = SimpleNamespace(radio_settings={})
+    host = FailingHost()
+
+    netmon_radio_app._init_radio_runtime_host_state(
+        app,
+        embedded_mode=False,
+        host_app=host,
+    )
+
+    assert app.radio_embedded_mode is False
+    assert app.radio_detach_callback is None
+    assert app.radio_host_app is host
+    assert app._start_theme_name == ""
+    assert app.radio_settings == {}
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"

@@ -1307,20 +1307,7 @@ def _init_radio_runtime_selection_state(app) -> None:
     app.radio_reachability_check_running = False
 
 
-def _init_radio_runtime_state(app, *, embedded_mode, host_app=None):
-    _init_radio_runtime_widget_refs(app)
-    _init_radio_runtime_paths(app)
-    _init_radio_runtime_data_state(app)
-
-    app.style = ttk.Style(app)
-    app._ensure_colorable_ttk_theme()
-    _init_radio_runtime_selection_state(app)
-    radio_controller.load_radio_runtime(app)
-    try:
-        netmon_projectm_sidecar.ensure_projectm_preset_dir(app)
-    except Exception:
-        pass
-
+def _init_radio_runtime_host_state(app, *, embedded_mode, host_app=None) -> None:
     app.radio_embedded_mode = bool(embedded_mode)
     app.radio_detach_callback = None
     app.radio_host_app = host_app
@@ -1337,6 +1324,27 @@ def _init_radio_runtime_state(app, *, embedded_mode, host_app=None):
                 app.radio_settings["theme"] = app._start_theme_name
             except Exception:
                 pass
+
+
+def _init_radio_runtime_state(app, *, embedded_mode, host_app=None):
+    _init_radio_runtime_widget_refs(app)
+    _init_radio_runtime_paths(app)
+    _init_radio_runtime_data_state(app)
+
+    app.style = ttk.Style(app)
+    app._ensure_colorable_ttk_theme()
+    _init_radio_runtime_selection_state(app)
+    radio_controller.load_radio_runtime(app)
+    try:
+        netmon_projectm_sidecar.ensure_projectm_preset_dir(app)
+    except Exception:
+        pass
+
+    _init_radio_runtime_host_state(
+        app,
+        embedded_mode=embedded_mode,
+        host_app=host_app,
+    )
 
 
 def _init_radio_ui_state(app):
