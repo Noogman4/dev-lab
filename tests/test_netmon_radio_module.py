@@ -4792,6 +4792,27 @@ def test_init_radio_ui_recordings_source_mini_vars_initializes_values():
     ]
 
 
+def test_init_radio_ui_status_indicator_images_initializes_color_images():
+    calls = []
+    app = SimpleNamespace()
+
+    def build_indicator(color):
+        calls.append(color)
+        return f"image:{color}"
+
+    netmon_radio_app._init_radio_ui_status_indicator_images(
+        app,
+        indicator_builder=build_indicator,
+    )
+
+    assert app.radio_status_indicator_images == {
+        "unknown": "image:#8a8f98",
+        "online": "image:#2fb344",
+        "offline": "image:#d9485f",
+    }
+    assert calls == ["#8a8f98", "#2fb344", "#d9485f"]
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"

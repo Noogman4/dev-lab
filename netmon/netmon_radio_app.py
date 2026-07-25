@@ -1692,6 +1692,20 @@ def _init_radio_ui_recordings_source_mini_vars(
     app.radio_mini_eq_var = string_var_builder(value="EQ Flat")
 
 
+def _init_radio_ui_status_indicator_images(
+    app,
+    *,
+    indicator_builder=None,
+) -> None:
+    if indicator_builder is None:
+        indicator_builder = _build_radio_status_indicator
+    app.radio_status_indicator_images = {
+        "unknown": indicator_builder("#8a8f98"),
+        "online": indicator_builder("#2fb344"),
+        "offline": indicator_builder("#d9485f"),
+    }
+
+
 def _init_radio_ui_state(app):
     volume_value = _radio_ui_volume_value(app.radio_settings)
     eq_bass_value, eq_mid_value, eq_treble_value = _radio_ui_eq_values(
@@ -1710,11 +1724,7 @@ def _init_radio_ui_state(app):
     )
     _init_radio_ui_control_refs(app)
     _init_radio_ui_database_custom_vars(app, database_count=database_count)
-    app.radio_status_indicator_images = {
-        "unknown": _build_radio_status_indicator("#8a8f98"),
-        "online": _build_radio_status_indicator("#2fb344"),
-        "offline": _build_radio_status_indicator("#d9485f"),
-    }
+    _init_radio_ui_status_indicator_images(app)
     _init_radio_ui_projectm_runtime_state(app)
     # Source anchor for standalone projectM hook tests:
     # projectM preset folder: preparing Documents/NetMon
