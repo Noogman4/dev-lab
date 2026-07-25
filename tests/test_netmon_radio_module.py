@@ -2083,6 +2083,43 @@ def test_standalone_radio_pane_marker_binding_sets_propagates_builder_failures()
         )
 
 
+def test_standalone_radio_pane_marker_binding_plan_from_sets_builds_plan():
+    events = []
+    container = object()
+    pane = object()
+    grip = object()
+    update_bindings = object()
+    grip_bindings = object()
+    binding_plan = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_binding_plan_from_sets(
+        container,
+        pane,
+        grip,
+        (update_bindings, grip_bindings),
+        binding_plan_builder=lambda *args, **kwargs: events.append((args, kwargs))
+        or binding_plan,
+    )
+
+    assert result is binding_plan
+    assert events == [
+        (
+            (container, pane, grip),
+            {"update_bindings": update_bindings, "grip_bindings": grip_bindings},
+        ),
+    ]
+
+
+def test_standalone_radio_pane_marker_binding_plan_from_sets_rejects_invalid_sets():
+    with pytest.raises(ValueError):
+        netmon_radio_app._standalone_radio_pane_marker_binding_plan_from_sets(
+            object(),
+            object(),
+            object(),
+            (object(), object(), object()),
+        )
+
+
 def test_standalone_radio_pane_activate_marker_bindings_builds_and_activates():
     events = []
     container = object()
@@ -2107,9 +2144,7 @@ def test_standalone_radio_pane_activate_marker_bindings_builds_and_activates():
         end_drag,
         binding_sets_builder=lambda *args: events.append(("binding_sets", args))
         or binding_sets,
-        binding_plan_builder=lambda *args, **kwargs: events.append(
-            ("binding_plan", args, kwargs)
-        )
+        binding_plan_builder=lambda *args: events.append(("binding_plan", args))
         or binding_plan,
         activate_marker_callbacks=lambda *args: events.append(("activate", args)),
     )
@@ -2118,8 +2153,7 @@ def test_standalone_radio_pane_activate_marker_bindings_builds_and_activates():
         ("binding_sets", (update_marker, start_drag, drag, end_drag)),
         (
             "binding_plan",
-            (container, pane, grip),
-            {"update_bindings": update_bindings, "grip_bindings": grip_bindings},
+            (container, pane, grip, binding_sets),
         ),
         ("activate", (container, binding_plan, update_marker)),
     ]
@@ -2139,7 +2173,7 @@ def test_standalone_radio_pane_activate_marker_bindings_propagates_activation_fa
             object(),
             object(),
             binding_sets_builder=lambda *_args: (object(), object()),
-            binding_plan_builder=lambda *_args, **_kwargs: object(),
+            binding_plan_builder=lambda *_args: object(),
             activate_marker_callbacks=fail_activate,
         )
 
@@ -2158,6 +2192,24 @@ def test_standalone_radio_pane_activate_marker_bindings_propagates_binding_set_f
             object(),
             object(),
             binding_sets_builder=fail_binding_sets,
+        )
+
+
+def test_standalone_radio_pane_activate_marker_bindings_propagates_plan_failure():
+    def fail_binding_plan(*_args):
+        raise RuntimeError("binding plan failed")
+
+    with pytest.raises(RuntimeError, match="binding plan failed"):
+        netmon_radio_app._standalone_radio_pane_activate_marker_bindings(
+            object(),
+            object(),
+            object(),
+            object(),
+            object(),
+            object(),
+            object(),
+            binding_sets_builder=lambda *_args: (object(), object()),
+            binding_plan_builder=fail_binding_plan,
         )
 
 
