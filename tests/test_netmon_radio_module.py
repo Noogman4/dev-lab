@@ -4483,6 +4483,26 @@ def test_init_radio_ui_logo_runtime_state_initializes_fresh_state():
     assert app._radio_miniplayer_var_traces is not other._radio_miniplayer_var_traces
 
 
+def test_init_radio_ui_control_refs_initializes_fresh_state():
+    app = SimpleNamespace()
+    other = SimpleNamespace()
+
+    netmon_radio_app._init_radio_ui_control_refs(app)
+    netmon_radio_app._init_radio_ui_control_refs(other)
+
+    assert app.radio_light_state == "gray"
+    assert app.radio_context_station_id == ""
+    assert app.radio_station_column_vars == {}
+    assert app.radio_custom_edit_station_id == ""
+    assert app.radio_custom_editor_window is None
+    assert app.radio_custom_editor_delete_button is None
+    assert app.radio_projectm_install_button is None
+    assert app.radio_projectm_preset_open_button is None
+    assert app.radio_projectm_preset_import_button is None
+    assert app.radio_projectm_preset_manager_window is None
+    assert app.radio_station_column_vars is not other.radio_station_column_vars
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"

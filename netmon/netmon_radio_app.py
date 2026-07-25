@@ -1479,6 +1479,19 @@ def _init_radio_ui_logo_runtime_state(app) -> None:
     app._active_context_menu = None
 
 
+def _init_radio_ui_control_refs(app) -> None:
+    app.radio_light_state = "gray"
+    app.radio_context_station_id = ""
+    app.radio_station_column_vars = {}
+    app.radio_custom_edit_station_id = ""
+    app.radio_custom_editor_window = None
+    app.radio_custom_editor_delete_button = None
+    app.radio_projectm_install_button = None
+    app.radio_projectm_preset_open_button = None
+    app.radio_projectm_preset_import_button = None
+    app.radio_projectm_preset_manager_window = None
+
+
 def _init_radio_ui_state(app):
     volume_value = _radio_ui_volume_value(app.radio_settings)
     eq_bass_value, eq_mid_value, eq_treble_value = _radio_ui_eq_values(
@@ -1523,8 +1536,7 @@ def _init_radio_ui_state(app):
     app.radio_eq_mid_label_var = tk.StringVar(value=str(eq_mid_value))
     app.radio_eq_treble_label_var = tk.StringVar(value=str(eq_treble_value))
     app.radio_search_var = tk.StringVar(value=search_value)
-    app.radio_light_state = "gray"
-    app.radio_context_station_id = ""
+    _init_radio_ui_control_refs(app)
     app.radio_show_favorites_var = tk.BooleanVar(value=False)
     app.radio_toggle_favorites_text_var = tk.StringVar(
         value=app.tr("radio_show_favorites", "Show favorites")
@@ -1544,19 +1556,15 @@ def _init_radio_ui_state(app):
     app.radio_database_progress_status_var = tk.StringVar(value="")
     app.radio_database_exclusive_mode_var = tk.BooleanVar(value=True)
     app.radio_database_select_all_var = tk.BooleanVar(value=False)
-    app.radio_station_column_vars = {}
     app.radio_station_columns_status_var = tk.StringVar(value="")
     app.radio_custom_name_var = tk.StringVar(value="")
     app.radio_custom_url_var = tk.StringVar(value="")
     app.radio_custom_homepage_var = tk.StringVar(value="")
     app.radio_custom_category_var = tk.StringVar(value="")
-    app.radio_custom_edit_station_id = ""
     app.radio_custom_submit_text_var = tk.StringVar(
         value=app.tr("radio_custom_add_button", "Add station")
     )
     app.radio_custom_form_status_var = tk.StringVar(value="")
-    app.radio_custom_editor_window = None
-    app.radio_custom_editor_delete_button = None
     _init_radio_ui_projectm_runtime_state(app)
     app.radio_projectm_status_var = tk.StringVar(
         value=app.tr("radio_projectm_status_not_installed", "projectM not installed")
@@ -1588,10 +1596,6 @@ def _init_radio_ui_state(app):
             "Preset access: checking downloaded packs and custom imports",
         )
     )
-    app.radio_projectm_install_button = None
-    app.radio_projectm_preset_open_button = None
-    app.radio_projectm_preset_import_button = None
-    app.radio_projectm_preset_manager_window = None
     app.radio_attach_status_var = tk.StringVar(value="")
     _init_radio_ui_recording_runtime_state(app)
     app.radio_record_status_var = tk.StringVar(
