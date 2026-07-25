@@ -327,20 +327,38 @@ def _standalone_radio_pane_bind_marker_events(widget, bindings) -> None:
         pass
 
 
-def _standalone_radio_pane_update_bindings(update_marker):
+def _standalone_radio_pane_update_binding_specs():
     return (
-        ("<Configure>", update_marker),
-        ("<ButtonRelease-1>", update_marker),
-        ("<B1-Motion>", update_marker),
+        "<Configure>",
+        "<ButtonRelease-1>",
+        "<B1-Motion>",
     )
 
 
-def _standalone_radio_pane_grip_bindings(start_drag, drag, end_drag):
+def _standalone_radio_pane_update_bindings(
+    update_marker,
+    *,
+    binding_specs_builder=_standalone_radio_pane_update_binding_specs,
+):
+    return tuple((event_name, update_marker) for event_name in binding_specs_builder())
+
+
+def _standalone_radio_pane_grip_binding_specs():
     return (
-        ("<Button-1>", start_drag),
-        ("<B1-Motion>", drag),
-        ("<ButtonRelease-1>", end_drag),
+        "<Button-1>",
+        "<B1-Motion>",
+        "<ButtonRelease-1>",
     )
+
+
+def _standalone_radio_pane_grip_bindings(
+    start_drag,
+    drag,
+    end_drag,
+    *,
+    binding_specs_builder=_standalone_radio_pane_grip_binding_specs,
+):
+    return tuple(zip(binding_specs_builder(), (start_drag, drag, end_drag)))
 
 
 def _standalone_radio_pane_marker_update_binding_plan(

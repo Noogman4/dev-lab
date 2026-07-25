@@ -1855,6 +1855,14 @@ def test_standalone_radio_pane_bind_marker_events_stops_and_ignores_failures():
     assert calls == [("<Configure>", "+")]
 
 
+def test_standalone_radio_pane_update_binding_specs_use_update_events():
+    assert netmon_radio_app._standalone_radio_pane_update_binding_specs() == (
+        "<Configure>",
+        "<ButtonRelease-1>",
+        "<B1-Motion>",
+    )
+
+
 def test_standalone_radio_pane_update_bindings_use_update_callback_for_all_events():
     update_marker = object()
 
@@ -1862,6 +1870,26 @@ def test_standalone_radio_pane_update_bindings_use_update_callback_for_all_event
         ("<Configure>", update_marker),
         ("<ButtonRelease-1>", update_marker),
         ("<B1-Motion>", update_marker),
+    )
+
+
+def test_standalone_radio_pane_update_bindings_use_custom_specs():
+    update_marker = object()
+
+    assert netmon_radio_app._standalone_radio_pane_update_bindings(
+        update_marker,
+        binding_specs_builder=lambda: ("event-1", "event-2"),
+    ) == (
+        ("event-1", update_marker),
+        ("event-2", update_marker),
+    )
+
+
+def test_standalone_radio_pane_grip_binding_specs_use_drag_events():
+    assert netmon_radio_app._standalone_radio_pane_grip_binding_specs() == (
+        "<Button-1>",
+        "<B1-Motion>",
+        "<ButtonRelease-1>",
     )
 
 
@@ -1878,6 +1906,23 @@ def test_standalone_radio_pane_grip_bindings_use_drag_callbacks():
         ("<Button-1>", start_drag),
         ("<B1-Motion>", drag),
         ("<ButtonRelease-1>", end_drag),
+    )
+
+
+def test_standalone_radio_pane_grip_bindings_use_custom_specs():
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+
+    assert netmon_radio_app._standalone_radio_pane_grip_bindings(
+        start_drag,
+        drag,
+        end_drag,
+        binding_specs_builder=lambda: ("start", "drag", "end"),
+    ) == (
+        ("start", start_drag),
+        ("drag", drag),
+        ("end", end_drag),
     )
 
 
