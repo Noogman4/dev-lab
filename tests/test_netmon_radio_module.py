@@ -4324,6 +4324,24 @@ def test_radio_ui_database_count_handles_missing_and_empty_db():
     assert netmon_radio_app._radio_ui_database_count(SimpleNamespace()) == 0
 
 
+def test_init_radio_ui_projectm_runtime_state_initializes_fresh_state():
+    app = SimpleNamespace()
+    other = SimpleNamespace()
+
+    netmon_radio_app._init_radio_ui_projectm_runtime_state(app)
+    netmon_radio_app._init_radio_ui_projectm_runtime_state(other)
+
+    assert app.radio_projectm_proc is None
+    assert app.radio_projectm_command == []
+    assert app.radio_projectm_known_pids == set()
+    assert app.radio_projectm_log_handle is None
+    assert app.radio_projectm_log_path == ""
+    assert app.radio_projectm_package_probe == {}
+    assert app.radio_projectm_command is not other.radio_projectm_command
+    assert app.radio_projectm_known_pids is not other.radio_projectm_known_pids
+    assert app.radio_projectm_package_probe is not other.radio_projectm_package_probe
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"

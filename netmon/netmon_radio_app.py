@@ -1367,6 +1367,15 @@ def _radio_ui_database_count(app) -> int:
     return len(getattr(app, "radio_db", []) or [])
 
 
+def _init_radio_ui_projectm_runtime_state(app) -> None:
+    app.radio_projectm_proc = None
+    app.radio_projectm_command = []
+    app.radio_projectm_known_pids = set()
+    app.radio_projectm_log_handle = None
+    app.radio_projectm_log_path = ""
+    app.radio_projectm_package_probe = {}
+
+
 def _init_radio_ui_state(app):
     volume_value = _radio_ui_volume_value(app.radio_settings)
     eq_bass_value, eq_mid_value, eq_treble_value = _radio_ui_eq_values(
@@ -1445,12 +1454,7 @@ def _init_radio_ui_state(app):
     app.radio_custom_form_status_var = tk.StringVar(value="")
     app.radio_custom_editor_window = None
     app.radio_custom_editor_delete_button = None
-    app.radio_projectm_proc = None
-    app.radio_projectm_command = []
-    app.radio_projectm_known_pids = set()
-    app.radio_projectm_log_handle = None
-    app.radio_projectm_log_path = ""
-    app.radio_projectm_package_probe = {}
+    _init_radio_ui_projectm_runtime_state(app)
     app.radio_projectm_status_var = tk.StringVar(
         value=app.tr("radio_projectm_status_not_installed", "projectM not installed")
     )
