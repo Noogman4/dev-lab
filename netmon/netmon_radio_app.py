@@ -1398,6 +1398,73 @@ def _init_radio_ui_recording_runtime_state(app) -> None:
     app.radio_record_blink_on = False
 
 
+def _radio_ui_playlist_entries(app):
+    return list(
+        getattr(app, "radio_playlist_entries", [])
+        or app.radio_settings.get("playlist_entries", [])
+        or []
+    )
+
+
+def _radio_ui_playlist_path(app) -> str:
+    return str(
+        getattr(app, "radio_playlist_path", "")
+        or app.radio_settings.get("playlist_path", "")
+        or ""
+    ).strip()
+
+
+def _radio_ui_playlists_dir(app) -> str:
+    return str(
+        getattr(app, "radio_playlists_dir", "")
+        or app.radio_settings.get("playlists_dir", "")
+        or ""
+    ).strip()
+
+
+def _init_radio_ui_playlist_runtime_state(app) -> None:
+    app.radio_playlist_entries = _radio_ui_playlist_entries(app)
+    app.radio_playlist_path = _radio_ui_playlist_path(app)
+    app.radio_playlists_dir = _radio_ui_playlists_dir(app)
+    app.radio_playlist_listbox = None
+    app.radio_playlist_add_button = None
+    app.radio_playlist_play_file_button = None
+    app.radio_playlist_play_selected_button = None
+    app.radio_playlist_remove_button = None
+    app.radio_playlist_clear_button = None
+    app.radio_playlist_save_button = None
+    app.radio_playlist_load_button = None
+    app.radio_playlist_folder_button = None
+    app.radio_system_folder_button = None
+    app.radio_playlist_files_entries = []
+    app.radio_system_folder_entries = []
+    app.radio_system_folder_path = ""
+    app.radio_folder_browser_mode = "recordings"
+    app.radio_folder_browser_current_path = ""
+    app.radio_folder_browser_back_history = []
+    app.radio_folder_browser_forward_history = []
+
+
+def _init_radio_ui_folder_browser_runtime_state(app) -> None:
+    app.radio_folder_browser_context_index = -1
+    app.radio_folder_browser_menu = None
+    app.radio_folder_browser_back_button = None
+    app.radio_folder_browser_forward_button = None
+    app.radio_folder_browser_up_button = None
+    app.radio_folder_browser_open_path_button = None
+    app.radio_folder_browser_drag_source_index = -1
+    app.radio_folder_browser_drag_source_path = ""
+    app.radio_recordings_entries = []
+    app.radio_recordings_listbox = None
+    app.radio_playback_mode = str(
+        getattr(app, "radio_playback_mode", "") or "radio"
+    ).strip()
+    app.radio_local_media_path = str(
+        getattr(app, "radio_local_media_path", "") or ""
+    ).strip()
+    app.radio_playlist_index = int(getattr(app, "radio_playlist_index", -1) or -1)
+
+
 def _init_radio_ui_state(app):
     volume_value = _radio_ui_volume_value(app.radio_settings)
     eq_bass_value, eq_mid_value, eq_treble_value = _radio_ui_eq_values(
@@ -1522,68 +1589,21 @@ def _init_radio_ui_state(app):
     app.radio_record_file_var = tk.StringVar(
         value=app.tr("radio_record_file_default", "Letzte Aufnahme: -")
     )
-    app.radio_playlist_entries = list(
-        getattr(app, "radio_playlist_entries", [])
-        or app.radio_settings.get("playlist_entries", [])
-        or []
-    )
-    app.radio_playlist_path = str(
-        getattr(app, "radio_playlist_path", "")
-        or app.radio_settings.get("playlist_path", "")
-        or ""
-    ).strip()
-    app.radio_playlists_dir = str(
-        getattr(app, "radio_playlists_dir", "")
-        or app.radio_settings.get("playlists_dir", "")
-        or ""
-    ).strip()
+    _init_radio_ui_playlist_runtime_state(app)
     app.radio_playlist_status_var = tk.StringVar(
         value=app.tr("radio_playlist_status_default", "Playlist: 0 Dateien")
     )
-    app.radio_playlist_listbox = None
-    app.radio_playlist_add_button = None
-    app.radio_playlist_play_file_button = None
-    app.radio_playlist_play_selected_button = None
-    app.radio_playlist_remove_button = None
-    app.radio_playlist_clear_button = None
-    app.radio_playlist_save_button = None
-    app.radio_playlist_load_button = None
-    app.radio_playlist_folder_button = None
-    app.radio_system_folder_button = None
-    app.radio_playlist_files_entries = []
-    app.radio_system_folder_entries = []
-    app.radio_system_folder_path = ""
-    app.radio_folder_browser_mode = "recordings"
-    app.radio_folder_browser_current_path = ""
-    app.radio_folder_browser_back_history = []
-    app.radio_folder_browser_forward_history = []
     app.radio_folder_browser_title_var = tk.StringVar(
         value=app.tr("radio_folder_browser_title", "Aufnahmeordner")
     )
     app.radio_folder_browser_path_var = tk.StringVar(value="")
-    app.radio_folder_browser_context_index = -1
-    app.radio_folder_browser_menu = None
-    app.radio_folder_browser_back_button = None
-    app.radio_folder_browser_forward_button = None
-    app.radio_folder_browser_up_button = None
-    app.radio_folder_browser_open_path_button = None
-    app.radio_folder_browser_drag_source_index = -1
-    app.radio_folder_browser_drag_source_path = ""
-    app.radio_recordings_entries = []
-    app.radio_recordings_listbox = None
+    _init_radio_ui_folder_browser_runtime_state(app)
     app.radio_recordings_status_var = tk.StringVar(
         value=app.tr(
             "radio_recordings_status_default",
             "Recording folder: 0 files",
         )
     )
-    app.radio_playback_mode = str(
-        getattr(app, "radio_playback_mode", "") or "radio"
-    ).strip()
-    app.radio_local_media_path = str(
-        getattr(app, "radio_local_media_path", "") or ""
-    ).strip()
-    app.radio_playlist_index = int(getattr(app, "radio_playlist_index", -1) or -1)
     app.radio_source_var = tk.StringVar(
         value=app.tr(
             "radio_source_default",

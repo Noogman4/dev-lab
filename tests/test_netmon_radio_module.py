@@ -4373,6 +4373,95 @@ def test_init_radio_ui_recording_runtime_state_initializes_recording_state():
     assert app.radio_record_blink_on is False
 
 
+def test_radio_ui_playlist_values_prefer_existing_state_then_settings():
+    app = SimpleNamespace(
+        radio_settings={
+            "playlist_entries": ["settings-a"],
+            "playlist_path": " /settings/list.m3u ",
+            "playlists_dir": " /settings/lists ",
+        },
+        radio_playlist_entries=["existing-a"],
+        radio_playlist_path=" /existing/list.m3u ",
+        radio_playlists_dir=" /existing/lists ",
+    )
+
+    assert netmon_radio_app._radio_ui_playlist_entries(app) == ["existing-a"]
+    assert netmon_radio_app._radio_ui_playlist_path(app) == "/existing/list.m3u"
+    assert netmon_radio_app._radio_ui_playlists_dir(app) == "/existing/lists"
+
+    app.radio_playlist_entries = []
+    app.radio_playlist_path = ""
+    app.radio_playlists_dir = ""
+
+    assert netmon_radio_app._radio_ui_playlist_entries(app) == ["settings-a"]
+    assert netmon_radio_app._radio_ui_playlist_path(app) == "/settings/list.m3u"
+    assert netmon_radio_app._radio_ui_playlists_dir(app) == "/settings/lists"
+
+
+def test_init_radio_ui_playlist_runtime_state_initializes_fresh_state():
+    app = SimpleNamespace(
+        radio_settings={
+            "playlist_entries": ["one.mp3"],
+            "playlist_path": " /tmp/list.m3u ",
+            "playlists_dir": " /tmp/lists ",
+        }
+    )
+    other = SimpleNamespace(radio_settings={})
+
+    netmon_radio_app._init_radio_ui_playlist_runtime_state(app)
+    netmon_radio_app._init_radio_ui_playlist_runtime_state(other)
+
+    assert app.radio_playlist_entries == ["one.mp3"]
+    assert app.radio_playlist_path == "/tmp/list.m3u"
+    assert app.radio_playlists_dir == "/tmp/lists"
+    assert app.radio_playlist_listbox is None
+    assert app.radio_playlist_add_button is None
+    assert app.radio_playlist_play_file_button is None
+    assert app.radio_playlist_play_selected_button is None
+    assert app.radio_playlist_remove_button is None
+    assert app.radio_playlist_clear_button is None
+    assert app.radio_playlist_save_button is None
+    assert app.radio_playlist_load_button is None
+    assert app.radio_playlist_folder_button is None
+    assert app.radio_system_folder_button is None
+    assert app.radio_playlist_files_entries == []
+    assert app.radio_system_folder_entries == []
+    assert app.radio_system_folder_path == ""
+    assert app.radio_folder_browser_mode == "recordings"
+    assert app.radio_folder_browser_current_path == ""
+    assert app.radio_folder_browser_back_history == []
+    assert app.radio_folder_browser_forward_history == []
+    assert app.radio_playlist_entries is not other.radio_playlist_entries
+    assert app.radio_playlist_files_entries is not other.radio_playlist_files_entries
+    assert app.radio_folder_browser_back_history is not (
+        other.radio_folder_browser_back_history
+    )
+
+
+def test_init_radio_ui_folder_browser_runtime_state_initializes_state():
+    app = SimpleNamespace(
+        radio_playback_mode=" file ",
+        radio_local_media_path=" /tmp/song.mp3 ",
+        radio_playlist_index=0,
+    )
+
+    netmon_radio_app._init_radio_ui_folder_browser_runtime_state(app)
+
+    assert app.radio_folder_browser_context_index == -1
+    assert app.radio_folder_browser_menu is None
+    assert app.radio_folder_browser_back_button is None
+    assert app.radio_folder_browser_forward_button is None
+    assert app.radio_folder_browser_up_button is None
+    assert app.radio_folder_browser_open_path_button is None
+    assert app.radio_folder_browser_drag_source_index == -1
+    assert app.radio_folder_browser_drag_source_path == ""
+    assert app.radio_recordings_entries == []
+    assert app.radio_recordings_listbox is None
+    assert app.radio_playback_mode == "file"
+    assert app.radio_local_media_path == "/tmp/song.mp3"
+    assert app.radio_playlist_index == -1
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
