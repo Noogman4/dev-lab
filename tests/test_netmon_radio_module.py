@@ -4813,6 +4813,23 @@ def test_init_radio_ui_status_indicator_images_initializes_color_images():
     assert calls == ["#8a8f98", "#2fb344", "#d9485f"]
 
 
+def test_init_radio_ui_theme_vars_initializes_empty_theme_name():
+    calls = []
+    app = SimpleNamespace()
+
+    def build_var(*, value):
+        calls.append(value)
+        return DummyVar(value)
+
+    netmon_radio_app._init_radio_ui_theme_vars(
+        app,
+        string_var_builder=build_var,
+    )
+
+    assert app.radio_theme_name_var.get() == ""
+    assert calls == [""]
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"

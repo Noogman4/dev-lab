@@ -1706,6 +1706,14 @@ def _init_radio_ui_status_indicator_images(
     }
 
 
+def _init_radio_ui_theme_vars(
+    app,
+    *,
+    string_var_builder=tk.StringVar,
+) -> None:
+    app.radio_theme_name_var = string_var_builder(value="")
+
+
 def _init_radio_ui_state(app):
     volume_value = _radio_ui_volume_value(app.radio_settings)
     eq_bass_value, eq_mid_value, eq_treble_value = _radio_ui_eq_values(
@@ -1737,7 +1745,7 @@ def _init_radio_ui_state(app):
     _init_radio_ui_folder_browser_runtime_state(app)
     _init_radio_ui_recordings_source_mini_vars(app)
     _init_radio_ui_logo_runtime_state(app)
-    app.radio_theme_name_var = tk.StringVar(value="")
+    _init_radio_ui_theme_vars(app)
 
 
 def _build_radio_status_indicator(color):
