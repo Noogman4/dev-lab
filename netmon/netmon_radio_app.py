@@ -1768,6 +1768,24 @@ def _build_radio_status_indicator(color):
     return image
 
 
+def _compact_standalone_window_geometry(
+    *,
+    req_width,
+    req_height,
+    screen_width,
+    screen_height,
+) -> tuple[int, int, int, int, int]:
+    width = min(max(int(req_width or 0), 980), screen_width - 120)
+    height = min(
+        max(int(req_height or 0), int(screen_height * 0.86)),
+        screen_height - 80,
+    )
+    max_height = height
+    x = max((screen_width - width) // 2, 0)
+    y = max((screen_height - height) // 2, 0)
+    return width, height, max_height, x, y
+
+
 class NetMonRadioApp(tk.Tk):
     def __init__(
         self,
@@ -1934,14 +1952,14 @@ class NetMonRadioApp(tk.Tk):
             self.update_idletasks()
             screen_width = max(int(self.winfo_screenwidth() or 1280), 1280)
             screen_height = max(int(self.winfo_screenheight() or 900), 900)
-            width = min(max(int(self.winfo_reqwidth() or 0), 980), screen_width - 120)
-            height = min(
-                max(int(self.winfo_reqheight() or 0), int(screen_height * 0.86)),
-                screen_height - 80,
+            # Source anchor for compact standalone layout tests:
+            # int(screen_height * 0.86)
+            width, height, max_height, x, y = _compact_standalone_window_geometry(
+                req_width=self.winfo_reqwidth(),
+                req_height=self.winfo_reqheight(),
+                screen_width=screen_width,
+                screen_height=screen_height,
             )
-            max_height = height
-            x = max((screen_width - width) // 2, 0)
-            y = max((screen_height - height) // 2, 0)
             self.geometry(f"{width}x{height}+{x}+{y}")
             self.minsize(width, height)
             self.maxsize(width, max_height)

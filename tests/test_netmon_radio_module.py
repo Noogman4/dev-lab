@@ -4830,6 +4830,24 @@ def test_init_radio_ui_theme_vars_initializes_empty_theme_name():
     assert calls == [""]
 
 
+def test_compact_standalone_window_geometry_centers_requested_window():
+    assert netmon_radio_app._compact_standalone_window_geometry(
+        req_width=900,
+        req_height=500,
+        screen_width=1366,
+        screen_height=900,
+    ) == (980, 774, 774, 193, 63)
+
+
+def test_compact_standalone_window_geometry_clamps_to_screen():
+    assert netmon_radio_app._compact_standalone_window_geometry(
+        req_width=2200,
+        req_height=1200,
+        screen_width=1280,
+        screen_height=900,
+    ) == (1160, 820, 820, 60, 40)
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
