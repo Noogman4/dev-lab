@@ -3697,6 +3697,41 @@ def test_standalone_radio_pane_install_marker_propagates_args_failures():
         )
 
 
+def test_install_pane_drag_marker_delegates_to_installer():
+    events = []
+    container = object()
+    pane = object()
+    marker = object()
+
+    result = netmon_radio_app._install_pane_drag_marker(
+        container,
+        pane,
+        color="#123456",
+        y_offset=12,
+        install_marker=lambda *args, **kwargs: events.append((args, kwargs)) or marker,
+    )
+
+    assert result is marker
+    assert events == [
+        (
+            (container, pane),
+            {"color": "#123456", "y_offset": 12},
+        ),
+    ]
+
+
+def test_install_pane_drag_marker_propagates_installer_failures():
+    def fail_install_marker(*_args, **_kwargs):
+        raise RuntimeError("install marker failed")
+
+    with pytest.raises(RuntimeError, match="install marker failed"):
+        netmon_radio_app._install_pane_drag_marker(
+            object(),
+            object(),
+            install_marker=fail_install_marker,
+        )
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
