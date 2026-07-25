@@ -4741,6 +4741,57 @@ def test_init_radio_ui_playlist_folder_vars_initializes_translated_values():
     assert calls == ["Playlist: 0 Titel", "Ordner", ""]
 
 
+def test_init_radio_ui_recordings_source_mini_vars_initializes_values():
+    calls = []
+    app = SimpleNamespace(
+        tr=lambda key, default: {
+            "radio_recordings_status_default": "Aufnahmen: 0 Dateien",
+            "radio_source_default": "Quelle: Live | -",
+            "radio_miniplayer_source_live": "Direkt",
+            "radio_miniplayer_nothing_playing": "Nichts laeuft",
+            "radio_miniplayer_status_ready": "Bereit",
+        }.get(key, default)
+    )
+
+    def build_var(*, value):
+        calls.append(value)
+        return DummyVar(value)
+
+    netmon_radio_app._init_radio_ui_recordings_source_mini_vars(
+        app,
+        string_var_builder=build_var,
+    )
+
+    assert app.radio_recordings_status_var.get() == "Aufnahmen: 0 Dateien"
+    assert app.radio_source_var.get() == "Quelle: Live | -"
+    assert app.radio_mini_source_var.get() == "Direkt"
+    assert app.radio_mini_title_var.get() == "Nichts laeuft"
+    assert app.radio_mini_status_var.get() == "Bereit"
+    assert app.radio_mini_detail_stream_var.get() == "Direkt"
+    assert app.radio_mini_detail_format_var.get() == "-"
+    assert app.radio_mini_detail_status_var.get() == "Bereit"
+    assert app.radio_mini_detail_genre_var.get() == "-"
+    assert app.radio_mini_detail_bitrate_var.get() == "-"
+    assert app.radio_mini_detail_time_var.get() == "--:--:--"
+    assert app.radio_mini_volume_var.get() == "50%"
+    assert app.radio_mini_eq_var.get() == "EQ Flat"
+    assert calls == [
+        "Aufnahmen: 0 Dateien",
+        "Quelle: Live | -",
+        "Direkt",
+        "Nichts laeuft",
+        "Bereit",
+        "Direkt",
+        "-",
+        "Bereit",
+        "-",
+        "-",
+        "--:--:--",
+        "50%",
+        "EQ Flat",
+    ]
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"

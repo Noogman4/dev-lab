@@ -1652,6 +1652,46 @@ def _init_radio_ui_playlist_folder_vars(
     app.radio_folder_browser_path_var = string_var_builder(value="")
 
 
+def _init_radio_ui_recordings_source_mini_vars(
+    app,
+    *,
+    string_var_builder=tk.StringVar,
+) -> None:
+    app.radio_recordings_status_var = string_var_builder(
+        value=app.tr(
+            "radio_recordings_status_default",
+            "Recording folder: 0 files",
+        )
+    )
+    app.radio_source_var = string_var_builder(
+        value=app.tr(
+            "radio_source_default",
+            "Source: Livestream | -",
+        )
+    )
+    app.radio_mini_source_var = string_var_builder(
+        value=app.tr("radio_miniplayer_source_live", "Live")
+    )
+    app.radio_mini_title_var = string_var_builder(
+        value=app.tr("radio_miniplayer_nothing_playing", "Nothing is playing")
+    )
+    app.radio_mini_status_var = string_var_builder(
+        value=app.tr("radio_miniplayer_status_ready", "Ready")
+    )
+    app.radio_mini_detail_stream_var = string_var_builder(
+        value=app.tr("radio_miniplayer_source_live", "Live")
+    )
+    app.radio_mini_detail_format_var = string_var_builder(value="-")
+    app.radio_mini_detail_status_var = string_var_builder(
+        value=app.tr("radio_miniplayer_status_ready", "Ready")
+    )
+    app.radio_mini_detail_genre_var = string_var_builder(value="-")
+    app.radio_mini_detail_bitrate_var = string_var_builder(value="-")
+    app.radio_mini_detail_time_var = string_var_builder(value="--:--:--")
+    app.radio_mini_volume_var = string_var_builder(value="50%")
+    app.radio_mini_eq_var = string_var_builder(value="EQ Flat")
+
+
 def _init_radio_ui_state(app):
     volume_value = _radio_ui_volume_value(app.radio_settings)
     eq_bass_value, eq_mid_value, eq_treble_value = _radio_ui_eq_values(
@@ -1685,39 +1725,7 @@ def _init_radio_ui_state(app):
     _init_radio_ui_playlist_runtime_state(app)
     _init_radio_ui_playlist_folder_vars(app)
     _init_radio_ui_folder_browser_runtime_state(app)
-    app.radio_recordings_status_var = tk.StringVar(
-        value=app.tr(
-            "radio_recordings_status_default",
-            "Recording folder: 0 files",
-        )
-    )
-    app.radio_source_var = tk.StringVar(
-        value=app.tr(
-            "radio_source_default",
-            "Source: Livestream | -",
-        )
-    )
-    app.radio_mini_source_var = tk.StringVar(
-        value=app.tr("radio_miniplayer_source_live", "Live")
-    )
-    app.radio_mini_title_var = tk.StringVar(
-        value=app.tr("radio_miniplayer_nothing_playing", "Nothing is playing")
-    )
-    app.radio_mini_status_var = tk.StringVar(
-        value=app.tr("radio_miniplayer_status_ready", "Ready")
-    )
-    app.radio_mini_detail_stream_var = tk.StringVar(
-        value=app.tr("radio_miniplayer_source_live", "Live")
-    )
-    app.radio_mini_detail_format_var = tk.StringVar(value="-")
-    app.radio_mini_detail_status_var = tk.StringVar(
-        value=app.tr("radio_miniplayer_status_ready", "Ready")
-    )
-    app.radio_mini_detail_genre_var = tk.StringVar(value="-")
-    app.radio_mini_detail_bitrate_var = tk.StringVar(value="-")
-    app.radio_mini_detail_time_var = tk.StringVar(value="--:--:--")
-    app.radio_mini_volume_var = tk.StringVar(value="50%")
-    app.radio_mini_eq_var = tk.StringVar(value="EQ Flat")
+    _init_radio_ui_recordings_source_mini_vars(app)
     _init_radio_ui_logo_runtime_state(app)
     app.radio_theme_name_var = tk.StringVar(value="")
 
