@@ -442,6 +442,16 @@ def _standalone_radio_pane_marker_binding_plan_from_sets(
     )
 
 
+def _standalone_radio_pane_activate_marker_binding_plan(
+    container,
+    binding_plan,
+    update_marker,
+    *,
+    activate_marker_callbacks=_standalone_radio_pane_activate_marker_callbacks,
+) -> None:
+    activate_marker_callbacks(container, binding_plan, update_marker)
+
+
 def _standalone_radio_pane_activate_marker_bindings(
     container,
     pane,
@@ -453,7 +463,7 @@ def _standalone_radio_pane_activate_marker_bindings(
     *,
     binding_sets_builder=_standalone_radio_pane_marker_binding_sets,
     binding_plan_builder=_standalone_radio_pane_marker_binding_plan_from_sets,
-    activate_marker_callbacks=_standalone_radio_pane_activate_marker_callbacks,
+    binding_plan_activator=_standalone_radio_pane_activate_marker_binding_plan,
 ) -> None:
     binding_sets = binding_sets_builder(
         update_marker,
@@ -467,7 +477,7 @@ def _standalone_radio_pane_activate_marker_bindings(
         grip,
         binding_sets,
     )
-    activate_marker_callbacks(container, binding_plan, update_marker)
+    binding_plan_activator(container, binding_plan, update_marker)
 
 
 def _standalone_radio_pane_marker_geometry(

@@ -2120,6 +2120,35 @@ def test_standalone_radio_pane_marker_binding_plan_from_sets_rejects_invalid_set
         )
 
 
+def test_standalone_radio_pane_activate_marker_binding_plan_delegates_activation():
+    events = []
+    container = object()
+    binding_plan = object()
+    update_marker = object()
+
+    netmon_radio_app._standalone_radio_pane_activate_marker_binding_plan(
+        container,
+        binding_plan,
+        update_marker,
+        activate_marker_callbacks=lambda *args: events.append(args),
+    )
+
+    assert events == [(container, binding_plan, update_marker)]
+
+
+def test_standalone_radio_pane_activate_marker_binding_plan_propagates_failures():
+    def fail_activate(*_args):
+        raise RuntimeError("activate marker binding plan failed")
+
+    with pytest.raises(RuntimeError, match="activate marker binding plan failed"):
+        netmon_radio_app._standalone_radio_pane_activate_marker_binding_plan(
+            object(),
+            object(),
+            object(),
+            activate_marker_callbacks=fail_activate,
+        )
+
+
 def test_standalone_radio_pane_activate_marker_bindings_builds_and_activates():
     events = []
     container = object()
@@ -2146,7 +2175,7 @@ def test_standalone_radio_pane_activate_marker_bindings_builds_and_activates():
         or binding_sets,
         binding_plan_builder=lambda *args: events.append(("binding_plan", args))
         or binding_plan,
-        activate_marker_callbacks=lambda *args: events.append(("activate", args)),
+        binding_plan_activator=lambda *args: events.append(("activate", args)),
     )
 
     assert events == [
@@ -2174,7 +2203,7 @@ def test_standalone_radio_pane_activate_marker_bindings_propagates_activation_fa
             object(),
             binding_sets_builder=lambda *_args: (object(), object()),
             binding_plan_builder=lambda *_args: object(),
-            activate_marker_callbacks=fail_activate,
+            binding_plan_activator=fail_activate,
         )
 
 
