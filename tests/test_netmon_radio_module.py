@@ -4181,6 +4181,36 @@ def test_init_radio_runtime_widget_refs_initializes_widget_state():
     assert app.radio_standalone_resize_origin is None
 
 
+def test_init_radio_runtime_paths_initializes_radio_paths():
+    app = SimpleNamespace()
+    paths = SimpleNamespace(
+        config_dir="/tmp/netmon-config",
+        state_dir="/tmp/netmon-state",
+        default_stations_path="/tmp/default.json",
+        radio_db_path="/tmp/radio.db",
+        radio_db_meta_path="/tmp/radio.meta.json",
+        radio_stations_path="/tmp/stations.json",
+        radio_favorites_path="/tmp/favorites.json",
+        radio_settings_path="/tmp/settings.json",
+    )
+
+    netmon_radio_app._init_radio_runtime_paths(
+        app,
+        paths_builder=lambda: paths,
+    )
+
+    assert app.netmon_config_dir == "/tmp/netmon-config"
+    assert app.netmon_state_dir == "/tmp/netmon-state"
+    assert app.radio_default_stations_path == "/tmp/default.json"
+    assert app.radio_db_path == "/tmp/radio.db"
+    assert app.radio_db_meta_path == "/tmp/radio.meta.json"
+    assert app.radio_stations_path == "/tmp/stations.json"
+    assert app.radio_favorites_path == "/tmp/favorites.json"
+    assert app.radio_settings_path == "/tmp/settings.json"
+    assert app.radio_log_path == "/tmp/netmon-state/logs/netmon_radio_app.log"
+    assert app.radio_logo_cache_dir == "/tmp/netmon-state/radio_station_logos"
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"

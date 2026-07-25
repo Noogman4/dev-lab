@@ -1262,10 +1262,8 @@ def _init_radio_runtime_widget_refs(app) -> None:
     app.radio_standalone_resize_origin = None
 
 
-def _init_radio_runtime_state(app, *, embedded_mode, host_app=None):
-    _init_radio_runtime_widget_refs(app)
-
-    paths = build_radio_paths()
+def _init_radio_runtime_paths(app, *, paths_builder=build_radio_paths) -> None:
+    paths = paths_builder()
     app.netmon_config_dir = paths.config_dir
     app.netmon_state_dir = paths.state_dir
     app.radio_default_stations_path = paths.default_stations_path
@@ -1283,6 +1281,11 @@ def _init_radio_runtime_state(app, *, embedded_mode, host_app=None):
         app.netmon_state_dir,
         "radio_station_logos",
     )
+
+
+def _init_radio_runtime_state(app, *, embedded_mode, host_app=None):
+    _init_radio_runtime_widget_refs(app)
+    _init_radio_runtime_paths(app)
 
     app.radio_proc = None
     app.radio_stop_requested = False
