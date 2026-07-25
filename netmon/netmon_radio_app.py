@@ -1235,7 +1235,7 @@ def _install_pane_drag_marker(
     )
 
 
-def _init_radio_runtime_state(app, *, embedded_mode, host_app=None):
+def _init_radio_runtime_widget_refs(app) -> None:
     app.feature_buttons = {}
     app.radio_station_table = None
     app.radio_station_menu = None
@@ -1260,6 +1260,10 @@ def _init_radio_runtime_state(app, *, embedded_mode, host_app=None):
     app.radio_mini_drag_origin = None
     app.radio_mini_resize_origin = None
     app.radio_standalone_resize_origin = None
+
+
+def _init_radio_runtime_state(app, *, embedded_mode, host_app=None):
+    _init_radio_runtime_widget_refs(app)
 
     paths = build_radio_paths()
     app.netmon_config_dir = paths.config_dir

@@ -4150,6 +4150,37 @@ def test_install_pane_drag_marker_propagates_installer_failures():
         )
 
 
+def test_init_radio_runtime_widget_refs_initializes_widget_state():
+    app = SimpleNamespace()
+
+    netmon_radio_app._init_radio_runtime_widget_refs(app)
+
+    assert app.feature_buttons == {}
+    assert app.radio_station_table is None
+    assert app.radio_station_menu is None
+    assert app.radio_page_prev_button is None
+    assert app.radio_page_next_button is None
+    assert app.radio_reachability_button is None
+    assert app.radio_miniplayer_button is None
+    assert app.radio_database_button is None
+    assert app.radio_database_count_label is None
+    assert app.radio_database_sources_window is None
+    assert app.radio_database_source_vars == {}
+    assert app.radio_database_source_status_labels == {}
+    assert app.radio_database_source_status_by_id == {}
+    assert app.radio_database_source_check_running is False
+    assert app.radio_database_exclusive_mode_var is None
+    assert app.radio_database_select_all_var is None
+    assert app.radio_database_refresh_button is None
+    assert app.radio_database_progressbar is None
+    assert app.radio_database_refresh_running is False
+    assert app.radio_mini_player_window is None
+    assert app.radio_mini_logo_label is None
+    assert app.radio_mini_drag_origin is None
+    assert app.radio_mini_resize_origin is None
+    assert app.radio_standalone_resize_origin is None
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
