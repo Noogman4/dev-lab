@@ -386,12 +386,28 @@ def _standalone_radio_pane_schedule_initial_marker_update(
     request_update(container, update_marker)
 
 
+def _standalone_radio_pane_active_initial_update_args(
+    container,
+    update_marker,
+    initial_update_scheduler,
+):
+    return container, update_marker, initial_update_scheduler
+
+
 def _standalone_radio_pane_schedule_active_marker_initial_update(
     container,
     update_marker,
     initial_update_scheduler,
+    *,
+    active_update_args_builder=_standalone_radio_pane_active_initial_update_args,
 ) -> None:
-    initial_update_scheduler(container, update_marker)
+    active_update_args = active_update_args_builder(
+        container,
+        update_marker,
+        initial_update_scheduler,
+    )
+    container_arg, update_arg, scheduler = active_update_args
+    scheduler(container_arg, update_arg)
 
 
 def _standalone_radio_pane_bind_active_marker_callbacks(
