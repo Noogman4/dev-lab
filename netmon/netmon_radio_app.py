@@ -1524,6 +1524,33 @@ def _init_radio_ui_header_vars(
     )
 
 
+def _init_radio_ui_volume_eq_search_vars(
+    app,
+    *,
+    volume_value,
+    eq_bass_value,
+    eq_mid_value,
+    eq_treble_value,
+    search_value,
+    int_var_builder=tk.IntVar,
+    string_var_builder=tk.StringVar,
+) -> None:
+    app.radio_volume_var = int_var_builder(value=volume_value)
+    app.radio_volume_text_var = string_var_builder(
+        value=app.tr("radio_volume_short_label", "Vol.: {value}%").format(
+            value=volume_value
+        )
+    )
+    app.radio_volume_label_var = string_var_builder(value=f"{volume_value}%")
+    app.radio_eq_bass_var = int_var_builder(value=eq_bass_value)
+    app.radio_eq_mid_var = int_var_builder(value=eq_mid_value)
+    app.radio_eq_treble_var = int_var_builder(value=eq_treble_value)
+    app.radio_eq_bass_label_var = string_var_builder(value=str(eq_bass_value))
+    app.radio_eq_mid_label_var = string_var_builder(value=str(eq_mid_value))
+    app.radio_eq_treble_label_var = string_var_builder(value=str(eq_treble_value))
+    app.radio_search_var = string_var_builder(value=search_value)
+
+
 def _init_radio_ui_state(app):
     volume_value = _radio_ui_volume_value(app.radio_settings)
     eq_bass_value, eq_mid_value, eq_treble_value = _radio_ui_eq_values(
@@ -1532,20 +1559,14 @@ def _init_radio_ui_state(app):
     search_value = _radio_ui_search_value(app.radio_settings)
     database_count = _radio_ui_database_count(app)
     _init_radio_ui_header_vars(app)
-    app.radio_volume_var = tk.IntVar(value=volume_value)
-    app.radio_volume_text_var = tk.StringVar(
-        value=app.tr("radio_volume_short_label", "Vol.: {value}%").format(
-            value=volume_value
-        )
+    _init_radio_ui_volume_eq_search_vars(
+        app,
+        volume_value=volume_value,
+        eq_bass_value=eq_bass_value,
+        eq_mid_value=eq_mid_value,
+        eq_treble_value=eq_treble_value,
+        search_value=search_value,
     )
-    app.radio_volume_label_var = tk.StringVar(value=f"{volume_value}%")
-    app.radio_eq_bass_var = tk.IntVar(value=eq_bass_value)
-    app.radio_eq_mid_var = tk.IntVar(value=eq_mid_value)
-    app.radio_eq_treble_var = tk.IntVar(value=eq_treble_value)
-    app.radio_eq_bass_label_var = tk.StringVar(value=str(eq_bass_value))
-    app.radio_eq_mid_label_var = tk.StringVar(value=str(eq_mid_value))
-    app.radio_eq_treble_label_var = tk.StringVar(value=str(eq_treble_value))
-    app.radio_search_var = tk.StringVar(value=search_value)
     _init_radio_ui_control_refs(app)
     app.radio_show_favorites_var = tk.BooleanVar(value=False)
     app.radio_toggle_favorites_text_var = tk.StringVar(

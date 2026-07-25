@@ -4546,6 +4546,48 @@ def test_init_radio_ui_header_vars_initializes_translated_values():
     ]
 
 
+def test_init_radio_ui_volume_eq_search_vars_initializes_values():
+    int_calls = []
+    string_calls = []
+    app = SimpleNamespace(
+        tr=lambda key, default: {
+            "radio_volume_short_label": "Lautst.: {value}%",
+        }.get(key, default)
+    )
+
+    def build_int_var(*, value):
+        int_calls.append(value)
+        return DummyVar(value)
+
+    def build_string_var(*, value):
+        string_calls.append(value)
+        return DummyVar(value)
+
+    netmon_radio_app._init_radio_ui_volume_eq_search_vars(
+        app,
+        volume_value=72,
+        eq_bass_value=-2,
+        eq_mid_value=3,
+        eq_treble_value=5,
+        search_value="jazz",
+        int_var_builder=build_int_var,
+        string_var_builder=build_string_var,
+    )
+
+    assert app.radio_volume_var.get() == 72
+    assert app.radio_volume_text_var.get() == "Lautst.: 72%"
+    assert app.radio_volume_label_var.get() == "72%"
+    assert app.radio_eq_bass_var.get() == -2
+    assert app.radio_eq_mid_var.get() == 3
+    assert app.radio_eq_treble_var.get() == 5
+    assert app.radio_eq_bass_label_var.get() == "-2"
+    assert app.radio_eq_mid_label_var.get() == "3"
+    assert app.radio_eq_treble_label_var.get() == "5"
+    assert app.radio_search_var.get() == "jazz"
+    assert int_calls == [72, -2, 3, 5]
+    assert string_calls == ["Lautst.: 72%", "72%", "-2", "3", "5", "jazz"]
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
