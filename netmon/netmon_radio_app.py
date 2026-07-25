@@ -343,6 +343,24 @@ def _standalone_radio_pane_grip_bindings(start_drag, drag, end_drag):
     )
 
 
+def _standalone_radio_pane_marker_update_binding_plan(
+    container,
+    pane,
+    update_bindings,
+):
+    return (
+        (container, update_bindings),
+        (pane, update_bindings),
+    )
+
+
+def _standalone_radio_pane_marker_grip_binding_plan(
+    grip,
+    grip_bindings,
+):
+    return ((grip, grip_bindings),)
+
+
 def _standalone_radio_pane_marker_binding_plan(
     container,
     pane,
@@ -350,12 +368,14 @@ def _standalone_radio_pane_marker_binding_plan(
     *,
     update_bindings,
     grip_bindings,
+    update_plan_builder=_standalone_radio_pane_marker_update_binding_plan,
+    grip_plan_builder=_standalone_radio_pane_marker_grip_binding_plan,
 ):
-    return (
-        (container, update_bindings),
-        (pane, update_bindings),
-        (grip, grip_bindings),
-    )
+    return update_plan_builder(
+        container,
+        pane,
+        update_bindings,
+    ) + grip_plan_builder(grip, grip_bindings)
 
 
 def _standalone_radio_pane_bind_marker_callback(

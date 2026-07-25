@@ -1881,24 +1881,75 @@ def test_standalone_radio_pane_grip_bindings_use_drag_callbacks():
     )
 
 
+def test_standalone_radio_pane_marker_update_binding_plan_maps_update_targets():
+    container = object()
+    pane = object()
+    update_bindings = object()
+
+    assert netmon_radio_app._standalone_radio_pane_marker_update_binding_plan(
+        container,
+        pane,
+        update_bindings,
+    ) == (
+        (container, update_bindings),
+        (pane, update_bindings),
+    )
+
+
+def test_standalone_radio_pane_marker_grip_binding_plan_maps_grip_target():
+    grip = object()
+    grip_bindings = object()
+
+    assert netmon_radio_app._standalone_radio_pane_marker_grip_binding_plan(
+        grip,
+        grip_bindings,
+    ) == ((grip, grip_bindings),)
+
+
 def test_standalone_radio_pane_marker_binding_plan_maps_widgets_to_bindings():
+    events = []
     container = object()
     pane = object()
     grip = object()
     update_bindings = object()
     grip_bindings = object()
+    update_plan = ((object(), object()),)
+    grip_plan = ((object(), object()),)
 
-    assert netmon_radio_app._standalone_radio_pane_marker_binding_plan(
-        container,
-        pane,
-        grip,
-        update_bindings=update_bindings,
-        grip_bindings=grip_bindings,
-    ) == (
-        (container, update_bindings),
-        (pane, update_bindings),
-        (grip, grip_bindings),
+    assert (
+        netmon_radio_app._standalone_radio_pane_marker_binding_plan(
+            container,
+            pane,
+            grip,
+            update_bindings=update_bindings,
+            grip_bindings=grip_bindings,
+            update_plan_builder=lambda *args: events.append(("update_plan", args))
+            or update_plan,
+            grip_plan_builder=lambda *args: events.append(("grip_plan", args))
+            or grip_plan,
+        )
+        == update_plan + grip_plan
     )
+
+    assert events == [
+        ("update_plan", (container, pane, update_bindings)),
+        ("grip_plan", (grip, grip_bindings)),
+    ]
+
+
+def test_standalone_radio_pane_marker_binding_plan_propagates_plan_failures():
+    def fail_update_plan(*_args):
+        raise RuntimeError("update binding plan failed")
+
+    with pytest.raises(RuntimeError, match="update binding plan failed"):
+        netmon_radio_app._standalone_radio_pane_marker_binding_plan(
+            object(),
+            object(),
+            object(),
+            update_bindings=object(),
+            grip_bindings=object(),
+            update_plan_builder=fail_update_plan,
+        )
 
 
 def test_standalone_radio_pane_bind_marker_callback_delegates_binding():
