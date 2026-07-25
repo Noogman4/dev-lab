@@ -4692,6 +4692,31 @@ def test_init_radio_ui_projectm_vars_initializes_translated_values():
     ]
 
 
+def test_init_radio_ui_recording_vars_initializes_translated_values():
+    calls = []
+    app = SimpleNamespace(
+        tr=lambda key, default: {
+            "radio_record_status_off": "Aufnahme aus.",
+            "radio_record_dir_default": "Ordner: -",
+            "radio_record_file_default": "Datei: -",
+        }.get(key, default)
+    )
+
+    def build_var(*, value):
+        calls.append(value)
+        return DummyVar(value)
+
+    netmon_radio_app._init_radio_ui_recording_vars(
+        app,
+        string_var_builder=build_var,
+    )
+
+    assert app.radio_record_status_var.get() == "Aufnahme aus."
+    assert app.radio_record_dir_var.get() == "Ordner: -"
+    assert app.radio_record_file_var.get() == "Datei: -"
+    assert calls == ["Aufnahme aus.", "Ordner: -", "Datei: -"]
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"

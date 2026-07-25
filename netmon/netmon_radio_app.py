@@ -1622,6 +1622,22 @@ def _init_radio_ui_projectm_vars(
     app.radio_attach_status_var = string_var_builder(value="")
 
 
+def _init_radio_ui_recording_vars(
+    app,
+    *,
+    string_var_builder=tk.StringVar,
+) -> None:
+    app.radio_record_status_var = string_var_builder(
+        value=app.tr("radio_record_status_off", "Recording off.")
+    )
+    app.radio_record_dir_var = string_var_builder(
+        value=app.tr("radio_record_dir_default", "Aufnahmeordner: -")
+    )
+    app.radio_record_file_var = string_var_builder(
+        value=app.tr("radio_record_file_default", "Letzte Aufnahme: -")
+    )
+
+
 def _init_radio_ui_state(app):
     volume_value = _radio_ui_volume_value(app.radio_settings)
     eq_bass_value, eq_mid_value, eq_treble_value = _radio_ui_eq_values(
@@ -1651,15 +1667,7 @@ def _init_radio_ui_state(app):
     # checking downloaded packs and custom imports
     _init_radio_ui_projectm_vars(app)
     _init_radio_ui_recording_runtime_state(app)
-    app.radio_record_status_var = tk.StringVar(
-        value=app.tr("radio_record_status_off", "Recording off.")
-    )
-    app.radio_record_dir_var = tk.StringVar(
-        value=app.tr("radio_record_dir_default", "Aufnahmeordner: -")
-    )
-    app.radio_record_file_var = tk.StringVar(
-        value=app.tr("radio_record_file_default", "Letzte Aufnahme: -")
-    )
+    _init_radio_ui_recording_vars(app)
     _init_radio_ui_playlist_runtime_state(app)
     app.radio_playlist_status_var = tk.StringVar(
         value=app.tr("radio_playlist_status_default", "Playlist: 0 Dateien")
