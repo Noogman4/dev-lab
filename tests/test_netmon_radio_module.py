@@ -1938,7 +1938,15 @@ def test_standalone_radio_pane_bind_marker_callbacks_propagates_binder_failure()
     assert calls == [("widget", "bindings")]
 
 
-def test_standalone_radio_pane_request_initial_marker_update_uses_after_zero():
+def test_standalone_radio_pane_initial_update_after_args_uses_after_zero():
+    callback = object()
+
+    assert netmon_radio_app._standalone_radio_pane_initial_update_after_args(
+        callback,
+    ) == (0, callback)
+
+
+def test_standalone_radio_pane_request_initial_marker_update_uses_after_args():
     calls = []
     callback = object()
 
@@ -1949,9 +1957,14 @@ def test_standalone_radio_pane_request_initial_marker_update_uses_after_zero():
     netmon_radio_app._standalone_radio_pane_request_initial_marker_update(
         DummyContainer(),
         callback,
+        after_args_builder=lambda update_arg: calls.append(("args", update_arg))
+        or (5, update_arg),
     )
 
-    assert calls == [(0, callback)]
+    assert calls == [
+        ("args", callback),
+        (5, callback),
+    ]
 
 
 def test_standalone_radio_pane_request_initial_marker_update_ignores_after_failure():
@@ -1968,6 +1981,17 @@ def test_standalone_radio_pane_request_initial_marker_update_ignores_after_failu
     )
 
     assert calls == ["after"]
+
+
+def test_standalone_radio_pane_request_initial_marker_update_ignores_after_args_failure():
+    def fail_after_args(_update_marker):
+        raise RuntimeError("after args failed")
+
+    netmon_radio_app._standalone_radio_pane_request_initial_marker_update(
+        object(),
+        object(),
+        after_args_builder=fail_after_args,
+    )
 
 
 def test_standalone_radio_pane_initial_update_request_args_combines_arguments():

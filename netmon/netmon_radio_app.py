@@ -367,12 +367,19 @@ def _standalone_radio_pane_bind_marker_callbacks(
         bind_events(widget, bindings)
 
 
+def _standalone_radio_pane_initial_update_after_args(update_marker):
+    return 0, update_marker
+
+
 def _standalone_radio_pane_request_initial_marker_update(
     container,
     update_marker,
+    *,
+    after_args_builder=_standalone_radio_pane_initial_update_after_args,
 ) -> None:
     try:
-        container.after(0, update_marker)
+        delay, callback = after_args_builder(update_marker)
+        container.after(delay, callback)
     except Exception:
         pass
 
