@@ -1813,6 +1813,15 @@ def _radio_detach_ack_step(app, *, attempts_left) -> str:
     return "wait"
 
 
+def _radio_language_code_from_config_payload(payload) -> str:
+    if not isinstance(payload, dict):
+        return "de"
+    candidate = str(payload.get("language", "de") or "de").strip().lower()
+    if candidate in {"de", "en"}:
+        return candidate
+    return "de"
+
+
 class NetMonRadioApp(tk.Tk):
     def __init__(
         self,
@@ -2066,12 +2075,7 @@ class NetMonRadioApp(tk.Tk):
             if os.path.isfile(config_path):
                 with open(config_path, "r", encoding="utf-8") as handle:
                     payload = json.load(handle)
-                if isinstance(payload, dict):
-                    candidate = (
-                        str(payload.get("language", "de") or "de").strip().lower()
-                    )
-                    if candidate in {"de", "en"}:
-                        lang_code = candidate
+                lang_code = _radio_language_code_from_config_payload(payload)
         except Exception:
             pass
 

@@ -4905,6 +4905,26 @@ def test_radio_detach_ack_step_waits_with_attempts_left():
     assert netmon_radio_app._radio_detach_ack_step(app, attempts_left=3) == "wait"
 
 
+def test_radio_language_code_from_config_payload_accepts_supported_codes():
+    assert (
+        netmon_radio_app._radio_language_code_from_config_payload({"language": " EN "})
+        == "en"
+    )
+    assert (
+        netmon_radio_app._radio_language_code_from_config_payload({"language": "de"})
+        == "de"
+    )
+
+
+def test_radio_language_code_from_config_payload_falls_back_to_german():
+    assert (
+        netmon_radio_app._radio_language_code_from_config_payload({"language": "fr"})
+        == "de"
+    )
+    assert netmon_radio_app._radio_language_code_from_config_payload({}) == "de"
+    assert netmon_radio_app._radio_language_code_from_config_payload(None) == "de"
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
