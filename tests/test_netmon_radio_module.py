@@ -4848,6 +4848,32 @@ def test_compact_standalone_window_geometry_clamps_to_screen():
     ) == (1160, 820, 820, 60, 40)
 
 
+def test_radio_window_integration_context_formats_values():
+    app = SimpleNamespace(
+        _window_icon_path=" /tmp/netmon-radio.png ",
+        _window_icon_applied=True,
+        _started_from=" desktop ",
+    )
+
+    assert netmon_radio_app._radio_window_integration_context(app) == {
+        "window_class": "NetMonRadio",
+        "startup_wm_class": "NetMonRadio",
+        "icon_path": "/tmp/netmon-radio.png",
+        "icon_applied": "yes",
+        "started_from": "desktop",
+    }
+
+
+def test_radio_window_integration_context_uses_defaults():
+    assert netmon_radio_app._radio_window_integration_context(SimpleNamespace()) == {
+        "window_class": "NetMonRadio",
+        "startup_wm_class": "NetMonRadio",
+        "icon_path": "",
+        "icon_applied": "no",
+        "started_from": "",
+    }
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"

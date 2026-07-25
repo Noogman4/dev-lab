@@ -1786,6 +1786,18 @@ def _compact_standalone_window_geometry(
     return width, height, max_height, x, y
 
 
+def _radio_window_integration_context(app) -> dict[str, str]:
+    return {
+        "window_class": "NetMonRadio",
+        "startup_wm_class": "NetMonRadio",
+        "icon_path": str(getattr(app, "_window_icon_path", "") or "").strip(),
+        "icon_applied": (
+            "yes" if bool(getattr(app, "_window_icon_applied", False)) else "no"
+        ),
+        "started_from": str(getattr(app, "_started_from", "") or "").strip(),
+    }
+
+
 class NetMonRadioApp(tk.Tk):
     def __init__(
         self,
@@ -1924,15 +1936,7 @@ class NetMonRadioApp(tk.Tk):
             pass
 
     def _window_integration_context(self):
-        return {
-            "window_class": "NetMonRadio",
-            "startup_wm_class": "NetMonRadio",
-            "icon_path": str(getattr(self, "_window_icon_path", "") or "").strip(),
-            "icon_applied": (
-                "yes" if bool(getattr(self, "_window_icon_applied", False)) else "no"
-            ),
-            "started_from": str(getattr(self, "_started_from", "") or "").strip(),
-        }
+        return _radio_window_integration_context(self)
 
     def _log_window_integration_diagnostic(self, stage):
         info = self._window_integration_context()
