@@ -4342,6 +4342,37 @@ def test_init_radio_ui_projectm_runtime_state_initializes_fresh_state():
     assert app.radio_projectm_package_probe is not other.radio_projectm_package_probe
 
 
+def test_radio_ui_recordings_dir_uses_stripped_setting_and_default():
+    assert (
+        netmon_radio_app._radio_ui_recordings_dir({"recordings_dir": " /tmp/records "})
+        == "/tmp/records"
+    )
+    assert netmon_radio_app._radio_ui_recordings_dir({"recordings_dir": None}) == ""
+    assert netmon_radio_app._radio_ui_recordings_dir({}) == ""
+
+
+def test_init_radio_ui_recording_runtime_state_initializes_recording_state():
+    app = SimpleNamespace(radio_settings={"recordings_dir": " /tmp/records "})
+
+    netmon_radio_app._init_radio_ui_recording_runtime_state(app)
+
+    assert app.radio_record_proc is None
+    assert app.radio_recordings_dir == "/tmp/records"
+    assert app.radio_last_record_path == ""
+    assert app.radio_record_transport_button is None
+    assert app.radio_record_panel_button is None
+    assert app.radio_record_settings_button is None
+    assert app.radio_record_settings_window is None
+    assert app.radio_record_start_button is None
+    assert app.radio_record_stop_button is None
+    assert app.radio_record_folder_button is None
+    assert app.radio_record_open_folder_button is None
+    assert app.radio_record_open_last_button is None
+    assert app.radio_record_play_last_button is None
+    assert app.radio_record_blink_after_id is None
+    assert app.radio_record_blink_on is False
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"

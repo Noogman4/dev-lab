@@ -1376,6 +1376,28 @@ def _init_radio_ui_projectm_runtime_state(app) -> None:
     app.radio_projectm_package_probe = {}
 
 
+def _radio_ui_recordings_dir(settings) -> str:
+    return str(settings.get("recordings_dir", "") or "").strip()
+
+
+def _init_radio_ui_recording_runtime_state(app) -> None:
+    app.radio_record_proc = None
+    app.radio_recordings_dir = _radio_ui_recordings_dir(app.radio_settings)
+    app.radio_last_record_path = ""
+    app.radio_record_transport_button = None
+    app.radio_record_panel_button = None
+    app.radio_record_settings_button = None
+    app.radio_record_settings_window = None
+    app.radio_record_start_button = None
+    app.radio_record_stop_button = None
+    app.radio_record_folder_button = None
+    app.radio_record_open_folder_button = None
+    app.radio_record_open_last_button = None
+    app.radio_record_play_last_button = None
+    app.radio_record_blink_after_id = None
+    app.radio_record_blink_on = False
+
+
 def _init_radio_ui_state(app):
     volume_value = _radio_ui_volume_value(app.radio_settings)
     eq_bass_value, eq_mid_value, eq_treble_value = _radio_ui_eq_values(
@@ -1490,11 +1512,7 @@ def _init_radio_ui_state(app):
     app.radio_projectm_preset_import_button = None
     app.radio_projectm_preset_manager_window = None
     app.radio_attach_status_var = tk.StringVar(value="")
-    app.radio_record_proc = None
-    app.radio_recordings_dir = str(
-        app.radio_settings.get("recordings_dir", "") or ""
-    ).strip()
-    app.radio_last_record_path = ""
+    _init_radio_ui_recording_runtime_state(app)
     app.radio_record_status_var = tk.StringVar(
         value=app.tr("radio_record_status_off", "Recording off.")
     )
@@ -1504,18 +1522,6 @@ def _init_radio_ui_state(app):
     app.radio_record_file_var = tk.StringVar(
         value=app.tr("radio_record_file_default", "Letzte Aufnahme: -")
     )
-    app.radio_record_transport_button = None
-    app.radio_record_panel_button = None
-    app.radio_record_settings_button = None
-    app.radio_record_settings_window = None
-    app.radio_record_start_button = None
-    app.radio_record_stop_button = None
-    app.radio_record_folder_button = None
-    app.radio_record_open_folder_button = None
-    app.radio_record_open_last_button = None
-    app.radio_record_play_last_button = None
-    app.radio_record_blink_after_id = None
-    app.radio_record_blink_on = False
     app.radio_playlist_entries = list(
         getattr(app, "radio_playlist_entries", [])
         or app.radio_settings.get("playlist_entries", [])
