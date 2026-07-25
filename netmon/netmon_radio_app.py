@@ -1551,6 +1551,39 @@ def _init_radio_ui_volume_eq_search_vars(
     app.radio_search_var = string_var_builder(value=search_value)
 
 
+def _init_radio_ui_database_custom_vars(
+    app,
+    *,
+    database_count,
+    boolean_var_builder=tk.BooleanVar,
+    double_var_builder=tk.DoubleVar,
+    string_var_builder=tk.StringVar,
+) -> None:
+    app.radio_show_favorites_var = boolean_var_builder(value=False)
+    app.radio_toggle_favorites_text_var = string_var_builder(
+        value=app.tr("radio_show_favorites", "Show favorites")
+    )
+    app.radio_page_indicator_var = string_var_builder(value="1/1")
+    app.radio_database_count_var = string_var_builder(
+        value=app.tr("radio_database_count", "DB: {count} stations").format(
+            count=database_count
+        )
+    )
+    app.radio_database_progress_var = double_var_builder(value=0.0)
+    app.radio_database_progress_status_var = string_var_builder(value="")
+    app.radio_database_exclusive_mode_var = boolean_var_builder(value=True)
+    app.radio_database_select_all_var = boolean_var_builder(value=False)
+    app.radio_station_columns_status_var = string_var_builder(value="")
+    app.radio_custom_name_var = string_var_builder(value="")
+    app.radio_custom_url_var = string_var_builder(value="")
+    app.radio_custom_homepage_var = string_var_builder(value="")
+    app.radio_custom_category_var = string_var_builder(value="")
+    app.radio_custom_submit_text_var = string_var_builder(
+        value=app.tr("radio_custom_add_button", "Add station")
+    )
+    app.radio_custom_form_status_var = string_var_builder(value="")
+
+
 def _init_radio_ui_state(app):
     volume_value = _radio_ui_volume_value(app.radio_settings)
     eq_bass_value, eq_mid_value, eq_treble_value = _radio_ui_eq_values(
@@ -1568,34 +1601,12 @@ def _init_radio_ui_state(app):
         search_value=search_value,
     )
     _init_radio_ui_control_refs(app)
-    app.radio_show_favorites_var = tk.BooleanVar(value=False)
-    app.radio_toggle_favorites_text_var = tk.StringVar(
-        value=app.tr("radio_show_favorites", "Show favorites")
-    )
+    _init_radio_ui_database_custom_vars(app, database_count=database_count)
     app.radio_status_indicator_images = {
         "unknown": _build_radio_status_indicator("#8a8f98"),
         "online": _build_radio_status_indicator("#2fb344"),
         "offline": _build_radio_status_indicator("#d9485f"),
     }
-    app.radio_page_indicator_var = tk.StringVar(value="1/1")
-    app.radio_database_count_var = tk.StringVar(
-        value=app.tr("radio_database_count", "DB: {count} stations").format(
-            count=database_count
-        )
-    )
-    app.radio_database_progress_var = tk.DoubleVar(value=0.0)
-    app.radio_database_progress_status_var = tk.StringVar(value="")
-    app.radio_database_exclusive_mode_var = tk.BooleanVar(value=True)
-    app.radio_database_select_all_var = tk.BooleanVar(value=False)
-    app.radio_station_columns_status_var = tk.StringVar(value="")
-    app.radio_custom_name_var = tk.StringVar(value="")
-    app.radio_custom_url_var = tk.StringVar(value="")
-    app.radio_custom_homepage_var = tk.StringVar(value="")
-    app.radio_custom_category_var = tk.StringVar(value="")
-    app.radio_custom_submit_text_var = tk.StringVar(
-        value=app.tr("radio_custom_add_button", "Add station")
-    )
-    app.radio_custom_form_status_var = tk.StringVar(value="")
     _init_radio_ui_projectm_runtime_state(app)
     app.radio_projectm_status_var = tk.StringVar(
         value=app.tr("radio_projectm_status_not_installed", "projectM not installed")

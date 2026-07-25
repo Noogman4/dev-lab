@@ -4588,6 +4588,70 @@ def test_init_radio_ui_volume_eq_search_vars_initializes_values():
     assert string_calls == ["Lautst.: 72%", "72%", "-2", "3", "5", "jazz"]
 
 
+def test_init_radio_ui_database_custom_vars_initializes_values():
+    boolean_calls = []
+    double_calls = []
+    string_calls = []
+    app = SimpleNamespace(
+        tr=lambda key, default: {
+            "radio_show_favorites": "Favoriten zeigen",
+            "radio_database_count": "DB: {count} Sender",
+            "radio_custom_add_button": "Sender hinzufuegen",
+        }.get(key, default)
+    )
+
+    def build_boolean_var(*, value):
+        boolean_calls.append(value)
+        return DummyVar(value)
+
+    def build_double_var(*, value):
+        double_calls.append(value)
+        return DummyVar(value)
+
+    def build_string_var(*, value):
+        string_calls.append(value)
+        return DummyVar(value)
+
+    netmon_radio_app._init_radio_ui_database_custom_vars(
+        app,
+        database_count=42,
+        boolean_var_builder=build_boolean_var,
+        double_var_builder=build_double_var,
+        string_var_builder=build_string_var,
+    )
+
+    assert app.radio_show_favorites_var.get() is False
+    assert app.radio_toggle_favorites_text_var.get() == "Favoriten zeigen"
+    assert app.radio_page_indicator_var.get() == "1/1"
+    assert app.radio_database_count_var.get() == "DB: 42 Sender"
+    assert app.radio_database_progress_var.get() == 0.0
+    assert app.radio_database_progress_status_var.get() == ""
+    assert app.radio_database_exclusive_mode_var.get() is True
+    assert app.radio_database_select_all_var.get() is False
+    assert app.radio_station_columns_status_var.get() == ""
+    assert app.radio_custom_name_var.get() == ""
+    assert app.radio_custom_url_var.get() == ""
+    assert app.radio_custom_homepage_var.get() == ""
+    assert app.radio_custom_category_var.get() == ""
+    assert app.radio_custom_submit_text_var.get() == "Sender hinzufuegen"
+    assert app.radio_custom_form_status_var.get() == ""
+    assert boolean_calls == [False, True, False]
+    assert double_calls == [0.0]
+    assert string_calls == [
+        "Favoriten zeigen",
+        "1/1",
+        "DB: 42 Sender",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "Sender hinzufuegen",
+        "",
+    ]
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
