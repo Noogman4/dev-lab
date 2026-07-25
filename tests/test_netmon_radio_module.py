@@ -3617,12 +3617,38 @@ def test_standalone_radio_pane_install_marker_parts_propagates_activation_failur
         )
 
 
+def test_standalone_radio_pane_install_marker_parts_args_combines_arguments():
+    container = object()
+    pane = object()
+    marker = object()
+    grip = object()
+
+    result = netmon_radio_app._standalone_radio_pane_install_marker_parts_args(
+        container,
+        pane,
+        (marker, grip),
+        12,
+    )
+
+    assert result == (container, pane, marker, grip, 12)
+
+
+def test_standalone_radio_pane_install_marker_parts_args_rejects_invalid_widgets():
+    with pytest.raises(ValueError):
+        netmon_radio_app._standalone_radio_pane_install_marker_parts_args(
+            object(),
+            object(),
+            (object(), object(), object()),
+        )
+
+
 def test_standalone_radio_pane_install_marker_builds_widgets_and_installs_parts():
     events = []
     container = object()
     pane = object()
     marker = object()
     grip = object()
+    install_parts_args = (object(), object(), object(), object(), object())
     installed_marker = object()
 
     result = netmon_radio_app._standalone_radio_pane_install_marker(
@@ -3632,6 +3658,8 @@ def test_standalone_radio_pane_install_marker_builds_widgets_and_installs_parts(
         y_offset=12,
         widgets_builder=lambda *args: events.append(("widgets", args))
         or (marker, grip),
+        install_parts_args_builder=lambda *args: events.append(("install_args", args))
+        or install_parts_args,
         install_parts=lambda *args: events.append(("install", args))
         or installed_marker,
     )
@@ -3639,7 +3667,8 @@ def test_standalone_radio_pane_install_marker_builds_widgets_and_installs_parts(
     assert result is installed_marker
     assert events == [
         ("widgets", (container, "#123456")),
-        ("install", (container, pane, marker, grip, 12)),
+        ("install_args", (container, pane, (marker, grip), 12)),
+        ("install", install_parts_args),
     ]
 
 
@@ -3652,6 +3681,19 @@ def test_standalone_radio_pane_install_marker_propagates_widget_failures():
             object(),
             object(),
             widgets_builder=fail_widgets,
+        )
+
+
+def test_standalone_radio_pane_install_marker_propagates_args_failures():
+    def fail_install_parts_args(*_args):
+        raise RuntimeError("install parts args failed")
+
+    with pytest.raises(RuntimeError, match="install parts args failed"):
+        netmon_radio_app._standalone_radio_pane_install_marker(
+            object(),
+            object(),
+            widgets_builder=lambda *_args: (object(), object()),
+            install_parts_args_builder=fail_install_parts_args,
         )
 
 

@@ -1042,6 +1042,16 @@ def _standalone_radio_pane_install_marker_parts(
     return marker
 
 
+def _standalone_radio_pane_install_marker_parts_args(
+    container,
+    pane,
+    widgets,
+    y_offset=0,
+):
+    marker, grip = widgets
+    return container, pane, marker, grip, y_offset
+
+
 def _standalone_radio_pane_install_marker(
     container,
     pane,
@@ -1049,16 +1059,17 @@ def _standalone_radio_pane_install_marker(
     color="#0a84ff",
     y_offset=0,
     widgets_builder=_standalone_radio_pane_marker_widgets,
+    install_parts_args_builder=_standalone_radio_pane_install_marker_parts_args,
     install_parts=_standalone_radio_pane_install_marker_parts,
 ):
-    marker, grip = widgets_builder(container, color)
-    return install_parts(
+    widgets = widgets_builder(container, color)
+    install_parts_args = install_parts_args_builder(
         container,
         pane,
-        marker,
-        grip,
+        widgets,
         y_offset,
     )
+    return install_parts(*install_parts_args)
 
 
 def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
