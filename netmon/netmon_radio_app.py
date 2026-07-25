@@ -340,7 +340,12 @@ def _standalone_radio_pane_update_bindings(
     *,
     binding_specs_builder=_standalone_radio_pane_update_binding_specs,
 ):
-    return tuple((event_name, update_marker) for event_name in binding_specs_builder())
+    configure_event, release_event, motion_event = binding_specs_builder()
+    return (
+        (configure_event, update_marker),
+        (release_event, update_marker),
+        (motion_event, update_marker),
+    )
 
 
 def _standalone_radio_pane_grip_binding_specs():
@@ -358,7 +363,12 @@ def _standalone_radio_pane_grip_bindings(
     *,
     binding_specs_builder=_standalone_radio_pane_grip_binding_specs,
 ):
-    return tuple(zip(binding_specs_builder(), (start_drag, drag, end_drag)))
+    start_event, drag_event, end_event = binding_specs_builder()
+    return (
+        (start_event, start_drag),
+        (drag_event, drag),
+        (end_event, end_drag),
+    )
 
 
 def _standalone_radio_pane_marker_update_binding_plan(

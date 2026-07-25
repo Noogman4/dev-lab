@@ -1878,11 +1878,20 @@ def test_standalone_radio_pane_update_bindings_use_custom_specs():
 
     assert netmon_radio_app._standalone_radio_pane_update_bindings(
         update_marker,
-        binding_specs_builder=lambda: ("event-1", "event-2"),
+        binding_specs_builder=lambda: ("event-1", "event-2", "event-3"),
     ) == (
         ("event-1", update_marker),
         ("event-2", update_marker),
+        ("event-3", update_marker),
     )
+
+
+def test_standalone_radio_pane_update_bindings_rejects_invalid_specs():
+    with pytest.raises(ValueError):
+        netmon_radio_app._standalone_radio_pane_update_bindings(
+            object(),
+            binding_specs_builder=lambda: ("event-1", "event-2"),
+        )
 
 
 def test_standalone_radio_pane_grip_binding_specs_use_drag_events():
@@ -1924,6 +1933,16 @@ def test_standalone_radio_pane_grip_bindings_use_custom_specs():
         ("drag", drag),
         ("end", end_drag),
     )
+
+
+def test_standalone_radio_pane_grip_bindings_rejects_invalid_specs():
+    with pytest.raises(ValueError):
+        netmon_radio_app._standalone_radio_pane_grip_bindings(
+            object(),
+            object(),
+            object(),
+            binding_specs_builder=lambda: ("start", "drag"),
+        )
 
 
 def test_standalone_radio_pane_marker_update_binding_plan_maps_update_targets():
