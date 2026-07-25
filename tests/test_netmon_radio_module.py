@@ -4887,6 +4887,24 @@ def test_radio_detach_ready_ack_payload_marks_timeout():
     }
 
 
+def test_radio_detach_ack_step_is_ready_when_process_exists():
+    app = SimpleNamespace(radio_proc=object())
+
+    assert netmon_radio_app._radio_detach_ack_step(app, attempts_left=0) == "ready"
+
+
+def test_radio_detach_ack_step_times_out_without_attempts():
+    app = SimpleNamespace(radio_proc=None)
+
+    assert netmon_radio_app._radio_detach_ack_step(app, attempts_left=0) == "timeout"
+
+
+def test_radio_detach_ack_step_waits_with_attempts_left():
+    app = SimpleNamespace(radio_proc=None)
+
+    assert netmon_radio_app._radio_detach_ack_step(app, attempts_left=3) == "wait"
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"

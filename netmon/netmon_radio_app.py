@@ -1805,6 +1805,14 @@ def _radio_detach_ready_ack_payload(*, timed_out=False) -> dict[str, bool | str]
     return payload
 
 
+def _radio_detach_ack_step(app, *, attempts_left) -> str:
+    if getattr(app, "radio_proc", None) is not None:
+        return "ready"
+    if attempts_left <= 0:
+        return "timeout"
+    return "wait"
+
+
 class NetMonRadioApp(tk.Tk):
     def __init__(
         self,
@@ -1993,7 +2001,8 @@ class NetMonRadioApp(tk.Tk):
             return
 
         def _wait_for_playback_ready(attempts_left=40):
-            if getattr(self, "radio_proc", None) is not None:
+            ack_step = _radio_detach_ack_step(self, attempts_left=attempts_left)
+            if ack_step == "ready":
                 try:
                     netmon_radio_core.request_radio_handover_ack(
                         target_mode="embedded",
@@ -2003,7 +2012,7 @@ class NetMonRadioApp(tk.Tk):
                 except Exception:
                     pass
                 return
-            if attempts_left <= 0:
+            if ack_step == "timeout":
                 try:
                     netmon_radio_core.request_radio_handover_ack(
                         target_mode="embedded",
