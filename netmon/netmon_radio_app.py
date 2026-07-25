@@ -1798,6 +1798,13 @@ def _radio_window_integration_context(app) -> dict[str, str]:
     }
 
 
+def _radio_detach_ready_ack_payload(*, timed_out=False) -> dict[str, bool | str]:
+    payload: dict[str, bool | str] = {"action": "detach_ready"}
+    if timed_out:
+        payload["timed_out"] = True
+    return payload
+
+
 class NetMonRadioApp(tk.Tk):
     def __init__(
         self,
@@ -1978,7 +1985,7 @@ class NetMonRadioApp(tk.Tk):
             try:
                 netmon_radio_core.request_radio_handover_ack(
                     target_mode="embedded",
-                    payload={"action": "detach_ready"},
+                    payload=_radio_detach_ready_ack_payload(),
                     transition_id=transition_id,
                 )
             except Exception:
@@ -1990,7 +1997,7 @@ class NetMonRadioApp(tk.Tk):
                 try:
                     netmon_radio_core.request_radio_handover_ack(
                         target_mode="embedded",
-                        payload={"action": "detach_ready"},
+                        payload=_radio_detach_ready_ack_payload(),
                         transition_id=transition_id,
                     )
                 except Exception:
@@ -2000,7 +2007,7 @@ class NetMonRadioApp(tk.Tk):
                 try:
                     netmon_radio_core.request_radio_handover_ack(
                         target_mode="embedded",
-                        payload={"action": "detach_ready", "timed_out": True},
+                        payload=_radio_detach_ready_ack_payload(timed_out=True),
                         transition_id=transition_id,
                     )
                 except Exception:

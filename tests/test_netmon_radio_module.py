@@ -4874,6 +4874,19 @@ def test_radio_window_integration_context_uses_defaults():
     }
 
 
+def test_radio_detach_ready_ack_payload_defaults_to_ready_action():
+    assert netmon_radio_app._radio_detach_ready_ack_payload() == {
+        "action": "detach_ready"
+    }
+
+
+def test_radio_detach_ready_ack_payload_marks_timeout():
+    assert netmon_radio_app._radio_detach_ready_ack_payload(timed_out=True) == {
+        "action": "detach_ready",
+        "timed_out": True,
+    }
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
