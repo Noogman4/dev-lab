@@ -35,11 +35,19 @@
 
 ## Abschlusschecks
 
+- `.venv/bin/python -m ruff check netmon tests tools scripts agent`
 - `bash -n scripts/build_netmon_site_bundle.sh`
 - `bash -n scripts/build_netmon_release_update_bundle.sh`
 - `.venv/bin/python -m pytest tests/test_netmon_deb_packaging.py -q`
 - `bash scripts/build_netmon_site_bundle.sh`
 - `bash scripts/build_netmon_release_update_bundle.sh`
+- `bash scripts/run_black_filewise.sh --check netmon/app.py netmon/core/performance_monitor.py netmon/features/radio_controller.py netmon/features/security_audit_controller.py tests/test_netmon_diagnostics.py tests/test_netmon_lynis_output.py tests/test_netmon_radio_module.py tests/test_performance_monitor.py scripts/build_security_audit_pdf_r11.py`
+- `.venv/bin/python -m pytest`
 
 Die Build-Skripte ueberspringen die Minisign-Signatur erwartbar, wenn
 `NETMON_MINISIGN_SECRET_KEY` nicht gesetzt ist.
+
+Ein repo-weiter dateiweiser Black-Lauf ueber `netmon tests tools scripts agent`
+wurde nach langer Laufzeit kontrolliert abgebrochen. Der robuste Abschlusscheck
+nutzt deshalb die zuletzt geaenderten Python-Dateien gezielt; `ruff` und die
+vollstaendige Testsuite laufen repo-weit gruen.
