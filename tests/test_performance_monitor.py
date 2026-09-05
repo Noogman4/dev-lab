@@ -148,3 +148,109 @@ def test_create_support_package_logs_file_count_only(monkeypatch, tmp_path):
     assert record["operation"] == "create_support_package"
     assert record["metadata"] == {"file_count": 1}
     assert "secret" not in json.dumps(record)
+
+
+# ── Runde-11-Haertungen ──────────────────────────────────────────────────────
+# R11-H3: Wert-seitige Redaction. Bis Runde 11 pruefte _safe_metadata nur den
+# Metadaten-SCHLUESSEL gegen _SENSITIVE_KEY_PARTS; ein Secret, das als WERT
+# unter einem harmlosen Schluessel uebergeben wird, landete im Klartext im
+# JSONL. Kein damaliger Aufrufer tat das - die Tests halten die Zusage fest,
+# damit kuenftige Aufrufer nicht in die Falle laufen.
+
+
+def test_metadata_values_are_redacted_not_only_keys(monkeypatch, tmp_path):
+    log_path = tmp_path / "performance.jsonl"
+    monkeypatch.setenv("NETMON_PERFORMANCE_MONITORING", "detailed")
+    monkeypatch.setenv("NETMON_PERFORMANCE_LOG_PATH", str(log_path))
+
+    with performance_monitor.measure(
+        area="test",
+        operation="value_redaction",
+        metadata={"detail": "api_key=super-secret-value", "note": "harmlos"},
+        mode="detailed",
+    ):
+        pass
+
+    [record] = read_jsonl(log_path)
+    assert "super-secret-value" not in json.dumps(record)
+    assert record["metadata"]["detail"] == "api_key=[REDACTED]"
+    assert record["metadata"]["note"] == "harmlos"
+
+
+def test_nested_metadata_values_are_redacted(monkeypatch, tmp_path):
+    log_path = tmp_path / "performance.jsonl"
+    monkeypatch.setenv("NETMON_PERFORMANCE_MONITORING", "detailed")
+    monkeypatch.setenv("NETMON_PERFORMANCE_LOG_PATH", str(log_path))
+
+    with performance_monitor.measure(
+        area="test",
+        operation="nested_redaction",
+        metadata={
+            "items": ["passphrase=hunter2", "ok"],
+            "inner": {"line": "token: abcdef123456"},
+        },
+        mode="detailed",
+    ):
+        pass
+
+    [record] = read_jsonl(log_path)
+    serialized = json.dumps(record)
+    assert "hunter2" not in serialized
+    assert "abcdef123456" not in serialized
+
+
+def test_error_text_is_redacted(monkeypatch, tmp_path):
+    log_path = tmp_path / "performance.jsonl"
+    monkeypatch.setenv("NETMON_PERFORMANCE_MONITORING", "basic")
+    monkeypatch.setenv("NETMON_PERFORMANCE_LOG_PATH", str(log_path))
+
+    with performance_monitor.measure(area="test", operation="err") as measurement:
+        measurement.set_status("error", error="mount failed: passphrase=hunter2")
+
+    [record] = read_jsonl(log_path)
+    assert "hunter2" not in json.dumps(record)
+    assert record["error"] == "mount failed: passphrase=[REDACTED]"
+
+
+# R11-H4: Der Log-Pfad wird ohne Symlink-Verfolgung und nur fuer den eigenen
+# Nutzer lesbar geoeffnet.
+
+
+def test_write_measurement_refuses_to_follow_symlink(monkeypatch, tmp_path):
+    victim = tmp_path / "victim.txt"
+    victim.write_text("unberuehrt\n", encoding="utf-8")
+    log_path = tmp_path / "performance.jsonl"
+    os.symlink(victim, log_path)
+
+    written = performance_monitor.write_measurement(
+        {"area": "test"}, log_path=str(log_path)
+    )
+
+    assert written is False
+    assert victim.read_text(encoding="utf-8") == "unberuehrt\n"
+
+
+def test_rotation_does_not_act_on_symlinked_log(monkeypatch, tmp_path):
+    victim = tmp_path / "victim.txt"
+    victim.write_text("x" * 200, encoding="utf-8")
+    log_path = tmp_path / "performance.jsonl"
+    os.symlink(victim, log_path)
+    monkeypatch.setenv("NETMON_PERFORMANCE_MAX_BYTES", "50")
+    monkeypatch.setenv("NETMON_PERFORMANCE_BACKUPS", "2")
+
+    performance_monitor._rotate_log(str(log_path))
+
+    assert victim.exists()
+    assert not os.path.exists(f"{log_path}.1")
+
+
+def test_new_log_file_is_owner_only(monkeypatch, tmp_path):
+    log_path = tmp_path / "performance.jsonl"
+    monkeypatch.setenv("NETMON_PERFORMANCE_MONITORING", "basic")
+    monkeypatch.setenv("NETMON_PERFORMANCE_LOG_PATH", str(log_path))
+
+    with performance_monitor.measure(area="test", operation="perms"):
+        pass
+
+    assert log_path.exists()
+    assert oct(log_path.stat().st_mode & 0o777) == "0o600"

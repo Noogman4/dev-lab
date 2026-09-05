@@ -932,6 +932,50 @@ def test_launch_timeshift_snapshot_tool_shows_info_when_missing(monkeypatch):
     assert "Timeshift-Launcher nicht gefunden" in logs[-1]
 
 
+def test_check_timeshift_backup_status_reports_result(monkeypatch):
+    app = netmon_app.App.__new__(netmon_app.App)
+    app.tr = lambda _key, fallback: fallback
+    app.backup_timeshift_status_var = DummyVar()
+    app.backup_last_snapshot_var = DummyVar()
+    app.backup_root_status_var = DummyVar()
+    app.backup_status_var = DummyVar()
+    logs = []
+    app.log_safe = logs.append
+
+    def fake_refresh():
+        app.backup_timeshift_status_var.set("Timeshift: nicht installiert")
+        app.backup_last_snapshot_var.set("Letzter Snapshot: nicht erkannt")
+        app.backup_root_status_var.set("Root: aktuell nicht aktiv")
+        return True
+
+    app.refresh_backup_overview = fake_refresh
+    messages = []
+    monkeypatch.setattr(
+        netmon_app.messagebox,
+        "showinfo",
+        lambda title, message, parent=None: messages.append((title, message, parent)),
+    )
+
+    ok = app.check_timeshift_backup_status()
+
+    assert ok is True
+    assert app.backup_status_var.get() == (
+        "Timeshift-Pruefung: Timeshift: nicht installiert"
+    )
+    assert "Timeshift-Pruefung im Backup-Tab" in logs[-1]
+    assert messages[0][0] == "Timeshift pruefen"
+    assert "Letzter Snapshot: nicht erkannt" in messages[0][1]
+
+
+def test_build_settings_backup_tab_wires_timeshift_check_button():
+    source = inspect.getsource(netmon_app.App._build_settings_backup_tab)
+
+    assert '"backup_btn_check_timeshift"' in source
+    assert "command=self.check_timeshift_backup_status" in source
+    assert "btn_backup_timeshift_snapshots" not in source
+    assert "btn_backup_timeshift_restore" not in source
+
+
 def test_refresh_timeshift_launch_controls_disables_button_when_launcher_missing(
     monkeypatch,
 ):
@@ -2452,6 +2496,121 @@ def test_server_profile_evaluates_strict_rp_filter_mode():
     assert deviation["status"] == "Bewusste Abweichung"
 
 
+def test_rp_filter_mismatch_mentions_ufw_override(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        security_audit_controller,
+        "_sysctl_ufw_override_value",
+        lambda _spec: "1",
+    )
+    dropin = tmp_path / "99-zz-netmon-hardening.conf"
+    dropin.write_text(
+        "net.ipv4.conf.all.rp_filter = 2\n",
+        encoding="utf-8",
+    )
+    spec = {
+        "id": "sysctl.net.ipv4.conf.all.rp_filter",
+        "group": "Kernel",
+        "title": "net.ipv4.conf.all.rp_filter",
+        "expected": "2",
+        "source": "sysctl",
+        "description": "test",
+        "security_benefit": "test",
+        "side_effects": "test",
+        "exceptions": "test",
+        "command": "sysctl -n net.ipv4.conf.all.rp_filter",
+        "config_source": str(dropin),
+        "check_kind": "rp_filter",
+    }
+
+    result = security_audit_controller._evaluate_baseline_check(
+        spec,
+        run_cmd_fn=lambda _cmd, timeout=0: (0, "1"),
+    )
+
+    assert result["status"] == "Bewusste Abweichung"
+    assert "Strict mode 1" in result["reason"]
+    assert "/etc/ufw/sysctl.conf setzt denselben Wert auf 1" in result["reason"]
+    assert "ufw.service" in result["reason"]
+
+
+def test_sysctl_mismatch_mentions_configured_dropin(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        security_audit_controller,
+        "_sysctl_ufw_override_value",
+        lambda _spec: None,
+    )
+    dropin = tmp_path / "99-zz-netmon-hardening.conf"
+    dropin.write_text(
+        "\n".join(
+            [
+                "# NetMon Security Baseline",
+                "net.ipv4.conf.all.log_martians = 1",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    spec = {
+        "id": "sysctl.net.ipv4.conf.all.log_martians",
+        "group": "Kernel",
+        "title": "net.ipv4.conf.all.log_martians",
+        "expected": "1",
+        "source": "sysctl",
+        "description": "test",
+        "security_benefit": "test",
+        "side_effects": "test",
+        "exceptions": "test",
+        "command": "sysctl -n net.ipv4.conf.all.log_martians",
+        "config_source": str(dropin),
+        "check_kind": "sysctl",
+    }
+
+    result = security_audit_controller._evaluate_baseline_check(
+        spec,
+        run_cmd_fn=lambda _cmd, timeout=0: (0, "0"),
+    )
+
+    assert result["status"] == "Nicht erfuellt"
+    assert result["actual"] == "0"
+    assert "Drop-in-Datei den Sollwert enthaelt" in result["reason"]
+    assert "spaetere Ueberschreibungen" in result["reason"]
+
+
+def test_sysctl_mismatch_mentions_ufw_override(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        security_audit_controller,
+        "_sysctl_ufw_override_value",
+        lambda _spec: "0",
+    )
+    dropin = tmp_path / "99-zz-netmon-hardening.conf"
+    dropin.write_text(
+        "net.ipv4.conf.default.log_martians = 1\n",
+        encoding="utf-8",
+    )
+    spec = {
+        "id": "sysctl.net.ipv4.conf.default.log_martians",
+        "group": "Kernel",
+        "title": "net.ipv4.conf.default.log_martians",
+        "expected": "1",
+        "source": "sysctl",
+        "description": "test",
+        "security_benefit": "test",
+        "side_effects": "test",
+        "exceptions": "test",
+        "command": "sysctl -n net.ipv4.conf.default.log_martians",
+        "config_source": str(dropin),
+        "check_kind": "sysctl",
+    }
+
+    result = security_audit_controller._evaluate_baseline_check(
+        spec,
+        run_cmd_fn=lambda _cmd, timeout=0: (0, "0"),
+    )
+
+    assert result["status"] == "Nicht erfuellt"
+    assert "/etc/ufw/sysctl.conf setzt denselben Wert auf 0" in result["reason"]
+    assert "ufw.service" in result["reason"]
+
+
 def test_optional_services_overview_text_reflects_active_profile():
     app = netmon_app.App.__new__(netmon_app.App)
     app.tr = lambda _key, fallback: fallback
@@ -2796,6 +2955,16 @@ def test_apply_security_baseline_ufw_applies_profile_and_reruns_checks(monkeypat
     )
 
     command_log = []
+    ufw_sysctl_content = {
+        "text": "\n".join(
+            [
+                "# Don't log Martian Packets",
+                "net/ipv4/conf/all/log_martians=0",
+                "net/ipv4/conf/default/log_martians=0",
+            ]
+        )
+        + "\n"
+    }
 
     def fake_run_cmd(args, timeout=0):
         command_log.append(tuple(args))
@@ -2842,6 +3011,31 @@ def test_apply_security_baseline_ufw_applies_profile_and_reruns_checks(monkeypat
             return 0, "rule added"
         if args == ["sudo", "-n", "ufw", "allow", "out", "on", "lo"]:
             return 0, "rule added"
+        if args == ["sudo", "-n", "test", "-f", "/etc/ufw/sysctl.conf"]:
+            return 0, ""
+        if args == ["sudo", "-n", "cat", "/etc/ufw/sysctl.conf"]:
+            return 0, ufw_sysctl_content["text"]
+        if args[:4] == ["sudo", "-n", "cp", "-a"]:
+            assert args[4] == "/etc/ufw/sysctl.conf"
+            assert args[5].startswith("/etc/ufw/sysctl.conf.netmon-backup-")
+            return 0, "backup"
+        if args[:3] == ["sudo", "-n", "cp"] and args[4] == "/etc/ufw/sysctl.conf":
+            ufw_sysctl_content["text"] = (
+                __import__("pathlib").Path(args[3]).read_text(encoding="utf-8")
+            )
+            return 0, "copied"
+        if args == ["sudo", "-n", "chmod", "0644", "/etc/ufw/sysctl.conf"]:
+            return 0, "mode"
+        if args == [
+            "sudo",
+            "-n",
+            "sysctl",
+            "-e",
+            "-q",
+            "-p",
+            "/etc/ufw/sysctl.conf",
+        ]:
+            return 0, "loaded"
         raise AssertionError(args)
 
     monkeypatch.setattr(
@@ -2873,7 +3067,33 @@ def test_apply_security_baseline_ufw_applies_profile_and_reruns_checks(monkeypat
         "Security Baseline UFW-Haertung angewendet" in message
         for message in app.log_messages
     )
+    assert "net/ipv4/conf/all/log_martians=1" in ufw_sysctl_content["text"]
+    assert "net/ipv4/conf/default/log_martians=1" in ufw_sysctl_content["text"]
+    assert any(
+        "Security Baseline UFW-sysctl" in message for message in app.log_messages
+    )
     assert any("Weitere Dienstfreigaben" in message for message in app.log_messages)
+
+
+def test_build_ufw_sysctl_override_content_updates_log_martians_only():
+    content = "\n".join(
+        [
+            "# UFW sysctl",
+            "net/ipv4/conf/all/log_martians=0",
+            "net/ipv4/conf/default/log_martians=0",
+            "net/ipv4/conf/all/accept_redirects=0",
+        ]
+    )
+
+    rendered, changed = security_audit_controller._build_ufw_sysctl_override_content(
+        content,
+        security_audit_controller.SECURITY_BASELINE_UFW_SYSCTL_OVERRIDES,
+    )
+
+    assert changed is True
+    assert "net/ipv4/conf/all/log_martians=1" in rendered
+    assert "net/ipv4/conf/default/log_martians=1" in rendered
+    assert "net/ipv4/conf/all/accept_redirects=0" in rendered
 
 
 def test_apply_security_baseline_profile_runs_supported_steps_once(monkeypatch):
@@ -3915,3 +4135,170 @@ def test_import_transfer_with_injected_sysctl_is_refused_without_apply(tmp_path)
 
     assert ok is False
     assert seen["error"] == 1
+
+
+# ── Runde-11-Haertungen (UFW-sysctl) ─────────────────────────────────────────
+# R11-H1: Die Schreibsenke /etc/ufw/sysctl.conf traegt jetzt dieselbe
+# Key-Allowlist und Wert-Validierung wie _render_sysctl_dropin_content.
+
+
+def test_build_ufw_sysctl_override_content_rejects_key_outside_allowlist():
+    content = "# UFW sysctl\nnet/ipv4/conf/all/log_martians=0\n"
+
+    rendered, changed = security_audit_controller._build_ufw_sysctl_override_content(
+        content,
+        {"kernel.core_pattern": "|/tmp/payload"},
+    )
+
+    assert changed is False
+    assert "core_pattern" not in rendered
+    assert "payload" not in rendered
+
+
+def test_build_ufw_sysctl_override_content_rejects_invalid_value():
+    content = "# UFW sysctl\nnet/ipv4/conf/all/log_martians=0\n"
+
+    rendered, changed = security_audit_controller._build_ufw_sysctl_override_content(
+        content,
+        {"net.ipv4.conf.all.log_martians": "1\nkernel.core_pattern=|/tmp/payload"},
+    )
+
+    assert changed is False
+    assert "core_pattern" not in rendered
+    assert "net/ipv4/conf/all/log_martians=0" in rendered
+
+
+def test_build_ufw_sysctl_override_content_keeps_allowed_entries():
+    content = "# UFW sysctl\nnet/ipv4/conf/all/log_martians=0\n"
+
+    rendered, changed = security_audit_controller._build_ufw_sysctl_override_content(
+        content,
+        {
+            "net.ipv4.conf.all.log_martians": "1",
+            "kernel.core_pattern": "|/tmp/payload",
+        },
+    )
+
+    assert changed is True
+    assert "net/ipv4/conf/all/log_martians=1" in rendered
+    assert "core_pattern" not in rendered
+
+
+# R11-H2: run_cmd fuehrt stderr mit stdout zusammen. Eine sudo-Warnung mit rc=0
+# darf bei Read-Modify-Write nicht als root in eine Root-Konfigdatei
+# zurueckgeschrieben werden - der Lauf bricht stattdessen ab.
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "sudo: unable to resolve host proglab: Name or service not known",
+        "sudo: unable to send audit message: Operation not permitted",
+        "irgendein freitext ohne gleichheitszeichen",
+    ],
+)
+def test_implausible_sysctl_config_line_detects_stderr_noise(line):
+    content = f"{line}\n# UFW sysctl\nnet/ipv4/conf/all/log_martians=0\n"
+
+    assert security_audit_controller._implausible_sysctl_config_line(content) == line
+
+
+def test_implausible_sysctl_config_line_accepts_clean_config():
+    content = "\n".join(
+        [
+            "# UFW sysctl",
+            "",
+            "net/ipv4/conf/all/log_martians=0",
+            "net.ipv4.conf.default.log_martians = 1",
+            "  kernel.dmesg_restrict=1",
+        ]
+    )
+
+    assert security_audit_controller._implausible_sysctl_config_line(content) == ""
+
+
+def test_apply_ufw_sysctl_overrides_aborts_on_stderr_contaminated_read():
+    calls = []
+    noise = "sudo: unable to resolve host proglab: Name or service not known"
+
+    def fake_runner(args, timeout=None):
+        calls.append(list(args))
+        if args[:3] == ["sudo", "-n", "test"]:
+            return 0, ""
+        if args[:3] == ["sudo", "-n", "cat"]:
+            return 0, f"{noise}\nnet/ipv4/conf/all/log_martians=0\n"
+        return 0, ""
+
+    ok, message = security_audit_controller._apply_ufw_sysctl_overrides(
+        "/etc/ufw/sysctl.conf",
+        run_cmd_fn=fake_runner,
+    )
+
+    assert ok is False
+    assert "Unerwarteter Inhalt" in message
+    # Entscheidend: kein cp/chmod/sysctl -p nach dem verseuchten Read.
+    assert not any(call[2] in {"cp", "chmod", "sysctl"} for call in calls)
+
+
+def test_read_existing_sysctl_dropin_raises_on_stderr_contaminated_read():
+    def fake_runner(args, timeout=None):
+        if args[:3] == ["sudo", "-n", "test"]:
+            return 0, ""
+        return 0, "sudo: unable to send audit message: Operation not permitted\n"
+
+    with pytest.raises(RuntimeError, match="Unerwarteter Inhalt"):
+        security_audit_controller._read_existing_sysctl_dropin(
+            "/etc/sysctl.d/99-zz-netmon-hardening.conf",
+            run_cmd_fn=fake_runner,
+        )
+
+
+# R11-Nachtest: Der rp_filter-Zweig von _evaluate_baseline_check haengt den
+# ufw-Konflikthinweis an die Begruendung an. Ein Validierungs-Agent hatte hier
+# eine Diagnose-Luecke gemeldet, weil der Zweig den Low-Level-Helfer
+# _sysctl_ufw_override_value nicht direkt aufruft - er nutzt aber den Wrapper
+# _sysctl_ufw_override_hint. Der Test haelt das Verhalten fest.
+
+
+def _rp_filter_spec():
+    return [
+        spec
+        for spec in security_audit_controller.SECURITY_BASELINE_CHECKS
+        if spec.get("id") == "sysctl.net.ipv4.conf.all.rp_filter"
+    ][0]
+
+
+def test_rp_filter_branch_reports_ufw_override_conflict(monkeypatch):
+    files = {
+        "/etc/sysctl.d/99-zz-netmon-hardening.conf": "net.ipv4.conf.all.rp_filter = 2\n",
+        "/etc/ufw/sysctl.conf": "# ufw\nnet/ipv4/conf/all/rp_filter=1\n",
+    }
+    monkeypatch.setattr(
+        security_audit_controller, "_read_text_file", lambda path: files[str(path)]
+    )
+
+    result = security_audit_controller._evaluate_baseline_check(
+        _rp_filter_spec(),
+        run_cmd_fn=lambda _args, timeout=None: (0, "1"),
+    )
+
+    assert result["status"] == "Bewusste Abweichung"
+    assert "/etc/ufw/sysctl.conf setzt denselben Wert auf 1" in result["reason"]
+
+
+def test_rp_filter_branch_omits_hint_without_conflict(monkeypatch):
+    files = {
+        "/etc/sysctl.d/99-zz-netmon-hardening.conf": "net.ipv4.conf.all.rp_filter = 2\n",
+        "/etc/ufw/sysctl.conf": "# ufw ohne rp_filter\n",
+    }
+    monkeypatch.setattr(
+        security_audit_controller, "_read_text_file", lambda path: files[str(path)]
+    )
+
+    result = security_audit_controller._evaluate_baseline_check(
+        _rp_filter_spec(),
+        run_cmd_fn=lambda _args, timeout=None: (0, "2"),
+    )
+
+    assert result["status"] == "Erfuellt"
+    assert "/etc/ufw/sysctl.conf" not in result["reason"]

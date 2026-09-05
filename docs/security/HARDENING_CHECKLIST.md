@@ -32,7 +32,7 @@ Hinweis:
 | [ ] UMASK 027 gesetzt | Erfuellt | `grep -RHE "(UMASK|umask)"` | Wert und Quelle auswerten; Konflikte manuell bewerten |
 | [ ] Home-Verzeichnisrechte sicher konfiguriert | Erfuellt | `find /home -maxdepth 1 -mindepth 1 -type d -printf "%m %u %g %p\\n"` | Schreibrechte fuer Gruppe/Andere automatisch bewerten; ACLs und Sonderfaelle manuell |
 | [ ] GRUB-Passwortschutz erkannt | Erfuellt | `grep -E "password|pbkdf2" /boot/grub/grub.cfg` | Nur lesend bewerten |
-| [ ] Kernelparameter entsprechen dem Desktop-/Development-Profil | Erfuellt | `sysctl <parameter>` | `rp_filter=2` kann bewusste Soll-Abweichung gegenueber Lynis sein |
+| [ ] Kernelparameter entsprechen dem Desktop-/Development-Profil | Erfuellt | `sysctl <parameter>` | `rp_filter=2` kann bewusste Soll-Abweichung gegenueber Lynis sein; UFW-sysctl-Konflikte werden als Ursache benannt |
 | [ ] Alte dpkg-Konfigurationsreste geprueft | Manuelle Pruefung erforderlich | `dpkg -l | awk '/^rc/ {print $2}'` | Nicht automatisch bereinigen |
 | [ ] Kritische Systemdateirechte geprueft | Erfuellt | `stat /etc/passwd /etc/shadow /etc/sudoers` | Bekannte sichere Rechte/Eigentuemer automatisch bewerten |
 | [ ] AppArmor aktiv | Erfuellt | `aa-status` | Falls Tool fehlt, manuell pruefen |
@@ -44,6 +44,12 @@ Hinweis:
 - Secure Boot deaktiviert: nicht automatisch kritisch.
 - `rp_filter=2`: auf VPN-, WireGuard- und Multi-Interface-Systemen als
   bewusste Abweichung bzw. als profilgerechte Konfiguration zulassen.
+- `/etc/ufw/sysctl.conf`: kann Netzwerk-sysctl-Werte nach `systemd-sysctl`
+  ueberschreiben. NetMon zeigt diesen Konflikt bei `log_martians` und
+  `rp_filter` in der Begruendung an.
+- `log_martians=0` in `/etc/ufw/sysctl.conf`: kann ueber den UFW-Haertungsschritt
+  dauerhaft auf den NetMon-Sollwert `1` gesetzt werden; vorher wird ein Backup
+  der UFW-Datei angelegt.
 - `kernel.modules_disabled=1`: nicht als Pflichtziel setzen, da Desktop- und
   Entwicklungsumgebungen hiervon funktional beeintraechtigt werden koennen.
 

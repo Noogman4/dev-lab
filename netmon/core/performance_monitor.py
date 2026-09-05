@@ -10,9 +10,11 @@ from datetime import datetime
 
 try:
     from netmon.config.constants import NETMON_APP_VERSION
+    from netmon.core.diagnostics import redact_sensitive_text
     from netmon.core.state import get_netmon_state_dir
 except ModuleNotFoundError:
     from config.constants import NETMON_APP_VERSION
+    from core.diagnostics import redact_sensitive_text
     from core.state import get_netmon_state_dir
 
 _SENSITIVE_KEY_PARTS = (
@@ -80,7 +82,7 @@ def _rotation_settings() -> tuple[int, int]:
 def _safe_scalar(value):
     if value is None or isinstance(value, (bool, int, float)):
         return value
-    return str(value)[:200]
+    return redact_sensitive_text(str(value))[:200]
 
 
 def _safe_metadata(metadata: dict | None) -> dict:
@@ -124,6 +126,8 @@ def _rotate_log(path: str) -> None:
     if max_bytes <= 0 or backups <= 0:
         return
     try:
+        if os.path.islink(path):
+            return
         if not os.path.exists(path) or os.path.getsize(path) < max_bytes:
             return
         oldest = f"{path}.{backups}"
@@ -139,13 +143,28 @@ def _rotate_log(path: str) -> None:
         pass
 
 
+def _open_log_for_append(path: str):
+    """Append-only, ohne Symlinks zu folgen, und nur fuer den eigenen Nutzer lesbar.
+
+    O_NOFOLLOW verhindert, dass ein untergeschobener Symlink am Log-Pfad die
+    Messwerte in eine fremde Datei umlenkt; 0o600 haelt Kommandonamen und
+    Metadaten aus fremden Augen.
+    """
+    fd = os.open(
+        path,
+        os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW,
+        0o600,
+    )
+    return os.fdopen(fd, "a", encoding="utf-8")
+
+
 def write_measurement(record: dict, *, log_path: str | None = None) -> bool:
     path = log_path or performance_log_path()
     try:
         directory = os.path.dirname(os.path.abspath(path)) or "."
         os.makedirs(directory, exist_ok=True)
         _rotate_log(path)
-        with open(path, "a", encoding="utf-8") as handle:
+        with _open_log_for_append(path) as handle:
             handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True))
             handle.write("\n")
         return True
@@ -196,7 +215,7 @@ class RuntimeMeasurement:
         if return_code is not None:
             self.return_code = int(return_code)
         if error:
-            self.error = str(error)[:200]
+            self.error = redact_sensitive_text(str(error))[:200]
 
     def add_metadata(self, **metadata) -> None:
         self.metadata.update(_safe_metadata(metadata))

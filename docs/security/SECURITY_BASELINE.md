@@ -63,12 +63,15 @@ Fuer spaetere automatische oder teilautomatische Haertung gelten diese Regeln:
 - Jede Aenderung braucht einen `rollback hint`
 - PAM-, Boot-, Firewall- und Netzwerkpfade gelten als besonders sensitiv
 
-Aktueller Stand am Sonntag, 19. Juli 2026:
+Aktueller Stand am Mittwoch, 29. Juli 2026:
 
 - `sysctl` besitzt eine erste freigegebene Apply-Stufe ueber eine dedizierte
   Drop-in-Datei
 - `ufw` besitzt eine erste freigegebene Apply-Stufe ueber ein explizites
   Desktop-/Development-, Server- und VPN-/Multi-Interface-Regelprofil
+- der UFW-Haertungsschritt passt bei Bedarf auch `/etc/ufw/sysctl.conf`
+  fuer die beiden `log_martians`-Werte dauerhaft an, weil UFW diese Datei
+  beim Start nach `systemd-sysctl` laden und `/etc/sysctl.d/` ueberstimmen kann
 - ein JSON-`Transferpaket` kann die freigegebenen `sysctl`- und `ufw`-Anteile
   fuer andere Zorin-/Ubuntu-nahe Systeme exportieren und wieder importieren
 - freie Regelableitung oder profilfremde Firewall-Aenderungen sind bewusst
@@ -217,12 +220,20 @@ net.ipv4.conf.default.rp_filter = 2
 
 Profilhinweis:
 
+- UFW kann ueber `/etc/ufw/sysctl.conf` eigene Netzwerk-sysctl-Werte laden.
+  NetMon erkennt Konflikte gegen die NetMon-Drop-in-Datei und nennt die
+  UFW-Quelle in der Check-Begruendung. Fuer `log_martians` kann der
+  UFW-Haertungsschritt die UFW-Datei nach Bestaetigung dauerhaft auf den
+  NetMon-Sollwert `1` setzen.
 - `net.ipv4.conf.all.rp_filter = 2` und
   `net.ipv4.conf.default.rp_filter = 2` sind bei VPN-, WireGuard- und
   Multi-Interface-Systemen als bewusste und zulaessige Konfiguration zu
   behandeln.
 - Diese Werte duerfen nicht pauschal als unsicher bewertet werden, nur weil
   Lynis in einzelnen Szenarien den Wert `1` erwartet.
+- Falls eine lokale UFW-Konfiguration `rp_filter` abweichend setzt, bleibt die
+  Profilbewertung unveraendert; NetMon ergaenzt nur den Diagnosehinweis auf
+  `/etc/ufw/sysctl.conf`.
 
 Bewusst nicht erzwungen:
 
@@ -278,19 +289,21 @@ grep -E "Hardening index|Warnings|Tests performed" /var/log/lynis.log
 
 ## Pruefstrategie fuer NetMon
 
-Die spaetere technische Umsetzung in NetMon soll diese Baseline zunaechst nur
-lesend bewerten:
+Die technische Umsetzung in NetMon bewertet die Baseline lesend und bietet fuer
+freigegebene Teilbereiche explizite Haertungsschritte an:
 
 - Paket- und Dienststatus lesen
 - Datei- oder Konfigurationsvorhandensein lesen
 - `sysctl`-Werte lesen
 - bekannte Ausnahmen als "bewusste Abweichung" oder "manuelle Pruefung
   erforderlich" markieren
+- freigegebene `sysctl`-Werte in `/etc/sysctl.d/99-zz-netmon-hardening.conf`
+  schreiben und mit `sysctl --system` neu laden
+- freigegebene UFW-Profile anwenden und dabei bekannte UFW-sysctl-Konflikte
+  fuer `log_martians` in `/etc/ufw/sysctl.conf` korrigieren
 
 Nicht Teil dieser Baseline sind automatische Aenderungen an:
 
 - `chmod`
-- `sysctl --system`
 - Paketinstallationen
-- Dienstaktivierungen
 - GRUB-, PAM- oder Kernel-Konfigurationen

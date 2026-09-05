@@ -33,7 +33,7 @@ return [
         ],
         "audit-pdf" => [
             "label" => "NetMon security audit PDF 2026",
-            "target" => "/netmon_security_audit_2026_r10.pdf",
+            "target" => "/netmon_security_audit_2026_r11.pdf",
         ],
         "verify-download-script" => [
             "label" => "Download verification script",

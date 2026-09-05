@@ -22554,6 +22554,21 @@ class App(TkBase):
         self._update_netmon_backup_selection_summary()
         return True
 
+    def check_timeshift_backup_status(self):
+        self.refresh_backup_overview()
+        status = self.backup_timeshift_status_var.get()
+        snapshot = self.backup_last_snapshot_var.get()
+        root_status = self.backup_root_status_var.get()
+        message = "\n".join([status, snapshot, root_status])
+        self.backup_status_var.set(f"Timeshift-Pruefung: {status}")
+        self.log_safe(f"Timeshift-Pruefung im Backup-Tab: {status}")
+        messagebox.showinfo(
+            self.tr("backup_timeshift_check_title", "Timeshift pruefen"),
+            message,
+            parent=self,
+        )
+        return True
+
     def run_data_backup_async(self):
         if bool(getattr(self, "backup_data_running", False)):
             self.backup_status_var.set("Datenbackup laeuft bereits.")
@@ -25675,28 +25690,12 @@ class App(TkBase):
         self.btn_backup_timeshift_start.grid(
             row=1, column=0, sticky="ew", padx=(0, 6), pady=(0, 6)
         )
-        self.btn_backup_timeshift_snapshots = ttk.Button(
-            snapshot_group,
-            text=self.tr("backup_btn_show_snapshots", "Snapshots anzeigen"),
-            command=self.launch_timeshift_snapshot_tool,
-        )
-        self.btn_backup_timeshift_snapshots.grid(
-            row=1, column=1, sticky="ew", padx=(6, 0), pady=(0, 6)
-        )
-        self.btn_backup_timeshift_restore = ttk.Button(
-            snapshot_group,
-            text=self.tr("backup_btn_open_restore", "Wiederherstellung oeffnen"),
-            command=self.launch_timeshift_snapshot_tool,
-        )
-        self.btn_backup_timeshift_restore.grid(
-            row=2, column=0, sticky="ew", padx=(0, 6)
-        )
         self.btn_backup_timeshift_check = ttk.Button(
             snapshot_group,
             text=self.tr("backup_btn_check_timeshift", "Timeshift pruefen"),
-            command=self.refresh_backup_overview,
+            command=self.check_timeshift_backup_status,
         )
-        self.btn_backup_timeshift_check.grid(row=2, column=1, sticky="ew", padx=(6, 0))
+        self.btn_backup_timeshift_check.grid(row=1, column=1, sticky="ew", padx=(6, 0))
 
         data_group = ttk.LabelFrame(
             content,
@@ -25757,12 +25756,12 @@ class App(TkBase):
             ),
             justify="left",
             wraplength=840,
-        ).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
         self.backup_netmon_select_frame = ttk.Frame(netmon_group)
         self.backup_netmon_select_frame.grid(
-            row=1, column=0, columnspan=4, sticky="ew", pady=(0, 10)
+            row=1, column=0, columnspan=2, sticky="ew", pady=(0, 10)
         )
-        for column in range(4):
+        for column in range(2):
             netmon_group.columnconfigure(column, weight=1, uniform="backup_netmon")
         self.btn_backup_netmon_export = ttk.Button(
             netmon_group,
@@ -25782,36 +25781,6 @@ class App(TkBase):
         self.btn_backup_netmon_open_folder.grid(
             row=2, column=1, sticky="ew", padx=(6, 6), pady=(0, 6)
         )
-        ttk.Button(
-            netmon_group,
-            text=self.tr("baseline_btn_export_transfer", "Transferpaket exportieren"),
-            command=self.export_security_baseline_transfer,
-        ).grid(row=2, column=2, sticky="ew", padx=(6, 6), pady=(0, 6))
-        ttk.Button(
-            netmon_group,
-            text=self.tr("baseline_btn_show_transfer", "Transferpaket anzeigen"),
-            command=self.show_security_baseline_transfer_package,
-        ).grid(row=2, column=3, sticky="ew", padx=(6, 0), pady=(0, 6))
-        ttk.Button(
-            netmon_group,
-            text=self.tr("baseline_btn_import_transfer", "Transferpaket importieren"),
-            command=self.import_security_baseline_transfer,
-        ).grid(row=3, column=0, sticky="ew", padx=(0, 6))
-        ttk.Button(
-            netmon_group,
-            text=self.tr("backup_btn_open_transfer_dir", "Transfer-Ordner oeffnen"),
-            command=self.open_security_baseline_transfer_folder,
-        ).grid(row=3, column=1, sticky="ew", padx=(6, 6))
-        ttk.Button(
-            netmon_group,
-            text=self.tr("baseline_btn_compare_transfer", "Transferpaket vergleichen"),
-            command=self.show_security_baseline_transfer_comparison,
-        ).grid(row=3, column=2, sticky="ew", padx=(6, 6))
-        ttk.Button(
-            netmon_group,
-            text=self.tr("baseline_btn_clear_transfer", "Transferpaket entladen"),
-            command=self.clear_security_baseline_transfer,
-        ).grid(row=3, column=3, sticky="ew", padx=(6, 0))
         self.refresh_netmon_backup_folder_options()
 
         status_group = ttk.LabelFrame(
@@ -31953,8 +31922,6 @@ class App(TkBase):
             "btn_security_baseline_timeshift",
             "btn_right_quick_timeshift",
             "btn_backup_timeshift_start",
-            "btn_backup_timeshift_snapshots",
-            "btn_backup_timeshift_restore",
         ):
             button = self.__dict__.get(button_name)
             if button is None:

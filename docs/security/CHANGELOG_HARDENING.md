@@ -1,5 +1,16 @@
 # Changelog Hardening
 
+## 29.07.2026 - UFW-sysctl und Diagnose
+
+- UFW-sysctl-Konflikt fuer `log_martians` analysiert: `/etc/ufw/sysctl.conf`
+  kann die NetMon-Drop-in-Datei nach dem Boot ueberstimmen.
+- NetMon-Haertung kann `net.ipv4.conf.all.log_martians` und
+  `net.ipv4.conf.default.log_martians` dauerhaft in `/etc/ufw/sysctl.conf`
+  auf `1` setzen.
+- Vor der UFW-sysctl-Aenderung wird ein datiertes Backup der UFW-Datei angelegt.
+- Baseline-Diagnose nennt abweichende UFW-sysctl-Werte jetzt auch im
+  `rp_filter`-Zweig; die profilbezogene Bewertung bleibt unveraendert.
+
 ## 19.07.2026 - Baseline 1.0
 
 - GRUB-Passwortschutz eingerichtet

@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 10</title>
+  <meta
+    name="description"
+    content="Zehntes unabhaengiges Sicherheits-Audit des NetMon-Quellcodes auf Stand v1.1.20 (Juli 2026). Fokus: die neue Security-Baseline-/Sysctl-Apply-Stufe, das Baseline-Transferpaket (Import), die locale-unabhaengige UFW-Auswertung und die Test-/Entwicklungsinfrastruktur. 0 kritische, 2 hohe, 0 mittlere Findings &mdash; beide umgesetzt und verifiziert."
+  >
+  <link rel="icon" type="image/png" href="./favicon.png">
+  <link rel="apple-touch-icon" href="./favicon.png">
+  <link rel="canonical" href="https://netmonroots.com/security-audit.html">
+  <link rel="alternate" hreflang="de" href="https://netmonroots.com/security-audit.html">
+  <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/security-audit.html">
+  <meta property="og:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 10">
+  <meta property="og:description" content="Zehntes Sicherheits-Audit des NetMon-Quellcodes auf Stand v1.1.20. 0 kritische, 2 hohe, 0 mittlere Findings &mdash; beide umgesetzt und verifiziert.">
+  <meta property="og:url" content="https://netmonroots.com/security-audit.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NetMon Roots">
+  <meta property="og:locale" content="de_DE">
+  <meta property="og:image" content="https://netmonroots.com/favicon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 10">
+  <meta name="twitter:description" content="Zehntes Sicherheits-Audit des NetMon-Quellcodes auf Stand v1.1.20. 0 kritische, 2 hohe, 0 mittlere Findings &mdash; beide umgesetzt und verifiziert.">
+  <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
+  <link rel="stylesheet" href="./styles.css">
+  <style>
+    /* ── Audit-spezifische Erweiterungen ─────────────────────────────────── */
+    .audit-hero { padding: 64px 0 48px; }
+    .audit-hero .eyebrow { color: var(--accent); }
+
+    .verdict-banner {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 28px 32px;
+      margin: 40px 0;
+      border: 1px solid rgba(114, 240, 182, 0.4);
+      border-radius: var(--radius-sm);
+      background: rgba(58, 198, 143, 0.08);
+    }
+    .verdict-icon {
+      font-size: 2.8rem;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .verdict-text h2 { margin: 0 0 6px; font-size: 1.4rem; color: var(--accent); }
+    .verdict-text p  { margin: 0; color: var(--muted); font-size: 0.97rem; line-height: 1.55; }
+
+    .audit-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 32px 0;
+    }
+    .audit-meta-card {
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .audit-meta-card .label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .audit-meta-card .value {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .audit-meta-card .value.ok   { color: var(--accent); }
+    .audit-meta-card .value.warn { color: var(--accent-warm); }
+    .audit-meta-card .value.info { color: #7ab8f5; }
+
+    .audit-section { margin-top: 56px; }
+    .audit-section h2 {
+      font-size: 1.55rem;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+    .audit-section .section-rule {
+      height: 1px;
+      background: var(--line);
+      margin-bottom: 28px;
+    }
+
+    .scope-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.93rem;
+    }
+    .scope-table th {
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .scope-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(154, 177, 204, 0.08);
+      vertical-align: top;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .scope-table tr:last-child td { border-bottom: none; }
+    .scope-table code {
+      font-size: 0.83rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .badge-ok   { background: rgba(58, 198, 143, 0.15); color: #72f0b6; }
+    .badge-low  { background: rgba(255, 184, 107, 0.15); color: #ffb86b; }
+    .badge-med  { background: rgba(255, 184, 107, 0.2);  color: #ffb86b; }
+    .badge-high { background: rgba(220, 60, 60, 0.15);   color: #ff7070; }
+    .badge-info { background: rgba(90, 160, 240, 0.15);  color: #7ab8f5; }
+
+    .finding-card {
+      margin-bottom: 24px;
+      padding: 24px 28px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .finding-card.fixed { border-color: rgba(255, 112, 112, 0.32); }
+    .finding-card.design {
+      border-color: rgba(90, 160, 240, 0.35);
+      background: rgba(90, 160, 240, 0.04);
+    }
+    .finding-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .finding-header h3 { margin: 0; font-size: 1rem; flex: 1; min-width: 200px; }
+    .finding-detail { color: var(--muted); font-size: 0.92rem; line-height: 1.6; }
+    .finding-detail strong { color: var(--text); }
+    .finding-detail code {
+      font-size: 0.83rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .finding-verdict {
+      margin-top: 12px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: rgba(2, 8, 15, 0.4);
+      font-size: 0.88rem;
+      color: var(--muted);
+      border-left: 3px solid rgba(154, 177, 204, 0.25);
+    }
+    .finding-verdict.pass { border-left-color: var(--accent); }
+    .finding-verdict.design { border-left-color: #7ab8f5; }
+
+    .fixed-card {
+      display: flex;
+      gap: 16px;
+      padding: 18px 22px;
+      margin-bottom: 14px;
+      border: 1px solid rgba(58, 198, 143, 0.2);
+      border-radius: var(--radius-sm);
+      background: rgba(58, 198, 143, 0.04);
+    }
+    .fixed-icon { font-size: 1.4rem; flex-shrink: 0; line-height: 1.2; }
+    .fixed-body h4 { margin: 0 0 4px; font-size: 0.97rem; color: var(--accent); }
+    .fixed-body p  { margin: 0; font-size: 0.9rem; color: var(--muted); line-height: 1.5; }
+    .fixed-body code {
+      font-size: 0.82rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .methodology-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .method-card {
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .method-card h4 { margin: 0 0 8px; font-size: 0.93rem; color: var(--accent); }
+    .method-card p  { margin: 0; font-size: 0.87rem; color: var(--muted); line-height: 1.5; }
+
+    .signature-block {
+      margin-top: 48px;
+      padding: 28px 32px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .signature-block strong { color: var(--text); }
+
+    .round-link {
+      display: inline-block;
+      padding: 10px 18px;
+      border-radius: 40px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-decoration: none;
+      margin-top: 16px;
+    }
+
+    @media (max-width: 640px) {
+      .verdict-banner { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .audit-meta-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="./index.html" aria-label="NetMon Startseite">
+        <span class="brand-mark">
+          <span class="brand-lockup">
+            <span class="brand-title">
+              <span class="brand-title-main">NETMON</span>
+              <span class="brand-title-accent">ROOTS</span>
+            </span>
+            <span class="brand-subline">MONITOR. CONTROL. UNDERSTAND.</span>
+            <span class="brand-tagline">BACK TO THE ROOTS.</span>
+          </span>
+          <img class="brand-icon" src="./bannericon.png" alt="" aria-hidden="true">
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="./index.html">Start</a>
+        <a href="./tour.html">Rundgang</a>
+        <a href="./downloads.html">Download</a>
+        <a href="./aktuelles.html">Aktuelles</a>
+        <a href="./changelog.html">Changelog</a>
+        <a href="./docs.html">Doku</a>
+        <a href="./legal.html">Legal</a>
+      </nav>
+      <div class="lang-switch" aria-label="Sprachauswahl">
+        <a class="active" href="./security-audit.html" lang="de">DE</a>
+      </div>
+    </header>
+
+    <main>
+      <!-- ── Hero ── -->
+      <section class="audit-hero">
+        <p class="eyebrow">Sicherheits-Audit &mdash; Juli 2026 &mdash; Runde&nbsp;10</p>
+        <h1 style="font-size:clamp(2rem,4vw,3rem);margin:0 0 20px;color:var(--text);">
+          Code-Security-Review<br>
+          <span style="color:var(--accent);">NetMon Roots v1.1.20</span>
+        </h1>
+        <p style="max-width:680px;color:var(--muted);line-height:1.65;font-size:1.05rem;">
+          Zehntes automatisiertes Security-Review auf Basis von
+          Claude&nbsp;Fable&nbsp;5. Schwerpunkt dieser Runde war die
+          gr&ouml;&szlig;te Neuerung seit dem 1.1.19-Release: die neue
+          <strong>Security-Baseline-Apply-Stufe</strong> samt
+          <strong>Sysctl-H&auml;rtung</strong> und dem
+          <strong>Baseline-Transferpaket</strong> (Export/Import zwischen
+          Rechnern), dazu die locale-unabh&auml;ngige UFW-Auswertung, das neue
+          Daten-Backup und die native Rechte-Pr&uuml;fung. Diese Runde brachte
+          <strong>zwei belastbare Schwachstellen hohen Schweregrads</strong>
+          &mdash; eine <strong>Sysctl-Direktiven-Injektion</strong> &uuml;ber ein
+          importiertes Transferpaket (Weg zu Root-Rechteausweitung) und &mdash;
+          erstmals empirisch statt nur statisch entdeckt &mdash; eine
+          <strong>Testsuite, die den Host real neu startete</strong>, weil zwei
+          Tests ein echtes <code>systemctl&nbsp;reboot</code> ausf&uuml;hrten.
+          <strong>Beide wurden umgesetzt, mit Regressionstests abgesichert und
+          verifiziert.</strong>
+        </p>
+        <a class="round-link" href="./security-audit-r9.html">
+          &#8592; Runde&nbsp;9 (2&nbsp;mittlere Findings &mdash; Update-URL &amp; Killswitch)
+        </a>
+      </section>
+
+      <!-- ── Aktionen ── -->
+      <div style="margin-bottom:32px;">
+        <a class="button button-primary" href="./netmon_security_audit_2026_r10.pdf" download
+           style="display:inline-block;padding:12px 28px;border-radius:40px;background:var(--accent);color:#07101d;font-weight:700;font-size:0.95rem;text-decoration:none;margin-right:12px;">
+          PDF herunterladen
+        </a>
+        <a href="#findings"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;">
+          Findings
+        </a>
+        <a href="#hardening"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;margin-left:8px;">
+          H&auml;rtungen
+        </a>
+        <a href="#kategorien"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;margin-left:8px;">
+          Kategorien
+        </a>
+      </div>
+
+      <!-- ── Gesamtverdikt ── -->
+      <div class="verdict-banner">
+        <div class="verdict-icon">&#10003;</div>
+        <div class="verdict-text">
+          <h2>0 kritische &mdash; 2 hohe &mdash; 0 mittlere Findings (beide umgesetzt &amp; verifiziert)</h2>
+          <p>
+            Das Review des 1.1.20-Stands identifizierte zwei belastbare
+            Schwachstellen hohen Schweregrads. <strong>F1:</strong> Das neue
+            <em>Baseline-Transferpaket</em> reichte importierte
+            <code>id</code>-/<code>expected</code>-Felder ohne Zeichen- oder
+            Whitelist-Pr&uuml;fung bis in eine <code>/etc/sysctl.d/</code>-Datei
+            durch, die als root per <code>sysctl&nbsp;--system</code> geladen wird
+            &mdash; eine pr&auml;parierte Datei konnte so z.&nbsp;B.
+            <code>kernel.core_pattern&nbsp;=&nbsp;|/pfad/skript</code> setzen
+            (Root-Code-Execution beim n&auml;chsten Crash) oder Kernel-H&auml;rtung
+            still zur&uuml;ckdrehen. Ein dedizierter Validierungs-Sub-Agent
+            best&auml;tigte das mit <strong>Konfidenz&nbsp;9/10</strong> samt
+            lauff&auml;higem Repro. <strong>F2:</strong> Zwei Tests lie&szlig;en
+            einen Kommando-Generator das echte
+            <code>systemctl&nbsp;reboot</code> zur&uuml;ckgeben, ohne den
+            Ausf&uuml;hrungspfad zu mocken &mdash; da ein aktiver Desktop-Nutzer
+            &uuml;ber polkit ohne Passwort neu starten darf, startete jeder
+            Testlauf den Host tats&auml;chlich neu. <strong>Beide wurden
+            behoben</strong> (strikte Sysctl-Allowlist&nbsp;+&nbsp;Wert-Validierung;
+            entsch&auml;rfte Tests&nbsp;+&nbsp;ein suiteweiter Guard gegen
+            destruktive Kommandos), mit neuen Regressionstests abgesichert und
+            verifiziert. Alle Runde-7/8/9-H&auml;rtungen sind intakt; die
+            Kindersicherung bleibt als bewusste Design-Entscheidung dokumentiert.
+          </p>
+        </div>
+      </div>
+
+      <!-- ── Meta-Daten ── -->
+      <div class="audit-meta-grid">
+        <div class="audit-meta-card">
+          <div class="label">Datum</div>
+          <div class="value">19.&nbsp;Juli&nbsp;2026</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Analysierte Version</div>
+          <div class="value">v1.1.20</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Kritische Findings</div>
+          <div class="value ok">0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Hohe Findings</div>
+          <div class="value warn">2 (beide behoben)</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Mittlere Findings</div>
+          <div class="value ok">0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">H&auml;rtungen umgesetzt</div>
+          <div class="value ok">2 + 15 Regressionstests</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Testsuite</div>
+          <div class="value ok">2133 bestanden</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Analysewerkzeug</div>
+          <div class="value">Claude Fable&nbsp;5</div>
+        </div>
+      </div>
+
+      <!-- ── Umfang & Methodik ── -->
+      <div class="audit-section" id="methodik">
+        <h2>Umfang &amp; Methodik</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:760px;line-height:1.65;">
+          Gepr&uuml;ft wurde der komplette Code-Diff seit dem
+          Runde-9-Auditstand &mdash; rund <strong>15.300 neue Zeilen</strong>,
+          gr&ouml;&szlig;tenteils die neue Security-Baseline-/Lynis-Funktionalit&auml;t
+          (<code>security_audit_controller.py</code>, +6098&nbsp;Zeilen), die
+          locale-unabh&auml;ngige UFW-Auswertung
+          (<code>core/command.py</code>, <code>firewall_controller.py</code>),
+          das neue Daten-Backup und der &bdquo;Spielmodus&ldquo; in
+          <code>app.py</code>, sowie die neuen, rein lesenden System-Checks
+          (Home-Verzeichnisrechte, kritische Dateirechte, Secure&nbsp;Boot,
+          APT-Sicherheitsupdates). Zus&auml;tzlich im Fokus: die privilegierten
+          Senken (<code>sudo&nbsp;-n</code>, <code>pkexec</code>, der
+          root-<code>netmon_network_service</code>) und die
+          Test-/Entwicklungsinfrastruktur. Die Runde-9-H&auml;rtungen wurden auf
+          Regressionen gegengepr&uuml;ft.
+        </p>
+        <div class="methodology-grid">
+          <div class="method-card">
+            <h4>Phase&nbsp;1 &mdash; Diff-Recon</h4>
+            <p>Vollst&auml;ndige, datei-weise Sichtung des Branch-Diffs seit dem
+            Runde-9-Stand. Versionskonsistenz-Abgleich (App&nbsp;=&nbsp;deb&nbsp;=&nbsp;
+            Changelog&nbsp;=&nbsp;<code>1.1.20</code>). Suche nach neuen
+            Datenfl&uuml;ssen von Fremdeingaben zu privilegierten Senken.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;2 &mdash; Kandidaten-Analyse</h4>
+            <p>Ein Analyse-Sub-Agent verfolgte importierte/geparste Daten
+            (Transferpakete, System-Kommando-Output) bis zu
+            <code>sudo</code>/<code>pkexec</code>-Aufrufen und
+            Datei-Schreibpfaden. Drei Kandidaten identifiziert &mdash; einer
+            belastbar, zwei als Defense-in-Depth.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;3 &mdash; False-Positive-Validierung</h4>
+            <p>Der belastbare Kandidat wurde von einem eigenen
+            Validierungs-Sub-Agenten mit lauff&auml;higem Repro gegengepr&uuml;ft:
+            <strong>Konfidenz&nbsp;9/10, HIGH</strong>. Ein Detail-&Uuml;berclaim
+            (angreiferkontrollierter Schreibpfad) wurde dabei widerlegt &mdash;
+            f&uuml;r die Ausnutzbarkeit irrelevant.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;4 &mdash; H&auml;rtung &amp; Regressionscheck</h4>
+            <p>Beide HIGH-Findings wurden umgesetzt und mit 15 neuen
+            Regressionstests abgesichert. Gesamtsuite erneut ausgef&uuml;hrt:
+            <strong>2133&nbsp;bestanden</strong> (nur drei bekannte,
+            umgebungsbedingte Fehler ohne Sicherheitsbezug).</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Findings ── -->
+      <div class="audit-section" id="findings">
+        <h2>Best&auml;tigte Findings (Runde&nbsp;10)</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:28px;">
+          Zwei Findings hohen Schweregrads wurden best&auml;tigt und
+          <strong>direkt behoben</strong>. Keine kritischen, keine
+          remote-ausl&ouml;sbaren Befunde &mdash; beide setzen entweder eine
+          bewusste Nutzeraktion (Import einer Fremddatei) oder die
+          Entwicklungs-/CI-Umgebung voraus.
+        </p>
+
+        <!-- F1 -->
+        <div class="finding-card fixed">
+          <div class="finding-header">
+            <h3>F1 &mdash; Sysctl-Direktiven-Injektion &uuml;ber importiertes Baseline-Transferpaket</h3>
+            <span class="badge badge-high">Hoch &middot; 9/10</span>
+            <span class="badge badge-ok">Behoben</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Datei:</strong>
+              <code>netmon/features/security_audit_controller.py</code> &mdash;
+              <code>_sanitize_transfer_sysctl_entries()</code>,
+              <code>_build_sysctl_dropin_content()</code>,
+              <code>apply_security_baseline_sysctl()</code>,
+              <code>import_security_baseline_transfer()</code>.</p>
+            <p>
+              Das neue Baseline-Transferpaket (eine JSON-Datei, die zum Austausch
+              gehärteter Profile zwischen Rechnern gedacht ist und per Dateidialog
+              importiert wird) durchlief eine Sanitisierung, die nur auf
+              <em>nicht-leer</em> pr&uuml;fte &mdash; <strong>ohne Zeichen- oder
+              Whitelist-Validierung</strong> der Felder <code>id</code>/
+              <code>key</code>/<code>expected</code>. Die Werte wurden anschlie&szlig;end
+              als <code>&bdquo;key = value&ldquo;</code> in eine dedizierte Datei
+              unter <code>/etc/sysctl.d/</code> geschrieben und per
+              <code>sudo&nbsp;-n&nbsp;sysctl&nbsp;--system</code> als root geladen.
+              Anders als die parallele UFW-Validierung (die ung&uuml;ltige Regeln
+              per <code>ValueError</code> ablehnt) filterte der Sysctl-Pfad nichts.
+            </p>
+            <p>
+              <strong>Bedrohung:</strong> Eine pr&auml;parierte Datei mit
+              <code>id&nbsp;=&nbsp;sysctl.kernel.core_pattern</code> und
+              <code>expected&nbsp;=&nbsp;|/tmp/evil.sh</code> erzeugte die Zeile
+              <code>kernel.core_pattern&nbsp;=&nbsp;|/tmp/evil.sh</code> &mdash; der
+              Kernel f&uuml;hrt danach bei jedem Prozess-Crash das angegebene
+              Programm <strong>als root</strong> aus (klassische
+              Rechteausweitung). Zudem &uuml;berlebten eingebettete Zeilenumbr&uuml;che
+              das <code>.strip()</code>, sodass ein einziges Feld mehrere
+              Direktiven einschleusen und die Kernel-H&auml;rtung still
+              herabsetzen konnte (etwa <code>kernel.kptr_restrict&nbsp;=&nbsp;0</code>),
+              w&auml;hrend die UI &bdquo;H&auml;rtung angewendet&ldquo; meldete.
+              Kein Remote-/Zero-Click-Angriff (Import&nbsp;+&nbsp;Best&auml;tigung&nbsp;+&nbsp;
+              sudo-Session n&ouml;tig), aber ein realistischer
+              Social-Engineering-Pfad, da Transferpakete explizit zum Teilen
+              gedacht sind.
+            </p>
+          </div>
+          <div class="finding-verdict pass">
+            <strong>H&auml;rtung umgesetzt &amp; verifiziert:</strong> Importierte
+            Sysctl-Eintr&auml;ge werden jetzt gegen eine <strong>Allowlist</strong>
+            der zehn dokumentierten Baseline-Schl&uuml;ssel
+            (<code>docs/security/KERNEL_SYSCTL.md</code>) plus ein strenges
+            Schl&uuml;ssel- und Wertformat gepr&uuml;ft (keine Zeilenumbr&uuml;che,
+            Pipes oder Shell-Metazeichen); ung&uuml;ltige Pakete werden per
+            <code>ValueError</code> abgelehnt. Die Drop-in-<code>id</code> wird nur
+            noch aus dem validierten Schl&uuml;ssel abgeleitet, nie aus dem freien
+            <code>id</code>-Feld. Eine zweite Verteidigungslinie in
+            <code>_build_sysctl_dropin_content()</code> verwirft unerlaubte
+            Eintr&auml;ge auch direkt an der Schreibsenke. Mit acht neuen
+            Regressionstests abgesichert.
+          </div>
+        </div>
+
+        <!-- F2 -->
+        <div class="finding-card fixed">
+          <div class="finding-header">
+            <h3>F2 &mdash; Testsuite f&uuml;hrte echtes <code>systemctl&nbsp;reboot</code> aus (Host-Neustart)</h3>
+            <span class="badge badge-high">Hoch &middot; empirisch</span>
+            <span class="badge badge-ok">Behoben</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Dateien:</strong>
+              <code>tests/test_netmon_diagnostics.py</code>
+              (<code>run_system_action_async</code>-Tests),
+              <code>netmon/app.py</code>
+              (<code>_system_action_commands</code>&nbsp;/&nbsp;Job-Thread).</p>
+            <p>
+              Zwei Tests f&uuml;r die neuen Systemaktionen (Reboot/Shutdown/Logout)
+              pr&uuml;ften die Best&auml;tigungsphrase, stubbten aber den
+              Kommando-Generator so, dass er das <em>echte</em>
+              <code>["systemctl",&nbsp;"reboot"]</code> zur&uuml;ckgab &mdash; ohne
+              <code>run_cmd</code> bzw. den ausf&uuml;hrenden Job-Thread zu mocken.
+              Da ein aktiver Desktop-Nutzer &uuml;ber polkit ohne Passwort neu
+              starten darf, f&uuml;hrte <em>jeder</em> Lauf der Testsuite auf einem
+              Desktop-System zu einem <strong>tats&auml;chlichen Neustart des
+              Rechners</strong>. Dieses Finding wurde nicht statisch, sondern
+              <strong>empirisch</strong> entdeckt: Der Audit-Host startete beim
+              Testlauf reproduzierbar neu, die Boot-Zeitstempel deckten sich exakt
+              mit den Testl&auml;ufen.
+            </p>
+            <p>
+              <strong>Einordnung:</strong> Betrifft die Test-/Entwicklungs- und
+              CI-Infrastruktur, nicht den ausgelieferten Anwendungscode &mdash;
+              der Release-Pfad selbst ist durch Best&auml;tigungsdialog,
+              Sicherungsphrase (<code>AUSFUEHREN</code>) und
+              Strict-Protection abgesichert. Wirkung dennoch hoch: unerwarteter
+              Neustart mit Risiko f&uuml;r ungespeicherte Arbeit auf jedem
+              Rechner, der die Suite ausf&uuml;hrt (Entwickler-/CI-Maschinen).
+            </p>
+          </div>
+          <div class="finding-verdict pass">
+            <strong>H&auml;rtung umgesetzt &amp; verifiziert:</strong> Beide Tests
+            brechen jetzt vor dem Job-Thread ab und verwenden nur inerte
+            Stub-Kommandos. Zus&auml;tzlich blockiert ein <strong>suiteweiter
+            Guard</strong> (<code>tests/conftest.py</code>) destruktive Kommandos
+            (<code>systemctl&nbsp;reboot/poweroff</code>, <code>shutdown</code>,
+            <code>loginctl&nbsp;terminate-*</code> &hellip;) hart auf
+            <code>subprocess</code>-Ebene &mdash; auch hinter
+            <code>sudo</code>/<code>pkexec</code>-Wrappern &mdash;, sodass kein
+            Test je wieder ein echtes destruktives Systemkommando durchreichen
+            kann. Mit sieben neuen Regressionstests abgesichert.
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Weitere Beobachtungen ── -->
+      <div class="audit-section" id="beobachtungen">
+        <h2>Weitere Beobachtungen &amp; Design-Entscheidungen</h2>
+        <div class="section-rule"></div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128737;</div>
+          <div class="fixed-body">
+            <h4>Latente Shell-Injektion &uuml;ber das <code>command</code>-Feld &mdash; mitbehoben</h4>
+            <p>
+              Der importierte Sysctl-Schl&uuml;ssel floss auch in ein
+              <code>&bdquo;sysctl&nbsp;-n&nbsp;{key}&ldquo;</code>-Kommando-Template.
+              Aktuell nicht erreichbar (die Auswertung nutzt die statische
+              Baseline-Liste), aber ein sp&auml;teres Refactoring h&auml;tte daraus
+              eine Kommando-Injektion machen k&ouml;nnen. Durch die neue strenge
+              Schl&uuml;ssel-Validierung aus F1 <strong>automatisch mitentsch&auml;rft</strong>.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#9989;</div>
+          <div class="fixed-body">
+            <h4>Game-Mode-UFW-Ausnahmen &mdash; kein ausnutzbarer Befund</h4>
+            <p>
+              Der Port des &bdquo;Spielmodus&ldquo; wird zwar nicht per Regex
+              vorgepr&uuml;ft, geht aber als <strong>einzelnes argv-Token</strong>
+              an <code>sudo&nbsp;-n&nbsp;ufw&nbsp;allow&nbsp;&hellip;</code> (kein
+              Shell-Parsing; ufw lehnt Ung&uuml;ltiges ab); der
+              benutzerdefinierte Pfad validiert bereits streng
+              (<code>isdigit()</code>, 1&ndash;65535, Protokoll-Whitelist). Nur zur
+              Vollst&auml;ndigkeit notiert.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128272;</div>
+          <div class="fixed-body">
+            <h4>Kindersicherung &mdash; weiterhin bewusste Design-Entscheidung</h4>
+            <p>
+              Die PBKDF2-gest&uuml;tzte Kindersicherung im Secure-Browser bleibt
+              wie in Runde&nbsp;8 dokumentiert: Alltagsh&uuml;rde gegen
+              Gelegenheitszugriff im selben Konto, keine harte Grenze gegen
+              technisch versierte Nutzer mit Kontozugriff. Keine
+              Code&auml;nderung, unver&auml;ndert g&uuml;ltig.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128203;</div>
+          <div class="fixed-body">
+            <h4>postinst-DNS &amp; Nur-Hash-Schnellpr&uuml;fung &mdash; Policy-Hinweise offen</h4>
+            <p>
+              Die beiden Policy-Hinweise aus Runde&nbsp;9 bleiben bestehen: das
+              root-<code>postinst</code> biegt aktive NM-DNS bei der Installation
+              auf <code>8.8.8.8</code> (Opt-in empfohlen), und die
+              &bdquo;Schnellpr&uuml;fung&ldquo; auf der Downloadseite empfiehlt nur
+              <code>sha256sum&nbsp;-c</code> statt der
+              minisign-Vollpr&uuml;fung. Kein ausnutzbarer Befund &mdash; als
+              Design-Entscheidungen des Projektverantwortlichen offen.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Umgesetzte Härtungen ── -->
+      <div class="audit-section" id="hardening">
+        <h2>Umgesetzte H&auml;rtungsma&szlig;nahmen (Runde&nbsp;10)</h2>
+        <div class="section-rule"></div>
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128274;</div>
+          <div class="fixed-body">
+            <h4>Sysctl-Allowlist&nbsp;+&nbsp;Wert-Validierung f&uuml;r importierte Transferpakete &mdash; <code>security_audit_controller.py</code></h4>
+            <p>
+              Neue Konstante <code>SECURITY_BASELINE_ALLOWED_SYSCTL_KEYS</code>
+              (zehn dokumentierte Schl&uuml;ssel) plus Format-Regex f&uuml;r
+              Schl&uuml;ssel und Werte. <code>_sanitize_transfer_sysctl_entries()</code>
+              lehnt jetzt unerlaubte Schl&uuml;ssel und ung&uuml;ltige Werte per
+              <code>ValueError</code> ab und leitet die <code>id</code> nur aus dem
+              validierten Schl&uuml;ssel ab;
+              <code>_build_sysctl_dropin_content()</code> filtert als zweite
+              Verteidigungslinie an der Schreibsenke.
+            </p>
+          </div>
+        </div>
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128225;</div>
+          <div class="fixed-body">
+            <h4>Suiteweiter Guard gegen destruktive Systemkommandos &mdash; <code>tests/conftest.py</code></h4>
+            <p>
+              Ein <code>subprocess.Popen</code>-Wrapper blockiert
+              <code>systemctl&nbsp;reboot/poweroff/halt</code>,
+              <code>shutdown</code>, <code>reboot</code>,
+              <code>loginctl&nbsp;terminate-*</code> u.&nbsp;a. &mdash; auch hinter
+              <code>sudo</code>/<code>pkexec</code>/<code>env</code>-Wrappern und
+              in Shell-String-Form. Kein Test kann je wieder ein echtes
+              destruktives Kommando bis zum System durchreichen.
+            </p>
+          </div>
+        </div>
+        <div class="fixed-card">
+          <div class="fixed-icon">&#129514;</div>
+          <div class="fixed-body">
+            <h4>15 neue Regressionstests</h4>
+            <p>
+              Acht Tests in <code>test_netmon_lynis_output.py</code> f&uuml;r die
+              Sysctl-Allowlist (Ablehnung von <code>core_pattern</code>, Pipe-/
+              Newline-Werten, <code>id</code>-Ableitung, End-to-End-Import-Refusal)
+              und sieben in <code>test_destructive_command_guard.py</code> f&uuml;r
+              den Kommando-Guard. Gesamtsuite: 2133 bestanden.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Geprüfte Kategorien ── -->
+      <div class="audit-section" id="kategorien">
+        <h2>Gepr&uuml;fte Sicherheitskategorien</h2>
+        <div class="section-rule"></div>
+        <table class="scope-table">
+          <thead>
+            <tr>
+              <th>Kategorie</th>
+              <th>Gepr&uuml;ft</th>
+              <th>Ergebnis</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Direktiven-Injektion in privilegierte Konfig (<code>/etc/sysctl.d/</code>)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">F1 &rarr; behoben (Allowlist+Wert-Check)</span></td>
+            </tr>
+            <tr>
+              <td>Destruktive Kommandos in Test-/CI-Infrastruktur</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">F2 &rarr; behoben (Guard+entsch&auml;rfte Tests)</span></td>
+            </tr>
+            <tr>
+              <td>Command-/Argument-Injection (ufw/nmcli/wg-quick, subprocess)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Durchg&auml;ngig list-form; command-Feld mitbehoben</span></td>
+            </tr>
+            <tr>
+              <td>Locale-unabh&auml;ngige UFW-/Lynis-Auswertung (Output-Parsing)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (reine Anzeige-Logik)</span></td>
+            </tr>
+            <tr>
+              <td>Native Rechte-Checks (Home/kritische Dateien, Symlink/TOCTOU)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (<code>lstat</code>, kein Follow, read-only)</span></td>
+            </tr>
+            <tr>
+              <td>Root-Service (<code>netmon_network_service</code>, <code>pkexec</code>)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein neuer Endpunkt, argv-validiert</span></td>
+            </tr>
+            <tr>
+              <td>Daten-Backup (Symlink-Escape, Rekursion, Pfadgrenzen)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (kein Follow, <code>$HOME</code>-Grenze)</span></td>
+            </tr>
+            <tr>
+              <td>Repository-Guard (Keyring-/URI-Parsing, Quick-Actions)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (<code>shlex.quote</code>, read-only)</span></td>
+            </tr>
+            <tr>
+              <td>Unsichere Deserialisierung (pickle, yaml.load, eval, <code>shell=True</code>)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Autorisierung / Kindersicherung</td>
+              <td>Ja</td>
+              <td><span class="badge badge-info">Bewusste Design-Entscheidung</span></td>
+            </tr>
+            <tr>
+              <td>Regression der Runde-7/8/9-H&auml;rtungen</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Alle intakt</span></td>
+            </tr>
+            <tr>
+              <td>Versionskonsistenz (App / deb / Changelog)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Durchg&auml;ngig 1.1.20</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ── Signatur ── -->
+      <div class="signature-block">
+        <p>
+          <strong>Auditor:</strong> Claude Fable&nbsp;5 (Anthropic) &mdash;
+          Analyse-Sub-Agent + dedizierter False-Positive-Validierungs-Sub-Agent (mit Repro)<br>
+          <strong>Projektverantwortlicher:</strong> Sven Fr&ouml;hlich<br>
+          <strong>Datum:</strong> 19.&nbsp;Juli&nbsp;2026<br>
+          <strong>Analysierter Codestand:</strong>
+          Arbeitsstand v1.1.20 (Diff seit dem Runde-9-Stand
+          <code>ac412cbc</code>), einschlie&szlig;lich der neuen
+          Security-Baseline-/Sysctl-Apply-Stufe und des
+          Baseline-Transferpakets &mdash; Runde&nbsp;10<br>
+          <strong>Methode:</strong> Statische Code-Analyse + manuelle
+          Datenfluss-Verifikation des kompletten Branch-Diffs +
+          Konfidenz-gescorte FP-Validierung mit lauff&auml;higem Repro +
+          Umsetzung von zwei H&auml;rtungen mit 15 Regressionstests +
+          Regressions-Gegenpr&uuml;fung der Vorrunden-H&auml;rtungen (Gesamtsuite
+          2133 bestanden, drei bekannte umgebungsbedingte Fehler ohne
+          Sicherheitsbezug) &mdash; kein Laufzeit-Penetrationstest<br>
+          <strong>Haftungsausschluss:</strong> Dieses Audit ersetzt keinen professionellen
+          Penetrationstest durch eine zertifizierte Sicherheitsfirma. Die Analyse
+          beschr&auml;nkt sich auf den angegebenen Codestand. Nicht erfasst werden:
+          Laufzeitverhalten, abh&auml;ngige Systembibliotheken,
+          Netzwerkkonfiguration und soziale Angriffsvektoren.
+        </p>
+        <p style="margin-top:16px;">
+          <a href="./downloads.html" style="color:var(--accent);">Zur Downloadseite</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./aktuelles.html" style="color:var(--accent);">Aktuelles</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./docs.html" style="color:var(--accent);">Dokumentation</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./security-audit-r9.html" style="color:var(--accent);">Runde&nbsp;9</a>
+        </p>
+      </div>
+    </main>
+
+    <footer style="margin-top:64px;padding:24px 0;border-top:1px solid var(--line);text-align:center;color:var(--muted);font-size:0.85rem;">
+      &copy; 2026 Sven Fr&ouml;hlich &mdash; NetMon Roots &mdash;
+      <a href="./legal.html" style="color:var(--muted);">Lizenz &amp; Credits</a>
+      &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+      <a href="https://github.com/Noogman4/dev-lab" target="_blank" rel="noopener noreferrer" style="color:var(--muted);">GitHub</a>
+    </footer>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>

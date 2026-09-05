@@ -866,9 +866,14 @@ def test_settings_tab_contains_backup_tab_source():
     assert "command=lambda: self.launch_data_backup_tool(restore=True)" in backup_source
     assert "command=self.export_netmon_documents_backup" in backup_source
     assert "command=self.open_netmon_documents_folder" in backup_source
-    assert "command=self.open_security_baseline_transfer_folder" in backup_source
-    assert "command=self.show_security_baseline_transfer_comparison" in backup_source
-    assert "command=self.clear_security_baseline_transfer" in backup_source
+    assert "command=self.open_security_baseline_transfer_folder" not in backup_source
+    assert "command=self.export_security_baseline_transfer" not in backup_source
+    assert "command=self.import_security_baseline_transfer" not in backup_source
+    assert "command=self.show_security_baseline_transfer_package" not in backup_source
+    assert (
+        "command=self.show_security_baseline_transfer_comparison" not in backup_source
+    )
+    assert "command=self.clear_security_baseline_transfer" not in backup_source
     assert '"backup_netmon_full_folder"' in backup_options_source
     assert '"NetMon-Ordner komplett"' in backup_options_source
 

@@ -11,6 +11,9 @@ Automatisch aus der Git-Historie des Repositories erzeugt.
 - APT-Prüfung fachlich korrigiert: verfügbare Paketupdates werden nun von tatsächlichen Sicherheitslücken klar abgegrenzt.
 - Prüfung kritischer Systemdateirechte erweitert: Dateirechte, Eigentümer und Gruppen werden nun automatisch gegen sichere Standardwerte bewertet.
 - Secure-Boot-Prüfung erweitert: Secure-Boot-Status, UEFI-Plattformmodus und profilabhängige Bewertung werden nun getrennt dargestellt.
+- Lynis-/Haertungsdiagnose erweitert: NetMon erkennt UFW-sysctl-Konflikte in `/etc/ufw/sysctl.conf` fuer `log_martians` und `rp_filter` und nennt die UFW-Quelle in der Begruendung.
+- UFW-Haertung erweitert: `log_martians` kann dauerhaft in `/etc/ufw/sysctl.conf` auf den NetMon-Sollwert gesetzt werden; vorher wird ein datiertes Backup angelegt.
+- Backup-Tab bereinigt: Timeshift zeigt beim Pruefen sichtbare Rueckmeldung, doppelte Timeshift-Startbuttons und redundante Transferpaket-Aktionen wurden entfernt.
 
 ## 2026-07-18 - Version 1.1.19
 

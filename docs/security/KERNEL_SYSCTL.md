@@ -16,6 +16,7 @@ Sysctl-Werte koennen aus mehreren Quellen geladen werden:
 /run/sysctl.d/
 /etc/sysctl.d/
 /etc/sysctl.conf
+/etc/ufw/sysctl.conf
 ```
 
 Wichtige Praxisregel:
@@ -24,6 +25,9 @@ Wichtige Praxisregel:
   ueberschreiben.
 - Gleiche Parameternamen muessen deshalb immer inklusive ihrer finalen
   Herkunftsdatei bewertet werden.
+- UFW ist ein Sonderfall: `/etc/ufw/sysctl.conf` wird beim UFW-Start ueber
+  `ufw.service` geladen und kann die vorher von `systemd-sysctl` gesetzten
+  Werte aus `/etc/sysctl.d/` erneut ueberschreiben.
 
 Praxisbeispiel:
 
@@ -34,6 +38,16 @@ Wenn beide Dateien denselben Parameter setzen, ueberschreibt die spaeter
 bewertete lokale Konfiguration unter `/etc/sysctl.d/` typischerweise den
 Distributionsstandard. Eine rein dateibezogene Sicht ohne Wertabgleich fuehrt
 hier leicht zu Fehlinterpretationen.
+
+UFW-Beispiel:
+
+- `/etc/sysctl.d/99-zz-netmon-hardening.conf`
+- `/etc/ufw/sysctl.conf`
+
+Wenn UFW in seiner eigenen Datei denselben Netzwerkparameter anders setzt,
+zaehlt nach einem UFW-Start der aktive Runtime-Wert. NetMon liest deshalb den
+Kernelwert aus `/proc/sys` und zeigt bei erkannten Konflikten die UFW-Quelle in
+der Begruendung an.
 
 ## NetMon Apply-Stufe
 
@@ -50,6 +64,18 @@ Rahmen:
 Aktueller Zielpfad:
 
 - `/etc/sysctl.d/99-zz-netmon-hardening.conf`
+
+UFW-Ergaenzung:
+
+- Der UFW-Haertungsschritt kann `/etc/ufw/sysctl.conf` fuer die beiden
+  `log_martians`-Werte dauerhaft auf `1` setzen, wenn UFW die NetMon-Drop-in
+  sonst wieder auf `0` ueberstimmen wuerde.
+- Vor der Aenderung wird die UFW-Datei als
+  `/etc/ufw/sysctl.conf.netmon-backup-YYYYMMDD-HHMMSS` gesichert.
+- Nach der Aenderung laedt NetMon gezielt
+  `sysctl -e -q -p /etc/ufw/sysctl.conf`.
+- Diese UFW-Ergaenzung ist bewusst auf die freigegebenen
+  `log_martians`-Schluessel begrenzt.
 
 Rollback-Grundsatz:
 
@@ -267,6 +293,12 @@ Pruefbefehl:
 Empfohlene Konfigurationsdatei:
 `/etc/sysctl.d/99-zz-netmon-hardening.conf`
 
+UFW-Hinweis:
+Falls `/etc/ufw/sysctl.conf` diesen Wert auf `0` setzt, kann `ufw.service`
+den aktiven Kernelwert nach dem Boot wieder zuruecksetzen. NetMon benennt
+diesen Konflikt in der Baseline-Begruendung und kann die UFW-Datei im
+UFW-Haertungsschritt dauerhaft auf `1` anpassen.
+
 ### net.ipv4.conf.default.log_martians
 
 Parameter:
@@ -298,6 +330,12 @@ Pruefbefehl:
 
 Empfohlene Konfigurationsdatei:
 `/etc/sysctl.d/99-zz-netmon-hardening.conf`
+
+UFW-Hinweis:
+Falls `/etc/ufw/sysctl.conf` diesen Wert auf `0` setzt, kann `ufw.service`
+den aktiven Kernelwert nach dem Boot wieder zuruecksetzen. NetMon benennt
+diesen Konflikt in der Baseline-Begruendung und kann die UFW-Datei im
+UFW-Haertungsschritt dauerhaft auf `1` anpassen.
 
 ### net.ipv4.conf.default.accept_source_route
 
@@ -368,6 +406,11 @@ Pruefbefehl:
 Empfohlene Konfigurationsdatei:
 `/etc/sysctl.d/99-zz-netmon-hardening.conf`
 
+UFW-Diagnose:
+Falls eine lokale `/etc/ufw/sysctl.conf` diesen Wert abweichend setzt, bleibt
+die Profilbewertung erhalten; NetMon ergaenzt nur den Ursachenhinweis auf
+UFWs sysctl-Datei.
+
 ### net.ipv4.conf.default.rp_filter
 
 Parameter:
@@ -401,6 +444,11 @@ Pruefbefehl:
 
 Empfohlene Konfigurationsdatei:
 `/etc/sysctl.d/99-zz-netmon-hardening.conf`
+
+UFW-Diagnose:
+Falls eine lokale `/etc/ufw/sysctl.conf` diesen Wert abweichend setzt, bleibt
+die Profilbewertung erhalten; NetMon ergaenzt nur den Ursachenhinweis auf
+UFWs sysctl-Datei.
 
 ## Bewusst nicht erzwungener Parameter
 

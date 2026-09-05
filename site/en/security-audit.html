@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NetMonRoots | Security Audit 2026 — Round 10</title>
+  <title>NetMonRoots | Security Audit 2026 — Round 11</title>
   <meta
     name="description"
-    content="Tenth independent security audit of the NetMon source code on the v1.1.20 state. Focus: the new security-baseline/sysctl apply stage, baseline transfer packages, locale-independent UFW parsing, and the test infrastructure. 0 critical, 2 high, 0 medium findings — both fixed and verified."
+    content="Eleventh independent security audit of the NetMon source code on the v1.1.20 state. Focus: the new UFW sysctl override feature, the new runtime measurement module, and a first as-is review of the radio sinks. 0 critical, 0 high, 0 medium findings — eight defense-in-depth hardening measures implemented."
   >
   <link rel="icon" type="image/png" href="../favicon.png">
   <link rel="apple-touch-icon" href="../favicon.png">
@@ -14,8 +14,8 @@
   <link rel="alternate" hreflang="de" href="https://netmonroots.com/security-audit.html">
   <link rel="alternate" hreflang="en" href="https://netmonroots.com/en/security-audit.html">
   <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/security-audit.html">
-  <meta property="og:title" content="NetMonRoots | Security Audit 2026 — Round 10">
-  <meta property="og:description" content="Tenth independent security audit of the NetMon source code on the v1.1.20 state. 0 critical, 2 high, 0 medium findings — both fixed and verified.">
+  <meta property="og:title" content="NetMonRoots | Security Audit 2026 — Round 11">
+  <meta property="og:description" content="Eleventh independent security audit of the NetMon source code on the v1.1.20 state. 0 critical, 0 high, 0 medium findings — eight hardening measures implemented.">
   <meta property="og:url" content="https://netmonroots.com/en/security-audit.html">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="NetMon Roots">
@@ -23,8 +23,8 @@
   <meta property="og:locale:alternate" content="de_DE">
   <meta property="og:image" content="https://netmonroots.com/favicon.png">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="NetMonRoots | Security Audit 2026 — Round 10">
-  <meta name="twitter:description" content="Tenth independent security audit of the NetMon source code on the v1.1.20 state. 0 critical, 2 high, 0 medium findings — both fixed and verified.">
+  <meta name="twitter:title" content="NetMonRoots | Security Audit 2026 — Round 11">
+  <meta name="twitter:description" content="Eleventh independent security audit of the NetMon source code on the v1.1.20 state. 0 critical, 0 high, 0 medium findings — eight hardening measures implemented.">
   <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
   <link rel="stylesheet" href="../styles.css">
   <style>
@@ -133,53 +133,53 @@
     </header>
 
     <main>
+
       <section class="audit-hero">
-        <p class="eyebrow">Security Audit — July 2026 — Round 10</p>
+        <p class="eyebrow">Security Audit — July 2026 — Round 11</p>
         <h1 style="font-size:clamp(2rem,4vw,3rem);margin:0 0 20px;color:var(--text);">
           Code Security Review<br>
           <span style="color:var(--accent);">NetMon Roots v1.1.20</span>
         </h1>
         <p style="max-width:680px;color:var(--muted);line-height:1.65;font-size:1.05rem;">
-          Tenth automated security review based on Claude Fable 5, covering the full
-          code diff since the round 9 state. This round focused on the largest change
-          since 1.1.19: the new <strong>security-baseline / sysctl apply stage</strong>
-          and the <strong>baseline transfer package</strong> (import/export between
-          machines), plus the <strong>locale-independent UFW parsing</strong>, the new
-          <strong>data backup</strong>, and the <strong>test/development
-          infrastructure</strong>. Two high-severity issues were confirmed and fixed —
-          a <strong>sysctl directive injection</strong> via an imported transfer
-          package (a path to root privilege escalation) and, discovered empirically
-          rather than statically, a <strong>test suite that really rebooted the
-          host</strong> because two tests executed a real
-          <code>systemctl&nbsp;reboot</code>.
+          Eleventh automated security review based on Claude Fable 5, covering the
+          full diff since the round 10 state — 215 commits, the vast majority of
+          them mechanical refactoring. The security-relevant new work was the
+          still-unreleased <strong>UFW sysctl override feature</strong>, which
+          rewrites <code>/etc/ufw/sysctl.conf</code> as root, plus a new
+          <strong>runtime measurement module</strong>. The scope was deliberately
+          widened by a first <strong>as-is review of the radio sinks</strong>,
+          which had never fallen inside a diff-based scope.
+          <strong>This round produced no finding above the reporting
+          threshold</strong> — of three candidates, one was refuted and one
+          downgraded. Eight <strong>defense-in-depth hardening measures</strong>
+          were implemented anyway, backed by 26 regression tests.
         </p>
       </section>
 
       <div style="margin-bottom:32px;">
-        <a class="button button-primary" href="../netmon_security_audit_2026_r10.pdf" download>Download PDF</a>
+        <a class="button button-primary" href="../netmon_security_audit_2026_r11.pdf" download>Download PDF</a>
         <a class="button button-secondary" href="#summary">Summary</a>
-        <a class="button button-secondary" href="#findings">Findings</a>
+        <a class="button button-secondary" href="#findings">Candidates</a>
         <a class="button button-secondary" href="#hardening">Hardening</a>
       </div>
 
       <div class="verdict-banner" id="summary">
         <div class="verdict-icon">&#10003;</div>
         <div class="verdict-text">
-          <h2>0 critical — 2 high — 0 medium findings (both fixed &amp; verified)</h2>
+          <h2>0 critical — 0 high — 0 medium findings (8 hardening measures)</h2>
           <p>
-            Two high-severity issues were confirmed and fixed. <strong>F1:</strong> the
-            new baseline transfer package passed imported <code>id</code>/
-            <code>expected</code> fields into an <code>/etc/sysctl.d/</code> file loaded
-            as root, with no character or allowlist check — a crafted file could set
-            <code>kernel.core_pattern&nbsp;=&nbsp;|/path/script</code> (root code
-            execution on the next crash). A dedicated validation sub-agent confirmed it
-            at <strong>confidence 9/10</strong> with a working repro. <strong>F2:</strong>
-            two tests let a command generator return a real
-            <code>systemctl&nbsp;reboot</code> without mocking execution — and since an
-            active desktop user may reboot via polkit without a password, every test run
-            actually restarted the host. Both were fixed (strict sysctl allowlist and
-            value validation; defused tests plus a suite-wide guard against destructive
-            commands), regression-tested, and re-verified.
+            The review found no vulnerability above the 8/10 reporting threshold.
+            Three candidates in the new UFW sysctl feature were re-examined by
+            independent validation sub-agents tasked with refuting them: one was
+            <strong>refuted</strong> (2/10 — its central premise did not survive
+            empirical checking), one was <strong>downgraded to LOW</strong> (6/10 —
+            the mechanism is real, the claimed loss of hardening is not), and the
+            third is a pure defense-in-depth inconsistency. All three were fixed
+            regardless. A first as-is review of the radio sinks — code unchanged for
+            several rounds and therefore never inside a diff scope — produced four
+            further hardening measures. All hardening from rounds 7 through 10 is
+            intact; the child-lock remains documented as a deliberate design
+            decision.
           </p>
         </div>
       </div>
@@ -187,7 +187,7 @@
       <div class="audit-meta-grid">
         <div class="audit-meta-card">
           <div class="label">Date</div>
-          <div class="value">July 19, 2026</div>
+          <div class="value">July 29, 2026</div>
         </div>
         <div class="audit-meta-card">
           <div class="label">Reviewed version</div>
@@ -199,7 +199,7 @@
         </div>
         <div class="audit-meta-card">
           <div class="label">High findings</div>
-          <div class="value">2 — both fixed</div>
+          <div class="value ok">0</div>
         </div>
         <div class="audit-meta-card">
           <div class="label">Medium findings</div>
@@ -207,7 +207,7 @@
         </div>
         <div class="audit-meta-card">
           <div class="label">Test suite</div>
-          <div class="value ok">2133 passed</div>
+          <div class="value ok">2562 passed, 2 skipped</div>
         </div>
       </div>
 
@@ -216,27 +216,29 @@
         <div class="section-rule"></div>
         <div class="audit-card">
           <p>
-            The reviewed scope was the full code diff since the round 9 state
-            (~15,300 new lines), with version consistency across the application,
-            Debian package, and changelog (all 1.1.20). The audit concentrated on the
-            new functionality and on privileged or externally influenced paths.
+            The reviewed scope was the full diff since the round 10 state
+            (<code>445279ac</code>, July 20, 2026) up to the current working state,
+            including uncommitted changes: 215 commits and 468 files, but only about
+            3,750 lines of production code across 22 modules — the remainder is tests
+            and refactoring documentation.
           </p>
           <ul>
-            <li>New security-baseline / sysctl apply stage and the baseline transfer package (import/export)</li>
-            <li>Locale-independent UFW and Lynis output parsing</li>
-            <li>New data backup and the "game mode" firewall exceptions</li>
-            <li>Native permission checks (home/critical-file rights, Secure Boot) and the root network service</li>
-            <li>Test / development / CI infrastructure</li>
+            <li>New UFW sysctl override feature writing to <code>/etc/ufw/sysctl.conf</code> as root</li>
+            <li>New runtime measurement module and its hook into the central command path</li>
+            <li>Large radio refactoring, proven behaviour-preserving via a normalised content diff</li>
+            <li>As-is review of the radio sinks (mpv/ffmpeg invocation, ICY metadata, recording filenames, playlist parsing)</li>
+            <li>Regression re-check of the round 9 and 10 hardening — all intact</li>
           </ul>
         </div>
       </div>
 
       <div class="audit-section" id="findings">
-        <h2>Confirmed findings</h2>
+        <h2>Candidates and validation</h2>
         <div class="section-rule"></div>
         <div class="audit-card">
-          <p><strong>F1 — Sysctl directive injection via imported baseline transfer package [HIGH, 9/10, fixed]:</strong> imported <code>id</code>/<code>key</code>/<code>expected</code> fields were only checked for non-emptiness, then written as <code>key = value</code> into <code>/etc/sysctl.d/</code> and loaded as root via <code>sudo -n sysctl --system</code>. A crafted file could set <code>kernel.core_pattern = |/tmp/evil.sh</code> (root code execution on the next crash) or silently downgrade kernel hardening via embedded newlines. Fixed with an allowlist of the ten documented baseline keys plus strict key/value format validation (no newlines, pipes, or shell metacharacters), deriving the drop-in id only from the validated key, and a second defense-in-depth filter at the write sink.</p>
-          <p><strong>F2 — Test suite executed a real <code>systemctl reboot</code> (host restart) [HIGH, empirical, fixed]:</strong> two tests for the new system actions returned the real <code>["systemctl","reboot"]</code> without mocking the execution path, so every test run on a desktop system actually rebooted the host (discovered empirically — the audit host restarted reproducibly during test runs). This affects the test/development and CI infrastructure, not the shipped application code (whose release path is guarded by a confirmation dialog, safety phrase, and strict protection). Fixed by defusing both tests and adding a suite-wide guard (<code>tests/conftest.py</code>) that blocks destructive commands at the subprocess level, even behind <code>sudo</code>/<code>pkexec</code> wrappers.</p>
+          <p><strong>K1 — stderr contamination in the read-modify-write of <code>/etc/ufw/sysctl.conf</code> [LOW, 6/10, hardened]:</strong> the file is read via <code>sudo -n cat</code> through a helper that merges stderr into stdout, so a sudo warning ("unable to resolve host …") arrives with exit code 0 inside the supposed file content and would be written back into a root config file. The reporter's claim that this could disable hardening at boot was <em>refuted empirically</em>: sysctl warns about a malformed line but continues processing the remaining lines and returns 0, and ufw-init ignores errors anyway. The reporter also missed that a write-back only happens on an actual change, and that the same pattern already existed in committed code. The warning text is not attacker-controlled, so there is no injection vector. Hardened regardless with a plausibility gate that aborts the run — at both read sites — as soon as the content contains a line that cannot be a sysctl config line.</p>
+          <p><strong>K2 — new write sink missing its sister sink's allowlist [LOW, 3/10, hardened]:</strong> the key allowlist introduced in round 10 sits deliberately at the write sink as a second line of defense, but the new sink writing to <code>/etc/ufw/sysctl.conf</code> — a file that per its own header overrides <code>/etc/sysctl.conf</code> and <code>/etc/sysctl.d</code> — carried none of those checks. Not exploitable today (the only caller passes a module constant, and no data flow from transfer packages or remote JSON reaches this sink), but a regression against a documented protection decision. The sink now applies the same allowlist and value validation as its sister.</p>
+          <p><strong>K3 — "sysctl re-apply silently reverts kernel hardening" [REFUTED, 2/10]:</strong> the validator extracted the original <code>ufw_0.36.2-6_all.deb</code> and showed that <code>/etc/ufw/sysctl.conf</code> contains no <code>rp_filter</code> at all, so the central premise was wrong. The only real overlap with the NetMon baseline is <code>log_martians</code> — and the code under complaint is precisely the countermeasure for it, since the package ships <code>log_martians=0</code> against NetMon's target of <code>1</code>. A downstream value verification also exists: a baseline re-check reads the live kernel values after every step. Finally, the direction of the deviation was misjudged — <code>rp_filter=1</code> is stricter than NetMon's deliberate <code>2</code>, so security would rise, not fall. No code change needed.</p>
         </div>
       </div>
 
@@ -245,21 +247,26 @@
         <div class="section-rule"></div>
         <div class="audit-card">
           <ul>
-            <li>Sysctl key allowlist and strict value validation for imported transfer packages</li>
-            <li>Suite-wide guard blocking destructive system commands (reboot/poweroff/shutdown/logout) in tests</li>
-            <li>15 new regression tests (8 for the sysctl allowlist, 7 for the command guard)</li>
-            <li>Regression re-check of the round 7/8/9 hardening — all intact</li>
+            <li>Key allowlist and value validation at the UFW sysctl write sink</li>
+            <li>Plausibility gate aborting any read-modify-write whose content contains a non-config line (both read sites)</li>
+            <li><code>--</code> option terminator before the mpv media argument, so a playlist entry named <code>--script=payload.lua</code> cannot become an option</li>
+            <li>Handover payload now passes through the stream URL scheme allowlist — the only path that bypassed it</li>
+            <li>mpv IPC socket moved into <code>XDG_RUNTIME_DIR</code> or a private 0700 directory (socket access means mpv's <code>run</code> command)</li>
+            <li>Explicit ffmpeg protocol allowlist without <code>file</code>, so a crafted HLS/concat playlist cannot pull local files into a recording</li>
+            <li>Value-side redaction in the measurement log — previously only metadata keys were checked, not values</li>
+            <li>Measurement log opened with <code>O_NOFOLLOW</code> and mode 0600; rotation skips symlinked paths</li>
+            <li>26 new regression tests; full suite 2562 passed, 2 skipped</li>
           </ul>
         </div>
       </div>
 
       <div class="signature-block">
         <p>
-          <strong>Auditor:</strong> Claude Fable 5 (Anthropic) — automated multi-agent security review<br>
+          <strong>Auditor:</strong> Claude Fable 5 (Anthropic) — four analysis sub-agents plus two independent false-positive validation sub-agents<br>
           <strong>Project owner:</strong> Sven Froehlich<br>
-          <strong>Date:</strong> July 19, 2026<br>
-          <strong>Reviewed state:</strong> NetMon 1.1.20 working state (diff since round 9)<br>
-          <strong>Method:</strong> static security review with confidence-scored validation (with repro) and regression confirmation
+          <strong>Date:</strong> July 29, 2026<br>
+          <strong>Reviewed state:</strong> NetMon 1.1.20 working state (diff since the round 10 state <code>445279ac</code>, including uncommitted changes), extended by an as-is review of the radio sinks<br>
+          <strong>Method:</strong> static code analysis with manual data-flow verification, a normalised content diff for the refactoring bulk, confidence-scored false-positive validation with empirical counter-checks (package extraction, sysctl behaviour tests), eight hardening measures with 26 regression tests, and a regression re-check of the previous rounds' hardening — no runtime penetration testing
         </p>
         <p style="margin-top:16px;">
           <a href="./downloads.html" style="color:var(--accent);">Download page</a>

@@ -804,6 +804,11 @@ SECURITY_BASELINE_PROFILE = dict(
     SECURITY_BASELINE_PROFILES[SECURITY_BASELINE_DEFAULT_PROFILE_ID]
 )
 SECURITY_BASELINE_SYSCTL_DROPIN_PATH = "/etc/sysctl.d/99-zz-netmon-hardening.conf"
+SECURITY_BASELINE_UFW_SYSCTL_PATH = "/etc/ufw/sysctl.conf"
+SECURITY_BASELINE_UFW_SYSCTL_OVERRIDES = {
+    "net.ipv4.conf.all.log_martians": "1",
+    "net.ipv4.conf.default.log_martians": "1",
+}
 SECURITY_BASELINE_TRANSFER_SCHEMA = "netmon.security-baseline.transfer"
 SECURITY_BASELINE_TRANSFER_SCHEMA_VERSION = 1
 
@@ -2904,6 +2909,28 @@ def _build_sysctl_dropin_content(specs: list[dict]) -> str:
     return "\n".join(header + lines) + "\n"
 
 
+# Eine sysctl-Konfigzeile ist entweder leer, ein Kommentar oder "key = value".
+_SYSCTL_CONFIG_LINE_RE = re.compile(r"^\s*[\w./-]+\s*=")
+
+
+def _implausible_sysctl_config_line(content: str) -> str:
+    """Erste Zeile, die keine sysctl-Konfigzeile sein kann - sonst "".
+
+    run_cmd fuehrt stderr mit stdout zusammen (core/command.py), deshalb kann
+    eine sudo-Warnung ("unable to resolve host ...") mit rc=0 im vermeintlichen
+    Dateiinhalt landen. Bei Read-Modify-Write wuerde sie als root in die
+    Konfigdatei zurueckgeschrieben. Lieber abbrechen als eine unerwartete Zeile
+    in einer Root-Konfigdatei zu persistieren oder still zu verwerfen.
+    """
+    for raw_line in str(content or "").splitlines():
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if not _SYSCTL_CONFIG_LINE_RE.match(raw_line):
+            return stripped
+    return ""
+
+
 def _write_temp_sysctl_dropin(content: str) -> str:
     handle = tempfile.NamedTemporaryFile(
         mode="w",
@@ -2927,6 +2954,9 @@ def _read_existing_sysctl_dropin(path: str, *, run_cmd_fn=None) -> tuple[bool, s
     rc_cat, out_cat = runner(["sudo", "-n", "cat", path], timeout=10)
     if rc_cat != 0:
         raise RuntimeError(out_cat or f"Datei konnte nicht gelesen werden: {path}")
+    suspicious = _implausible_sysctl_config_line(out_cat)
+    if suspicious:
+        raise RuntimeError(f"Unerwarteter Inhalt in {path}: {suspicious[:80]}")
     return True, out_cat if out_cat.endswith("\n") else f"{out_cat}\n"
 
 
@@ -3007,6 +3037,156 @@ def _apply_sysctl_dropin(
             os.unlink(temp_path)
         except OSError:
             pass
+
+
+def _build_ufw_sysctl_override_content(
+    content: str,
+    overrides: dict[str, str],
+) -> tuple[str, bool]:
+    # Zweite Verteidigungslinie direkt an der Schreibsenke - analog zu
+    # _render_sysctl_dropin_content. /etc/ufw/sysctl.conf ueberschreibt laut
+    # eigenem Header /etc/sysctl.conf und /etc/sysctl.d, wirkt also eher
+    # staerker als die Drop-in-Datei und darf nicht schwaecher gefiltert sein.
+    normalized_overrides = {}
+    for key, value in overrides.items():
+        normalized_key = _normalize_sysctl_config_key(key)
+        normalized_value = str(value).strip()
+        if not normalized_key or not normalized_value:
+            continue
+        if not _is_allowed_sysctl_key(normalized_key):
+            continue
+        if not _is_valid_sysctl_value(normalized_value):
+            continue
+        normalized_overrides[normalized_key] = normalized_value
+    seen = set()
+    changed = False
+    rendered = []
+    for raw_line in str(content or "").splitlines():
+        if (
+            raw_line.strip()
+            and not raw_line.lstrip().startswith("#")
+            and "=" in raw_line
+        ):
+            line_key, _line_value = raw_line.split("=", 1)
+            normalized_key = _normalize_sysctl_config_key(line_key)
+            if normalized_key in normalized_overrides:
+                seen.add(normalized_key)
+                next_line = f"{line_key.strip()}={normalized_overrides[normalized_key]}"
+                rendered.append(next_line)
+                changed = changed or next_line != raw_line
+                continue
+        rendered.append(raw_line)
+
+    missing = [key for key in normalized_overrides if key not in seen]
+    if missing:
+        if rendered and rendered[-1].strip():
+            rendered.append("")
+        rendered.append("# NetMon persistent hardening overrides")
+        for key in missing:
+            rendered.append(f"{key.replace('.', '/')}={normalized_overrides[key]}")
+        changed = True
+
+    return "\n".join(rendered) + "\n", changed
+
+
+def _restore_ufw_sysctl_config(
+    path: str,
+    backup_path: str,
+    *,
+    run_cmd_fn=None,
+):
+    runner = run_cmd_fn or run_cmd
+    rc_restore, out_restore = runner(
+        ["sudo", "-n", "cp", "-a", backup_path, path],
+        timeout=10,
+    )
+    if rc_restore != 0:
+        raise RuntimeError(
+            out_restore
+            or f"UFW-sysctl-Backup konnte nicht wiederhergestellt werden: {backup_path}"
+        )
+    rc_load, out_load = runner(
+        ["sudo", "-n", "sysctl", "-e", "-q", "-p", path],
+        timeout=20,
+    )
+    if rc_load != 0:
+        raise RuntimeError(out_load or "UFW-sysctl-Reload fehlgeschlagen")
+
+
+def _apply_ufw_sysctl_overrides(
+    path: str = SECURITY_BASELINE_UFW_SYSCTL_PATH,
+    overrides: dict[str, str] | None = None,
+    *,
+    run_cmd_fn=None,
+    rollback_tx=None,
+) -> tuple[bool, str]:
+    runner = run_cmd_fn or run_cmd
+    desired = dict(overrides or SECURITY_BASELINE_UFW_SYSCTL_OVERRIDES)
+    rc_test, out_test = runner(["sudo", "-n", "test", "-f", path], timeout=5)
+    if rc_test != 0:
+        return False, out_test or f"UFW-sysctl-Datei fehlt: {path}"
+    rc_cat, content = runner(["sudo", "-n", "cat", path], timeout=10)
+    if rc_cat != 0:
+        return False, content or f"UFW-sysctl-Datei konnte nicht gelesen werden: {path}"
+    suspicious = _implausible_sysctl_config_line(content)
+    if suspicious:
+        return False, f"Unerwarteter Inhalt in {path}: {suspicious[:80]}"
+
+    next_content, changed = _build_ufw_sysctl_override_content(content, desired)
+    backup_path = ""
+    if changed:
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        backup_path = f"{path}.netmon-backup-{timestamp}"
+        rc_backup, out_backup = runner(
+            ["sudo", "-n", "cp", "-a", path, backup_path],
+            timeout=10,
+        )
+        if rc_backup != 0:
+            return (
+                False,
+                out_backup
+                or f"UFW-sysctl-Backup konnte nicht erstellt werden: {backup_path}",
+            )
+        if rollback_tx is not None:
+            rollback_tx.add_rollback(
+                "Vorherige UFW-sysctl-Konfiguration wiederherstellen",
+                lambda p=path, b=backup_path: _restore_ufw_sysctl_config(
+                    p,
+                    b,
+                    run_cmd_fn=runner,
+                ),
+            )
+
+        temp_path = _write_temp_sysctl_dropin(next_content)
+        try:
+            rc_cp, out_cp = runner(["sudo", "-n", "cp", temp_path, path], timeout=10)
+            if rc_cp != 0:
+                return (
+                    False,
+                    out_cp
+                    or f"UFW-sysctl-Datei konnte nicht geschrieben werden: {path}",
+                )
+            rc_mode, out_mode = runner(["sudo", "-n", "chmod", "0644", path], timeout=5)
+            if rc_mode != 0:
+                return (
+                    False,
+                    out_mode or f"Dateirechte konnten nicht gesetzt werden: {path}",
+                )
+        finally:
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
+
+    rc_load, out_load = runner(
+        ["sudo", "-n", "sysctl", "-e", "-q", "-p", path],
+        timeout=20,
+    )
+    if rc_load != 0:
+        return False, out_load or "UFW-sysctl-Reload fehlgeschlagen"
+    if changed:
+        return True, f"UFW-sysctl-Konfiguration angepasst. Backup: {backup_path}"
+    return True, "UFW-sysctl-Konfiguration war bereits passend; Werte neu geladen."
 
 
 def _lynis_security_baseline_state(app) -> dict:
@@ -3298,6 +3478,58 @@ def _read_text_file(path: str | Path) -> str:
 
 def _read_sysctl_value_native(key: str) -> str:
     return _read_text_file(_proc_sys_path_for_key(key)).strip()
+
+
+def _normalize_sysctl_config_key(key: str) -> str:
+    return str(key or "").strip().replace("/", ".")
+
+
+def _sysctl_config_source_value(path: str | Path, key: str) -> str | None:
+    expected_key = _normalize_sysctl_config_key(key)
+    try:
+        lines = _read_text_file(path).splitlines()
+    except OSError:
+        return None
+
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        line_key, line_value = line.split("=", 1)
+        if _normalize_sysctl_config_key(line_key) == expected_key:
+            return line_value.strip()
+    return None
+
+
+def _sysctl_config_source_contains_expected(spec: dict, expected: str) -> bool:
+    check_id = str(spec.get("id") or "").strip()
+    config_source = str(spec.get("config_source") or "").strip()
+    if not check_id.startswith("sysctl.") or not config_source:
+        return False
+
+    key = check_id.split("sysctl.", 1)[1]
+    configured_value = _sysctl_config_source_value(config_source, key)
+    return configured_value == str(expected).strip()
+
+
+def _sysctl_ufw_override_value(spec: dict) -> str | None:
+    check_id = str(spec.get("id") or "").strip()
+    if not check_id.startswith("sysctl."):
+        return None
+    key = check_id.split("sysctl.", 1)[1]
+    return _sysctl_config_source_value("/etc/ufw/sysctl.conf", key)
+
+
+def _sysctl_ufw_override_hint(spec: dict, expected: str) -> str:
+    if not _sysctl_config_source_contains_expected(spec, expected):
+        return ""
+    ufw_value = _sysctl_ufw_override_value(spec)
+    if ufw_value is None or ufw_value == str(expected).strip():
+        return ""
+    return (
+        f"/etc/ufw/sysctl.conf setzt denselben Wert auf {ufw_value}; "
+        "ufw.service kann die systemd-sysctl-Werte beim Start ueberschreiben."
+    )
 
 
 def _count_empty_password_accounts_native() -> int:
@@ -4380,6 +4612,21 @@ def _evaluate_baseline_check(
             result["reason"] = (
                 "Der gelesene sysctl-Wert entspricht dem Desktop-/Development-Soll."
             )
+        elif _sysctl_config_source_contains_expected(spec, expected):
+            ufw_hint = _sysctl_ufw_override_hint(spec, expected)
+            result["status"] = "Nicht erfuellt"
+            if ufw_hint:
+                result["reason"] = (
+                    "Der gelesene sysctl-Wert weicht vom dokumentierten Soll ab, "
+                    "obwohl die NetMon-Drop-in-Datei den Sollwert enthaelt. "
+                    f"{ufw_hint}"
+                )
+            else:
+                result["reason"] = (
+                    "Der gelesene sysctl-Wert weicht vom dokumentierten Soll ab, "
+                    "obwohl die NetMon-Drop-in-Datei den Sollwert enthaelt. "
+                    "Bitte sysctl --system, Boot-Anwendung oder spaetere Ueberschreibungen pruefen."
+                )
         else:
             result["status"] = "Nicht erfuellt"
             result["reason"] = (
@@ -4390,6 +4637,7 @@ def _evaluate_baseline_check(
     if kind == "rp_filter":
         actual = text if rc == 0 and text else "unbekannt"
         result["actual"] = actual
+        ufw_hint = _sysctl_ufw_override_hint(spec, expected)
         if policy == "strict_rp_filter":
             result["lynis_reference"] = (
                 "Im Server-/Haertungsprofil bewertet NetMon strict mode 1 als Soll. "
@@ -4431,6 +4679,8 @@ def _evaluate_baseline_check(
             result["reason"] = (
                 "Der rp_filter-Wert passt weder zum Profil-Soll noch zu einer typischen Ausnahme."
             )
+        if ufw_hint and result["status"] != "Fehler bei der Pruefung":
+            result["reason"] = f"{result['reason']} {ufw_hint}"
         return result
 
     if kind == "secure_boot":
@@ -6075,6 +6325,29 @@ def apply_security_baseline_ufw(
                 ),
             )
 
+    ufw_sysctl_ok, ufw_sysctl_detail = _apply_ufw_sysctl_overrides(
+        run_cmd_fn=run_cmd_fn,
+        rollback_tx=tx,
+    )
+    if not ufw_sysctl_ok:
+        rollback_ok = True
+        if tx is not None:
+            rollback_ok = tx.rollback()
+        showerror_runner(
+            app.tr("baseline_apply_ufw_title", "Firewall-Haertung anwenden"),
+            app.tr(
+                "baseline_apply_ufw_sysctl_failed",
+                "Die UFW-sysctl-Konfiguration konnte nicht dauerhaft angepasst werden.",
+            )
+            + (f"\n\n{ufw_sysctl_detail}" if ufw_sysctl_detail else ""),
+            parent=app,
+        )
+        if not rollback_ok:
+            app.log_safe(
+                "Security Baseline UFW: Rollback unvollstaendig, bitte UFW-Status, Regeln und /etc/ufw/sysctl.conf manuell pruefen."
+            )
+        return False
+
     rc_after, status_after = _read_ufw_status_with_mode(
         "verbose", run_cmd_fn=run_cmd_fn
     )
@@ -6103,6 +6376,8 @@ def apply_security_baseline_ufw(
         "Security Baseline UFW-Haertung angewendet: "
         f"{profile.get('name', profile.get('id', 'UFW-Profil'))}"
     )
+    if ufw_sysctl_detail:
+        app.log_safe(f"Security Baseline UFW-sysctl: {ufw_sysctl_detail}")
     profile_note = str(profile.get("post_apply_note") or "").strip()
     if profile_note:
         app.log_safe(f"Security Baseline UFW-Hinweis: {profile_note}")

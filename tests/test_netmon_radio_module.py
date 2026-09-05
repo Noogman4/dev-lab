@@ -7388,3 +7388,181 @@ def test_drag_and_drop_does_not_overwrite_existing_target(tmp_path):
     assert result is None
     assert audio_path.exists()
     assert app.radio_record_status_var.get() == "Zieldatei existiert bereits."
+
+
+# ── Runde-11-Haertungen (Radio) ──────────────────────────────────────────────
+
+
+def test_mpv_command_terminates_option_list_before_media_argument():
+    command = radio_controller._mpv_command(50, "--script=payload.lua", "/run/x.sock")
+
+    assert command[-2:] == ["--", "--script=payload.lua"]
+    assert command.count("--") == 1
+
+
+def test_mpv_command_keeps_eq_filter_before_option_terminator():
+    command = radio_controller._mpv_command(
+        50, "http://example.invalid/s", "/run/x.sock", eq_filter="equalizer=f=100"
+    )
+
+    terminator = command.index("--")
+    assert command.index("--af=equalizer=f=100") < terminator
+    assert command[terminator + 1] == "http://example.invalid/s"
+    assert command[-1] == "http://example.invalid/s"
+
+
+def test_recording_command_whitelists_network_protocols_without_file():
+    command = radio_controller._recording_command(
+        "http://example.invalid/stream", "/tmp/out.mp3"
+    )
+
+    assert "-protocol_whitelist" in command
+    whitelist = command[command.index("-protocol_whitelist") + 1]
+    assert "file" not in whitelist.split(",")
+    assert set(whitelist.split(",")) == {"http", "https", "tcp", "tls", "crypto"}
+    assert command[command.index("-protocol_whitelist") + 2] == "-i"
+
+
+def test_radio_ipc_dir_prefers_private_runtime_dir(monkeypatch, tmp_path):
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(runtime_dir))
+    app = SimpleNamespace(netmon_state_dir=str(tmp_path / "state"))
+
+    target = radio_controller._radio_ipc_dir(app)
+
+    assert target == str(runtime_dir / "netmon-radio")
+    assert oct(os.stat(target).st_mode & 0o777) == "0o700"
+
+
+def test_radio_ipc_dir_falls_back_to_private_subdir_of_state(monkeypatch, tmp_path):
+    monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    app = SimpleNamespace(netmon_state_dir=str(state_dir))
+
+    target = radio_controller._radio_ipc_dir(app)
+
+    assert target == str(state_dir / "netmon-radio")
+    assert oct(os.stat(target).st_mode & 0o777) == "0o700"
+
+
+def test_radio_ipc_dir_uses_private_tempdir_when_state_subdir_fails(
+    monkeypatch, tmp_path
+):
+    monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    app = SimpleNamespace(netmon_state_dir=str(state_dir))
+    original_makedirs = radio_controller.os.makedirs
+
+    def fail_for_radio_dir(path, *args, **kwargs):
+        if str(path).endswith("netmon-radio"):
+            raise OSError("blocked")
+        return original_makedirs(path, *args, **kwargs)
+
+    monkeypatch.setattr(radio_controller.os, "makedirs", fail_for_radio_dir)
+    monkeypatch.setattr(radio_controller.tempfile, "tempdir", str(tmp_path))
+
+    target = radio_controller._radio_ipc_dir(app)
+
+    assert os.path.dirname(target) == str(tmp_path)
+    assert os.path.basename(target).startswith("netmon-radio-")
+    assert oct(os.stat(target).st_mode & 0o777) == "0o700"
+
+
+def test_radio_ipc_socket_lives_in_private_dir(monkeypatch, tmp_path):
+    monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    app = SimpleNamespace(netmon_state_dir=str(state_dir), radio_ipc_path="")
+
+    path = radio_controller._radio_ipc_path(app)
+
+    assert os.path.dirname(path) == str(state_dir / "netmon-radio")
+    assert os.path.basename(path).startswith("netmon-radio-")
+    assert path.endswith(".sock")
+
+
+def test_handover_payload_station_is_normalized(monkeypatch):
+    """Der Handover-Payload umging frueher die Stream-URL-Allowlist."""
+    target = type("DummyTarget", (), {})()
+    target.radio_settings = radio_controller.default_radio_settings()
+    target._app_theme = {"name": "light"}
+    target.radio_current_station_id = ""
+    target.radio_current_station = None
+    target.radio_search_var = DummyVar("")
+    target.radio_volume_var = DummyVar(0)
+    target.radio_eq_bass_var = DummyVar(0)
+    target.radio_eq_mid_var = DummyVar(0)
+    target.radio_eq_treble_var = DummyVar(0)
+    target.radio_title_var = DummyVar("")
+    target.radio_header_status_var = DummyVar("")
+    target.radio_handover_title = ""
+    target.apply_theme_palette = lambda _theme_name, _palette: None
+    target.log = lambda _message: None
+    target.tr = lambda _key, default=None: default
+
+    monkeypatch.setattr(radio_controller, "save_radio_settings", lambda _app: True)
+    monkeypatch.setattr(radio_controller, "refresh_radio_ui", lambda _app: None)
+    monkeypatch.setattr(radio_controller, "on_radio_eq_preview", lambda _app: None)
+    monkeypatch.setattr(
+        radio_controller, "play_radio_station", lambda _app, station_id="": True
+    )
+    monkeypatch.setattr(radio_controller, "_resolve_station_by_id", lambda _a, _i: None)
+
+    radio_controller.apply_radio_handover_payload(
+        target,
+        {
+            "current_station_id": "evil",
+            "current_station": {
+                "id": "evil",
+                "name": "Evil",
+                "url": "file:///etc/passwd",
+            },
+        },
+        auto_play=False,
+    )
+
+    assert target.radio_current_station is None
+
+
+def test_handover_payload_keeps_valid_station(monkeypatch):
+    target = type("DummyTarget", (), {})()
+    target.radio_settings = radio_controller.default_radio_settings()
+    target._app_theme = {"name": "light"}
+    target.radio_current_station_id = ""
+    target.radio_current_station = None
+    target.radio_search_var = DummyVar("")
+    target.radio_volume_var = DummyVar(0)
+    target.radio_eq_bass_var = DummyVar(0)
+    target.radio_eq_mid_var = DummyVar(0)
+    target.radio_eq_treble_var = DummyVar(0)
+    target.radio_title_var = DummyVar("")
+    target.radio_header_status_var = DummyVar("")
+    target.radio_handover_title = ""
+    target.apply_theme_palette = lambda _theme_name, _palette: None
+    target.log = lambda _message: None
+    target.tr = lambda _key, default=None: default
+
+    monkeypatch.setattr(radio_controller, "save_radio_settings", lambda _app: True)
+    monkeypatch.setattr(radio_controller, "refresh_radio_ui", lambda _app: None)
+    monkeypatch.setattr(radio_controller, "on_radio_eq_preview", lambda _app: None)
+    monkeypatch.setattr(
+        radio_controller, "play_radio_station", lambda _app, station_id="": True
+    )
+
+    radio_controller.apply_radio_handover_payload(
+        target,
+        {
+            "current_station_id": "good",
+            "current_station": {
+                "id": "good",
+                "name": "Good",
+                "url": "https://example.invalid/stream",
+            },
+        },
+        auto_play=False,
+    )
+
+    assert target.radio_current_station["url"] == "https://example.invalid/stream"

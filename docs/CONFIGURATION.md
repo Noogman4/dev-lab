@@ -86,6 +86,23 @@ Die Schnellscan-Auswahl liegt in `config.json`:
 - Das Repository enthaelt Shell-Skripte fuer Backups und Restore unter `scripts/`, z. B. `backup_dev_lab.sh`, `restore_dev_lab_backup.sh` und `restore_selected_dev_lab_backup.sh`.
 - Zusaetzlich existiert bereits [BACKUP_RESTORE.md](./BACKUP_RESTORE.md).
 - Fuer Feature-spezifische JSON-Dateien erfolgt die Persistenz ueber `safe_write_json()` oder lokale JSON-Schreiber.
+- Der Backup-Tab exportiert ausgewaehlte NetMon-Dokumentenordner. Der Ordner
+  `Security` enthaelt auch `Security/Transferpakete`; die Bearbeitung dieser
+  Transferpakete erfolgt im Lynis-/Haertungs-Tab.
+- Im Backup-Tab sind die Transferpaket-Aktionsbuttons bewusst nicht gedoppelt.
+  Dort bleiben nur Sicherungs- und Oeffnen-Aktionen fuer NetMon-Ordner.
+
+## Security Baseline / UFW-sysctl
+
+- NetMon schreibt die freigegebene Kernel-Baseline in
+  `/etc/sysctl.d/99-zz-netmon-hardening.conf`.
+- UFW kann ueber `/etc/ufw/sysctl.conf` eigene Netzwerk-sysctl-Werte spaeter
+  erneut laden. NetMon erkennt abweichende UFW-Werte in der Baseline-Begruendung.
+- Der UFW-Haertungsschritt kann die beiden `log_martians`-Werte in
+  `/etc/ufw/sysctl.conf` dauerhaft auf `1` setzen. Vorher wird ein Backup mit
+  dem Muster `/etc/ufw/sysctl.conf.netmon-backup-YYYYMMDD-HHMMSS` erstellt.
+- `rp_filter`-Konflikte aus `/etc/ufw/sysctl.conf` werden als Diagnosehinweis
+  angezeigt; die profilbezogene Statusbewertung bleibt unveraendert.
 
 ## Unklar / Nicht dokumentiert
 

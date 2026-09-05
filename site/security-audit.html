@@ -3,26 +3,26 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 10</title>
+  <title>NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 11</title>
   <meta
     name="description"
-    content="Zehntes unabhaengiges Sicherheits-Audit des NetMon-Quellcodes auf Stand v1.1.20 (Juli 2026). Fokus: die neue Security-Baseline-/Sysctl-Apply-Stufe, das Baseline-Transferpaket (Import), die locale-unabhaengige UFW-Auswertung und die Test-/Entwicklungsinfrastruktur. 0 kritische, 2 hohe, 0 mittlere Findings &mdash; beide umgesetzt und verifiziert."
+    content="Elftes unabhaengiges Sicherheits-Audit des NetMon-Quellcodes auf Stand v1.1.20 (Juli 2026). Fokus: das neue UFW-sysctl-Override-Feature, die neue Laufzeitmessung und eine Ist-Stand-Vertiefung der Radio-Senken. 0 kritische, 0 hohe, 0 mittlere Findings &mdash; acht Defense-in-Depth-Haertungen umgesetzt."
   >
   <link rel="icon" type="image/png" href="./favicon.png">
   <link rel="apple-touch-icon" href="./favicon.png">
   <link rel="canonical" href="https://netmonroots.com/security-audit.html">
   <link rel="alternate" hreflang="de" href="https://netmonroots.com/security-audit.html">
   <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/security-audit.html">
-  <meta property="og:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 10">
-  <meta property="og:description" content="Zehntes Sicherheits-Audit des NetMon-Quellcodes auf Stand v1.1.20. 0 kritische, 2 hohe, 0 mittlere Findings &mdash; beide umgesetzt und verifiziert.">
+  <meta property="og:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 11">
+  <meta property="og:description" content="Elftes Sicherheits-Audit des NetMon-Quellcodes auf Stand v1.1.20. 0 kritische, 0 hohe, 0 mittlere Findings &mdash; acht Haertungen umgesetzt.">
   <meta property="og:url" content="https://netmonroots.com/security-audit.html">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="NetMon Roots">
   <meta property="og:locale" content="de_DE">
   <meta property="og:image" content="https://netmonroots.com/favicon.png">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 10">
-  <meta name="twitter:description" content="Zehntes Sicherheits-Audit des NetMon-Quellcodes auf Stand v1.1.20. 0 kritische, 2 hohe, 0 mittlere Findings &mdash; beide umgesetzt und verifiziert.">
+  <meta name="twitter:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 11">
+  <meta name="twitter:description" content="Elftes Sicherheits-Audit des NetMon-Quellcodes auf Stand v1.1.20. 0 kritische, 0 hohe, 0 mittlere Findings &mdash; acht Haertungen umgesetzt.">
   <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
   <link rel="stylesheet" href="./styles.css">
   <style>
@@ -270,45 +270,45 @@
     </header>
 
     <main>
+
       <!-- ── Hero ── -->
       <section class="audit-hero">
-        <p class="eyebrow">Sicherheits-Audit &mdash; Juli 2026 &mdash; Runde&nbsp;10</p>
+        <p class="eyebrow">Sicherheits-Audit &mdash; Juli 2026 &mdash; Runde&nbsp;11</p>
         <h1 style="font-size:clamp(2rem,4vw,3rem);margin:0 0 20px;color:var(--text);">
           Code-Security-Review<br>
           <span style="color:var(--accent);">NetMon Roots v1.1.20</span>
         </h1>
         <p style="max-width:680px;color:var(--muted);line-height:1.65;font-size:1.05rem;">
-          Zehntes automatisiertes Security-Review auf Basis von
-          Claude&nbsp;Fable&nbsp;5. Schwerpunkt dieser Runde war die
-          gr&ouml;&szlig;te Neuerung seit dem 1.1.19-Release: die neue
-          <strong>Security-Baseline-Apply-Stufe</strong> samt
-          <strong>Sysctl-H&auml;rtung</strong> und dem
-          <strong>Baseline-Transferpaket</strong> (Export/Import zwischen
-          Rechnern), dazu die locale-unabh&auml;ngige UFW-Auswertung, das neue
-          Daten-Backup und die native Rechte-Pr&uuml;fung. Diese Runde brachte
-          <strong>zwei belastbare Schwachstellen hohen Schweregrads</strong>
-          &mdash; eine <strong>Sysctl-Direktiven-Injektion</strong> &uuml;ber ein
-          importiertes Transferpaket (Weg zu Root-Rechteausweitung) und &mdash;
-          erstmals empirisch statt nur statisch entdeckt &mdash; eine
-          <strong>Testsuite, die den Host real neu startete</strong>, weil zwei
-          Tests ein echtes <code>systemctl&nbsp;reboot</code> ausf&uuml;hrten.
-          <strong>Beide wurden umgesetzt, mit Regressionstests abgesichert und
-          verifiziert.</strong>
+          Elftes automatisiertes Security-Review auf Basis von
+          Claude&nbsp;Fable&nbsp;5. Gepr&uuml;ft wurde der komplette Diff seit dem
+          Runde-10-Endstand &mdash; 215&nbsp;Commits, davon der weit
+          &uuml;berwiegende Teil mechanische Refactorings. Neu und
+          sicherheitsrelevant war vor allem das noch unver&ouml;ffentlichte
+          <strong>UFW-sysctl-Override-Feature</strong>, das
+          <code>/etc/ufw/sysctl.conf</code> als root umschreibt, dazu ein neues
+          <strong>Laufzeitmess-Modul</strong>. Erg&auml;nzend lief eine
+          <strong>Ist-Stand-Vertiefung der Radio-Senken</strong>, die bisher nie
+          im Diff-Scope einer Runde lagen.
+          <strong>Diese Runde brachte kein Finding oberhalb der
+          Melde-Schwelle</strong> &mdash; von drei Kandidaten wurde einer
+          widerlegt, einer auf LOW herabgestuft. Umgesetzt wurden dennoch
+          <strong>acht Defense-in-Depth-H&auml;rtungen</strong> mit
+          26&nbsp;Regressionstests.
         </p>
-        <a class="round-link" href="./security-audit-r9.html">
-          &#8592; Runde&nbsp;9 (2&nbsp;mittlere Findings &mdash; Update-URL &amp; Killswitch)
+        <a class="round-link" href="./security-audit-r10.html">
+          &#8592; Runde&nbsp;10 (2&nbsp;hohe Findings &mdash; Sysctl-Injektion &amp; Reboot-Testsuite)
         </a>
       </section>
 
       <!-- ── Aktionen ── -->
       <div style="margin-bottom:32px;">
-        <a class="button button-primary" href="./netmon_security_audit_2026_r10.pdf" download
+        <a class="button button-primary" href="./netmon_security_audit_2026_r11.pdf" download
            style="display:inline-block;padding:12px 28px;border-radius:40px;background:var(--accent);color:#07101d;font-weight:700;font-size:0.95rem;text-decoration:none;margin-right:12px;">
           PDF herunterladen
         </a>
         <a href="#findings"
            style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;">
-          Findings
+          Kandidaten
         </a>
         <a href="#hardening"
            style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;margin-left:8px;">
@@ -324,30 +324,22 @@
       <div class="verdict-banner">
         <div class="verdict-icon">&#10003;</div>
         <div class="verdict-text">
-          <h2>0 kritische &mdash; 2 hohe &mdash; 0 mittlere Findings (beide umgesetzt &amp; verifiziert)</h2>
+          <h2>0 kritische &mdash; 0 hohe &mdash; 0 mittlere Findings (8 H&auml;rtungen umgesetzt)</h2>
           <p>
-            Das Review des 1.1.20-Stands identifizierte zwei belastbare
-            Schwachstellen hohen Schweregrads. <strong>F1:</strong> Das neue
-            <em>Baseline-Transferpaket</em> reichte importierte
-            <code>id</code>-/<code>expected</code>-Felder ohne Zeichen- oder
-            Whitelist-Pr&uuml;fung bis in eine <code>/etc/sysctl.d/</code>-Datei
-            durch, die als root per <code>sysctl&nbsp;--system</code> geladen wird
-            &mdash; eine pr&auml;parierte Datei konnte so z.&nbsp;B.
-            <code>kernel.core_pattern&nbsp;=&nbsp;|/pfad/skript</code> setzen
-            (Root-Code-Execution beim n&auml;chsten Crash) oder Kernel-H&auml;rtung
-            still zur&uuml;ckdrehen. Ein dedizierter Validierungs-Sub-Agent
-            best&auml;tigte das mit <strong>Konfidenz&nbsp;9/10</strong> samt
-            lauff&auml;higem Repro. <strong>F2:</strong> Zwei Tests lie&szlig;en
-            einen Kommando-Generator das echte
-            <code>systemctl&nbsp;reboot</code> zur&uuml;ckgeben, ohne den
-            Ausf&uuml;hrungspfad zu mocken &mdash; da ein aktiver Desktop-Nutzer
-            &uuml;ber polkit ohne Passwort neu starten darf, startete jeder
-            Testlauf den Host tats&auml;chlich neu. <strong>Beide wurden
-            behoben</strong> (strikte Sysctl-Allowlist&nbsp;+&nbsp;Wert-Validierung;
-            entsch&auml;rfte Tests&nbsp;+&nbsp;ein suiteweiter Guard gegen
-            destruktive Kommandos), mit neuen Regressionstests abgesichert und
-            verifiziert. Alle Runde-7/8/9-H&auml;rtungen sind intakt; die
-            Kindersicherung bleibt als bewusste Design-Entscheidung dokumentiert.
+            Das Review fand <strong>keine Schwachstelle oberhalb der
+            Melde-Schwelle von 8/10</strong>. Drei Kandidaten im neuen
+            UFW-sysctl-Feature wurden von unabh&auml;ngigen
+            Validierungs-Sub-Agenten gegengepr&uuml;ft: einer ist
+            <strong>widerlegt</strong> (2/10 &mdash; die tragende Pr&auml;misse
+            hielt der empirischen Pr&uuml;fung nicht stand), einer wurde von
+            MEDIUM auf <strong>LOW herabgestuft</strong> (6/10 &mdash;
+            Mechanismus real, behaupteter H&auml;rtungsverlust widerlegt), der
+            dritte ist eine reine Defense-in-Depth-Inkonsistenz. Alle drei
+            wurden trotzdem behoben. Zus&auml;tzlich brachte eine
+            Ist-Stand-Vertiefung der bislang nie im Scope gewesenen
+            Radio-Senken vier weitere H&auml;rtungen. Alle H&auml;rtungen der
+            Runden&nbsp;7 bis&nbsp;10 sind intakt; die Kindersicherung bleibt
+            als bewusste Design-Entscheidung dokumentiert.
           </p>
         </div>
       </div>
@@ -356,7 +348,7 @@
       <div class="audit-meta-grid">
         <div class="audit-meta-card">
           <div class="label">Datum</div>
-          <div class="value">19.&nbsp;Juli&nbsp;2026</div>
+          <div class="value">29.&nbsp;Juli&nbsp;2026</div>
         </div>
         <div class="audit-meta-card">
           <div class="label">Analysierte Version</div>
@@ -368,7 +360,7 @@
         </div>
         <div class="audit-meta-card">
           <div class="label">Hohe Findings</div>
-          <div class="value warn">2 (beide behoben)</div>
+          <div class="value ok">0</div>
         </div>
         <div class="audit-meta-card">
           <div class="label">Mittlere Findings</div>
@@ -376,11 +368,11 @@
         </div>
         <div class="audit-meta-card">
           <div class="label">H&auml;rtungen umgesetzt</div>
-          <div class="value ok">2 + 15 Regressionstests</div>
+          <div class="value ok">8 + 26 Regressionstests</div>
         </div>
         <div class="audit-meta-card">
           <div class="label">Testsuite</div>
-          <div class="value ok">2133 bestanden</div>
+          <div class="value ok">2562 bestanden, 2 &uuml;bersprungen</div>
         </div>
         <div class="audit-meta-card">
           <div class="label">Analysewerkzeug</div>
@@ -393,176 +385,217 @@
         <h2>Umfang &amp; Methodik</h2>
         <div class="section-rule"></div>
         <p style="color:var(--muted);font-size:0.95rem;max-width:760px;line-height:1.65;">
-          Gepr&uuml;ft wurde der komplette Code-Diff seit dem
-          Runde-9-Auditstand &mdash; rund <strong>15.300 neue Zeilen</strong>,
-          gr&ouml;&szlig;tenteils die neue Security-Baseline-/Lynis-Funktionalit&auml;t
-          (<code>security_audit_controller.py</code>, +6098&nbsp;Zeilen), die
-          locale-unabh&auml;ngige UFW-Auswertung
-          (<code>core/command.py</code>, <code>firewall_controller.py</code>),
-          das neue Daten-Backup und der &bdquo;Spielmodus&ldquo; in
-          <code>app.py</code>, sowie die neuen, rein lesenden System-Checks
-          (Home-Verzeichnisrechte, kritische Dateirechte, Secure&nbsp;Boot,
-          APT-Sicherheitsupdates). Zus&auml;tzlich im Fokus: die privilegierten
-          Senken (<code>sudo&nbsp;-n</code>, <code>pkexec</code>, der
-          root-<code>netmon_network_service</code>) und die
-          Test-/Entwicklungsinfrastruktur. Die Runde-9-H&auml;rtungen wurden auf
-          Regressionen gegengepr&uuml;ft.
+          Gepr&uuml;ft wurde der komplette Diff seit dem Runde-10-Endstand
+          (<code>445279ac</code>, 20.&nbsp;Juli&nbsp;2026) bis zum aktuellen
+          Arbeitsstand: <strong>215&nbsp;Commits, 468&nbsp;Dateien, rund
+          40.000&nbsp;Zeilen</strong> &mdash; davon jedoch nur etwa
+          <strong>3.750&nbsp;Zeilen Produktivcode</strong> in 22&nbsp;Modulen;
+          der Rest sind Tests und Refactoring-Dokumentation. Schwerpunkte: das
+          neue, noch uncommittete <strong>UFW-sysctl-Override-Feature</strong>
+          (<code>security_audit_controller.py</code>), das neue
+          <strong>Laufzeitmess-Modul</strong>
+          (<code>core/performance_monitor.py</code>) samt seiner Einbindung in
+          den zentralen Kommandopfad <code>core/command.py</code>, sowie die
+          umfangreichen Refactorings in Radio-App und -Tab. Erg&auml;nzend
+          wurde der Scope bewusst erweitert: die scharfen Radio-Senken
+          (<code>radio_controller.py</code>, <code>netmon_radio_core.py</code>)
+          sind seit Runden unver&auml;ndert und lagen daher nie in einem
+          Diff-Scope &mdash; sie wurden erstmals im <strong>Ist-Stand</strong>
+          gepr&uuml;ft. Die H&auml;rtungen der Runden&nbsp;9 und&nbsp;10 wurden
+          auf Regressionen gegengepr&uuml;ft.
         </p>
         <div class="methodology-grid">
           <div class="method-card">
             <h4>Phase&nbsp;1 &mdash; Diff-Recon</h4>
-            <p>Vollst&auml;ndige, datei-weise Sichtung des Branch-Diffs seit dem
-            Runde-9-Stand. Versionskonsistenz-Abgleich (App&nbsp;=&nbsp;deb&nbsp;=&nbsp;
-            Changelog&nbsp;=&nbsp;<code>1.1.20</code>). Suche nach neuen
-            Datenfl&uuml;ssen von Fremdeingaben zu privilegierten Senken.</p>
+            <p>Bestimmung des Rundenscopes gegen den Runde-10-Endstand,
+            Trennung von Produktivcode, Tests und Dokumentation. Gegenpr&uuml;fung
+            der Vorrunden-H&auml;rtungen (xdg-open-Allowlist, Killswitch-Recover,
+            Sysctl-Allowlist, Reboot-Guard) auf Regressionen &mdash; alle
+            intakt.</p>
           </div>
           <div class="method-card">
-            <h4>Phase&nbsp;2 &mdash; Kandidaten-Analyse</h4>
-            <p>Ein Analyse-Sub-Agent verfolgte importierte/geparste Daten
-            (Transferpakete, System-Kommando-Output) bis zu
-            <code>sudo</code>/<code>pkexec</code>-Aufrufen und
-            Datei-Schreibpfaden. Drei Kandidaten identifiziert &mdash; einer
-            belastbar, zwei als Defense-in-Depth.</p>
+            <h4>Phase&nbsp;2 &mdash; Analyse-Sub-Agenten</h4>
+            <p>Vier parallele Analyse-Sub-Agenten: Security-Controller,
+            Core&nbsp;&amp;&nbsp;Services, Radio-Diff und &mdash; nach einem
+            Abdeckungshinweis aus dem Radio-Diff &mdash; die Radio-Senken im
+            Ist-Stand. Der Radio-Diff wurde &uuml;ber einen normalisierten
+            Inhaltsdiff als reines Refactoring belegt statt zeilenweise
+            gesichtet.</p>
           </div>
           <div class="method-card">
             <h4>Phase&nbsp;3 &mdash; False-Positive-Validierung</h4>
-            <p>Der belastbare Kandidat wurde von einem eigenen
-            Validierungs-Sub-Agenten mit lauff&auml;higem Repro gegengepr&uuml;ft:
-            <strong>Konfidenz&nbsp;9/10, HIGH</strong>. Ein Detail-&Uuml;berclaim
-            (angreiferkontrollierter Schreibpfad) wurde dabei widerlegt &mdash;
-            f&uuml;r die Ausnutzbarkeit irrelevant.</p>
+            <p>Je ein unabh&auml;ngiger Validierungs-Sub-Agent mit dem
+            ausdr&uuml;cklichen Auftrag, den Kandidaten zu <em>widerlegen</em>.
+            Einer extrahierte dazu das Original-<code>ufw</code>-Paket, der
+            andere testete das <code>sysctl</code>-Fehlerverhalten empirisch an
+            tempor&auml;ren Kopien. Ergebnis: 2/10 (widerlegt) und 6/10
+            (herabgestuft).</p>
           </div>
           <div class="method-card">
             <h4>Phase&nbsp;4 &mdash; H&auml;rtung &amp; Regressionscheck</h4>
-            <p>Beide HIGH-Findings wurden umgesetzt und mit 15 neuen
-            Regressionstests abgesichert. Gesamtsuite erneut ausgef&uuml;hrt:
-            <strong>2133&nbsp;bestanden</strong> (nur drei bekannte,
-            umgebungsbedingte Fehler ohne Sicherheitsbezug).</p>
+            <p>Acht Defense-in-Depth-H&auml;rtungen umgesetzt und mit
+            26&nbsp;neuen Regressionstests abgesichert. Gesamtsuite danach:
+            <strong>2562&nbsp;bestanden, 2&nbsp;&uuml;bersprungen</strong>
+            &mdash; keine Regression.</p>
           </div>
         </div>
       </div>
 
-      <!-- ── Findings ── -->
+      <!-- ── Kandidaten ── -->
       <div class="audit-section" id="findings">
-        <h2>Best&auml;tigte Findings (Runde&nbsp;10)</h2>
+        <h2>Kandidaten &amp; Validierung (Runde&nbsp;11)</h2>
         <div class="section-rule"></div>
         <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:28px;">
-          Zwei Findings hohen Schweregrads wurden best&auml;tigt und
-          <strong>direkt behoben</strong>. Keine kritischen, keine
-          remote-ausl&ouml;sbaren Befunde &mdash; beide setzen entweder eine
-          bewusste Nutzeraktion (Import einer Fremddatei) oder die
-          Entwicklungs-/CI-Umgebung voraus.
+          <strong>Kein Kandidat erreichte die Melde-Schwelle von 8/10</strong>,
+          es gibt in dieser Runde also keine best&auml;tigten Findings. Der
+          Vollst&auml;ndigkeit halber ist unten dokumentiert, was gemeldet, wie
+          es gegengepr&uuml;ft und wie es eingestuft wurde &mdash;
+          einschlie&szlig;lich der Teilbehauptungen, die sich als falsch
+          erwiesen. Behoben wurden alle drei trotzdem.
         </p>
 
-        <!-- F1 -->
-        <div class="finding-card fixed">
+        <!-- K1 -->
+        <div class="finding-card">
           <div class="finding-header">
-            <h3>F1 &mdash; Sysctl-Direktiven-Injektion &uuml;ber importiertes Baseline-Transferpaket</h3>
-            <span class="badge badge-high">Hoch &middot; 9/10</span>
-            <span class="badge badge-ok">Behoben</span>
+            <h3>K1 &mdash; stderr-Kontamination beim Read-Modify-Write von <code>/etc/ufw/sysctl.conf</code></h3>
+            <span class="badge badge-low">Niedrig &middot; 6/10</span>
+            <span class="badge badge-ok">Geh&auml;rtet</span>
           </div>
           <div class="finding-detail">
             <p><strong>Datei:</strong>
               <code>netmon/features/security_audit_controller.py</code> &mdash;
-              <code>_sanitize_transfer_sysctl_entries()</code>,
-              <code>_build_sysctl_dropin_content()</code>,
-              <code>apply_security_baseline_sysctl()</code>,
-              <code>import_security_baseline_transfer()</code>.</p>
+              <code>_apply_ufw_sysctl_overrides()</code>,
+              <code>_read_existing_sysctl_dropin()</code>.</p>
             <p>
-              Das neue Baseline-Transferpaket (eine JSON-Datei, die zum Austausch
-              gehärteter Profile zwischen Rechnern gedacht ist und per Dateidialog
-              importiert wird) durchlief eine Sanitisierung, die nur auf
-              <em>nicht-leer</em> pr&uuml;fte &mdash; <strong>ohne Zeichen- oder
-              Whitelist-Validierung</strong> der Felder <code>id</code>/
-              <code>key</code>/<code>expected</code>. Die Werte wurden anschlie&szlig;end
-              als <code>&bdquo;key = value&ldquo;</code> in eine dedizierte Datei
-              unter <code>/etc/sysctl.d/</code> geschrieben und per
-              <code>sudo&nbsp;-n&nbsp;sysctl&nbsp;--system</code> als root geladen.
-              Anders als die parallele UFW-Validierung (die ung&uuml;ltige Regeln
-              per <code>ValueError</code> ablehnt) filterte der Sysctl-Pfad nichts.
+              Das neue Feature liest <code>/etc/ufw/sysctl.conf</code> per
+              <code>sudo&nbsp;-n&nbsp;cat</code> &uuml;ber
+              <code>run_cmd</code>, veraendert den Inhalt und schreibt ihn als
+              root zur&uuml;ck. <code>run_cmd</code> f&uuml;hrt jedoch
+              <code>stderr</code> mit <code>stdout</code> zusammen: eine
+              sudo-Warnung wie
+              <code>&bdquo;unable&nbsp;to&nbsp;resolve&nbsp;host&nbsp;&hellip;&ldquo;</code>
+              erscheint mit <strong>Exit-Code&nbsp;0</strong> im vermeintlichen
+              Dateiinhalt, passiert die Filter unver&auml;ndert und landet als
+              M&uuml;llzeile in einer Root-Konfigdatei.
             </p>
             <p>
-              <strong>Bedrohung:</strong> Eine pr&auml;parierte Datei mit
-              <code>id&nbsp;=&nbsp;sysctl.kernel.core_pattern</code> und
-              <code>expected&nbsp;=&nbsp;|/tmp/evil.sh</code> erzeugte die Zeile
-              <code>kernel.core_pattern&nbsp;=&nbsp;|/tmp/evil.sh</code> &mdash; der
-              Kernel f&uuml;hrt danach bei jedem Prozess-Crash das angegebene
-              Programm <strong>als root</strong> aus (klassische
-              Rechteausweitung). Zudem &uuml;berlebten eingebettete Zeilenumbr&uuml;che
-              das <code>.strip()</code>, sodass ein einziges Feld mehrere
-              Direktiven einschleusen und die Kernel-H&auml;rtung still
-              herabsetzen konnte (etwa <code>kernel.kptr_restrict&nbsp;=&nbsp;0</code>),
-              w&auml;hrend die UI &bdquo;H&auml;rtung angewendet&ldquo; meldete.
-              Kein Remote-/Zero-Click-Angriff (Import&nbsp;+&nbsp;Best&auml;tigung&nbsp;+&nbsp;
-              sudo-Session n&ouml;tig), aber ein realistischer
-              Social-Engineering-Pfad, da Transferpakete explizit zum Teilen
-              gedacht sind.
+              <strong>Was die Validierung widerlegt hat:</strong> Der Melder
+              behauptete, die H&auml;rtungswerte k&ouml;nnten dadurch beim Boot
+              ausfallen. Empirisch gepr&uuml;ft (procps-ng&nbsp;4.0.4, tempor&auml;re
+              Kopien): <code>sysctl</code> warnt bei einer Syntax-M&uuml;llzeile,
+              <strong>verarbeitet die Folgezeilen aber weiter</strong> und liefert
+              rc&nbsp;=&nbsp;0; <code>ufw-init</code> ignoriert Fehler ohnehin per
+              <code>||&nbsp;true</code>. <strong>Kein H&auml;rtungsverlust.</strong>
+              &Uuml;bersehen hatte der Melder au&szlig;erdem, dass ein
+              Zur&uuml;ckschreiben nur bei tats&auml;chlicher &Auml;nderung
+              stattfindet, und dass dasselbe Muster bereits committed existiert
+              &mdash; neu eingef&uuml;hrt wurde es also nicht. Der Inhalt der
+              sudo-Warnungen ist zudem <strong>nicht angreiferkontrolliert</strong>
+              (Hostname/PAM/Audit), es gibt keinen Injektionsvektor.
             </p>
           </div>
           <div class="finding-verdict pass">
-            <strong>H&auml;rtung umgesetzt &amp; verifiziert:</strong> Importierte
-            Sysctl-Eintr&auml;ge werden jetzt gegen eine <strong>Allowlist</strong>
-            der zehn dokumentierten Baseline-Schl&uuml;ssel
-            (<code>docs/security/KERNEL_SYSCTL.md</code>) plus ein strenges
-            Schl&uuml;ssel- und Wertformat gepr&uuml;ft (keine Zeilenumbr&uuml;che,
-            Pipes oder Shell-Metazeichen); ung&uuml;ltige Pakete werden per
-            <code>ValueError</code> abgelehnt. Die Drop-in-<code>id</code> wird nur
-            noch aus dem validierten Schl&uuml;ssel abgeleitet, nie aus dem freien
-            <code>id</code>-Feld. Eine zweite Verteidigungslinie in
-            <code>_build_sysctl_dropin_content()</code> verwirft unerlaubte
-            Eintr&auml;ge auch direkt an der Schreibsenke. Mit acht neuen
-            Regressionstests abgesichert.
+            <strong>Verdikt: TEILWEISE BEST&Auml;TIGT, LOW (6/10)</strong> &mdash;
+            unterhalb der Melde-Schwelle, daher kein Finding. Trotzdem geh&auml;rtet:
+            ein neues Plausibilit&auml;tsgate
+            (<code>_implausible_sysctl_config_line()</code>) bricht den Lauf mit
+            klarer Meldung ab, sobald der gelesene Inhalt eine Zeile
+            enth&auml;lt, die keine sysctl-Konfigzeile sein kann &mdash; an
+            <em>beiden</em> Lesestellen, also auch am bereits bestehenden
+            Drop-in-Pfad. Bewusst Abbruch statt stillem Verwerfen: eine
+            unerwartete Zeile in einer Root-Konfigdatei darf nicht kommentarlos
+            gel&ouml;scht werden.
           </div>
         </div>
 
-        <!-- F2 -->
-        <div class="finding-card fixed">
+        <!-- K2 -->
+        <div class="finding-card">
           <div class="finding-header">
-            <h3>F2 &mdash; Testsuite f&uuml;hrte echtes <code>systemctl&nbsp;reboot</code> aus (Host-Neustart)</h3>
-            <span class="badge badge-high">Hoch &middot; empirisch</span>
-            <span class="badge badge-ok">Behoben</span>
+            <h3>K2 &mdash; Neue Schreibsenke ohne die Allowlist ihrer Schwester-Senke</h3>
+            <span class="badge badge-low">Niedrig &middot; 3/10</span>
+            <span class="badge badge-ok">Geh&auml;rtet</span>
           </div>
           <div class="finding-detail">
-            <p><strong>Dateien:</strong>
-              <code>tests/test_netmon_diagnostics.py</code>
-              (<code>run_system_action_async</code>-Tests),
-              <code>netmon/app.py</code>
-              (<code>_system_action_commands</code>&nbsp;/&nbsp;Job-Thread).</p>
+            <p><strong>Datei:</strong>
+              <code>netmon/features/security_audit_controller.py</code> &mdash;
+              <code>_build_ufw_sysctl_override_content()</code>.</p>
             <p>
-              Zwei Tests f&uuml;r die neuen Systemaktionen (Reboot/Shutdown/Logout)
-              pr&uuml;ften die Best&auml;tigungsphrase, stubbten aber den
-              Kommando-Generator so, dass er das <em>echte</em>
-              <code>["systemctl",&nbsp;"reboot"]</code> zur&uuml;ckgab &mdash; ohne
-              <code>run_cmd</code> bzw. den ausf&uuml;hrenden Job-Thread zu mocken.
-              Da ein aktiver Desktop-Nutzer &uuml;ber polkit ohne Passwort neu
-              starten darf, f&uuml;hrte <em>jeder</em> Lauf der Testsuite auf einem
-              Desktop-System zu einem <strong>tats&auml;chlichen Neustart des
-              Rechners</strong>. Dieses Finding wurde nicht statisch, sondern
-              <strong>empirisch</strong> entdeckt: Der Audit-Host startete beim
-              Testlauf reproduzierbar neu, die Boot-Zeitstempel deckten sich exakt
-              mit den Testl&auml;ufen.
+              Die in Runde&nbsp;10 eingezogene Schl&uuml;ssel-Allowlist sitzt
+              bewusst <em>direkt an der Schreibsenke</em>
+              (<code>_render_sysctl_dropin_content()</code>) &mdash; als zweite
+              Verteidigungslinie f&uuml;r den Fall, dass ein Spec auf anderem Weg
+              als &uuml;ber die Transfer-Import-Validierung hereinkommt. Die neue
+              Senke schreibt nach <code>/etc/ufw/sysctl.conf</code>, eine Datei,
+              die laut eigenem Header <code>/etc/sysctl.conf</code> und
+              <code>/etc/sysctl.d</code> <strong>&uuml;berschreibt</strong> &mdash;
+              wirkt also eher st&auml;rker als die Drop-in-Datei, trug aber
+              <strong>keine</strong> dieser Pr&uuml;fungen.
             </p>
             <p>
-              <strong>Einordnung:</strong> Betrifft die Test-/Entwicklungs- und
-              CI-Infrastruktur, nicht den ausgelieferten Anwendungscode &mdash;
-              der Release-Pfad selbst ist durch Best&auml;tigungsdialog,
-              Sicherungsphrase (<code>AUSFUEHREN</code>) und
-              Strict-Protection abgesichert. Wirkung dennoch hoch: unerwarteter
-              Neustart mit Risiko f&uuml;r ungespeicherte Arbeit auf jedem
-              Rechner, der die Suite ausf&uuml;hrt (Entwickler-/CI-Maschinen).
+              <strong>Heute nicht ausnutzbar:</strong> Der einzige Aufrufer
+              &uuml;bergibt eine Modulkonstante; es existiert kein Datenfluss von
+              Transferpaket, Remote-JSON oder Dateinamen zu dieser Senke. Das
+              wurde explizit nachverfolgt. Gemeldet als
+              <strong>Defense-in-Depth-Regression</strong> gegen eine dokumentierte
+              Schutzentscheidung, nicht als Exploit.
             </p>
           </div>
           <div class="finding-verdict pass">
-            <strong>H&auml;rtung umgesetzt &amp; verifiziert:</strong> Beide Tests
-            brechen jetzt vor dem Job-Thread ab und verwenden nur inerte
-            Stub-Kommandos. Zus&auml;tzlich blockiert ein <strong>suiteweiter
-            Guard</strong> (<code>tests/conftest.py</code>) destruktive Kommandos
-            (<code>systemctl&nbsp;reboot/poweroff</code>, <code>shutdown</code>,
-            <code>loginctl&nbsp;terminate-*</code> &hellip;) hart auf
-            <code>subprocess</code>-Ebene &mdash; auch hinter
-            <code>sudo</code>/<code>pkexec</code>-Wrappern &mdash;, sodass kein
-            Test je wieder ein echtes destruktives Systemkommando durchreichen
-            kann. Mit sieben neuen Regressionstests abgesichert.
+            <strong>Geh&auml;rtet:</strong> Die neue Senke pr&uuml;ft jetzt
+            dieselbe <code>SECURITY_BASELINE_ALLOWED_SYSCTL_KEYS</code>-Allowlist
+            und dieselbe Wert-Validierung wie ihre Schwester-Senke. Ein Eintrag
+            wie <code>kernel.core_pattern&nbsp;=&nbsp;|/tmp/payload</code> oder ein
+            Wert mit eingebettetem Zeilenumbruch wird verworfen, statt als root
+            persistiert zu werden.
+          </div>
+        </div>
+
+        <!-- K3 -->
+        <div class="finding-card design">
+          <div class="finding-header">
+            <h3>K3 &mdash; &bdquo;Sysctl-Re-Apply dreht Kernelh&auml;rtung still zur&uuml;ck&ldquo;</h3>
+            <span class="badge badge-info">Widerlegt &middot; 2/10</span>
+          </div>
+          <div class="finding-detail">
+            <p>
+              Gemeldet wurde, das unbedingte Neuladen von
+              <code>/etc/ufw/sysctl.conf</code> am Ende des UFW-Schritts k&ouml;nne
+              NetMons eigene Kernelh&auml;rtung &uuml;berschreiben &mdash; konkret
+              <code>rp_filter</code>.
+            </p>
+            <p>
+              <strong>Widerlegt an drei Stellen.</strong> Erstens empirisch: der
+              Validierer extrahierte das Original-Paket
+              <code>ufw_0.36.2-6_all.deb</code> und wies nach, dass
+              <code>/etc/ufw/sysctl.conf</code> <strong>&uuml;berhaupt kein
+              <code>rp_filter</code></strong> enth&auml;lt &mdash; weder gesetzt
+              noch auskommentiert. Die tragende Pr&auml;misse war falsch.
+              Zweitens: die einzige reale &Uuml;berschneidung mit der
+              NetMon-Baseline ist <code>log_martians</code> &mdash; und
+              <strong>genau daf&uuml;r existiert der beanstandete Code</strong>.
+              Die Paketdatei liefert <code>log_martians=0</code> gegen NetMons
+              Soll&nbsp;<code>1</code>; das neue Override korrigiert das, bevor
+              neu geladen wird. Der Melder hatte die Gegenma&szlig;nahme als Bug
+              gemeldet. Drittens: eine nachgelagerte Wert-Verifikation existiert
+              sehr wohl &mdash; nach allen Schritten l&auml;uft ein erneuter
+              Baseline-Check, der die <em>Live-Kernelwerte</em> liest. Eine stille
+              R&uuml;ckdrehung ist strukturell ausgeschlossen.
+            </p>
+            <p>
+              Hinzu kommt ein Denkfehler in der Richtung der Abweichung:
+              <code>rp_filter=1</code> (strict) ist <em>strenger</em> als NetMons
+              bewusstes <code>2</code> (loose). Selbst im hypothetischen Fall
+              w&uuml;rde also die Sicherheit steigen und allein NetMons
+              Funktionsabsicht (VPN&nbsp;/&nbsp;Multi-Interface) leiden &mdash;
+              und das w&auml;re in der UI als &bdquo;Bewusste Abweichung&ldquo;
+              sichtbar, nicht still.
+            </p>
+          </div>
+          <div class="finding-verdict design">
+            <strong>Verdikt: WIDERLEGT (2/10)</strong> &mdash; kein
+            Sicherheits-Finding, keine Code&auml;nderung n&ouml;tig. Das
+            Entfernen der beanstandeten Zeile w&uuml;rde im Gegenteil die
+            <code>log_martians</code>-Gegenma&szlig;nahme wirkungslos machen.
           </div>
         </div>
       </div>
@@ -573,16 +606,22 @@
         <div class="section-rule"></div>
 
         <div class="fixed-card">
-          <div class="fixed-icon">&#128737;</div>
+          <div class="fixed-icon">&#128269;</div>
           <div class="fixed-body">
-            <h4>Latente Shell-Injektion &uuml;ber das <code>command</code>-Feld &mdash; mitbehoben</h4>
+            <h4>Scope-L&uuml;cke geschlossen &mdash; die Radio-Senken lagen nie in einem Diff</h4>
             <p>
-              Der importierte Sysctl-Schl&uuml;ssel floss auch in ein
-              <code>&bdquo;sysctl&nbsp;-n&nbsp;{key}&ldquo;</code>-Kommando-Template.
-              Aktuell nicht erreichbar (die Auswertung nutzt die statische
-              Baseline-Liste), aber ein sp&auml;teres Refactoring h&auml;tte daraus
-              eine Kommando-Injektion machen k&ouml;nnen. Durch die neue strenge
-              Schl&uuml;ssel-Validierung aus F1 <strong>automatisch mitentsch&auml;rft</strong>.
+              Der Radio-Diff-Agent stellte fest, dass die eigentlich
+              sicherheitsrelevanten Radio-Pfade &mdash; mpv-/ffmpeg-Start,
+              ICY-Metadaten, Aufnahme-Dateinamen, Playlist-Parsing &mdash; gar
+              nicht in den ge&auml;nderten Dateien liegen, sondern in
+              <code>radio_controller.py</code> und
+              <code>netmon_radio_core.py</code>. Beide sind seit Runden
+              unver&auml;ndert und fielen damit systematisch durch jeden
+              Diff-basierten Scope. Sie wurden in dieser Runde erstmals im
+              Ist-Stand gepr&uuml;ft &mdash; mit vier H&auml;rtungen als Ergebnis.
+              <strong>Konsequenz f&uuml;r kommende Runden:</strong> lange
+              unver&auml;nderte Senken periodisch im Ist-Stand pr&uuml;fen, nicht
+              nur den Diff.
             </p>
           </div>
         </div>
@@ -590,15 +629,61 @@
         <div class="fixed-card">
           <div class="fixed-icon">&#9989;</div>
           <div class="fixed-body">
-            <h4>Game-Mode-UFW-Ausnahmen &mdash; kein ausnutzbarer Befund</h4>
+            <h4>Aufnahme-Dateinamen aus ICY-Metadaten &mdash; sauber</h4>
             <p>
-              Der Port des &bdquo;Spielmodus&ldquo; wird zwar nicht per Regex
-              vorgepr&uuml;ft, geht aber als <strong>einzelnes argv-Token</strong>
-              an <code>sudo&nbsp;-n&nbsp;ufw&nbsp;allow&nbsp;&hellip;</code> (kein
-              Shell-Parsing; ufw lehnt Ung&uuml;ltiges ab); der
-              benutzerdefinierte Pfad validiert bereits streng
-              (<code>isdigit()</code>, 1&ndash;65535, Protokoll-Whitelist). Nur zur
-              Vollst&auml;ndigkeit notiert.
+              Der naheliegendste Verdacht im Radio-Modul best&auml;tigte sich
+              <em>nicht</em>: Stationsname und ICY-Titel laufen beide durch eine
+              Slug-Funktion, die alles au&szlig;er Kleinbuchstaben und Ziffern
+              ersetzt. Pfad-Traversal, Newlines, Null-Bytes, Shell-Metazeichen
+              und f&uuml;hrende Bindestriche sind damit konstruktiv
+              ausgeschlossen. Ebenso sauber: die Stream-URL-Schema-Allowlist wird
+              auf <em>allen</em> Lade- und Speicherpfaden erzwungen, der
+              EQ-Filter ist auf ganzzahlige Werte geklemmt, und der
+              projectM-ZIP-Import ist gegen Zip-Slip abgesichert.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128260;</div>
+          <div class="fixed-body">
+            <h4>3.000 Zeilen Radio-Refactoring &mdash; ohne Verhaltens&auml;nderung belegt</h4>
+            <p>
+              Statt den gro&szlig;en Refactoring-Diff zeilenweise zu sichten,
+              wurde ein <strong>normalisierter Inhaltsdiff</strong> gefahren:
+              beide Fassungen whitespace-normalisiert, sortiert und verglichen.
+              Ergebnis: die entfernten Zeilen sind ausnahmslos
+              State-Initialisierungen und Geometrie-Ausdr&uuml;cke, die 1:1 in
+              neue Hilfsfunktionen gewandert sind. Die Whitelist beim Laden der
+              Sprachdatei &mdash; ohne die ein Pfad-Traversal &uuml;ber die
+              Konfigdatei m&ouml;glich w&auml;re &mdash; hat das Refactoring
+              nachweislich &uuml;berlebt.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128203;</div>
+          <div class="fixed-body">
+            <h4>UFW-Konflikthinweis im <code>rp_filter</code>-Zweig &mdash; gepr&uuml;ft, vorhanden</h4>
+            <p>
+              Bei der Widerlegung von K3 wurde zus&auml;tzlich behauptet, den
+              erkl&auml;renden Hinweis &bdquo;<code>/etc/ufw/sysctl.conf</code>
+              setzt denselben Wert anders&ldquo; erzeuge nur der
+              <code>sysctl</code>-Zweig der Baseline-Auswertung, nicht der
+              <code>rp_filter</code>-Zweig &mdash; eine Diagnose-L&uuml;cke also.
+              <strong>Auch das hat der Nachtest widerlegt.</strong> Der
+              <code>rp_filter</code>-Zweig ruft nicht den Low-Level-Helfer
+              <code>_sysctl_ufw_override_value()</code> auf, nach dem gesucht
+              wurde, sondern den Wrapper
+              <code>_sysctl_ufw_override_hint()</code>, und h&auml;ngt dessen
+              Ergebnis an die Begr&uuml;ndung an. Beide
+              <code>rp_filter</code>-Specs tragen das dazu n&ouml;tige
+              <code>config_source</code>. End-to-End nachgestellt (Drop-in
+              setzt&nbsp;2, ufw-Datei setzt&nbsp;1, Kernel meldet&nbsp;1) liefert
+              die Auswertung Status &bdquo;Bewusste Abweichung&ldquo;
+              <em>samt</em> ufw-Hinweis. <strong>Keine L&uuml;cke, kein
+              Handlungsbedarf.</strong>
             </p>
           </div>
         </div>
@@ -611,7 +696,7 @@
               Die PBKDF2-gest&uuml;tzte Kindersicherung im Secure-Browser bleibt
               wie in Runde&nbsp;8 dokumentiert: Alltagsh&uuml;rde gegen
               Gelegenheitszugriff im selben Konto, keine harte Grenze gegen
-              technisch versierte Nutzer mit Kontozugriff. Keine
+              technisch versierte Nutzer mit Kontozugriff (No-Root-Design). Keine
               Code&auml;nderung, unver&auml;ndert g&uuml;ltig.
             </p>
           </div>
@@ -620,15 +705,15 @@
         <div class="fixed-card">
           <div class="fixed-icon">&#128203;</div>
           <div class="fixed-body">
-            <h4>postinst-DNS &amp; Nur-Hash-Schnellpr&uuml;fung &mdash; Policy-Hinweise offen</h4>
+            <h4>postinst-DNS &amp; Nur-Hash-Schnellpr&uuml;fung &mdash; Policy-Hinweise weiter offen</h4>
             <p>
-              Die beiden Policy-Hinweise aus Runde&nbsp;9 bleiben bestehen: das
-              root-<code>postinst</code> biegt aktive NM-DNS bei der Installation
-              auf <code>8.8.8.8</code> (Opt-in empfohlen), und die
+              Die beiden Policy-Hinweise aus Runde&nbsp;9 bleiben unver&auml;ndert
+              bestehen: das root-<code>postinst</code> biegt aktive NM-DNS bei der
+              Installation auf <code>8.8.8.8</code> (Opt-in empfohlen), und die
               &bdquo;Schnellpr&uuml;fung&ldquo; auf der Downloadseite empfiehlt nur
-              <code>sha256sum&nbsp;-c</code> statt der
-              minisign-Vollpr&uuml;fung. Kein ausnutzbarer Befund &mdash; als
-              Design-Entscheidungen des Projektverantwortlichen offen.
+              <code>sha256sum&nbsp;-c</code> statt der minisign-Vollpr&uuml;fung.
+              Kein ausnutzbarer Befund &mdash; als Design-Entscheidungen des
+              Projektverantwortlichen offen.
             </p>
           </div>
         </div>
@@ -636,49 +721,147 @@
 
       <!-- ── Umgesetzte Härtungen ── -->
       <div class="audit-section" id="hardening">
-        <h2>Umgesetzte H&auml;rtungsma&szlig;nahmen (Runde&nbsp;10)</h2>
+        <h2>Umgesetzte H&auml;rtungsma&szlig;nahmen (Runde&nbsp;11)</h2>
         <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:24px;">
+          Acht H&auml;rtungen, keine davon durch ein best&auml;tigtes Finding
+          erzwungen &mdash; alle als Defense in Depth umgesetzt, jede mit
+          Regressionstests abgesichert.
+        </p>
+
         <div class="fixed-card">
           <div class="fixed-icon">&#128274;</div>
           <div class="fixed-body">
-            <h4>Sysctl-Allowlist&nbsp;+&nbsp;Wert-Validierung f&uuml;r importierte Transferpakete &mdash; <code>security_audit_controller.py</code></h4>
+            <h4>Allowlist an der UFW-sysctl-Schreibsenke &mdash; <code>security_audit_controller.py</code></h4>
             <p>
-              Neue Konstante <code>SECURITY_BASELINE_ALLOWED_SYSCTL_KEYS</code>
-              (zehn dokumentierte Schl&uuml;ssel) plus Format-Regex f&uuml;r
-              Schl&uuml;ssel und Werte. <code>_sanitize_transfer_sysctl_entries()</code>
-              lehnt jetzt unerlaubte Schl&uuml;ssel und ung&uuml;ltige Werte per
-              <code>ValueError</code> ab und leitet die <code>id</code> nur aus dem
-              validierten Schl&uuml;ssel ab;
-              <code>_build_sysctl_dropin_content()</code> filtert als zweite
-              Verteidigungslinie an der Schreibsenke.
+              <code>_build_ufw_sysctl_override_content()</code> pr&uuml;ft
+              Schl&uuml;ssel und Werte jetzt gegen dieselbe Allowlist und
+              dieselben Format-Regeln wie die Drop-in-Senke. Unerlaubte
+              Schl&uuml;ssel und Werte mit Zeilenumbr&uuml;chen oder
+              Shell-Metazeichen werden verworfen.
             </p>
           </div>
         </div>
+
         <div class="fixed-card">
-          <div class="fixed-icon">&#128225;</div>
+          <div class="fixed-icon">&#128737;</div>
           <div class="fixed-body">
-            <h4>Suiteweiter Guard gegen destruktive Systemkommandos &mdash; <code>tests/conftest.py</code></h4>
+            <h4>Plausibilit&auml;tsgate gegen stderr-Kontamination &mdash; <code>security_audit_controller.py</code></h4>
             <p>
-              Ein <code>subprocess.Popen</code>-Wrapper blockiert
-              <code>systemctl&nbsp;reboot/poweroff/halt</code>,
-              <code>shutdown</code>, <code>reboot</code>,
-              <code>loginctl&nbsp;terminate-*</code> u.&nbsp;a. &mdash; auch hinter
-              <code>sudo</code>/<code>pkexec</code>/<code>env</code>-Wrappern und
-              in Shell-String-Form. Kein Test kann je wieder ein echtes
-              destruktives Kommando bis zum System durchreichen.
+              <code>_implausible_sysctl_config_line()</code> bricht jeden
+              Read-Modify-Write ab, dessen gelesener Inhalt eine Zeile
+              enth&auml;lt, die weder leer, noch Kommentar, noch
+              <code>key&nbsp;=&nbsp;value</code> ist &mdash; an beiden
+              Lesestellen. Verhindert, dass eine sudo-Warnung mit
+              Exit-Code&nbsp;0 als root in eine Root-Konfigdatei
+              zur&uuml;ckgeschrieben wird.
             </p>
           </div>
         </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#127925;</div>
+          <div class="fixed-body">
+            <h4><code>--</code>-Optionsterminator vor dem mpv-Medienargument &mdash; <code>radio_controller.py</code></h4>
+            <p>
+              mpv wertet Optionen an <em>jeder</em> Position aus. Ein
+              Playlist-Eintrag namens
+              <code>--script=payload.lua</code> w&auml;re als Option geladen
+              worden statt als Dateiname. Das Medienargument steht jetzt hinter
+              einem <code>--</code>; der EQ-Filter wird korrekt davor
+              einsortiert.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128279;</div>
+          <div class="fixed-body">
+            <h4>Handover-Payload durchl&auml;uft die URL-Allowlist &mdash; <code>radio_controller.py</code></h4>
+            <p>
+              Die einzige Stelle im Modul, an der ein Stations-Datensatz ohne
+              <code>normalize_station_entry()</code> in den App-Zustand gelangte
+              &mdash; und damit die Stream-URL-Schema-Allowlist umging, die
+              &uuml;berall sonst erzwungen wird. Ein <code>file://</code>-Eintrag
+              im &Uuml;bergabe-Payload wird jetzt verworfen.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128274;</div>
+          <div class="fixed-body">
+            <h4>mpv-IPC-Socket in ein privates Verzeichnis &mdash; <code>radio_controller.py</code></h4>
+            <p>
+              Wer auf diesen Socket schreiben darf, darf mpv steuern &mdash; und
+              mpv kennt ein <code>run</code>-Kommando. Der Socket lag bisher
+              direkt im State-Verzeichnis (typisch 0755). Er liegt jetzt in
+              <code>XDG_RUNTIME_DIR</code>, ersatzweise in einem eigens
+              angelegten <strong>0700</strong>-Unterverzeichnis.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#127909;</div>
+          <div class="fixed-body">
+            <h4>ffmpeg-Protokoll-Allowlist ohne <code>file</code> &mdash; <code>radio_controller.py</code></h4>
+            <p>
+              Die Aufnahme erh&auml;lt jetzt ein explizites
+              <code>-protocol_whitelist&nbsp;http,https,tcp,tls,crypto</code>.
+              Ohne diese Grenze w&auml;hlt ffmpeg den Demuxer nach Inhalt &mdash;
+              eine als Stream ausgelieferte HLS-/concat-Playlist konnte damit
+              lokale Dateien in die Aufnahme ziehen.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128065;</div>
+          <div class="fixed-body">
+            <h4>Wert-seitige Redaction im Messlog &mdash; <code>core/performance_monitor.py</code></h4>
+            <p>
+              Die Redaction pr&uuml;fte bisher nur den Metadaten-<em>Schl&uuml;ssel</em>;
+              ein Secret unter einem harmlosen Schl&uuml;ssel w&auml;re im Klartext
+              im Log gelandet. Werte laufen jetzt zus&auml;tzlich durch dieselbe
+              Redaction wie die Diagnosedaten &mdash; rekursiv auch in Listen und
+              verschachtelten Dicts, ebenso der Fehlertext. Kein damaliger
+              Aufrufer war betroffen; die H&auml;rtung schlie&szlig;t die Falle
+              f&uuml;r k&uuml;nftige.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128193;</div>
+          <div class="fixed-body">
+            <h4>Symlink-sicherer, nutzerprivater Messlog &mdash; <code>core/performance_monitor.py</code></h4>
+            <p>
+              Der Log wird jetzt mit
+              <code>O_NOFOLLOW&nbsp;|&nbsp;O_APPEND</code> und Modus
+              <strong>0600</strong> ge&ouml;ffnet, die Rotation r&uuml;hrt
+              symlink-verlinkte Pfade nicht an. Ein untergeschobener Symlink kann
+              die Messwerte damit weder umlenken noch eine fremde Datei
+              &uuml;berschreiben.
+            </p>
+          </div>
+        </div>
+
         <div class="fixed-card">
           <div class="fixed-icon">&#129514;</div>
           <div class="fixed-body">
-            <h4>15 neue Regressionstests</h4>
+            <h4>26 neue Regressionstests</h4>
             <p>
-              Acht Tests in <code>test_netmon_lynis_output.py</code> f&uuml;r die
-              Sysctl-Allowlist (Ablehnung von <code>core_pattern</code>, Pipe-/
-              Newline-Werten, <code>id</code>-Ableitung, End-to-End-Import-Refusal)
-              und sieben in <code>test_destructive_command_guard.py</code> f&uuml;r
-              den Kommando-Guard. Gesamtsuite: 2133 bestanden.
+              Elf in <code>test_netmon_lynis_output.py</code> (Allowlist an der
+              UFW-Senke, Erkennung von stderr-Zeilen, Abbruch statt
+              Zur&uuml;ckschreiben, ufw-Konflikthinweis im
+              <code>rp_filter</code>-Zweig), neun in
+              <code>test_netmon_radio_module.py</code> (Optionsterminator,
+              EQ-Reihenfolge, Protokoll-Allowlist, Socket-Rechte,
+              inklusive Fehlerfallback, Handover-Normalisierung) und sechs in
+              <code>test_performance_monitor.py</code> (Wert-Redaction
+              verschachtelt, Symlink-Verweigerung, Dateirechte). Gesamtsuite
+              danach <strong>2562 bestanden, 2 &uuml;bersprungen</strong>.
             </p>
           </div>
         </div>
@@ -698,49 +881,54 @@
           </thead>
           <tbody>
             <tr>
-              <td>Direktiven-Injektion in privilegierte Konfig (<code>/etc/sysctl.d/</code>)</td>
+              <td>Schreiben in root-eigene Konfig (<code>/etc/ufw/sysctl.conf</code>)</td>
               <td>Ja</td>
-              <td><span class="badge badge-ok">F1 &rarr; behoben (Allowlist+Wert-Check)</span></td>
+              <td><span class="badge badge-ok">Kein Finding &mdash; Allowlist&nbsp;+&nbsp;Plausibilit&auml;tsgate erg&auml;nzt</span></td>
             </tr>
             <tr>
-              <td>Destruktive Kommandos in Test-/CI-Infrastruktur</td>
+              <td>Argument-/Options-Injektion in externe Player (mpv, ffmpeg)</td>
               <td>Ja</td>
-              <td><span class="badge badge-ok">F2 &rarr; behoben (Guard+entsch&auml;rfte Tests)</span></td>
+              <td><span class="badge badge-ok">Kein Finding &mdash; <code>--</code>&nbsp;+&nbsp;Protokoll-Allowlist erg&auml;nzt</span></td>
             </tr>
             <tr>
-              <td>Command-/Argument-Injection (ufw/nmcli/wg-quick, subprocess)</td>
+              <td>Fremddaten in Dateinamen (ICY-Metadaten, Stationsnamen)</td>
               <td>Ja</td>
-              <td><span class="badge badge-ok">Durchg&auml;ngig list-form; command-Feld mitbehoben</span></td>
+              <td><span class="badge badge-ok">Kein Finding (Slug-Normalisierung)</span></td>
             </tr>
             <tr>
-              <td>Locale-unabh&auml;ngige UFW-/Lynis-Auswertung (Output-Parsing)</td>
+              <td>URL-Schema-Allowlists (Streams, Logos, Homepages)</td>
               <td>Ja</td>
-              <td><span class="badge badge-ok">Kein Finding (reine Anzeige-Logik)</span></td>
+              <td><span class="badge badge-ok">Durchg&auml;ngig erzwungen; Handover-L&uuml;cke geschlossen</span></td>
             </tr>
             <tr>
-              <td>Native Rechte-Checks (Home/kritische Dateien, Symlink/TOCTOU)</td>
+              <td>Zentraler Kommandopfad (<code>core/command.py</code>)</td>
               <td>Ja</td>
-              <td><span class="badge badge-ok">Kein Finding (<code>lstat</code>, kein Follow, read-only)</span></td>
+              <td><span class="badge badge-ok">Kein Finding (nur Mess-Wrapper, argv unver&auml;ndert)</span></td>
             </tr>
             <tr>
-              <td>Root-Service (<code>netmon_network_service</code>, <code>pkexec</code>)</td>
+              <td>Secret-Leaks in Logs, Support-Bundle und Diagnose</td>
               <td>Ja</td>
-              <td><span class="badge badge-ok">Kein neuer Endpunkt, argv-validiert</span></td>
+              <td><span class="badge badge-ok">Kein Finding &mdash; Wert-Redaction erg&auml;nzt</span></td>
             </tr>
             <tr>
-              <td>Daten-Backup (Symlink-Escape, Rekursion, Pfadgrenzen)</td>
+              <td>Dateirechte, Symlink&nbsp;/&nbsp;TOCTOU an neuen Schreibpfaden</td>
               <td>Ja</td>
-              <td><span class="badge badge-ok">Kein Finding (kein Follow, <code>$HOME</code>-Grenze)</span></td>
+              <td><span class="badge badge-ok">Kein Finding &mdash; <code>O_NOFOLLOW</code>&nbsp;+&nbsp;0600&nbsp;+&nbsp;0700-Socketdir erg&auml;nzt</span></td>
             </tr>
             <tr>
-              <td>Repository-Guard (Keyring-/URI-Parsing, Quick-Actions)</td>
+              <td>Repository-Guard, DNS-Service, Prozess-Guard (Refactorings)</td>
               <td>Ja</td>
-              <td><span class="badge badge-ok">Kein Finding (<code>shlex.quote</code>, read-only)</span></td>
+              <td><span class="badge badge-ok">Kein Finding (Detektionszweige vollst&auml;ndig erhalten)</span></td>
             </tr>
             <tr>
-              <td>Unsichere Deserialisierung (pickle, yaml.load, eval, <code>shell=True</code>)</td>
+              <td>Unsichere Deserialisierung (pickle, eval, <code>shell=True</code>)</td>
               <td>Ja</td>
               <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>TLS-Verifikation und Redirect-Handling</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (keine Abschaltung, kein http&rarr;file)</span></td>
             </tr>
             <tr>
               <td>Autorisierung / Kindersicherung</td>
@@ -748,14 +936,9 @@
               <td><span class="badge badge-info">Bewusste Design-Entscheidung</span></td>
             </tr>
             <tr>
-              <td>Regression der Runde-7/8/9-H&auml;rtungen</td>
+              <td>Regression der Runde-9/10-H&auml;rtungen</td>
               <td>Ja</td>
               <td><span class="badge badge-ok">Alle intakt</span></td>
-            </tr>
-            <tr>
-              <td>Versionskonsistenz (App / deb / Changelog)</td>
-              <td>Ja</td>
-              <td><span class="badge badge-ok">Durchg&auml;ngig 1.1.20</span></td>
             </tr>
           </tbody>
         </table>
@@ -765,21 +948,24 @@
       <div class="signature-block">
         <p>
           <strong>Auditor:</strong> Claude Fable&nbsp;5 (Anthropic) &mdash;
-          Analyse-Sub-Agent + dedizierter False-Positive-Validierungs-Sub-Agent (mit Repro)<br>
+          vier Analyse-Sub-Agenten + zwei unabh&auml;ngige
+          False-Positive-Validierungs-Sub-Agenten<br>
           <strong>Projektverantwortlicher:</strong> Sven Fr&ouml;hlich<br>
-          <strong>Datum:</strong> 19.&nbsp;Juli&nbsp;2026<br>
+          <strong>Datum:</strong> 29.&nbsp;Juli&nbsp;2026<br>
           <strong>Analysierter Codestand:</strong>
-          Arbeitsstand v1.1.20 (Diff seit dem Runde-9-Stand
-          <code>ac412cbc</code>), einschlie&szlig;lich der neuen
-          Security-Baseline-/Sysctl-Apply-Stufe und des
-          Baseline-Transferpakets &mdash; Runde&nbsp;10<br>
+          Arbeitsstand v1.1.20 (Diff seit dem Runde-10-Endstand
+          <code>445279ac</code>, einschlie&szlig;lich uncommitteter
+          &Auml;nderungen), erg&auml;nzt um eine Ist-Stand-Pr&uuml;fung der
+          Radio-Senken &mdash; Runde&nbsp;11<br>
           <strong>Methode:</strong> Statische Code-Analyse + manuelle
-          Datenfluss-Verifikation des kompletten Branch-Diffs +
-          Konfidenz-gescorte FP-Validierung mit lauff&auml;higem Repro +
-          Umsetzung von zwei H&auml;rtungen mit 15 Regressionstests +
-          Regressions-Gegenpr&uuml;fung der Vorrunden-H&auml;rtungen (Gesamtsuite
-          2133 bestanden, drei bekannte umgebungsbedingte Fehler ohne
-          Sicherheitsbezug) &mdash; kein Laufzeit-Penetrationstest<br>
+          Datenfluss-Verifikation + normalisierter Inhaltsdiff f&uuml;r die
+          Refactoring-Masse + konfidenz-gescorte FP-Validierung mit
+          empirischer Gegenpr&uuml;fung (Paketextraktion,
+          <code>sysctl</code>-Verhaltenstests) + Umsetzung von acht
+          H&auml;rtungen mit 26 Regressionstests + Regressions-Gegenpr&uuml;fung
+          der Vorrunden-H&auml;rtungen (Gesamtsuite 2562 bestanden,
+          2 &uuml;bersprungen)
+          &mdash; kein Laufzeit-Penetrationstest<br>
           <strong>Haftungsausschluss:</strong> Dieses Audit ersetzt keinen professionellen
           Penetrationstest durch eine zertifizierte Sicherheitsfirma. Die Analyse
           beschr&auml;nkt sich auf den angegebenen Codestand. Nicht erfasst werden:
@@ -793,7 +979,7 @@
           &nbsp;&nbsp;&bull;&nbsp;&nbsp;
           <a href="./docs.html" style="color:var(--accent);">Dokumentation</a>
           &nbsp;&nbsp;&bull;&nbsp;&nbsp;
-          <a href="./security-audit-r9.html" style="color:var(--accent);">Runde&nbsp;9</a>
+          <a href="./security-audit-r10.html" style="color:var(--accent);">Runde&nbsp;10</a>
         </p>
       </div>
     </main>
