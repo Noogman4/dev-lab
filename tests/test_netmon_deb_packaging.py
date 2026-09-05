@@ -74,3 +74,40 @@ def test_deb_builders_do_not_duplicate_code_the_classics_archive():
 
         assert 'rm -f "$APP_PY_ROOT/features/Code-the-Classics.zip"' in source
         assert '"$FUN_ASSETS_ROOT/Code-the-Classics.zip"' in source
+
+
+def test_site_bundle_publishes_current_r11_audit_and_keeps_r10_archive():
+    source = (PROJECT_ROOT / "scripts" / "build_netmon_site_bundle.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'CURRENT_AUDIT_VERSIONED_HTML="security-audit-r11.html"' in source
+    assert 'require_file "$ROOT_DIR/site/security-audit-r10.html"' in source
+    assert 'require_file "$ROOT_DIR/site/netmon_security_audit_2026_r11.pdf"' in source
+    assert (
+        'cp "$ROOT_DIR/site/netmon_security_audit_2026_r11.pdf" '
+        '"$PUBLIC_DIR/netmon_security_audit_2026.pdf"'
+    ) in source
+    assert (
+        'cp "$ROOT_DIR/site/netmon_security_audit_2026_r10.pdf" '
+        '"$PUBLIC_DIR/netmon_security_audit_2026_r10.pdf"'
+    ) in source
+
+
+def test_release_update_bundle_includes_r11_audit_assets():
+    source = (
+        PROJECT_ROOT / "scripts" / "build_netmon_release_update_bundle.sh"
+    ).read_text(encoding="utf-8")
+
+    assert 'require_file "$ROOT_DIR/site/security-audit.html"' in source
+    assert 'require_file "$ROOT_DIR/site/security-audit-r10.html"' in source
+    assert 'require_file "$ROOT_DIR/site/netmon_security_audit_2026_r11.pdf"' in source
+    assert (
+        'cp "$ROOT_DIR/site/security-audit.html" '
+        '"$PUBLIC_DIR/security-audit-r11.html"'
+    ) in source
+    assert (
+        'cp "$ROOT_DIR/site/netmon_security_audit_2026_r11.pdf" '
+        '"$PUBLIC_DIR/netmon_security_audit_2026.pdf"'
+    ) in source
+    assert 'echo "  public_html/security-audit-r11.html"' in source
