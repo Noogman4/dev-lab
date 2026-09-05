@@ -621,6 +621,7 @@ try:
     from netmon.ui.tabs.tools_tabs import build_basic_tools_tabs
     from netmon.ui.tabs.trace_tab import build_trace_tab
     from netmon.ui.tabs.vpn_slots_tab import build_vpn_slots_tab
+    from netmon.ui.tour_specs import build_guided_tour_primary_definitions
     from netmon.ui.widgets.lights import make_light as build_light_widget
     from netmon.ui.widgets.lights import set_light as update_light_widget
     from netmon.ui.widgets.tooltip import SimpleTooltip
@@ -651,6 +652,7 @@ except ModuleNotFoundError:
     from ui.tabs.tools_tabs import build_basic_tools_tabs
     from ui.tabs.trace_tab import build_trace_tab
     from ui.tabs.vpn_slots_tab import build_vpn_slots_tab
+    from ui.tour_specs import build_guided_tour_primary_definitions
     from ui.widgets.lights import make_light as build_light_widget
     from ui.widgets.lights import set_light as update_light_widget
     from ui.widgets.tooltip import SimpleTooltip
@@ -7044,33 +7046,7 @@ class App(TkBase):
         return definitions
 
     def _guided_tour_primary_definitions(self):
-        return {
-            "quickstart": {
-                "id": "quickstart",
-                "title": self.tr("tour_def_quickstart_title", "NetMon Schnellstart"),
-                "steps": self._build_quickstart_tour_steps(),
-            },
-            "dns": {
-                "id": "dns",
-                "title": self.tr("tour_def_dns_title", "NetMon DNS Tour"),
-                "steps": self._build_dns_tour_steps(),
-            },
-            "security": {
-                "id": "security",
-                "title": self.tr("tour_def_security_title", "NetMon Security Tour"),
-                "steps": self._build_security_tour_steps(),
-            },
-            "download-scan": {
-                "id": "download-scan",
-                "title": self.tr("tour_def_download_scan_title", "NetMon D-Scan Tour"),
-                "steps": self._build_download_scan_tour_steps(),
-            },
-            "radio": {
-                "id": "radio",
-                "title": self.tr("tour_def_radio_title", "NetMon Radio Tour"),
-                "steps": self._build_radio_tour_steps(),
-            },
-        }
+        return build_guided_tour_primary_definitions(self)
 
     def _guided_tour_full_sequence(self):
         sequence = []
