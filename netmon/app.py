@@ -639,6 +639,7 @@ try:
         build_guided_tab_tour_steps,
         build_guided_tour_full_sequence,
         build_guided_tour_primary_definitions,
+        build_guided_tour_tab_prepare_callable,
         build_guided_tour_tab_definitions,
     )
     from netmon.ui.widgets.lights import make_light as build_light_widget
@@ -689,6 +690,7 @@ except ModuleNotFoundError:
         build_guided_tab_tour_steps,
         build_guided_tour_full_sequence,
         build_guided_tour_primary_definitions,
+        build_guided_tour_tab_prepare_callable,
         build_guided_tour_tab_definitions,
     )
     from ui.widgets.lights import make_light as build_light_widget
@@ -9090,22 +9092,7 @@ class App(TkBase):
         return build_guided_tab_tour_steps(self, spec)
 
     def _guided_tour_tab_prepare_callable(self, selector, tab_attr):
-        def _prepare():
-            tab = self.__dict__.get(tab_attr)
-            if tab is None:
-                return
-            if selector == "system":
-                self._select_system_tab(tab)
-                return
-            if selector == "tools":
-                self._select_tools_tab(tab)
-                return
-            if selector == "security":
-                self._select_security_tab(tab)
-                return
-            self.nb.select(tab)
-
-        return _prepare
+        return build_guided_tour_tab_prepare_callable(self, selector, tab_attr)
 
     def _build_quickstart_tour_steps(self):
         return [

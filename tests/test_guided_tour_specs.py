@@ -5,6 +5,7 @@ from netmon.ui.tour_specs import (
     build_guided_tab_tour_steps,
     build_guided_tour_full_sequence,
     build_guided_tour_primary_definitions,
+    build_guided_tour_tab_prepare_callable,
     build_guided_tour_tab_definitions,
 )
 
@@ -112,18 +113,15 @@ def test_build_guided_tour_tab_definitions_skips_blank_ids_and_builds_steps():
 
 
 def test_build_guided_tab_tour_steps_builds_actions_and_detail_steps():
-    prepare = object()
+    selections = []
 
     def action():
         return None
 
     app = SimpleNamespace(
         tr=lambda _key, default=None: default,
-        _guided_tour_tab_prepare_callable=lambda selector, tab_attr: (
-            prepare,
-            selector,
-            tab_attr,
-        ),
+        tab_security="security-tab",
+        _select_security_tab=lambda tab: selections.append(("security", tab)),
     )
     spec = {
         "tab_title": " Security ",
@@ -145,7 +143,7 @@ def test_build_guided_tab_tour_steps_builds_actions_and_detail_steps():
 
     steps = build_guided_tab_tour_steps(app, spec)
 
-    expected_prepare = (prepare, "security", "tab_security")
+    expected_prepare = steps[0]["prepare"]
     assert [step["title"] for step in steps] == [
         "Security im Überblick",
         "Security",
@@ -162,3 +160,32 @@ def test_build_guided_tab_tour_steps_builds_actions_and_detail_steps():
     assert steps[1]["action_failure"] == "Failed"
     assert steps[2]["prepare"] == expected_prepare
     assert steps[3]["prepare"] == "custom-prepare"
+    expected_prepare()
+    assert selections == [("security", "security-tab")]
+
+
+def test_build_guided_tour_tab_prepare_callable_selects_expected_tab_area():
+    calls = []
+    app = SimpleNamespace(
+        tab_top="top-tab",
+        tab_system="system-tab",
+        tab_tools="tools-tab",
+        tab_security="security-tab",
+        nb=SimpleNamespace(select=lambda tab: calls.append(("top", tab))),
+        _select_system_tab=lambda tab: calls.append(("system", tab)),
+        _select_tools_tab=lambda tab: calls.append(("tools", tab)),
+        _select_security_tab=lambda tab: calls.append(("security", tab)),
+    )
+
+    build_guided_tour_tab_prepare_callable(app, "", "tab_top")()
+    build_guided_tour_tab_prepare_callable(app, "system", "tab_system")()
+    build_guided_tour_tab_prepare_callable(app, "tools", "tab_tools")()
+    build_guided_tour_tab_prepare_callable(app, "security", "tab_security")()
+    build_guided_tour_tab_prepare_callable(app, "tools", "missing")()
+
+    assert calls == [
+        ("top", "top-tab"),
+        ("system", "system-tab"),
+        ("tools", "tools-tab"),
+        ("security", "security-tab"),
+    ]

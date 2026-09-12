@@ -75,6 +75,27 @@ def build_full_tour_steps(app, definitions: dict) -> list[dict]:
     return steps
 
 
+def build_guided_tour_tab_prepare_callable(app, selector: str, tab_attr: str):
+    """Build a callback that selects the requested top-level or nested tab."""
+
+    def _prepare():
+        tab = getattr(app, "__dict__", {}).get(tab_attr)
+        if tab is None:
+            return
+        if selector == "system":
+            app._select_system_tab(tab)
+            return
+        if selector == "tools":
+            app._select_tools_tab(tab)
+            return
+        if selector == "security":
+            app._select_security_tab(tab)
+            return
+        app.nb.select(tab)
+
+    return _prepare
+
+
 def build_guided_tour_tab_definitions(app) -> dict:
     """Build guided-tour definitions from the app's tab tour specifications."""
     definitions = {}
@@ -96,7 +117,8 @@ def build_guided_tab_tour_steps(app, spec: dict) -> list[dict]:
     description = str(spec.get("description") or "").strip()
     hint = spec.get("hint")
     target = spec.get("target") or spec.get("tab_attr")
-    prepare = app._guided_tour_tab_prepare_callable(
+    prepare = build_guided_tour_tab_prepare_callable(
+        app,
         str(spec.get("selector") or "").strip().lower(),
         str(spec.get("tab_attr") or "").strip(),
     )
