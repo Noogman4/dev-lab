@@ -20946,6 +20946,19 @@ class App(TkBase):
         update_backup_and_download_scan_settings_from_app(self)
         update_chad_settings_from_app(self)
 
+        self._finalize_settings_application(new_language)
+
+        if language_changed:
+            self.log(
+                self.tr(
+                    "log_language_changed_restart",
+                    "Sprache geändert – Neustart empfohlen.",
+                )
+            )
+        self.log(self.tr("log_settings_applied", "Einstellungen übernommen."))
+
+    def _finalize_settings_application(self, new_language: str) -> None:
+        """Apply runtime state and persist an already synchronized settings payload."""
         if self.lang_service is not None:
             self.lang = self.lang_service.load(new_language)
 
@@ -20956,15 +20969,6 @@ class App(TkBase):
 
         if "privacy_config" in self.__dict__:
             self.save_privacy_config()
-
-        if language_changed:
-            self.log(
-                self.tr(
-                    "log_language_changed_restart",
-                    "Sprache geändert – Neustart empfohlen.",
-                )
-            )
-        self.log(self.tr("log_settings_applied", "Einstellungen übernommen."))
 
     def reset_settings_to_defaults(self):
         self.settings.update(self._default_settings_payload())

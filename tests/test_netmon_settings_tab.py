@@ -172,9 +172,13 @@ def test_apply_settings_from_ui_updates_runtime_and_persists():
     assert app.settings["chad_answer_risk"] is True
     assert app.settings["chad_answer_recommendations"] is False
     assert app.lang["loaded_language"] == "en"
-    assert ("runtime", None) in calls
-    assert ("settings", True) in calls
-    assert ("privacy", None) in calls
+    assert calls == [
+        ("runtime", None),
+        ("settings", True),
+        ("privacy", None),
+        ("log", "Sprache geändert – Neustart empfohlen."),
+        ("log", "Einstellungen übernommen."),
+    ]
 
 
 def test_save_theme_studio_profile_writes_json_payload(tmp_path, monkeypatch):
