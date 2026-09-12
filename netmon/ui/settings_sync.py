@@ -131,3 +131,18 @@ def update_guided_tour_and_donation_settings_from_app(app) -> None:
         settings["donation_popup_enabled"] = donation_popup_requested
     else:
         settings["donation_popup_enabled"] = True
+
+
+def update_clamav_quickscan_settings_from_app(app, clamav_controller) -> None:
+    """Copy normalized ClamAV quickscan values into the settings payload."""
+    app_dict = getattr(app, "__dict__", {})
+    app.settings["clamav_quickscan_targets"] = (
+        clamav_controller.clamav_normalize_quick_target_ids(
+            app_dict.get("clamav_quickscan_target_ids", [])
+        )
+    )
+    app.settings["clamav_quickscan_custom_paths"] = (
+        clamav_controller.clamav_normalize_custom_quick_paths(
+            app_dict.get("clamav_quickscan_custom_paths", [])
+        )
+    )

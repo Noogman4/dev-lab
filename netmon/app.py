@@ -625,6 +625,7 @@ try:
         app_var_value,
         sync_app_vars_from_mapping,
         update_backup_and_download_scan_settings_from_app,
+        update_clamav_quickscan_settings_from_app,
         update_guided_tour_and_donation_settings_from_app,
     )
     from netmon.ui.tour_specs import build_guided_tour_primary_definitions
@@ -662,6 +663,7 @@ except ModuleNotFoundError:
         app_var_value,
         sync_app_vars_from_mapping,
         update_backup_and_download_scan_settings_from_app,
+        update_clamav_quickscan_settings_from_app,
         update_guided_tour_and_donation_settings_from_app,
     )
     from ui.tour_specs import build_guided_tour_primary_definitions
@@ -21096,16 +21098,7 @@ class App(TkBase):
             )
         )
         update_guided_tour_and_donation_settings_from_app(self)
-        self.settings["clamav_quickscan_targets"] = (
-            clamav_controller.clamav_normalize_quick_target_ids(
-                self.__dict__.get("clamav_quickscan_target_ids", [])
-            )
-        )
-        self.settings["clamav_quickscan_custom_paths"] = (
-            clamav_controller.clamav_normalize_custom_quick_paths(
-                self.__dict__.get("clamav_quickscan_custom_paths", [])
-            )
-        )
+        update_clamav_quickscan_settings_from_app(self, clamav_controller)
         update_backup_and_download_scan_settings_from_app(self)
         self.settings["speedtest_server_id"] = (
             speedtest_controller.normalize_speedtest_server_id(

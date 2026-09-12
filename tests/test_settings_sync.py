@@ -4,6 +4,7 @@ from netmon.ui.settings_sync import (
     app_var_value,
     sync_app_vars_from_mapping,
     update_backup_and_download_scan_settings_from_app,
+    update_clamav_quickscan_settings_from_app,
     update_guided_tour_and_donation_settings_from_app,
 )
 
@@ -165,3 +166,33 @@ def test_update_guided_tour_and_donation_settings_blocks_early_disable():
     assert app.settings["guided_tour_completed"] == {"dns": True}
     assert app.settings["donation_popup_enabled"] is True
     assert app.settings["donation_popup_disabled_at"] == 0
+
+
+def test_update_clamav_quickscan_settings_from_app_uses_controller_normalizers():
+    calls = []
+
+    class DummyClamavController:
+        @staticmethod
+        def clamav_normalize_quick_target_ids(target_ids):
+            calls.append(("targets", list(target_ids)))
+            return ["downloads"]
+
+        @staticmethod
+        def clamav_normalize_custom_quick_paths(paths):
+            calls.append(("paths", list(paths)))
+            return ["/custom"]
+
+    app = SimpleNamespace(
+        settings={},
+        clamav_quickscan_target_ids=["downloads", "unknown"],
+        clamav_quickscan_custom_paths=[" /custom "],
+    )
+
+    update_clamav_quickscan_settings_from_app(app, DummyClamavController)
+
+    assert app.settings["clamav_quickscan_targets"] == ["downloads"]
+    assert app.settings["clamav_quickscan_custom_paths"] == ["/custom"]
+    assert calls == [
+        ("targets", ["downloads", "unknown"]),
+        ("paths", [" /custom "]),
+    ]
