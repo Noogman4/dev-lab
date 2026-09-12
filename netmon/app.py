@@ -635,7 +635,9 @@ try:
         update_theme_logging_settings_from_app,
     )
     from netmon.ui.tour_specs import (
+        build_full_tour_steps,
         build_guided_tab_tour_steps,
+        build_guided_tour_full_sequence,
         build_guided_tour_primary_definitions,
         build_guided_tour_tab_definitions,
     )
@@ -683,7 +685,9 @@ except ModuleNotFoundError:
         update_theme_logging_settings_from_app,
     )
     from ui.tour_specs import (
+        build_full_tour_steps,
         build_guided_tab_tour_steps,
+        build_guided_tour_full_sequence,
         build_guided_tour_primary_definitions,
         build_guided_tour_tab_definitions,
     )
@@ -7083,44 +7087,10 @@ class App(TkBase):
         return build_guided_tour_primary_definitions(self)
 
     def _guided_tour_full_sequence(self):
-        sequence = []
-        for _group_title, tours in self._guided_tour_launcher_specs():
-            for tour_id, _label in tours:
-                normalized = str(tour_id or "").strip().lower()
-                if normalized in {"", "full-tour", "quickstart"}:
-                    continue
-                sequence.append(normalized)
-        return sequence
+        return build_guided_tour_full_sequence(self)
 
     def _build_full_tour_steps(self, definitions):
-        steps = [
-            {
-                "title": self.tr("tour_full_step_intro_title", "NetMon Volle Tour"),
-                "body": self.tr(
-                    "tour_full_step_intro_body",
-                    "Diese Führung arbeitet die im Tour-Tab erfassten Bereiche der Reihe nach ab. Sie ist deutlich ausführlicher als der schnelle Einstieg und eignet sich für einen kompletten Rundgang.",
-                ),
-                "prepare": lambda: self.nb.select(self.tab_settings),
-            }
-        ]
-        for tour_id in self._guided_tour_full_sequence():
-            selected = definitions.get(tour_id)
-            if not isinstance(selected, dict):
-                continue
-            steps.extend(list(selected.get("steps") or []))
-        steps.append(
-            {
-                "title": self.tr(
-                    "tour_full_step_done_title", "Volle Tour abgeschlossen"
-                ),
-                "body": self.tr(
-                    "tour_full_step_done_body",
-                    "Du hast jetzt alle aktuell erfassten Tour-Bereiche einmal der Reihe nach durchlaufen. Für einzelne Themen kannst du später gezielt in die Spezial- oder Tab-Touren zurückspringen.",
-                ),
-                "prepare": lambda: self.nb.select(self.tab_settings),
-            }
-        )
-        return steps
+        return build_full_tour_steps(self, definitions)
 
     def _guided_tour_tab_definitions(self):
         return build_guided_tour_tab_definitions(self)

@@ -1,7 +1,9 @@
 from types import SimpleNamespace
 
 from netmon.ui.tour_specs import (
+    build_full_tour_steps,
     build_guided_tab_tour_steps,
+    build_guided_tour_full_sequence,
     build_guided_tour_primary_definitions,
     build_guided_tour_tab_definitions,
 )
@@ -46,6 +48,36 @@ def test_build_guided_tour_primary_definitions_uses_app_translations_and_steps()
     assert definitions["radio"]["title"] == "tour_def_radio_title:NetMon Radio Tour"
     assert definitions["download-scan"]["steps"] == [{"step": "download-scan"}]
     assert calls == ["quickstart", "dns", "security", "download-scan", "radio"]
+
+
+def test_full_tour_helpers_keep_launcher_order_and_surround_selected_steps():
+    selections = []
+    app = SimpleNamespace(
+        tr=lambda _key, default=None: default,
+        _guided_tour_launcher_specs=lambda: [
+            ("Primary", [("quickstart", "Quick"), (" DNS ", "DNS")]),
+            ("Other", [("full-tour", "Full"), ("radio", "Radio"), ("", "")]),
+        ],
+        nb=SimpleNamespace(select=selections.append),
+        tab_settings="settings-tab",
+    )
+    definitions = {
+        "dns": {"steps": [{"title": "DNS step"}]},
+        "radio": "invalid",
+    }
+
+    sequence = build_guided_tour_full_sequence(app)
+    steps = build_full_tour_steps(app, definitions)
+
+    assert sequence == ["dns", "radio"]
+    assert [step["title"] for step in steps] == [
+        "NetMon Volle Tour",
+        "DNS step",
+        "Volle Tour abgeschlossen",
+    ]
+    steps[0]["prepare"]()
+    steps[-1]["prepare"]()
+    assert selections == ["settings-tab", "settings-tab"]
 
 
 def test_build_guided_tour_tab_definitions_skips_blank_ids_and_builds_steps():

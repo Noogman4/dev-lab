@@ -33,6 +33,48 @@ def build_guided_tour_primary_definitions(app) -> dict:
     }
 
 
+def build_guided_tour_full_sequence(app) -> list[str]:
+    """Return eligible launcher tour IDs in their configured order."""
+    sequence = []
+    for _group_title, tours in app._guided_tour_launcher_specs():
+        for tour_id, _label in tours:
+            normalized = str(tour_id or "").strip().lower()
+            if normalized in {"", "full-tour", "quickstart"}:
+                continue
+            sequence.append(normalized)
+    return sequence
+
+
+def build_full_tour_steps(app, definitions: dict) -> list[dict]:
+    """Build the full-tour frame around steps from eligible tour definitions."""
+    steps = [
+        {
+            "title": app.tr("tour_full_step_intro_title", "NetMon Volle Tour"),
+            "body": app.tr(
+                "tour_full_step_intro_body",
+                "Diese Führung arbeitet die im Tour-Tab erfassten Bereiche der Reihe nach ab. Sie ist deutlich ausführlicher als der schnelle Einstieg und eignet sich für einen kompletten Rundgang.",
+            ),
+            "prepare": lambda: app.nb.select(app.tab_settings),
+        }
+    ]
+    for tour_id in build_guided_tour_full_sequence(app):
+        selected = definitions.get(tour_id)
+        if not isinstance(selected, dict):
+            continue
+        steps.extend(list(selected.get("steps") or []))
+    steps.append(
+        {
+            "title": app.tr("tour_full_step_done_title", "Volle Tour abgeschlossen"),
+            "body": app.tr(
+                "tour_full_step_done_body",
+                "Du hast jetzt alle aktuell erfassten Tour-Bereiche einmal der Reihe nach durchlaufen. Für einzelne Themen kannst du später gezielt in die Spezial- oder Tab-Touren zurückspringen.",
+            ),
+            "prepare": lambda: app.nb.select(app.tab_settings),
+        }
+    )
+    return steps
+
+
 def build_guided_tour_tab_definitions(app) -> dict:
     """Build guided-tour definitions from the app's tab tour specifications."""
     definitions = {}
