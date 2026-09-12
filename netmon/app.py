@@ -645,6 +645,7 @@ try:
         guided_tour_status_symbol,
         guided_tour_status_text,
         guided_tour_title_text,
+        is_guided_tour_completed,
         normalize_guided_tour_completed_settings,
     )
     from netmon.ui.widgets.lights import make_light as build_light_widget
@@ -701,6 +702,7 @@ except ModuleNotFoundError:
         guided_tour_status_symbol,
         guided_tour_status_text,
         guided_tour_title_text,
+        is_guided_tour_completed,
         normalize_guided_tour_completed_settings,
     )
     from ui.widgets.lights import make_light as build_light_widget
@@ -6736,10 +6738,10 @@ class App(TkBase):
         )
 
     def is_guided_tour_completed(self, tour_name) -> bool:
-        tour_id = str(tour_name or "").strip().lower()
-        if not tour_id:
-            return False
-        return bool(self._guided_tour_completed_settings().get(tour_id, False))
+        return is_guided_tour_completed(
+            self.settings.get("guided_tour_completed", {}),
+            tour_name,
+        )
 
     def _guided_tour_status_text(self) -> str:
         return guided_tour_status_text(self)

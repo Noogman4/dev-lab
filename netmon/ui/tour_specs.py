@@ -45,6 +45,14 @@ def normalize_guided_tour_completed_settings(raw) -> dict:
     return normalized
 
 
+def is_guided_tour_completed(raw, tour_name) -> bool:
+    """Return whether a normalized persisted tour flag marks a tour complete."""
+    tour_id = str(tour_name or "").strip().lower()
+    if not tour_id:
+        return False
+    return bool(normalize_guided_tour_completed_settings(raw).get(tour_id, False))
+
+
 def guided_tour_button_text(app, _tour_name, _base_label) -> str:
     """Return the compact command label used by guided-tour launchers."""
     return app.tr("guided_tour_btn_start_short", "Start")

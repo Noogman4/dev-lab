@@ -11,6 +11,7 @@ from netmon.ui.tour_specs import (
     guided_tour_status_symbol,
     guided_tour_status_text,
     guided_tour_title_text,
+    is_guided_tour_completed,
     normalize_guided_tour_completed_settings,
 )
 
@@ -76,6 +77,16 @@ def test_normalize_guided_tour_completed_settings_ignores_invalid_names():
     assert normalize_guided_tour_completed_settings(
         {" DNS ": 1, "": True, None: True, "Radio": 0}
     ) == {"dns": True, "radio": False}
+
+
+def test_is_guided_tour_completed_normalizes_ids_and_uses_false_by_default():
+    raw = {" DNS ": True, "radio": False}
+
+    assert is_guided_tour_completed(raw, "dns") is True
+    assert is_guided_tour_completed(raw, " DNS ") is True
+    assert is_guided_tour_completed(raw, "radio") is False
+    assert is_guided_tour_completed(raw, "missing") is False
+    assert is_guided_tour_completed(raw, " ") is False
 
 
 def test_guided_tour_status_text_covers_mixed_all_and_no_completion():
