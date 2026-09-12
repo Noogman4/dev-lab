@@ -625,6 +625,7 @@ try:
         app_var_value,
         sync_app_vars_from_mapping,
         update_backup_and_download_scan_settings_from_app,
+        update_base_network_settings_from_app,
         update_chad_settings_from_app,
         update_clamav_quickscan_settings_from_app,
         update_guided_tour_and_donation_settings_from_app,
@@ -667,6 +668,7 @@ except ModuleNotFoundError:
         app_var_value,
         sync_app_vars_from_mapping,
         update_backup_and_download_scan_settings_from_app,
+        update_base_network_settings_from_app,
         update_chad_settings_from_app,
         update_clamav_quickscan_settings_from_app,
         update_guided_tour_and_donation_settings_from_app,
@@ -20928,54 +20930,7 @@ class App(TkBase):
             or "dark"
         )
 
-        self.settings["language"] = new_language
-        self.settings["startup_guard_autorun"] = bool(
-            self.var_startup_guard_autorun.get()
-        )
-        self.settings["process_guard_autorun"] = bool(
-            app_var_value(
-                self,
-                "var_process_guard_autorun",
-                self.settings.get("process_guard_autorun", True),
-            )
-        )
-        self.settings["path_guard_autorun"] = bool(self.var_path_guard_autorun.get())
-        self.settings["start_network_mode"] = "system"
-        self.settings["start_vpn_profile"] = ""
-        self.settings["dns_guard_enabled"] = bool(self.var_dns_guard_enabled.get())
-        dnssec_mode = (
-            str(
-                app_var_value(
-                    self,
-                    "var_dnssec_mode",
-                    self.settings.get("dnssec_mode", "standard"),
-                )
-            )
-            .strip()
-            .lower()
-            or "standard"
-        )
-        self.settings["dnssec_mode"] = (
-            "strict" if dnssec_mode == "strict" else "standard"
-        )
-        self.settings["isp_dns_fallback_profile"] = (
-            self._normalize_isp_dns_fallback_profile(
-                app_var_value(
-                    self,
-                    "var_isp_dns_fallback_profile",
-                    self.settings.get("isp_dns_fallback_profile"),
-                )
-            )
-        )
-        self.settings["start_killswitch"] = False
-        self.settings["start_security_monitoring"] = bool(
-            app_var_value(
-                self,
-                "var_start_security_monitoring",
-                self.settings.get("start_security_monitoring", False),
-            )
-        )
-        self.settings["start_dot"] = False
+        update_base_network_settings_from_app(self, new_language=new_language)
         update_theme_logging_settings_from_app(
             self,
             new_theme=new_theme,

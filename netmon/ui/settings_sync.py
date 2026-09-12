@@ -270,6 +270,53 @@ def update_theme_logging_settings_from_app(
     )
 
 
+def update_base_network_settings_from_app(app, *, new_language: str) -> None:
+    """Copy language, startup guard, DNS and startup network values into settings."""
+    settings = app.settings
+    settings["language"] = new_language
+    settings["startup_guard_autorun"] = bool(
+        app_var_value(app, "var_startup_guard_autorun", True)
+    )
+    settings["process_guard_autorun"] = bool(
+        app_var_value(
+            app,
+            "var_process_guard_autorun",
+            settings.get("process_guard_autorun", True),
+        )
+    )
+    settings["path_guard_autorun"] = bool(
+        app_var_value(app, "var_path_guard_autorun", False)
+    )
+    settings["start_network_mode"] = "system"
+    settings["start_vpn_profile"] = ""
+    settings["dns_guard_enabled"] = bool(
+        app_var_value(app, "var_dns_guard_enabled", True)
+    )
+
+    dnssec_mode = _lower_string_app_var_or_default(
+        app,
+        "var_dnssec_mode",
+        str(settings.get("dnssec_mode", "standard") or "standard"),
+    )
+    settings["dnssec_mode"] = "strict" if dnssec_mode == "strict" else "standard"
+    settings["isp_dns_fallback_profile"] = app._normalize_isp_dns_fallback_profile(
+        app_var_value(
+            app,
+            "var_isp_dns_fallback_profile",
+            settings.get("isp_dns_fallback_profile"),
+        )
+    )
+    settings["start_killswitch"] = False
+    settings["start_security_monitoring"] = bool(
+        app_var_value(
+            app,
+            "var_start_security_monitoring",
+            settings.get("start_security_monitoring", False),
+        )
+    )
+    settings["start_dot"] = False
+
+
 def update_chad_settings_from_app(app) -> None:
     """Copy Chad analysis UI values into the settings payload."""
     settings = app.settings

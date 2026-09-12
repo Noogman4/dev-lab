@@ -4,6 +4,7 @@ from netmon.ui.settings_sync import (
     app_var_value,
     sync_app_vars_from_mapping,
     update_backup_and_download_scan_settings_from_app,
+    update_base_network_settings_from_app,
     update_chad_settings_from_app,
     update_clamav_quickscan_settings_from_app,
     update_guided_tour_and_donation_settings_from_app,
@@ -401,3 +402,38 @@ def test_update_theme_logging_settings_from_app_normalizes_values():
     assert app.settings["debug_network_logging"] is True
     assert app.settings["strict_protection"] is False
     assert app.settings["ufw_logging_default"] == "keep"
+
+
+def test_update_base_network_settings_from_app_normalizes_startup_and_dns():
+    app = SimpleNamespace(
+        settings={
+            "language": "de",
+            "process_guard_autorun": False,
+            "dnssec_mode": "standard",
+            "isp_dns_fallback_profile": "Cloudflare (1.1.1.1)",
+            "start_security_monitoring": False,
+        },
+        var_startup_guard_autorun=DummyVar(False),
+        var_process_guard_autorun=DummyVar(True),
+        var_path_guard_autorun=DummyVar(True),
+        var_dns_guard_enabled=DummyVar(False),
+        var_dnssec_mode=DummyVar(" STRICT "),
+        var_isp_dns_fallback_profile=DummyVar(" Quad9 "),
+        var_start_security_monitoring=DummyVar(True),
+        _normalize_isp_dns_fallback_profile=lambda value: str(value).strip().lower(),
+    )
+
+    update_base_network_settings_from_app(app, new_language="en")
+
+    assert app.settings["language"] == "en"
+    assert app.settings["startup_guard_autorun"] is False
+    assert app.settings["process_guard_autorun"] is True
+    assert app.settings["path_guard_autorun"] is True
+    assert app.settings["start_network_mode"] == "system"
+    assert app.settings["start_vpn_profile"] == ""
+    assert app.settings["dns_guard_enabled"] is False
+    assert app.settings["dnssec_mode"] == "strict"
+    assert app.settings["isp_dns_fallback_profile"] == "quad9"
+    assert app.settings["start_killswitch"] is False
+    assert app.settings["start_security_monitoring"] is True
+    assert app.settings["start_dot"] is False
