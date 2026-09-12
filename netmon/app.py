@@ -621,6 +621,7 @@ try:
         build_lynis_sections,
         build_lynis_status_row,
         build_security_baseline_summary_panel,
+        build_security_baseline_profile_selector,
         build_security_tabs,
         build_startup_guard_tab,
     )
@@ -686,6 +687,7 @@ except ModuleNotFoundError:
         build_lynis_sections,
         build_lynis_status_row,
         build_security_baseline_summary_panel,
+        build_security_baseline_profile_selector,
         build_security_tabs,
         build_startup_guard_tab,
     )
@@ -29454,40 +29456,13 @@ class App(TkBase):
         baseline_tab, hardening_tab, audit_tab = build_lynis_sections(self)
 
         baseline_summary = build_security_baseline_summary_panel(self, baseline_tab)
-        ttk.Label(
-            baseline_summary,
-            textvariable=self.security_baseline_profile_var,
-            justify="left",
-        ).pack(anchor="w")
-        baseline_profile_row = ttk.Frame(baseline_summary)
-        baseline_profile_row.pack(fill="x", pady=(6, 0))
-        ttk.Label(
-            baseline_profile_row,
-            text=self.tr("baseline_profile_select_label", "Profilauswahl:"),
-            justify="left",
-        ).pack(side="left")
         baseline_profile_choices = (
             security_audit_controller.baseline_profile_choice_items(self)
         )
-        self.security_baseline_profile_choice_labels = {
-            profile_id: label for profile_id, label in baseline_profile_choices
-        }
-        self.security_baseline_profile_choice_ids_by_label = {
-            label: profile_id for profile_id, label in baseline_profile_choices
-        }
-        self.security_baseline_profile_combo = ttk.Combobox(
-            baseline_profile_row,
-            state="readonly",
-            textvariable=self.security_baseline_profile_choice_var,
-            values=[label for _profile_id, label in baseline_profile_choices],
-            width=42,
-        )
-        self.security_baseline_profile_combo.pack(side="left", padx=(8, 0))
-        self.security_baseline_profile_combo.bind(
-            "<<ComboboxSelected>>",
-            lambda _event: self.apply_security_baseline_profile_choice(
-                self.security_baseline_profile_choice_var.get()
-            ),
+        build_security_baseline_profile_selector(
+            self,
+            baseline_summary,
+            baseline_profile_choices,
         )
         ttk.Label(
             baseline_summary,

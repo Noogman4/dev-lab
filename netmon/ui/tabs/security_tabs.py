@@ -51,6 +51,42 @@ def build_security_baseline_summary_panel(app, baseline_tab):
     return baseline_summary
 
 
+def build_security_baseline_profile_selector(app, baseline_summary, choices) -> None:
+    """Build the baseline profile selector from controller-provided choices."""
+    ttk.Label(
+        baseline_summary,
+        textvariable=app.security_baseline_profile_var,
+        justify="left",
+    ).pack(anchor="w")
+    baseline_profile_row = ttk.Frame(baseline_summary)
+    baseline_profile_row.pack(fill="x", pady=(6, 0))
+    ttk.Label(
+        baseline_profile_row,
+        text=app.tr("baseline_profile_select_label", "Profilauswahl:"),
+        justify="left",
+    ).pack(side="left")
+    app.security_baseline_profile_choice_labels = {
+        profile_id: label for profile_id, label in choices
+    }
+    app.security_baseline_profile_choice_ids_by_label = {
+        label: profile_id for profile_id, label in choices
+    }
+    app.security_baseline_profile_combo = ttk.Combobox(
+        baseline_profile_row,
+        state="readonly",
+        textvariable=app.security_baseline_profile_choice_var,
+        values=[label for _profile_id, label in choices],
+        width=42,
+    )
+    app.security_baseline_profile_combo.pack(side="left", padx=(8, 0))
+    app.security_baseline_profile_combo.bind(
+        "<<ComboboxSelected>>",
+        lambda _event: app.apply_security_baseline_profile_choice(
+            app.security_baseline_profile_choice_var.get()
+        ),
+    )
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(

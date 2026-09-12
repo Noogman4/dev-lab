@@ -162,6 +162,9 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     output_panel_source = inspect.getsource(security_tabs.build_lynis_output_panel)
     sections_source = inspect.getsource(security_tabs.build_lynis_sections)
     status_row_source = inspect.getsource(security_tabs.build_lynis_status_row)
+    profile_selector_source = inspect.getsource(
+        security_tabs.build_security_baseline_profile_selector
+    )
     game_mode_source = inspect.getsource(netmon_app.App.enable_game_mode)
     game_mode_dialog_source = inspect.getsource(
         netmon_app.App._prompt_game_mode_ufw_exception_sets
@@ -184,9 +187,15 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     assert '"Zurueck zu den Eintraegen"' in source
     assert "self.security_baseline_list_view = ttk.Frame(baseline_content)" in source
     assert "self.security_baseline_detail_view = ttk.Frame(baseline_content)" in source
-    assert 'text=self.tr("baseline_profile_select_label", "Profilauswahl:")' in source
-    assert "self.security_baseline_profile_combo = ttk.Combobox(" in source
-    assert "self.apply_security_baseline_profile_choice(" in source
+    assert "build_security_baseline_profile_selector(" in source
+    assert (
+        'text=app.tr("baseline_profile_select_label", "Profilauswahl:")'
+        in profile_selector_source
+    )
+    assert (
+        "app.security_baseline_profile_combo = ttk.Combobox(" in profile_selector_source
+    )
+    assert "app.apply_security_baseline_profile_choice(" in profile_selector_source
     assert "build_lynis_status_row(self, lynis_top)" in source
     assert "textvariable=app.lynis_hardening_index_var" in status_row_source
     assert "build_lynis_output_panel(self, audit_tab)" in source
