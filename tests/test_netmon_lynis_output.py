@@ -160,6 +160,7 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
         security_tabs.build_lynis_filter_controls
     )
     output_panel_source = inspect.getsource(security_tabs.build_lynis_output_panel)
+    status_row_source = inspect.getsource(security_tabs.build_lynis_status_row)
     game_mode_source = inspect.getsource(netmon_app.App.enable_game_mode)
     game_mode_dialog_source = inspect.getsource(
         netmon_app.App._prompt_game_mode_ufw_exception_sets
@@ -184,7 +185,8 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     assert 'text=self.tr("baseline_profile_select_label", "Profilauswahl:")' in source
     assert "self.security_baseline_profile_combo = ttk.Combobox(" in source
     assert "self.apply_security_baseline_profile_choice(" in source
-    assert "textvariable=self.lynis_hardening_index_var" in source
+    assert "build_lynis_status_row(self, lynis_top)" in source
+    assert "textvariable=app.lynis_hardening_index_var" in status_row_source
     assert "build_lynis_output_panel(self, audit_tab)" in source
     assert "build_lynis_filter_controls(self, lynis_top)" in source
     assert "command=app.show_lynis_issues_only" in filter_controls_source

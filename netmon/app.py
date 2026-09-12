@@ -617,6 +617,7 @@ try:
         build_lynis_filter_controls,
         build_lynis_output_panel,
         build_lynis_scan_controls,
+        build_lynis_status_row,
         build_security_tabs,
         build_startup_guard_tab,
     )
@@ -678,6 +679,7 @@ except ModuleNotFoundError:
         build_lynis_filter_controls,
         build_lynis_output_panel,
         build_lynis_scan_controls,
+        build_lynis_status_row,
         build_security_tabs,
         build_startup_guard_tab,
     )
@@ -29976,25 +29978,7 @@ class App(TkBase):
 
         build_lynis_chad_action(self, lynis_top)
 
-        lynis_status_row = ttk.Frame(lynis_top)
-        lynis_status_row.grid(
-            row=1,
-            column=1,
-            columnspan=2,
-            sticky="ew",
-            padx=(6, 0),
-            pady=6,
-        )
-        ttk.Label(lynis_status_row, text=self.tr("label_status", "Status:")).pack(
-            side="left"
-        )
-        ttk.Label(lynis_status_row, textvariable=self.lynis_status_var).pack(
-            side="left", padx=(6, 0)
-        )
-        ttk.Label(
-            lynis_status_row,
-            textvariable=self.lynis_hardening_index_var,
-        ).pack(side="left", padx=(18, 0))
+        build_lynis_status_row(self, lynis_top)
 
         build_lynis_filter_controls(self, lynis_top)
 

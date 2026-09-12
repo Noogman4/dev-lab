@@ -137,6 +137,28 @@ def build_lynis_chad_action(app, lynis_top) -> None:
         ),
         command=app.analyze_lynis_issues_with_chad,
     )
+
+
+def build_lynis_status_row(app, lynis_top) -> None:
+    """Build the Lynis scan status and hardening-index display."""
+    lynis_status_row = ttk.Frame(lynis_top)
+    lynis_status_row.grid(
+        row=1,
+        column=1,
+        columnspan=2,
+        sticky="ew",
+        padx=(6, 0),
+        pady=6,
+    )
+    ttk.Label(lynis_status_row, text=app.tr("label_status", "Status:")).pack(
+        side="left"
+    )
+    ttk.Label(lynis_status_row, textvariable=app.lynis_status_var).pack(
+        side="left", padx=(6, 0)
+    )
+    ttk.Label(lynis_status_row, textvariable=app.lynis_hardening_index_var).pack(
+        side="left", padx=(18, 0)
+    )
     app.btn_lynis_chad_issues.grid(row=1, column=0, sticky="ew", padx=(0, 6), pady=6)
     app.add_tooltip(
         app.btn_lynis_chad_issues,
