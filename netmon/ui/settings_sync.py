@@ -317,6 +317,30 @@ def update_base_network_settings_from_app(app, *, new_language: str) -> None:
     settings["start_dot"] = False
 
 
+def update_chad_runtime_options_from_app(app) -> None:
+    """Copy Chad model and preview options into the settings payload."""
+    settings = app.settings
+    settings["auto_switch_to_chad"] = bool(
+        app_var_value(
+            app,
+            "var_auto_switch_to_chad",
+            settings.get("auto_switch_to_chad", True),
+        )
+    )
+    settings["chad_preview_popup"] = bool(
+        app_var_value(
+            app,
+            "var_chad_preview_popup",
+            settings.get("chad_preview_popup", False),
+        )
+    )
+    settings["chad_model"] = _string_app_var_or_default(
+        app,
+        "chad_model_var",
+        settings.get("chad_model", "gpt-4.1-mini"),
+    )
+
+
 def update_chad_settings_from_app(app) -> None:
     """Copy Chad analysis UI values into the settings payload."""
     settings = app.settings

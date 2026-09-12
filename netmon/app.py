@@ -626,6 +626,7 @@ try:
         sync_app_vars_from_mapping,
         update_backup_and_download_scan_settings_from_app,
         update_base_network_settings_from_app,
+        update_chad_runtime_options_from_app,
         update_chad_settings_from_app,
         update_clamav_quickscan_settings_from_app,
         update_guided_tour_and_donation_settings_from_app,
@@ -669,6 +670,7 @@ except ModuleNotFoundError:
         sync_app_vars_from_mapping,
         update_backup_and_download_scan_settings_from_app,
         update_base_network_settings_from_app,
+        update_chad_runtime_options_from_app,
         update_chad_settings_from_app,
         update_clamav_quickscan_settings_from_app,
         update_guided_tour_and_donation_settings_from_app,
@@ -20936,11 +20938,7 @@ class App(TkBase):
             new_theme=new_theme,
             normalize_hex_color=normalize_hex_color,
         )
-        self.settings["auto_switch_to_chad"] = bool(self.var_auto_switch_to_chad.get())
-        self.settings["chad_preview_popup"] = bool(self.var_chad_preview_popup.get())
-        self.settings["chad_model"] = (
-            str(self.chad_model_var.get() or "gpt-4.1-mini").strip() or "gpt-4.1-mini"
-        )
+        update_chad_runtime_options_from_app(self)
         update_systemcheck_settings_from_app(self)
         update_security_tool_settings_from_app(self, speedtest_controller)
         update_guided_tour_and_donation_settings_from_app(self)

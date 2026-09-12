@@ -5,6 +5,7 @@ from netmon.ui.settings_sync import (
     sync_app_vars_from_mapping,
     update_backup_and_download_scan_settings_from_app,
     update_base_network_settings_from_app,
+    update_chad_runtime_options_from_app,
     update_chad_settings_from_app,
     update_clamav_quickscan_settings_from_app,
     update_guided_tour_and_donation_settings_from_app,
@@ -286,6 +287,25 @@ def test_update_chad_settings_from_app_copies_profile_filters_focus_and_answers(
     assert app.settings["chad_answer_linux_help"] is False
     assert app.settings["chad_answer_risk"] is False
     assert app.settings["chad_answer_recommendations"] is False
+
+
+def test_update_chad_runtime_options_from_app_copies_model_and_popup_flags():
+    app = SimpleNamespace(
+        settings={
+            "auto_switch_to_chad": True,
+            "chad_preview_popup": False,
+            "chad_model": "old-model",
+        },
+        var_auto_switch_to_chad=DummyVar(False),
+        var_chad_preview_popup=DummyVar(True),
+        chad_model_var=DummyVar(" gpt-4.1 "),
+    )
+
+    update_chad_runtime_options_from_app(app)
+
+    assert app.settings["auto_switch_to_chad"] is False
+    assert app.settings["chad_preview_popup"] is True
+    assert app.settings["chad_model"] == "gpt-4.1"
 
 
 def test_update_security_tool_settings_from_app_normalizes_fields():
