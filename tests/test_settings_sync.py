@@ -4,6 +4,7 @@ from netmon.ui.settings_sync import (
     app_var_value,
     sync_app_vars_from_mapping,
     update_backup_and_download_scan_settings_from_app,
+    update_chad_settings_from_app,
     update_clamav_quickscan_settings_from_app,
     update_guided_tour_and_donation_settings_from_app,
 )
@@ -196,3 +197,88 @@ def test_update_clamav_quickscan_settings_from_app_uses_controller_normalizers()
         ("targets", ["downloads", "unknown"]),
         ("paths", [" /custom "]),
     ]
+
+
+def test_update_chad_settings_from_app_copies_profile_filters_focus_and_answers():
+    app = SimpleNamespace(
+        settings={
+            "chad_filter_relevant": True,
+            "chad_filter_critical": False,
+            "chad_filter_recommendations": True,
+            "chad_filter_beginner": False,
+            "chad_filter_rawdata": False,
+            "chad_filter_technical": True,
+            "chad_filter_hide_normal_services": True,
+            "chad_filter_ignore_harmless_processes": True,
+            "chad_filter_ignore_dev_environment": True,
+            "chad_focus_security": True,
+            "chad_focus_dns": True,
+            "chad_focus_network": True,
+            "chad_focus_process": True,
+            "chad_focus_firewall": True,
+            "chad_focus_performance": False,
+            "chad_focus_optimization": False,
+            "chad_focus_rootkit": False,
+            "chad_answer_short": False,
+            "chad_answer_detailed": True,
+            "chad_answer_step": True,
+            "chad_answer_linux_help": True,
+            "chad_answer_risk": True,
+            "chad_answer_recommendations": True,
+        },
+        chad_profile_var=DummyVar(" Security "),
+        chad_analysis_mode_var=DummyVar(" Expert "),
+        chad_systemcheck_profile_var=DummyVar(" Network "),
+        chad_filter_relevant_var=DummyVar(False),
+        chad_filter_critical_var=DummyVar(True),
+        chad_filter_recommendations_var=DummyVar(False),
+        chad_filter_beginner_var=DummyVar(True),
+        chad_filter_rawdata_var=DummyVar(True),
+        chad_filter_technical_var=DummyVar(False),
+        chad_filter_hide_normal_services_var=DummyVar(False),
+        chad_filter_ignore_harmless_processes_var=DummyVar(False),
+        chad_filter_ignore_dev_environment_var=DummyVar(False),
+        chad_focus_security_var=DummyVar(False),
+        chad_focus_dns_var=DummyVar(False),
+        chad_focus_network_var=DummyVar(False),
+        chad_focus_process_var=DummyVar(False),
+        chad_focus_firewall_var=DummyVar(False),
+        chad_focus_performance_var=DummyVar(True),
+        chad_focus_optimization_var=DummyVar(True),
+        chad_focus_rootkit_var=DummyVar(True),
+        chad_answer_short_var=DummyVar(True),
+        chad_answer_detailed_var=DummyVar(False),
+        chad_answer_step_var=DummyVar(False),
+        chad_answer_linux_help_var=DummyVar(False),
+        chad_answer_risk_var=DummyVar(False),
+        chad_answer_recommendations_var=DummyVar(False),
+    )
+
+    update_chad_settings_from_app(app)
+
+    assert app.settings["chad_profile"] == "security"
+    assert app.settings["chad_analysis_mode"] == "expert"
+    assert app.settings["chad_systemcheck_profile"] == "network"
+    assert app.settings["chad_filter_relevant"] is False
+    assert app.settings["chad_filter_critical"] is True
+    assert app.settings["chad_filter_recommendations"] is False
+    assert app.settings["chad_filter_beginner"] is True
+    assert app.settings["chad_filter_rawdata"] is True
+    assert app.settings["chad_filter_technical"] is False
+    assert app.settings["chad_filter_hide_normal_services"] is False
+    assert app.settings["chad_filter_ignore_harmless_processes"] is False
+    assert app.settings["chad_filter_ignore_dev_environment"] is False
+    assert app.settings["chad_focus_security"] is False
+    assert app.settings["chad_focus_dns"] is False
+    assert app.settings["chad_focus_network"] is False
+    assert app.settings["chad_focus_process"] is False
+    assert app.settings["chad_focus_firewall"] is False
+    assert app.settings["chad_focus_performance"] is True
+    assert app.settings["chad_focus_optimization"] is True
+    assert app.settings["chad_focus_rootkit"] is True
+    assert app.settings["chad_answer_short"] is True
+    assert app.settings["chad_answer_detailed"] is False
+    assert app.settings["chad_answer_step"] is False
+    assert app.settings["chad_answer_linux_help"] is False
+    assert app.settings["chad_answer_risk"] is False
+    assert app.settings["chad_answer_recommendations"] is False

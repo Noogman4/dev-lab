@@ -34,6 +34,13 @@ def _string_app_var_or_default(app, name: str, default) -> str:
     return str(app_var_value(app, name, fallback) or fallback).strip() or fallback
 
 
+def _lower_string_app_var_or_default(app, name: str, default: str) -> str:
+    fallback = str(default or "").strip().lower()
+    return (
+        str(app_var_value(app, name, fallback) or fallback).strip().lower() or fallback
+    )
+
+
 def update_backup_and_download_scan_settings_from_app(app) -> None:
     """Copy backup and download-scan UI values into the settings payload."""
     settings = app.settings
@@ -146,3 +153,47 @@ def update_clamav_quickscan_settings_from_app(app, clamav_controller) -> None:
             app_dict.get("clamav_quickscan_custom_paths", [])
         )
     )
+
+
+def update_chad_settings_from_app(app) -> None:
+    """Copy Chad analysis UI values into the settings payload."""
+    settings = app.settings
+    for key, var_name, default in (
+        ("chad_profile", "chad_profile_var", "custom"),
+        ("chad_analysis_mode", "chad_analysis_mode_var", "standard"),
+        ("chad_systemcheck_profile", "chad_systemcheck_profile_var", "custom"),
+    ):
+        settings[key] = _lower_string_app_var_or_default(app, var_name, default)
+
+    for key, var_name in (
+        ("chad_filter_relevant", "chad_filter_relevant_var"),
+        ("chad_filter_critical", "chad_filter_critical_var"),
+        ("chad_filter_recommendations", "chad_filter_recommendations_var"),
+        ("chad_filter_beginner", "chad_filter_beginner_var"),
+        ("chad_filter_rawdata", "chad_filter_rawdata_var"),
+        ("chad_filter_technical", "chad_filter_technical_var"),
+        ("chad_filter_hide_normal_services", "chad_filter_hide_normal_services_var"),
+        (
+            "chad_filter_ignore_harmless_processes",
+            "chad_filter_ignore_harmless_processes_var",
+        ),
+        (
+            "chad_filter_ignore_dev_environment",
+            "chad_filter_ignore_dev_environment_var",
+        ),
+        ("chad_focus_security", "chad_focus_security_var"),
+        ("chad_focus_dns", "chad_focus_dns_var"),
+        ("chad_focus_network", "chad_focus_network_var"),
+        ("chad_focus_process", "chad_focus_process_var"),
+        ("chad_focus_firewall", "chad_focus_firewall_var"),
+        ("chad_focus_performance", "chad_focus_performance_var"),
+        ("chad_focus_optimization", "chad_focus_optimization_var"),
+        ("chad_focus_rootkit", "chad_focus_rootkit_var"),
+        ("chad_answer_short", "chad_answer_short_var"),
+        ("chad_answer_detailed", "chad_answer_detailed_var"),
+        ("chad_answer_step", "chad_answer_step_var"),
+        ("chad_answer_linux_help", "chad_answer_linux_help_var"),
+        ("chad_answer_risk", "chad_answer_risk_var"),
+        ("chad_answer_recommendations", "chad_answer_recommendations_var"),
+    ):
+        settings[key] = bool(app_var_value(app, var_name, settings.get(key, False)))

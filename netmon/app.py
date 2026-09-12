@@ -625,6 +625,7 @@ try:
         app_var_value,
         sync_app_vars_from_mapping,
         update_backup_and_download_scan_settings_from_app,
+        update_chad_settings_from_app,
         update_clamav_quickscan_settings_from_app,
         update_guided_tour_and_donation_settings_from_app,
     )
@@ -663,6 +664,7 @@ except ModuleNotFoundError:
         app_var_value,
         sync_app_vars_from_mapping,
         update_backup_and_download_scan_settings_from_app,
+        update_chad_settings_from_app,
         update_clamav_quickscan_settings_from_app,
         update_guided_tour_and_donation_settings_from_app,
     )
@@ -21109,66 +21111,7 @@ class App(TkBase):
                 )
             )
         )
-        self.settings["chad_profile"] = (
-            str(self.chad_profile_var.get() or "custom").strip().lower() or "custom"
-        )
-        self.settings["chad_analysis_mode"] = (
-            str(self.chad_analysis_mode_var.get() or "standard").strip().lower()
-            or "standard"
-        )
-        self.settings["chad_filter_relevant"] = bool(
-            self.chad_filter_relevant_var.get()
-        )
-        self.settings["chad_filter_critical"] = bool(
-            self.chad_filter_critical_var.get()
-        )
-        self.settings["chad_filter_recommendations"] = bool(
-            self.chad_filter_recommendations_var.get()
-        )
-        self.settings["chad_filter_beginner"] = bool(
-            self.chad_filter_beginner_var.get()
-        )
-        self.settings["chad_filter_rawdata"] = bool(self.chad_filter_rawdata_var.get())
-        self.settings["chad_filter_technical"] = bool(
-            self.chad_filter_technical_var.get()
-        )
-        self.settings["chad_filter_hide_normal_services"] = bool(
-            self.chad_filter_hide_normal_services_var.get()
-        )
-        self.settings["chad_filter_ignore_harmless_processes"] = bool(
-            self.chad_filter_ignore_harmless_processes_var.get()
-        )
-        self.settings["chad_filter_ignore_dev_environment"] = bool(
-            self.chad_filter_ignore_dev_environment_var.get()
-        )
-        self.settings["chad_focus_security"] = bool(self.chad_focus_security_var.get())
-        self.settings["chad_focus_dns"] = bool(self.chad_focus_dns_var.get())
-        self.settings["chad_focus_network"] = bool(self.chad_focus_network_var.get())
-        self.settings["chad_focus_process"] = bool(self.chad_focus_process_var.get())
-        self.settings["chad_focus_firewall"] = bool(self.chad_focus_firewall_var.get())
-        self.settings["chad_focus_performance"] = bool(
-            self.chad_focus_performance_var.get()
-        )
-        self.settings["chad_focus_optimization"] = bool(
-            self.chad_focus_optimization_var.get()
-        )
-        self.settings["chad_focus_rootkit"] = bool(self.chad_focus_rootkit_var.get())
-        self.settings["chad_systemcheck_profile"] = (
-            str(self.chad_systemcheck_profile_var.get() or "custom").strip().lower()
-            or "custom"
-        )
-        self.settings["chad_answer_short"] = bool(self.chad_answer_short_var.get())
-        self.settings["chad_answer_detailed"] = bool(
-            self.chad_answer_detailed_var.get()
-        )
-        self.settings["chad_answer_step"] = bool(self.chad_answer_step_var.get())
-        self.settings["chad_answer_linux_help"] = bool(
-            self.chad_answer_linux_help_var.get()
-        )
-        self.settings["chad_answer_risk"] = bool(self.chad_answer_risk_var.get())
-        self.settings["chad_answer_recommendations"] = bool(
-            self.chad_answer_recommendations_var.get()
-        )
+        update_chad_settings_from_app(self)
 
         if self.lang_service is not None:
             self.lang = self.lang_service.load(new_language)
