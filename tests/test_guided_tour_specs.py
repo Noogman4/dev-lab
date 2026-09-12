@@ -7,6 +7,9 @@ from netmon.ui.tour_specs import (
     build_guided_tour_primary_definitions,
     build_guided_tour_tab_prepare_callable,
     build_guided_tour_tab_definitions,
+    guided_tour_button_text,
+    guided_tour_status_symbol,
+    guided_tour_title_text,
 )
 
 
@@ -49,6 +52,20 @@ def test_build_guided_tour_primary_definitions_uses_app_translations_and_steps()
     assert definitions["radio"]["title"] == "tour_def_radio_title:NetMon Radio Tour"
     assert definitions["download-scan"]["steps"] == [{"step": "download-scan"}]
     assert calls == ["quickstart", "dns", "security", "download-scan", "radio"]
+
+
+def test_guided_tour_launcher_presentation_helpers_mark_completed_tours():
+    app = SimpleNamespace(
+        tr=lambda _key, default=None: default,
+        is_guided_tour_completed=lambda tour_name: tour_name == "completed",
+    )
+
+    assert guided_tour_button_text(app, "completed", "Long label") == "Start"
+    assert guided_tour_status_symbol(True) == "[x]"
+    assert guided_tour_status_symbol(False) == "[ ]"
+    assert guided_tour_title_text(app, "completed", " Tour ") == "Tour abgeschlossen"
+    assert guided_tour_title_text(app, "open", " Tour ") == "Tour"
+    assert guided_tour_title_text(app, "open", " ") == ""
 
 
 def test_full_tour_helpers_keep_launcher_order_and_surround_selected_steps():

@@ -641,6 +641,9 @@ try:
         build_guided_tour_primary_definitions,
         build_guided_tour_tab_prepare_callable,
         build_guided_tour_tab_definitions,
+        guided_tour_button_text,
+        guided_tour_status_symbol,
+        guided_tour_title_text,
     )
     from netmon.ui.widgets.lights import make_light as build_light_widget
     from netmon.ui.widgets.lights import set_light as update_light_widget
@@ -692,6 +695,9 @@ except ModuleNotFoundError:
         build_guided_tour_primary_definitions,
         build_guided_tour_tab_prepare_callable,
         build_guided_tour_tab_definitions,
+        guided_tour_button_text,
+        guided_tour_status_symbol,
+        guided_tour_title_text,
     )
     from ui.widgets.lights import make_light as build_light_widget
     from ui.widgets.lights import set_light as update_light_widget
@@ -6771,20 +6777,13 @@ class App(TkBase):
         )
 
     def _guided_tour_button_text(self, _tour_name, _base_label) -> str:
-        return self.tr("guided_tour_btn_start_short", "Start")
+        return guided_tour_button_text(self, _tour_name, _base_label)
 
     def _guided_tour_status_symbol(self, tour_name) -> str:
-        return "[x]" if self.is_guided_tour_completed(tour_name) else "[ ]"
+        return guided_tour_status_symbol(self.is_guided_tour_completed(tour_name))
 
     def _guided_tour_title_text(self, tour_name, base_label) -> str:
-        label = str(base_label or "").strip()
-        if not label:
-            return ""
-        if self.is_guided_tour_completed(tour_name):
-            return self.tr(
-                "tour_status_title_completed", "{label} abgeschlossen"
-            ).format(label=label)
-        return label
+        return guided_tour_title_text(self, tour_name, base_label)
 
     def _guided_tour_launcher_specs(self):
         return [

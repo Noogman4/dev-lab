@@ -33,6 +33,28 @@ def build_guided_tour_primary_definitions(app) -> dict:
     }
 
 
+def guided_tour_button_text(app, _tour_name, _base_label) -> str:
+    """Return the compact command label used by guided-tour launchers."""
+    return app.tr("guided_tour_btn_start_short", "Start")
+
+
+def guided_tour_status_symbol(completed: bool) -> str:
+    """Return the compact completion marker for a guided tour."""
+    return "[x]" if completed else "[ ]"
+
+
+def guided_tour_title_text(app, tour_name, base_label) -> str:
+    """Return a launcher title, marking completed tours when applicable."""
+    label = str(base_label or "").strip()
+    if not label:
+        return ""
+    if app.is_guided_tour_completed(tour_name):
+        return app.tr("tour_status_title_completed", "{label} abgeschlossen").format(
+            label=label
+        )
+    return label
+
+
 def build_guided_tour_full_sequence(app) -> list[str]:
     """Return eligible launcher tour IDs in their configured order."""
     sequence = []
