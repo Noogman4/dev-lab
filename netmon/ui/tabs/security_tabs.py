@@ -40,6 +40,17 @@ def build_lynis_sections(app):
     return baseline_tab, hardening_tab, audit_tab
 
 
+def build_security_baseline_summary_panel(app, baseline_tab):
+    """Build the Security Baseline summary container."""
+    baseline_summary = ttk.LabelFrame(
+        baseline_tab,
+        text=app.tr("baseline_group_summary", "Security Baseline"),
+        padding=6,
+    )
+    baseline_summary.pack(fill="x", pady=(0, 8))
+    return baseline_summary
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(

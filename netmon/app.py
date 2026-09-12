@@ -620,6 +620,7 @@ try:
         build_lynis_scan_controls,
         build_lynis_sections,
         build_lynis_status_row,
+        build_security_baseline_summary_panel,
         build_security_tabs,
         build_startup_guard_tab,
     )
@@ -684,6 +685,7 @@ except ModuleNotFoundError:
         build_lynis_scan_controls,
         build_lynis_sections,
         build_lynis_status_row,
+        build_security_baseline_summary_panel,
         build_security_tabs,
         build_startup_guard_tab,
     )
@@ -29451,12 +29453,7 @@ class App(TkBase):
         security_audit_controller.restore_security_baseline_state(self)
         baseline_tab, hardening_tab, audit_tab = build_lynis_sections(self)
 
-        baseline_summary = ttk.LabelFrame(
-            baseline_tab,
-            text=self.tr("baseline_group_summary", "Security Baseline"),
-            padding=6,
-        )
-        baseline_summary.pack(fill="x", pady=(0, 8))
+        baseline_summary = build_security_baseline_summary_panel(self, baseline_tab)
         ttk.Label(
             baseline_summary,
             textvariable=self.security_baseline_profile_var,
