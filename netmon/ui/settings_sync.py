@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 
 def app_var_value(app, name: str, default):
     """Return a Tk variable value, falling back when the variable is absent or broken."""
@@ -89,3 +91,43 @@ def update_backup_and_download_scan_settings_from_app(app) -> None:
         ("download_scan_save_report", "download_scan_save_report_var", True),
     ):
         settings[key] = bool(app_var_value(app, var_name, settings.get(key, default)))
+
+
+def update_guided_tour_and_donation_settings_from_app(app) -> None:
+    """Copy guided-tour and donation UI values into the settings payload."""
+    settings = app.settings
+    settings["guided_tour_offer_on_startup"] = bool(
+        app_var_value(
+            app,
+            "var_guided_tour_offer_on_startup",
+            settings.get("guided_tour_offer_on_startup", True),
+        )
+    )
+    settings["guided_tour_startup_mode"] = (
+        "full-tour"
+        if bool(
+            app_var_value(
+                app,
+                "var_guided_tour_full_on_startup",
+                app._guided_tour_startup_mode() == "full-tour",
+            )
+        )
+        else "quickstart"
+    )
+    settings["guided_tour_completed"] = app._guided_tour_completed_settings()
+
+    donation_popup_requested = bool(
+        app_var_value(
+            app,
+            "var_donation_popup_enabled",
+            settings.get("donation_popup_enabled", True),
+        )
+    )
+    if donation_popup_requested or app.donation_popup_disable_allowed():
+        if not donation_popup_requested and bool(
+            settings.get("donation_popup_enabled", True)
+        ):
+            settings["donation_popup_disabled_at"] = int(time.time())
+        settings["donation_popup_enabled"] = donation_popup_requested
+    else:
+        settings["donation_popup_enabled"] = True

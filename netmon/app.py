@@ -625,6 +625,7 @@ try:
         app_var_value,
         sync_app_vars_from_mapping,
         update_backup_and_download_scan_settings_from_app,
+        update_guided_tour_and_donation_settings_from_app,
     )
     from netmon.ui.tour_specs import build_guided_tour_primary_definitions
     from netmon.ui.widgets.lights import make_light as build_light_widget
@@ -661,6 +662,7 @@ except ModuleNotFoundError:
         app_var_value,
         sync_app_vars_from_mapping,
         update_backup_and_download_scan_settings_from_app,
+        update_guided_tour_and_donation_settings_from_app,
     )
     from ui.tour_specs import build_guided_tour_primary_definitions
     from ui.widgets.lights import make_light as build_light_widget
@@ -21093,40 +21095,7 @@ class App(TkBase):
                 self.settings.get("wireshark_launch_blocked", False),
             )
         )
-        self.settings["guided_tour_offer_on_startup"] = bool(
-            app_var_value(
-                self,
-                "var_guided_tour_offer_on_startup",
-                self.settings.get("guided_tour_offer_on_startup", True),
-            )
-        )
-        self.settings["guided_tour_startup_mode"] = (
-            "full-tour"
-            if bool(
-                app_var_value(
-                    self,
-                    "var_guided_tour_full_on_startup",
-                    self._guided_tour_startup_mode() == "full-tour",
-                )
-            )
-            else "quickstart"
-        )
-        self.settings["guided_tour_completed"] = self._guided_tour_completed_settings()
-        donation_popup_requested = bool(
-            app_var_value(
-                self,
-                "var_donation_popup_enabled",
-                self.settings.get("donation_popup_enabled", True),
-            )
-        )
-        if donation_popup_requested or self.donation_popup_disable_allowed():
-            if not donation_popup_requested and bool(
-                self.settings.get("donation_popup_enabled", True)
-            ):
-                self.settings["donation_popup_disabled_at"] = int(time.time())
-            self.settings["donation_popup_enabled"] = donation_popup_requested
-        else:
-            self.settings["donation_popup_enabled"] = True
+        update_guided_tour_and_donation_settings_from_app(self)
         self.settings["clamav_quickscan_targets"] = (
             clamav_controller.clamav_normalize_quick_target_ids(
                 self.__dict__.get("clamav_quickscan_target_ids", [])

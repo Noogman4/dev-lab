@@ -4,6 +4,7 @@ from netmon.ui.settings_sync import (
     app_var_value,
     sync_app_vars_from_mapping,
     update_backup_and_download_scan_settings_from_app,
+    update_guided_tour_and_donation_settings_from_app,
 )
 
 
@@ -111,3 +112,56 @@ def test_update_backup_and_download_scan_settings_from_app_uses_vars_and_default
     assert app.settings["download_scan_ask_before_move"] is False
     assert app.settings["download_scan_keep_original"] is False
     assert app.settings["download_scan_save_report"] is True
+
+
+def test_update_guided_tour_and_donation_settings_allows_disable(monkeypatch):
+    app = SimpleNamespace(
+        settings={
+            "guided_tour_offer_on_startup": True,
+            "guided_tour_startup_mode": "quickstart",
+            "guided_tour_completed": {},
+            "donation_popup_enabled": True,
+            "donation_popup_disabled_at": 0,
+        },
+        var_guided_tour_offer_on_startup=DummyVar(False),
+        var_guided_tour_full_on_startup=DummyVar(True),
+        var_donation_popup_enabled=DummyVar(False),
+        _guided_tour_startup_mode=lambda: "quickstart",
+        _guided_tour_completed_settings=lambda: {"quickstart": True},
+        donation_popup_disable_allowed=lambda: True,
+    )
+    monkeypatch.setattr("netmon.ui.settings_sync.time.time", lambda: 12345)
+
+    update_guided_tour_and_donation_settings_from_app(app)
+
+    assert app.settings["guided_tour_offer_on_startup"] is False
+    assert app.settings["guided_tour_startup_mode"] == "full-tour"
+    assert app.settings["guided_tour_completed"] == {"quickstart": True}
+    assert app.settings["donation_popup_enabled"] is False
+    assert app.settings["donation_popup_disabled_at"] == 12345
+
+
+def test_update_guided_tour_and_donation_settings_blocks_early_disable():
+    app = SimpleNamespace(
+        settings={
+            "guided_tour_offer_on_startup": True,
+            "guided_tour_startup_mode": "full-tour",
+            "guided_tour_completed": {"old": True},
+            "donation_popup_enabled": True,
+            "donation_popup_disabled_at": 0,
+        },
+        var_guided_tour_offer_on_startup=DummyVar(True),
+        var_guided_tour_full_on_startup=DummyVar(False),
+        var_donation_popup_enabled=DummyVar(False),
+        _guided_tour_startup_mode=lambda: "full-tour",
+        _guided_tour_completed_settings=lambda: {"dns": True},
+        donation_popup_disable_allowed=lambda: False,
+    )
+
+    update_guided_tour_and_donation_settings_from_app(app)
+
+    assert app.settings["guided_tour_offer_on_startup"] is True
+    assert app.settings["guided_tour_startup_mode"] == "quickstart"
+    assert app.settings["guided_tour_completed"] == {"dns": True}
+    assert app.settings["donation_popup_enabled"] is True
+    assert app.settings["donation_popup_disabled_at"] == 0
