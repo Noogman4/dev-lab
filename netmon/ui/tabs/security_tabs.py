@@ -14,6 +14,19 @@ ROOTS_GUARD_INITIAL_ENABLED_AREAS = {
 }
 
 
+def build_lynis_actions_panel(app, audit_tab):
+    """Build the shared Lynis actions panel and configure its grid."""
+    lynis_top = ttk.LabelFrame(
+        audit_tab,
+        text=app.tr("lynis_group_actions", "Lynis actions"),
+        padding=6,
+    )
+    lynis_top.pack(fill="x", pady=(0, 8))
+    for col in range(3):
+        lynis_top.columnconfigure(col, weight=1)
+    return lynis_top
+
+
 def build_lynis_output_panel(app, audit_tab) -> None:
     """Build the Lynis summary and scrollable output widgets."""
     lynis_summary = ttk.LabelFrame(

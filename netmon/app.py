@@ -613,6 +613,7 @@ try:
     from netmon.ui.tabs.radio_tab import build_radio_tab
     from netmon.ui.tabs.secure_browser_tab import build_secure_browser_tab
     from netmon.ui.tabs.security_tabs import (
+        build_lynis_actions_panel,
         build_lynis_chad_action,
         build_lynis_filter_controls,
         build_lynis_output_panel,
@@ -675,6 +676,7 @@ except ModuleNotFoundError:
     from ui.tabs.linux_help_tab import build_linux_help_tab
     from ui.tabs.links_tab import build_links_tab
     from ui.tabs.security_tabs import (
+        build_lynis_actions_panel,
         build_lynis_chad_action,
         build_lynis_filter_controls,
         build_lynis_output_panel,
@@ -29965,14 +29967,7 @@ class App(TkBase):
         )
         self._refresh_security_hardening_text_wrap()
 
-        lynis_top = ttk.LabelFrame(
-            audit_tab,
-            text=self.tr("lynis_group_actions", "Lynis actions"),
-            padding=6,
-        )
-        lynis_top.pack(fill="x", pady=(0, 8))
-        for col in range(3):
-            lynis_top.columnconfigure(col, weight=1)
+        lynis_top = build_lynis_actions_panel(self, audit_tab)
 
         build_lynis_scan_controls(self, lynis_top)
 
