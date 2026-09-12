@@ -14,6 +14,32 @@ ROOTS_GUARD_INITIAL_ENABLED_AREAS = {
 }
 
 
+def build_lynis_sections(app):
+    """Create and register the Baseline, Hardening and Audit Lynis sections."""
+    lynis_sections = ttk.Notebook(app.tab_lynis)
+    app.lynis_sections = lynis_sections
+    lynis_sections.pack(fill="both", expand=True)
+    baseline_tab = ttk.Frame(lynis_sections)
+    hardening_tab = ttk.Frame(lynis_sections)
+    audit_tab = ttk.Frame(lynis_sections)
+    app.tab_lynis_baseline = baseline_tab
+    app.tab_lynis_hardening = hardening_tab
+    app.tab_lynis_audit = audit_tab
+    lynis_sections.add(
+        baseline_tab,
+        text=app.tr("lynis_subtab_baseline", "Baseline"),
+    )
+    lynis_sections.add(
+        hardening_tab,
+        text=app.tr("lynis_subtab_hardening", "Haertung"),
+    )
+    lynis_sections.add(
+        audit_tab,
+        text=app.tr("lynis_subtab_audit", "Lynis"),
+    )
+    return baseline_tab, hardening_tab, audit_tab
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(

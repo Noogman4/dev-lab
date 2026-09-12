@@ -618,6 +618,7 @@ try:
         build_lynis_filter_controls,
         build_lynis_output_panel,
         build_lynis_scan_controls,
+        build_lynis_sections,
         build_lynis_status_row,
         build_security_tabs,
         build_startup_guard_tab,
@@ -681,6 +682,7 @@ except ModuleNotFoundError:
         build_lynis_filter_controls,
         build_lynis_output_panel,
         build_lynis_scan_controls,
+        build_lynis_sections,
         build_lynis_status_row,
         build_security_tabs,
         build_startup_guard_tab,
@@ -29447,28 +29449,7 @@ class App(TkBase):
 
     def build_lynis_tab(self):
         security_audit_controller.restore_security_baseline_state(self)
-        lynis_sections = ttk.Notebook(self.tab_lynis)
-        self.lynis_sections = lynis_sections
-        lynis_sections.pack(fill="both", expand=True)
-
-        baseline_tab = ttk.Frame(lynis_sections)
-        hardening_tab = ttk.Frame(lynis_sections)
-        audit_tab = ttk.Frame(lynis_sections)
-        self.tab_lynis_baseline = baseline_tab
-        self.tab_lynis_hardening = hardening_tab
-        self.tab_lynis_audit = audit_tab
-        lynis_sections.add(
-            baseline_tab,
-            text=self.tr("lynis_subtab_baseline", "Baseline"),
-        )
-        lynis_sections.add(
-            hardening_tab,
-            text=self.tr("lynis_subtab_hardening", "Haertung"),
-        )
-        lynis_sections.add(
-            audit_tab,
-            text=self.tr("lynis_subtab_audit", "Lynis"),
-        )
+        baseline_tab, hardening_tab, audit_tab = build_lynis_sections(self)
 
         baseline_summary = ttk.LabelFrame(
             baseline_tab,
