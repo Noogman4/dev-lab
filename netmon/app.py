@@ -643,6 +643,7 @@ try:
         build_guided_tour_tab_definitions,
         guided_tour_button_text,
         guided_tour_status_symbol,
+        guided_tour_status_text,
         guided_tour_title_text,
     )
     from netmon.ui.widgets.lights import make_light as build_light_widget
@@ -697,6 +698,7 @@ except ModuleNotFoundError:
         build_guided_tour_tab_definitions,
         guided_tour_button_text,
         guided_tour_status_symbol,
+        guided_tour_status_text,
         guided_tour_title_text,
     )
     from ui.widgets.lights import make_light as build_light_widget
@@ -6744,37 +6746,7 @@ class App(TkBase):
         return bool(self._guided_tour_completed_settings().get(tour_id, False))
 
     def _guided_tour_status_text(self) -> str:
-        labels = (
-            ("full-tour", self.tr("tour_label_full", "Volle Tour")),
-            ("quickstart", self.tr("tour_label_quickstart", "Schnellstart")),
-            ("dns", self.tr("tour_label_dns_short", "DNS")),
-            ("security", self.tr("tour_label_security_short", "Security")),
-            ("download-scan", self.tr("tour_label_download_scan_short", "D-Scan")),
-            ("radio", self.tr("tour_label_radio_short", "Radio")),
-        )
-        done = []
-        open_items = []
-        for key, label in labels:
-            if self.is_guided_tour_completed(key):
-                done.append(label)
-            else:
-                open_items.append(label)
-        if done and open_items:
-            return (
-                self.tr("tour_status_completed_prefix", "Tourstatus: abgeschlossen: ")
-                + ", ".join(done)
-                + self.tr("tour_status_open_separator", " | offen: ")
-                + ", ".join(open_items)
-            )
-        if done:
-            return self.tr(
-                "tour_status_all_completed",
-                "Tourstatus: alle verfügbaren Touren abgeschlossen.",
-            )
-        return self.tr(
-            "tour_status_none_completed",
-            "Tourstatus: noch keine Tour abgeschlossen.",
-        )
+        return guided_tour_status_text(self)
 
     def _guided_tour_button_text(self, _tour_name, _base_label) -> str:
         return guided_tour_button_text(self, _tour_name, _base_label)

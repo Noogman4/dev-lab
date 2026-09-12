@@ -9,6 +9,7 @@ from netmon.ui.tour_specs import (
     build_guided_tour_tab_definitions,
     guided_tour_button_text,
     guided_tour_status_symbol,
+    guided_tour_status_text,
     guided_tour_title_text,
 )
 
@@ -66,6 +67,31 @@ def test_guided_tour_launcher_presentation_helpers_mark_completed_tours():
     assert guided_tour_title_text(app, "completed", " Tour ") == "Tour abgeschlossen"
     assert guided_tour_title_text(app, "open", " Tour ") == "Tour"
     assert guided_tour_title_text(app, "open", " ") == ""
+
+
+def test_guided_tour_status_text_covers_mixed_all_and_no_completion():
+    def build_app(completed):
+        return SimpleNamespace(
+            tr=lambda _key, default=None: default,
+            is_guided_tour_completed=lambda tour_name: tour_name in completed,
+        )
+
+    assert guided_tour_status_text(build_app({"dns"})) == (
+        "Tourstatus: abgeschlossen: DNS | offen: Volle Tour, Schnellstart, "
+        "Security, D-Scan, Radio"
+    )
+    assert (
+        guided_tour_status_text(
+            build_app(
+                {"full-tour", "quickstart", "dns", "security", "download-scan", "radio"}
+            )
+        )
+        == "Tourstatus: alle verfügbaren Touren abgeschlossen."
+    )
+    assert (
+        guided_tour_status_text(build_app(set()))
+        == "Tourstatus: noch keine Tour abgeschlossen."
+    )
 
 
 def test_full_tour_helpers_keep_launcher_order_and_surround_selected_steps():

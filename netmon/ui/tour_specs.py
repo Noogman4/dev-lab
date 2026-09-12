@@ -55,6 +55,41 @@ def guided_tour_title_text(app, tour_name, base_label) -> str:
     return label
 
 
+def guided_tour_status_text(app) -> str:
+    """Return the translated completion summary for primary guided tours."""
+    labels = (
+        ("full-tour", app.tr("tour_label_full", "Volle Tour")),
+        ("quickstart", app.tr("tour_label_quickstart", "Schnellstart")),
+        ("dns", app.tr("tour_label_dns_short", "DNS")),
+        ("security", app.tr("tour_label_security_short", "Security")),
+        ("download-scan", app.tr("tour_label_download_scan_short", "D-Scan")),
+        ("radio", app.tr("tour_label_radio_short", "Radio")),
+    )
+    done = []
+    open_items = []
+    for key, label in labels:
+        if app.is_guided_tour_completed(key):
+            done.append(label)
+        else:
+            open_items.append(label)
+    if done and open_items:
+        return (
+            app.tr("tour_status_completed_prefix", "Tourstatus: abgeschlossen: ")
+            + ", ".join(done)
+            + app.tr("tour_status_open_separator", " | offen: ")
+            + ", ".join(open_items)
+        )
+    if done:
+        return app.tr(
+            "tour_status_all_completed",
+            "Tourstatus: alle verfügbaren Touren abgeschlossen.",
+        )
+    return app.tr(
+        "tour_status_none_completed",
+        "Tourstatus: noch keine Tour abgeschlossen.",
+    )
+
+
 def build_guided_tour_full_sequence(app) -> list[str]:
     """Return eligible launcher tour IDs in their configured order."""
     sequence = []
