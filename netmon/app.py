@@ -621,7 +621,11 @@ try:
     from netmon.ui.tabs.tools_tabs import build_basic_tools_tabs
     from netmon.ui.tabs.trace_tab import build_trace_tab
     from netmon.ui.tabs.vpn_slots_tab import build_vpn_slots_tab
-    from netmon.ui.settings_sync import app_var_value, sync_app_vars_from_mapping
+    from netmon.ui.settings_sync import (
+        app_var_value,
+        sync_app_vars_from_mapping,
+        update_backup_and_download_scan_settings_from_app,
+    )
     from netmon.ui.tour_specs import build_guided_tour_primary_definitions
     from netmon.ui.widgets.lights import make_light as build_light_widget
     from netmon.ui.widgets.lights import set_light as update_light_widget
@@ -653,7 +657,11 @@ except ModuleNotFoundError:
     from ui.tabs.tools_tabs import build_basic_tools_tabs
     from ui.tabs.trace_tab import build_trace_tab
     from ui.tabs.vpn_slots_tab import build_vpn_slots_tab
-    from ui.settings_sync import app_var_value, sync_app_vars_from_mapping
+    from ui.settings_sync import (
+        app_var_value,
+        sync_app_vars_from_mapping,
+        update_backup_and_download_scan_settings_from_app,
+    )
     from ui.tour_specs import build_guided_tour_primary_definitions
     from ui.widgets.lights import make_light as build_light_widget
     from ui.widgets.lights import set_light as update_light_widget
@@ -21129,136 +21137,7 @@ class App(TkBase):
                 self.__dict__.get("clamav_quickscan_custom_paths", [])
             )
         )
-        self.settings["download_scan_temp_dir"] = (
-            str(
-                app_var_value(
-                    self,
-                    "download_scan_temp_dir_var",
-                    self._default_download_scan_temp_dir(),
-                )
-                or self._default_download_scan_temp_dir()
-            ).strip()
-            or self._default_download_scan_temp_dir()
-        )
-        self.settings["download_scan_target_dir"] = (
-            str(
-                app_var_value(
-                    self,
-                    "download_scan_target_dir_var",
-                    self._default_download_scan_target_dir(),
-                )
-                or self._default_download_scan_target_dir()
-            ).strip()
-            or self._default_download_scan_target_dir()
-        )
-        self.settings["backup_data_target_dir"] = (
-            str(
-                app_var_value(
-                    self,
-                    "backup_target_dir_var",
-                    self._default_backup_data_target_dir(),
-                )
-                or self._default_backup_data_target_dir()
-            ).strip()
-            or self._default_backup_data_target_dir()
-        )
-        self.settings["backup_include_documents"] = bool(
-            app_var_value(
-                self,
-                "backup_include_documents_var",
-                self.settings.get("backup_include_documents", True),
-            )
-        )
-        self.settings["backup_include_pictures"] = bool(
-            app_var_value(
-                self,
-                "backup_include_pictures_var",
-                self.settings.get("backup_include_pictures", True),
-            )
-        )
-        self.settings["backup_include_desktop"] = bool(
-            app_var_value(
-                self,
-                "backup_include_desktop_var",
-                self.settings.get("backup_include_desktop", True),
-            )
-        )
-        self.settings["backup_include_music"] = bool(
-            app_var_value(
-                self,
-                "backup_include_music_var",
-                self.settings.get("backup_include_music", True),
-            )
-        )
-        self.settings["backup_include_videos"] = bool(
-            app_var_value(
-                self,
-                "backup_include_videos_var",
-                self.settings.get("backup_include_videos", True),
-            )
-        )
-        self.settings["backup_include_downloads"] = bool(
-            app_var_value(
-                self,
-                "backup_include_downloads_var",
-                self.settings.get("backup_include_downloads", True),
-            )
-        )
-        self.settings["backup_include_netmon_documents"] = bool(
-            app_var_value(
-                self,
-                "backup_include_netmon_documents_var",
-                self.settings.get("backup_include_netmon_documents", True),
-            )
-        )
-        backup_netmon_dir_vars = self.__dict__.get("backup_netmon_dir_vars") or {}
-        self.settings["backup_netmon_full"] = bool(
-            app_var_value(
-                self,
-                "backup_netmon_full_var",
-                self.settings.get("backup_netmon_full", False),
-            )
-        )
-        self.settings["backup_netmon_selected_dirs"] = [
-            str(key)
-            for key, var in sorted(backup_netmon_dir_vars.items())
-            if bool(getattr(var, "get", lambda: False)())
-        ]
-        self.settings["download_scan_prequarantine_startup"] = bool(
-            app_var_value(
-                self,
-                "download_scan_prequarantine_startup_var",
-                self.settings.get("download_scan_prequarantine_startup", False),
-            )
-        )
-        self.settings["download_scan_auto_move"] = bool(
-            app_var_value(
-                self,
-                "download_scan_auto_move_var",
-                self.settings.get("download_scan_auto_move", False),
-            )
-        )
-        self.settings["download_scan_ask_before_move"] = bool(
-            app_var_value(
-                self,
-                "download_scan_ask_before_move_var",
-                self.settings.get("download_scan_ask_before_move", True),
-            )
-        )
-        self.settings["download_scan_keep_original"] = bool(
-            app_var_value(
-                self,
-                "download_scan_keep_original_var",
-                self.settings.get("download_scan_keep_original", True),
-            )
-        )
-        self.settings["download_scan_save_report"] = bool(
-            app_var_value(
-                self,
-                "download_scan_save_report_var",
-                self.settings.get("download_scan_save_report", True),
-            )
-        )
+        update_backup_and_download_scan_settings_from_app(self)
         self.settings["speedtest_server_id"] = (
             speedtest_controller.normalize_speedtest_server_id(
                 app_var_value(

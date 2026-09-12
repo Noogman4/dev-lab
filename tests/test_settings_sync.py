@@ -1,6 +1,10 @@
 from types import SimpleNamespace
 
-from netmon.ui.settings_sync import app_var_value, sync_app_vars_from_mapping
+from netmon.ui.settings_sync import (
+    app_var_value,
+    sync_app_vars_from_mapping,
+    update_backup_and_download_scan_settings_from_app,
+)
 
 
 class DummyVar:
@@ -43,3 +47,67 @@ def test_sync_app_vars_from_mapping_updates_existing_vars_only():
     )
 
     assert app.first.get() == "new"
+
+
+def test_update_backup_and_download_scan_settings_from_app_uses_vars_and_defaults():
+    app = SimpleNamespace(
+        settings={
+            "backup_include_documents": True,
+            "backup_include_pictures": True,
+            "backup_include_desktop": True,
+            "backup_include_music": True,
+            "backup_include_videos": True,
+            "backup_include_downloads": True,
+            "backup_include_netmon_documents": True,
+            "backup_netmon_full": False,
+            "download_scan_prequarantine_startup": False,
+            "download_scan_auto_move": False,
+            "download_scan_ask_before_move": True,
+            "download_scan_keep_original": True,
+            "download_scan_save_report": True,
+        },
+        download_scan_temp_dir_var=DummyVar("  /tmp/custom-prequarantine  "),
+        download_scan_target_dir_var=DummyVar(""),
+        backup_target_dir_var=DummyVar("  /backup/data  "),
+        backup_include_documents_var=DummyVar(False),
+        backup_include_pictures_var=DummyVar(True),
+        backup_include_desktop_var=DummyVar(False),
+        backup_include_music_var=DummyVar(True),
+        backup_include_videos_var=DummyVar(False),
+        backup_include_downloads_var=DummyVar(True),
+        backup_include_netmon_documents_var=DummyVar(False),
+        backup_netmon_full_var=DummyVar(True),
+        backup_netmon_dir_vars={
+            "logs": DummyVar(True),
+            "cache": DummyVar(False),
+            "config": DummyVar(True),
+        },
+        download_scan_prequarantine_startup_var=DummyVar(True),
+        download_scan_auto_move_var=DummyVar(True),
+        download_scan_ask_before_move_var=DummyVar(False),
+        download_scan_keep_original_var=DummyVar(False),
+        download_scan_save_report_var=DummyVar(True),
+        _default_download_scan_temp_dir=lambda: "/tmp/default-prequarantine",
+        _default_download_scan_target_dir=lambda: "/downloads/default",
+        _default_backup_data_target_dir=lambda: "/backup/default",
+    )
+
+    update_backup_and_download_scan_settings_from_app(app)
+
+    assert app.settings["download_scan_temp_dir"] == "/tmp/custom-prequarantine"
+    assert app.settings["download_scan_target_dir"] == "/downloads/default"
+    assert app.settings["backup_data_target_dir"] == "/backup/data"
+    assert app.settings["backup_include_documents"] is False
+    assert app.settings["backup_include_pictures"] is True
+    assert app.settings["backup_include_desktop"] is False
+    assert app.settings["backup_include_music"] is True
+    assert app.settings["backup_include_videos"] is False
+    assert app.settings["backup_include_downloads"] is True
+    assert app.settings["backup_include_netmon_documents"] is False
+    assert app.settings["backup_netmon_full"] is True
+    assert app.settings["backup_netmon_selected_dirs"] == ["config", "logs"]
+    assert app.settings["download_scan_prequarantine_startup"] is True
+    assert app.settings["download_scan_auto_move"] is True
+    assert app.settings["download_scan_ask_before_move"] is False
+    assert app.settings["download_scan_keep_original"] is False
+    assert app.settings["download_scan_save_report"] is True
