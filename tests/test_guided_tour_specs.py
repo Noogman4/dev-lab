@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 from netmon.ui.tour_specs import (
+    build_guided_tab_tour_steps,
     build_guided_tour_primary_definitions,
     build_guided_tour_tab_definitions,
 )
@@ -76,3 +77,56 @@ def test_build_guided_tour_tab_definitions_skips_blank_ids_and_builds_steps():
         },
     }
     assert calls == [" System ", "dns"]
+
+
+def test_build_guided_tab_tour_steps_builds_actions_and_detail_steps():
+    prepare = object()
+
+    def action():
+        return None
+
+    app = SimpleNamespace(
+        tr=lambda _key, default=None: default,
+        _guided_tour_tab_prepare_callable=lambda selector, tab_attr: (
+            prepare,
+            selector,
+            tab_attr,
+        ),
+    )
+    spec = {
+        "tab_title": " Security ",
+        "description": " Overview ",
+        "hint": "Hint",
+        "target": "target-widget",
+        "tab_attr": "tab_security",
+        "selector": " SECURITY ",
+        "action": action,
+        "action_label": "Run",
+        "action_success": "Done",
+        "action_failure": "Failed",
+        "detail_steps": [
+            {"title": "Detail"},
+            "ignored",
+            {"title": "Custom", "prepare": "custom-prepare"},
+        ],
+    }
+
+    steps = build_guided_tab_tour_steps(app, spec)
+
+    expected_prepare = (prepare, "security", "tab_security")
+    assert [step["title"] for step in steps] == [
+        "Security im Überblick",
+        "Security",
+        "Detail",
+        "Custom",
+        "Security abgeschlossen",
+    ]
+    assert steps[0]["prepare"] == expected_prepare
+    assert steps[1]["target"] == "target-widget"
+    assert steps[1]["body"] == "Overview"
+    assert steps[1]["action"] is action
+    assert steps[1]["action_label"] == "Run"
+    assert steps[1]["action_success"] == "Done"
+    assert steps[1]["action_failure"] == "Failed"
+    assert steps[2]["prepare"] == expected_prepare
+    assert steps[3]["prepare"] == "custom-prepare"
