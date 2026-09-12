@@ -613,6 +613,7 @@ try:
     from netmon.ui.tabs.radio_tab import build_radio_tab
     from netmon.ui.tabs.secure_browser_tab import build_secure_browser_tab
     from netmon.ui.tabs.security_tabs import (
+        build_lynis_filter_controls,
         build_lynis_output_panel,
         build_security_tabs,
         build_startup_guard_tab,
@@ -671,6 +672,7 @@ except ModuleNotFoundError:
     from ui.tabs.linux_help_tab import build_linux_help_tab
     from ui.tabs.links_tab import build_links_tab
     from ui.tabs.security_tabs import (
+        build_lynis_filter_controls,
         build_lynis_output_panel,
         build_security_tabs,
         build_startup_guard_tab,
@@ -30053,42 +30055,7 @@ class App(TkBase):
             textvariable=self.lynis_hardening_index_var,
         ).pack(side="left", padx=(18, 0))
 
-        lynis_filter_row = ttk.Frame(lynis_top)
-        lynis_filter_row.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(6, 0))
-        ttk.Label(lynis_filter_row, text=self.tr("label_filter", "Filter:")).pack(
-            side="left"
-        )
-
-        self.btn_lynis_issues = ttk.Button(
-            lynis_filter_row,
-            text=self.tr(
-                "lynis_btn_only_issues_recommendations",
-                "Issues & recommendations only",
-            ),
-            command=self.show_lynis_issues_only,
-        )
-        self.btn_lynis_issues.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_lynis_issues,
-            self.tr(
-                "lynis_btn_only_issues_recommendations_tooltip",
-                "Shows only warnings, recommendations, and notable Lynis lines.",
-            ),
-        )
-
-        self.btn_lynis_full_output = ttk.Button(
-            lynis_filter_row,
-            text=self.tr("lynis_btn_full_output", "Full output"),
-            command=self.show_lynis_full_output,
-        )
-        self.btn_lynis_full_output.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_lynis_full_output,
-            self.tr(
-                "lynis_btn_full_output_tooltip",
-                "Restores the full cleaned Lynis output.",
-            ),
-        )
+        build_lynis_filter_controls(self, lynis_top)
 
         build_lynis_output_panel(self, audit_tab)
         self.refresh_security_baseline_overview()

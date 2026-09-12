@@ -156,6 +156,9 @@ def test_lynis_summary_value_returns_dash_for_missing_or_invalid_values():
 
 def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     source = inspect.getsource(netmon_app.App.build_lynis_tab)
+    filter_controls_source = inspect.getsource(
+        security_tabs.build_lynis_filter_controls
+    )
     output_panel_source = inspect.getsource(security_tabs.build_lynis_output_panel)
     game_mode_source = inspect.getsource(netmon_app.App.enable_game_mode)
     game_mode_dialog_source = inspect.getsource(
@@ -183,6 +186,9 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     assert "self.apply_security_baseline_profile_choice(" in source
     assert "textvariable=self.lynis_hardening_index_var" in source
     assert "build_lynis_output_panel(self, audit_tab)" in source
+    assert "build_lynis_filter_controls(self, lynis_top)" in source
+    assert "command=app.show_lynis_issues_only" in filter_controls_source
+    assert "command=app.show_lynis_full_output" in filter_controls_source
     assert "textvariable=app.lynis_summary_var" in output_panel_source
     assert "app.lynis_text = tk.Text(" in output_panel_source
     assert "textvariable=self.security_baseline_transfer_var" in source

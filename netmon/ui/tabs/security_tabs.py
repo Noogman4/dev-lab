@@ -44,6 +44,44 @@ def build_lynis_output_panel(app, audit_tab) -> None:
     app.lynis_text.configure(state="disabled")
 
 
+def build_lynis_filter_controls(app, lynis_top) -> None:
+    """Build Lynis output filter controls inside the actions panel."""
+    lynis_filter_row = ttk.Frame(lynis_top)
+    lynis_filter_row.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(6, 0))
+    ttk.Label(lynis_filter_row, text=app.tr("label_filter", "Filter:")).pack(
+        side="left"
+    )
+    app.btn_lynis_issues = ttk.Button(
+        lynis_filter_row,
+        text=app.tr(
+            "lynis_btn_only_issues_recommendations",
+            "Issues & recommendations only",
+        ),
+        command=app.show_lynis_issues_only,
+    )
+    app.btn_lynis_issues.pack(side="left", padx=(8, 0))
+    app.add_tooltip(
+        app.btn_lynis_issues,
+        app.tr(
+            "lynis_btn_only_issues_recommendations_tooltip",
+            "Shows only warnings, recommendations, and notable Lynis lines.",
+        ),
+    )
+    app.btn_lynis_full_output = ttk.Button(
+        lynis_filter_row,
+        text=app.tr("lynis_btn_full_output", "Full output"),
+        command=app.show_lynis_full_output,
+    )
+    app.btn_lynis_full_output.pack(side="left", padx=(8, 0))
+    app.add_tooltip(
+        app.btn_lynis_full_output,
+        app.tr(
+            "lynis_btn_full_output_tooltip",
+            "Restores the full cleaned Lynis output.",
+        ),
+    )
+
+
 def _selected_filter_mode(choice_var, modes_by_label: dict, default: str) -> str:
     if choice_var is None:
         return default
