@@ -628,6 +628,7 @@ try:
         update_chad_settings_from_app,
         update_clamav_quickscan_settings_from_app,
         update_guided_tour_and_donation_settings_from_app,
+        update_security_tool_settings_from_app,
     )
     from netmon.ui.tour_specs import build_guided_tour_primary_definitions
     from netmon.ui.widgets.lights import make_light as build_light_widget
@@ -667,6 +668,7 @@ except ModuleNotFoundError:
         update_chad_settings_from_app,
         update_clamav_quickscan_settings_from_app,
         update_guided_tour_and_donation_settings_from_app,
+        update_security_tool_settings_from_app,
     )
     from ui.tour_specs import build_guided_tour_primary_definitions
     from ui.widgets.lights import make_light as build_light_widget
@@ -21072,45 +21074,10 @@ class App(TkBase):
             self.var_systemcheck_rkhunter.get()
         )
         self.settings["systemcheck_clamav"] = bool(self.var_systemcheck_clamav.get())
-        self.settings["security_baseline_profile_id"] = (
-            str(
-                self.__dict__.get(
-                    "security_baseline_profile_id",
-                    self.settings.get(
-                        "security_baseline_profile_id",
-                        "zorin_desktop_development",
-                    ),
-                )
-                or "zorin_desktop_development"
-            ).strip()
-            or "zorin_desktop_development"
-        )
-        self.settings["security_game_mode_preset"] = self._normalize_game_mode_preset(
-            app_var_value(
-                self,
-                "security_game_mode_preset_var",
-                self.settings.get("security_game_mode_preset", "online"),
-            )
-        )
-        self.settings["wireshark_launch_blocked"] = bool(
-            app_var_value(
-                self,
-                "var_wireshark_launch_blocked",
-                self.settings.get("wireshark_launch_blocked", False),
-            )
-        )
+        update_security_tool_settings_from_app(self, speedtest_controller)
         update_guided_tour_and_donation_settings_from_app(self)
         update_clamav_quickscan_settings_from_app(self, clamav_controller)
         update_backup_and_download_scan_settings_from_app(self)
-        self.settings["speedtest_server_id"] = (
-            speedtest_controller.normalize_speedtest_server_id(
-                app_var_value(
-                    self,
-                    "speedtest_server_id_var",
-                    self.settings.get("speedtest_server_id", ""),
-                )
-            )
-        )
         update_chad_settings_from_app(self)
 
         if self.lang_service is not None:

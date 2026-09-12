@@ -7,6 +7,7 @@ from netmon.ui.settings_sync import (
     update_chad_settings_from_app,
     update_clamav_quickscan_settings_from_app,
     update_guided_tour_and_donation_settings_from_app,
+    update_security_tool_settings_from_app,
 )
 
 
@@ -282,3 +283,35 @@ def test_update_chad_settings_from_app_copies_profile_filters_focus_and_answers(
     assert app.settings["chad_answer_linux_help"] is False
     assert app.settings["chad_answer_risk"] is False
     assert app.settings["chad_answer_recommendations"] is False
+
+
+def test_update_security_tool_settings_from_app_normalizes_fields():
+    calls = []
+
+    class DummySpeedtestController:
+        @staticmethod
+        def normalize_speedtest_server_id(value):
+            calls.append(("speedtest", value))
+            return "44081"
+
+    app = SimpleNamespace(
+        settings={
+            "security_baseline_profile_id": "zorin_desktop_development",
+            "security_game_mode_preset": "online",
+            "wireshark_launch_blocked": False,
+            "speedtest_server_id": "",
+        },
+        security_baseline_profile_id="  desktop_safe_v1  ",
+        security_game_mode_preset_var=DummyVar(" Steam "),
+        var_wireshark_launch_blocked=DummyVar(True),
+        speedtest_server_id_var=DummyVar("ID 44081"),
+        _normalize_game_mode_preset=lambda value: str(value).strip().lower(),
+    )
+
+    update_security_tool_settings_from_app(app, DummySpeedtestController)
+
+    assert app.settings["security_baseline_profile_id"] == "desktop_safe_v1"
+    assert app.settings["security_game_mode_preset"] == "steam"
+    assert app.settings["wireshark_launch_blocked"] is True
+    assert app.settings["speedtest_server_id"] == "44081"
+    assert calls == [("speedtest", "ID 44081")]

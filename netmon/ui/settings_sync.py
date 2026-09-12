@@ -155,6 +155,47 @@ def update_clamav_quickscan_settings_from_app(app, clamav_controller) -> None:
     )
 
 
+def update_security_tool_settings_from_app(app, speedtest_controller) -> None:
+    """Copy security adjunct and speedtest values into the settings payload."""
+    settings = app.settings
+    settings["security_baseline_profile_id"] = (
+        str(
+            getattr(app, "__dict__", {}).get(
+                "security_baseline_profile_id",
+                settings.get(
+                    "security_baseline_profile_id",
+                    "zorin_desktop_development",
+                ),
+            )
+            or "zorin_desktop_development"
+        ).strip()
+        or "zorin_desktop_development"
+    )
+    settings["security_game_mode_preset"] = app._normalize_game_mode_preset(
+        app_var_value(
+            app,
+            "security_game_mode_preset_var",
+            settings.get("security_game_mode_preset", "online"),
+        )
+    )
+    settings["wireshark_launch_blocked"] = bool(
+        app_var_value(
+            app,
+            "var_wireshark_launch_blocked",
+            settings.get("wireshark_launch_blocked", False),
+        )
+    )
+    settings["speedtest_server_id"] = (
+        speedtest_controller.normalize_speedtest_server_id(
+            app_var_value(
+                app,
+                "speedtest_server_id_var",
+                settings.get("speedtest_server_id", ""),
+            )
+        )
+    )
+
+
 def update_chad_settings_from_app(app) -> None:
     """Copy Chad analysis UI values into the settings payload."""
     settings = app.settings
