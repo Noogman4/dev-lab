@@ -613,6 +613,7 @@ try:
     from netmon.ui.tabs.radio_tab import build_radio_tab
     from netmon.ui.tabs.secure_browser_tab import build_secure_browser_tab
     from netmon.ui.tabs.security_tabs import (
+        build_lynis_chad_action,
         build_lynis_filter_controls,
         build_lynis_output_panel,
         build_lynis_scan_controls,
@@ -673,6 +674,7 @@ except ModuleNotFoundError:
     from ui.tabs.linux_help_tab import build_linux_help_tab
     from ui.tabs.links_tab import build_links_tab
     from ui.tabs.security_tabs import (
+        build_lynis_chad_action,
         build_lynis_filter_controls,
         build_lynis_output_panel,
         build_lynis_scan_controls,
@@ -29972,24 +29974,7 @@ class App(TkBase):
 
         build_lynis_scan_controls(self, lynis_top)
 
-        self.btn_lynis_chad_issues = ttk.Button(
-            lynis_top,
-            text=self.tr(
-                "lynis_btn_analyze_issues_with_chad",
-                "Analyze issues with Chad",
-            ),
-            command=self.analyze_lynis_issues_with_chad,
-        )
-        self.btn_lynis_chad_issues.grid(
-            row=1, column=0, sticky="ew", padx=(0, 6), pady=6
-        )
-        self.add_tooltip(
-            self.btn_lynis_chad_issues,
-            self.tr(
-                "lynis_btn_analyze_issues_with_chad_tooltip",
-                "Prepares only Lynis issues and recommendations for Chad.",
-            ),
-        )
+        build_lynis_chad_action(self, lynis_top)
 
         lynis_status_row = ttk.Frame(lynis_top)
         lynis_status_row.grid(

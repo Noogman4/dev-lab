@@ -127,6 +127,26 @@ def build_lynis_scan_controls(app, lynis_top) -> None:
     )
 
 
+def build_lynis_chad_action(app, lynis_top) -> None:
+    """Build the Lynis issue-analysis action for Chad."""
+    app.btn_lynis_chad_issues = ttk.Button(
+        lynis_top,
+        text=app.tr(
+            "lynis_btn_analyze_issues_with_chad",
+            "Analyze issues with Chad",
+        ),
+        command=app.analyze_lynis_issues_with_chad,
+    )
+    app.btn_lynis_chad_issues.grid(row=1, column=0, sticky="ew", padx=(0, 6), pady=6)
+    app.add_tooltip(
+        app.btn_lynis_chad_issues,
+        app.tr(
+            "lynis_btn_analyze_issues_with_chad_tooltip",
+            "Prepares only Lynis issues and recommendations for Chad.",
+        ),
+    )
+
+
 def _selected_filter_mode(choice_var, modes_by_label: dict, default: str) -> str:
     if choice_var is None:
         return default
