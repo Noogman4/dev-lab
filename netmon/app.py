@@ -622,6 +622,7 @@ try:
         build_lynis_status_row,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
+        build_security_baseline_summary_statuses,
         build_security_tabs,
         build_startup_guard_tab,
     )
@@ -688,6 +689,7 @@ except ModuleNotFoundError:
         build_lynis_status_row,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
+        build_security_baseline_summary_statuses,
         build_security_tabs,
         build_startup_guard_tab,
     )
@@ -29464,36 +29466,7 @@ class App(TkBase):
             baseline_summary,
             baseline_profile_choices,
         )
-        ttk.Label(
-            baseline_summary,
-            textvariable=self.security_baseline_version_var,
-            justify="left",
-        ).pack(anchor="w")
-        ttk.Label(
-            baseline_summary,
-            textvariable=self.security_baseline_reference_var,
-            justify="left",
-        ).pack(anchor="w")
-        ttk.Label(
-            baseline_summary,
-            textvariable=self.security_baseline_date_var,
-            justify="left",
-        ).pack(anchor="w")
-        ttk.Label(
-            baseline_summary,
-            textvariable=self.security_baseline_last_check_var,
-            justify="left",
-        ).pack(anchor="w", pady=(4, 0))
-        ttk.Label(
-            baseline_summary,
-            textvariable=self.security_baseline_status_var,
-            justify="left",
-        ).pack(anchor="w")
-        ttk.Label(
-            baseline_summary,
-            textvariable=self.security_baseline_lynis_summary_var,
-            justify="left",
-        ).pack(anchor="w")
+        build_security_baseline_summary_statuses(self, baseline_summary)
 
         baseline_actions = ttk.Frame(baseline_summary)
         baseline_actions.pack(fill="x", pady=(6, 0))

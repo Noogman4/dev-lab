@@ -87,6 +87,30 @@ def build_security_baseline_profile_selector(app, baseline_summary, choices) -> 
     )
 
 
+def build_security_baseline_summary_statuses(app, baseline_summary) -> None:
+    """Build the baseline metadata and current-status summary labels."""
+    for variable in (
+        app.security_baseline_version_var,
+        app.security_baseline_reference_var,
+        app.security_baseline_date_var,
+    ):
+        ttk.Label(baseline_summary, textvariable=variable, justify="left").pack(
+            anchor="w"
+        )
+    ttk.Label(
+        baseline_summary,
+        textvariable=app.security_baseline_last_check_var,
+        justify="left",
+    ).pack(anchor="w", pady=(4, 0))
+    for variable in (
+        app.security_baseline_status_var,
+        app.security_baseline_lynis_summary_var,
+    ):
+        ttk.Label(baseline_summary, textvariable=variable, justify="left").pack(
+            anchor="w"
+        )
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(
