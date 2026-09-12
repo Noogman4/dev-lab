@@ -629,6 +629,7 @@ try:
         update_clamav_quickscan_settings_from_app,
         update_guided_tour_and_donation_settings_from_app,
         update_security_tool_settings_from_app,
+        update_systemcheck_settings_from_app,
     )
     from netmon.ui.tour_specs import build_guided_tour_primary_definitions
     from netmon.ui.widgets.lights import make_light as build_light_widget
@@ -669,6 +670,7 @@ except ModuleNotFoundError:
         update_clamav_quickscan_settings_from_app,
         update_guided_tour_and_donation_settings_from_app,
         update_security_tool_settings_from_app,
+        update_systemcheck_settings_from_app,
     )
     from ui.tour_specs import build_guided_tour_primary_definitions
     from ui.widgets.lights import make_light as build_light_widget
@@ -21057,23 +21059,7 @@ class App(TkBase):
         self.settings["chad_model"] = (
             str(self.chad_model_var.get() or "gpt-4.1-mini").strip() or "gpt-4.1-mini"
         )
-        self.settings["systemcheck_security_summary"] = bool(
-            self.var_systemcheck_security_summary.get()
-        )
-        self.settings["systemcheck_startup_guard"] = bool(
-            self.var_systemcheck_startup_guard.get()
-        )
-        self.settings["systemcheck_path_guard"] = bool(
-            self.var_systemcheck_path_guard.get()
-        )
-        self.settings["systemcheck_process_guard"] = bool(
-            self.var_systemcheck_process_guard.get()
-        )
-        self.settings["systemcheck_lynis"] = bool(self.var_systemcheck_lynis.get())
-        self.settings["systemcheck_rkhunter"] = bool(
-            self.var_systemcheck_rkhunter.get()
-        )
-        self.settings["systemcheck_clamav"] = bool(self.var_systemcheck_clamav.get())
+        update_systemcheck_settings_from_app(self)
         update_security_tool_settings_from_app(self, speedtest_controller)
         update_guided_tour_and_donation_settings_from_app(self)
         update_clamav_quickscan_settings_from_app(self, clamav_controller)

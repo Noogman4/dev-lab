@@ -196,6 +196,21 @@ def update_security_tool_settings_from_app(app, speedtest_controller) -> None:
     )
 
 
+def update_systemcheck_settings_from_app(app) -> None:
+    """Copy systemcheck selection flags into the settings payload."""
+    settings = app.settings
+    for key, var_name in (
+        ("systemcheck_security_summary", "var_systemcheck_security_summary"),
+        ("systemcheck_startup_guard", "var_systemcheck_startup_guard"),
+        ("systemcheck_path_guard", "var_systemcheck_path_guard"),
+        ("systemcheck_process_guard", "var_systemcheck_process_guard"),
+        ("systemcheck_lynis", "var_systemcheck_lynis"),
+        ("systemcheck_rkhunter", "var_systemcheck_rkhunter"),
+        ("systemcheck_clamav", "var_systemcheck_clamav"),
+    ):
+        settings[key] = bool(app_var_value(app, var_name, settings.get(key, False)))
+
+
 def update_chad_settings_from_app(app) -> None:
     """Copy Chad analysis UI values into the settings payload."""
     settings = app.settings

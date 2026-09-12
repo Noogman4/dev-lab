@@ -8,6 +8,7 @@ from netmon.ui.settings_sync import (
     update_clamav_quickscan_settings_from_app,
     update_guided_tour_and_donation_settings_from_app,
     update_security_tool_settings_from_app,
+    update_systemcheck_settings_from_app,
 )
 
 
@@ -315,3 +316,34 @@ def test_update_security_tool_settings_from_app_normalizes_fields():
     assert app.settings["wireshark_launch_blocked"] is True
     assert app.settings["speedtest_server_id"] == "44081"
     assert calls == [("speedtest", "ID 44081")]
+
+
+def test_update_systemcheck_settings_from_app_copies_flags():
+    app = SimpleNamespace(
+        settings={
+            "systemcheck_security_summary": True,
+            "systemcheck_startup_guard": True,
+            "systemcheck_path_guard": True,
+            "systemcheck_process_guard": True,
+            "systemcheck_lynis": True,
+            "systemcheck_rkhunter": False,
+            "systemcheck_clamav": False,
+        },
+        var_systemcheck_security_summary=DummyVar(False),
+        var_systemcheck_startup_guard=DummyVar(True),
+        var_systemcheck_path_guard=DummyVar(False),
+        var_systemcheck_process_guard=DummyVar(True),
+        var_systemcheck_lynis=DummyVar(False),
+        var_systemcheck_rkhunter=DummyVar(True),
+        var_systemcheck_clamav=DummyVar(True),
+    )
+
+    update_systemcheck_settings_from_app(app)
+
+    assert app.settings["systemcheck_security_summary"] is False
+    assert app.settings["systemcheck_startup_guard"] is True
+    assert app.settings["systemcheck_path_guard"] is False
+    assert app.settings["systemcheck_process_guard"] is True
+    assert app.settings["systemcheck_lynis"] is False
+    assert app.settings["systemcheck_rkhunter"] is True
+    assert app.settings["systemcheck_clamav"] is True
