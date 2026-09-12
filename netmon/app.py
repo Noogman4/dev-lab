@@ -621,6 +621,7 @@ try:
     from netmon.ui.tabs.tools_tabs import build_basic_tools_tabs
     from netmon.ui.tabs.trace_tab import build_trace_tab
     from netmon.ui.tabs.vpn_slots_tab import build_vpn_slots_tab
+    from netmon.ui.settings_sync import app_var_value, sync_app_vars_from_mapping
     from netmon.ui.tour_specs import build_guided_tour_primary_definitions
     from netmon.ui.widgets.lights import make_light as build_light_widget
     from netmon.ui.widgets.lights import set_light as update_light_widget
@@ -652,6 +653,7 @@ except ModuleNotFoundError:
     from ui.tabs.tools_tabs import build_basic_tools_tabs
     from ui.tabs.trace_tab import build_trace_tab
     from ui.tabs.vpn_slots_tab import build_vpn_slots_tab
+    from ui.settings_sync import app_var_value, sync_app_vars_from_mapping
     from ui.tour_specs import build_guided_tour_primary_definitions
     from ui.widgets.lights import make_light as build_light_widget
     from ui.widgets.lights import set_light as update_light_widget
@@ -20787,14 +20789,7 @@ class App(TkBase):
                 self.settings.get("chad_answer_recommendations", True)
             ),
         }
-        for attr_name, value in mapping.items():
-            var = self.__dict__.get(attr_name)
-            if var is None:
-                continue
-            try:
-                var.set(value)
-            except Exception:
-                pass
+        sync_app_vars_from_mapping(self, mapping)
         self.refresh_guided_tour_status()
         self.refresh_donation_settings_controls()
 
@@ -20899,20 +20894,15 @@ class App(TkBase):
             self.log(f"[WARN] Einstellungen konnten nicht gespeichert werden: {e}")
 
     def apply_settings_from_ui(self):
-        def _var_value(name, default):
-            var = self.__dict__.get(name)
-            if var is None:
-                return default
-            try:
-                return var.get()
-            except Exception:
-                return default
-
         previous_language = str(self.settings.get("language", "de") or "de")
         new_language = self._language_choice_code(self.var_language.get())
         language_changed = new_language != previous_language
         new_theme = (
-            str(_var_value("var_theme_choice", self.settings.get("theme", "dark")))
+            str(
+                app_var_value(
+                    self, "var_theme_choice", self.settings.get("theme", "dark")
+                )
+            )
             .strip()
             .lower()
             or "dark"
@@ -20923,7 +20913,8 @@ class App(TkBase):
             self.var_startup_guard_autorun.get()
         )
         self.settings["process_guard_autorun"] = bool(
-            _var_value(
+            app_var_value(
+                self,
                 "var_process_guard_autorun",
                 self.settings.get("process_guard_autorun", True),
             )
@@ -20934,7 +20925,8 @@ class App(TkBase):
         self.settings["dns_guard_enabled"] = bool(self.var_dns_guard_enabled.get())
         dnssec_mode = (
             str(
-                _var_value(
+                app_var_value(
+                    self,
                     "var_dnssec_mode",
                     self.settings.get("dnssec_mode", "standard"),
                 )
@@ -20948,7 +20940,8 @@ class App(TkBase):
         )
         self.settings["isp_dns_fallback_profile"] = (
             self._normalize_isp_dns_fallback_profile(
-                _var_value(
+                app_var_value(
+                    self,
                     "var_isp_dns_fallback_profile",
                     self.settings.get("isp_dns_fallback_profile"),
                 )
@@ -20956,7 +20949,8 @@ class App(TkBase):
         )
         self.settings["start_killswitch"] = False
         self.settings["start_security_monitoring"] = bool(
-            _var_value(
+            app_var_value(
+                self,
                 "var_start_security_monitoring",
                 self.settings.get("start_security_monitoring", False),
             )
@@ -20964,20 +20958,23 @@ class App(TkBase):
         self.settings["start_dot"] = False
         self.settings["theme"] = self._normalize_theme_name(new_theme)
         self.settings["theme_custom_accent"] = normalize_hex_color(
-            _var_value(
+            app_var_value(
+                self,
                 "var_theme_studio_accent",
                 self.settings.get("theme_custom_accent", ""),
             )
         )
         self.settings["theme_custom_panel_bg"] = normalize_hex_color(
-            _var_value(
+            app_var_value(
+                self,
                 "var_theme_studio_panel",
                 self.settings.get("theme_custom_panel_bg", ""),
             )
         )
         self.settings["theme_custom_style"] = (
             str(
-                _var_value(
+                app_var_value(
+                    self,
                     "var_theme_studio_style",
                     self.settings.get("theme_custom_style", "dezent"),
                 )
@@ -20987,7 +20984,8 @@ class App(TkBase):
             or "dezent"
         )
         self.settings["theme_custom_profile_name"] = str(
-            _var_value(
+            app_var_value(
+                self,
                 "var_theme_studio_profile_name",
                 self.settings.get(
                     "theme_custom_profile_name",
@@ -20996,28 +20994,35 @@ class App(TkBase):
             )
         ).strip() or self.tr("theme_studio_default_profile_name", "My Theme")
         self.settings["tooltips_enabled"] = bool(
-            _var_value(
+            app_var_value(
+                self,
                 "tooltips_enabled",
                 self.settings.get("tooltips_enabled", True),
             )
         )
         self.settings["auto_log_clear"] = bool(
-            _var_value("var_auto_log_clear", self.settings.get("auto_log_clear", False))
+            app_var_value(
+                self, "var_auto_log_clear", self.settings.get("auto_log_clear", False)
+            )
         )
         self.settings["debug_network_logging"] = bool(
-            _var_value(
+            app_var_value(
+                self,
                 "var_debug_network_logging",
                 self.settings.get("debug_network_logging", False),
             )
         )
         self.settings["strict_protection"] = bool(
-            _var_value(
-                "strict_protection_var", self.settings.get("strict_protection", True)
+            app_var_value(
+                self,
+                "strict_protection_var",
+                self.settings.get("strict_protection", True),
             )
         )
         ufw_logging_default = (
             str(
-                _var_value(
+                app_var_value(
+                    self,
                     "var_ufw_logging_default",
                     self.settings.get("ufw_logging_default", "keep"),
                 )
@@ -21067,19 +21072,22 @@ class App(TkBase):
             or "zorin_desktop_development"
         )
         self.settings["security_game_mode_preset"] = self._normalize_game_mode_preset(
-            _var_value(
+            app_var_value(
+                self,
                 "security_game_mode_preset_var",
                 self.settings.get("security_game_mode_preset", "online"),
             )
         )
         self.settings["wireshark_launch_blocked"] = bool(
-            _var_value(
+            app_var_value(
+                self,
                 "var_wireshark_launch_blocked",
                 self.settings.get("wireshark_launch_blocked", False),
             )
         )
         self.settings["guided_tour_offer_on_startup"] = bool(
-            _var_value(
+            app_var_value(
+                self,
                 "var_guided_tour_offer_on_startup",
                 self.settings.get("guided_tour_offer_on_startup", True),
             )
@@ -21087,7 +21095,8 @@ class App(TkBase):
         self.settings["guided_tour_startup_mode"] = (
             "full-tour"
             if bool(
-                _var_value(
+                app_var_value(
+                    self,
                     "var_guided_tour_full_on_startup",
                     self._guided_tour_startup_mode() == "full-tour",
                 )
@@ -21096,7 +21105,8 @@ class App(TkBase):
         )
         self.settings["guided_tour_completed"] = self._guided_tour_completed_settings()
         donation_popup_requested = bool(
-            _var_value(
+            app_var_value(
+                self,
                 "var_donation_popup_enabled",
                 self.settings.get("donation_popup_enabled", True),
             )
@@ -21121,7 +21131,8 @@ class App(TkBase):
         )
         self.settings["download_scan_temp_dir"] = (
             str(
-                _var_value(
+                app_var_value(
+                    self,
                     "download_scan_temp_dir_var",
                     self._default_download_scan_temp_dir(),
                 )
@@ -21131,7 +21142,8 @@ class App(TkBase):
         )
         self.settings["download_scan_target_dir"] = (
             str(
-                _var_value(
+                app_var_value(
+                    self,
                     "download_scan_target_dir_var",
                     self._default_download_scan_target_dir(),
                 )
@@ -21141,7 +21153,8 @@ class App(TkBase):
         )
         self.settings["backup_data_target_dir"] = (
             str(
-                _var_value(
+                app_var_value(
+                    self,
                     "backup_target_dir_var",
                     self._default_backup_data_target_dir(),
                 )
@@ -21150,50 +21163,58 @@ class App(TkBase):
             or self._default_backup_data_target_dir()
         )
         self.settings["backup_include_documents"] = bool(
-            _var_value(
+            app_var_value(
+                self,
                 "backup_include_documents_var",
                 self.settings.get("backup_include_documents", True),
             )
         )
         self.settings["backup_include_pictures"] = bool(
-            _var_value(
+            app_var_value(
+                self,
                 "backup_include_pictures_var",
                 self.settings.get("backup_include_pictures", True),
             )
         )
         self.settings["backup_include_desktop"] = bool(
-            _var_value(
+            app_var_value(
+                self,
                 "backup_include_desktop_var",
                 self.settings.get("backup_include_desktop", True),
             )
         )
         self.settings["backup_include_music"] = bool(
-            _var_value(
+            app_var_value(
+                self,
                 "backup_include_music_var",
                 self.settings.get("backup_include_music", True),
             )
         )
         self.settings["backup_include_videos"] = bool(
-            _var_value(
+            app_var_value(
+                self,
                 "backup_include_videos_var",
                 self.settings.get("backup_include_videos", True),
             )
         )
         self.settings["backup_include_downloads"] = bool(
-            _var_value(
+            app_var_value(
+                self,
                 "backup_include_downloads_var",
                 self.settings.get("backup_include_downloads", True),
             )
         )
         self.settings["backup_include_netmon_documents"] = bool(
-            _var_value(
+            app_var_value(
+                self,
                 "backup_include_netmon_documents_var",
                 self.settings.get("backup_include_netmon_documents", True),
             )
         )
         backup_netmon_dir_vars = self.__dict__.get("backup_netmon_dir_vars") or {}
         self.settings["backup_netmon_full"] = bool(
-            _var_value(
+            app_var_value(
+                self,
                 "backup_netmon_full_var",
                 self.settings.get("backup_netmon_full", False),
             )
@@ -21204,38 +21225,44 @@ class App(TkBase):
             if bool(getattr(var, "get", lambda: False)())
         ]
         self.settings["download_scan_prequarantine_startup"] = bool(
-            _var_value(
+            app_var_value(
+                self,
                 "download_scan_prequarantine_startup_var",
                 self.settings.get("download_scan_prequarantine_startup", False),
             )
         )
         self.settings["download_scan_auto_move"] = bool(
-            _var_value(
+            app_var_value(
+                self,
                 "download_scan_auto_move_var",
                 self.settings.get("download_scan_auto_move", False),
             )
         )
         self.settings["download_scan_ask_before_move"] = bool(
-            _var_value(
+            app_var_value(
+                self,
                 "download_scan_ask_before_move_var",
                 self.settings.get("download_scan_ask_before_move", True),
             )
         )
         self.settings["download_scan_keep_original"] = bool(
-            _var_value(
+            app_var_value(
+                self,
                 "download_scan_keep_original_var",
                 self.settings.get("download_scan_keep_original", True),
             )
         )
         self.settings["download_scan_save_report"] = bool(
-            _var_value(
+            app_var_value(
+                self,
                 "download_scan_save_report_var",
                 self.settings.get("download_scan_save_report", True),
             )
         )
         self.settings["speedtest_server_id"] = (
             speedtest_controller.normalize_speedtest_server_id(
-                _var_value(
+                app_var_value(
+                    self,
                     "speedtest_server_id_var",
                     self.settings.get("speedtest_server_id", ""),
                 )
