@@ -630,6 +630,7 @@ try:
         update_guided_tour_and_donation_settings_from_app,
         update_security_tool_settings_from_app,
         update_systemcheck_settings_from_app,
+        update_theme_logging_settings_from_app,
     )
     from netmon.ui.tour_specs import build_guided_tour_primary_definitions
     from netmon.ui.widgets.lights import make_light as build_light_widget
@@ -671,6 +672,7 @@ except ModuleNotFoundError:
         update_guided_tour_and_donation_settings_from_app,
         update_security_tool_settings_from_app,
         update_systemcheck_settings_from_app,
+        update_theme_logging_settings_from_app,
     )
     from ui.tour_specs import build_guided_tour_primary_definitions
     from ui.widgets.lights import make_light as build_light_widget
@@ -20974,85 +20976,10 @@ class App(TkBase):
             )
         )
         self.settings["start_dot"] = False
-        self.settings["theme"] = self._normalize_theme_name(new_theme)
-        self.settings["theme_custom_accent"] = normalize_hex_color(
-            app_var_value(
-                self,
-                "var_theme_studio_accent",
-                self.settings.get("theme_custom_accent", ""),
-            )
-        )
-        self.settings["theme_custom_panel_bg"] = normalize_hex_color(
-            app_var_value(
-                self,
-                "var_theme_studio_panel",
-                self.settings.get("theme_custom_panel_bg", ""),
-            )
-        )
-        self.settings["theme_custom_style"] = (
-            str(
-                app_var_value(
-                    self,
-                    "var_theme_studio_style",
-                    self.settings.get("theme_custom_style", "dezent"),
-                )
-            )
-            .strip()
-            .lower()
-            or "dezent"
-        )
-        self.settings["theme_custom_profile_name"] = str(
-            app_var_value(
-                self,
-                "var_theme_studio_profile_name",
-                self.settings.get(
-                    "theme_custom_profile_name",
-                    self.tr("theme_studio_default_profile_name", "My Theme"),
-                ),
-            )
-        ).strip() or self.tr("theme_studio_default_profile_name", "My Theme")
-        self.settings["tooltips_enabled"] = bool(
-            app_var_value(
-                self,
-                "tooltips_enabled",
-                self.settings.get("tooltips_enabled", True),
-            )
-        )
-        self.settings["auto_log_clear"] = bool(
-            app_var_value(
-                self, "var_auto_log_clear", self.settings.get("auto_log_clear", False)
-            )
-        )
-        self.settings["debug_network_logging"] = bool(
-            app_var_value(
-                self,
-                "var_debug_network_logging",
-                self.settings.get("debug_network_logging", False),
-            )
-        )
-        self.settings["strict_protection"] = bool(
-            app_var_value(
-                self,
-                "strict_protection_var",
-                self.settings.get("strict_protection", True),
-            )
-        )
-        ufw_logging_default = (
-            str(
-                app_var_value(
-                    self,
-                    "var_ufw_logging_default",
-                    self.settings.get("ufw_logging_default", "keep"),
-                )
-            )
-            .strip()
-            .lower()
-            or "keep"
-        )
-        self.settings["ufw_logging_default"] = (
-            ufw_logging_default
-            if ufw_logging_default in {"keep", "off", "low", "high"}
-            else "keep"
+        update_theme_logging_settings_from_app(
+            self,
+            new_theme=new_theme,
+            normalize_hex_color=normalize_hex_color,
         )
         self.settings["auto_switch_to_chad"] = bool(self.var_auto_switch_to_chad.get())
         self.settings["chad_preview_popup"] = bool(self.var_chad_preview_popup.get())

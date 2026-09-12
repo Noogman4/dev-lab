@@ -211,6 +211,65 @@ def update_systemcheck_settings_from_app(app) -> None:
         settings[key] = bool(app_var_value(app, var_name, settings.get(key, False)))
 
 
+def update_theme_logging_settings_from_app(
+    app,
+    *,
+    new_theme: str,
+    normalize_hex_color,
+) -> None:
+    """Copy theme, tooltip, logging and protection values into settings."""
+    settings = app.settings
+    settings["theme"] = app._normalize_theme_name(new_theme)
+    settings["theme_custom_accent"] = normalize_hex_color(
+        app_var_value(
+            app,
+            "var_theme_studio_accent",
+            settings.get("theme_custom_accent", ""),
+        )
+    )
+    settings["theme_custom_panel_bg"] = normalize_hex_color(
+        app_var_value(
+            app,
+            "var_theme_studio_panel",
+            settings.get("theme_custom_panel_bg", ""),
+        )
+    )
+    settings["theme_custom_style"] = _lower_string_app_var_or_default(
+        app,
+        "var_theme_studio_style",
+        str(settings.get("theme_custom_style", "dezent") or "dezent"),
+    )
+    default_profile_name = app.tr("theme_studio_default_profile_name", "My Theme")
+    settings["theme_custom_profile_name"] = (
+        str(
+            app_var_value(
+                app,
+                "var_theme_studio_profile_name",
+                settings.get("theme_custom_profile_name", default_profile_name),
+            )
+        ).strip()
+        or default_profile_name
+    )
+    for key, var_name, default in (
+        ("tooltips_enabled", "tooltips_enabled", True),
+        ("auto_log_clear", "var_auto_log_clear", False),
+        ("debug_network_logging", "var_debug_network_logging", False),
+        ("strict_protection", "strict_protection_var", True),
+    ):
+        settings[key] = bool(app_var_value(app, var_name, settings.get(key, default)))
+
+    ufw_logging_default = _lower_string_app_var_or_default(
+        app,
+        "var_ufw_logging_default",
+        str(settings.get("ufw_logging_default", "keep") or "keep"),
+    )
+    settings["ufw_logging_default"] = (
+        ufw_logging_default
+        if ufw_logging_default in {"keep", "off", "low", "high"}
+        else "keep"
+    )
+
+
 def update_chad_settings_from_app(app) -> None:
     """Copy Chad analysis UI values into the settings payload."""
     settings = app.settings

@@ -9,6 +9,7 @@ from netmon.ui.settings_sync import (
     update_guided_tour_and_donation_settings_from_app,
     update_security_tool_settings_from_app,
     update_systemcheck_settings_from_app,
+    update_theme_logging_settings_from_app,
 )
 
 
@@ -347,3 +348,56 @@ def test_update_systemcheck_settings_from_app_copies_flags():
     assert app.settings["systemcheck_lynis"] is False
     assert app.settings["systemcheck_rkhunter"] is True
     assert app.settings["systemcheck_clamav"] is True
+
+
+def test_update_theme_logging_settings_from_app_normalizes_values():
+    app = SimpleNamespace(
+        settings={
+            "theme": "dark",
+            "theme_custom_accent": "",
+            "theme_custom_panel_bg": "",
+            "theme_custom_style": "dezent",
+            "theme_custom_profile_name": "Old",
+            "tooltips_enabled": True,
+            "auto_log_clear": False,
+            "debug_network_logging": False,
+            "strict_protection": True,
+            "ufw_logging_default": "keep",
+        },
+        var_theme_studio_accent=DummyVar("FF3366"),
+        var_theme_studio_panel=DummyVar("#FFF1F6"),
+        var_theme_studio_style=DummyVar(" KRAEFTIG "),
+        var_theme_studio_profile_name=DummyVar("  Pop Theme  "),
+        tooltips_enabled=DummyVar(False),
+        var_auto_log_clear=DummyVar(True),
+        var_debug_network_logging=DummyVar(True),
+        strict_protection_var=DummyVar(False),
+        var_ufw_logging_default=DummyVar("medium"),
+        _normalize_theme_name=lambda value: str(value).strip().lower(),
+        tr=lambda _key, default=None: default,
+    )
+
+    def normalize_hex_color(value):
+        text = str(value or "").strip()
+        if not text:
+            return ""
+        if not text.startswith("#"):
+            text = f"#{text}"
+        return text.lower() if len(text) == 7 else ""
+
+    update_theme_logging_settings_from_app(
+        app,
+        new_theme=" Pop ",
+        normalize_hex_color=normalize_hex_color,
+    )
+
+    assert app.settings["theme"] == "pop"
+    assert app.settings["theme_custom_accent"] == "#ff3366"
+    assert app.settings["theme_custom_panel_bg"] == "#fff1f6"
+    assert app.settings["theme_custom_style"] == "kraeftig"
+    assert app.settings["theme_custom_profile_name"] == "Pop Theme"
+    assert app.settings["tooltips_enabled"] is False
+    assert app.settings["auto_log_clear"] is True
+    assert app.settings["debug_network_logging"] is True
+    assert app.settings["strict_protection"] is False
+    assert app.settings["ufw_logging_default"] == "keep"
