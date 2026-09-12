@@ -615,6 +615,7 @@ try:
     from netmon.ui.tabs.security_tabs import (
         build_lynis_filter_controls,
         build_lynis_output_panel,
+        build_lynis_scan_controls,
         build_security_tabs,
         build_startup_guard_tab,
     )
@@ -674,6 +675,7 @@ except ModuleNotFoundError:
     from ui.tabs.security_tabs import (
         build_lynis_filter_controls,
         build_lynis_output_panel,
+        build_lynis_scan_controls,
         build_security_tabs,
         build_startup_guard_tab,
     )
@@ -29968,53 +29970,7 @@ class App(TkBase):
         for col in range(3):
             lynis_top.columnconfigure(col, weight=1)
 
-        self.btn_lynis_quick = ttk.Button(
-            lynis_top,
-            text=self.tr("lynis_btn_quick_scan", "Quick scan"),
-            command=self.run_lynis_quick,
-        )
-        self.btn_lynis_quick.grid(
-            row=0, column=0, sticky="ew", padx=(0, 6), pady=(0, 6)
-        )
-        self.register_feature_button("lynis", self.btn_lynis_quick)
-        self.add_tooltip(
-            self.btn_lynis_quick,
-            self.tr(
-                "lynis_btn_quick_scan_tooltip",
-                "Starts a quick Lynis scan without root privileges.",
-            ),
-        )
-
-        self.btn_lynis_full = ttk.Button(
-            lynis_top,
-            text=self.tr("lynis_btn_full_scan", "Full security scan (sudo)"),
-            command=self.run_lynis_full,
-        )
-        self.btn_lynis_full.grid(row=0, column=1, sticky="ew", padx=6, pady=(0, 6))
-        self.register_feature_button("lynis", self.btn_lynis_full)
-        self.add_tooltip(
-            self.btn_lynis_full,
-            self.tr(
-                "lynis_btn_full_scan_tooltip",
-                "Starts a full Lynis security audit with sudo.",
-            ),
-        )
-
-        self.btn_lynis_clear = ttk.Button(
-            lynis_top,
-            text=self.tr("lynis_btn_clear_output", "Clear Lynis output"),
-            command=self.clear_lynis_output,
-        )
-        self.btn_lynis_clear.grid(
-            row=0, column=2, sticky="ew", padx=(6, 0), pady=(0, 6)
-        )
-        self.add_tooltip(
-            self.btn_lynis_clear,
-            self.tr(
-                "lynis_btn_clear_output_tooltip",
-                "Clears the current Lynis output in this tab.",
-            ),
-        )
+        build_lynis_scan_controls(self, lynis_top)
 
         self.btn_lynis_chad_issues = ttk.Button(
             lynis_top,

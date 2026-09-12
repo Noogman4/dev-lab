@@ -82,6 +82,51 @@ def build_lynis_filter_controls(app, lynis_top) -> None:
     )
 
 
+def build_lynis_scan_controls(app, lynis_top) -> None:
+    """Build the standard Lynis scan and output-clear actions."""
+    app.btn_lynis_quick = ttk.Button(
+        lynis_top,
+        text=app.tr("lynis_btn_quick_scan", "Quick scan"),
+        command=app.run_lynis_quick,
+    )
+    app.btn_lynis_quick.grid(row=0, column=0, sticky="ew", padx=(0, 6), pady=(0, 6))
+    app.register_feature_button("lynis", app.btn_lynis_quick)
+    app.add_tooltip(
+        app.btn_lynis_quick,
+        app.tr(
+            "lynis_btn_quick_scan_tooltip",
+            "Starts a quick Lynis scan without root privileges.",
+        ),
+    )
+    app.btn_lynis_full = ttk.Button(
+        lynis_top,
+        text=app.tr("lynis_btn_full_scan", "Full security scan (sudo)"),
+        command=app.run_lynis_full,
+    )
+    app.btn_lynis_full.grid(row=0, column=1, sticky="ew", padx=6, pady=(0, 6))
+    app.register_feature_button("lynis", app.btn_lynis_full)
+    app.add_tooltip(
+        app.btn_lynis_full,
+        app.tr(
+            "lynis_btn_full_scan_tooltip",
+            "Starts a full Lynis security audit with sudo.",
+        ),
+    )
+    app.btn_lynis_clear = ttk.Button(
+        lynis_top,
+        text=app.tr("lynis_btn_clear_output", "Clear Lynis output"),
+        command=app.clear_lynis_output,
+    )
+    app.btn_lynis_clear.grid(row=0, column=2, sticky="ew", padx=(6, 0), pady=(0, 6))
+    app.add_tooltip(
+        app.btn_lynis_clear,
+        app.tr(
+            "lynis_btn_clear_output_tooltip",
+            "Clears the current Lynis output in this tab.",
+        ),
+    )
+
+
 def _selected_filter_mode(choice_var, modes_by_label: dict, default: str) -> str:
     if choice_var is None:
         return default
