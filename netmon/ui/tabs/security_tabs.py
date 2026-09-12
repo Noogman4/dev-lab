@@ -14,6 +14,36 @@ ROOTS_GUARD_INITIAL_ENABLED_AREAS = {
 }
 
 
+def build_lynis_output_panel(app, audit_tab) -> None:
+    """Build the Lynis summary and scrollable output widgets."""
+    lynis_summary = ttk.LabelFrame(
+        audit_tab, text=app.tr("group_summary", "Summary"), padding=6
+    )
+    lynis_summary.pack(fill="x", pady=(0, 8))
+    ttk.Label(lynis_summary, textvariable=app.lynis_summary_var, justify="left").pack(
+        anchor="w"
+    )
+    lynis_output_frame = ttk.Frame(audit_tab)
+    lynis_output_frame.pack(fill="both", expand=True)
+    lynis_output_frame.columnconfigure(0, weight=1)
+    lynis_output_frame.rowconfigure(0, weight=1)
+    lynis_scroll_y = ttk.Scrollbar(lynis_output_frame, orient="vertical")
+    lynis_scroll_y.grid(row=0, column=1, sticky="ns")
+    app.lynis_text = tk.Text(
+        lynis_output_frame,
+        wrap="word",
+        height=20,
+        yscrollcommand=lynis_scroll_y.set,
+    )
+    app.lynis_text.grid(row=0, column=0, sticky="nsew")
+    lynis_scroll_y.configure(command=app.lynis_text.yview)
+    app.lynis_text.insert(
+        "1.0",
+        app.tr("lynis_output_placeholder", "Lynis output will appear here.\n"),
+    )
+    app.lynis_text.configure(state="disabled")
+
+
 def _selected_filter_mode(choice_var, modes_by_label: dict, default: str) -> str:
     if choice_var is None:
         return default

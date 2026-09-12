@@ -613,6 +613,7 @@ try:
     from netmon.ui.tabs.radio_tab import build_radio_tab
     from netmon.ui.tabs.secure_browser_tab import build_secure_browser_tab
     from netmon.ui.tabs.security_tabs import (
+        build_lynis_output_panel,
         build_security_tabs,
         build_startup_guard_tab,
     )
@@ -670,6 +671,7 @@ except ModuleNotFoundError:
     from ui.tabs.linux_help_tab import build_linux_help_tab
     from ui.tabs.links_tab import build_links_tab
     from ui.tabs.security_tabs import (
+        build_lynis_output_panel,
         build_security_tabs,
         build_startup_guard_tab,
     )
@@ -30088,42 +30090,7 @@ class App(TkBase):
             ),
         )
 
-        lynis_summary = ttk.LabelFrame(
-            audit_tab,
-            text=self.tr("group_summary", "Summary"),
-            padding=6,
-        )
-        lynis_summary.pack(fill="x", pady=(0, 8))
-        ttk.Label(
-            lynis_summary,
-            textvariable=self.lynis_summary_var,
-            justify="left",
-        ).pack(anchor="w")
-
-        lynis_output_frame = ttk.Frame(audit_tab)
-        lynis_output_frame.pack(fill="both", expand=True)
-        lynis_output_frame.columnconfigure(0, weight=1)
-        lynis_output_frame.rowconfigure(0, weight=1)
-
-        lynis_scroll_y = ttk.Scrollbar(lynis_output_frame, orient="vertical")
-        lynis_scroll_y.grid(row=0, column=1, sticky="ns")
-
-        self.lynis_text = tk.Text(
-            lynis_output_frame,
-            wrap="word",
-            height=20,
-            yscrollcommand=lynis_scroll_y.set,
-        )
-        self.lynis_text.grid(row=0, column=0, sticky="nsew")
-        lynis_scroll_y.configure(command=self.lynis_text.yview)
-        self.lynis_text.insert(
-            "1.0",
-            self.tr(
-                "lynis_output_placeholder",
-                "Lynis output will appear here.\n",
-            ),
-        )
-        self.lynis_text.configure(state="disabled")
+        build_lynis_output_panel(self, audit_tab)
         self.refresh_security_baseline_overview()
         self.refresh_security_baseline_table()
 

@@ -3,6 +3,7 @@ import inspect
 
 from netmon import app as netmon_app
 from netmon.features import security_audit_controller
+from netmon.ui.tabs import security_tabs
 
 
 class DummyText:
@@ -155,6 +156,7 @@ def test_lynis_summary_value_returns_dash_for_missing_or_invalid_values():
 
 def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     source = inspect.getsource(netmon_app.App.build_lynis_tab)
+    output_panel_source = inspect.getsource(security_tabs.build_lynis_output_panel)
     game_mode_source = inspect.getsource(netmon_app.App.enable_game_mode)
     game_mode_dialog_source = inspect.getsource(
         netmon_app.App._prompt_game_mode_ufw_exception_sets
@@ -180,6 +182,9 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     assert "self.security_baseline_profile_combo = ttk.Combobox(" in source
     assert "self.apply_security_baseline_profile_choice(" in source
     assert "textvariable=self.lynis_hardening_index_var" in source
+    assert "build_lynis_output_panel(self, audit_tab)" in source
+    assert "textvariable=app.lynis_summary_var" in output_panel_source
+    assert "app.lynis_text = tk.Text(" in output_panel_source
     assert "textvariable=self.security_baseline_transfer_var" in source
     assert "command=self.check_security_baseline_privileges" in source
     assert "command=self.apply_security_baseline_profile" in source
