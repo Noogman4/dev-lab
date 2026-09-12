@@ -11,6 +11,7 @@ from netmon.ui.tour_specs import (
     guided_tour_status_symbol,
     guided_tour_status_text,
     guided_tour_title_text,
+    normalize_guided_tour_completed_settings,
 )
 
 
@@ -67,6 +68,14 @@ def test_guided_tour_launcher_presentation_helpers_mark_completed_tours():
     assert guided_tour_title_text(app, "completed", " Tour ") == "Tour abgeschlossen"
     assert guided_tour_title_text(app, "open", " Tour ") == "Tour"
     assert guided_tour_title_text(app, "open", " ") == ""
+
+
+def test_normalize_guided_tour_completed_settings_ignores_invalid_names():
+    assert normalize_guided_tour_completed_settings(None) == {}
+    assert normalize_guided_tour_completed_settings(["dns"]) == {}
+    assert normalize_guided_tour_completed_settings(
+        {" DNS ": 1, "": True, None: True, "Radio": 0}
+    ) == {"dns": True, "radio": False}
 
 
 def test_guided_tour_status_text_covers_mixed_all_and_no_completion():

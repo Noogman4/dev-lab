@@ -33,6 +33,18 @@ def build_guided_tour_primary_definitions(app) -> dict:
     }
 
 
+def normalize_guided_tour_completed_settings(raw) -> dict:
+    """Normalize persisted guided-tour completion flags."""
+    if not isinstance(raw, dict):
+        return {}
+    normalized = {}
+    for key, value in raw.items():
+        name = str(key or "").strip().lower()
+        if name:
+            normalized[name] = bool(value)
+    return normalized
+
+
 def guided_tour_button_text(app, _tour_name, _base_label) -> str:
     """Return the compact command label used by guided-tour launchers."""
     return app.tr("guided_tour_btn_start_short", "Start")
