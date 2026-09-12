@@ -1,6 +1,9 @@
 from types import SimpleNamespace
 
-from netmon.ui.tour_specs import build_guided_tour_primary_definitions
+from netmon.ui.tour_specs import (
+    build_guided_tour_primary_definitions,
+    build_guided_tour_tab_definitions,
+)
 
 
 def test_build_guided_tour_primary_definitions_uses_app_translations_and_steps():
@@ -42,3 +45,34 @@ def test_build_guided_tour_primary_definitions_uses_app_translations_and_steps()
     assert definitions["radio"]["title"] == "tour_def_radio_title:NetMon Radio Tour"
     assert definitions["download-scan"]["steps"] == [{"step": "download-scan"}]
     assert calls == ["quickstart", "dns", "security", "download-scan", "radio"]
+
+
+def test_build_guided_tour_tab_definitions_skips_blank_ids_and_builds_steps():
+    calls = []
+    specs = [
+        {"id": " System ", "tour_title": "System Tour"},
+        {"id": "", "tour_title": "Ignored"},
+        {"tour_title": "Also ignored"},
+        {"id": "dns"},
+    ]
+    app = SimpleNamespace(
+        _guided_tour_tab_specs=lambda: specs,
+        _build_guided_tab_tour_steps=lambda spec: calls.append(spec["id"])
+        or [{"step": spec["id"]}],
+    )
+
+    definitions = build_guided_tour_tab_definitions(app)
+
+    assert definitions == {
+        "system": {
+            "id": "system",
+            "title": "System Tour",
+            "steps": [{"step": " System "}],
+        },
+        "dns": {
+            "id": "dns",
+            "title": "NetMon Tab Tour",
+            "steps": [{"step": "dns"}],
+        },
+    }
+    assert calls == [" System ", "dns"]

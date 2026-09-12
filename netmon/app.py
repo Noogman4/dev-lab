@@ -634,7 +634,10 @@ try:
         update_systemcheck_settings_from_app,
         update_theme_logging_settings_from_app,
     )
-    from netmon.ui.tour_specs import build_guided_tour_primary_definitions
+    from netmon.ui.tour_specs import (
+        build_guided_tour_primary_definitions,
+        build_guided_tour_tab_definitions,
+    )
     from netmon.ui.widgets.lights import make_light as build_light_widget
     from netmon.ui.widgets.lights import set_light as update_light_widget
     from netmon.ui.widgets.tooltip import SimpleTooltip
@@ -678,7 +681,10 @@ except ModuleNotFoundError:
         update_systemcheck_settings_from_app,
         update_theme_logging_settings_from_app,
     )
-    from ui.tour_specs import build_guided_tour_primary_definitions
+    from ui.tour_specs import (
+        build_guided_tour_primary_definitions,
+        build_guided_tour_tab_definitions,
+    )
     from ui.widgets.lights import make_light as build_light_widget
     from ui.widgets.lights import set_light as update_light_widget
     from ui.widgets.tooltip import SimpleTooltip
@@ -7115,17 +7121,7 @@ class App(TkBase):
         return steps
 
     def _guided_tour_tab_definitions(self):
-        definitions = {}
-        for spec in self._guided_tour_tab_specs():
-            tour_id = str(spec.get("id") or "").strip().lower()
-            if not tour_id:
-                continue
-            definitions[tour_id] = {
-                "id": tour_id,
-                "title": str(spec.get("tour_title") or "NetMon Tab Tour").strip(),
-                "steps": self._build_guided_tab_tour_steps(spec),
-            }
-        return definitions
+        return build_guided_tour_tab_definitions(self)
 
     def _guided_tour_tab_specs(self):
         return [

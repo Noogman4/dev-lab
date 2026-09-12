@@ -31,3 +31,18 @@ def build_guided_tour_primary_definitions(app) -> dict:
             "steps": app._build_radio_tour_steps(),
         },
     }
+
+
+def build_guided_tour_tab_definitions(app) -> dict:
+    """Build guided-tour definitions from the app's tab tour specifications."""
+    definitions = {}
+    for spec in app._guided_tour_tab_specs():
+        tour_id = str(spec.get("id") or "").strip().lower()
+        if not tour_id:
+            continue
+        definitions[tour_id] = {
+            "id": tour_id,
+            "title": str(spec.get("tour_title") or "NetMon Tab Tour").strip(),
+            "steps": app._build_guided_tab_tour_steps(spec),
+        }
+    return definitions
