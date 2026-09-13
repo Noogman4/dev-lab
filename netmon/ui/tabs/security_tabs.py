@@ -807,6 +807,67 @@ def build_packet_capture_status_panel(app) -> None:
     )
 
 
+def build_packet_capture_configuration_panel(app) -> None:
+    """Build Packet Capture interface, filter and output-file controls."""
+    config = ttk.LabelFrame(
+        app.tab_packet_capture,
+        text=app.tr("packet_capture_group_config", "Konfiguration"),
+        padding=6,
+    )
+    config.pack(fill="x")
+    config.columnconfigure(1, weight=1)
+    ttk.Label(config, text=app.tr("packet_capture_label_interface", "Interface:")).grid(
+        row=0, column=0, sticky="w"
+    )
+    app.packet_capture_interface_combo = ttk.Combobox(
+        config,
+        textvariable=app.packet_capture_interface_var,
+        state="readonly",
+        values=[],
+    )
+    app.packet_capture_interface_combo.grid(row=0, column=1, sticky="ew", padx=(8, 8))
+    app.btn_packet_capture_refresh = ttk.Button(
+        config,
+        text=app.tr("btn_refresh_interfaces", "Interfaces aktualisieren"),
+        command=app.refresh_packet_capture_interfaces,
+    )
+    app.btn_packet_capture_refresh.grid(row=0, column=2, sticky="ew")
+    app.register_feature_button("packet_capture_ui", app.btn_packet_capture_refresh)
+    app.add_tooltip(
+        app.btn_packet_capture_refresh,
+        "Aktualisiert die verfügbare Liste der Capture-Interfaces.",
+    )
+    ttk.Label(
+        config,
+        text=app.tr("packet_capture_label_filter", "Capture-Filter:"),
+    ).grid(row=1, column=0, sticky="w", pady=(6, 0))
+    ttk.Entry(config, textvariable=app.packet_capture_filter_var).grid(
+        row=1,
+        column=1,
+        columnspan=2,
+        sticky="ew",
+        padx=(8, 0),
+        pady=(6, 0),
+    )
+    ttk.Label(config, text=app.tr("packet_capture_label_file", "File:")).grid(
+        row=2, column=0, sticky="w", pady=(6, 0)
+    )
+    ttk.Entry(config, textvariable=app.packet_capture_file_var).grid(
+        row=2, column=1, sticky="ew", padx=(8, 8), pady=(6, 0)
+    )
+    app.btn_packet_capture_choose = ttk.Button(
+        config,
+        text=app.tr("packet_capture_btn_choose_file", "Choose file"),
+        command=app.choose_packet_capture_file,
+    )
+    app.btn_packet_capture_choose.grid(row=2, column=2, sticky="ew", pady=(6, 0))
+    app.register_feature_button("packet_capture_ui", app.btn_packet_capture_choose)
+    app.add_tooltip(
+        app.btn_packet_capture_choose,
+        "Sets the save location and file name for the capture file.",
+    )
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(

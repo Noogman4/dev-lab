@@ -623,6 +623,7 @@ try:
         build_rkhunter_tab as build_rkhunter_tab_ui,
         build_packet_capture_output_panel,
         build_packet_capture_status_panel,
+        build_packet_capture_configuration_panel,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -703,6 +704,7 @@ except ModuleNotFoundError:
         build_rkhunter_tab as build_rkhunter_tab_ui,
         build_packet_capture_output_panel,
         build_packet_capture_status_panel,
+        build_packet_capture_configuration_panel,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -29063,72 +29065,7 @@ class App(TkBase):
         dot_controller.test_dot_async(self)
 
     def build_packet_capture_tab(self):
-        config = ttk.LabelFrame(
-            self.tab_packet_capture,
-            text=self.tr("packet_capture_group_config", "Konfiguration"),
-            padding=6,
-        )
-        config.pack(fill="x")
-        config.columnconfigure(1, weight=1)
-
-        ttk.Label(
-            config, text=self.tr("packet_capture_label_interface", "Interface:")
-        ).grid(row=0, column=0, sticky="w")
-        self.packet_capture_interface_combo = ttk.Combobox(
-            config,
-            textvariable=self.packet_capture_interface_var,
-            state="readonly",
-            values=[],
-        )
-        self.packet_capture_interface_combo.grid(
-            row=0, column=1, sticky="ew", padx=(8, 8)
-        )
-        self.btn_packet_capture_refresh = ttk.Button(
-            config,
-            text=self.tr("btn_refresh_interfaces", "Interfaces aktualisieren"),
-            command=self.refresh_packet_capture_interfaces,
-        )
-        self.btn_packet_capture_refresh.grid(row=0, column=2, sticky="ew")
-        self.register_feature_button(
-            "packet_capture_ui", self.btn_packet_capture_refresh
-        )
-        self.add_tooltip(
-            self.btn_packet_capture_refresh,
-            "Aktualisiert die verfügbare Liste der Capture-Interfaces.",
-        )
-
-        ttk.Label(
-            config,
-            text=self.tr("packet_capture_label_filter", "Capture-Filter:"),
-        ).grid(row=1, column=0, sticky="w", pady=(6, 0))
-        ttk.Entry(config, textvariable=self.packet_capture_filter_var).grid(
-            row=1,
-            column=1,
-            columnspan=2,
-            sticky="ew",
-            padx=(8, 0),
-            pady=(6, 0),
-        )
-
-        ttk.Label(config, text=self.tr("packet_capture_label_file", "File:")).grid(
-            row=2, column=0, sticky="w", pady=(6, 0)
-        )
-        ttk.Entry(config, textvariable=self.packet_capture_file_var).grid(
-            row=2, column=1, sticky="ew", padx=(8, 8), pady=(6, 0)
-        )
-        self.btn_packet_capture_choose = ttk.Button(
-            config,
-            text=self.tr("packet_capture_btn_choose_file", "Choose file"),
-            command=self.choose_packet_capture_file,
-        )
-        self.btn_packet_capture_choose.grid(row=2, column=2, sticky="ew", pady=(6, 0))
-        self.register_feature_button(
-            "packet_capture_ui", self.btn_packet_capture_choose
-        )
-        self.add_tooltip(
-            self.btn_packet_capture_choose,
-            "Sets the save location and file name for the capture file.",
-        )
+        build_packet_capture_configuration_panel(self)
 
         actions = ttk.LabelFrame(
             self.tab_packet_capture,
