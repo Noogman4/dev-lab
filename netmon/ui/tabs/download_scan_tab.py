@@ -207,6 +207,42 @@ def build_download_scan_actions(app, frame) -> None:
     app.btn_download_scan_scan_temp.pack(side="left", padx=(8, 0))
 
 
+def build_download_scan_post_scan_options(app, frame) -> None:
+    """Build Download Scan options applied after a clean scan."""
+    post_scan = ttk.LabelFrame(
+        frame,
+        text=app.tr("download_scan_group_after_success", "After successful scan"),
+        padding=8,
+    )
+    post_scan.pack(fill="x", pady=(0, 8))
+    ttk.Checkbutton(
+        post_scan,
+        text=app.tr(
+            "download_scan_check_auto_move_clean",
+            "Automatically move to Downloads after a clean ClamAV scan",
+        ),
+        variable=app.download_scan_auto_move_var,
+    ).pack(anchor="w")
+    ttk.Checkbutton(
+        post_scan,
+        text=app.tr("download_scan_check_ask_before_move", "Ask before moving"),
+        variable=app.download_scan_ask_before_move_var,
+    ).pack(anchor="w", pady=(4, 0))
+    ttk.Checkbutton(
+        post_scan,
+        text=app.tr(
+            "download_scan_check_keep_original",
+            "Keep original in temporary folder",
+        ),
+        variable=app.download_scan_keep_original_var,
+    ).pack(anchor="w", pady=(4, 0))
+    ttk.Checkbutton(
+        post_scan,
+        text=app.tr("download_scan_check_save_report", "Save scan report"),
+        variable=app.download_scan_save_report_var,
+    ).pack(anchor="w", pady=(4, 0))
+
+
 def build_download_scan_tab(app):
     app.tab_download_scan = ttk.Frame(app.nb, padding=10)
     app.nb.add(

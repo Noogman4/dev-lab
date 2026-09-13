@@ -609,6 +609,7 @@ try:
         build_download_scan_prequarantine_actions,
         build_download_scan_target_folder_panel,
         build_download_scan_actions,
+        build_download_scan_post_scan_options,
     )
     from netmon.ui.tabs.fun_tab import build_fun_tab
     from netmon.ui.tabs.hdd_tab import build_hdd_tab
@@ -697,6 +698,7 @@ except ModuleNotFoundError:
         build_download_scan_prequarantine_actions,
         build_download_scan_target_folder_panel,
         build_download_scan_actions,
+        build_download_scan_post_scan_options,
     )
     from ui.tabs.hdd_tab import build_hdd_tab
     from ui.tabs.linux_help_tab import build_linux_help_tab
@@ -25394,41 +25396,7 @@ class App(TkBase):
 
         build_download_scan_actions(self, frame)
 
-        post_scan = ttk.LabelFrame(
-            frame,
-            text=self.tr("download_scan_group_after_success", "After successful scan"),
-            padding=8,
-        )
-        post_scan.pack(fill="x", pady=(0, 8))
-        ttk.Checkbutton(
-            post_scan,
-            text=self.tr(
-                "download_scan_check_auto_move_clean",
-                "Automatically move to Downloads after a clean ClamAV scan",
-            ),
-            variable=self.download_scan_auto_move_var,
-        ).pack(anchor="w")
-        ttk.Checkbutton(
-            post_scan,
-            text=self.tr(
-                "download_scan_check_ask_before_move",
-                "Ask before moving",
-            ),
-            variable=self.download_scan_ask_before_move_var,
-        ).pack(anchor="w", pady=(4, 0))
-        ttk.Checkbutton(
-            post_scan,
-            text=self.tr(
-                "download_scan_check_keep_original",
-                "Keep original in temporary folder",
-            ),
-            variable=self.download_scan_keep_original_var,
-        ).pack(anchor="w", pady=(4, 0))
-        ttk.Checkbutton(
-            post_scan,
-            text=self.tr("download_scan_check_save_report", "Save scan report"),
-            variable=self.download_scan_save_report_var,
-        ).pack(anchor="w", pady=(4, 0))
+        build_download_scan_post_scan_options(self, frame)
 
         status_group = ttk.LabelFrame(
             frame,
