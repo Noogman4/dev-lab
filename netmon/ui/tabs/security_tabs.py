@@ -621,6 +621,52 @@ def build_rkhunter_actions_panel(app):
     return rkh_top, rkh_actions_row, rkh_secondary_actions_row
 
 
+def build_rkhunter_primary_actions(app, rkh_actions_row) -> None:
+    """Build RKHunter update, scan and trusted-reference actions."""
+    app.btn_rkhunter_update = ttk.Button(
+        rkh_actions_row,
+        text=app.tr("rkhunter_btn_update", "rkhunter update"),
+        command=app.rkhunter_update_async,
+    )
+    app.btn_rkhunter_update.pack(side="left")
+    app.register_feature_button("rkhunter", app.btn_rkhunter_update)
+    app.add_tooltip(
+        app.btn_rkhunter_update,
+        app.tr(
+            "rkhunter_btn_update_tooltip",
+            "Updates the rkhunter data set without making further system changes.",
+        ),
+    )
+    app.btn_rkhunter_scan = ttk.Button(
+        rkh_actions_row,
+        text=app.tr("rkhunter_btn_start_scan", "Start rkhunter scan"),
+        command=app.rkhunter_scan_async,
+    )
+    app.btn_rkhunter_scan.pack(side="left", padx=(8, 0))
+    app.register_feature_button("rkhunter", app.btn_rkhunter_scan)
+    app.add_tooltip(
+        app.btn_rkhunter_scan,
+        app.tr(
+            "rkhunter_btn_start_scan_tooltip",
+            "Starts a non-interactive rkhunter check without repair actions.",
+        ),
+    )
+    app.btn_rkhunter_propupd = ttk.Button(
+        rkh_actions_row,
+        text=app.tr("rkhunter_btn_propupd", "Accept trusted reference"),
+        command=app.rkhunter_propupd_async,
+    )
+    app.btn_rkhunter_propupd.pack(side="left", padx=(8, 0))
+    app.add_tooltip(
+        app.btn_rkhunter_propupd,
+        app.tr(
+            "rkhunter_btn_propupd_tooltip",
+            "Enabled only after a low-risk scan and a successful dpkg verification. Never runs automatically.",
+        ),
+    )
+    app.btn_rkhunter_propupd.configure(state="disabled")
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(

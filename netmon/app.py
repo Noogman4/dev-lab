@@ -623,6 +623,7 @@ try:
         build_rkhunter_output_panel,
         build_rkhunter_status_row,
         build_rkhunter_actions_panel,
+        build_rkhunter_primary_actions,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -703,6 +704,7 @@ except ModuleNotFoundError:
         build_rkhunter_output_panel,
         build_rkhunter_status_row,
         build_rkhunter_actions_panel,
+        build_rkhunter_primary_actions,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -31091,50 +31093,7 @@ class App(TkBase):
         )
         build_rkhunter_status_row(self, rkh_top)
 
-        self.btn_rkhunter_update = ttk.Button(
-            rkh_actions_row,
-            text=self.tr("rkhunter_btn_update", "rkhunter update"),
-            command=self.rkhunter_update_async,
-        )
-        self.btn_rkhunter_update.pack(side="left")
-        self.register_feature_button("rkhunter", self.btn_rkhunter_update)
-        self.add_tooltip(
-            self.btn_rkhunter_update,
-            self.tr(
-                "rkhunter_btn_update_tooltip",
-                "Updates the rkhunter data set without making further system changes.",
-            ),
-        )
-
-        self.btn_rkhunter_scan = ttk.Button(
-            rkh_actions_row,
-            text=self.tr("rkhunter_btn_start_scan", "Start rkhunter scan"),
-            command=self.rkhunter_scan_async,
-        )
-        self.btn_rkhunter_scan.pack(side="left", padx=(8, 0))
-        self.register_feature_button("rkhunter", self.btn_rkhunter_scan)
-        self.add_tooltip(
-            self.btn_rkhunter_scan,
-            self.tr(
-                "rkhunter_btn_start_scan_tooltip",
-                "Starts a non-interactive rkhunter check without repair actions.",
-            ),
-        )
-
-        self.btn_rkhunter_propupd = ttk.Button(
-            rkh_actions_row,
-            text=self.tr("rkhunter_btn_propupd", "Accept trusted reference"),
-            command=self.rkhunter_propupd_async,
-        )
-        self.btn_rkhunter_propupd.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_rkhunter_propupd,
-            self.tr(
-                "rkhunter_btn_propupd_tooltip",
-                "Enabled only after a low-risk scan and a successful dpkg verification. Never runs automatically.",
-            ),
-        )
-        self.btn_rkhunter_propupd.configure(state="disabled")
+        build_rkhunter_primary_actions(self, rkh_actions_row)
 
         self.btn_rkhunter_repair = ttk.Button(
             rkh_secondary_actions_row,
