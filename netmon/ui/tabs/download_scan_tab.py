@@ -94,6 +94,56 @@ def build_download_scan_prequarantine_summary(app, frame):
     return temp_group
 
 
+def build_download_scan_prequarantine_actions(app, temp_group) -> None:
+    """Build Pre-Quarantine management, access and startup controls."""
+    temp_btns = ttk.Frame(temp_group)
+    temp_btns.grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 0))
+    temp_manage_btns = ttk.Frame(temp_btns)
+    temp_manage_btns.grid(row=0, column=0, sticky="w")
+    app.btn_download_scan_temp_activate = ttk.Button(
+        temp_manage_btns,
+        text="Temp-Ordner aktivieren",
+        command=app.create_download_scan_temp_folder,
+    )
+    app.btn_download_scan_temp_activate.pack(side="left")
+    ttk.Button(
+        temp_manage_btns,
+        text="Temp-Ordner deaktivieren",
+        command=app.disable_download_scan_temp_folder,
+    ).pack(side="left", padx=(8, 0))
+    ttk.Button(
+        temp_manage_btns,
+        text="Temp-Ordner leeren",
+        command=app.clear_download_scan_temp_folder,
+    ).pack(side="left", padx=(8, 0))
+    temp_access_btns = ttk.Frame(temp_btns)
+    temp_access_btns.grid(row=1, column=0, sticky="w", pady=(8, 0))
+    ttk.Button(
+        temp_access_btns,
+        text="Temp-Ordner öffnen",
+        command=app.open_download_scan_temp_folder,
+    ).pack(side="left")
+    ttk.Button(
+        temp_access_btns,
+        text="Pfad kopieren",
+        command=app.copy_download_scan_temp_folder_path,
+    ).pack(side="left", padx=(8, 0))
+    ttk.Button(
+        temp_access_btns,
+        text=app.tr("download_scan_btn_change_path", "Change path"),
+        command=app.choose_download_scan_temp_dir,
+    ).pack(side="left", padx=(8, 0))
+    app.cb_download_scan_prequarantine_startup = ttk.Checkbutton(
+        temp_group,
+        text="Vor-Quarantäne bei NetMon-Start automatisch aktivieren",
+        variable=app.download_scan_prequarantine_startup_var,
+        command=app.on_download_scan_prequarantine_startup_toggle,
+    )
+    app.cb_download_scan_prequarantine_startup.grid(
+        row=6, column=0, columnspan=2, sticky="w", pady=(8, 0)
+    )
+
+
 def build_download_scan_tab(app):
     app.tab_download_scan = ttk.Frame(app.nb, padding=10)
     app.nb.add(

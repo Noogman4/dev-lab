@@ -606,6 +606,7 @@ try:
         build_download_scan_tab as build_download_scan_tab_ui,
         build_download_scan_header,
         build_download_scan_prequarantine_summary,
+        build_download_scan_prequarantine_actions,
     )
     from netmon.ui.tabs.fun_tab import build_fun_tab
     from netmon.ui.tabs.hdd_tab import build_hdd_tab
@@ -691,6 +692,7 @@ except ModuleNotFoundError:
         build_download_scan_tab as build_download_scan_tab_ui,
         build_download_scan_header,
         build_download_scan_prequarantine_summary,
+        build_download_scan_prequarantine_actions,
     )
     from ui.tabs.hdd_tab import build_hdd_tab
     from ui.tabs.linux_help_tab import build_linux_help_tab
@@ -25382,54 +25384,7 @@ class App(TkBase):
 
         temp_group = build_download_scan_prequarantine_summary(self, frame)
 
-        temp_btns = ttk.Frame(temp_group)
-        temp_btns.grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 0))
-
-        temp_manage_btns = ttk.Frame(temp_btns)
-        temp_manage_btns.grid(row=0, column=0, sticky="w")
-        self.btn_download_scan_temp_activate = ttk.Button(
-            temp_manage_btns,
-            text="Temp-Ordner aktivieren",
-            command=self.create_download_scan_temp_folder,
-        )
-        self.btn_download_scan_temp_activate.pack(side="left")
-        ttk.Button(
-            temp_manage_btns,
-            text="Temp-Ordner deaktivieren",
-            command=self.disable_download_scan_temp_folder,
-        ).pack(side="left", padx=(8, 0))
-        ttk.Button(
-            temp_manage_btns,
-            text="Temp-Ordner leeren",
-            command=self.clear_download_scan_temp_folder,
-        ).pack(side="left", padx=(8, 0))
-
-        temp_access_btns = ttk.Frame(temp_btns)
-        temp_access_btns.grid(row=1, column=0, sticky="w", pady=(8, 0))
-        ttk.Button(
-            temp_access_btns,
-            text="Temp-Ordner öffnen",
-            command=self.open_download_scan_temp_folder,
-        ).pack(side="left")
-        ttk.Button(
-            temp_access_btns,
-            text="Pfad kopieren",
-            command=self.copy_download_scan_temp_folder_path,
-        ).pack(side="left", padx=(8, 0))
-        ttk.Button(
-            temp_access_btns,
-            text=self.tr("download_scan_btn_change_path", "Change path"),
-            command=self.choose_download_scan_temp_dir,
-        ).pack(side="left", padx=(8, 0))
-        self.cb_download_scan_prequarantine_startup = ttk.Checkbutton(
-            temp_group,
-            text="Vor-Quarantäne bei NetMon-Start automatisch aktivieren",
-            variable=self.download_scan_prequarantine_startup_var,
-            command=self.on_download_scan_prequarantine_startup_toggle,
-        )
-        self.cb_download_scan_prequarantine_startup.grid(
-            row=6, column=0, columnspan=2, sticky="w", pady=(8, 0)
-        )
+        build_download_scan_prequarantine_actions(self, temp_group)
 
         target_group = ttk.LabelFrame(
             frame,
