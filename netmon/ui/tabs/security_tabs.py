@@ -252,6 +252,54 @@ def build_security_baseline_tree(app, baseline_table_frame) -> None:
     app.attach_selection_copy_shortcuts(app.security_baseline_tree, "treeview")
 
 
+def build_security_baseline_detail_view(app, baseline_content) -> None:
+    """Build the baseline check detail view and its navigation controls."""
+    app.security_baseline_detail_view = ttk.Frame(baseline_content)
+    app.security_baseline_detail_view.grid(row=0, column=0, sticky="nsew")
+    app.security_baseline_detail_view.columnconfigure(0, weight=1)
+    app.security_baseline_detail_view.rowconfigure(1, weight=1)
+    detail_header = ttk.Frame(app.security_baseline_detail_view)
+    detail_header.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+    detail_header.columnconfigure(1, weight=1)
+    app.btn_security_baseline_back = ttk.Button(
+        detail_header,
+        text=app.tr("baseline_btn_back_to_entries", "Zurueck zu den Eintraegen"),
+        command=app.show_security_baseline_list_view,
+    )
+    app.btn_security_baseline_back.grid(row=0, column=0, sticky="w")
+    app.security_baseline_detail_heading_var = tk.StringVar(
+        value=app.tr("baseline_group_details", "Check Details")
+    )
+    ttk.Label(
+        detail_header,
+        textvariable=app.security_baseline_detail_heading_var,
+        justify="left",
+        font=("TkDefaultFont", 10, "bold"),
+    ).grid(row=0, column=1, sticky="w", padx=(10, 0))
+    detail_frame = ttk.Frame(app.security_baseline_detail_view)
+    detail_frame.grid(row=1, column=0, sticky="nsew")
+    detail_frame.columnconfigure(0, weight=1)
+    detail_frame.rowconfigure(0, weight=1)
+    scroll_y = ttk.Scrollbar(detail_frame, orient="vertical")
+    scroll_y.grid(row=0, column=1, sticky="ns")
+    app.security_baseline_detail_text = tk.Text(
+        detail_frame,
+        wrap="word",
+        height=14,
+        yscrollcommand=scroll_y.set,
+    )
+    app.security_baseline_detail_text.grid(row=0, column=0, sticky="nsew")
+    scroll_y.configure(command=app.security_baseline_detail_text.yview)
+    app.security_baseline_detail_text.insert(
+        "1.0",
+        app.tr("baseline_detail_placeholder", "Noch kein Check ausgewaehlt."),
+    )
+    app.security_baseline_detail_text.configure(state="disabled")
+    app.attach_selection_copy_shortcuts(app.security_baseline_detail_text, "text")
+    app.attach_text_context_menu(app.security_baseline_detail_text)
+    app.security_baseline_detail_view.grid_remove()
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(

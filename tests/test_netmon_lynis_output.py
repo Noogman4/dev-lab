@@ -172,6 +172,9 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
         security_tabs.build_security_baseline_list_container
     )
     baseline_tree_source = inspect.getsource(security_tabs.build_security_baseline_tree)
+    baseline_detail_source = inspect.getsource(
+        security_tabs.build_security_baseline_detail_view
+    )
     game_mode_source = inspect.getsource(netmon_app.App.enable_game_mode)
     game_mode_dialog_source = inspect.getsource(
         netmon_app.App._prompt_game_mode_ufw_exception_sets
@@ -187,18 +190,22 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
         in baseline_tree_source
     )
     assert (
-        'self.attach_selection_copy_shortcuts(self.security_baseline_detail_text, "text")'
-        in source
+        'app.attach_selection_copy_shortcuts(app.security_baseline_detail_text, "text")'
+        in baseline_detail_source
     )
-    assert "command=self.show_security_baseline_list_view" in source
-    assert '"baseline_btn_back_to_entries"' in source
-    assert '"Zurueck zu den Eintraegen"' in source
+    assert "build_security_baseline_detail_view(self, baseline_content)" in source
+    assert "command=app.show_security_baseline_list_view" in baseline_detail_source
+    assert '"baseline_btn_back_to_entries"' in baseline_detail_source
+    assert '"Zurueck zu den Eintraegen"' in baseline_detail_source
     assert "build_security_baseline_list_container(" in source
     assert (
         "app.security_baseline_list_view = ttk.Frame(baseline_content)"
         in baseline_list_source
     )
-    assert "self.security_baseline_detail_view = ttk.Frame(baseline_content)" in source
+    assert (
+        "app.security_baseline_detail_view = ttk.Frame(baseline_content)"
+        in baseline_detail_source
+    )
     assert "build_security_baseline_profile_selector(" in source
     assert (
         'text=app.tr("baseline_profile_select_label", "Profilauswahl:")'

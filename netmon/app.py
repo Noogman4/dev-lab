@@ -625,6 +625,7 @@ try:
         build_security_baseline_actions,
         build_security_baseline_list_container,
         build_security_baseline_tree,
+        build_security_baseline_detail_view,
         build_security_baseline_summary_statuses,
         build_security_tabs,
         build_startup_guard_tab,
@@ -695,6 +696,7 @@ except ModuleNotFoundError:
         build_security_baseline_actions,
         build_security_baseline_list_container,
         build_security_baseline_tree,
+        build_security_baseline_detail_view,
         build_security_baseline_summary_statuses,
         build_security_tabs,
         build_startup_guard_tab,
@@ -29483,60 +29485,7 @@ class App(TkBase):
 
         build_security_baseline_tree(self, baseline_table_frame)
 
-        self.security_baseline_detail_view = ttk.Frame(baseline_content)
-        self.security_baseline_detail_view.grid(row=0, column=0, sticky="nsew")
-        self.security_baseline_detail_view.columnconfigure(0, weight=1)
-        self.security_baseline_detail_view.rowconfigure(1, weight=1)
-
-        detail_header = ttk.Frame(self.security_baseline_detail_view)
-        detail_header.grid(row=0, column=0, sticky="ew", pady=(0, 6))
-        detail_header.columnconfigure(1, weight=1)
-
-        self.btn_security_baseline_back = ttk.Button(
-            detail_header,
-            text=self.tr("baseline_btn_back_to_entries", "Zurueck zu den Eintraegen"),
-            command=self.show_security_baseline_list_view,
-        )
-        self.btn_security_baseline_back.grid(row=0, column=0, sticky="w")
-
-        self.security_baseline_detail_heading_var = tk.StringVar(
-            value=self.tr("baseline_group_details", "Check Details")
-        )
-        ttk.Label(
-            detail_header,
-            textvariable=self.security_baseline_detail_heading_var,
-            justify="left",
-            font=("TkDefaultFont", 10, "bold"),
-        ).grid(row=0, column=1, sticky="w", padx=(10, 0))
-
-        baseline_detail_frame = ttk.Frame(self.security_baseline_detail_view)
-        baseline_detail_frame.grid(row=1, column=0, sticky="nsew")
-        baseline_detail_frame.columnconfigure(0, weight=1)
-        baseline_detail_frame.rowconfigure(0, weight=1)
-
-        baseline_detail_scroll_y = ttk.Scrollbar(
-            baseline_detail_frame,
-            orient="vertical",
-        )
-        baseline_detail_scroll_y.grid(row=0, column=1, sticky="ns")
-        self.security_baseline_detail_text = tk.Text(
-            baseline_detail_frame,
-            wrap="word",
-            height=14,
-            yscrollcommand=baseline_detail_scroll_y.set,
-        )
-        self.security_baseline_detail_text.grid(row=0, column=0, sticky="nsew")
-        baseline_detail_scroll_y.configure(
-            command=self.security_baseline_detail_text.yview
-        )
-        self.security_baseline_detail_text.insert(
-            "1.0",
-            self.tr("baseline_detail_placeholder", "Noch kein Check ausgewaehlt."),
-        )
-        self.security_baseline_detail_text.configure(state="disabled")
-        self.attach_selection_copy_shortcuts(self.security_baseline_detail_text, "text")
-        self.attach_text_context_menu(self.security_baseline_detail_text)
-        self.security_baseline_detail_view.grid_remove()
+        build_security_baseline_detail_view(self, baseline_content)
 
         hardening_summary = ttk.LabelFrame(
             hardening_tab,
