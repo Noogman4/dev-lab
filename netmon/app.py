@@ -642,6 +642,10 @@ try:
     from netmon.ui.tabs.settings_tab import build_settings_tab as build_settings_tab_ui
     from netmon.ui.tabs.system_tab import build_system_tab
     from netmon.ui.tabs.tools_tabs import build_basic_tools_tabs
+    from netmon.ui.tabs.theme_studio_tab import (
+        build_theme_studio_layout,
+        build_theme_studio_profile_panel,
+    )
     from netmon.ui.tabs.trace_tab import build_trace_tab
     from netmon.ui.tabs.vpn_slots_tab import build_vpn_slots_tab
     from netmon.ui.settings_sync import (
@@ -722,6 +726,10 @@ except ModuleNotFoundError:
     from ui.tabs.settings_tab import build_settings_tab as build_settings_tab_ui
     from ui.tabs.system_tab import build_system_tab
     from ui.tabs.tools_tabs import build_basic_tools_tabs
+    from ui.tabs.theme_studio_tab import (
+        build_theme_studio_layout,
+        build_theme_studio_profile_panel,
+    )
     from ui.tabs.trace_tab import build_trace_tab
     from ui.tabs.vpn_slots_tab import build_vpn_slots_tab
     from ui.settings_sync import (
@@ -25927,66 +25935,8 @@ class App(TkBase):
         )
 
     def build_theme_studio_tab(self):
-        frame = ttk.Frame(self.tab_theme_studio, padding=12)
-        frame.pack(fill="both", expand=True)
-        frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(0, weight=1)
-
-        layout = ttk.Frame(frame)
-        layout.grid(row=0, column=0, sticky="nsew")
-        layout.columnconfigure(0, weight=0, minsize=320)
-        layout.columnconfigure(1, weight=1)
-        layout.rowconfigure(0, weight=1)
-
-        controls = ttk.Frame(layout)
-        controls.grid(row=0, column=0, sticky="nsw", padx=(0, 12))
-        # source marker: text="Live-Vorschau"
-        preview = ttk.LabelFrame(
-            layout,
-            text=self.tr("theme_studio_group_live_preview", "Live-Vorschau"),
-            padding=10,
-        )
-        preview.grid(row=0, column=1, sticky="nsew")
-        preview.columnconfigure(0, weight=1)
-
-        basics = ttk.LabelFrame(
-            controls,
-            text=self.tr("theme_studio_group_pop_profile", "Pop profile"),
-            padding=8,
-        )
-        basics.pack(fill="x", pady=(0, 8))
-        self.var_theme_studio_base_theme.set(self._get_theme_display_name("pop"))
-        ttk.Label(
-            basics,
-            text=self.tr("theme_studio_label_edited_profile", "Edited profile:"),
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Label(
-            basics,
-            text="Pop",
-            font=("TkDefaultFont", 10, "bold"),
-        ).grid(row=0, column=1, sticky="w", padx=(8, 0))
-        ttk.Label(
-            basics,
-            text=self.tr(
-                "theme_studio_pop_profile_note",
-                "Theme Studio only affects the Pop test profile.\nLight, Dark and Beige remain unchanged.",
-            ),
-            justify="left",
-            wraplength=260,
-        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(8, 0))
-
-        ttk.Label(
-            basics,
-            text=self.tr("theme_studio_label_profile_name", "Profilname:"),
-        ).grid(row=2, column=0, sticky="w", pady=(8, 0))
-        self.theme_studio_profile_entry = ttk.Entry(
-            basics,
-            textvariable=self.var_theme_studio_profile_name,
-            width=20,
-        )
-        self.theme_studio_profile_entry.grid(
-            row=2, column=1, sticky="w", padx=(8, 0), pady=(8, 0)
-        )
+        controls, preview = build_theme_studio_layout(self)
+        build_theme_studio_profile_panel(self, controls)
 
         colors = ttk.LabelFrame(
             controls,
