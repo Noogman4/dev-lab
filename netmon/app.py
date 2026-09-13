@@ -622,6 +622,7 @@ try:
         build_lynis_status_row,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
+        build_security_baseline_actions,
         build_security_baseline_summary_statuses,
         build_security_tabs,
         build_startup_guard_tab,
@@ -689,6 +690,7 @@ except ModuleNotFoundError:
         build_lynis_status_row,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
+        build_security_baseline_actions,
         build_security_baseline_summary_statuses,
         build_security_tabs,
         build_startup_guard_tab,
@@ -29468,53 +29470,7 @@ class App(TkBase):
         )
         build_security_baseline_summary_statuses(self, baseline_summary)
 
-        baseline_actions = ttk.Frame(baseline_summary)
-        baseline_actions.pack(fill="x", pady=(6, 0))
-        self.btn_security_baseline_run = ttk.Button(
-            baseline_actions,
-            text=self.tr("baseline_btn_run", "Baseline pruefen"),
-            command=self.run_security_baseline_checks,
-        )
-        self.btn_security_baseline_run.pack(side="left")
-        self.btn_security_baseline_root_check = ttk.Button(
-            baseline_actions,
-            text=self.tr("baseline_btn_root_check", "Root-Check"),
-            command=self.check_security_baseline_privileges,
-        )
-        self.btn_security_baseline_root_check.pack(side="left", padx=(8, 0))
-        self.btn_security_baseline_show_all = ttk.Button(
-            baseline_actions,
-            text=self.tr("baseline_btn_show_all", "Alle anzeigen"),
-            command=lambda: self.apply_security_baseline_filter("all"),
-        )
-        self.btn_security_baseline_show_all.pack(side="left", padx=(8, 0))
-        self.btn_security_baseline_show_deviations = ttk.Button(
-            baseline_actions,
-            text=self.tr("baseline_btn_show_deviations", "Nur Abweichungen"),
-            command=lambda: self.apply_security_baseline_filter("deviations"),
-        )
-        self.btn_security_baseline_show_deviations.pack(side="left", padx=(8, 0))
-        self.btn_security_baseline_show_manual = ttk.Button(
-            baseline_actions,
-            text=self.tr("baseline_btn_show_manual", "Nur manuelle Pruefungen"),
-            command=lambda: self.apply_security_baseline_filter("manual"),
-        )
-        self.btn_security_baseline_show_manual.pack(side="left", padx=(8, 0))
-        self.btn_security_baseline_show_kernel = ttk.Button(
-            baseline_actions,
-            text=self.tr("baseline_btn_show_kernel", "Nur Kernel"),
-            command=lambda: self.apply_security_baseline_filter("kernel"),
-        )
-        self.btn_security_baseline_show_kernel.pack(side="left", padx=(8, 0))
-
-        ttk.Label(
-            baseline_summary,
-            text=self.tr(
-                "baseline_read_only_hint",
-                "Hinweis: Die Baseline fuehrt nur lesende Pruefungen aus und nimmt keine Systemaenderungen vor.",
-            ),
-            justify="left",
-        ).pack(anchor="w", pady=(6, 0))
+        build_security_baseline_actions(self, baseline_summary)
 
         baseline_content = ttk.LabelFrame(
             baseline_tab,

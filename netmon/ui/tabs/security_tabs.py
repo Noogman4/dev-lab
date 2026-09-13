@@ -97,6 +97,67 @@ def build_security_baseline_summary_statuses(app, baseline_summary) -> None:
         ttk.Label(baseline_summary, textvariable=variable, justify="left").pack(
             anchor="w"
         )
+
+
+def build_security_baseline_actions(app, baseline_summary) -> None:
+    """Build baseline check and filter actions below the summary."""
+    baseline_actions = ttk.Frame(baseline_summary)
+    baseline_actions.pack(fill="x", pady=(6, 0))
+    app.btn_security_baseline_run = ttk.Button(
+        baseline_actions,
+        text=app.tr("baseline_btn_run", "Baseline pruefen"),
+        command=app.run_security_baseline_checks,
+    )
+    app.btn_security_baseline_run.pack(side="left")
+    app.btn_security_baseline_root_check = ttk.Button(
+        baseline_actions,
+        text=app.tr("baseline_btn_root_check", "Root-Check"),
+        command=app.check_security_baseline_privileges,
+    )
+    app.btn_security_baseline_root_check.pack(side="left", padx=(8, 0))
+    for attr_name, label_key, default, mode in (
+        (
+            "btn_security_baseline_show_all",
+            "baseline_btn_show_all",
+            "Alle anzeigen",
+            "all",
+        ),
+        (
+            "btn_security_baseline_show_deviations",
+            "baseline_btn_show_deviations",
+            "Nur Abweichungen",
+            "deviations",
+        ),
+        (
+            "btn_security_baseline_show_manual",
+            "baseline_btn_show_manual",
+            "Nur manuelle Pruefungen",
+            "manual",
+        ),
+        (
+            "btn_security_baseline_show_kernel",
+            "baseline_btn_show_kernel",
+            "Nur Kernel",
+            "kernel",
+        ),
+    ):
+        button = ttk.Button(
+            baseline_actions,
+            text=app.tr(label_key, default),
+            command=lambda selected_mode=mode: app.apply_security_baseline_filter(
+                selected_mode
+            ),
+        )
+        setattr(app, attr_name, button)
+        button.pack(side="left", padx=(8, 0))
+    ttk.Label(
+        baseline_summary,
+        text=app.tr(
+            "baseline_read_only_hint",
+            "Hinweis: Die Baseline fuehrt nur lesende Pruefungen aus und nimmt keine Systemaenderungen vor.",
+        ),
+        justify="left",
+    ).pack(anchor="w", pady=(6, 0))
     ttk.Label(
         baseline_summary,
         textvariable=app.security_baseline_last_check_var,

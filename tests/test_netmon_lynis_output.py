@@ -165,6 +165,9 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     profile_selector_source = inspect.getsource(
         security_tabs.build_security_baseline_profile_selector
     )
+    baseline_actions_source = inspect.getsource(
+        security_tabs.build_security_baseline_actions
+    )
     game_mode_source = inspect.getsource(netmon_app.App.enable_game_mode)
     game_mode_dialog_source = inspect.getsource(
         netmon_app.App._prompt_game_mode_ufw_exception_sets
@@ -204,8 +207,9 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     assert "command=app.show_lynis_full_output" in filter_controls_source
     assert "textvariable=app.lynis_summary_var" in output_panel_source
     assert "app.lynis_text = tk.Text(" in output_panel_source
+    assert "build_security_baseline_actions(self, baseline_summary)" in source
     assert "textvariable=self.security_baseline_transfer_var" in source
-    assert "command=self.check_security_baseline_privileges" in source
+    assert "command=app.check_security_baseline_privileges" in baseline_actions_source
     assert "command=self.apply_security_baseline_profile" in source
     assert "command=self.launch_timeshift_snapshot_tool" in source
     assert "command=self.apply_security_baseline_sysctl" in source
