@@ -540,6 +540,55 @@ def build_security_baseline_hardening_scope(app, hardening_actions) -> None:
     app._refresh_security_hardening_text_wrap()
 
 
+def build_rkhunter_output_panel(app) -> None:
+    """Build the RKHunter progress, summary and output widgets."""
+    rkh_progress_row = ttk.Frame(app.tab_rkhunter)
+    rkh_progress_row.pack(fill="x", pady=(0, 8))
+    app.rkhunter_progress_bar = ttk.Progressbar(
+        rkh_progress_row,
+        orient="horizontal",
+        mode="determinate",
+        maximum=100,
+        variable=app.rkhunter_progress_var,
+        style="SystemGreen.Horizontal.TProgressbar",
+    )
+    app.rkhunter_progress_bar.pack(side="left", fill="x", expand=True)
+    ttk.Label(
+        rkh_progress_row,
+        textvariable=app.rkhunter_progress_text_var,
+        width=24,
+        anchor="w",
+    ).pack(side="left", padx=(8, 0))
+    rkh_summary = ttk.LabelFrame(
+        app.tab_rkhunter,
+        text=app.tr("group_summary", "Summary"),
+        padding=6,
+    )
+    rkh_summary.pack(fill="x", pady=(0, 8))
+    ttk.Label(
+        rkh_summary,
+        textvariable=app.rkhunter_summary_var,
+        justify="left",
+    ).pack(anchor="w")
+    rkh_output_frame = ttk.Frame(app.tab_rkhunter)
+    rkh_output_frame.pack(fill="both", expand=True)
+    app.rkhunter_scrollbar = ttk.Scrollbar(rkh_output_frame, orient="vertical")
+    app.rkhunter_scrollbar.pack(side="right", fill="y")
+    app.rkhunter_text = tk.Text(
+        rkh_output_frame,
+        wrap="word",
+        height=20,
+        yscrollcommand=app.rkhunter_scrollbar.set,
+    )
+    app.rkhunter_text.pack(side="left", fill="both", expand=True)
+    app.rkhunter_scrollbar.configure(command=app.rkhunter_text.yview)
+    app.rkhunter_text.insert(
+        "1.0",
+        app.tr("rkhunter_output_placeholder", "rkhunter output will appear here.\n"),
+    )
+    app.rkhunter_text.configure(state="disabled")
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(

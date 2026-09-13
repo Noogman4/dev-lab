@@ -620,6 +620,7 @@ try:
         build_lynis_scan_controls,
         build_lynis_sections,
         build_lynis_status_row,
+        build_rkhunter_output_panel,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -697,6 +698,7 @@ except ModuleNotFoundError:
         build_lynis_scan_controls,
         build_lynis_sections,
         build_lynis_status_row,
+        build_rkhunter_output_panel,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -31226,59 +31228,7 @@ class App(TkBase):
             side="left"
         )
 
-        rkh_progress_row = ttk.Frame(self.tab_rkhunter)
-        rkh_progress_row.pack(fill="x", pady=(0, 8))
-        self.rkhunter_progress_bar = ttk.Progressbar(
-            rkh_progress_row,
-            orient="horizontal",
-            mode="determinate",
-            maximum=100,
-            variable=self.rkhunter_progress_var,
-            style="SystemGreen.Horizontal.TProgressbar",
-        )
-        self.rkhunter_progress_bar.pack(side="left", fill="x", expand=True)
-        ttk.Label(
-            rkh_progress_row,
-            textvariable=self.rkhunter_progress_text_var,
-            width=24,
-            anchor="w",
-        ).pack(side="left", padx=(8, 0))
-
-        rkh_summary = ttk.LabelFrame(
-            self.tab_rkhunter,
-            text=self.tr("group_summary", "Summary"),
-            padding=6,
-        )
-        rkh_summary.pack(fill="x", pady=(0, 8))
-        ttk.Label(
-            rkh_summary,
-            textvariable=self.rkhunter_summary_var,
-            justify="left",
-        ).pack(anchor="w")
-
-        rkh_output_frame = ttk.Frame(self.tab_rkhunter)
-        rkh_output_frame.pack(fill="both", expand=True)
-        self.rkhunter_scrollbar = ttk.Scrollbar(
-            rkh_output_frame,
-            orient="vertical",
-        )
-        self.rkhunter_scrollbar.pack(side="right", fill="y")
-        self.rkhunter_text = tk.Text(
-            rkh_output_frame,
-            wrap="word",
-            height=20,
-            yscrollcommand=self.rkhunter_scrollbar.set,
-        )
-        self.rkhunter_text.pack(side="left", fill="both", expand=True)
-        self.rkhunter_scrollbar.configure(command=self.rkhunter_text.yview)
-        self.rkhunter_text.insert(
-            "1.0",
-            self.tr(
-                "rkhunter_output_placeholder",
-                "rkhunter output will appear here.\n",
-            ),
-        )
-        self.rkhunter_text.configure(state="disabled")
+        build_rkhunter_output_panel(self)
 
     def _set_rkhunter_repair_available(self, enabled):
         security_audit_controller.set_rkhunter_repair_available(self, enabled)
