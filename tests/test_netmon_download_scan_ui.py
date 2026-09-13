@@ -1,7 +1,10 @@
 import inspect
 
 from netmon.app import App
-from netmon.ui.tabs.download_scan_tab import build_download_scan_prequarantine_actions
+from netmon.ui.tabs.download_scan_tab import (
+    build_download_scan_content,
+    build_download_scan_prequarantine_actions,
+)
 from netmon.ui.tabs.security_tabs import build_security_tabs
 
 
@@ -18,9 +21,13 @@ class DummyVar:
 
 def test_download_scan_tab_source_contains_startup_checkbox():
     source = inspect.getsource(App.build_download_scan_tab)
+    content_source = inspect.getsource(build_download_scan_content)
     actions_source = inspect.getsource(build_download_scan_prequarantine_actions)
 
-    assert "build_download_scan_prequarantine_actions(self, temp_group)" in source
+    assert "build_download_scan_content(self)" in source
+    assert (
+        "build_download_scan_prequarantine_actions(app, temp_group)" in content_source
+    )
     assert 'text="Temp-Ordner aktivieren"' in actions_source
     assert 'text="Temp-Ordner deaktivieren"' in actions_source
     assert 'text="Temp-Ordner öffnen"' in actions_source

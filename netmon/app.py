@@ -604,13 +604,7 @@ try:
     from netmon.ui.tabs.dns_tab import build_dns_tab
     from netmon.ui.tabs.download_scan_tab import (
         build_download_scan_tab as build_download_scan_tab_ui,
-        build_download_scan_header,
-        build_download_scan_prequarantine_summary,
-        build_download_scan_prequarantine_actions,
-        build_download_scan_target_folder_panel,
-        build_download_scan_actions,
-        build_download_scan_post_scan_options,
-        build_download_scan_result_panel,
+        build_download_scan_content,
     )
     from netmon.ui.tabs.fun_tab import build_fun_tab
     from netmon.ui.tabs.hdd_tab import build_hdd_tab
@@ -694,13 +688,7 @@ except ModuleNotFoundError:
     from ui.tabs.dns_tab import build_dns_tab
     from ui.tabs.download_scan_tab import (
         build_download_scan_tab as build_download_scan_tab_ui,
-        build_download_scan_header,
-        build_download_scan_prequarantine_summary,
-        build_download_scan_prequarantine_actions,
-        build_download_scan_target_folder_panel,
-        build_download_scan_actions,
-        build_download_scan_post_scan_options,
-        build_download_scan_result_panel,
+        build_download_scan_content,
     )
     from ui.tabs.hdd_tab import build_hdd_tab
     from ui.tabs.linux_help_tab import build_linux_help_tab
@@ -25385,22 +25373,7 @@ class App(TkBase):
         self.refresh_backup_overview()
 
     def build_download_scan_tab(self):
-        frame = ttk.Frame(self.tab_download_scan, padding=12)
-        frame.pack(fill="both", expand=True)
-
-        build_download_scan_header(self, frame)
-
-        temp_group = build_download_scan_prequarantine_summary(self, frame)
-
-        build_download_scan_prequarantine_actions(self, temp_group)
-
-        build_download_scan_target_folder_panel(self, frame)
-
-        build_download_scan_actions(self, frame)
-
-        build_download_scan_post_scan_options(self, frame)
-
-        build_download_scan_result_panel(self, frame)
+        build_download_scan_content(self)
 
     def choose_theme_studio_accent_color(self):
         chooser = colorchooser

@@ -317,6 +317,19 @@ def build_download_scan_result_panel(app, frame) -> None:
     app.attach_text_context_menu(app.download_scan_result_text)
 
 
+def build_download_scan_content(app) -> None:
+    """Build the complete Download Scan content from focused UI sections."""
+    frame = ttk.Frame(app.tab_download_scan, padding=12)
+    frame.pack(fill="both", expand=True)
+    build_download_scan_header(app, frame)
+    temp_group = build_download_scan_prequarantine_summary(app, frame)
+    build_download_scan_prequarantine_actions(app, temp_group)
+    build_download_scan_target_folder_panel(app, frame)
+    build_download_scan_actions(app, frame)
+    build_download_scan_post_scan_options(app, frame)
+    build_download_scan_result_panel(app, frame)
+
+
 def build_download_scan_tab(app):
     app.tab_download_scan = ttk.Frame(app.nb, padding=10)
     app.nb.add(
