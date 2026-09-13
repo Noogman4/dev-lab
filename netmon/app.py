@@ -610,6 +610,7 @@ try:
         build_download_scan_target_folder_panel,
         build_download_scan_actions,
         build_download_scan_post_scan_options,
+        build_download_scan_result_panel,
     )
     from netmon.ui.tabs.fun_tab import build_fun_tab
     from netmon.ui.tabs.hdd_tab import build_hdd_tab
@@ -699,6 +700,7 @@ except ModuleNotFoundError:
         build_download_scan_target_folder_panel,
         build_download_scan_actions,
         build_download_scan_post_scan_options,
+        build_download_scan_result_panel,
     )
     from ui.tabs.hdd_tab import build_hdd_tab
     from ui.tabs.linux_help_tab import build_linux_help_tab
@@ -25398,82 +25400,7 @@ class App(TkBase):
 
         build_download_scan_post_scan_options(self, frame)
 
-        status_group = ttk.LabelFrame(
-            frame,
-            text=self.tr("download_scan_group_status", "Download scan status"),
-            padding=8,
-        )
-        status_group.pack(fill="x", pady=(0, 8))
-        status_group.columnconfigure(1, weight=1)
-        status_group.columnconfigure(3, weight=1)
-
-        ttk.Label(
-            status_group,
-            text=self.tr("download_scan_label_traffic_light", "Indicator:"),
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Label(
-            status_group,
-            textvariable=self.download_scan_status_var,
-            font=("TkDefaultFont", 10, "bold"),
-        ).grid(row=0, column=1, sticky="w", padx=(8, 20))
-        ttk.Label(
-            status_group,
-            text=self.tr(
-                "download_scan_legend",
-                "🟢 clean   🟡 unchecked   🔴 finding / suspicious",
-            ),
-        ).grid(row=0, column=2, columnspan=2, sticky="w")
-
-        ttk.Label(
-            status_group, text=self.tr("download_scan_label_last_scan", "Last scan:")
-        ).grid(row=1, column=0, sticky="w", pady=(6, 0))
-        ttk.Label(
-            status_group,
-            textvariable=self.download_scan_last_scan_var,
-        ).grid(row=1, column=1, sticky="w", padx=(8, 20), pady=(6, 0))
-        ttk.Label(
-            status_group, text=self.tr("download_scan_label_result", "Result:")
-        ).grid(row=1, column=2, sticky="w", pady=(6, 0))
-        ttk.Label(
-            status_group,
-            textvariable=self.download_scan_result_summary_var,
-        ).grid(row=1, column=3, sticky="w", padx=(8, 0), pady=(6, 0))
-        ttk.Label(status_group, text=self.tr("download_scan_label_file", "File:")).grid(
-            row=2, column=0, sticky="w", pady=(6, 0)
-        )
-        ttk.Label(
-            status_group,
-            textvariable=self.download_scan_file_var,
-            wraplength=620,
-        ).grid(row=2, column=1, columnspan=3, sticky="w", padx=(8, 0), pady=(6, 0))
-
-        result_group = ttk.LabelFrame(
-            frame,
-            text=self.tr("download_scan_group_result", "Scan result"),
-            padding=8,
-        )
-        result_group.pack(fill="both", expand=True)
-        result_group.columnconfigure(0, weight=1)
-        result_group.rowconfigure(0, weight=1)
-
-        self.download_scan_result_text = tk.Text(
-            result_group,
-            height=7,
-            wrap="word",
-            relief="solid",
-            borderwidth=1,
-        )
-        self.download_scan_result_text.grid(row=0, column=0, sticky="nsew")
-        self.download_scan_result_text.insert(
-            "1.0",
-            self.tr(
-                "download_scan_result_text_default",
-                "No scan executed yet.",
-            ),
-        )
-        self.download_scan_result_text.configure(state="disabled")
-        self.attach_selection_copy_shortcuts(self.download_scan_result_text, "text")
-        self.attach_text_context_menu(self.download_scan_result_text)
+        build_download_scan_result_panel(self, frame)
 
     def choose_theme_studio_accent_color(self):
         chooser = colorchooser

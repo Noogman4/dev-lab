@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tkinter as tk
 from tkinter import ttk
 
 
@@ -241,6 +242,79 @@ def build_download_scan_post_scan_options(app, frame) -> None:
         text=app.tr("download_scan_check_save_report", "Save scan report"),
         variable=app.download_scan_save_report_var,
     ).pack(anchor="w", pady=(4, 0))
+
+
+def build_download_scan_result_panel(app, frame) -> None:
+    """Build Download Scan status and detailed result output."""
+    status_group = ttk.LabelFrame(
+        frame,
+        text=app.tr("download_scan_group_status", "Download scan status"),
+        padding=8,
+    )
+    status_group.pack(fill="x", pady=(0, 8))
+    status_group.columnconfigure(1, weight=1)
+    status_group.columnconfigure(3, weight=1)
+    ttk.Label(
+        status_group,
+        text=app.tr("download_scan_label_traffic_light", "Indicator:"),
+    ).grid(row=0, column=0, sticky="w")
+    ttk.Label(
+        status_group,
+        textvariable=app.download_scan_status_var,
+        font=("TkDefaultFont", 10, "bold"),
+    ).grid(row=0, column=1, sticky="w", padx=(8, 20))
+    ttk.Label(
+        status_group,
+        text=app.tr(
+            "download_scan_legend",
+            "🟢 clean   🟡 unchecked   🔴 finding / suspicious",
+        ),
+    ).grid(row=0, column=2, columnspan=2, sticky="w")
+    ttk.Label(
+        status_group, text=app.tr("download_scan_label_last_scan", "Last scan:")
+    ).grid(row=1, column=0, sticky="w", pady=(6, 0))
+    ttk.Label(
+        status_group,
+        textvariable=app.download_scan_last_scan_var,
+    ).grid(row=1, column=1, sticky="w", padx=(8, 20), pady=(6, 0))
+    ttk.Label(status_group, text=app.tr("download_scan_label_result", "Result:")).grid(
+        row=1, column=2, sticky="w", pady=(6, 0)
+    )
+    ttk.Label(
+        status_group,
+        textvariable=app.download_scan_result_summary_var,
+    ).grid(row=1, column=3, sticky="w", padx=(8, 0), pady=(6, 0))
+    ttk.Label(status_group, text=app.tr("download_scan_label_file", "File:")).grid(
+        row=2, column=0, sticky="w", pady=(6, 0)
+    )
+    ttk.Label(
+        status_group,
+        textvariable=app.download_scan_file_var,
+        wraplength=620,
+    ).grid(row=2, column=1, columnspan=3, sticky="w", padx=(8, 0), pady=(6, 0))
+    result_group = ttk.LabelFrame(
+        frame,
+        text=app.tr("download_scan_group_result", "Scan result"),
+        padding=8,
+    )
+    result_group.pack(fill="both", expand=True)
+    result_group.columnconfigure(0, weight=1)
+    result_group.rowconfigure(0, weight=1)
+    app.download_scan_result_text = tk.Text(
+        result_group,
+        height=7,
+        wrap="word",
+        relief="solid",
+        borderwidth=1,
+    )
+    app.download_scan_result_text.grid(row=0, column=0, sticky="nsew")
+    app.download_scan_result_text.insert(
+        "1.0",
+        app.tr("download_scan_result_text_default", "No scan executed yet."),
+    )
+    app.download_scan_result_text.configure(state="disabled")
+    app.attach_selection_copy_shortcuts(app.download_scan_result_text, "text")
+    app.attach_text_context_menu(app.download_scan_result_text)
 
 
 def build_download_scan_tab(app):
