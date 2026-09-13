@@ -589,6 +589,23 @@ def build_rkhunter_output_panel(app) -> None:
     app.rkhunter_text.configure(state="disabled")
 
 
+def build_rkhunter_status_row(app, rkh_top) -> None:
+    """Build the RKHunter runtime and update status row."""
+    rkh_status_row = ttk.Frame(rkh_top)
+    rkh_status_row.pack(fill="x", pady=(6, 0))
+    ttk.Label(rkh_status_row, text=app.tr("label_status", "Status:")).pack(
+        side="left", padx=(0, 4)
+    )
+    ttk.Label(rkh_status_row, textvariable=app.rkhunter_status_var).pack(side="left")
+    ttk.Label(
+        rkh_status_row,
+        text=app.tr("rkhunter_label_update_state", " | Update-Stand:"),
+    ).pack(side="left", padx=(12, 4))
+    ttk.Label(rkh_status_row, textvariable=app.rkhunter_last_update_var).pack(
+        side="left"
+    )
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(

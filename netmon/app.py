@@ -621,6 +621,7 @@ try:
         build_lynis_sections,
         build_lynis_status_row,
         build_rkhunter_output_panel,
+        build_rkhunter_status_row,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -699,6 +700,7 @@ except ModuleNotFoundError:
         build_lynis_sections,
         build_lynis_status_row,
         build_rkhunter_output_panel,
+        build_rkhunter_status_row,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -31092,8 +31094,7 @@ class App(TkBase):
         rkh_actions_row.pack(fill="x")
         rkh_secondary_actions_row = ttk.Frame(rkh_top)
         rkh_secondary_actions_row.pack(fill="x", pady=(6, 0))
-        rkh_status_row = ttk.Frame(rkh_top)
-        rkh_status_row.pack(fill="x", pady=(6, 0))
+        build_rkhunter_status_row(self, rkh_top)
 
         self.btn_rkhunter_update = ttk.Button(
             rkh_actions_row,
@@ -31212,20 +31213,6 @@ class App(TkBase):
                 "rkhunter_btn_clear_tooltip",
                 "Clears the current rkhunter output in this tab.",
             ),
-        )
-
-        ttk.Label(rkh_status_row, text=self.tr("label_status", "Status:")).pack(
-            side="left", padx=(0, 4)
-        )
-        ttk.Label(rkh_status_row, textvariable=self.rkhunter_status_var).pack(
-            side="left"
-        )
-        ttk.Label(
-            rkh_status_row,
-            text=self.tr("rkhunter_label_update_state", " | Update-Stand:"),
-        ).pack(side="left", padx=(12, 4))
-        ttk.Label(rkh_status_row, textvariable=self.rkhunter_last_update_var).pack(
-            side="left"
         )
 
         build_rkhunter_output_panel(self)
