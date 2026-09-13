@@ -606,6 +606,21 @@ def build_rkhunter_status_row(app, rkh_top) -> None:
     )
 
 
+def build_rkhunter_actions_panel(app):
+    """Build the RKHunter actions container and return its button rows."""
+    rkh_top = ttk.LabelFrame(
+        app.tab_rkhunter,
+        text=app.tr("rkhunter_group_actions", "rkhunter actions"),
+        padding=6,
+    )
+    rkh_top.pack(fill="x", pady=(0, 8))
+    rkh_actions_row = ttk.Frame(rkh_top)
+    rkh_actions_row.pack(fill="x")
+    rkh_secondary_actions_row = ttk.Frame(rkh_top)
+    rkh_secondary_actions_row.pack(fill="x", pady=(6, 0))
+    return rkh_top, rkh_actions_row, rkh_secondary_actions_row
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(

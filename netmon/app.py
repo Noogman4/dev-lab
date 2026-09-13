@@ -622,6 +622,7 @@ try:
         build_lynis_status_row,
         build_rkhunter_output_panel,
         build_rkhunter_status_row,
+        build_rkhunter_actions_panel,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -701,6 +702,7 @@ except ModuleNotFoundError:
         build_lynis_status_row,
         build_rkhunter_output_panel,
         build_rkhunter_status_row,
+        build_rkhunter_actions_panel,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -31084,16 +31086,9 @@ class App(TkBase):
         return security_audit_controller.restore_security_baseline_state(self)
 
     def build_rkhunter_tab(self):
-        rkh_top = ttk.LabelFrame(
-            self.tab_rkhunter,
-            text=self.tr("rkhunter_group_actions", "rkhunter actions"),
-            padding=6,
+        rkh_top, rkh_actions_row, rkh_secondary_actions_row = (
+            build_rkhunter_actions_panel(self)
         )
-        rkh_top.pack(fill="x", pady=(0, 8))
-        rkh_actions_row = ttk.Frame(rkh_top)
-        rkh_actions_row.pack(fill="x")
-        rkh_secondary_actions_row = ttk.Frame(rkh_top)
-        rkh_secondary_actions_row.pack(fill="x", pady=(6, 0))
         build_rkhunter_status_row(self, rkh_top)
 
         self.btn_rkhunter_update = ttk.Button(
