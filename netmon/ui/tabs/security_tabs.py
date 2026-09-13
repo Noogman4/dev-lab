@@ -740,6 +740,17 @@ def build_rkhunter_secondary_actions(app, rkh_secondary_actions_row) -> None:
     )
 
 
+def build_rkhunter_tab(app) -> None:
+    """Build the complete RKHunter tab from its focused UI sections."""
+    rkh_top, rkh_actions_row, rkh_secondary_actions_row = build_rkhunter_actions_panel(
+        app
+    )
+    build_rkhunter_status_row(app, rkh_top)
+    build_rkhunter_primary_actions(app, rkh_actions_row)
+    build_rkhunter_secondary_actions(app, rkh_secondary_actions_row)
+    build_rkhunter_output_panel(app)
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(
