@@ -626,6 +626,7 @@ try:
         build_packet_capture_configuration_panel,
         build_packet_capture_actions_panel,
         build_packet_capture_primary_actions,
+        build_packet_capture_secondary_actions,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -709,6 +710,7 @@ except ModuleNotFoundError:
         build_packet_capture_configuration_panel,
         build_packet_capture_actions_panel,
         build_packet_capture_primary_actions,
+        build_packet_capture_secondary_actions,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -29075,54 +29077,7 @@ class App(TkBase):
 
         build_packet_capture_primary_actions(self, actions)
 
-        self.btn_packet_capture_open_file = ttk.Button(
-            actions,
-            text=self.tr("packet_capture_btn_open_file", "Open capture file"),
-            command=self.open_packet_capture_file_location,
-        )
-        self.btn_packet_capture_open_file.grid(
-            row=1, column=0, sticky="ew", pady=(6, 0)
-        )
-        self.register_feature_button(
-            "packet_capture", self.btn_packet_capture_open_file
-        )
-        self.add_tooltip(
-            self.btn_packet_capture_open_file,
-            "Opens the capture file or its folder in the file manager.",
-        )
-
-        self.btn_packet_capture_info = ttk.Button(
-            actions,
-            text=self.tr("packet_capture_btn_file_info", "File info"),
-            command=self.packet_capture_show_file_info,
-        )
-        self.btn_packet_capture_info.grid(
-            row=1, column=1, sticky="ew", padx=(8, 0), pady=(6, 0)
-        )
-        self.register_feature_button("packet_capture_ui", self.btn_packet_capture_info)
-        self.add_tooltip(
-            self.btn_packet_capture_info,
-            "Shows metadata and size of the current capture file.",
-        )
-
-        self.btn_packet_capture_fix_permissions = ttk.Button(
-            actions,
-            text=self.tr(
-                "packet_capture_btn_fix_permissions",
-                "Capture-Rechte reparieren",
-            ),
-            command=self.repair_packet_capture_permissions,
-        )
-        self.btn_packet_capture_fix_permissions.grid(
-            row=1, column=2, sticky="ew", padx=(8, 0), pady=(6, 0)
-        )
-        self.register_feature_button(
-            "packet_capture_ui", self.btn_packet_capture_fix_permissions
-        )
-        self.add_tooltip(
-            self.btn_packet_capture_fix_permissions,
-            "Starts a guided repair for missing tshark/dumpcap capture permissions.",
-        )
+        build_packet_capture_secondary_actions(self, actions)
 
         build_packet_capture_status_panel(self)
 
