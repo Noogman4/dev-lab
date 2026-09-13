@@ -180,6 +180,33 @@ def build_download_scan_target_folder_panel(app, frame) -> None:
     ).pack(side="left", padx=(8, 0))
 
 
+def build_download_scan_actions(app, frame) -> None:
+    """Build the Download Scan action buttons."""
+    scan_actions = ttk.LabelFrame(
+        frame,
+        text=app.tr("download_scan_group_scan_actions", "Scan actions"),
+        padding=8,
+    )
+    scan_actions.pack(fill="x", pady=(0, 8))
+    scan_btns_top = ttk.Frame(scan_actions)
+    scan_btns_top.pack(fill="x")
+    app.btn_download_scan_scan_file = ttk.Button(
+        scan_btns_top,
+        text=app.tr("download_scan_btn_choose_and_scan", "Choose file and scan"),
+        command=app.choose_and_scan_download_scan_file,
+    )
+    app.btn_download_scan_scan_file.pack(side="left")
+    app.btn_download_scan_scan_temp = ttk.Button(
+        scan_btns_top,
+        text=app.tr(
+            "download_scan_btn_scan_temp_with_clamav",
+            "Scan temporary folder with ClamAV",
+        ),
+        command=app.scan_download_scan_temp_folder,
+    )
+    app.btn_download_scan_scan_temp.pack(side="left", padx=(8, 0))
+
+
 def build_download_scan_tab(app):
     app.tab_download_scan = ttk.Frame(app.nb, padding=10)
     app.nb.add(

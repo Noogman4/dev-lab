@@ -608,6 +608,7 @@ try:
         build_download_scan_prequarantine_summary,
         build_download_scan_prequarantine_actions,
         build_download_scan_target_folder_panel,
+        build_download_scan_actions,
     )
     from netmon.ui.tabs.fun_tab import build_fun_tab
     from netmon.ui.tabs.hdd_tab import build_hdd_tab
@@ -695,6 +696,7 @@ except ModuleNotFoundError:
         build_download_scan_prequarantine_summary,
         build_download_scan_prequarantine_actions,
         build_download_scan_target_folder_panel,
+        build_download_scan_actions,
     )
     from ui.tabs.hdd_tab import build_hdd_tab
     from ui.tabs.linux_help_tab import build_linux_help_tab
@@ -25390,30 +25392,7 @@ class App(TkBase):
 
         build_download_scan_target_folder_panel(self, frame)
 
-        scan_actions = ttk.LabelFrame(
-            frame,
-            text=self.tr("download_scan_group_scan_actions", "Scan actions"),
-            padding=8,
-        )
-        scan_actions.pack(fill="x", pady=(0, 8))
-
-        scan_btns_top = ttk.Frame(scan_actions)
-        scan_btns_top.pack(fill="x")
-        self.btn_download_scan_scan_file = ttk.Button(
-            scan_btns_top,
-            text=self.tr("download_scan_btn_choose_and_scan", "Choose file and scan"),
-            command=self.choose_and_scan_download_scan_file,
-        )
-        self.btn_download_scan_scan_file.pack(side="left")
-        self.btn_download_scan_scan_temp = ttk.Button(
-            scan_btns_top,
-            text=self.tr(
-                "download_scan_btn_scan_temp_with_clamav",
-                "Scan temporary folder with ClamAV",
-            ),
-            command=self.scan_download_scan_temp_folder,
-        )
-        self.btn_download_scan_scan_temp.pack(side="left", padx=(8, 0))
+        build_download_scan_actions(self, frame)
 
         post_scan = ttk.LabelFrame(
             frame,
