@@ -623,6 +623,7 @@ try:
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
+        build_security_baseline_hardening_summary,
         build_security_baseline_list_container,
         build_security_baseline_tree,
         build_security_baseline_detail_view,
@@ -694,6 +695,7 @@ except ModuleNotFoundError:
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
+        build_security_baseline_hardening_summary,
         build_security_baseline_list_container,
         build_security_baseline_tree,
         build_security_baseline_detail_view,
@@ -29487,60 +29489,7 @@ class App(TkBase):
 
         build_security_baseline_detail_view(self, baseline_content)
 
-        hardening_summary = ttk.LabelFrame(
-            hardening_tab,
-            text=self.tr("baseline_group_hardening", "Baseline-Haertung"),
-            padding=6,
-        )
-        hardening_summary.pack(fill="x", pady=(0, 8))
-        ttk.Label(
-            hardening_summary,
-            textvariable=self.security_baseline_profile_var,
-            justify="left",
-        ).pack(anchor="w")
-        ttk.Label(
-            hardening_summary,
-            textvariable=self.security_baseline_version_var,
-            justify="left",
-        ).pack(anchor="w")
-        ttk.Label(
-            hardening_summary,
-            textvariable=self.security_baseline_last_check_var,
-            justify="left",
-        ).pack(anchor="w", pady=(4, 0))
-        ttk.Label(
-            hardening_summary,
-            textvariable=self.security_baseline_status_var,
-            justify="left",
-        ).pack(anchor="w")
-        ttk.Label(
-            hardening_summary,
-            text=self.tr(
-                "baseline_hardening_intro",
-                "Wendet freigegebene Hardening-Schritte fuer das aktive Baseline-Profil an.",
-            ),
-            justify="left",
-        ).pack(anchor="w", pady=(6, 0))
-        ttk.Label(
-            hardening_summary,
-            textvariable=self.security_baseline_transfer_var,
-            justify="left",
-        ).pack(anchor="w", pady=(4, 0))
-        ttk.Label(
-            hardening_summary,
-            text=self.tr(
-                "baseline_hardening_timeshift_hint",
-                "Empfehlung: Vor jeder Hardening-Aenderung zuerst einen Timeshift-Snapshot erstellen.",
-            ),
-            justify="left",
-            wraplength=900,
-        ).pack(anchor="w", pady=(6, 0))
-        ttk.Label(
-            hardening_summary,
-            textvariable=self.security_baseline_optional_services_var,
-            justify="left",
-            wraplength=900,
-        ).pack(anchor="w", pady=(4, 0))
+        build_security_baseline_hardening_summary(self, hardening_tab)
 
         hardening_actions = ttk.LabelFrame(
             hardening_tab,

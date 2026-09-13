@@ -300,6 +300,56 @@ def build_security_baseline_detail_view(app, baseline_content) -> None:
     app.security_baseline_detail_view.grid_remove()
 
 
+def build_security_baseline_hardening_summary(app, hardening_tab) -> None:
+    """Build the hardening overview shown above its available actions."""
+    hardening_summary = ttk.LabelFrame(
+        hardening_tab,
+        text=app.tr("baseline_group_hardening", "Baseline-Haertung"),
+        padding=6,
+    )
+    hardening_summary.pack(fill="x", pady=(0, 8))
+    for variable, pady in (
+        (app.security_baseline_profile_var, None),
+        (app.security_baseline_version_var, None),
+        (app.security_baseline_last_check_var, (4, 0)),
+        (app.security_baseline_status_var, None),
+    ):
+        kwargs = {"anchor": "w"}
+        if pady is not None:
+            kwargs["pady"] = pady
+        ttk.Label(hardening_summary, textvariable=variable, justify="left").pack(
+            **kwargs
+        )
+    ttk.Label(
+        hardening_summary,
+        text=app.tr(
+            "baseline_hardening_intro",
+            "Wendet freigegebene Hardening-Schritte fuer das aktive Baseline-Profil an.",
+        ),
+        justify="left",
+    ).pack(anchor="w", pady=(6, 0))
+    ttk.Label(
+        hardening_summary,
+        textvariable=app.security_baseline_transfer_var,
+        justify="left",
+    ).pack(anchor="w", pady=(4, 0))
+    ttk.Label(
+        hardening_summary,
+        text=app.tr(
+            "baseline_hardening_timeshift_hint",
+            "Empfehlung: Vor jeder Hardening-Aenderung zuerst einen Timeshift-Snapshot erstellen.",
+        ),
+        justify="left",
+        wraplength=900,
+    ).pack(anchor="w", pady=(6, 0))
+    ttk.Label(
+        hardening_summary,
+        textvariable=app.security_baseline_optional_services_var,
+        justify="left",
+        wraplength=900,
+    ).pack(anchor="w", pady=(4, 0))
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(

@@ -175,6 +175,9 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     baseline_detail_source = inspect.getsource(
         security_tabs.build_security_baseline_detail_view
     )
+    hardening_summary_source = inspect.getsource(
+        security_tabs.build_security_baseline_hardening_summary
+    )
     game_mode_source = inspect.getsource(netmon_app.App.enable_game_mode)
     game_mode_dialog_source = inspect.getsource(
         netmon_app.App._prompt_game_mode_ufw_exception_sets
@@ -224,7 +227,8 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     assert "textvariable=app.lynis_summary_var" in output_panel_source
     assert "app.lynis_text = tk.Text(" in output_panel_source
     assert "build_security_baseline_actions(self, baseline_summary)" in source
-    assert "textvariable=self.security_baseline_transfer_var" in source
+    assert "build_security_baseline_hardening_summary(self, hardening_tab)" in source
+    assert "textvariable=app.security_baseline_transfer_var" in hardening_summary_source
     assert "command=app.check_security_baseline_privileges" in baseline_actions_source
     assert "command=self.apply_security_baseline_profile" in source
     assert "command=self.launch_timeshift_snapshot_tool" in source
@@ -244,8 +248,11 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     assert 'self._game_mode_preset_label("lutris")' in source
     assert 'self._game_mode_preset_label("minecraft_lan")' in source
     assert "for column in range(4)" in source
-    assert '"baseline_hardening_timeshift_hint"' in source
-    assert "textvariable=self.security_baseline_optional_services_var" in source
+    assert '"baseline_hardening_timeshift_hint"' in hardening_summary_source
+    assert (
+        "textvariable=app.security_baseline_optional_services_var"
+        in hardening_summary_source
+    )
     assert "textvariable=self.security_game_mode_status_var" in source
     assert "def confirm_game_mode_apply(" in game_mode_confirm_source
     assert "_prompt_game_mode_ufw_exception_sets(" in game_mode_source
