@@ -187,6 +187,9 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     hardening_action_buttons_source = inspect.getsource(
         security_tabs.build_security_baseline_hardening_action_buttons
     )
+    game_mode_status_source = inspect.getsource(
+        security_tabs.build_security_baseline_game_mode_status
+    )
     game_mode_source = inspect.getsource(netmon_app.App.enable_game_mode)
     game_mode_dialog_source = inspect.getsource(
         netmon_app.App._prompt_game_mode_ufw_exception_sets
@@ -276,7 +279,11 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     assert (
         "app.security_game_mode_preset_combo = ttk.Combobox(" in game_mode_preset_source
     )
-    assert "textvariable=self.security_game_mode_profile_hint_var" in source
+    assert "build_security_baseline_game_mode_status(self, hardening_actions)" in source
+    assert (
+        "textvariable=app.security_game_mode_profile_hint_var"
+        in game_mode_status_source
+    )
     assert 'app._game_mode_preset_label("steam")' in game_mode_preset_source
     assert 'app._game_mode_preset_label("heroic")' in game_mode_preset_source
     assert 'app._game_mode_preset_label("lutris")' in game_mode_preset_source
@@ -288,7 +295,7 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
         "textvariable=app.security_baseline_optional_services_var"
         in hardening_summary_source
     )
-    assert "textvariable=self.security_game_mode_status_var" in source
+    assert "textvariable=app.security_game_mode_status_var" in game_mode_status_source
     assert "def confirm_game_mode_apply(" in game_mode_confirm_source
     assert "_prompt_game_mode_ufw_exception_sets(" in game_mode_source
     assert "self.confirm_game_mode_apply(" in game_mode_source

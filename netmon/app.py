@@ -626,6 +626,7 @@ try:
         build_security_baseline_hardening_actions_panel,
         build_security_baseline_hardening_action_buttons,
         build_security_baseline_hardening_summary,
+        build_security_baseline_game_mode_status,
         build_security_baseline_game_mode_preset,
         build_security_baseline_list_container,
         build_security_baseline_tree,
@@ -701,6 +702,7 @@ except ModuleNotFoundError:
         build_security_baseline_hardening_actions_panel,
         build_security_baseline_hardening_action_buttons,
         build_security_baseline_hardening_summary,
+        build_security_baseline_game_mode_status,
         build_security_baseline_game_mode_preset,
         build_security_baseline_list_container,
         build_security_baseline_tree,
@@ -29503,35 +29505,7 @@ class App(TkBase):
         )
         build_security_baseline_game_mode_preset(self, hardening_actions)
         build_security_baseline_hardening_action_buttons(self, hardening_actions)
-        self.refresh_timeshift_launch_controls()
-        self.lbl_security_game_mode_profile_hint = ttk.Label(
-            hardening_actions,
-            textvariable=self.security_game_mode_profile_hint_var,
-            justify="left",
-            wraplength=360,
-        )
-        self.lbl_security_game_mode_profile_hint.grid(
-            row=4,
-            column=0,
-            columnspan=4,
-            sticky="ew",
-            pady=(8, 6),
-        )
-        self.lbl_security_game_mode_status = ttk.Label(
-            hardening_actions,
-            textvariable=self.security_game_mode_status_var,
-            justify="left",
-            wraplength=360,
-        )
-        self.lbl_security_game_mode_status.grid(
-            row=5,
-            column=0,
-            columnspan=4,
-            sticky="ew",
-            pady=(0, 8),
-        )
-        self.refresh_game_mode_preset_ui()
-        self.refresh_game_mode_status()
+        build_security_baseline_game_mode_status(self, hardening_actions)
 
         self.lbl_security_hardening_scope = ttk.Label(
             hardening_actions,

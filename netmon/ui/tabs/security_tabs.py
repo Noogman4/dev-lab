@@ -481,6 +481,39 @@ def build_security_baseline_hardening_action_buttons(app, hardening_actions) -> 
         )
 
 
+def build_security_baseline_game_mode_status(app, hardening_actions) -> None:
+    """Build and refresh the game-mode status labels."""
+    app.refresh_timeshift_launch_controls()
+    app.lbl_security_game_mode_profile_hint = ttk.Label(
+        hardening_actions,
+        textvariable=app.security_game_mode_profile_hint_var,
+        justify="left",
+        wraplength=360,
+    )
+    app.lbl_security_game_mode_profile_hint.grid(
+        row=4,
+        column=0,
+        columnspan=4,
+        sticky="ew",
+        pady=(8, 6),
+    )
+    app.lbl_security_game_mode_status = ttk.Label(
+        hardening_actions,
+        textvariable=app.security_game_mode_status_var,
+        justify="left",
+        wraplength=360,
+    )
+    app.lbl_security_game_mode_status.grid(
+        row=5,
+        column=0,
+        columnspan=4,
+        sticky="ew",
+        pady=(0, 8),
+    )
+    app.refresh_game_mode_preset_ui()
+    app.refresh_game_mode_status()
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(
