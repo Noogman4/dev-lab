@@ -967,6 +967,17 @@ def build_packet_capture_secondary_actions(app, actions) -> None:
     )
 
 
+def build_packet_capture_tab(app) -> None:
+    """Build the complete Packet Capture tab from focused UI sections."""
+    build_packet_capture_configuration_panel(app)
+    actions = build_packet_capture_actions_panel(app)
+    build_packet_capture_primary_actions(app, actions)
+    build_packet_capture_secondary_actions(app, actions)
+    build_packet_capture_status_panel(app)
+    build_packet_capture_output_panel(app)
+    app.packet_capture_set_running_state(False)
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(

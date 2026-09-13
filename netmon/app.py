@@ -621,12 +621,7 @@ try:
         build_lynis_sections,
         build_lynis_status_row,
         build_rkhunter_tab as build_rkhunter_tab_ui,
-        build_packet_capture_output_panel,
-        build_packet_capture_status_panel,
-        build_packet_capture_configuration_panel,
-        build_packet_capture_actions_panel,
-        build_packet_capture_primary_actions,
-        build_packet_capture_secondary_actions,
+        build_packet_capture_tab as build_packet_capture_tab_ui,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -705,12 +700,7 @@ except ModuleNotFoundError:
         build_lynis_sections,
         build_lynis_status_row,
         build_rkhunter_tab as build_rkhunter_tab_ui,
-        build_packet_capture_output_panel,
-        build_packet_capture_status_panel,
-        build_packet_capture_configuration_panel,
-        build_packet_capture_actions_panel,
-        build_packet_capture_primary_actions,
-        build_packet_capture_secondary_actions,
+        build_packet_capture_tab as build_packet_capture_tab_ui,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -29071,18 +29061,7 @@ class App(TkBase):
         dot_controller.test_dot_async(self)
 
     def build_packet_capture_tab(self):
-        build_packet_capture_configuration_panel(self)
-
-        actions = build_packet_capture_actions_panel(self)
-
-        build_packet_capture_primary_actions(self, actions)
-
-        build_packet_capture_secondary_actions(self, actions)
-
-        build_packet_capture_status_panel(self)
-
-        build_packet_capture_output_panel(self)
-        self.packet_capture_set_running_state(False)
+        build_packet_capture_tab_ui(self)
 
     def packet_capture_set_running_state(self, running):
         packet_capture_controller.packet_capture_set_running_state(self, running)
