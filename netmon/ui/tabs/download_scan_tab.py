@@ -144,6 +144,42 @@ def build_download_scan_prequarantine_actions(app, temp_group) -> None:
     )
 
 
+def build_download_scan_target_folder_panel(app, frame) -> None:
+    """Build the normal Download target folder panel and its actions."""
+    target_group = ttk.LabelFrame(
+        frame,
+        text=app.tr("download_scan_group_target_folder", "Target folder"),
+        padding=8,
+    )
+    target_group.pack(fill="x", pady=(0, 8))
+    target_group.columnconfigure(1, weight=1)
+    ttk.Label(
+        target_group,
+        text=app.tr(
+            "download_scan_label_normal_download_folder",
+            "Normal download folder:",
+        ),
+    ).grid(row=0, column=0, sticky="nw")
+    ttk.Label(
+        target_group,
+        textvariable=app.download_scan_target_dir_var,
+        justify="left",
+        wraplength=520,
+    ).grid(row=0, column=1, sticky="w", padx=(8, 0))
+    target_btns = ttk.Frame(target_group)
+    target_btns.grid(row=1, column=0, columnspan=2, sticky="w", pady=(8, 0))
+    ttk.Button(
+        target_btns,
+        text=app.tr("download_scan_btn_choose_target", "Choose target folder"),
+        command=app.choose_download_scan_target_dir,
+    ).pack(side="left")
+    ttk.Button(
+        target_btns,
+        text=app.tr("download_scan_btn_open_target", "Open target folder"),
+        command=app.open_download_scan_target_folder,
+    ).pack(side="left", padx=(8, 0))
+
+
 def build_download_scan_tab(app):
     app.tab_download_scan = ttk.Frame(app.nb, padding=10)
     app.nb.add(

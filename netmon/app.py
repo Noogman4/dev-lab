@@ -607,6 +607,7 @@ try:
         build_download_scan_header,
         build_download_scan_prequarantine_summary,
         build_download_scan_prequarantine_actions,
+        build_download_scan_target_folder_panel,
     )
     from netmon.ui.tabs.fun_tab import build_fun_tab
     from netmon.ui.tabs.hdd_tab import build_hdd_tab
@@ -693,6 +694,7 @@ except ModuleNotFoundError:
         build_download_scan_header,
         build_download_scan_prequarantine_summary,
         build_download_scan_prequarantine_actions,
+        build_download_scan_target_folder_panel,
     )
     from ui.tabs.hdd_tab import build_hdd_tab
     from ui.tabs.linux_help_tab import build_linux_help_tab
@@ -25386,40 +25388,7 @@ class App(TkBase):
 
         build_download_scan_prequarantine_actions(self, temp_group)
 
-        target_group = ttk.LabelFrame(
-            frame,
-            text=self.tr("download_scan_group_target_folder", "Target folder"),
-            padding=8,
-        )
-        target_group.pack(fill="x", pady=(0, 8))
-        target_group.columnconfigure(1, weight=1)
-
-        ttk.Label(
-            target_group,
-            text=self.tr(
-                "download_scan_label_normal_download_folder",
-                "Normal download folder:",
-            ),
-        ).grid(row=0, column=0, sticky="nw")
-        ttk.Label(
-            target_group,
-            textvariable=self.download_scan_target_dir_var,
-            justify="left",
-            wraplength=520,
-        ).grid(row=0, column=1, sticky="w", padx=(8, 0))
-
-        target_btns = ttk.Frame(target_group)
-        target_btns.grid(row=1, column=0, columnspan=2, sticky="w", pady=(8, 0))
-        ttk.Button(
-            target_btns,
-            text=self.tr("download_scan_btn_choose_target", "Choose target folder"),
-            command=self.choose_download_scan_target_dir,
-        ).pack(side="left")
-        ttk.Button(
-            target_btns,
-            text=self.tr("download_scan_btn_open_target", "Open target folder"),
-            command=self.open_download_scan_target_folder,
-        ).pack(side="left", padx=(8, 0))
+        build_download_scan_target_folder_panel(self, frame)
 
         scan_actions = ttk.LabelFrame(
             frame,
