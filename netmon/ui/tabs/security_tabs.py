@@ -868,6 +868,19 @@ def build_packet_capture_configuration_panel(app) -> None:
     )
 
 
+def build_packet_capture_actions_panel(app):
+    """Build the Packet Capture actions container and configure its grid."""
+    actions = ttk.LabelFrame(
+        app.tab_packet_capture,
+        text=app.tr("packet_capture_group_actions", "Actions"),
+        padding=6,
+    )
+    actions.pack(fill="x", pady=(8, 0))
+    for col in range(3):
+        actions.columnconfigure(col, weight=1)
+    return actions
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(

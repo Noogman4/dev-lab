@@ -624,6 +624,7 @@ try:
         build_packet_capture_output_panel,
         build_packet_capture_status_panel,
         build_packet_capture_configuration_panel,
+        build_packet_capture_actions_panel,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -705,6 +706,7 @@ except ModuleNotFoundError:
         build_packet_capture_output_panel,
         build_packet_capture_status_panel,
         build_packet_capture_configuration_panel,
+        build_packet_capture_actions_panel,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -29067,14 +29069,7 @@ class App(TkBase):
     def build_packet_capture_tab(self):
         build_packet_capture_configuration_panel(self)
 
-        actions = ttk.LabelFrame(
-            self.tab_packet_capture,
-            text=self.tr("packet_capture_group_actions", "Actions"),
-            padding=6,
-        )
-        actions.pack(fill="x", pady=(8, 0))
-        for col in range(3):
-            actions.columnconfigure(col, weight=1)
+        actions = build_packet_capture_actions_panel(self)
 
         self.btn_packet_capture_start = ttk.Button(
             actions,
