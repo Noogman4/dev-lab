@@ -350,6 +350,22 @@ def build_security_baseline_hardening_summary(app, hardening_tab) -> None:
     ).pack(anchor="w", pady=(4, 0))
 
 
+def build_security_baseline_hardening_actions_panel(app, hardening_tab):
+    """Build the hardening actions container and configure its button grid."""
+    hardening_actions = ttk.LabelFrame(
+        hardening_tab,
+        text=app.tr("baseline_group_hardening_actions", "Hardening-Aktionen"),
+        padding=6,
+    )
+    app.tab_lynis_hardening_actions_frame = hardening_actions
+    hardening_actions.pack(fill="x", pady=(0, 8))
+    for column in range(4):
+        hardening_actions.grid_columnconfigure(
+            column, weight=1, uniform="hardening_actions"
+        )
+    return hardening_actions
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(

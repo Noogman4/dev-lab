@@ -178,6 +178,9 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     hardening_summary_source = inspect.getsource(
         security_tabs.build_security_baseline_hardening_summary
     )
+    hardening_actions_panel_source = inspect.getsource(
+        security_tabs.build_security_baseline_hardening_actions_panel
+    )
     game_mode_source = inspect.getsource(netmon_app.App.enable_game_mode)
     game_mode_dialog_source = inspect.getsource(
         netmon_app.App._prompt_game_mode_ufw_exception_sets
@@ -247,7 +250,8 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     assert 'self._game_mode_preset_label("heroic")' in source
     assert 'self._game_mode_preset_label("lutris")' in source
     assert 'self._game_mode_preset_label("minecraft_lan")' in source
-    assert "for column in range(4)" in source
+    assert "build_security_baseline_hardening_actions_panel(" in source
+    assert "for column in range(4)" in hardening_actions_panel_source
     assert '"baseline_hardening_timeshift_hint"' in hardening_summary_source
     assert (
         "textvariable=app.security_baseline_optional_services_var"

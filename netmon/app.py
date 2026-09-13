@@ -623,6 +623,7 @@ try:
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
+        build_security_baseline_hardening_actions_panel,
         build_security_baseline_hardening_summary,
         build_security_baseline_list_container,
         build_security_baseline_tree,
@@ -695,6 +696,7 @@ except ModuleNotFoundError:
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
+        build_security_baseline_hardening_actions_panel,
         build_security_baseline_hardening_summary,
         build_security_baseline_list_container,
         build_security_baseline_tree,
@@ -29491,17 +29493,10 @@ class App(TkBase):
 
         build_security_baseline_hardening_summary(self, hardening_tab)
 
-        hardening_actions = ttk.LabelFrame(
+        hardening_actions = build_security_baseline_hardening_actions_panel(
+            self,
             hardening_tab,
-            text=self.tr("baseline_group_hardening_actions", "Hardening-Aktionen"),
-            padding=6,
         )
-        self.tab_lynis_hardening_actions_frame = hardening_actions
-        hardening_actions.pack(fill="x", pady=(0, 8))
-        for column in range(4):
-            hardening_actions.grid_columnconfigure(
-                column, weight=1, uniform="hardening_actions"
-            )
         preset_row = ttk.Frame(hardening_actions)
         preset_row.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 8))
         preset_row.columnconfigure(1, weight=1)
