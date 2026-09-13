@@ -604,6 +604,7 @@ try:
     from netmon.ui.tabs.dns_tab import build_dns_tab
     from netmon.ui.tabs.download_scan_tab import (
         build_download_scan_tab as build_download_scan_tab_ui,
+        build_download_scan_header,
     )
     from netmon.ui.tabs.fun_tab import build_fun_tab
     from netmon.ui.tabs.hdd_tab import build_hdd_tab
@@ -687,6 +688,7 @@ except ModuleNotFoundError:
     from ui.tabs.dns_tab import build_dns_tab
     from ui.tabs.download_scan_tab import (
         build_download_scan_tab as build_download_scan_tab_ui,
+        build_download_scan_header,
     )
     from ui.tabs.hdd_tab import build_hdd_tab
     from ui.tabs.linux_help_tab import build_linux_help_tab
@@ -25374,39 +25376,7 @@ class App(TkBase):
         frame = ttk.Frame(self.tab_download_scan, padding=12)
         frame.pack(fill="both", expand=True)
 
-        header = ttk.LabelFrame(
-            frame,
-            text=self.tr("download_scan_group_header", "Download scan / temp download"),
-            padding=10,
-        )
-        header.pack(fill="x", pady=(0, 10))
-
-        ttk.Label(
-            header,
-            text=self.tr(
-                "download_scan_header_intro",
-                "Save downloads to this pre-quarantine folder first. After a successful check, NetMon can move the file to the normal download folder.",
-            ),
-            justify="left",
-            wraplength=760,
-        ).pack(anchor="w")
-        ttk.Label(
-            header,
-            text=self.tr(
-                "download_scan_label_files_not_auto_deleted",
-                "Files are not deleted automatically.",
-            ),
-            justify="left",
-        ).pack(anchor="w", pady=(4, 0))
-        ttk.Label(
-            header,
-            text=self.tr(
-                "download_scan_header_hint_persistent",
-                "Note: files in this area are intended for temporary use only, but they remain across NetMon restarts and usually disappear only after a system/mount restart or manual clearing.",
-            ),
-            justify="left",
-            wraplength=760,
-        ).pack(anchor="w", pady=(4, 0))
+        build_download_scan_header(self, frame)
 
         temp_group = ttk.LabelFrame(
             frame,
