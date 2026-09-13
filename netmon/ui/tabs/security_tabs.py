@@ -514,6 +514,32 @@ def build_security_baseline_game_mode_status(app, hardening_actions) -> None:
     app.refresh_game_mode_status()
 
 
+def build_security_baseline_hardening_scope(app, hardening_actions) -> None:
+    """Build the hardening scope notice and attach responsive text wrapping."""
+    app.lbl_security_hardening_scope = ttk.Label(
+        hardening_actions,
+        text=app.tr(
+            "baseline_hardening_scope",
+            "Automatisiert sind nur klar begrenzte Sysctl-Drop-ins und UFW-Profilregeln. Dienst-, Port- und VPN-spezifische Freigaben bleiben bewusst manuell.",
+        ),
+        justify="left",
+        wraplength=360,
+    )
+    app.lbl_security_hardening_scope.grid(
+        row=6,
+        column=0,
+        columnspan=4,
+        sticky="ew",
+        pady=(0, 0),
+    )
+    hardening_actions.bind(
+        "<Configure>",
+        app._refresh_security_hardening_text_wrap,
+        add="+",
+    )
+    app._refresh_security_hardening_text_wrap()
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(

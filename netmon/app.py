@@ -626,6 +626,7 @@ try:
         build_security_baseline_hardening_actions_panel,
         build_security_baseline_hardening_action_buttons,
         build_security_baseline_hardening_summary,
+        build_security_baseline_hardening_scope,
         build_security_baseline_game_mode_status,
         build_security_baseline_game_mode_preset,
         build_security_baseline_list_container,
@@ -702,6 +703,7 @@ except ModuleNotFoundError:
         build_security_baseline_hardening_actions_panel,
         build_security_baseline_hardening_action_buttons,
         build_security_baseline_hardening_summary,
+        build_security_baseline_hardening_scope,
         build_security_baseline_game_mode_status,
         build_security_baseline_game_mode_preset,
         build_security_baseline_list_container,
@@ -29506,29 +29508,7 @@ class App(TkBase):
         build_security_baseline_game_mode_preset(self, hardening_actions)
         build_security_baseline_hardening_action_buttons(self, hardening_actions)
         build_security_baseline_game_mode_status(self, hardening_actions)
-
-        self.lbl_security_hardening_scope = ttk.Label(
-            hardening_actions,
-            text=self.tr(
-                "baseline_hardening_scope",
-                "Automatisiert sind nur klar begrenzte Sysctl-Drop-ins und UFW-Profilregeln. Dienst-, Port- und VPN-spezifische Freigaben bleiben bewusst manuell.",
-            ),
-            justify="left",
-            wraplength=360,
-        )
-        self.lbl_security_hardening_scope.grid(
-            row=6,
-            column=0,
-            columnspan=4,
-            sticky="ew",
-            pady=(0, 0),
-        )
-        hardening_actions.bind(
-            "<Configure>",
-            self._refresh_security_hardening_text_wrap,
-            add="+",
-        )
-        self._refresh_security_hardening_text_wrap()
+        build_security_baseline_hardening_scope(self, hardening_actions)
 
         lynis_top = build_lynis_actions_panel(self, audit_tab)
 

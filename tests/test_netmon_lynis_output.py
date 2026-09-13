@@ -190,6 +190,9 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     game_mode_status_source = inspect.getsource(
         security_tabs.build_security_baseline_game_mode_status
     )
+    hardening_scope_source = inspect.getsource(
+        security_tabs.build_security_baseline_hardening_scope
+    )
     game_mode_source = inspect.getsource(netmon_app.App.enable_game_mode)
     game_mode_dialog_source = inspect.getsource(
         netmon_app.App._prompt_game_mode_ufw_exception_sets
@@ -280,6 +283,9 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
         "app.security_game_mode_preset_combo = ttk.Combobox(" in game_mode_preset_source
     )
     assert "build_security_baseline_game_mode_status(self, hardening_actions)" in source
+    assert "build_security_baseline_hardening_scope(self, hardening_actions)" in source
+    assert '"baseline_hardening_scope"' in hardening_scope_source
+    assert "app._refresh_security_hardening_text_wrap()" in hardening_scope_source
     assert (
         "textvariable=app.security_game_mode_profile_hint_var"
         in game_mode_status_source
