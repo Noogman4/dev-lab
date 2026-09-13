@@ -605,6 +605,7 @@ try:
     from netmon.ui.tabs.download_scan_tab import (
         build_download_scan_tab as build_download_scan_tab_ui,
         build_download_scan_header,
+        build_download_scan_prequarantine_summary,
     )
     from netmon.ui.tabs.fun_tab import build_fun_tab
     from netmon.ui.tabs.hdd_tab import build_hdd_tab
@@ -689,6 +690,7 @@ except ModuleNotFoundError:
     from ui.tabs.download_scan_tab import (
         build_download_scan_tab as build_download_scan_tab_ui,
         build_download_scan_header,
+        build_download_scan_prequarantine_summary,
     )
     from ui.tabs.hdd_tab import build_hdd_tab
     from ui.tabs.linux_help_tab import build_linux_help_tab
@@ -25378,55 +25380,7 @@ class App(TkBase):
 
         build_download_scan_header(self, frame)
 
-        temp_group = ttk.LabelFrame(
-            frame,
-            text=self.tr("download_scan_group_prequarantine", "Pre-quarantine folder"),
-            padding=8,
-        )
-        temp_group.pack(fill="x", pady=(0, 8))
-        temp_group.columnconfigure(1, weight=1)
-
-        ttk.Label(
-            temp_group,
-            text=self.tr(
-                "download_scan_label_current_prequarantine_path",
-                "Current pre-quarantine path:",
-            ),
-        ).grid(row=0, column=0, sticky="nw")
-        ttk.Label(
-            temp_group,
-            textvariable=self.download_scan_temp_dir_var,
-            justify="left",
-            wraplength=520,
-        ).grid(row=0, column=1, sticky="w", padx=(8, 0))
-        ttk.Label(
-            temp_group,
-            textvariable=self.download_scan_temp_security_var,
-            justify="left",
-            wraplength=520,
-        ).grid(row=1, column=1, sticky="w", padx=(8, 0), pady=(4, 0))
-        ttk.Label(
-            temp_group,
-            textvariable=self.download_scan_temp_hint_var,
-            justify="left",
-            wraplength=520,
-        ).grid(row=2, column=1, sticky="w", padx=(8, 0), pady=(4, 0))
-        ttk.Label(
-            temp_group,
-            textvariable=self.download_scan_temp_success_var,
-            justify="left",
-            wraplength=520,
-            foreground="#2e7d32",
-            font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=3, column=1, sticky="w", padx=(8, 0), pady=(4, 0))
-        ttk.Label(
-            temp_group,
-            textvariable=self.download_scan_temp_warning_var,
-            justify="left",
-            wraplength=520,
-            foreground="#c62828",
-            font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=4, column=1, sticky="w", padx=(8, 0), pady=(4, 0))
+        temp_group = build_download_scan_prequarantine_summary(self, frame)
 
         temp_btns = ttk.Frame(temp_group)
         temp_btns.grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 0))
