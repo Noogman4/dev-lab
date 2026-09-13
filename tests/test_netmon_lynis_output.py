@@ -171,6 +171,7 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     baseline_list_source = inspect.getsource(
         security_tabs.build_security_baseline_list_container
     )
+    baseline_tree_source = inspect.getsource(security_tabs.build_security_baseline_tree)
     game_mode_source = inspect.getsource(netmon_app.App.enable_game_mode)
     game_mode_dialog_source = inspect.getsource(
         netmon_app.App._prompt_game_mode_ufw_exception_sets
@@ -180,9 +181,10 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     assert "build_lynis_sections(self)" in source
     assert "lynis_sections = ttk.Notebook(app.tab_lynis)" in sections_source
     assert 'text=app.tr("lynis_subtab_hardening", "Haertung")' in sections_source
+    assert "build_security_baseline_tree(self, baseline_table_frame)" in source
     assert (
-        'self.attach_selection_copy_shortcuts(self.security_baseline_tree, "treeview")'
-        in source
+        'app.attach_selection_copy_shortcuts(app.security_baseline_tree, "treeview")'
+        in baseline_tree_source
     )
     assert (
         'self.attach_selection_copy_shortcuts(self.security_baseline_detail_text, "text")'

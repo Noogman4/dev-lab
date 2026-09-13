@@ -201,6 +201,57 @@ def build_security_baseline_list_container(app, baseline_tab):
     return baseline_content, baseline_table_frame
 
 
+def build_security_baseline_tree(app, baseline_table_frame) -> None:
+    """Build the baseline checks tree, scrollbars and selection wiring."""
+    scroll_y = ttk.Scrollbar(baseline_table_frame, orient="vertical")
+    scroll_y.grid(row=0, column=1, sticky="ns")
+    scroll_x = ttk.Scrollbar(baseline_table_frame, orient="horizontal")
+    scroll_x.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+    app.security_baseline_tree = ttk.Treeview(
+        baseline_table_frame,
+        columns=("status", "group", "title", "expected", "actual", "source"),
+        show="headings",
+        height=8,
+        yscrollcommand=scroll_y.set,
+        xscrollcommand=scroll_x.set,
+        selectmode="browse",
+    )
+    app.security_baseline_tree.grid(row=0, column=0, sticky="nsew")
+    scroll_y.configure(command=app.security_baseline_tree.yview)
+    scroll_x.configure(command=app.security_baseline_tree.xview)
+    for column, heading, width, stretch in (
+        ("status", "Status", 240, False),
+        ("group", "Gruppe", 180, False),
+        ("title", "Check", 420, True),
+        ("expected", "Soll", 180, False),
+        ("actual", "Ist", 220, False),
+        ("source", "Quelle", 260, False),
+    ):
+        app.security_baseline_tree.heading(column, text=heading)
+        app.security_baseline_tree.column(
+            column,
+            width=width,
+            minwidth=width if not stretch else max(260, width),
+            stretch=stretch,
+            anchor="w",
+        )
+    for tag, color in (
+        ("ok", "#1b8a3a"),
+        ("error", "#b22222"),
+        ("manual", "#b36b00"),
+        ("deviation", "#005fa3"),
+        ("na", "#666666"),
+        ("unknown", "#914f1e"),
+        ("idle", "#666666"),
+    ):
+        app.security_baseline_tree.tag_configure(tag, foreground=color)
+    app.security_baseline_tree.bind(
+        "<<TreeviewSelect>>",
+        app.on_security_baseline_select,
+    )
+    app.attach_selection_copy_shortcuts(app.security_baseline_tree, "treeview")
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(

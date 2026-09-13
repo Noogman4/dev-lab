@@ -624,6 +624,7 @@ try:
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
         build_security_baseline_list_container,
+        build_security_baseline_tree,
         build_security_baseline_summary_statuses,
         build_security_tabs,
         build_startup_guard_tab,
@@ -693,6 +694,7 @@ except ModuleNotFoundError:
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
         build_security_baseline_list_container,
+        build_security_baseline_tree,
         build_security_baseline_summary_statuses,
         build_security_tabs,
         build_startup_guard_tab,
@@ -29479,57 +29481,7 @@ class App(TkBase):
             baseline_tab,
         )
 
-        baseline_tree_scroll_y = ttk.Scrollbar(
-            baseline_table_frame,
-            orient="vertical",
-        )
-        baseline_tree_scroll_y.grid(row=0, column=1, sticky="ns")
-        baseline_tree_scroll_x = ttk.Scrollbar(
-            baseline_table_frame,
-            orient="horizontal",
-        )
-        baseline_tree_scroll_x.grid(row=1, column=0, sticky="ew", pady=(6, 0))
-
-        self.security_baseline_tree = ttk.Treeview(
-            baseline_table_frame,
-            columns=("status", "group", "title", "expected", "actual", "source"),
-            show="headings",
-            height=8,
-            yscrollcommand=baseline_tree_scroll_y.set,
-            xscrollcommand=baseline_tree_scroll_x.set,
-            selectmode="browse",
-        )
-        self.security_baseline_tree.grid(row=0, column=0, sticky="nsew")
-        baseline_tree_scroll_y.configure(command=self.security_baseline_tree.yview)
-        baseline_tree_scroll_x.configure(command=self.security_baseline_tree.xview)
-        for column, heading, width, stretch in [
-            ("status", "Status", 240, False),
-            ("group", "Gruppe", 180, False),
-            ("title", "Check", 420, True),
-            ("expected", "Soll", 180, False),
-            ("actual", "Ist", 220, False),
-            ("source", "Quelle", 260, False),
-        ]:
-            self.security_baseline_tree.heading(column, text=heading)
-            self.security_baseline_tree.column(
-                column,
-                width=width,
-                minwidth=width if not stretch else max(260, width),
-                stretch=stretch,
-                anchor="w",
-            )
-        self.security_baseline_tree.tag_configure("ok", foreground="#1b8a3a")
-        self.security_baseline_tree.tag_configure("error", foreground="#b22222")
-        self.security_baseline_tree.tag_configure("manual", foreground="#b36b00")
-        self.security_baseline_tree.tag_configure("deviation", foreground="#005fa3")
-        self.security_baseline_tree.tag_configure("na", foreground="#666666")
-        self.security_baseline_tree.tag_configure("unknown", foreground="#914f1e")
-        self.security_baseline_tree.tag_configure("idle", foreground="#666666")
-        self.security_baseline_tree.bind(
-            "<<TreeviewSelect>>",
-            self.on_security_baseline_select,
-        )
-        self.attach_selection_copy_shortcuts(self.security_baseline_tree, "treeview")
+        build_security_baseline_tree(self, baseline_table_frame)
 
         self.security_baseline_detail_view = ttk.Frame(baseline_content)
         self.security_baseline_detail_view.grid(row=0, column=0, sticky="nsew")
