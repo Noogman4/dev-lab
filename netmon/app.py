@@ -621,6 +621,7 @@ try:
         build_lynis_sections,
         build_lynis_status_row,
         build_rkhunter_tab as build_rkhunter_tab_ui,
+        build_packet_capture_output_panel,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -699,6 +700,7 @@ except ModuleNotFoundError:
         build_lynis_sections,
         build_lynis_status_row,
         build_rkhunter_tab as build_rkhunter_tab_ui,
+        build_packet_capture_output_panel,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -29259,22 +29261,7 @@ class App(TkBase):
             row=1, column=3, sticky="w", padx=(8, 0), pady=(4, 0)
         )
 
-        output_frame = ttk.LabelFrame(
-            self.tab_packet_capture,
-            text=self.tr("packet_capture_group_output", "Capture status"),
-            padding=6,
-        )
-        output_frame.pack(fill="both", expand=True, pady=(8, 0))
-        self.packet_capture_text = tk.Text(output_frame, wrap="word", height=14)
-        self.packet_capture_text.pack(fill="both", expand=True)
-        self.packet_capture_text.insert(
-            "1.0",
-            self.tr(
-                "packet_capture_output_default",
-                "Packet capture status and file information will appear here.\n",
-            ),
-        )
-        self.packet_capture_text.configure(state="disabled")
+        build_packet_capture_output_panel(self)
         self.packet_capture_set_running_state(False)
 
     def packet_capture_set_running_state(self, running):

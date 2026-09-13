@@ -751,6 +751,26 @@ def build_rkhunter_tab(app) -> None:
     build_rkhunter_output_panel(app)
 
 
+def build_packet_capture_output_panel(app) -> None:
+    """Build the Packet Capture output view and initialize its placeholder."""
+    output_frame = ttk.LabelFrame(
+        app.tab_packet_capture,
+        text=app.tr("packet_capture_group_output", "Capture status"),
+        padding=6,
+    )
+    output_frame.pack(fill="both", expand=True, pady=(8, 0))
+    app.packet_capture_text = tk.Text(output_frame, wrap="word", height=14)
+    app.packet_capture_text.pack(fill="both", expand=True)
+    app.packet_capture_text.insert(
+        "1.0",
+        app.tr(
+            "packet_capture_output_default",
+            "Packet capture status and file information will appear here.\n",
+        ),
+    )
+    app.packet_capture_text.configure(state="disabled")
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(
