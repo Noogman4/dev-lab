@@ -667,6 +667,79 @@ def build_rkhunter_primary_actions(app, rkh_actions_row) -> None:
     app.btn_rkhunter_propupd.configure(state="disabled")
 
 
+def build_rkhunter_secondary_actions(app, rkh_secondary_actions_row) -> None:
+    """Build RKHunter maintenance and output actions."""
+    app.btn_rkhunter_repair = ttk.Button(
+        rkh_secondary_actions_row,
+        text=app.tr("rkhunter_btn_repair_update", "Repair RKHunter update"),
+        command=app.rkhunter_repair_update_async,
+    )
+    app.btn_rkhunter_repair.pack(side="left", padx=(8, 0))
+    app.add_tooltip(
+        app.btn_rkhunter_repair,
+        app.tr(
+            "rkhunter_btn_repair_update_tooltip",
+            "Backs up /etc/rkhunter.conf, repairs common update settings, and retries the update.",
+        ),
+    )
+    app.btn_rkhunter_repair.configure(state="disabled")
+    app.btn_rkhunter_show_scan = ttk.Button(
+        rkh_secondary_actions_row,
+        text=app.tr("rkhunter_btn_show_scan", "Show scan"),
+        command=app.show_rkhunter_scan_output,
+    )
+    app.btn_rkhunter_show_scan.pack(side="left", padx=(8, 0))
+    app.add_tooltip(
+        app.btn_rkhunter_show_scan,
+        app.tr(
+            "rkhunter_btn_show_scan_tooltip",
+            "Shows the last rkhunter scan output and analysis.",
+        ),
+    )
+    app.register_feature_button("rkhunter", app.btn_rkhunter_show_scan)
+    app.btn_rkhunter_revoke_reference = ttk.Button(
+        rkh_secondary_actions_row,
+        text=app.tr("rkhunter_btn_revoke_reference", "Revoke reference"),
+        command=app.rkhunter_revoke_reference_async,
+    )
+    app.btn_rkhunter_revoke_reference.pack(side="left", padx=(8, 0))
+    app.add_tooltip(
+        app.btn_rkhunter_revoke_reference,
+        app.tr(
+            "rkhunter_btn_revoke_reference_tooltip",
+            "Restores the rkhunter file-property database from the NetMon backup created before the last accepted reference.",
+        ),
+    )
+    app.register_feature_button("rkhunter", app.btn_rkhunter_revoke_reference)
+    app.btn_rkhunter_log = ttk.Button(
+        rkh_secondary_actions_row,
+        text=app.tr("rkhunter_btn_show_log", "Show log"),
+        command=app.show_rkhunter_log,
+    )
+    app.btn_rkhunter_log.pack(side="left", padx=(8, 0))
+    app.add_tooltip(
+        app.btn_rkhunter_log,
+        app.tr(
+            "rkhunter_btn_show_log_tooltip",
+            "Shows /var/log/rkhunter.log in the output area.",
+        ),
+    )
+    app.register_feature_button("rkhunter", app.btn_rkhunter_log)
+    app.btn_rkhunter_clear = ttk.Button(
+        rkh_secondary_actions_row,
+        text=app.tr("btn_clear_output", "Clear output"),
+        command=app.clear_rkhunter_output,
+    )
+    app.btn_rkhunter_clear.pack(side="left", padx=(8, 0))
+    app.add_tooltip(
+        app.btn_rkhunter_clear,
+        app.tr(
+            "rkhunter_btn_clear_tooltip",
+            "Clears the current rkhunter output in this tab.",
+        ),
+    )
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(

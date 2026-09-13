@@ -624,6 +624,7 @@ try:
         build_rkhunter_status_row,
         build_rkhunter_actions_panel,
         build_rkhunter_primary_actions,
+        build_rkhunter_secondary_actions,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -705,6 +706,7 @@ except ModuleNotFoundError:
         build_rkhunter_status_row,
         build_rkhunter_actions_panel,
         build_rkhunter_primary_actions,
+        build_rkhunter_secondary_actions,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -31095,79 +31097,7 @@ class App(TkBase):
 
         build_rkhunter_primary_actions(self, rkh_actions_row)
 
-        self.btn_rkhunter_repair = ttk.Button(
-            rkh_secondary_actions_row,
-            text=self.tr("rkhunter_btn_repair_update", "Repair RKHunter update"),
-            command=self.rkhunter_repair_update_async,
-        )
-        self.btn_rkhunter_repair.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_rkhunter_repair,
-            self.tr(
-                "rkhunter_btn_repair_update_tooltip",
-                "Backs up /etc/rkhunter.conf, repairs common update settings, and retries the update.",
-            ),
-        )
-        self.btn_rkhunter_repair.configure(state="disabled")
-
-        self.btn_rkhunter_show_scan = ttk.Button(
-            rkh_secondary_actions_row,
-            text=self.tr("rkhunter_btn_show_scan", "Show scan"),
-            command=self.show_rkhunter_scan_output,
-        )
-        self.btn_rkhunter_show_scan.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_rkhunter_show_scan,
-            self.tr(
-                "rkhunter_btn_show_scan_tooltip",
-                "Shows the last rkhunter scan output and analysis.",
-            ),
-        )
-        self.register_feature_button("rkhunter", self.btn_rkhunter_show_scan)
-
-        self.btn_rkhunter_revoke_reference = ttk.Button(
-            rkh_secondary_actions_row,
-            text=self.tr("rkhunter_btn_revoke_reference", "Revoke reference"),
-            command=self.rkhunter_revoke_reference_async,
-        )
-        self.btn_rkhunter_revoke_reference.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_rkhunter_revoke_reference,
-            self.tr(
-                "rkhunter_btn_revoke_reference_tooltip",
-                "Restores the rkhunter file-property database from the NetMon backup created before the last accepted reference.",
-            ),
-        )
-        self.register_feature_button("rkhunter", self.btn_rkhunter_revoke_reference)
-
-        self.btn_rkhunter_log = ttk.Button(
-            rkh_secondary_actions_row,
-            text=self.tr("rkhunter_btn_show_log", "Show log"),
-            command=self.show_rkhunter_log,
-        )
-        self.btn_rkhunter_log.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_rkhunter_log,
-            self.tr(
-                "rkhunter_btn_show_log_tooltip",
-                "Shows /var/log/rkhunter.log in the output area.",
-            ),
-        )
-        self.register_feature_button("rkhunter", self.btn_rkhunter_log)
-
-        self.btn_rkhunter_clear = ttk.Button(
-            rkh_secondary_actions_row,
-            text=self.tr("btn_clear_output", "Clear output"),
-            command=self.clear_rkhunter_output,
-        )
-        self.btn_rkhunter_clear.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_rkhunter_clear,
-            self.tr(
-                "rkhunter_btn_clear_tooltip",
-                "Clears the current rkhunter output in this tab.",
-            ),
-        )
+        build_rkhunter_secondary_actions(self, rkh_secondary_actions_row)
 
         build_rkhunter_output_panel(self)
 
