@@ -771,6 +771,42 @@ def build_packet_capture_output_panel(app) -> None:
     app.packet_capture_text.configure(state="disabled")
 
 
+def build_packet_capture_status_panel(app) -> None:
+    """Build the Packet Capture live status panel."""
+    status = ttk.LabelFrame(
+        app.tab_packet_capture,
+        text=app.tr("packet_capture_group_status", "Status"),
+        padding=6,
+    )
+    status.pack(fill="x", pady=(8, 0))
+    for col in range(4):
+        status.columnconfigure(col, weight=1)
+    ttk.Label(status, text=app.tr("label_status", "Status:")).grid(
+        row=0, column=0, sticky="w"
+    )
+    ttk.Label(status, textvariable=app.packet_capture_status_var).grid(
+        row=0, column=1, sticky="w", padx=(8, 12)
+    )
+    ttk.Label(status, text=app.tr("packet_capture_label_runtime", "Runtime:")).grid(
+        row=0, column=2, sticky="w"
+    )
+    ttk.Label(status, textvariable=app.packet_capture_runtime_var).grid(
+        row=0, column=3, sticky="w", padx=(8, 0)
+    )
+    ttk.Label(status, text=app.tr("packet_capture_label_packets", "Packets:")).grid(
+        row=1, column=0, sticky="w", pady=(4, 0)
+    )
+    ttk.Label(status, textvariable=app.packet_capture_packets_var).grid(
+        row=1, column=1, sticky="w", padx=(8, 12), pady=(4, 0)
+    )
+    ttk.Label(status, text=app.tr("packet_capture_label_filesize", "File size:")).grid(
+        row=1, column=2, sticky="w", pady=(4, 0)
+    )
+    ttk.Label(status, textvariable=app.packet_capture_size_var).grid(
+        row=1, column=3, sticky="w", padx=(8, 0), pady=(4, 0)
+    )
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(

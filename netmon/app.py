@@ -622,6 +622,7 @@ try:
         build_lynis_status_row,
         build_rkhunter_tab as build_rkhunter_tab_ui,
         build_packet_capture_output_panel,
+        build_packet_capture_status_panel,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -701,6 +702,7 @@ except ModuleNotFoundError:
         build_lynis_status_row,
         build_rkhunter_tab as build_rkhunter_tab_ui,
         build_packet_capture_output_panel,
+        build_packet_capture_status_panel,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -29227,39 +29229,7 @@ class App(TkBase):
             "Starts a guided repair for missing tshark/dumpcap capture permissions.",
         )
 
-        status = ttk.LabelFrame(
-            self.tab_packet_capture,
-            text=self.tr("packet_capture_group_status", "Status"),
-            padding=6,
-        )
-        status.pack(fill="x", pady=(8, 0))
-        for col in range(4):
-            status.columnconfigure(col, weight=1)
-
-        ttk.Label(status, text=self.tr("label_status", "Status:")).grid(
-            row=0, column=0, sticky="w"
-        )
-        ttk.Label(status, textvariable=self.packet_capture_status_var).grid(
-            row=0, column=1, sticky="w", padx=(8, 12)
-        )
-        ttk.Label(
-            status, text=self.tr("packet_capture_label_runtime", "Runtime:")
-        ).grid(row=0, column=2, sticky="w")
-        ttk.Label(status, textvariable=self.packet_capture_runtime_var).grid(
-            row=0, column=3, sticky="w", padx=(8, 0)
-        )
-        ttk.Label(
-            status, text=self.tr("packet_capture_label_packets", "Packets:")
-        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
-        ttk.Label(status, textvariable=self.packet_capture_packets_var).grid(
-            row=1, column=1, sticky="w", padx=(8, 12), pady=(4, 0)
-        )
-        ttk.Label(
-            status, text=self.tr("packet_capture_label_filesize", "File size:")
-        ).grid(row=1, column=2, sticky="w", pady=(4, 0))
-        ttk.Label(status, textvariable=self.packet_capture_size_var).grid(
-            row=1, column=3, sticky="w", padx=(8, 0), pady=(4, 0)
-        )
+        build_packet_capture_status_panel(self)
 
         build_packet_capture_output_panel(self)
         self.packet_capture_set_running_state(False)
