@@ -881,6 +881,46 @@ def build_packet_capture_actions_panel(app):
     return actions
 
 
+def build_packet_capture_primary_actions(app, actions) -> None:
+    """Build Packet Capture start, stop and Wireshark actions."""
+    app.btn_packet_capture_start = ttk.Button(
+        actions,
+        text=app.tr("packet_capture_btn_start", "Start capture"),
+        command=app.packet_capture_start_async,
+    )
+    app.btn_packet_capture_start.grid(row=0, column=0, sticky="ew")
+    app.register_feature_button("packet_capture", app.btn_packet_capture_start)
+    app.add_tooltip(
+        app.btn_packet_capture_start,
+        "Starts a packet capture with tshark or dumpcap.",
+    )
+    app.btn_packet_capture_stop = ttk.Button(
+        actions,
+        text=app.tr("packet_capture_btn_stop", "Stop capture"),
+        command=app.packet_capture_stop,
+    )
+    app.btn_packet_capture_stop.grid(row=0, column=1, sticky="ew", padx=(8, 0))
+    app.register_feature_button("packet_capture", app.btn_packet_capture_stop)
+    app.add_tooltip(
+        app.btn_packet_capture_stop,
+        "Stops a running capture cleanly.",
+    )
+    app.btn_packet_capture_open_wireshark = ttk.Button(
+        actions,
+        text=app.tr("packet_capture_btn_open_wireshark", "Open in Wireshark"),
+        command=app.open_packet_capture_in_wireshark,
+    )
+    app.btn_packet_capture_open_wireshark.grid(
+        row=0, column=2, sticky="ew", padx=(8, 0)
+    )
+    app.register_feature_button("wireshark_open", app.btn_packet_capture_open_wireshark)
+    app.add_tooltip(
+        app.btn_packet_capture_open_wireshark,
+        "Opens the current capture file in Wireshark if installed.",
+    )
+    app.refresh_wireshark_launch_controls()
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(

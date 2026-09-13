@@ -625,6 +625,7 @@ try:
         build_packet_capture_status_panel,
         build_packet_capture_configuration_panel,
         build_packet_capture_actions_panel,
+        build_packet_capture_primary_actions,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -707,6 +708,7 @@ except ModuleNotFoundError:
         build_packet_capture_status_panel,
         build_packet_capture_configuration_panel,
         build_packet_capture_actions_panel,
+        build_packet_capture_primary_actions,
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
@@ -29071,46 +29073,7 @@ class App(TkBase):
 
         actions = build_packet_capture_actions_panel(self)
 
-        self.btn_packet_capture_start = ttk.Button(
-            actions,
-            text=self.tr("packet_capture_btn_start", "Start capture"),
-            command=self.packet_capture_start_async,
-        )
-        self.btn_packet_capture_start.grid(row=0, column=0, sticky="ew")
-        self.register_feature_button("packet_capture", self.btn_packet_capture_start)
-        self.add_tooltip(
-            self.btn_packet_capture_start,
-            "Starts a packet capture with tshark or dumpcap.",
-        )
-
-        self.btn_packet_capture_stop = ttk.Button(
-            actions,
-            text=self.tr("packet_capture_btn_stop", "Stop capture"),
-            command=self.packet_capture_stop,
-        )
-        self.btn_packet_capture_stop.grid(row=0, column=1, sticky="ew", padx=(8, 0))
-        self.register_feature_button("packet_capture", self.btn_packet_capture_stop)
-        self.add_tooltip(
-            self.btn_packet_capture_stop,
-            "Stops a running capture cleanly.",
-        )
-
-        self.btn_packet_capture_open_wireshark = ttk.Button(
-            actions,
-            text=self.tr("packet_capture_btn_open_wireshark", "Open in Wireshark"),
-            command=self.open_packet_capture_in_wireshark,
-        )
-        self.btn_packet_capture_open_wireshark.grid(
-            row=0, column=2, sticky="ew", padx=(8, 0)
-        )
-        self.register_feature_button(
-            "wireshark_open", self.btn_packet_capture_open_wireshark
-        )
-        self.add_tooltip(
-            self.btn_packet_capture_open_wireshark,
-            "Opens the current capture file in Wireshark if installed.",
-        )
-        self.refresh_wireshark_launch_controls()
+        build_packet_capture_primary_actions(self, actions)
 
         self.btn_packet_capture_open_file = ttk.Button(
             actions,
