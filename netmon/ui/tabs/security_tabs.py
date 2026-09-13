@@ -398,6 +398,89 @@ def build_security_baseline_game_mode_preset(app, hardening_actions) -> None:
     )
 
 
+def build_security_baseline_hardening_action_buttons(app, hardening_actions) -> None:
+    """Build and place the hardening action buttons."""
+    app.btn_security_baseline_timeshift = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_timeshift", "Timeshift starten"),
+        command=app.launch_timeshift_snapshot_tool,
+    )
+    app.btn_security_baseline_apply_all = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_apply_all", "Profil-Haertung anwenden"),
+        command=app.apply_security_baseline_profile,
+    )
+    app.btn_security_baseline_apply_sysctl = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_apply_sysctl", "Kernel-Haertung anwenden"),
+        command=app.apply_security_baseline_sysctl,
+    )
+    app.btn_security_baseline_apply_ufw = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_apply_ufw", "Firewall-Haertung anwenden"),
+        command=app.apply_security_baseline_ufw,
+    )
+    app.btn_security_baseline_export_transfer = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_export_transfer", "Transferpaket exportieren"),
+        command=app.export_security_baseline_transfer,
+    )
+    app.btn_security_baseline_import_transfer = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_import_transfer", "Transferpaket importieren"),
+        command=app.import_security_baseline_transfer,
+    )
+    app.btn_security_baseline_show_transfer = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_show_transfer", "Transferpaket anzeigen"),
+        command=app.show_security_baseline_transfer_package,
+    )
+    app.btn_security_baseline_compare_transfer = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_compare_transfer", "Transferpaket vergleichen"),
+        command=app.show_security_baseline_transfer_comparison,
+    )
+    app.btn_security_baseline_clear_transfer = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_clear_transfer", "Transferpaket entladen"),
+        command=app.clear_security_baseline_transfer,
+    )
+    app.btn_security_game_mode_on = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_game_mode_on", "Spielmodus aktivieren"),
+        command=app.enable_game_mode,
+    )
+    app.btn_security_game_mode_off = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_game_mode_off", "Spielmodus deaktivieren"),
+        command=app.disable_game_mode,
+    )
+    for index, button in enumerate(
+        (
+            app.btn_security_baseline_timeshift,
+            app.btn_security_baseline_apply_all,
+            app.btn_security_baseline_apply_sysctl,
+            app.btn_security_baseline_apply_ufw,
+            app.btn_security_baseline_export_transfer,
+            app.btn_security_baseline_import_transfer,
+            app.btn_security_baseline_compare_transfer,
+            app.btn_security_baseline_clear_transfer,
+            app.btn_security_baseline_show_transfer,
+            app.btn_security_game_mode_on,
+            app.btn_security_game_mode_off,
+        )
+    ):
+        button_row = index // 4
+        column = index % 4
+        button.grid(
+            row=1 + button_row,
+            column=column,
+            padx=(0, 8) if column < 3 else (0, 0),
+            pady=(0, 8) if button_row < 2 else (0, 0),
+            sticky="ew",
+        )
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(

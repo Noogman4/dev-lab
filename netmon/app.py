@@ -624,6 +624,7 @@ try:
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
         build_security_baseline_hardening_actions_panel,
+        build_security_baseline_hardening_action_buttons,
         build_security_baseline_hardening_summary,
         build_security_baseline_game_mode_preset,
         build_security_baseline_list_container,
@@ -698,6 +699,7 @@ except ModuleNotFoundError:
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
         build_security_baseline_hardening_actions_panel,
+        build_security_baseline_hardening_action_buttons,
         build_security_baseline_hardening_summary,
         build_security_baseline_game_mode_preset,
         build_security_baseline_list_container,
@@ -29500,101 +29502,7 @@ class App(TkBase):
             hardening_tab,
         )
         build_security_baseline_game_mode_preset(self, hardening_actions)
-        self.btn_security_baseline_timeshift = ttk.Button(
-            hardening_actions,
-            text=self.tr("baseline_btn_timeshift", "Timeshift starten"),
-            command=self.launch_timeshift_snapshot_tool,
-        )
-        self.btn_security_baseline_apply_all = ttk.Button(
-            hardening_actions,
-            text=self.tr("baseline_btn_apply_all", "Profil-Haertung anwenden"),
-            command=self.apply_security_baseline_profile,
-        )
-        self.btn_security_baseline_apply_sysctl = ttk.Button(
-            hardening_actions,
-            text=self.tr("baseline_btn_apply_sysctl", "Kernel-Haertung anwenden"),
-            command=self.apply_security_baseline_sysctl,
-        )
-        self.btn_security_baseline_apply_ufw = ttk.Button(
-            hardening_actions,
-            text=self.tr("baseline_btn_apply_ufw", "Firewall-Haertung anwenden"),
-            command=self.apply_security_baseline_ufw,
-        )
-        self.btn_security_baseline_export_transfer = ttk.Button(
-            hardening_actions,
-            text=self.tr(
-                "baseline_btn_export_transfer",
-                "Transferpaket exportieren",
-            ),
-            command=self.export_security_baseline_transfer,
-        )
-        self.btn_security_baseline_import_transfer = ttk.Button(
-            hardening_actions,
-            text=self.tr(
-                "baseline_btn_import_transfer",
-                "Transferpaket importieren",
-            ),
-            command=self.import_security_baseline_transfer,
-        )
-        self.btn_security_baseline_show_transfer = ttk.Button(
-            hardening_actions,
-            text=self.tr(
-                "baseline_btn_show_transfer",
-                "Transferpaket anzeigen",
-            ),
-            command=self.show_security_baseline_transfer_package,
-        )
-        self.btn_security_baseline_compare_transfer = ttk.Button(
-            hardening_actions,
-            text=self.tr(
-                "baseline_btn_compare_transfer",
-                "Transferpaket vergleichen",
-            ),
-            command=self.show_security_baseline_transfer_comparison,
-        )
-        self.btn_security_baseline_clear_transfer = ttk.Button(
-            hardening_actions,
-            text=self.tr(
-                "baseline_btn_clear_transfer",
-                "Transferpaket entladen",
-            ),
-            command=self.clear_security_baseline_transfer,
-        )
-        self.btn_security_game_mode_on = ttk.Button(
-            hardening_actions,
-            text=self.tr("baseline_btn_game_mode_on", "Spielmodus aktivieren"),
-            command=self.enable_game_mode,
-        )
-        self.btn_security_game_mode_off = ttk.Button(
-            hardening_actions,
-            text=self.tr("baseline_btn_game_mode_off", "Spielmodus deaktivieren"),
-            command=self.disable_game_mode,
-        )
-        hardening_action_buttons = [
-            self.btn_security_baseline_timeshift,
-            self.btn_security_baseline_apply_all,
-            self.btn_security_baseline_apply_sysctl,
-            self.btn_security_baseline_apply_ufw,
-            self.btn_security_baseline_export_transfer,
-            self.btn_security_baseline_import_transfer,
-            self.btn_security_baseline_compare_transfer,
-            self.btn_security_baseline_clear_transfer,
-            self.btn_security_baseline_show_transfer,
-            self.btn_security_game_mode_on,
-            self.btn_security_game_mode_off,
-        ]
-        for index, button in enumerate(hardening_action_buttons):
-            button_row = index // 4
-            column = index % 4
-            padx = (0, 8) if column < 3 else (0, 0)
-            pady = (0, 8) if button_row < 2 else (0, 0)
-            button.grid(
-                row=1 + button_row,
-                column=column,
-                padx=padx,
-                pady=pady,
-                sticky="ew",
-            )
+        build_security_baseline_hardening_action_buttons(self, hardening_actions)
         self.refresh_timeshift_launch_controls()
         self.lbl_security_game_mode_profile_hint = ttk.Label(
             hardening_actions,

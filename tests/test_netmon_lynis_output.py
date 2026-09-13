@@ -184,6 +184,9 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     game_mode_preset_source = inspect.getsource(
         security_tabs.build_security_baseline_game_mode_preset
     )
+    hardening_action_buttons_source = inspect.getsource(
+        security_tabs.build_security_baseline_hardening_action_buttons
+    )
     game_mode_source = inspect.getsource(netmon_app.App.enable_game_mode)
     game_mode_dialog_source = inspect.getsource(
         netmon_app.App._prompt_game_mode_ufw_exception_sets
@@ -236,17 +239,39 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     assert "build_security_baseline_hardening_summary(self, hardening_tab)" in source
     assert "textvariable=app.security_baseline_transfer_var" in hardening_summary_source
     assert "command=app.check_security_baseline_privileges" in baseline_actions_source
-    assert "command=self.apply_security_baseline_profile" in source
-    assert "command=self.launch_timeshift_snapshot_tool" in source
-    assert "command=self.apply_security_baseline_sysctl" in source
-    assert "command=self.apply_security_baseline_ufw" in source
-    assert "command=self.export_security_baseline_transfer" in source
-    assert "command=self.import_security_baseline_transfer" in source
-    assert "command=self.show_security_baseline_transfer_package" in source
-    assert "command=self.show_security_baseline_transfer_comparison" in source
-    assert "command=self.clear_security_baseline_transfer" in source
-    assert "command=self.enable_game_mode" in source
-    assert "command=self.disable_game_mode" in source
+    assert "build_security_baseline_hardening_action_buttons(" in source
+    assert (
+        "command=app.apply_security_baseline_profile" in hardening_action_buttons_source
+    )
+    assert (
+        "command=app.launch_timeshift_snapshot_tool" in hardening_action_buttons_source
+    )
+    assert (
+        "command=app.apply_security_baseline_sysctl" in hardening_action_buttons_source
+    )
+    assert "command=app.apply_security_baseline_ufw" in hardening_action_buttons_source
+    assert (
+        "command=app.export_security_baseline_transfer"
+        in hardening_action_buttons_source
+    )
+    assert (
+        "command=app.import_security_baseline_transfer"
+        in hardening_action_buttons_source
+    )
+    assert (
+        "command=app.show_security_baseline_transfer_package"
+        in hardening_action_buttons_source
+    )
+    assert (
+        "command=app.show_security_baseline_transfer_comparison"
+        in hardening_action_buttons_source
+    )
+    assert (
+        "command=app.clear_security_baseline_transfer"
+        in hardening_action_buttons_source
+    )
+    assert "command=app.enable_game_mode" in hardening_action_buttons_source
+    assert "command=app.disable_game_mode" in hardening_action_buttons_source
     assert "build_security_baseline_game_mode_preset(self, hardening_actions)" in source
     assert (
         "app.security_game_mode_preset_combo = ttk.Combobox(" in game_mode_preset_source
