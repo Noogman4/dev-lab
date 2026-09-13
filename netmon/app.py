@@ -623,6 +623,7 @@ try:
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
+        build_security_baseline_list_container,
         build_security_baseline_summary_statuses,
         build_security_tabs,
         build_startup_guard_tab,
@@ -691,6 +692,7 @@ except ModuleNotFoundError:
         build_security_baseline_summary_panel,
         build_security_baseline_profile_selector,
         build_security_baseline_actions,
+        build_security_baseline_list_container,
         build_security_baseline_summary_statuses,
         build_security_tabs,
         build_startup_guard_tab,
@@ -29472,33 +29474,10 @@ class App(TkBase):
 
         build_security_baseline_actions(self, baseline_summary)
 
-        baseline_content = ttk.LabelFrame(
+        baseline_content, baseline_table_frame = build_security_baseline_list_container(
+            self,
             baseline_tab,
-            text=self.tr("baseline_group_checks", "Baseline Checks"),
-            padding=6,
         )
-        baseline_content.pack(fill="both", expand=True, pady=(0, 8))
-        baseline_content.columnconfigure(0, weight=1)
-        baseline_content.rowconfigure(0, weight=1)
-
-        self.security_baseline_list_view = ttk.Frame(baseline_content)
-        self.security_baseline_list_view.grid(row=0, column=0, sticky="nsew")
-        self.security_baseline_list_view.columnconfigure(0, weight=1)
-        self.security_baseline_list_view.rowconfigure(1, weight=1)
-
-        ttk.Label(
-            self.security_baseline_list_view,
-            text=self.tr(
-                "baseline_list_hint",
-                "Eintrag anklicken, um die Erklaerung im selben Fenster zu oeffnen.",
-            ),
-            justify="left",
-        ).grid(row=0, column=0, sticky="w", pady=(0, 6))
-
-        baseline_table_frame = ttk.Frame(self.security_baseline_list_view)
-        baseline_table_frame.grid(row=1, column=0, sticky="nsew")
-        baseline_table_frame.columnconfigure(0, weight=1)
-        baseline_table_frame.rowconfigure(0, weight=1)
 
         baseline_tree_scroll_y = ttk.Scrollbar(
             baseline_table_frame,

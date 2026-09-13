@@ -97,6 +97,18 @@ def build_security_baseline_summary_statuses(app, baseline_summary) -> None:
         ttk.Label(baseline_summary, textvariable=variable, justify="left").pack(
             anchor="w"
         )
+    ttk.Label(
+        baseline_summary,
+        textvariable=app.security_baseline_last_check_var,
+        justify="left",
+    ).pack(anchor="w", pady=(4, 0))
+    for variable in (
+        app.security_baseline_status_var,
+        app.security_baseline_lynis_summary_var,
+    ):
+        ttk.Label(baseline_summary, textvariable=variable, justify="left").pack(
+            anchor="w"
+        )
 
 
 def build_security_baseline_actions(app, baseline_summary) -> None:
@@ -158,18 +170,35 @@ def build_security_baseline_actions(app, baseline_summary) -> None:
         ),
         justify="left",
     ).pack(anchor="w", pady=(6, 0))
+
+
+def build_security_baseline_list_container(app, baseline_tab):
+    """Build the baseline checks container and return the treeview parent."""
+    baseline_content = ttk.LabelFrame(
+        baseline_tab,
+        text=app.tr("baseline_group_checks", "Baseline Checks"),
+        padding=6,
+    )
+    baseline_content.pack(fill="both", expand=True, pady=(0, 8))
+    baseline_content.columnconfigure(0, weight=1)
+    baseline_content.rowconfigure(0, weight=1)
+    app.security_baseline_list_view = ttk.Frame(baseline_content)
+    app.security_baseline_list_view.grid(row=0, column=0, sticky="nsew")
+    app.security_baseline_list_view.columnconfigure(0, weight=1)
+    app.security_baseline_list_view.rowconfigure(1, weight=1)
     ttk.Label(
-        baseline_summary,
-        textvariable=app.security_baseline_last_check_var,
+        app.security_baseline_list_view,
+        text=app.tr(
+            "baseline_list_hint",
+            "Eintrag anklicken, um die Erklaerung im selben Fenster zu oeffnen.",
+        ),
         justify="left",
-    ).pack(anchor="w", pady=(4, 0))
-    for variable in (
-        app.security_baseline_status_var,
-        app.security_baseline_lynis_summary_var,
-    ):
-        ttk.Label(baseline_summary, textvariable=variable, justify="left").pack(
-            anchor="w"
-        )
+    ).grid(row=0, column=0, sticky="w", pady=(0, 6))
+    baseline_table_frame = ttk.Frame(app.security_baseline_list_view)
+    baseline_table_frame.grid(row=1, column=0, sticky="nsew")
+    baseline_table_frame.columnconfigure(0, weight=1)
+    baseline_table_frame.rowconfigure(0, weight=1)
+    return baseline_content, baseline_table_frame
 
 
 def build_lynis_actions_panel(app, audit_tab):

@@ -168,6 +168,9 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     baseline_actions_source = inspect.getsource(
         security_tabs.build_security_baseline_actions
     )
+    baseline_list_source = inspect.getsource(
+        security_tabs.build_security_baseline_list_container
+    )
     game_mode_source = inspect.getsource(netmon_app.App.enable_game_mode)
     game_mode_dialog_source = inspect.getsource(
         netmon_app.App._prompt_game_mode_ufw_exception_sets
@@ -188,7 +191,11 @@ def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
     assert "command=self.show_security_baseline_list_view" in source
     assert '"baseline_btn_back_to_entries"' in source
     assert '"Zurueck zu den Eintraegen"' in source
-    assert "self.security_baseline_list_view = ttk.Frame(baseline_content)" in source
+    assert "build_security_baseline_list_container(" in source
+    assert (
+        "app.security_baseline_list_view = ttk.Frame(baseline_content)"
+        in baseline_list_source
+    )
     assert "self.security_baseline_detail_view = ttk.Frame(baseline_content)" in source
     assert "build_security_baseline_profile_selector(" in source
     assert (
