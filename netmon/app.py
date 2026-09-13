@@ -645,6 +645,7 @@ try:
     from netmon.ui.tabs.theme_studio_tab import (
         build_theme_studio_layout,
         build_theme_studio_profile_panel,
+        build_theme_studio_color_controls,
     )
     from netmon.ui.tabs.trace_tab import build_trace_tab
     from netmon.ui.tabs.vpn_slots_tab import build_vpn_slots_tab
@@ -729,6 +730,7 @@ except ModuleNotFoundError:
     from ui.tabs.theme_studio_tab import (
         build_theme_studio_layout,
         build_theme_studio_profile_panel,
+        build_theme_studio_color_controls,
     )
     from ui.tabs.trace_tab import build_trace_tab
     from ui.tabs.vpn_slots_tab import build_vpn_slots_tab
@@ -25937,100 +25939,7 @@ class App(TkBase):
     def build_theme_studio_tab(self):
         controls, preview = build_theme_studio_layout(self)
         build_theme_studio_profile_panel(self, controls)
-
-        colors = ttk.LabelFrame(
-            controls,
-            text=self.tr("theme_studio_group_color_adjustment", "Farbanpassung"),
-            padding=8,
-        )
-        # source markers:
-        # text="Farbe wählen"
-        # text="Theme speichern"
-        # text="Theme laden"
-        colors.pack(fill="x", pady=(0, 8))
-        ttk.Label(
-            colors,
-            text=self.tr("theme_studio_label_primary_color", "Hauptfarbe:"),
-        ).grid(row=0, column=0, sticky="w")
-        self.theme_studio_accent_entry = ttk.Entry(
-            colors,
-            textvariable=self.var_theme_studio_accent,
-            width=12,
-        )
-        self.theme_studio_accent_entry.grid(row=0, column=1, sticky="w", padx=(8, 0))
-        self.theme_studio_accent_entry.bind(
-            "<KeyRelease>", lambda _event: self.refresh_theme_studio_preview()
-        )
-        self.btn_theme_studio_choose_accent = ttk.Button(
-            colors,
-            text=self.tr("theme_studio_btn_choose_color", "Farbe wählen"),
-            command=self.choose_theme_studio_accent_color,
-        )
-        self.btn_theme_studio_choose_accent.grid(
-            row=0, column=2, sticky="w", padx=(8, 0)
-        )
-
-        ttk.Label(
-            colors,
-            text=self.tr("theme_studio_label_panel_color", "Panelfarbe:"),
-        ).grid(row=1, column=0, sticky="w", pady=(8, 0))
-        self.theme_studio_panel_entry = ttk.Entry(
-            colors,
-            textvariable=self.var_theme_studio_panel,
-            width=12,
-        )
-        self.theme_studio_panel_entry.grid(
-            row=1, column=1, sticky="w", padx=(8, 0), pady=(8, 0)
-        )
-        self.theme_studio_panel_entry.bind(
-            "<KeyRelease>", lambda _event: self.refresh_theme_studio_preview()
-        )
-        self.btn_theme_studio_choose_panel = ttk.Button(
-            colors,
-            text=self.tr("theme_studio_btn_choose_color", "Farbe wählen"),
-            command=self.choose_theme_studio_panel_color,
-        )
-        self.btn_theme_studio_choose_panel.grid(
-            row=1, column=2, sticky="w", padx=(8, 0), pady=(8, 0)
-        )
-
-        preset_row = ttk.Frame(colors)
-        preset_row.grid(row=2, column=0, columnspan=3, sticky="w", pady=(8, 0))
-        ttk.Label(
-            preset_row,
-            text=self.tr("theme_studio_label_button_presets", "Button-Presets:"),
-        ).pack(side="left")
-        for label, color in (
-            ("Ocean", "#58a6ff"),
-            ("Sunset", "#ff8f5a"),
-            ("Berry", "#ff5a8a"),
-            ("Terminal", "#7cff6b"),
-        ):
-            ttk.Button(
-                preset_row,
-                text=label,
-                width=9,
-                command=lambda c=color: self.set_theme_studio_accent_preset(c),
-            ).pack(side="left", padx=(6, 0))
-
-        panel_preset_row = ttk.Frame(colors)
-        panel_preset_row.grid(row=3, column=0, columnspan=3, sticky="w", pady=(8, 0))
-        ttk.Label(
-            panel_preset_row,
-            text=self.tr("theme_studio_label_panel_presets", "Panel-Presets:"),
-        ).pack(side="left")
-        for label, color in (
-            ("Soft Pop", "#fff4ef"),
-            ("Night Ink", "#1c1824"),
-            ("Cream", "#f6ead7"),
-            ("Mint", "#e6fff3"),
-        ):
-            ttk.Button(
-                panel_preset_row,
-                text=label,
-                width=9,
-                command=lambda c=color: self.set_theme_studio_panel_preset(c),
-            ).pack(side="left", padx=(6, 0))
+        build_theme_studio_color_controls(self, controls)
 
         style_box = ttk.LabelFrame(
             controls,

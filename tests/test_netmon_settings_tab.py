@@ -6,7 +6,10 @@ import netmon.app as app_module
 from netmon.app import App
 from netmon.ui.tabs.settings_tab import build_settings_tab
 from netmon.ui.tabs.chad_settings_tab import build_chad_settings_tab
-from netmon.ui.tabs.theme_studio_tab import build_theme_studio_layout
+from netmon.ui.tabs.theme_studio_tab import (
+    build_theme_studio_color_controls,
+    build_theme_studio_layout,
+)
 from netmon.ui.tabs.vpn_slots_tab import build_vpn_slots_tab
 
 
@@ -945,6 +948,7 @@ def test_settings_tab_source_and_hooks_are_present():
     chad_settings_source = inspect.getsource(App.build_chad_settings_tab)
     app_source = inspect.getsource(App)
     theme_layout_source = inspect.getsource(build_theme_studio_layout)
+    theme_color_source = inspect.getsource(build_theme_studio_color_controls)
     vpn_slots_source = inspect.getsource(build_vpn_slots_tab)
     wrapper_source = inspect.getsource(build_settings_tab)
     chad_wrapper_source = inspect.getsource(build_chad_settings_tab)
@@ -1002,9 +1006,9 @@ def test_settings_tab_source_and_hooks_are_present():
     assert "def save_theme_studio_profile(self):" in app_source
     assert "def load_theme_studio_profile(self):" in app_source
     assert '"Live-Vorschau"' in theme_layout_source
-    assert 'text="Farbe wählen"' in app_source
-    assert 'text="Theme speichern"' in app_source
-    assert 'text="Theme laden"' in app_source
+    assert '"Farbe wählen"' in theme_color_source
+    assert '"theme_studio_btn_save_theme"' in app_source
+    assert '"theme_studio_btn_load_theme"' in app_source
     assert 'text="Systembewertung"' in chad_settings_source
     assert "settings_security_systemcheck" not in chad_settings_source
     assert "build_security_systemcheck_panel(" in app_source
