@@ -366,6 +366,38 @@ def build_security_baseline_hardening_actions_panel(app, hardening_tab):
     return hardening_actions
 
 
+def build_security_baseline_game_mode_preset(app, hardening_actions) -> None:
+    """Build the game-mode preset selector for hardening actions."""
+    preset_row = ttk.Frame(hardening_actions)
+    preset_row.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 8))
+    preset_row.columnconfigure(1, weight=1)
+    ttk.Label(
+        preset_row,
+        text=app.tr("baseline_game_mode_preset_label", "Spielprofil:"),
+    ).grid(row=0, column=0, sticky="w", padx=(0, 8))
+    app.security_game_mode_preset_combo = ttk.Combobox(
+        preset_row,
+        textvariable=app.security_game_mode_preset_var,
+        values=[
+            app._game_mode_preset_label("singleplayer"),
+            app._game_mode_preset_label("online"),
+            app._game_mode_preset_label("steam"),
+            app._game_mode_preset_label("heroic"),
+            app._game_mode_preset_label("lutris"),
+            app._game_mode_preset_label("lan_host"),
+            app._game_mode_preset_label("steam_remote_play"),
+            app._game_mode_preset_label("minecraft_lan"),
+        ],
+        state="readonly",
+        width=26,
+    )
+    app.security_game_mode_preset_combo.grid(row=0, column=1, sticky="w")
+    app.security_game_mode_preset_combo.bind(
+        "<<ComboboxSelected>>",
+        app.on_game_mode_preset_selected,
+    )
+
+
 def build_lynis_actions_panel(app, audit_tab):
     """Build the shared Lynis actions panel and configure its grid."""
     lynis_top = ttk.LabelFrame(

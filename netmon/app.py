@@ -625,6 +625,7 @@ try:
         build_security_baseline_actions,
         build_security_baseline_hardening_actions_panel,
         build_security_baseline_hardening_summary,
+        build_security_baseline_game_mode_preset,
         build_security_baseline_list_container,
         build_security_baseline_tree,
         build_security_baseline_detail_view,
@@ -698,6 +699,7 @@ except ModuleNotFoundError:
         build_security_baseline_actions,
         build_security_baseline_hardening_actions_panel,
         build_security_baseline_hardening_summary,
+        build_security_baseline_game_mode_preset,
         build_security_baseline_list_container,
         build_security_baseline_tree,
         build_security_baseline_detail_view,
@@ -29497,34 +29499,7 @@ class App(TkBase):
             self,
             hardening_tab,
         )
-        preset_row = ttk.Frame(hardening_actions)
-        preset_row.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 8))
-        preset_row.columnconfigure(1, weight=1)
-        ttk.Label(
-            preset_row,
-            text=self.tr("baseline_game_mode_preset_label", "Spielprofil:"),
-        ).grid(row=0, column=0, sticky="w", padx=(0, 8))
-        self.security_game_mode_preset_combo = ttk.Combobox(
-            preset_row,
-            textvariable=self.security_game_mode_preset_var,
-            values=[
-                self._game_mode_preset_label("singleplayer"),
-                self._game_mode_preset_label("online"),
-                self._game_mode_preset_label("steam"),
-                self._game_mode_preset_label("heroic"),
-                self._game_mode_preset_label("lutris"),
-                self._game_mode_preset_label("lan_host"),
-                self._game_mode_preset_label("steam_remote_play"),
-                self._game_mode_preset_label("minecraft_lan"),
-            ],
-            state="readonly",
-            width=26,
-        )
-        self.security_game_mode_preset_combo.grid(row=0, column=1, sticky="w")
-        self.security_game_mode_preset_combo.bind(
-            "<<ComboboxSelected>>",
-            self.on_game_mode_preset_selected,
-        )
+        build_security_baseline_game_mode_preset(self, hardening_actions)
         self.btn_security_baseline_timeshift = ttk.Button(
             hardening_actions,
             text=self.tr("baseline_btn_timeshift", "Timeshift starten"),
