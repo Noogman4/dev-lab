@@ -7,6 +7,7 @@ from netmon import app as app_module
 from netmon.app import App
 from netmon.core import crash, diagnostics, support_bundle
 from netmon import main
+from netmon.ui.tabs.settings_tab import build_settings_support
 
 
 def test_redact_sensitive_text_masks_known_patterns():
@@ -830,7 +831,7 @@ def test_build_about_support_form_metadata_skips_placeholder_values():
 
 
 def test_settings_tab_contains_support_actions_source():
-    source = inspect.getsource(App.build_settings_tab)
+    source = inspect.getsource(build_settings_support)
 
     assert "Supportpaket erzeugen" in source
     assert "Supportpaket öffnen" in source

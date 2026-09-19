@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tkinter as tk
 from tkinter import ttk
 
 
@@ -526,3 +527,200 @@ def build_settings_tours(app, tours_tab) -> None:
             elif tour_name == "radio":
                 app.btn_radio_tour = button
     app.refresh_guided_tour_status()
+
+
+def build_settings_support(app, support_tab) -> None:
+    """Build support package actions and the optional support form."""
+    support_group = ttk.LabelFrame(
+        support_tab,
+        text=app.tr("support_group_title", "Support / diagnostics"),
+        padding=10,
+    )
+    support_group.pack(fill="x", pady=(0, 10))
+    for key, fallback, padding in (
+        (
+            "support_intro_text",
+            "Creates a support package with the current diagnostic reports and basic "
+            "technical information under Documents/NetMon/support.",
+            None,
+        ),
+        (
+            "support_recommendation_text",
+            "Empfehlung: Paket erzeugen, kurz den Inhalt im Supportordner prüfen und die "
+            "ZIP-Datei anschließend manuell an den Support oder den eigenen Mail-Client anhängen.",
+            (6, 0),
+        ),
+    ):
+        label = ttk.Label(
+            support_group,
+            text=app.tr(key, fallback),
+            justify="left",
+            wraplength=620,
+        )
+        if padding is None:
+            label.pack(anchor="w")
+        else:
+            label.pack(anchor="w", pady=padding)
+    privacy_box = tk.Frame(
+        support_group,
+        bg="#6b4b00",
+        bd=1,
+        relief="solid",
+        padx=10,
+        pady=10,
+    )
+    privacy_box.pack(fill="x", pady=(10, 0))
+    tk.Label(
+        privacy_box,
+        text=app.tr("support_privacy_box_title", "⚠ Datenschutzhinweis"),
+        bg="#6b4b00",
+        fg="#fff4d6",
+        font=("TkDefaultFont", 10, "bold"),
+        justify="left",
+        anchor="w",
+    ).pack(anchor="w")
+    for key, fallback in (
+        (
+            "support_privacy_line_1",
+            "Das Diagnosepaket wird ausschließlich zur Analyse gemeldeter Fehler und zur "
+            "Verbesserung von NetMon Roots verwendet.",
+        ),
+        (
+            "support_privacy_line_2",
+            "Die übermittelten Daten werden nicht an Dritte weitergegeben und nicht für "
+            "Werbezwecke oder Nutzerprofile verwendet.",
+        ),
+        (
+            "support_privacy_line_3",
+            "Diagnoseprotokolle können je nach Fehlerfall systembezogene Informationen wie "
+            "Hostname, Benutzernamen, Dateipfade oder IP-Adressen enthalten.",
+        ),
+        (
+            "support_privacy_line_4",
+            "Bitte prüfen Sie das Paket vor dem Versand, wenn Sie bestimmte Informationen "
+            "nicht weitergeben möchten.",
+        ),
+        (
+            "support_privacy_line_5",
+            "Eingesandte Diagnosepakete werden ausschließlich zur Bearbeitung Ihrer "
+            "Supportanfrage verwendet und anschließend gelöscht.",
+        ),
+    ):
+        tk.Label(
+            privacy_box,
+            text=app.tr(key, fallback),
+            bg="#6b4b00",
+            fg="#fff4d6",
+            justify="left",
+            wraplength=600,
+            anchor="w",
+        ).pack(anchor="w", pady=(6, 0))
+
+    support_buttons = ttk.Frame(support_group)
+    support_buttons.pack(fill="x", pady=(8, 0))
+    for column in range(4):
+        support_buttons.columnconfigure(column, weight=1)
+    app.btn_create_support_package = ttk.Button(
+        support_buttons,
+        text=app.tr("support_btn_create_package", "Supportpaket erzeugen"),
+        command=app.create_support_package,
+    )
+    app.btn_create_support_package.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+    for column, key, fallback, command, padding in (
+        (
+            1,
+            "support_btn_open_package",
+            "Supportpaket öffnen",
+            app.open_latest_support_package,
+            4,
+        ),
+        (
+            2,
+            "support_btn_open_folder",
+            "Supportordner öffnen",
+            app.open_support_packages_folder,
+            4,
+        ),
+        (
+            3,
+            "support_btn_copy_path",
+            "Copy path",
+            app.copy_latest_support_package_path,
+            (4, 0),
+        ),
+    ):
+        ttk.Button(
+            support_buttons,
+            text=app.tr(key, fallback),
+            command=command,
+        ).grid(row=0, column=column, sticky="ew", padx=padding)
+
+    placeholders = app._support_form_placeholders()
+    contact_name_var = tk.StringVar(value=placeholders["contact_name"])
+    contact_email_var = tk.StringVar(value=placeholders["contact_email"])
+    last_step_var = tk.StringVar(value=placeholders["last_step"])
+    repro_var = tk.StringVar(value=placeholders["repro"])
+    support_form = ttk.LabelFrame(
+        support_group,
+        text=app.tr("support_group_form", "Supportformular"),
+        padding=8,
+    )
+    support_form.pack(fill="x", pady=(10, 0))
+    support_form.columnconfigure(1, weight=1)
+    ttk.Label(
+        support_form,
+        text=app.tr(
+            "support_form_intro_text",
+            "Optional: briefly describe the error and export it together with the support package.",
+        ),
+        justify="left",
+        wraplength=620,
+    ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
+    for row, key, fallback, variable in (
+        (1, "support_label_name_short", "Name / short tag", contact_name_var),
+        (2, "support_label_email", "Email", contact_email_var),
+        (3, "support_label_last_step", "Last step", last_step_var),
+        (4, "support_label_reproducibility", "Reproducibility", repro_var),
+    ):
+        ttk.Label(support_form, text=app.tr(key, fallback)).grid(
+            row=row, column=0, sticky="w", pady=(0, 6)
+        )
+        ttk.Entry(support_form, textvariable=variable).grid(
+            row=row, column=1, sticky="ew", pady=(0, 6)
+        )
+    ttk.Label(
+        support_form,
+        text=app.tr("support_label_error_description", "Error description"),
+    ).grid(row=5, column=0, sticky="nw", pady=(0, 6))
+    details_wrap = ttk.Frame(support_form)
+    details_wrap.grid(row=5, column=1, sticky="nsew", pady=(0, 6))
+    details_wrap.columnconfigure(0, weight=1)
+    details_wrap.rowconfigure(0, weight=1)
+    details_text = tk.Text(details_wrap, height=11, wrap="word")
+    app.settings_support_details_text = details_text
+    details_scrollbar = ttk.Scrollbar(
+        details_wrap, orient="vertical", command=details_text.yview
+    )
+    details_text.configure(yscrollcommand=details_scrollbar.set)
+    details_text.grid(row=0, column=0, sticky="nsew")
+    details_scrollbar.grid(row=0, column=1, sticky="ns")
+    details_text.insert("1.0", placeholders["details"])
+
+    def create_package_with_form() -> object:
+        metadata = app._build_about_support_form_metadata(
+            contact_name=contact_name_var.get(),
+            contact_email=contact_email_var.get(),
+            last_step=last_step_var.get(),
+            repro_status=repro_var.get(),
+            details=details_text.get("1.0", "end-1c"),
+        )
+        return app.create_support_package(extra_metadata=metadata)
+
+    ttk.Button(
+        support_form,
+        text=app.tr(
+            "support_btn_create_package_with_form",
+            "Supportpaket mit Formular erzeugen",
+        ),
+        command=create_package_with_form,
+    ).grid(row=6, column=0, columnspan=2, sticky="w", pady=(4, 0))
