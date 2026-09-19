@@ -412,3 +412,12 @@ def build_theme_studio_preview(app, preview) -> None:
             )
         )
     )
+
+
+def build_theme_studio_content(app) -> None:
+    """Build all Theme Studio content inside the application's tab."""
+    controls, preview = build_theme_studio_layout(app)
+    build_theme_studio_profile_panel(app, controls)
+    build_theme_studio_color_controls(app, controls)
+    build_theme_studio_style_actions(app, controls)
+    build_theme_studio_preview(app, preview)

@@ -643,11 +643,7 @@ try:
     from netmon.ui.tabs.system_tab import build_system_tab
     from netmon.ui.tabs.tools_tabs import build_basic_tools_tabs
     from netmon.ui.tabs.theme_studio_tab import (
-        build_theme_studio_layout,
-        build_theme_studio_profile_panel,
-        build_theme_studio_color_controls,
-        build_theme_studio_style_actions,
-        build_theme_studio_preview,
+        build_theme_studio_content,
     )
     from netmon.ui.tabs.trace_tab import build_trace_tab
     from netmon.ui.tabs.vpn_slots_tab import build_vpn_slots_tab
@@ -730,11 +726,7 @@ except ModuleNotFoundError:
     from ui.tabs.system_tab import build_system_tab
     from ui.tabs.tools_tabs import build_basic_tools_tabs
     from ui.tabs.theme_studio_tab import (
-        build_theme_studio_layout,
-        build_theme_studio_profile_panel,
-        build_theme_studio_color_controls,
-        build_theme_studio_style_actions,
-        build_theme_studio_preview,
+        build_theme_studio_content,
     )
     from ui.tabs.trace_tab import build_trace_tab
     from ui.tabs.vpn_slots_tab import build_vpn_slots_tab
@@ -25941,11 +25933,7 @@ class App(TkBase):
         )
 
     def build_theme_studio_tab(self):
-        controls, preview = build_theme_studio_layout(self)
-        build_theme_studio_profile_panel(self, controls)
-        build_theme_studio_color_controls(self, controls)
-        build_theme_studio_style_actions(self, controls)
-        build_theme_studio_preview(self, preview)
+        build_theme_studio_content(self)
 
     def _build_two_col_toggle_grid(
         self, parent, specs, *, is_radio=False, variable=None, row_gap=2
