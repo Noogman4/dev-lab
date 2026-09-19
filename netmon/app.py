@@ -602,6 +602,7 @@ try:
     )
     from netmon.ui.tabs.chad_settings_tab import (
         build_chad_settings_connection,
+        build_chad_settings_analysis_filter,
         build_chad_settings_profiles,
         build_chad_settings_status,
         build_chad_settings_tab as build_chad_settings_tab_ui,
@@ -692,6 +693,7 @@ except ModuleNotFoundError:
     )
     from ui.tabs.chad_settings_tab import (
         build_chad_settings_connection,
+        build_chad_settings_analysis_filter,
         build_chad_settings_profiles,
         build_chad_settings_status,
         build_chad_settings_tab as build_chad_settings_tab_ui,
@@ -26132,90 +26134,7 @@ class App(TkBase):
         build_chad_settings_connection(self, frame)
         build_chad_settings_status(self, frame)
         build_chad_settings_profiles(self, frame)
-
-        analysis_filter = ttk.LabelFrame(
-            frame,
-            text=self.tr("chad_settings_group_analysis_filter", "Analyse Filter"),
-            padding=8,
-        )
-        analysis_filter.pack(fill="x", pady=(0, 6))
-        self._build_two_col_toggle_grid(
-            analysis_filter,
-            [
-                (
-                    self.tr(
-                        "chad_settings_filter_relevant",
-                        "Nur relevante Warnungen",
-                    ),
-                    self.chad_filter_relevant_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_filter_critical",
-                        "Nur kritische Warnungen",
-                    ),
-                    self.chad_filter_critical_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_filter_recommendations",
-                        "Handlungsempfehlungen anzeigen",
-                    ),
-                    self.chad_filter_recommendations_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_filter_beginner",
-                        "Anfängerfreundliche Erklärungen",
-                    ),
-                    self.chad_filter_beginner_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr("chad_settings_filter_rawdata", "Rohdaten anhängen"),
-                    self.chad_filter_rawdata_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_filter_technical",
-                        "Technische Details anzeigen",
-                    ),
-                    self.chad_filter_technical_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_filter_hide_normal_services",
-                        "Normale Systemdienste ausblenden",
-                    ),
-                    self.chad_filter_hide_normal_services_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_filter_ignore_harmless_processes",
-                        "Bekannte harmlose Prozesse ignorieren",
-                    ),
-                    self.chad_filter_ignore_harmless_processes_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_filter_ignore_dev_environment",
-                        "VS Code-, Codex- und Docker-Hinweise minimieren",
-                    ),
-                    self.chad_filter_ignore_dev_environment_var,
-                    lambda: (
-                        self._update_chad_controls_state(),
-                        self.mark_chad_profile_custom(),
-                    ),
-                ),
-            ],
-        )
+        build_chad_settings_analysis_filter(self, frame)
 
         focus = ttk.LabelFrame(
             frame,

@@ -302,3 +302,82 @@ def build_chad_settings_profiles(app, frame) -> None:
         is_radio=True,
         variable=app.chad_analysis_mode_var,
     )
+
+
+def build_chad_settings_analysis_filter(app, frame) -> None:
+    """Build the Chad analysis filter controls."""
+    analysis_filter = ttk.LabelFrame(
+        frame,
+        text=app.tr("chad_settings_group_analysis_filter", "Analyse Filter"),
+        padding=8,
+    )
+    analysis_filter.pack(fill="x", pady=(0, 6))
+
+    def mark_dev_environment_filter_custom() -> None:
+        app._update_chad_controls_state()
+        app.mark_chad_profile_custom()
+
+    app._build_two_col_toggle_grid(
+        analysis_filter,
+        [
+            (
+                app.tr("chad_settings_filter_relevant", "Nur relevante Warnungen"),
+                app.chad_filter_relevant_var,
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr("chad_settings_filter_critical", "Nur kritische Warnungen"),
+                app.chad_filter_critical_var,
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr(
+                    "chad_settings_filter_recommendations",
+                    "Handlungsempfehlungen anzeigen",
+                ),
+                app.chad_filter_recommendations_var,
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr(
+                    "chad_settings_filter_beginner", "Anfängerfreundliche Erklärungen"
+                ),
+                app.chad_filter_beginner_var,
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr("chad_settings_filter_rawdata", "Rohdaten anhängen"),
+                app.chad_filter_rawdata_var,
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr("chad_settings_filter_technical", "Technische Details anzeigen"),
+                app.chad_filter_technical_var,
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr(
+                    "chad_settings_filter_hide_normal_services",
+                    "Normale Systemdienste ausblenden",
+                ),
+                app.chad_filter_hide_normal_services_var,
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr(
+                    "chad_settings_filter_ignore_harmless_processes",
+                    "Bekannte harmlose Prozesse ignorieren",
+                ),
+                app.chad_filter_ignore_harmless_processes_var,
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr(
+                    "chad_settings_filter_ignore_dev_environment",
+                    "VS Code-, Codex- und Docker-Hinweise minimieren",
+                ),
+                app.chad_filter_ignore_dev_environment_var,
+                mark_dev_environment_filter_custom,
+            ),
+        ],
+    )
