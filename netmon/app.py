@@ -646,6 +646,7 @@ try:
     from netmon.ui.tabs.settings_tab import (
         build_settings_general_system,
         build_settings_donation,
+        build_settings_logging,
         build_settings_tooltips,
         build_settings_tab as build_settings_tab_ui,
     )
@@ -738,6 +739,7 @@ except ModuleNotFoundError:
     from ui.tabs.settings_tab import (
         build_settings_general_system,
         build_settings_donation,
+        build_settings_logging,
         build_settings_tooltips,
         build_settings_tab as build_settings_tab_ui,
     )
@@ -24572,58 +24574,7 @@ class App(TkBase):
             wraplength=620,
         ).pack(anchor="w", pady=(4, 0))
 
-        logging_group = ttk.LabelFrame(
-            settings_general_tab,
-            text=self.tr("settings_group_logging", "Logging"),
-            padding=10,
-        )
-        logging_group.pack(fill="x", pady=(0, 10))
-        logging_group.columnconfigure(1, weight=1)
-
-        ttk.Checkbutton(
-            logging_group,
-            text=self.tr(
-                "settings_auto_log_clear", "Clear log automatically on startup"
-            ),
-            variable=self.var_auto_log_clear,
-        ).grid(row=0, column=0, columnspan=2, sticky="w")
-
-        ttk.Checkbutton(
-            logging_group,
-            text=self.tr(
-                "settings_debug_network_logging",
-                "Enable advanced network debug logging",
-            ),
-            variable=self.var_debug_network_logging,
-        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
-        ttk.Button(
-            logging_group,
-            text=self.tr(
-                "settings_open_network_debug_log",
-                "Netzwerk-Debug-Log öffnen",
-            ),
-            command=self.open_network_debug_log_file,
-        ).grid(row=1, column=1, sticky="w", padx=(8, 0), pady=(4, 0))
-        ttk.Button(
-            logging_group,
-            text=self.tr(
-                "settings_clear_network_debug_log",
-                "Log-Datei leeren",
-            ),
-            command=self.clear_network_debug_log_file,
-        ).grid(row=1, column=2, sticky="w", padx=(8, 0), pady=(4, 0))
-
-        ttk.Label(
-            logging_group,
-            text=self.tr("settings_ufw_logging_default", "Default UFW logging:"),
-        ).grid(row=2, column=0, sticky="w", pady=(8, 0))
-        ttk.Combobox(
-            logging_group,
-            textvariable=self.var_ufw_logging_default,
-            values=["off", "low", "medium", "high", "full"],
-            state="readonly",
-            width=14,
-        ).grid(row=2, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
+        build_settings_logging(self, settings_general_tab)
 
         tours_group = ttk.LabelFrame(
             self.settings_tours_tab,

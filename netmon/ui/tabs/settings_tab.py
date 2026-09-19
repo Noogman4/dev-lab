@@ -181,3 +181,54 @@ def build_settings_donation(app, general_tab) -> None:
         wraplength=620,
     ).pack(anchor="w", pady=(6, 0))
     app.refresh_donation_settings_controls()
+
+
+def build_settings_logging(app, general_tab) -> None:
+    """Build application and network debug logging settings."""
+    logging_group = ttk.LabelFrame(
+        general_tab,
+        text=app.tr("settings_group_logging", "Logging"),
+        padding=10,
+    )
+    logging_group.pack(fill="x", pady=(0, 10))
+    logging_group.columnconfigure(1, weight=1)
+    ttk.Checkbutton(
+        logging_group,
+        text=app.tr("settings_auto_log_clear", "Clear log automatically on startup"),
+        variable=app.var_auto_log_clear,
+    ).grid(row=0, column=0, columnspan=2, sticky="w")
+    ttk.Checkbutton(
+        logging_group,
+        text=app.tr(
+            "settings_debug_network_logging", "Enable advanced network debug logging"
+        ),
+        variable=app.var_debug_network_logging,
+    ).grid(row=1, column=0, sticky="w", pady=(4, 0))
+    for column, key, fallback, command in (
+        (
+            1,
+            "settings_open_network_debug_log",
+            "Netzwerk-Debug-Log öffnen",
+            app.open_network_debug_log_file,
+        ),
+        (
+            2,
+            "settings_clear_network_debug_log",
+            "Log-Datei leeren",
+            app.clear_network_debug_log_file,
+        ),
+    ):
+        ttk.Button(logging_group, text=app.tr(key, fallback), command=command).grid(
+            row=1, column=column, sticky="w", padx=(8, 0), pady=(4, 0)
+        )
+    ttk.Label(
+        logging_group,
+        text=app.tr("settings_ufw_logging_default", "Default UFW logging:"),
+    ).grid(row=2, column=0, sticky="w", pady=(8, 0))
+    ttk.Combobox(
+        logging_group,
+        textvariable=app.var_ufw_logging_default,
+        values=["off", "low", "medium", "high", "full"],
+        state="readonly",
+        width=14,
+    ).grid(row=2, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
