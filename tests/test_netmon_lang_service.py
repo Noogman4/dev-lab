@@ -11,6 +11,7 @@ from netmon.features import security_audit_controller
 from netmon.features import security_monitoring_controller
 from netmon.services.lang_service import LangService
 from netmon.ui.tabs.connections_tab import build_connections_tab
+from netmon.ui.tabs.chad_tab import build_chad_analysis_header_and_composer
 from netmon.ui.tabs.dns_tab import build_dns_tab
 from netmon.ui.tabs.fun_tab import build_fun_tab
 from netmon.ui.tabs.hdd_tab import build_hdd_tab
@@ -109,7 +110,7 @@ def test_main_tabs_and_security_sections_use_translation_keys():
     security_tabs_source = inspect.getsource(build_security_tabs)
     hdd_tab_source = inspect.getsource(build_hdd_tab)
     startup_source = inspect.getsource(build_startup_guard_tab)
-    chad_source = inspect.getsource(App.build_chad_analysis_tab)
+    chad_source = inspect.getsource(build_chad_analysis_header_and_composer)
     dnssec_source = inspect.getsource(App.run_dnssec_check)
     preflight_source = inspect.getsource(App.preflight_recheck)
     trace_source = inspect.getsource(App.trace_table_async)
@@ -182,8 +183,8 @@ def test_main_tabs_and_security_sections_use_translation_keys():
         'text=app.tr("startup_guard_btn_baseline", "Baseline erstellen")'
         in startup_source
     )
-    assert 'text=self.tr("chad_title", "Chad Analyse")' in chad_source
-    assert 'text=self.tr("chad_check_enabled", "Chad-Anbindung aktiv")' in chad_source
+    assert 'text=app.tr("chad_title", "Chad Analyse")' in chad_source
+    assert 'text=app.tr("chad_check_enabled", "Chad-Anbindung aktiv")' in chad_source
     assert '"<Return>"' in chad_source
     assert (
         'text=self.tr("settings_group_chad_openai", "Chad Analyse / OpenAI")'

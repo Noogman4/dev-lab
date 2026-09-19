@@ -6,6 +6,7 @@ import pytest
 
 from netmon.app import App
 from netmon.features import chad_controller
+from netmon.ui.tabs.chad_tab import build_chad_analysis_header_and_composer
 from netmon.ui.tabs.security_tabs import build_roots_baseline_guard_tab
 
 
@@ -123,11 +124,11 @@ def test_roots_guard_button_analysis_uses_same_chad_flow_as_context_menu():
 
 
 def test_chad_chat_input_uses_copy_paste_context_menu():
-    app_source = inspect.getsource(App)
+    chad_source = inspect.getsource(build_chad_analysis_header_and_composer)
 
-    assert "self.chad_chat_input = tk.Text(" in app_source
-    assert "height=6," in app_source
-    assert "self.attach_copy_paste_context_menu(self.chad_chat_input)" in app_source
+    assert "app.chad_chat_input = tk.Text(" in chad_source
+    assert "height=6," in chad_source
+    assert "app.attach_copy_paste_context_menu(app.chad_chat_input)" in chad_source
 
 
 def test_chad_output_layout_is_refreshed_after_view_update():
