@@ -478,3 +478,50 @@ def build_chad_settings_systemcheck_profiles(app, frame) -> None:
         is_radio=True,
         variable=app.chad_systemcheck_profile_var,
     )
+
+
+def build_chad_settings_answer_style(app, frame) -> None:
+    """Build the Chad answer style controls."""
+    answer = ttk.LabelFrame(
+        frame,
+        text=app.tr("chad_settings_group_answer_style", "KI Antwortverhalten"),
+        padding=8,
+    )
+    answer.pack(fill="x", pady=(0, 6))
+    app._build_two_col_toggle_grid(
+        answer,
+        [
+            (
+                app.tr("chad_settings_answer_short", "Kurze Antworten bevorzugen"),
+                app.chad_answer_short_var,
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr("chad_settings_answer_detailed", "Ausführliche Analyse"),
+                app.chad_answer_detailed_var,
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr("chad_settings_answer_step", "Schritt-für-Schritt-Erklärungen"),
+                app.chad_answer_step_var,
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr("chad_settings_answer_linux_help", "Linux-Befehle erklären"),
+                app.chad_answer_linux_help_var,
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr("chad_settings_answer_risk", "Risiko-Einstufung anzeigen"),
+                app.chad_answer_risk_var,
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr(
+                    "chad_settings_answer_recommendations", "Empfehlungen priorisieren"
+                ),
+                app.chad_answer_recommendations_var,
+                app.mark_chad_profile_custom,
+            ),
+        ],
+    )

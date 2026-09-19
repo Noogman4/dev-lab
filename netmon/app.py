@@ -603,6 +603,7 @@ try:
     from netmon.ui.tabs.chad_settings_tab import (
         build_chad_settings_connection,
         build_chad_settings_analysis_filter,
+        build_chad_settings_answer_style,
         build_chad_settings_focus,
         build_chad_settings_profiles,
         build_chad_settings_status,
@@ -696,6 +697,7 @@ except ModuleNotFoundError:
     from ui.tabs.chad_settings_tab import (
         build_chad_settings_connection,
         build_chad_settings_analysis_filter,
+        build_chad_settings_answer_style,
         build_chad_settings_focus,
         build_chad_settings_profiles,
         build_chad_settings_status,
@@ -26141,66 +26143,7 @@ class App(TkBase):
         build_chad_settings_analysis_filter(self, frame)
         build_chad_settings_focus(self, frame)
         build_chad_settings_systemcheck_profiles(self, frame)
-
-        answer = ttk.LabelFrame(
-            frame,
-            text=self.tr("chad_settings_group_answer_style", "KI Antwortverhalten"),
-            padding=8,
-        )
-        answer.pack(fill="x", pady=(0, 6))
-        self._build_two_col_toggle_grid(
-            answer,
-            [
-                (
-                    self.tr(
-                        "chad_settings_answer_short",
-                        "Kurze Antworten bevorzugen",
-                    ),
-                    self.chad_answer_short_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_answer_detailed",
-                        "Ausführliche Analyse",
-                    ),
-                    self.chad_answer_detailed_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_answer_step",
-                        "Schritt-für-Schritt-Erklärungen",
-                    ),
-                    self.chad_answer_step_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_answer_linux_help",
-                        "Linux-Befehle erklären",
-                    ),
-                    self.chad_answer_linux_help_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_answer_risk",
-                        "Risiko-Einstufung anzeigen",
-                    ),
-                    self.chad_answer_risk_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_answer_recommendations",
-                        "Empfehlungen priorisieren",
-                    ),
-                    self.chad_answer_recommendations_var,
-                    self.mark_chad_profile_custom,
-                ),
-            ],
-        )
+        build_chad_settings_answer_style(self, frame)
 
     def build_chad_analysis_tab(self):
         build_chad_analysis_content(self, LIGHT_THEME)
