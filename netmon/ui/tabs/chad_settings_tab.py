@@ -111,3 +111,82 @@ def build_chad_settings_summary(app, frame) -> None:
                 padx=(8, 0) if column else 0,
                 pady=(4, 0),
             )
+
+
+def build_chad_settings_connection(app, frame) -> None:
+    """Build API key, model selection and Chad connection controls."""
+    connection = ttk.LabelFrame(
+        frame,
+        text=app.tr("settings_group_chad_openai", "Chad Analyse / OpenAI"),
+        padding=8,
+    )
+    connection.pack(fill="x", pady=(0, 6))
+    for key, fallback, variable, padding in (
+        (
+            "settings_auto_switch_to_chad",
+            "Beim Senden an Chad automatisch zum Chad-Tab wechseln",
+            app.var_auto_switch_to_chad,
+            None,
+        ),
+        (
+            "settings_chad_preview_popup",
+            "Vorschau-Popup bei Chad-Analyse anzeigen",
+            app.var_chad_preview_popup,
+            (4, 0),
+        ),
+    ):
+        check = ttk.Checkbutton(
+            connection, text=app.tr(key, fallback), variable=variable
+        )
+        if padding is None:
+            check.pack(anchor="w")
+        else:
+            check.pack(anchor="w", pady=padding)
+
+    api_row = ttk.Frame(connection)
+    api_row.pack(fill="x", pady=(6, 0))
+    ttk.Label(api_row, text=app.tr("chad_label_api_key", "API Key:")).pack(side="left")
+    app.openai_api_key_entry = ttk.Entry(
+        api_row,
+        textvariable=app.openai_api_key_var,
+        show="*",
+        width=40,
+    )
+    app.openai_api_key_entry.pack(side="left", padx=(6, 6), fill="x", expand=True)
+    for sequence in ("<Control-v>", "<Control-V>", "<Shift-Insert>"):
+        app.openai_api_key_entry.bind(sequence, app.paste_api_key_from_clipboard)
+    for attr_name, key, fallback, command in (
+        ("btn_chad_api_save", "btn_save", "Speichern", app.save_ai_config),
+        ("btn_chad_api_load", "btn_load", "Laden", app.load_ai_config),
+        ("btn_chad_api_clear", "btn_clear", "Leeren", app.clear_api_key),
+        ("btn_chad_api_delete", "btn_delete", "Delete", app.delete_saved_api_key),
+    ):
+        button = ttk.Button(
+            api_row,
+            text=app.tr(key, fallback),
+            command=command,
+            width=9,
+        )
+        button.pack(side="left", padx=(6, 0))
+        setattr(app, attr_name, button)
+
+    model_row = ttk.Frame(connection)
+    model_row.pack(fill="x", pady=(8, 0))
+    ttk.Label(
+        model_row,
+        text=app.tr("chad_settings_label_model", "Modell:"),
+    ).pack(side="left")
+    app.chad_model_combo = ttk.Combobox(
+        model_row,
+        textvariable=app.chad_model_var,
+        values=app.chad_model_choices,
+        state="readonly",
+        width=18,
+    )
+    app.chad_model_combo.pack(side="left", padx=(6, 0))
+    app.chad_model_combo.bind("<<ComboboxSelected>>", app.apply_chad_model_selection)
+    ttk.Label(
+        connection,
+        textvariable=app.chad_analysis_status_var,
+        justify="left",
+    ).pack(anchor="w", pady=(8, 0))

@@ -601,6 +601,7 @@ try:
         build_chad_tab,
     )
     from netmon.ui.tabs.chad_settings_tab import (
+        build_chad_settings_connection,
         build_chad_settings_tab as build_chad_settings_tab_ui,
         build_chad_settings_summary,
     )
@@ -688,6 +689,7 @@ except ModuleNotFoundError:
         build_chad_tab,
     )
     from ui.tabs.chad_settings_tab import (
+        build_chad_settings_connection,
         build_chad_settings_tab as build_chad_settings_tab_ui,
         build_chad_settings_summary,
     )
@@ -26123,111 +26125,7 @@ class App(TkBase):
         frame = ttk.Frame(self.tab_chad_settings, padding=12)
         frame.pack(fill="both", expand=True)
         build_chad_settings_summary(self, frame)
-
-        connection = ttk.LabelFrame(
-            frame,
-            text=self.tr("settings_group_chad_openai", "Chad Analyse / OpenAI"),
-            padding=8,
-        )
-        connection.pack(fill="x", pady=(0, 6))
-
-        ttk.Checkbutton(
-            connection,
-            text=self.tr(
-                "settings_auto_switch_to_chad",
-                "Beim Senden an Chad automatisch zum Chad-Tab wechseln",
-            ),
-            variable=self.var_auto_switch_to_chad,
-        ).pack(anchor="w")
-
-        ttk.Checkbutton(
-            connection,
-            text=self.tr(
-                "settings_chad_preview_popup",
-                "Vorschau-Popup bei Chad-Analyse anzeigen",
-            ),
-            variable=self.var_chad_preview_popup,
-        ).pack(anchor="w", pady=(4, 0))
-
-        api_row = ttk.Frame(connection)
-        api_row.pack(fill="x", pady=(6, 0))
-
-        ttk.Label(
-            api_row,
-            text=self.tr("chad_label_api_key", "API Key:"),
-        ).pack(side="left")
-
-        self.openai_api_key_entry = ttk.Entry(
-            api_row,
-            textvariable=self.openai_api_key_var,
-            show="*",
-            width=40,
-        )
-        self.openai_api_key_entry.pack(side="left", padx=(6, 6), fill="x", expand=True)
-        self.openai_api_key_entry.bind("<Control-v>", self.paste_api_key_from_clipboard)
-        self.openai_api_key_entry.bind("<Control-V>", self.paste_api_key_from_clipboard)
-        self.openai_api_key_entry.bind(
-            "<Shift-Insert>", self.paste_api_key_from_clipboard
-        )
-
-        self.btn_chad_api_save = ttk.Button(
-            api_row,
-            text=self.tr("btn_save", "Speichern"),
-            command=self.save_ai_config,
-            width=9,
-        )
-        self.btn_chad_api_save.pack(side="left", padx=(6, 0))
-
-        self.btn_chad_api_load = ttk.Button(
-            api_row,
-            text=self.tr("btn_load", "Laden"),
-            command=self.load_ai_config,
-            width=9,
-        )
-        self.btn_chad_api_load.pack(side="left", padx=(6, 0))
-
-        self.btn_chad_api_clear = ttk.Button(
-            api_row,
-            text=self.tr("btn_clear", "Leeren"),
-            command=self.clear_api_key,
-            width=9,
-        )
-        self.btn_chad_api_clear.pack(side="left", padx=(6, 0))
-
-        self.btn_chad_api_delete = ttk.Button(
-            api_row,
-            text=self.tr("btn_delete", "Delete"),
-            command=self.delete_saved_api_key,
-            width=9,
-        )
-        self.btn_chad_api_delete.pack(side="left", padx=(6, 0))
-
-        model_row = ttk.Frame(connection)
-        model_row.pack(fill="x", pady=(8, 0))
-
-        ttk.Label(
-            model_row,
-            text=self.tr("chad_settings_label_model", "Modell:"),
-        ).pack(side="left")
-
-        self.chad_model_combo = ttk.Combobox(
-            model_row,
-            textvariable=self.chad_model_var,
-            values=self.chad_model_choices,
-            state="readonly",
-            width=18,
-        )
-        self.chad_model_combo.pack(side="left", padx=(6, 0))
-        self.chad_model_combo.bind(
-            "<<ComboboxSelected>>",
-            self.apply_chad_model_selection,
-        )
-
-        ttk.Label(
-            connection,
-            textvariable=self.chad_analysis_status_var,
-            justify="left",
-        ).pack(anchor="w", pady=(8, 0))
+        build_chad_settings_connection(self, frame)
 
         status = ttk.LabelFrame(
             frame,
