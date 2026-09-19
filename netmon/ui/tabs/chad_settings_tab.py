@@ -190,3 +190,49 @@ def build_chad_settings_connection(app, frame) -> None:
         textvariable=app.chad_analysis_status_var,
         justify="left",
     ).pack(anchor="w", pady=(8, 0))
+
+
+def build_chad_settings_status(app, frame) -> None:
+    """Build the current Chad API and analysis status panel."""
+    status = ttk.LabelFrame(frame, text="KI Status", padding=8)
+    status.pack(fill="x", pady=(0, 6))
+    status.columnconfigure(1, weight=1)
+    for row, key, fallback, value_var in (
+        (
+            0,
+            "chad_settings_label_api_connected_status",
+            "API verbunden Status:",
+            app.chad_settings_api_status_var,
+        ),
+        (
+            1,
+            "chad_settings_label_model_name",
+            "Modellname:",
+            app.chad_settings_model_var,
+        ),
+        (
+            2,
+            "chad_settings_label_latency",
+            "Antwortzeit:",
+            app.chad_settings_latency_var,
+        ),
+        (
+            3,
+            "chad_settings_label_last_analysis",
+            "Letzte Analyse:",
+            app.chad_settings_last_analysis_var,
+        ),
+        (
+            4,
+            "chad_settings_label_token_usage",
+            "Tokenverbrauch:",
+            app.chad_settings_tokens_var,
+        ),
+    ):
+        pady = (4, 0) if row else 0
+        ttk.Label(status, text=app.tr(key, fallback)).grid(
+            row=row, column=0, sticky="w", pady=pady
+        )
+        ttk.Label(status, textvariable=value_var).grid(
+            row=row, column=1, sticky="w", padx=(8, 0), pady=pady
+        )

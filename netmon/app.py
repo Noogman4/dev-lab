@@ -602,6 +602,7 @@ try:
     )
     from netmon.ui.tabs.chad_settings_tab import (
         build_chad_settings_connection,
+        build_chad_settings_status,
         build_chad_settings_tab as build_chad_settings_tab_ui,
         build_chad_settings_summary,
     )
@@ -690,6 +691,7 @@ except ModuleNotFoundError:
     )
     from ui.tabs.chad_settings_tab import (
         build_chad_settings_connection,
+        build_chad_settings_status,
         build_chad_settings_tab as build_chad_settings_tab_ui,
         build_chad_settings_summary,
     )
@@ -26126,52 +26128,7 @@ class App(TkBase):
         frame.pack(fill="both", expand=True)
         build_chad_settings_summary(self, frame)
         build_chad_settings_connection(self, frame)
-
-        status = ttk.LabelFrame(
-            frame,
-            text="KI Status",
-            padding=8,
-        )
-        status.pack(fill="x", pady=(0, 6))
-        status.columnconfigure(1, weight=1)
-        ttk.Label(
-            status,
-            text=self.tr(
-                "chad_settings_label_api_connected_status",
-                "API verbunden Status:",
-            ),
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Label(status, textvariable=self.chad_settings_api_status_var).grid(
-            row=0, column=1, sticky="w", padx=(8, 0)
-        )
-        ttk.Label(
-            status,
-            text=self.tr("chad_settings_label_model_name", "Modellname:"),
-        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
-        ttk.Label(status, textvariable=self.chad_settings_model_var).grid(
-            row=1, column=1, sticky="w", padx=(8, 0), pady=(4, 0)
-        )
-        ttk.Label(
-            status,
-            text=self.tr("chad_settings_label_latency", "Antwortzeit:"),
-        ).grid(row=2, column=0, sticky="w", pady=(4, 0))
-        ttk.Label(status, textvariable=self.chad_settings_latency_var).grid(
-            row=2, column=1, sticky="w", padx=(8, 0), pady=(4, 0)
-        )
-        ttk.Label(
-            status,
-            text=self.tr("chad_settings_label_last_analysis", "Letzte Analyse:"),
-        ).grid(row=3, column=0, sticky="w", pady=(4, 0))
-        ttk.Label(status, textvariable=self.chad_settings_last_analysis_var).grid(
-            row=3, column=1, sticky="w", padx=(8, 0), pady=(4, 0)
-        )
-        ttk.Label(
-            status,
-            text=self.tr("chad_settings_label_token_usage", "Tokenverbrauch:"),
-        ).grid(row=4, column=0, sticky="w", pady=(4, 0))
-        ttk.Label(status, textvariable=self.chad_settings_tokens_var).grid(
-            row=4, column=1, sticky="w", padx=(8, 0), pady=(4, 0)
-        )
+        build_chad_settings_status(self, frame)
 
         chad_profile = ttk.LabelFrame(
             frame,

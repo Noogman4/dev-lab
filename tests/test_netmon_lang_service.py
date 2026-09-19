@@ -12,7 +12,10 @@ from netmon.features import security_monitoring_controller
 from netmon.services.lang_service import LangService
 from netmon.ui.tabs.connections_tab import build_connections_tab
 from netmon.ui.tabs.chad_tab import build_chad_analysis_header_and_composer
-from netmon.ui.tabs.chad_settings_tab import build_chad_settings_connection
+from netmon.ui.tabs.chad_settings_tab import (
+    build_chad_settings_connection,
+    build_chad_settings_status,
+)
 from netmon.ui.tabs.dns_tab import build_dns_tab
 from netmon.ui.tabs.fun_tab import build_fun_tab
 from netmon.ui.tabs.hdd_tab import build_hdd_tab
@@ -188,11 +191,12 @@ def test_main_tabs_and_security_sections_use_translation_keys():
     assert 'text=app.tr("chad_check_enabled", "Chad-Anbindung aktiv")' in chad_source
     assert '"<Return>"' in chad_source
     chad_settings_connection_source = inspect.getsource(build_chad_settings_connection)
+    chad_settings_status_source = inspect.getsource(build_chad_settings_status)
     assert (
         'text=app.tr("settings_group_chad_openai", "Chad Analyse / OpenAI")'
         in chad_settings_connection_source
     )
-    assert 'text="KI Status"' in inspect.getsource(App.build_chad_settings_tab)
+    assert 'text="KI Status"' in chad_settings_status_source
     assert 'text="Analysemodus"' in inspect.getsource(App.build_chad_settings_tab)
     assert "VS Code-, Codex- und Docker-Hinweise minimieren" in inspect.getsource(
         App.build_chad_settings_tab
