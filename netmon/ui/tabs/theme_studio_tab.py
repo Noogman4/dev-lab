@@ -155,3 +155,77 @@ def build_theme_studio_color_controls(app, controls) -> None:
             width=9,
             command=lambda c=color: app.set_theme_studio_panel_preset(c),
         ).pack(side="left", padx=(6, 0))
+
+
+def build_theme_studio_style_actions(app, controls) -> None:
+    """Build Theme Studio style selection and profile action controls."""
+    style_box = ttk.LabelFrame(
+        controls,
+        text=app.tr("theme_studio_group_style_direction", "Stilrichtung"),
+        padding=8,
+    )
+    style_box.pack(fill="x", pady=(0, 8))
+    for index, (key, fallback, value) in enumerate(
+        (
+            ("theme_studio_style_subtle", "Subtle", "dezent"),
+            ("theme_studio_style_bold", "Bold", "kräftig"),
+            ("theme_studio_style_warm", "Warm", "warm"),
+            ("theme_studio_style_cool", "Cool", "kühl"),
+        )
+    ):
+        ttk.Radiobutton(
+            style_box,
+            text=app.tr(key, fallback),
+            value=value,
+            variable=app.var_theme_studio_style,
+            command=app.refresh_theme_studio_preview,
+        ).grid(
+            row=index // 2,
+            column=index % 2,
+            sticky="w",
+            padx=(0, 14 if index % 2 == 0 else 0),
+            pady=(0 if index < 2 else 6, 0),
+        )
+    actions = ttk.LabelFrame(
+        controls, text=app.tr("theme_studio_group_actions", "Actions"), padding=8
+    )
+    actions.pack(fill="x")
+    app.btn_theme_studio_apply = ttk.Button(
+        actions,
+        text=app.tr("btn_apply", "Anwenden"),
+        command=app.apply_theme_studio_settings,
+    )
+    app.btn_theme_studio_apply.pack(fill="x")
+    app.btn_theme_studio_save = ttk.Button(
+        actions,
+        text=app.tr("theme_studio_btn_save_theme", "Theme speichern"),
+        command=app.save_theme_studio_profile,
+    )
+    app.btn_theme_studio_save.pack(fill="x", pady=(6, 0))
+    app.btn_theme_studio_load = ttk.Button(
+        actions,
+        text=app.tr("theme_studio_btn_load_theme", "Theme laden"),
+        command=app.load_theme_studio_profile,
+    )
+    app.btn_theme_studio_load.pack(fill="x", pady=(6, 0))
+    app.btn_theme_studio_load_pop = ttk.Button(
+        actions,
+        text=app.tr("theme_studio_btn_load_pop_profile", "Load pop profile"),
+        command=app.load_theme_studio_from_current_theme,
+    )
+    app.btn_theme_studio_load_pop.pack(fill="x", pady=(6, 0))
+    app.btn_theme_studio_reset = ttk.Button(
+        actions,
+        text=app.tr(
+            "theme_studio_btn_restore_pop_default",
+            "Pop-Standard wiederherstellen",
+        ),
+        command=app.reset_theme_studio_settings,
+    )
+    app.btn_theme_studio_reset.pack(fill="x", pady=(6, 0))
+    ttk.Label(
+        actions,
+        textvariable=app.theme_studio_status_var,
+        justify="left",
+        wraplength=260,
+    ).pack(anchor="w", pady=(8, 0))

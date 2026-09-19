@@ -646,6 +646,7 @@ try:
         build_theme_studio_layout,
         build_theme_studio_profile_panel,
         build_theme_studio_color_controls,
+        build_theme_studio_style_actions,
     )
     from netmon.ui.tabs.trace_tab import build_trace_tab
     from netmon.ui.tabs.vpn_slots_tab import build_vpn_slots_tab
@@ -731,6 +732,7 @@ except ModuleNotFoundError:
         build_theme_studio_layout,
         build_theme_studio_profile_panel,
         build_theme_studio_color_controls,
+        build_theme_studio_style_actions,
     )
     from ui.tabs.trace_tab import build_trace_tab
     from ui.tabs.vpn_slots_tab import build_vpn_slots_tab
@@ -25940,78 +25942,7 @@ class App(TkBase):
         controls, preview = build_theme_studio_layout(self)
         build_theme_studio_profile_panel(self, controls)
         build_theme_studio_color_controls(self, controls)
-
-        style_box = ttk.LabelFrame(
-            controls,
-            text=self.tr("theme_studio_group_style_direction", "Stilrichtung"),
-            padding=8,
-        )
-        style_box.pack(fill="x", pady=(0, 8))
-        for index, (key, fallback, value) in enumerate(
-            (
-                ("theme_studio_style_subtle", "Subtle", "dezent"),
-                ("theme_studio_style_bold", "Bold", "kräftig"),
-                ("theme_studio_style_warm", "Warm", "warm"),
-                ("theme_studio_style_cool", "Cool", "kühl"),
-            )
-        ):
-            ttk.Radiobutton(
-                style_box,
-                text=self.tr(key, fallback),
-                value=value,
-                variable=self.var_theme_studio_style,
-                command=self.refresh_theme_studio_preview,
-            ).grid(
-                row=index // 2,
-                column=index % 2,
-                sticky="w",
-                padx=(0, 14 if index % 2 == 0 else 0),
-                pady=(0 if index < 2 else 6, 0),
-            )
-
-        actions = ttk.LabelFrame(
-            controls, text=self.tr("theme_studio_group_actions", "Actions"), padding=8
-        )
-        actions.pack(fill="x")
-        self.btn_theme_studio_apply = ttk.Button(
-            actions,
-            text=self.tr("btn_apply", "Anwenden"),
-            command=self.apply_theme_studio_settings,
-        )
-        self.btn_theme_studio_apply.pack(fill="x")
-        self.btn_theme_studio_save = ttk.Button(
-            actions,
-            text=self.tr("theme_studio_btn_save_theme", "Theme speichern"),
-            command=self.save_theme_studio_profile,
-        )
-        self.btn_theme_studio_save.pack(fill="x", pady=(6, 0))
-        self.btn_theme_studio_load = ttk.Button(
-            actions,
-            text=self.tr("theme_studio_btn_load_theme", "Theme laden"),
-            command=self.load_theme_studio_profile,
-        )
-        self.btn_theme_studio_load.pack(fill="x", pady=(6, 0))
-        self.btn_theme_studio_load_pop = ttk.Button(
-            actions,
-            text=self.tr("theme_studio_btn_load_pop_profile", "Load pop profile"),
-            command=self.load_theme_studio_from_current_theme,
-        )
-        self.btn_theme_studio_load_pop.pack(fill="x", pady=(6, 0))
-        self.btn_theme_studio_reset = ttk.Button(
-            actions,
-            text=self.tr(
-                "theme_studio_btn_restore_pop_default",
-                "Pop-Standard wiederherstellen",
-            ),
-            command=self.reset_theme_studio_settings,
-        )
-        self.btn_theme_studio_reset.pack(fill="x", pady=(6, 0))
-        ttk.Label(
-            actions,
-            textvariable=self.theme_studio_status_var,
-            justify="left",
-            wraplength=260,
-        ).pack(anchor="w", pady=(8, 0))
+        build_theme_studio_style_actions(self, controls)
 
         preview_hint = ttk.Label(
             preview,
