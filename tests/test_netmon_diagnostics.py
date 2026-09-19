@@ -7,7 +7,11 @@ from netmon import app as app_module
 from netmon.app import App
 from netmon.core import crash, diagnostics, support_bundle
 from netmon import main
-from netmon.ui.tabs.settings_tab import build_settings_backup, build_settings_support
+from netmon.ui.tabs.settings_tab import (
+    build_settings_backup,
+    build_settings_content,
+    build_settings_support,
+)
 
 
 def test_redact_sensitive_text_masks_known_patterns():
@@ -842,12 +846,12 @@ def test_settings_tab_contains_support_actions_source():
 
 
 def test_settings_tab_contains_backup_tab_source():
-    source = inspect.getsource(App.build_settings_tab)
+    source = inspect.getsource(build_settings_content)
     backup_source = inspect.getsource(build_settings_backup)
     backup_delegate_source = inspect.getsource(App._build_settings_backup_tab)
     backup_options_source = inspect.getsource(App.refresh_netmon_backup_folder_options)
 
-    assert 'text=self.tr("settings_tab_backup", "Backup")' in source
+    assert '"settings_tab_backup", "Backup"' in source
     assert "build_settings_backup(self, tab)" in backup_delegate_source
     assert 'app.tr("backup_group_snapshot", "System-Snapshot")' in backup_source
     assert 'app.tr("backup_group_data", "Datensicherung")' in backup_source

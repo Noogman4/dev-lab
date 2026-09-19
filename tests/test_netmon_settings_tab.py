@@ -6,6 +6,7 @@ import netmon.app as app_module
 from netmon.app import App
 from netmon.ui.tabs.settings_tab import (
     build_settings_donation,
+    build_settings_content,
     build_settings_general_system,
     build_settings_logging,
     build_settings_maintenance,
@@ -958,6 +959,7 @@ def test_enable_and_disable_radio_desktop_launcher_manage_user_entry(
 
 def test_settings_tab_source_and_hooks_are_present():
     build_source = inspect.getsource(App.build_settings_tab)
+    content_source = inspect.getsource(build_settings_content)
     general_system_source = inspect.getsource(build_settings_general_system)
     donation_source = inspect.getsource(build_settings_donation)
     logging_source = inspect.getsource(build_settings_logging)
@@ -1008,12 +1010,12 @@ def test_settings_tab_source_and_hooks_are_present():
     assert "app.var_auto_log_clear" in logging_source
     assert "app.var_debug_network_logging" in logging_source
     assert "app.var_ufw_logging_default" in logging_source
-    assert 'text=self.tr("settings_tab_backup", "Backup")' in build_source
+    assert '"settings_tab_backup", "Backup"' in content_source
     assert 'app.tr("settings_group_donation", "NetMon unterstützen")' in donation_source
     assert "app.var_donation_popup_enabled" in donation_source
     assert '"settings_donation_support_button"' in donation_source
     assert 'app.tr("settings_group_system", "System")' in maintenance_source
-    assert "self._build_settings_backup_tab(settings_backup_tab)" in build_source
+    assert "app._build_settings_backup_tab(backup_tab)" in content_source
     assert "app.restart_netmon_only" in maintenance_source
     assert "def build_theme_studio_tab(self):" in app_source
     assert "def apply_theme_studio_settings(self):" in app_source

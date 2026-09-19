@@ -626,16 +626,8 @@ try:
         build_startup_guard_tab,
     )
     from netmon.ui.tabs.settings_tab import (
-        build_settings_general_system,
-        build_settings_donation,
-        build_settings_logging,
-        build_settings_security,
-        build_settings_privacy,
-        build_settings_tooltips,
-        build_settings_tours,
-        build_settings_support,
-        build_settings_maintenance,
         build_settings_backup,
+        build_settings_content,
         build_settings_tab as build_settings_tab_ui,
     )
     from netmon.ui.tabs.system_tab import build_system_monitor, build_system_tab
@@ -707,16 +699,8 @@ except ModuleNotFoundError:
         build_startup_guard_tab,
     )
     from ui.tabs.settings_tab import (
-        build_settings_general_system,
-        build_settings_donation,
-        build_settings_logging,
-        build_settings_security,
-        build_settings_privacy,
-        build_settings_tooltips,
-        build_settings_tours,
-        build_settings_support,
-        build_settings_maintenance,
         build_settings_backup,
+        build_settings_content,
         build_settings_tab as build_settings_tab_ui,
     )
     from ui.tabs.system_tab import build_system_monitor, build_system_tab
@@ -24164,57 +24148,7 @@ class App(TkBase):
         threading.Thread(target=worker, daemon=True).start()
 
     def build_settings_tab(self):
-        frame = ttk.Frame(self.tab_settings, padding=12)
-        frame.pack(fill="both", expand=True)
-        frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(0, weight=1)
-
-        self.settings_nb = ttk.Notebook(frame)
-        self.settings_nb.grid(row=0, column=0, sticky="nsew")
-
-        settings_general_tab = ttk.Frame(self.settings_nb, padding=12)
-        settings_backup_tab = ttk.Frame(self.settings_nb, padding=12)
-        self.settings_tours_tab = ttk.Frame(self.settings_nb, padding=12)
-        settings_support_tab = ttk.Frame(self.settings_nb, padding=12)
-
-        self.settings_nb.add(
-            settings_general_tab,
-            text=self.tr("settings_tab_general", "Allgemein"),
-        )
-        self.settings_nb.add(
-            settings_backup_tab,
-            text=self.tr("settings_tab_backup", "Backup"),
-        )
-        self.settings_nb.add(
-            self.settings_tours_tab,
-            text=self.tr("settings_tab_tours", "Tour"),
-        )
-        self.settings_nb.add(
-            settings_support_tab,
-            text=self.tr("settings_tab_support", "Support"),
-        )
-
-        build_settings_general_system(
-            self,
-            settings_general_tab,
-            THEME_DISPLAY_NAMES,
-            DNS_PROFILES,
-        )
-        build_settings_tooltips(self, settings_general_tab)
-        build_settings_donation(self, settings_general_tab)
-
-        build_settings_privacy(self, settings_general_tab)
-
-        build_settings_security(self, settings_general_tab)
-
-        build_settings_logging(self, settings_general_tab)
-
-        build_settings_tours(self, self.settings_tours_tab)
-
-        build_settings_support(self, settings_support_tab)
-
-        build_settings_maintenance(self, settings_general_tab)
-        self._build_settings_backup_tab(settings_backup_tab)
+        build_settings_content(self, THEME_DISPLAY_NAMES, DNS_PROFILES)
 
     def _build_settings_backup_tab(self, tab):
         build_settings_backup(self, tab)

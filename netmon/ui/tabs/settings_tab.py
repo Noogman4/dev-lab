@@ -15,6 +15,37 @@ def build_settings_tab(app):
     app.build_settings_tab()
 
 
+def build_settings_content(app, theme_display_names, dns_profiles) -> None:
+    """Build the Settings notebook and compose its delegated sections."""
+    frame = ttk.Frame(app.tab_settings, padding=12)
+    frame.pack(fill="both", expand=True)
+    frame.columnconfigure(0, weight=1)
+    frame.rowconfigure(0, weight=1)
+    app.settings_nb = ttk.Notebook(frame)
+    app.settings_nb.grid(row=0, column=0, sticky="nsew")
+    general_tab = ttk.Frame(app.settings_nb, padding=12)
+    backup_tab = ttk.Frame(app.settings_nb, padding=12)
+    app.settings_tours_tab = ttk.Frame(app.settings_nb, padding=12)
+    support_tab = ttk.Frame(app.settings_nb, padding=12)
+    for tab, key, fallback in (
+        (general_tab, "settings_tab_general", "Allgemein"),
+        (backup_tab, "settings_tab_backup", "Backup"),
+        (app.settings_tours_tab, "settings_tab_tours", "Tour"),
+        (support_tab, "settings_tab_support", "Support"),
+    ):
+        app.settings_nb.add(tab, text=app.tr(key, fallback))
+    build_settings_general_system(app, general_tab, theme_display_names, dns_profiles)
+    build_settings_tooltips(app, general_tab)
+    build_settings_donation(app, general_tab)
+    build_settings_privacy(app, general_tab)
+    build_settings_security(app, general_tab)
+    build_settings_logging(app, general_tab)
+    build_settings_tours(app, app.settings_tours_tab)
+    build_settings_support(app, support_tab)
+    build_settings_maintenance(app, general_tab)
+    app._build_settings_backup_tab(backup_tab)
+
+
 def build_settings_general_system(
     app, general_tab, theme_display_names, dns_profiles
 ) -> None:
