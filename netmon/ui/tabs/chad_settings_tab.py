@@ -236,3 +236,69 @@ def build_chad_settings_status(app, frame) -> None:
         ttk.Label(status, textvariable=value_var).grid(
             row=row, column=1, sticky="w", padx=(8, 0), pady=pady
         )
+
+
+def build_chad_settings_profiles(app, frame) -> None:
+    """Build the Chad profile and analysis mode selectors."""
+    chad_profile = ttk.LabelFrame(
+        frame,
+        text=app.tr("chad_settings_group_profile", "Chad profile"),
+        padding=8,
+    )
+    chad_profile.pack(fill="x", pady=(0, 6))
+    app._build_two_col_toggle_grid(
+        chad_profile,
+        [
+            (
+                app.tr("chad_settings_profile_beginner", "Anfängerprofil"),
+                "beginner",
+                app.apply_chad_profile,
+            ),
+            (
+                app.tr("chad_settings_profile_security", "Sicherheitsfokus"),
+                "security",
+                app.apply_chad_profile,
+            ),
+            (
+                app.tr("chad_settings_profile_network", "Network focus"),
+                "network",
+                app.apply_chad_profile,
+            ),
+            (
+                app.tr("chad_settings_profile_expert", "Expertenprofil"),
+                "expert",
+                app.apply_chad_profile,
+            ),
+            (
+                app.tr("chad_settings_profile_custom", "Benutzerdefiniert"),
+                "custom",
+                app.apply_chad_profile,
+            ),
+        ],
+        is_radio=True,
+        variable=app.chad_profile_var,
+    )
+    analysis_mode = ttk.LabelFrame(frame, text="Analysemodus", padding=8)
+    analysis_mode.pack(fill="x", pady=(0, 6))
+    app._build_two_col_toggle_grid(
+        analysis_mode,
+        [
+            (
+                app.tr("chad_settings_mode_beginner", "Anfänger"),
+                "beginner",
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr("chad_settings_mode_standard", "Standard"),
+                "standard",
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr("chad_settings_mode_expert", "Experte"),
+                "expert",
+                app.mark_chad_profile_custom,
+            ),
+        ],
+        is_radio=True,
+        variable=app.chad_analysis_mode_var,
+    )

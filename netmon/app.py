@@ -602,6 +602,7 @@ try:
     )
     from netmon.ui.tabs.chad_settings_tab import (
         build_chad_settings_connection,
+        build_chad_settings_profiles,
         build_chad_settings_status,
         build_chad_settings_tab as build_chad_settings_tab_ui,
         build_chad_settings_summary,
@@ -691,6 +692,7 @@ except ModuleNotFoundError:
     )
     from ui.tabs.chad_settings_tab import (
         build_chad_settings_connection,
+        build_chad_settings_profiles,
         build_chad_settings_status,
         build_chad_settings_tab as build_chad_settings_tab_ui,
         build_chad_settings_summary,
@@ -26129,74 +26131,7 @@ class App(TkBase):
         build_chad_settings_summary(self, frame)
         build_chad_settings_connection(self, frame)
         build_chad_settings_status(self, frame)
-
-        chad_profile = ttk.LabelFrame(
-            frame,
-            text=self.tr("chad_settings_group_profile", "Chad profile"),
-            padding=8,
-        )
-        chad_profile.pack(fill="x", pady=(0, 6))
-        self._build_two_col_toggle_grid(
-            chad_profile,
-            [
-                (
-                    self.tr("chad_settings_profile_beginner", "Anfängerprofil"),
-                    "beginner",
-                    self.apply_chad_profile,
-                ),
-                (
-                    self.tr("chad_settings_profile_security", "Sicherheitsfokus"),
-                    "security",
-                    self.apply_chad_profile,
-                ),
-                (
-                    self.tr("chad_settings_profile_network", "Network focus"),
-                    "network",
-                    self.apply_chad_profile,
-                ),
-                (
-                    self.tr("chad_settings_profile_expert", "Expertenprofil"),
-                    "expert",
-                    self.apply_chad_profile,
-                ),
-                (
-                    self.tr("chad_settings_profile_custom", "Benutzerdefiniert"),
-                    "custom",
-                    self.apply_chad_profile,
-                ),
-            ],
-            is_radio=True,
-            variable=self.chad_profile_var,
-        )
-
-        analysis_mode = ttk.LabelFrame(
-            frame,
-            text="Analysemodus",
-            padding=8,
-        )
-        analysis_mode.pack(fill="x", pady=(0, 6))
-        self._build_two_col_toggle_grid(
-            analysis_mode,
-            [
-                (
-                    self.tr("chad_settings_mode_beginner", "Anfänger"),
-                    "beginner",
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr("chad_settings_mode_standard", "Standard"),
-                    "standard",
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr("chad_settings_mode_expert", "Experte"),
-                    "expert",
-                    self.mark_chad_profile_custom,
-                ),
-            ],
-            is_radio=True,
-            variable=self.chad_analysis_mode_var,
-        )
+        build_chad_settings_profiles(self, frame)
 
         analysis_filter = ttk.LabelFrame(
             frame,
