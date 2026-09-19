@@ -40,6 +40,38 @@ def build_lynis_sections(app):
     return baseline_tab, hardening_tab, audit_tab
 
 
+def build_lynis_content(app, baseline_profile_choices) -> None:
+    """Compose the complete Baseline, Hardening, and Lynis audit UI."""
+    baseline_tab, hardening_tab, audit_tab = build_lynis_sections(app)
+    baseline_summary = build_security_baseline_summary_panel(app, baseline_tab)
+    build_security_baseline_profile_selector(
+        app, baseline_summary, baseline_profile_choices
+    )
+    build_security_baseline_summary_statuses(app, baseline_summary)
+    build_security_baseline_actions(app, baseline_summary)
+    baseline_content, baseline_table_frame = build_security_baseline_list_container(
+        app, baseline_tab
+    )
+    build_security_baseline_tree(app, baseline_table_frame)
+    build_security_baseline_detail_view(app, baseline_content)
+    build_security_baseline_hardening_summary(app, hardening_tab)
+    hardening_actions = build_security_baseline_hardening_actions_panel(
+        app, hardening_tab
+    )
+    build_security_baseline_game_mode_preset(app, hardening_actions)
+    build_security_baseline_hardening_action_buttons(app, hardening_actions)
+    build_security_baseline_game_mode_status(app, hardening_actions)
+    build_security_baseline_hardening_scope(app, hardening_actions)
+    lynis_top = build_lynis_actions_panel(app, audit_tab)
+    build_lynis_scan_controls(app, lynis_top)
+    build_lynis_chad_action(app, lynis_top)
+    build_lynis_status_row(app, lynis_top)
+    build_lynis_filter_controls(app, lynis_top)
+    build_lynis_output_panel(app, audit_tab)
+    app.refresh_security_baseline_overview()
+    app.refresh_security_baseline_table()
+
+
 def build_security_baseline_summary_panel(app, baseline_tab):
     """Build the Security Baseline summary container."""
     baseline_summary = ttk.LabelFrame(

@@ -619,28 +619,9 @@ try:
     from netmon.ui.tabs.radio_tab import build_radio_tab
     from netmon.ui.tabs.secure_browser_tab import build_secure_browser_tab
     from netmon.ui.tabs.security_tabs import (
-        build_lynis_actions_panel,
-        build_lynis_chad_action,
-        build_lynis_filter_controls,
-        build_lynis_output_panel,
-        build_lynis_scan_controls,
-        build_lynis_sections,
-        build_lynis_status_row,
+        build_lynis_content,
         build_rkhunter_tab as build_rkhunter_tab_ui,
         build_packet_capture_tab as build_packet_capture_tab_ui,
-        build_security_baseline_summary_panel,
-        build_security_baseline_profile_selector,
-        build_security_baseline_actions,
-        build_security_baseline_hardening_actions_panel,
-        build_security_baseline_hardening_action_buttons,
-        build_security_baseline_hardening_summary,
-        build_security_baseline_hardening_scope,
-        build_security_baseline_game_mode_status,
-        build_security_baseline_game_mode_preset,
-        build_security_baseline_list_container,
-        build_security_baseline_tree,
-        build_security_baseline_detail_view,
-        build_security_baseline_summary_statuses,
         build_security_tabs,
         build_startup_guard_tab,
     )
@@ -719,28 +700,9 @@ except ModuleNotFoundError:
     from ui.tabs.linux_help_tab import build_linux_help_tab
     from ui.tabs.links_tab import build_links_tab
     from ui.tabs.security_tabs import (
-        build_lynis_actions_panel,
-        build_lynis_chad_action,
-        build_lynis_filter_controls,
-        build_lynis_output_panel,
-        build_lynis_scan_controls,
-        build_lynis_sections,
-        build_lynis_status_row,
+        build_lynis_content,
         build_rkhunter_tab as build_rkhunter_tab_ui,
         build_packet_capture_tab as build_packet_capture_tab_ui,
-        build_security_baseline_summary_panel,
-        build_security_baseline_profile_selector,
-        build_security_baseline_actions,
-        build_security_baseline_hardening_actions_panel,
-        build_security_baseline_hardening_action_buttons,
-        build_security_baseline_hardening_summary,
-        build_security_baseline_hardening_scope,
-        build_security_baseline_game_mode_status,
-        build_security_baseline_game_mode_preset,
-        build_security_baseline_list_container,
-        build_security_baseline_tree,
-        build_security_baseline_detail_view,
-        build_security_baseline_summary_statuses,
         build_security_tabs,
         build_startup_guard_tab,
     )
@@ -26490,54 +26452,10 @@ class App(TkBase):
 
     def build_lynis_tab(self):
         security_audit_controller.restore_security_baseline_state(self)
-        baseline_tab, hardening_tab, audit_tab = build_lynis_sections(self)
-
-        baseline_summary = build_security_baseline_summary_panel(self, baseline_tab)
         baseline_profile_choices = (
             security_audit_controller.baseline_profile_choice_items(self)
         )
-        build_security_baseline_profile_selector(
-            self,
-            baseline_summary,
-            baseline_profile_choices,
-        )
-        build_security_baseline_summary_statuses(self, baseline_summary)
-
-        build_security_baseline_actions(self, baseline_summary)
-
-        baseline_content, baseline_table_frame = build_security_baseline_list_container(
-            self,
-            baseline_tab,
-        )
-
-        build_security_baseline_tree(self, baseline_table_frame)
-
-        build_security_baseline_detail_view(self, baseline_content)
-
-        build_security_baseline_hardening_summary(self, hardening_tab)
-
-        hardening_actions = build_security_baseline_hardening_actions_panel(
-            self,
-            hardening_tab,
-        )
-        build_security_baseline_game_mode_preset(self, hardening_actions)
-        build_security_baseline_hardening_action_buttons(self, hardening_actions)
-        build_security_baseline_game_mode_status(self, hardening_actions)
-        build_security_baseline_hardening_scope(self, hardening_actions)
-
-        lynis_top = build_lynis_actions_panel(self, audit_tab)
-
-        build_lynis_scan_controls(self, lynis_top)
-
-        build_lynis_chad_action(self, lynis_top)
-
-        build_lynis_status_row(self, lynis_top)
-
-        build_lynis_filter_controls(self, lynis_top)
-
-        build_lynis_output_panel(self, audit_tab)
-        self.refresh_security_baseline_overview()
-        self.refresh_security_baseline_table()
+        build_lynis_content(self, baseline_profile_choices)
 
     def open_lynis_tab(self):
         security_audit_controller.open_lynis_tab(self)

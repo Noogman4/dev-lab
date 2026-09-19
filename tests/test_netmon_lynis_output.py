@@ -156,7 +156,7 @@ def test_lynis_summary_value_returns_dash_for_missing_or_invalid_values():
 
 
 def test_build_lynis_tab_attaches_baseline_copy_shortcuts_with_kind():
-    source = inspect.getsource(netmon_app.App.build_lynis_tab)
+    source = inspect.getsource(security_tabs.build_lynis_content).replace("app", "self")
     filter_controls_source = inspect.getsource(
         security_tabs.build_lynis_filter_controls
     )
