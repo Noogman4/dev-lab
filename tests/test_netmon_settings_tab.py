@@ -4,7 +4,10 @@ import os
 
 import netmon.app as app_module
 from netmon.app import App
-from netmon.ui.tabs.settings_tab import build_settings_tab
+from netmon.ui.tabs.settings_tab import (
+    build_settings_general_system,
+    build_settings_tab,
+)
 from netmon.ui.tabs.chad_settings_tab import (
     build_chad_settings_summary,
     build_chad_settings_tab,
@@ -949,6 +952,7 @@ def test_enable_and_disable_radio_desktop_launcher_manage_user_entry(
 
 def test_settings_tab_source_and_hooks_are_present():
     build_source = inspect.getsource(App.build_settings_tab)
+    general_system_source = inspect.getsource(build_settings_general_system)
     chad_settings_source = inspect.getsource(App.build_chad_settings_tab)
     chad_summary_source = inspect.getsource(build_chad_settings_summary)
     app_source = inspect.getsource(App)
@@ -959,32 +963,30 @@ def test_settings_tab_source_and_hooks_are_present():
     wrapper_source = inspect.getsource(build_settings_tab)
     chad_wrapper_source = inspect.getsource(build_chad_settings_tab)
 
-    assert 'self.tr("settings_save_button", "Einstellungen speichern")' in build_source
-    save_button_pos = build_source.index('self.tr("settings_save_button"')
-    restart_button_pos = build_source.index(
-        'self.tr("settings_restart_netmon_only"', save_button_pos
+    assert '"settings_save_button"' in general_system_source
+    save_button_pos = general_system_source.index('"settings_save_button"')
+    restart_button_pos = general_system_source.index(
+        '"settings_restart_netmon_only"', save_button_pos
     )
-    reset_button_pos = build_source.index(
-        'self.tr("settings_reset_button"', restart_button_pos
+    reset_button_pos = general_system_source.index(
+        '"settings_reset_button"', restart_button_pos
     )
     assert save_button_pos < restart_button_pos < reset_button_pos
-    assert 'self.tr(\n                "settings_autostart",' in build_source
-    assert "variable=self.autostart_var" in build_source
-    assert "command=self.toggle_autostart" in build_source
-    assert (
-        'self.tr(\n                "settings_radio_desktop_launcher",' in build_source
-    )
-    assert "variable=self.radio_desktop_launcher_var" in build_source
-    assert "command=self.toggle_radio_desktop_launcher" in build_source
+    assert '"settings_autostart"' in general_system_source
+    assert "app.autostart_var" in general_system_source
+    assert "app.toggle_autostart" in general_system_source
+    assert '"settings_radio_desktop_launcher"' in general_system_source
+    assert "app.radio_desktop_launcher_var" in general_system_source
+    assert "app.toggle_radio_desktop_launcher" in general_system_source
     assert 'self.tr(\n                "settings_path_guard_autorun",' in build_source
-    assert 'text="System"' in build_source
-    assert "variable=self.var_start_security_monitoring" in build_source
+    assert '"settings_group_system"' in build_source
+    assert "app.var_start_security_monitoring" in general_system_source
     assert "variable=self.var_start_network_mode" not in build_source
     assert "textvariable=self.var_start_vpn_profile" not in build_source
     assert "variable=self.var_start_killswitch" not in build_source
     assert "variable=self.var_start_dot" not in build_source
-    assert "textvariable=self.var_theme_choice" in build_source
-    assert "values=list(THEME_DISPLAY_NAMES.values())" in build_source
+    assert "app.var_theme_choice" in general_system_source
+    assert "list(theme_display_names.values())" in general_system_source
     assert 'self.tr("privacy_group_stealth", "ISP-Stealthmodus")' in build_source
     assert "variable=self.isp_stealth_enabled" in build_source
     assert "variable=self.isp_stealth_autostart" in build_source

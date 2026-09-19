@@ -23,6 +23,7 @@ from netmon.ui.tabs.fun_tab import build_fun_tab
 from netmon.ui.tabs.hdd_tab import build_hdd_tab
 from netmon.ui.tabs.linux_help_tab import build_linux_help_tab
 from netmon.ui.tabs.log_tab import build_log_tab
+from netmon.ui.tabs.settings_tab import build_settings_general_system
 from netmon.ui.tabs.security_tabs import build_security_tabs, build_startup_guard_tab
 from netmon.ui.tabs.tools_tabs import build_basic_tools_tabs
 
@@ -182,8 +183,8 @@ def test_main_tabs_and_security_sections_use_translation_keys():
         in inspect.getsource(App.build_settings_tab)
     )
     assert (
-        'text=self.tr("settings_group_start_system", "Start & System")'
-        in inspect.getsource(App.build_settings_tab)
+        'text=app.tr("settings_group_start_system", "Start & System")'
+        in inspect.getsource(build_settings_general_system)
     )
     assert (
         'text=app.tr("startup_guard_btn_baseline", "Baseline erstellen")'

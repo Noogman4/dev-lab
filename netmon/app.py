@@ -643,7 +643,10 @@ try:
         build_security_tabs,
         build_startup_guard_tab,
     )
-    from netmon.ui.tabs.settings_tab import build_settings_tab as build_settings_tab_ui
+    from netmon.ui.tabs.settings_tab import (
+        build_settings_general_system,
+        build_settings_tab as build_settings_tab_ui,
+    )
     from netmon.ui.tabs.system_tab import build_system_tab
     from netmon.ui.tabs.tools_tabs import build_basic_tools_tabs
     from netmon.ui.tabs.theme_studio_tab import (
@@ -730,7 +733,10 @@ except ModuleNotFoundError:
         build_security_tabs,
         build_startup_guard_tab,
     )
-    from ui.tabs.settings_tab import build_settings_tab as build_settings_tab_ui
+    from ui.tabs.settings_tab import (
+        build_settings_general_system,
+        build_settings_tab as build_settings_tab_ui,
+    )
     from ui.tabs.system_tab import build_system_tab
     from ui.tabs.tools_tabs import build_basic_tools_tabs
     from ui.tabs.theme_studio_tab import (
@@ -24353,99 +24359,12 @@ class App(TkBase):
             text=self.tr("settings_tab_support", "Support"),
         )
 
-        # legacy fallback reference for source-based UI tests: text="System"
-        system_group = ttk.LabelFrame(
+        build_settings_general_system(
+            self,
             settings_general_tab,
-            text=self.tr("settings_group_start_system", "Start & System"),
-            padding=10,
+            THEME_DISPLAY_NAMES,
+            DNS_PROFILES,
         )
-        system_group.pack(fill="x", pady=(0, 10))
-        system_group.columnconfigure(1, weight=1)
-
-        system_group_actions = ttk.Frame(system_group)
-        system_group_actions.grid(row=0, column=1, sticky="e", padx=(8, 0), pady=(0, 6))
-        ttk.Button(
-            system_group_actions,
-            text=self.tr("settings_save_button", "Einstellungen speichern"),
-            command=self.apply_settings_from_ui,
-        ).pack(anchor="e")
-        ttk.Button(
-            system_group_actions,
-            text=self.tr("settings_restart_netmon_only", "NetMon neu starten"),
-            command=self.restart_netmon_only,
-        ).pack(anchor="e", pady=(6, 0))
-        ttk.Button(
-            system_group_actions,
-            text=self.tr("settings_reset_button", "Zurücksetzen"),
-            command=self.reset_settings_to_defaults,
-        ).pack(anchor="e", pady=(6, 0))
-
-        ttk.Checkbutton(
-            system_group,
-            text=self.tr(
-                "settings_autostart",
-                "NetMon automatisch beim Login starten",
-            ),
-            variable=self.autostart_var,
-            command=self.toggle_autostart,
-        ).grid(row=1, column=0, columnspan=2, sticky="w")
-
-        ttk.Checkbutton(
-            system_group,
-            text=self.tr(
-                "settings_radio_desktop_launcher",
-                "Radio-Desktopstarter aktivieren",
-            ),
-            variable=self.radio_desktop_launcher_var,
-            command=self.toggle_radio_desktop_launcher,
-        ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(4, 0))
-
-        ttk.Label(
-            system_group,
-            text=self.tr("settings_language_label", "Sprache:"),
-        ).grid(row=3, column=0, sticky="w", pady=(8, 0))
-        ttk.Combobox(
-            system_group,
-            textvariable=self.var_language,
-            values=self._language_choice_values(),
-            state="readonly",
-            width=18,
-        ).grid(row=3, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
-
-        ttk.Label(
-            system_group,
-            text=self.tr("settings_theme_label", "Theme:"),
-        ).grid(row=4, column=0, sticky="w", pady=(8, 0))
-        ttk.Combobox(
-            system_group,
-            textvariable=self.var_theme_choice,
-            values=list(THEME_DISPLAY_NAMES.values()),
-            state="readonly",
-            width=18,
-        ).grid(row=4, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
-
-        ttk.Checkbutton(
-            system_group,
-            text=self.tr(
-                "settings_start_security_monitoring",
-                "Security Monitoring beim Start aktivieren",
-            ),
-            variable=self.var_start_security_monitoring,
-        ).grid(row=5, column=0, columnspan=2, sticky="w", pady=(4, 0))
-
-        ttk.Label(
-            system_group,
-            text=self.tr("settings_isp_dns_fallback", "DNS after VPN disconnect:"),
-        ).grid(row=6, column=0, sticky="w", pady=(8, 0))
-        ttk.Combobox(
-            system_group,
-            textvariable=self.var_isp_dns_fallback_profile,
-            values=[
-                choice for choice in DNS_PROFILES if choice != "System (DHCP/auto)"
-            ],
-            state="readonly",
-            width=24,
-        ).grid(row=6, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
 
         tooltip_group = ttk.LabelFrame(
             settings_general_tab,

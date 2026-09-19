@@ -12,3 +12,108 @@ def build_settings_tab(app):
         text=app.tr("tab_settings", "Einstellungen"),
     )
     app.build_settings_tab()
+
+
+def build_settings_general_system(
+    app, general_tab, theme_display_names, dns_profiles
+) -> None:
+    """Build the general start and system settings controls."""
+    system_group = ttk.LabelFrame(
+        general_tab,
+        text=app.tr("settings_group_start_system", "Start & System"),
+        padding=10,
+    )
+    system_group.pack(fill="x", pady=(0, 10))
+    system_group.columnconfigure(1, weight=1)
+    actions = ttk.Frame(system_group)
+    actions.grid(row=0, column=1, sticky="e", padx=(8, 0), pady=(0, 6))
+    for key, fallback, command, padding in (
+        (
+            "settings_save_button",
+            "Einstellungen speichern",
+            app.apply_settings_from_ui,
+            None,
+        ),
+        (
+            "settings_restart_netmon_only",
+            "NetMon neu starten",
+            app.restart_netmon_only,
+            (6, 0),
+        ),
+        (
+            "settings_reset_button",
+            "Zurücksetzen",
+            app.reset_settings_to_defaults,
+            (6, 0),
+        ),
+    ):
+        button = ttk.Button(actions, text=app.tr(key, fallback), command=command)
+        if padding is None:
+            button.pack(anchor="e")
+        else:
+            button.pack(anchor="e", pady=padding)
+    for row, key, fallback, variable, command in (
+        (
+            1,
+            "settings_autostart",
+            "NetMon automatisch beim Login starten",
+            app.autostart_var,
+            app.toggle_autostart,
+        ),
+        (
+            2,
+            "settings_radio_desktop_launcher",
+            "Radio-Desktopstarter aktivieren",
+            app.radio_desktop_launcher_var,
+            app.toggle_radio_desktop_launcher,
+        ),
+        (
+            5,
+            "settings_start_security_monitoring",
+            "Security Monitoring beim Start aktivieren",
+            app.var_start_security_monitoring,
+            None,
+        ),
+    ):
+        check = ttk.Checkbutton(
+            system_group, text=app.tr(key, fallback), variable=variable, command=command
+        )
+        check.grid(
+            row=row, column=0, columnspan=2, sticky="w", pady=(4, 0) if row != 1 else 0
+        )
+    for row, key, fallback, variable, values, width in (
+        (
+            3,
+            "settings_language_label",
+            "Sprache:",
+            app.var_language,
+            app._language_choice_values(),
+            18,
+        ),
+        (
+            4,
+            "settings_theme_label",
+            "Theme:",
+            app.var_theme_choice,
+            list(theme_display_names.values()),
+            18,
+        ),
+        (
+            6,
+            "settings_isp_dns_fallback",
+            "DNS after VPN disconnect:",
+            app.var_isp_dns_fallback_profile,
+            [choice for choice in dns_profiles if choice != "System (DHCP/auto)"],
+            24,
+        ),
+    ):
+        ttk.Label(system_group, text=app.tr(key, fallback)).grid(
+            row=row, column=0, sticky="w", pady=(8, 0)
+        )
+        ttk.Combobox(
+            system_group,
+            textvariable=variable,
+            values=values,
+            state="readonly",
+            width=width,
+        ).grid(row=row, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
