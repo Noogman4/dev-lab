@@ -418,3 +418,111 @@ def build_settings_privacy(app, general_tab) -> None:
         text=app.tr("privacy_btn_off", "Stealth mode OFF"),
         command=app.isp_stealth_off,
     ).pack(side="left", padx=(8, 0))
+
+
+def build_settings_tours(app, tours_tab) -> None:
+    """Build guided-tour controls and launchers."""
+    tours_group = ttk.LabelFrame(
+        tours_tab,
+        text=app.tr("tours_group_title", "Guided tours"),
+        padding=10,
+    )
+    tours_group.pack(fill="x", pady=(0, 10))
+    ttk.Label(
+        tours_group,
+        text=app.tr(
+            "tours_group_intro",
+            "Starts guided introductions for major areas and individual tabs. "
+            "Completed tours are marked and can be opened again at any time.",
+        ),
+        justify="left",
+        wraplength=620,
+    ).pack(anchor="w")
+    for key, fallback, variable, command, padding in (
+        (
+            "tours_offer_on_startup",
+            "Offer quick-start tour on startup",
+            app.var_guided_tour_offer_on_startup,
+            app.on_guided_tour_offer_toggle,
+            (8, 0),
+        ),
+        (
+            "tours_default_full_on_startup",
+            "Preselect the full tour by default in the startup dialog",
+            app.var_guided_tour_full_on_startup,
+            app.on_guided_tour_startup_mode_toggle,
+            (6, 0),
+        ),
+    ):
+        ttk.Checkbutton(
+            tours_group,
+            text=app.tr(key, fallback),
+            variable=variable,
+            command=command,
+        ).pack(anchor="w", pady=padding)
+    ttk.Button(
+        tours_group,
+        text=app.tr("tours_reset_progress", "Reset tour progress"),
+        command=app.reset_guided_tour_progress,
+    ).pack(anchor="w", pady=(8, 0))
+    ttk.Label(
+        tours_group,
+        textvariable=app.guided_tour_status_var,
+        justify="left",
+        wraplength=620,
+    ).pack(anchor="w", pady=(8, 0))
+
+    tours_grid = ttk.Frame(tours_group)
+    tours_grid.pack(fill="x", pady=(10, 0))
+    tours_grid.columnconfigure(0, weight=1)
+    tours_grid.columnconfigure(1, weight=1)
+    launcher_columns = [ttk.Frame(tours_grid), ttk.Frame(tours_grid)]
+    launcher_columns[0].grid(row=0, column=0, sticky="nw", padx=(0, 8))
+    launcher_columns[1].grid(row=0, column=1, sticky="nw", padx=(8, 0))
+    launcher_specs = app._guided_tour_launcher_specs()
+    split_index = (len(launcher_specs) + 1) // 2
+    app.guided_tour_launcher_buttons = {}
+    for index, (group_title, tours) in enumerate(launcher_specs):
+        column = launcher_columns[0] if index < split_index else launcher_columns[1]
+        section = ttk.LabelFrame(column, text=group_title, padding=8)
+        section.pack(fill="x", pady=(0, 8))
+        for tour_name, base_label in tours:
+            row = ttk.Frame(section)
+            row.pack(fill="x", pady=(0, 6))
+            row.columnconfigure(1, weight=1)
+            status_label = ttk.Label(
+                row,
+                text=app._guided_tour_status_symbol(tour_name),
+                width=4,
+                anchor="w",
+            )
+            status_label.grid(row=0, column=0, sticky="w")
+            title_label = ttk.Label(row, text=base_label, anchor="w")
+            title_label.grid(row=0, column=1, sticky="ew", padx=(4, 10))
+            button = ttk.Button(
+                row,
+                text=app.tr("guided_tour_btn_start_short", "Start"),
+                width=8,
+                command=lambda name=tour_name: app.start_guided_tour(name),
+            )
+            button.grid(row=0, column=2, sticky="e")
+            app._register_guided_tour_launcher_button(
+                tour_name,
+                button,
+                base_label,
+                title_widget=title_label,
+                status_widget=status_label,
+            )
+            if tour_name == "full-tour":
+                app.btn_full_tour = button
+            elif tour_name == "quickstart":
+                app.btn_quickstart_tour = button
+            elif tour_name == "dns":
+                app.btn_dns_tour = button
+            elif tour_name == "security":
+                app.btn_security_tour = button
+            elif tour_name == "download-scan":
+                app.btn_download_scan_tour = button
+            elif tour_name == "radio":
+                app.btn_radio_tour = button
+    app.refresh_guided_tour_status()
