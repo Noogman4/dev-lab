@@ -525,3 +525,17 @@ def build_chad_settings_answer_style(app, frame) -> None:
             ),
         ],
     )
+
+
+def build_chad_settings_content(app) -> None:
+    """Build all Chad settings content inside the application's tab."""
+    frame = ttk.Frame(app.tab_chad_settings, padding=12)
+    frame.pack(fill="both", expand=True)
+    build_chad_settings_summary(app, frame)
+    build_chad_settings_connection(app, frame)
+    build_chad_settings_status(app, frame)
+    build_chad_settings_profiles(app, frame)
+    build_chad_settings_analysis_filter(app, frame)
+    build_chad_settings_focus(app, frame)
+    build_chad_settings_systemcheck_profiles(app, frame)
+    build_chad_settings_answer_style(app, frame)

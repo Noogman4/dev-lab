@@ -601,15 +601,8 @@ try:
         build_chad_tab,
     )
     from netmon.ui.tabs.chad_settings_tab import (
-        build_chad_settings_connection,
-        build_chad_settings_analysis_filter,
-        build_chad_settings_answer_style,
-        build_chad_settings_focus,
-        build_chad_settings_profiles,
-        build_chad_settings_status,
-        build_chad_settings_systemcheck_profiles,
+        build_chad_settings_content,
         build_chad_settings_tab as build_chad_settings_tab_ui,
-        build_chad_settings_summary,
     )
     from netmon.ui.tabs.cleanup_assistant_tab import build_cleanup_assistant_tab
     from netmon.ui.tabs.dns_tab import build_dns_tab
@@ -695,15 +688,8 @@ except ModuleNotFoundError:
         build_chad_tab,
     )
     from ui.tabs.chad_settings_tab import (
-        build_chad_settings_connection,
-        build_chad_settings_analysis_filter,
-        build_chad_settings_answer_style,
-        build_chad_settings_focus,
-        build_chad_settings_profiles,
-        build_chad_settings_status,
-        build_chad_settings_systemcheck_profiles,
+        build_chad_settings_content,
         build_chad_settings_tab as build_chad_settings_tab_ui,
-        build_chad_settings_summary,
     )
     from ui.tabs.cleanup_assistant_tab import build_cleanup_assistant_tab
     from ui.tabs.log_tab import build_log_tab
@@ -26134,16 +26120,7 @@ class App(TkBase):
         return live_systemcheck
 
     def build_chad_settings_tab(self):
-        frame = ttk.Frame(self.tab_chad_settings, padding=12)
-        frame.pack(fill="both", expand=True)
-        build_chad_settings_summary(self, frame)
-        build_chad_settings_connection(self, frame)
-        build_chad_settings_status(self, frame)
-        build_chad_settings_profiles(self, frame)
-        build_chad_settings_analysis_filter(self, frame)
-        build_chad_settings_focus(self, frame)
-        build_chad_settings_systemcheck_profiles(self, frame)
-        build_chad_settings_answer_style(self, frame)
+        build_chad_settings_content(self)
 
     def build_chad_analysis_tab(self):
         build_chad_analysis_content(self, LIGHT_THEME)
