@@ -826,3 +826,191 @@ def build_settings_maintenance(app, general_tab) -> None:
         ttk.Button(buttons, text=app.tr(key, fallback), command=command).grid(
             row=row, column=column, sticky="w", **grid_options
         )
+
+
+def build_settings_backup(app, tab) -> None:
+    """Build the settings backup overview and action controls."""
+    app.settings_backup_tab = tab
+    intro = ttk.LabelFrame(
+        tab, text=app.tr("backup_group_overview", "Backup-Strategie"), padding=10
+    )
+    intro.pack(fill="x", pady=(0, 10))
+    for key, fallback, padding in (
+        (
+            "backup_intro_primary",
+            "Vor Hardening, Firewall-Aenderungen oder anderen tieferen Systemeingriffen zuerst einen Timeshift-Snapshot erstellen.",
+            None,
+        ),
+        (
+            "backup_intro_secondary",
+            "Timeshift schuetzt den Systemzustand, ersetzt aber keine Datensicherung. Fuer Benutzerdateien deshalb zusaetzlich ein Komplettbackup auf ein getrenntes Ziel schreiben.",
+            (6, 0),
+        ),
+    ):
+        label = ttk.Label(
+            intro, text=app.tr(key, fallback), justify="left", wraplength=820
+        )
+        if padding is None:
+            label.pack(anchor="w")
+        else:
+            label.pack(anchor="w", pady=padding)
+    ttk.Label(
+        intro, textvariable=app.backup_status_var, justify="left", wraplength=820
+    ).pack(anchor="w", pady=(8, 0))
+
+    content = ttk.Frame(tab)
+    content.pack(fill="both", expand=True)
+    content.columnconfigure(0, weight=1)
+    content.rowconfigure(4, weight=1)
+    snapshot_group = ttk.LabelFrame(
+        content,
+        text=app.tr("backup_group_snapshot", "System-Snapshot"),
+        padding=8,
+    )
+    snapshot_group.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+    ttk.Label(
+        snapshot_group,
+        text=app.tr(
+            "backup_snapshot_hint",
+            "Timeshift fuer System-Rollback, Paketstand und Konfigurationsaenderungen.",
+        ),
+        justify="left",
+        wraplength=840,
+    ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
+    for column in range(2):
+        snapshot_group.columnconfigure(column, weight=1, uniform="backup_snapshot")
+    app.btn_backup_timeshift_start = ttk.Button(
+        snapshot_group,
+        text=app.tr("baseline_btn_timeshift", "Timeshift starten"),
+        command=app.launch_timeshift_snapshot_tool,
+    )
+    app.btn_backup_timeshift_start.grid(
+        row=1, column=0, sticky="ew", padx=(0, 6), pady=(0, 6)
+    )
+    app.btn_backup_timeshift_check = ttk.Button(
+        snapshot_group,
+        text=app.tr("backup_btn_check_timeshift", "Timeshift pruefen"),
+        command=app.check_timeshift_backup_status,
+    )
+    app.btn_backup_timeshift_check.grid(row=1, column=1, sticky="ew", padx=(6, 0))
+
+    data_group = ttk.LabelFrame(
+        content, text=app.tr("backup_group_data", "Datensicherung"), padding=8
+    )
+    data_group.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+    data_group.columnconfigure(0, weight=1)
+    for row, key, fallback in (
+        (
+            0,
+            "backup_data_hint",
+            "Für Benutzerdateien wird bevorzugt das vorhandene Desktop-Backup-Tool verwendet. Unter Linux Mint ist das typischerweise die Datensicherung, alternativ Deja Dup.",
+        ),
+        (
+            1,
+            "backup_data_hint_restore",
+            "NetMon verlinkt hier bewusst das Systemwerkzeug statt eine eigene Dateisicherung zu erzwingen.",
+        ),
+    ):
+        ttk.Label(
+            data_group, text=app.tr(key, fallback), justify="left", wraplength=840
+        ).grid(row=row, column=0, sticky="w", pady=(0, 8))
+    data_buttons = ttk.Frame(data_group)
+    data_buttons.grid(row=2, column=0, sticky="ew")
+    for column in range(2):
+        data_buttons.columnconfigure(column, weight=1, uniform="backup_data_tool")
+    app.btn_backup_open_data_tool = ttk.Button(
+        data_buttons,
+        text=app.tr("backup_btn_open_data_tool", "Datensicherung öffnen"),
+        command=lambda: app.launch_data_backup_tool(restore=False),
+    )
+    app.btn_backup_open_data_tool.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+    app.btn_backup_open_restore_tool = ttk.Button(
+        data_buttons,
+        text=app.tr("backup_btn_open_restore_tool", "Wiederherstellung öffnen"),
+        command=lambda: app.launch_data_backup_tool(restore=True),
+    )
+    app.btn_backup_open_restore_tool.grid(row=0, column=1, sticky="ew", padx=(6, 0))
+
+    netmon_group = ttk.LabelFrame(
+        content, text=app.tr("backup_group_netmon", "NetMon-Sicherung"), padding=8
+    )
+    netmon_group.grid(row=2, column=0, sticky="ew", pady=(0, 10))
+    ttk.Label(
+        netmon_group,
+        text=app.tr(
+            "backup_netmon_hint",
+            "Eigene NetMon-Ordner aus Dokumente/NetMon extern sichern. Bei 'NetMon-Ordner komplett' werden die Einzelordner abgewählt.",
+        ),
+        justify="left",
+        wraplength=840,
+    ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
+    app.backup_netmon_select_frame = ttk.Frame(netmon_group)
+    app.backup_netmon_select_frame.grid(
+        row=1, column=0, columnspan=2, sticky="ew", pady=(0, 10)
+    )
+    for column in range(2):
+        netmon_group.columnconfigure(column, weight=1, uniform="backup_netmon")
+    app.btn_backup_netmon_export = ttk.Button(
+        netmon_group,
+        text=app.tr("backup_btn_export_netmon_docs", "NetMon-Sicherung exportieren"),
+        command=app.export_netmon_documents_backup,
+    )
+    app.btn_backup_netmon_export.grid(
+        row=2, column=0, sticky="ew", padx=(0, 6), pady=(0, 6)
+    )
+    app.btn_backup_netmon_open_folder = ttk.Button(
+        netmon_group,
+        text=app.tr("backup_btn_open_netmon_folder", "NetMon-Ordner öffnen"),
+        command=app.open_netmon_documents_folder,
+    )
+    app.btn_backup_netmon_open_folder.grid(
+        row=2, column=1, sticky="ew", padx=(6, 6), pady=(0, 6)
+    )
+    app.refresh_netmon_backup_folder_options()
+
+    status_group = ttk.LabelFrame(
+        content, text=app.tr("backup_group_status", "Status"), padding=8
+    )
+    status_group.grid(row=3, column=0, sticky="ew", pady=(0, 10))
+    status_group.columnconfigure(0, weight=1)
+    for row, variable in enumerate(
+        (
+            app.backup_timeshift_status_var,
+            app.backup_root_status_var,
+            app.backup_last_snapshot_var,
+            app.backup_data_tool_status_var,
+            app.backup_data_tool_hint_var,
+            app.backup_last_data_backup_var,
+            app.backup_target_status_var,
+            app.backup_free_space_var,
+            app.backup_transfer_status_var,
+            app.backup_selected_sources_var,
+        )
+    ):
+        ttk.Label(
+            status_group, textvariable=variable, justify="left", wraplength=840
+        ).grid(row=row, column=0, sticky="w", pady=(0, 6) if row < 7 else (0, 0))
+    log_group = ttk.LabelFrame(
+        content, text=app.tr("backup_group_log", "Backup-Protokoll"), padding=8
+    )
+    log_group.grid(row=4, column=0, sticky="nsew")
+    log_group.columnconfigure(0, weight=1)
+    log_group.rowconfigure(0, weight=1)
+    log_scroll = ttk.Scrollbar(log_group, orient="vertical")
+    log_scroll.grid(row=0, column=1, sticky="ns")
+    app.settings_backup_log_text = tk.Text(
+        log_group, height=18, wrap="word", yscrollcommand=log_scroll.set
+    )
+    app.settings_backup_log_text.grid(row=0, column=0, sticky="nsew")
+    log_scroll.configure(command=app.settings_backup_log_text.yview)
+    app.settings_backup_log_text.insert(
+        "1.0",
+        app.tr(
+            "backup_log_placeholder",
+            "Backup-Aktionen und Pruefergebnisse erscheinen hier.",
+        ),
+    )
+    app.settings_backup_log_text.configure(state="disabled")
+    app.attach_selection_copy_shortcuts(app.settings_backup_log_text, "text")
+    app.attach_text_context_menu(app.settings_backup_log_text)
+    app.refresh_backup_overview()

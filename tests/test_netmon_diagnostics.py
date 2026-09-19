@@ -7,7 +7,7 @@ from netmon import app as app_module
 from netmon.app import App
 from netmon.core import crash, diagnostics, support_bundle
 from netmon import main
-from netmon.ui.tabs.settings_tab import build_settings_support
+from netmon.ui.tabs.settings_tab import build_settings_backup, build_settings_support
 
 
 def test_redact_sensitive_text_masks_known_patterns():
@@ -843,38 +843,34 @@ def test_settings_tab_contains_support_actions_source():
 
 def test_settings_tab_contains_backup_tab_source():
     source = inspect.getsource(App.build_settings_tab)
-    backup_source = inspect.getsource(App._build_settings_backup_tab)
+    backup_source = inspect.getsource(build_settings_backup)
+    backup_delegate_source = inspect.getsource(App._build_settings_backup_tab)
     backup_options_source = inspect.getsource(App.refresh_netmon_backup_folder_options)
 
     assert 'text=self.tr("settings_tab_backup", "Backup")' in source
-    assert "def _build_settings_backup_tab(self, tab):" in backup_source
-    assert 'text=self.tr("backup_group_snapshot", "System-Snapshot")' in backup_source
-    assert 'text=self.tr("backup_group_data", "Datensicherung")' in backup_source
-    assert 'text=self.tr("backup_group_netmon", "NetMon-Sicherung")' in backup_source
+    assert "build_settings_backup(self, tab)" in backup_delegate_source
+    assert 'app.tr("backup_group_snapshot", "System-Snapshot")' in backup_source
+    assert 'app.tr("backup_group_data", "Datensicherung")' in backup_source
+    assert 'app.tr("backup_group_netmon", "NetMon-Sicherung")' in backup_source
     assert (
-        'text=self.tr("backup_btn_open_data_tool", "Datensicherung öffnen")'
-        in backup_source
+        'app.tr("backup_btn_open_data_tool", "Datensicherung öffnen")' in backup_source
     )
     assert (
-        'text=self.tr("backup_btn_open_restore_tool", "Wiederherstellung öffnen")'
+        'app.tr("backup_btn_open_restore_tool", "Wiederherstellung öffnen")'
         in backup_source
     )
     assert '"backup_btn_export_netmon_docs"' in backup_source
     assert '"NetMon-Sicherung exportieren"' in backup_source
-    assert (
-        "command=lambda: self.launch_data_backup_tool(restore=False)" in backup_source
-    )
-    assert "command=lambda: self.launch_data_backup_tool(restore=True)" in backup_source
-    assert "command=self.export_netmon_documents_backup" in backup_source
-    assert "command=self.open_netmon_documents_folder" in backup_source
-    assert "command=self.open_security_baseline_transfer_folder" not in backup_source
-    assert "command=self.export_security_baseline_transfer" not in backup_source
-    assert "command=self.import_security_baseline_transfer" not in backup_source
-    assert "command=self.show_security_baseline_transfer_package" not in backup_source
-    assert (
-        "command=self.show_security_baseline_transfer_comparison" not in backup_source
-    )
-    assert "command=self.clear_security_baseline_transfer" not in backup_source
+    assert "command=lambda: app.launch_data_backup_tool(restore=False)" in backup_source
+    assert "command=lambda: app.launch_data_backup_tool(restore=True)" in backup_source
+    assert "command=app.export_netmon_documents_backup" in backup_source
+    assert "command=app.open_netmon_documents_folder" in backup_source
+    assert "command=app.open_security_baseline_transfer_folder" not in backup_source
+    assert "command=app.export_security_baseline_transfer" not in backup_source
+    assert "command=app.import_security_baseline_transfer" not in backup_source
+    assert "command=app.show_security_baseline_transfer_package" not in backup_source
+    assert "command=app.show_security_baseline_transfer_comparison" not in backup_source
+    assert "command=app.clear_security_baseline_transfer" not in backup_source
     assert '"backup_netmon_full_folder"' in backup_options_source
     assert '"NetMon-Ordner komplett"' in backup_options_source
 

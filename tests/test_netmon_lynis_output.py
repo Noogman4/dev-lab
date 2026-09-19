@@ -4,6 +4,7 @@ import inspect
 from netmon import app as netmon_app
 from netmon.features import security_audit_controller
 from netmon.ui.tabs import security_tabs
+from netmon.ui.tabs.settings_tab import build_settings_backup
 
 
 class DummyText:
@@ -1067,10 +1068,10 @@ def test_check_timeshift_backup_status_reports_result(monkeypatch):
 
 
 def test_build_settings_backup_tab_wires_timeshift_check_button():
-    source = inspect.getsource(netmon_app.App._build_settings_backup_tab)
+    source = inspect.getsource(build_settings_backup)
 
     assert '"backup_btn_check_timeshift"' in source
-    assert "command=self.check_timeshift_backup_status" in source
+    assert "command=app.check_timeshift_backup_status" in source
     assert "btn_backup_timeshift_snapshots" not in source
     assert "btn_backup_timeshift_restore" not in source
 
