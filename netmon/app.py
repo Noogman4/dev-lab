@@ -598,6 +598,7 @@ try:
     from netmon.ui.tabs.connections_tab import build_connections_tab
     from netmon.ui.tabs.chad_tab import (
         build_chad_analysis_header_and_composer,
+        build_chad_analysis_output,
         build_chad_tab,
     )
     from netmon.ui.tabs.chad_settings_tab import (
@@ -682,7 +683,11 @@ try:
     from netmon.ui.widgets.tooltip import SimpleTooltip
 except ModuleNotFoundError:
     from ui.tabs.connections_tab import build_connections_tab
-    from ui.tabs.chad_tab import build_chad_analysis_header_and_composer, build_chad_tab
+    from ui.tabs.chad_tab import (
+        build_chad_analysis_header_and_composer,
+        build_chad_analysis_output,
+        build_chad_tab,
+    )
     from ui.tabs.chad_settings_tab import (
         build_chad_settings_tab as build_chad_settings_tab_ui,
     )
@@ -26694,140 +26699,7 @@ class App(TkBase):
 
     def build_chad_analysis_tab(self):
         chat_layout = build_chad_analysis_header_and_composer(self)
-
-        output_frame = ttk.Frame(chat_layout)
-        output_frame.grid(row=1, column=0, sticky="nsew", pady=(0, 2))
-        output_frame.columnconfigure(0, weight=1)
-        output_frame.rowconfigure(1, weight=1)
-
-        output_head = ttk.Frame(output_frame)
-        output_head.grid(row=0, column=0, sticky="ew", pady=(0, 3))
-        output_head.columnconfigure(1, weight=1)
-
-        ttk.Label(
-            output_head,
-            text=self.tr("chad_group_output", "Ausgabe / Analyse / Chatverlauf"),
-        ).grid(row=0, column=0, sticky="w")
-
-        output_controls = ttk.Frame(output_head)
-        output_controls.grid(row=0, column=2, sticky="e")
-
-        self.btn_chad_clear = ttk.Button(
-            output_controls,
-            text=self.tr("chad_btn_clear_analysis", "Analyse leeren"),
-            command=self.clear_chad_analysis,
-            width=14,
-        )
-        self.btn_chad_clear.pack(side="right", padx=(0, 18))
-
-        self.btn_chad_save_analysis = ttk.Button(
-            output_controls,
-            text=self.tr("chad_btn_save_analysis", "Analyse sichern"),
-            command=self.save_chad_analysis_to_file,
-            width=13,
-        )
-        self.btn_chad_save_analysis.pack(side="right", padx=(0, 6))
-
-        self.btn_chad_load_analysis = ttk.Button(
-            output_controls,
-            text=self.tr("chad_btn_load_analysis", "Analyse einlesen"),
-            command=self.load_chad_analysis_from_file,
-            width=14,
-        )
-        self.btn_chad_load_analysis.pack(side="right", padx=(0, 6))
-
-        self.chad_output_filter_combo = ttk.Combobox(
-            output_controls,
-            textvariable=self.chad_output_filter_var,
-            state="readonly",
-            width=18,
-            values=[
-                self.tr("chad_filter_all", "Alles"),
-                self.tr("chad_filter_answers", "Nur Antworten"),
-                self.tr("chad_filter_results", "Results only"),
-            ],
-        )
-        self.chad_output_filter_combo.pack(side="right", padx=(0, 8))
-        self.chad_output_filter_combo.bind(
-            "<<ComboboxSelected>>",
-            lambda _event: chad_controller.refresh_chad_output_view(self),
-        )
-
-        ttk.Label(
-            output_controls,
-            text=self.tr("chad_filter_label", "Filter:"),
-        ).pack(side="right", padx=(0, 6))
-
-        analysis_body = ttk.Frame(output_frame)
-        analysis_body.grid(row=1, column=0, sticky="nsew")
-        analysis_body.columnconfigure(0, weight=1)
-        analysis_body.rowconfigure(0, weight=1)
-
-        analysis_text_frame = ttk.Frame(analysis_body)
-        analysis_text_frame.grid(row=0, column=0, sticky="nsew")
-        analysis_text_frame.columnconfigure(0, weight=1)
-        analysis_text_frame.rowconfigure(0, weight=1)
-
-        analysis_scroll = ttk.Scrollbar(analysis_text_frame, orient="vertical")
-        analysis_scroll.grid(row=0, column=1, sticky="ns")
-
-        self.chad_analysis_text = tk.Text(
-            analysis_text_frame,
-            wrap="word",
-            height=18,
-            yscrollcommand=analysis_scroll.set,
-        )
-        self.chad_analysis_text.grid(row=0, column=0, sticky="nsew")
-        analysis_scroll.configure(command=self.chad_analysis_text.yview)
-
-        def _activate_chad_analysis_scroll(_event=None):
-            try:
-                self.chad_analysis_text.focus_force()
-            except Exception:
-                pass
-
-        self.chad_analysis_text.bind(
-            "<Button-1>", _activate_chad_analysis_scroll, add="+"
-        )
-        self.chad_analysis_text.tag_configure(
-            "chat_user_header",
-            font=("TkDefaultFont", 10, "bold"),
-            spacing1=8,
-            spacing3=2,
-        )
-        self.chad_analysis_text.tag_configure(
-            "chat_assistant_header",
-            font=("TkDefaultFont", 10, "bold"),
-            spacing1=8,
-            spacing3=2,
-        )
-        self.chad_analysis_text.tag_configure(
-            "chat_system_header",
-            font=("TkDefaultFont", 10, "bold"),
-            spacing1=8,
-            spacing3=2,
-        )
-        self.chad_analysis_text.tag_configure(
-            "chat_user_body",
-            lmargin1=14,
-            lmargin2=14,
-            spacing3=6,
-        )
-        self.chad_analysis_text.tag_configure(
-            "chat_assistant_body",
-            lmargin1=14,
-            lmargin2=14,
-            spacing3=6,
-        )
-        self.chad_analysis_text.tag_configure(
-            "chat_system_body",
-            lmargin1=14,
-            lmargin2=14,
-            spacing3=6,
-        )
-        self.chad_analysis_text.tag_configure("chat_spacer", spacing3=4)
-        self._apply_chad_chat_theme(self._app_theme or LIGHT_THEME)
-        self.chad_analysis_text.configure(state="disabled")
+        build_chad_analysis_output(self, chat_layout, LIGHT_THEME)
 
         footer_frame = ttk.Frame(chat_layout)
         footer_frame.grid(row=2, column=0, sticky="ew")
