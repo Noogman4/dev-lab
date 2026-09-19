@@ -313,3 +313,108 @@ def build_settings_security(app, general_tab) -> None:
             justify="left",
             wraplength=620,
         ).pack(anchor="w", pady=(4, 0))
+
+
+def build_settings_privacy(app, general_tab) -> None:
+    """Build ISP stealth mode controls and related VPN selection."""
+    privacy = ttk.LabelFrame(
+        general_tab,
+        text=app.tr("privacy_group_stealth", "ISP-Stealthmodus"),
+        padding=10,
+    )
+    privacy.pack(fill="x", pady=(0, 10))
+    ttk.Label(
+        privacy,
+        text=app.tr("privacy_intro_text", "Manage the full ISP stealth mode here."),
+        justify="left",
+    ).pack(anchor="w", pady=(0, 8))
+    for key, fallback, variable, padding in (
+        (
+            "privacy_check_enabled",
+            "Stealth mode enabled",
+            app.isp_stealth_enabled,
+            None,
+        ),
+        (
+            "privacy_check_autostart",
+            "Start automatically with NetMon",
+            app.isp_stealth_autostart,
+            (4, 0),
+        ),
+        (
+            "privacy_check_killswitch",
+            "Enable killswitch",
+            app.isp_stealth_enable_killswitch,
+            (4, 0),
+        ),
+        (
+            "privacy_check_strict",
+            "Enable strict protection",
+            app.strict_protection_var,
+            (4, 0),
+        ),
+    ):
+        check = ttk.Checkbutton(
+            privacy,
+            text=app.tr(key, fallback),
+            variable=variable,
+            command=app.save_privacy_config,
+        )
+        if padding is None:
+            check.pack(anchor="w")
+        else:
+            check.pack(anchor="w", pady=padding)
+    app.cb_privacy_ipv6 = ttk.Checkbutton(
+        privacy,
+        text=app.tr("privacy_check_disable_ipv6", "Disable IPv6"),
+        variable=app.isp_stealth_disable_ipv6,
+        command=app.save_privacy_config,
+    )
+    app.cb_privacy_ipv6.pack(anchor="w", pady=(4, 0))
+    app.add_tooltip(
+        app.cb_privacy_ipv6,
+        "This option is only available if the active or selected VPN profile supports IPv6.",
+    )
+    app.privacy_ipv6_hint = ttk.Label(
+        privacy, text="", foreground="#666666", wraplength=240, justify="left"
+    )
+    app.privacy_ipv6_hint.pack(anchor="w")
+    app.cb_privacy_ipv6.pack_forget()
+    app.privacy_ipv6_hint.pack_forget()
+    vpn_frame = ttk.Frame(privacy)
+    vpn_frame.pack(fill="x", pady=(8, 0))
+    ttk.Label(vpn_frame, text=app.tr("privacy_label_vpn_profile", "VPN profile:")).pack(
+        side="left"
+    )
+    app.isp_stealth_vpn_combo = ttk.Combobox(
+        vpn_frame,
+        textvariable=app.isp_stealth_vpn_choice,
+        values=[item["label"] for item in app.get_privacy_vpn_options()],
+        state="readonly",
+    )
+    app.isp_stealth_vpn_combo.pack(side="left", fill="x", expand=True, padx=(8, 0))
+    app.isp_stealth_vpn_combo.bind(
+        "<<ComboboxSelected>>", lambda _event: app.on_privacy_vpn_selected()
+    )
+    ttk.Label(
+        privacy,
+        text=app.tr(
+            "privacy_dns_profile_vpn_managed_hint",
+            "Um vor DNS-Leaks zu schützen,\n"
+            "wird das DNS-Profil vom gewählten VPN-Profil verwaltet.",
+        ),
+        justify="left",
+        wraplength=620,
+    ).pack(anchor="w", pady=(2, 0))
+    actions = ttk.Frame(privacy)
+    actions.pack(fill="x", pady=(12, 0))
+    ttk.Button(
+        actions,
+        text=app.tr("privacy_btn_on", "Stealth mode ON"),
+        command=app.isp_stealth_on,
+    ).pack(side="left")
+    ttk.Button(
+        actions,
+        text=app.tr("privacy_btn_off", "Stealth mode OFF"),
+        command=app.isp_stealth_off,
+    ).pack(side="left", padx=(8, 0))

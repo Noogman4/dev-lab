@@ -8,6 +8,7 @@ from netmon.ui.tabs.settings_tab import (
     build_settings_donation,
     build_settings_general_system,
     build_settings_logging,
+    build_settings_privacy,
     build_settings_security,
     build_settings_tab,
 )
@@ -958,6 +959,7 @@ def test_settings_tab_source_and_hooks_are_present():
     general_system_source = inspect.getsource(build_settings_general_system)
     donation_source = inspect.getsource(build_settings_donation)
     logging_source = inspect.getsource(build_settings_logging)
+    privacy_source = inspect.getsource(build_settings_privacy)
     security_source = inspect.getsource(build_settings_security)
     chad_settings_source = inspect.getsource(App.build_chad_settings_tab)
     chad_summary_source = inspect.getsource(build_chad_settings_summary)
@@ -993,16 +995,13 @@ def test_settings_tab_source_and_hooks_are_present():
     assert "variable=self.var_start_dot" not in build_source
     assert "app.var_theme_choice" in general_system_source
     assert "list(theme_display_names.values())" in general_system_source
-    assert 'self.tr("privacy_group_stealth", "ISP-Stealthmodus")' in build_source
-    assert "variable=self.isp_stealth_enabled" in build_source
-    assert "variable=self.isp_stealth_autostart" in build_source
-    assert "variable=self.isp_stealth_disable_ipv6" in build_source
-    assert "variable=self.isp_stealth_enable_killswitch" in build_source
-    assert "textvariable=self.isp_stealth_vpn_choice" in build_source
-    assert (
-        'self.tr(\n                "privacy_dns_profile_vpn_managed_hint",'
-        in build_source
-    )
+    assert 'app.tr("privacy_group_stealth", "ISP-Stealthmodus")' in privacy_source
+    assert "app.isp_stealth_enabled" in privacy_source
+    assert "app.isp_stealth_autostart" in privacy_source
+    assert "app.isp_stealth_disable_ipv6" in privacy_source
+    assert "app.isp_stealth_enable_killswitch" in privacy_source
+    assert "textvariable=app.isp_stealth_vpn_choice" in privacy_source
+    assert '"privacy_dns_profile_vpn_managed_hint"' in privacy_source
     assert "app.var_auto_log_clear" in logging_source
     assert "app.var_debug_network_logging" in logging_source
     assert "app.var_ufw_logging_default" in logging_source
