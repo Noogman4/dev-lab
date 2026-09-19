@@ -724,3 +724,105 @@ def build_settings_support(app, support_tab) -> None:
         ),
         command=create_package_with_form,
     ).grid(row=6, column=0, columnspan=2, sticky="w", pady=(4, 0))
+
+
+def build_settings_maintenance(app, general_tab) -> None:
+    """Build system restart, reset, and maintenance actions."""
+    system = ttk.LabelFrame(
+        general_tab,
+        text=app.tr("settings_group_system", "System"),
+        padding=10,
+    )
+    system.pack(fill="x", pady=(0, 10))
+    for key, fallback, command, padding in (
+        (
+            "settings_restart_netmon_only",
+            "Restart NetMon",
+            app.restart_netmon_only,
+            None,
+        ),
+        (
+            "settings_restart_netmon_with_reset",
+            "Restart NetMon with network reset",
+            app.restart_netmon_with_network_reset,
+            (6, 0),
+        ),
+        (
+            "settings_reset_network_stack",
+            "Reset network stack",
+            app.reset_network_stack,
+            (6, 0),
+        ),
+        (
+            "settings_emergency_stop_radio",
+            "Radio emergency stop",
+            app.emergency_stop_radio_mpv,
+            (6, 0),
+        ),
+    ):
+        button = ttk.Button(system, text=app.tr(key, fallback), command=command)
+        if padding is None:
+            button.pack(anchor="w")
+        else:
+            button.pack(anchor="w", pady=padding)
+    maintenance = ttk.LabelFrame(
+        system,
+        text=app.tr("maintenance_group_system_updates", "System & updates"),
+        padding=8,
+    )
+    maintenance.pack(fill="x", pady=(10, 0))
+    buttons = ttk.Frame(maintenance)
+    buttons.pack(anchor="w")
+    for row, column, key, fallback, command, grid_options in (
+        (
+            0,
+            0,
+            "maintenance_btn_apt_update",
+            "Update package lists",
+            app.run_apt_update_in_terminal,
+            {},
+        ),
+        (
+            0,
+            1,
+            "maintenance_btn_apt_upgrade",
+            "Upgrade system",
+            app.run_apt_upgrade_in_terminal,
+            {"padx": (8, 0)},
+        ),
+        (
+            1,
+            0,
+            "maintenance_btn_apt_autoremove",
+            "Remove unused packages",
+            app.run_apt_autoremove_in_terminal,
+            {"pady": (8, 0)},
+        ),
+        (
+            1,
+            1,
+            "maintenance_btn_apt_clean",
+            "Clean APT cache",
+            app.run_apt_clean_in_terminal,
+            {"padx": (8, 0), "pady": (8, 0)},
+        ),
+        (
+            2,
+            0,
+            "maintenance_btn_refresh_menu",
+            "Refresh menu",
+            app.run_menu_refresh_in_terminal,
+            {"pady": (8, 0)},
+        ),
+        (
+            2,
+            1,
+            "maintenance_btn_refresh_menu_icon_cache",
+            "Menü + Icon-Cache aktualisieren",
+            app.run_menu_and_icon_refresh_in_terminal,
+            {"padx": (8, 0), "pady": (8, 0)},
+        ),
+    ):
+        ttk.Button(buttons, text=app.tr(key, fallback), command=command).grid(
+            row=row, column=column, sticky="w", **grid_options
+        )

@@ -8,6 +8,7 @@ from netmon.ui.tabs.settings_tab import (
     build_settings_donation,
     build_settings_general_system,
     build_settings_logging,
+    build_settings_maintenance,
     build_settings_privacy,
     build_settings_security,
     build_settings_tab,
@@ -959,6 +960,7 @@ def test_settings_tab_source_and_hooks_are_present():
     general_system_source = inspect.getsource(build_settings_general_system)
     donation_source = inspect.getsource(build_settings_donation)
     logging_source = inspect.getsource(build_settings_logging)
+    maintenance_source = inspect.getsource(build_settings_maintenance)
     privacy_source = inspect.getsource(build_settings_privacy)
     security_source = inspect.getsource(build_settings_security)
     chad_settings_source = inspect.getsource(App.build_chad_settings_tab)
@@ -987,7 +989,7 @@ def test_settings_tab_source_and_hooks_are_present():
     assert "app.radio_desktop_launcher_var" in general_system_source
     assert "app.toggle_radio_desktop_launcher" in general_system_source
     assert '"settings_path_guard_autorun"' in security_source
-    assert '"settings_group_system"' in build_source
+    assert '"settings_group_system"' in maintenance_source
     assert "app.var_start_security_monitoring" in general_system_source
     assert "variable=self.var_start_network_mode" not in build_source
     assert "textvariable=self.var_start_vpn_profile" not in build_source
@@ -1009,9 +1011,9 @@ def test_settings_tab_source_and_hooks_are_present():
     assert 'app.tr("settings_group_donation", "NetMon unterstützen")' in donation_source
     assert "app.var_donation_popup_enabled" in donation_source
     assert '"settings_donation_support_button"' in donation_source
-    assert 'self.tr("settings_group_system", "System")' in build_source
+    assert 'app.tr("settings_group_system", "System")' in maintenance_source
     assert "self._build_settings_backup_tab(settings_backup_tab)" in build_source
-    assert "command=self.restart_netmon_only" in build_source
+    assert "app.restart_netmon_only" in maintenance_source
     assert "def build_theme_studio_tab(self):" in app_source
     assert "def apply_theme_studio_settings(self):" in app_source
     assert "def save_theme_studio_profile(self):" in app_source

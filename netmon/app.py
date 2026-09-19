@@ -652,6 +652,7 @@ try:
         build_settings_tooltips,
         build_settings_tours,
         build_settings_support,
+        build_settings_maintenance,
         build_settings_tab as build_settings_tab_ui,
     )
     from netmon.ui.tabs.system_tab import build_system_tab
@@ -749,6 +750,7 @@ except ModuleNotFoundError:
         build_settings_tooltips,
         build_settings_tours,
         build_settings_support,
+        build_settings_maintenance,
         build_settings_tab as build_settings_tab_ui,
     )
     from ui.tabs.system_tab import build_system_tab
@@ -24392,86 +24394,7 @@ class App(TkBase):
 
         build_settings_support(self, settings_support_tab)
 
-        system = ttk.LabelFrame(
-            settings_general_tab,
-            text=self.tr("settings_group_system", "System"),
-            padding=10,
-        )
-        system.pack(fill="x", pady=(0, 10))
-
-        ttk.Button(
-            system,
-            text=self.tr("settings_restart_netmon_only", "Restart NetMon"),
-            command=self.restart_netmon_only,
-        ).pack(anchor="w")
-
-        ttk.Button(
-            system,
-            text=self.tr(
-                "settings_restart_netmon_with_reset",
-                "Restart NetMon with network reset",
-            ),
-            command=self.restart_netmon_with_network_reset,
-        ).pack(anchor="w", pady=(6, 0))
-
-        ttk.Button(
-            system,
-            text=self.tr("settings_reset_network_stack", "Reset network stack"),
-            command=self.reset_network_stack,
-        ).pack(anchor="w", pady=(6, 0))
-
-        ttk.Button(
-            system,
-            text=self.tr("settings_emergency_stop_radio", "Radio emergency stop"),
-            command=self.emergency_stop_radio_mpv,
-        ).pack(anchor="w", pady=(6, 0))
-
-        maintenance = ttk.LabelFrame(
-            system,
-            text=self.tr("maintenance_group_system_updates", "System & updates"),
-            padding=8,
-        )
-        maintenance.pack(fill="x", pady=(10, 0))
-
-        maintenance_buttons = ttk.Frame(maintenance)
-        maintenance_buttons.pack(anchor="w")
-
-        ttk.Button(
-            maintenance_buttons,
-            text=self.tr("maintenance_btn_apt_update", "Update package lists"),
-            command=self.run_apt_update_in_terminal,
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Button(
-            maintenance_buttons,
-            text=self.tr("maintenance_btn_apt_upgrade", "Upgrade system"),
-            command=self.run_apt_upgrade_in_terminal,
-        ).grid(row=0, column=1, sticky="w", padx=(8, 0))
-        ttk.Button(
-            maintenance_buttons,
-            text=self.tr(
-                "maintenance_btn_apt_autoremove",
-                "Remove unused packages",
-            ),
-            command=self.run_apt_autoremove_in_terminal,
-        ).grid(row=1, column=0, sticky="w", pady=(8, 0))
-        ttk.Button(
-            maintenance_buttons,
-            text=self.tr("maintenance_btn_apt_clean", "Clean APT cache"),
-            command=self.run_apt_clean_in_terminal,
-        ).grid(row=1, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
-        ttk.Button(
-            maintenance_buttons,
-            text=self.tr("maintenance_btn_refresh_menu", "Refresh menu"),
-            command=self.run_menu_refresh_in_terminal,
-        ).grid(row=2, column=0, sticky="w", pady=(8, 0))
-        ttk.Button(
-            maintenance_buttons,
-            text=self.tr(
-                "maintenance_btn_refresh_menu_icon_cache",
-                "Menü + Icon-Cache aktualisieren",
-            ),
-            command=self.run_menu_and_icon_refresh_in_terminal,
-        ).grid(row=2, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
+        build_settings_maintenance(self, settings_general_tab)
         self._build_settings_backup_tab(settings_backup_tab)
 
     def _build_settings_backup_tab(self, tab):
