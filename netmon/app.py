@@ -645,6 +645,7 @@ try:
     )
     from netmon.ui.tabs.settings_tab import (
         build_settings_general_system,
+        build_settings_tooltips,
         build_settings_tab as build_settings_tab_ui,
     )
     from netmon.ui.tabs.system_tab import build_system_tab
@@ -735,6 +736,7 @@ except ModuleNotFoundError:
     )
     from ui.tabs.settings_tab import (
         build_settings_general_system,
+        build_settings_tooltips,
         build_settings_tab as build_settings_tab_ui,
     )
     from ui.tabs.system_tab import build_system_tab
@@ -24365,39 +24367,7 @@ class App(TkBase):
             THEME_DISPLAY_NAMES,
             DNS_PROFILES,
         )
-
-        tooltip_group = ttk.LabelFrame(
-            settings_general_tab,
-            text=self.tr("settings_group_status_tooltips", "Status / Tooltips"),
-            padding=10,
-        )
-        tooltip_group.pack(fill="x", pady=(0, 10))
-
-        ttk.Checkbutton(
-            tooltip_group,
-            text=self.tr(
-                "settings_tooltips_enabled", "Enable tooltips in the main window"
-            ),
-            variable=self.tooltips_enabled,
-            command=self.on_tooltip_toggle,
-        ).pack(anchor="w")
-
-        ttk.Label(
-            tooltip_group,
-            text=self.tr(
-                "settings_tooltips_help_text",
-                "Status help for the left header area:\n"
-                "Firewall: left click opens Security, right click toggles / shows status.\n"
-                "VPN: left click opens VPN, right click switches profile / disconnects.\n"
-                "DNS Guard: left click opens DNS, right click opens maintenance / guard.\n"
-                "Startup Guard / Process Guard / PATH Guard: left click opens Security, "
-                "right click starts the matching check.\n"
-                "DoT / Killswitch / Security / UFW Logging: left click opens details, "
-                "right click controls the respective function.",
-            ),
-            justify="left",
-            wraplength=620,
-        ).pack(anchor="w", pady=(8, 0))
+        build_settings_tooltips(self, settings_general_tab)
 
         donation_group = ttk.LabelFrame(
             settings_general_tab,

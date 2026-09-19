@@ -117,3 +117,35 @@ def build_settings_general_system(
             state="readonly",
             width=width,
         ).grid(row=row, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
+
+
+def build_settings_tooltips(app, general_tab) -> None:
+    """Build the main-window status tooltip settings."""
+    tooltip_group = ttk.LabelFrame(
+        general_tab,
+        text=app.tr("settings_group_status_tooltips", "Status / Tooltips"),
+        padding=10,
+    )
+    tooltip_group.pack(fill="x", pady=(0, 10))
+    ttk.Checkbutton(
+        tooltip_group,
+        text=app.tr("settings_tooltips_enabled", "Enable tooltips in the main window"),
+        variable=app.tooltips_enabled,
+        command=app.on_tooltip_toggle,
+    ).pack(anchor="w")
+    ttk.Label(
+        tooltip_group,
+        text=app.tr(
+            "settings_tooltips_help_text",
+            "Status help for the left header area:\n"
+            "Firewall: left click opens Security, right click toggles / shows status.\n"
+            "VPN: left click opens VPN, right click switches profile / disconnects.\n"
+            "DNS Guard: left click opens DNS, right click opens maintenance / guard.\n"
+            "Startup Guard / Process Guard / PATH Guard: left click opens Security, "
+            "right click starts the matching check.\n"
+            "DoT / Killswitch / Security / UFW Logging: left click opens details, "
+            "right click controls the respective function.",
+        ),
+        justify="left",
+        wraplength=620,
+    ).pack(anchor="w", pady=(8, 0))
