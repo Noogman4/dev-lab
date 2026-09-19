@@ -149,3 +149,35 @@ def build_settings_tooltips(app, general_tab) -> None:
         justify="left",
         wraplength=620,
     ).pack(anchor="w", pady=(8, 0))
+
+
+def build_settings_donation(app, general_tab) -> None:
+    """Build the donation reminder settings."""
+    donation_group = ttk.LabelFrame(
+        general_tab,
+        text=app.tr("settings_group_donation", "NetMon unterstützen"),
+        padding=10,
+    )
+    donation_group.pack(fill="x", pady=(0, 10))
+    option_row = ttk.Frame(donation_group)
+    option_row.pack(fill="x")
+    app.cb_donation_popup_enabled = ttk.Checkbutton(
+        option_row,
+        text=app.tr(
+            "settings_donation_popup_enabled", "Spendenhinweis beim Start anzeigen"
+        ),
+        variable=app.var_donation_popup_enabled,
+    )
+    app.cb_donation_popup_enabled.pack(side="left", anchor="w")
+    ttk.Button(
+        option_row,
+        text=app.tr("settings_donation_support_button", "NetMon Roots unterstützen"),
+        state="disabled",
+    ).pack(side="left", padx=(12, 0))
+    ttk.Label(
+        donation_group,
+        textvariable=app.donation_popup_settings_note_var,
+        justify="left",
+        wraplength=620,
+    ).pack(anchor="w", pady=(6, 0))
+    app.refresh_donation_settings_controls()

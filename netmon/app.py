@@ -645,6 +645,7 @@ try:
     )
     from netmon.ui.tabs.settings_tab import (
         build_settings_general_system,
+        build_settings_donation,
         build_settings_tooltips,
         build_settings_tab as build_settings_tab_ui,
     )
@@ -736,6 +737,7 @@ except ModuleNotFoundError:
     )
     from ui.tabs.settings_tab import (
         build_settings_general_system,
+        build_settings_donation,
         build_settings_tooltips,
         build_settings_tab as build_settings_tab_ui,
     )
@@ -24368,40 +24370,7 @@ class App(TkBase):
             DNS_PROFILES,
         )
         build_settings_tooltips(self, settings_general_tab)
-
-        donation_group = ttk.LabelFrame(
-            settings_general_tab,
-            text=self.tr("settings_group_donation", "NetMon unterstützen"),
-            padding=10,
-        )
-        donation_group.pack(fill="x", pady=(0, 10))
-
-        donation_option_row = ttk.Frame(donation_group)
-        donation_option_row.pack(fill="x")
-        self.cb_donation_popup_enabled = ttk.Checkbutton(
-            donation_option_row,
-            text=self.tr(
-                "settings_donation_popup_enabled",
-                "Spendenhinweis beim Start anzeigen",
-            ),
-            variable=self.var_donation_popup_enabled,
-        )
-        self.cb_donation_popup_enabled.pack(side="left", anchor="w")
-        ttk.Button(
-            donation_option_row,
-            text=self.tr(
-                "settings_donation_support_button",
-                "NetMon Roots unterstützen",
-            ),
-            state="disabled",
-        ).pack(side="left", padx=(12, 0))
-        ttk.Label(
-            donation_group,
-            textvariable=self.donation_popup_settings_note_var,
-            justify="left",
-            wraplength=620,
-        ).pack(anchor="w", pady=(6, 0))
-        self.refresh_donation_settings_controls()
+        build_settings_donation(self, settings_general_tab)
 
         # source marker: self.tr("privacy_group_stealth", "ISP-Stealthmodus")
         privacy = ttk.LabelFrame(
