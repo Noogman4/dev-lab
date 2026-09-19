@@ -647,6 +647,7 @@ try:
         build_theme_studio_profile_panel,
         build_theme_studio_color_controls,
         build_theme_studio_style_actions,
+        build_theme_studio_preview,
     )
     from netmon.ui.tabs.trace_tab import build_trace_tab
     from netmon.ui.tabs.vpn_slots_tab import build_vpn_slots_tab
@@ -733,6 +734,7 @@ except ModuleNotFoundError:
         build_theme_studio_profile_panel,
         build_theme_studio_color_controls,
         build_theme_studio_style_actions,
+        build_theme_studio_preview,
     )
     from ui.tabs.trace_tab import build_trace_tab
     from ui.tabs.vpn_slots_tab import build_vpn_slots_tab
@@ -25943,191 +25945,7 @@ class App(TkBase):
         build_theme_studio_profile_panel(self, controls)
         build_theme_studio_color_controls(self, controls)
         build_theme_studio_style_actions(self, controls)
-
-        preview_hint = ttk.Label(
-            preview,
-            text=(
-                "V1: Hier wird ausschließlich das Testprofil Pop gestaltet. "
-                "Andere Themes bleiben unberührt."
-            ),
-            justify="left",
-            wraplength=520,
-        )
-        preview_hint.grid(row=0, column=0, sticky="w")
-
-        self.theme_studio_preview_shell = tk.Frame(
-            preview,
-            bd=1,
-            relief="solid",
-            padx=12,
-            pady=12,
-        )
-        self.theme_studio_preview_shell.grid(row=1, column=0, sticky="ew", pady=(10, 0))
-        self.theme_studio_preview_shell.grid_columnconfigure(0, weight=1)
-
-        self.theme_studio_preview_title = tk.Label(
-            self.theme_studio_preview_shell,
-            text=self.tr("theme_studio_preview_title", "NetMon Theme Studio"),
-            font=("TkDefaultFont", 11, "bold"),
-            anchor="w",
-        )
-        self.theme_studio_preview_title.grid(row=0, column=0, sticky="w")
-        self.theme_studio_preview_subtitle = tk.Label(
-            self.theme_studio_preview_shell,
-            text=self.tr(
-                "theme_studio_preview_subtitle",
-                "Vorschau für Buttons, Tabs, Status und Logbereiche",
-            ),
-            anchor="w",
-        )
-        self.theme_studio_preview_subtitle.grid(
-            row=1, column=0, sticky="w", pady=(2, 10)
-        )
-
-        tabs_row = tk.Frame(self.theme_studio_preview_shell, bd=0)
-        tabs_row.grid(row=2, column=0, sticky="w")
-        self.theme_studio_preview_tab_active = tk.Label(
-            tabs_row,
-            text=self.tr("theme_studio_preview_active_tab", "Aktiver Tab"),
-            padx=10,
-            pady=4,
-        )
-        self.theme_studio_preview_tab_active.pack(side="left")
-        self.theme_studio_preview_tab_idle = tk.Label(
-            tabs_row,
-            text=self.tr("theme_studio_preview_inactive_tab", "Inactive tab"),
-            padx=10,
-            pady=4,
-        )
-        self.theme_studio_preview_tab_idle.pack(side="left", padx=(8, 0))
-
-        action_row = tk.Frame(self.theme_studio_preview_shell, bd=0)
-        action_row.grid(row=3, column=0, sticky="w", pady=(12, 0))
-        self.theme_studio_preview_button = tk.Button(
-            action_row,
-            text=self.tr("theme_studio_preview_test_button", "Test-Button"),
-            padx=14,
-            pady=4,
-        )
-        self.theme_studio_preview_button.pack(side="left")
-        self.theme_studio_preview_status_ok = tk.Label(
-            action_row,
-            text=self.tr("theme_studio_preview_status_active", "Aktiv"),
-            padx=10,
-            pady=4,
-        )
-        self.theme_studio_preview_status_ok.pack(side="left", padx=(10, 0))
-        self.theme_studio_preview_status_warn = tk.Label(
-            action_row,
-            text=self.tr("theme_studio_preview_status_warning", "Warnung"),
-            padx=10,
-            pady=4,
-        )
-        self.theme_studio_preview_status_warn.pack(side="left", padx=(10, 0))
-        self.theme_studio_preview_status_err = tk.Label(
-            action_row,
-            text=self.tr("theme_studio_preview_status_error", "Fehler"),
-            padx=10,
-            pady=4,
-        )
-        self.theme_studio_preview_status_err.pack(side="left", padx=(10, 0))
-
-        self.theme_studio_preview_entry = tk.Entry(
-            self.theme_studio_preview_shell,
-            relief="solid",
-            bd=1,
-        )
-        self.theme_studio_preview_entry.grid(row=4, column=0, sticky="ew", pady=(12, 0))
-        self.theme_studio_preview_entry.insert(
-            0,
-            self.tr(
-                "theme_studio_preview_entry_example",
-                "Beispiel für Eingabefeld und Fokusfarbe",
-            ),
-        )
-
-        self.theme_studio_preview_log = tk.Label(
-            self.theme_studio_preview_shell,
-            text=self.tr(
-                "theme_studio_preview_log_ready",
-                "[LOG] Theme Studio bereit. Vorschau aktualisiert.",
-            ),
-            justify="left",
-            anchor="w",
-            padx=10,
-            pady=8,
-            relief="solid",
-            bd=1,
-        )
-        self.theme_studio_preview_log.grid(row=5, column=0, sticky="ew", pady=(12, 0))
-
-        swatch_row = tk.Frame(self.theme_studio_preview_shell, bd=0)
-        swatch_row.grid(row=6, column=0, sticky="w", pady=(12, 0))
-        for label_text, widget_name in (
-            ("Akzent", "theme_studio_swatch_accent"),
-            ("Panel", "theme_studio_swatch_panel"),
-            ("Rahmen", "theme_studio_swatch_border"),
-            ("Log", "theme_studio_swatch_log"),
-        ):
-            block = tk.Frame(swatch_row, bd=0)
-            block.pack(side="left", padx=(0, 12))
-            tk.Label(block, text=label_text, anchor="w").pack(anchor="w")
-            swatch = tk.Frame(
-                block,
-                width=46,
-                height=18,
-                bd=1,
-                relief="solid",
-            )
-            swatch.pack(anchor="w", pady=(4, 0))
-            swatch.pack_propagate(False)
-            setattr(self, widget_name, swatch)
-
-        self.theme_studio_preview_meta = tk.Label(
-            self.theme_studio_preview_shell,
-            text=self.tr("theme_studio_preview_profile_placeholder", "Profil: –"),
-            anchor="w",
-        )
-        self.theme_studio_preview_meta.grid(row=7, column=0, sticky="w", pady=(12, 0))
-        self.theme_studio_preview_status_line = tk.Label(
-            self.theme_studio_preview_shell,
-            text=self.tr(
-                "theme_studio_preview_status_placeholder",
-                "Basis: – | Akzent: – | Stil: –",
-            ),
-            anchor="w",
-        )
-        self.theme_studio_preview_status_line.grid(
-            row=8, column=0, sticky="w", pady=(4, 0)
-        )
-
-        for source_var in (
-            self.var_theme_studio_profile_name,
-            self.var_theme_studio_accent,
-            self.var_theme_studio_panel,
-            self.var_theme_studio_style,
-            self.var_theme_studio_base_theme,
-        ):
-            try:
-                source_var.trace_add(
-                    "write",
-                    lambda *_args: self.refresh_theme_studio_preview(),
-                )
-            except Exception:
-                pass
-
-        self.refresh_theme_studio_preview()
-        self.theme_studio_preview_meta.configure(
-            text=self.tr(
-                "theme_studio_preview_profile_value",
-                "Profile: {profile}",
-            ).format(
-                profile=(
-                    self.var_theme_studio_profile_name.get()
-                    or self.tr("theme_studio_default_profile_name", "My Theme")
-                )
-            )
-        )
+        build_theme_studio_preview(self, preview)
 
     def _build_two_col_toggle_grid(
         self, parent, specs, *, is_radio=False, variable=None, row_gap=2

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tkinter as tk
 from tkinter import ttk
 
 
@@ -229,3 +230,185 @@ def build_theme_studio_style_actions(app, controls) -> None:
         justify="left",
         wraplength=260,
     ).pack(anchor="w", pady=(8, 0))
+
+
+def build_theme_studio_preview(app, preview) -> None:
+    """Build the live Theme Studio preview and bind it to its inputs."""
+    preview_hint = ttk.Label(
+        preview,
+        text=(
+            "V1: Hier wird ausschließlich das Testprofil Pop gestaltet. "
+            "Andere Themes bleiben unberührt."
+        ),
+        justify="left",
+        wraplength=520,
+    )
+    preview_hint.grid(row=0, column=0, sticky="w")
+
+    app.theme_studio_preview_shell = tk.Frame(
+        preview,
+        bd=1,
+        relief="solid",
+        padx=12,
+        pady=12,
+    )
+    app.theme_studio_preview_shell.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+    app.theme_studio_preview_shell.grid_columnconfigure(0, weight=1)
+
+    app.theme_studio_preview_title = tk.Label(
+        app.theme_studio_preview_shell,
+        text=app.tr("theme_studio_preview_title", "NetMon Theme Studio"),
+        font=("TkDefaultFont", 11, "bold"),
+        anchor="w",
+    )
+    app.theme_studio_preview_title.grid(row=0, column=0, sticky="w")
+    app.theme_studio_preview_subtitle = tk.Label(
+        app.theme_studio_preview_shell,
+        text=app.tr(
+            "theme_studio_preview_subtitle",
+            "Vorschau für Buttons, Tabs, Status und Logbereiche",
+        ),
+        anchor="w",
+    )
+    app.theme_studio_preview_subtitle.grid(row=1, column=0, sticky="w", pady=(2, 10))
+
+    tabs_row = tk.Frame(app.theme_studio_preview_shell, bd=0)
+    tabs_row.grid(row=2, column=0, sticky="w")
+    app.theme_studio_preview_tab_active = tk.Label(
+        tabs_row,
+        text=app.tr("theme_studio_preview_active_tab", "Aktiver Tab"),
+        padx=10,
+        pady=4,
+    )
+    app.theme_studio_preview_tab_active.pack(side="left")
+    app.theme_studio_preview_tab_idle = tk.Label(
+        tabs_row,
+        text=app.tr("theme_studio_preview_inactive_tab", "Inactive tab"),
+        padx=10,
+        pady=4,
+    )
+    app.theme_studio_preview_tab_idle.pack(side="left", padx=(8, 0))
+
+    action_row = tk.Frame(app.theme_studio_preview_shell, bd=0)
+    action_row.grid(row=3, column=0, sticky="w", pady=(12, 0))
+    app.theme_studio_preview_button = tk.Button(
+        action_row,
+        text=app.tr("theme_studio_preview_test_button", "Test-Button"),
+        padx=14,
+        pady=4,
+    )
+    app.theme_studio_preview_button.pack(side="left")
+    for key, fallback, widget_name in (
+        (
+            "theme_studio_preview_status_active",
+            "Aktiv",
+            "theme_studio_preview_status_ok",
+        ),
+        (
+            "theme_studio_preview_status_warning",
+            "Warnung",
+            "theme_studio_preview_status_warn",
+        ),
+        (
+            "theme_studio_preview_status_error",
+            "Fehler",
+            "theme_studio_preview_status_err",
+        ),
+    ):
+        status = tk.Label(
+            action_row,
+            text=app.tr(key, fallback),
+            padx=10,
+            pady=4,
+        )
+        status.pack(side="left", padx=(10, 0))
+        setattr(app, widget_name, status)
+
+    app.theme_studio_preview_entry = tk.Entry(
+        app.theme_studio_preview_shell,
+        relief="solid",
+        bd=1,
+    )
+    app.theme_studio_preview_entry.grid(row=4, column=0, sticky="ew", pady=(12, 0))
+    app.theme_studio_preview_entry.insert(
+        0,
+        app.tr(
+            "theme_studio_preview_entry_example",
+            "Beispiel für Eingabefeld und Fokusfarbe",
+        ),
+    )
+
+    app.theme_studio_preview_log = tk.Label(
+        app.theme_studio_preview_shell,
+        text=app.tr(
+            "theme_studio_preview_log_ready",
+            "[LOG] Theme Studio bereit. Vorschau aktualisiert.",
+        ),
+        justify="left",
+        anchor="w",
+        padx=10,
+        pady=8,
+        relief="solid",
+        bd=1,
+    )
+    app.theme_studio_preview_log.grid(row=5, column=0, sticky="ew", pady=(12, 0))
+
+    swatch_row = tk.Frame(app.theme_studio_preview_shell, bd=0)
+    swatch_row.grid(row=6, column=0, sticky="w", pady=(12, 0))
+    for label_text, widget_name in (
+        ("Akzent", "theme_studio_swatch_accent"),
+        ("Panel", "theme_studio_swatch_panel"),
+        ("Rahmen", "theme_studio_swatch_border"),
+        ("Log", "theme_studio_swatch_log"),
+    ):
+        block = tk.Frame(swatch_row, bd=0)
+        block.pack(side="left", padx=(0, 12))
+        tk.Label(block, text=label_text, anchor="w").pack(anchor="w")
+        swatch = tk.Frame(block, width=46, height=18, bd=1, relief="solid")
+        swatch.pack(anchor="w", pady=(4, 0))
+        swatch.pack_propagate(False)
+        setattr(app, widget_name, swatch)
+
+    app.theme_studio_preview_meta = tk.Label(
+        app.theme_studio_preview_shell,
+        text=app.tr("theme_studio_preview_profile_placeholder", "Profil: –"),
+        anchor="w",
+    )
+    app.theme_studio_preview_meta.grid(row=7, column=0, sticky="w", pady=(12, 0))
+    app.theme_studio_preview_status_line = tk.Label(
+        app.theme_studio_preview_shell,
+        text=app.tr(
+            "theme_studio_preview_status_placeholder",
+            "Basis: – | Akzent: – | Stil: –",
+        ),
+        anchor="w",
+    )
+    app.theme_studio_preview_status_line.grid(row=8, column=0, sticky="w", pady=(4, 0))
+
+    for source_var in (
+        app.var_theme_studio_profile_name,
+        app.var_theme_studio_accent,
+        app.var_theme_studio_panel,
+        app.var_theme_studio_style,
+        app.var_theme_studio_base_theme,
+    ):
+        try:
+            source_var.trace_add(
+                "write",
+                lambda *_args: app.refresh_theme_studio_preview(),
+            )
+        except Exception:
+            pass
+
+    app.refresh_theme_studio_preview()
+    app.theme_studio_preview_meta.configure(
+        text=app.tr(
+            "theme_studio_preview_profile_value",
+            "Profile: {profile}",
+        ).format(
+            profile=(
+                app.var_theme_studio_profile_name.get()
+                or app.tr("theme_studio_default_profile_name", "My Theme")
+            )
+        )
+    )
