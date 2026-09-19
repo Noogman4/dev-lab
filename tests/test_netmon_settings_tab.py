@@ -5,7 +5,10 @@ import os
 import netmon.app as app_module
 from netmon.app import App
 from netmon.ui.tabs.settings_tab import build_settings_tab
-from netmon.ui.tabs.chad_settings_tab import build_chad_settings_tab
+from netmon.ui.tabs.chad_settings_tab import (
+    build_chad_settings_summary,
+    build_chad_settings_tab,
+)
 from netmon.ui.tabs.theme_studio_tab import (
     build_theme_studio_color_controls,
     build_theme_studio_layout,
@@ -947,6 +950,7 @@ def test_enable_and_disable_radio_desktop_launcher_manage_user_entry(
 def test_settings_tab_source_and_hooks_are_present():
     build_source = inspect.getsource(App.build_settings_tab)
     chad_settings_source = inspect.getsource(App.build_chad_settings_tab)
+    chad_summary_source = inspect.getsource(build_chad_settings_summary)
     app_source = inspect.getsource(App)
     theme_layout_source = inspect.getsource(build_theme_studio_layout)
     theme_color_source = inspect.getsource(build_theme_studio_color_controls)
@@ -1011,7 +1015,7 @@ def test_settings_tab_source_and_hooks_are_present():
     assert '"Farbe wählen"' in theme_color_source
     assert '"theme_studio_btn_save_theme"' in theme_actions_source
     assert '"theme_studio_btn_load_theme"' in theme_actions_source
-    assert 'text="Systembewertung"' in chad_settings_source
+    assert '"Systembewertung"' in chad_summary_source
     assert "settings_security_systemcheck" not in chad_settings_source
     assert "build_security_systemcheck_panel(" in app_source
     assert "vpn_side_panel" not in vpn_slots_source

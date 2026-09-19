@@ -602,6 +602,7 @@ try:
     )
     from netmon.ui.tabs.chad_settings_tab import (
         build_chad_settings_tab as build_chad_settings_tab_ui,
+        build_chad_settings_summary,
     )
     from netmon.ui.tabs.cleanup_assistant_tab import build_cleanup_assistant_tab
     from netmon.ui.tabs.dns_tab import build_dns_tab
@@ -688,6 +689,7 @@ except ModuleNotFoundError:
     )
     from ui.tabs.chad_settings_tab import (
         build_chad_settings_tab as build_chad_settings_tab_ui,
+        build_chad_settings_summary,
     )
     from ui.tabs.cleanup_assistant_tab import build_cleanup_assistant_tab
     from ui.tabs.log_tab import build_log_tab
@@ -26118,125 +26120,9 @@ class App(TkBase):
         return live_systemcheck
 
     def build_chad_settings_tab(self):
-        # source marker: text="Systembewertung"
         frame = ttk.Frame(self.tab_chad_settings, padding=12)
         frame.pack(fill="both", expand=True)
-
-        summary = ttk.LabelFrame(
-            frame,
-            text=self.tr("chad_settings_group_system_summary", "Systembewertung"),
-            padding=8,
-        )
-        summary.pack(fill="x", pady=(0, 6))
-
-        summary_top = ttk.Frame(summary)
-        summary_top.pack(fill="x")
-
-        self.chad_settings_summary_indicator_label = tk.Label(
-            summary_top,
-            text="●",
-            fg="#2e7d32",
-            font=("TkDefaultFont", 12, "bold"),
-        )
-        self.chad_settings_summary_indicator_label.pack(side="left")
-        ttk.Label(
-            summary_top,
-            textvariable=self.chad_settings_summary_state_var,
-            font=("TkDefaultFont", 10, "bold"),
-        ).pack(side="left", padx=(6, 0))
-
-        summary_grid = ttk.Frame(summary)
-        summary_grid.pack(fill="x", pady=(8, 0))
-        summary_grid.columnconfigure(1, weight=1)
-        summary_grid.columnconfigure(3, weight=1)
-
-        ttk.Label(
-            summary_grid,
-            text=self.tr("chad_settings_label_critical", "Kritisch:"),
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Label(
-            summary_grid, textvariable=self.chad_settings_summary_critical_var
-        ).grid(row=0, column=1, sticky="w", padx=(8, 18))
-        ttk.Label(
-            summary_grid,
-            text=self.tr("chad_settings_label_warnings", "Warnungen:"),
-        ).grid(row=0, column=2, sticky="w")
-        ttk.Label(
-            summary_grid, textvariable=self.chad_settings_summary_warning_var
-        ).grid(row=0, column=3, sticky="w", padx=(8, 0))
-        ttk.Label(
-            summary_grid,
-            text=self.tr("chad_settings_label_notices", "Hinweise:"),
-        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
-        ttk.Label(
-            summary_grid, textvariable=self.chad_settings_summary_notice_var
-        ).grid(row=1, column=1, sticky="w", padx=(8, 18), pady=(4, 0))
-        ttk.Label(
-            summary_grid,
-            text=self.tr("chad_settings_label_info", "Info:"),
-        ).grid(row=1, column=2, sticky="w", pady=(4, 0))
-        ttk.Label(summary_grid, textvariable=self.chad_settings_summary_info_var).grid(
-            row=1, column=3, sticky="w", padx=(8, 0), pady=(4, 0)
-        )
-
-        recent = ttk.LabelFrame(
-            summary,
-            text=self.tr("chad_settings_group_recent", "Letzte Analysen"),
-            padding=8,
-        )
-        recent.pack(fill="x", pady=(6, 0))
-        recent.columnconfigure(0, weight=2)
-        recent.columnconfigure(1, weight=2)
-        recent.columnconfigure(2, weight=1)
-        recent.columnconfigure(3, weight=1)
-        recent.columnconfigure(4, weight=1)
-
-        ttk.Label(
-            recent,
-            text=self.tr("chad_settings_recent_header_timestamp", "Datum/Uhrzeit"),
-            font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Label(
-            recent,
-            text=self.tr("chad_settings_recent_header_type", "Analyseart"),
-            font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=0, column=1, sticky="w", padx=(8, 0))
-        ttk.Label(
-            recent,
-            text=self.tr("chad_settings_recent_header_status", "Status"),
-            font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=0, column=2, sticky="w", padx=(8, 0))
-        ttk.Label(
-            recent,
-            text=self.tr("chad_settings_recent_header_warnings", "Warn."),
-            font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=0, column=3, sticky="w", padx=(8, 0))
-        ttk.Label(
-            recent,
-            text=self.tr("chad_settings_recent_header_critical", "Krit."),
-            font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=0, column=4, sticky="w", padx=(8, 0))
-
-        for row_index, row_vars in enumerate(
-            self.chad_settings_recent_analysis_rows, start=1
-        ):
-            values = [
-                row_vars["timestamp_var"],
-                row_vars["type_var"],
-                row_vars["status_var"],
-                row_vars["warning_var"],
-                row_vars["critical_var"],
-            ]
-            for column_index, value_var in enumerate(values):
-                padx = (8, 0) if column_index > 0 else (0, 0)
-                pady = (4, 0)
-                ttk.Label(recent, textvariable=value_var).grid(
-                    row=row_index,
-                    column=column_index,
-                    sticky="w",
-                    padx=padx,
-                    pady=pady,
-                )
+        build_chad_settings_summary(self, frame)
 
         connection = ttk.LabelFrame(
             frame,
