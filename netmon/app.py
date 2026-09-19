@@ -656,7 +656,7 @@ try:
         build_settings_backup,
         build_settings_tab as build_settings_tab_ui,
     )
-    from netmon.ui.tabs.system_tab import build_system_tab
+    from netmon.ui.tabs.system_tab import build_system_monitor, build_system_tab
     from netmon.ui.tabs.tools_tabs import build_basic_tools_tabs
     from netmon.ui.tabs.theme_studio_tab import (
         build_theme_studio_content,
@@ -755,7 +755,7 @@ except ModuleNotFoundError:
         build_settings_backup,
         build_settings_tab as build_settings_tab_ui,
     )
-    from ui.tabs.system_tab import build_system_tab
+    from ui.tabs.system_tab import build_system_monitor, build_system_tab
     from ui.tabs.tools_tabs import build_basic_tools_tabs
     from ui.tabs.theme_studio_tab import (
         build_theme_studio_content,
@@ -15852,154 +15852,7 @@ class App(TkBase):
         )
 
     def _build_system_tab(self):
-        top = ttk.Frame(self.tab_system)
-        top.pack(fill="x", pady=(0, 3))
-        ttk.Label(
-            top,
-            text=self.tr(
-                "system_monitor_intro",
-                "Integrierter Systemmonitor (aktualisiert alle 1-2 Sekunden).",
-            ),
-        ).pack(side="left")
-        self.btn_system_monitor_refresh = ttk.Button(
-            top,
-            text=self.tr("system_monitor_btn_refresh_now", "Jetzt aktualisieren"),
-            command=self.system_monitor_refresh,
-        )
-        self.btn_system_monitor_refresh.pack(side="right")
-
-        body = ttk.Frame(self.tab_system)
-        body.pack(fill="both", expand=True)
-        body.columnconfigure(0, weight=1)
-        body.columnconfigure(1, weight=0)
-
-        self.system_cpu_var = tk.StringVar(
-            value=self.tr("system_status_cpu_default", "CPU: –")
-        )
-        self.system_ram_var = tk.StringVar(
-            value=self.tr("system_status_ram_default", "RAM: –")
-        )
-        self.system_swap_var = tk.StringVar(
-            value=self.tr("system_status_swap_default", "Swap: –")
-        )
-        self.system_disk_var = tk.StringVar(
-            value=self.tr("system_status_disk_default", "Disk /: –")
-        )
-        self.system_temp_var = tk.StringVar(
-            value=self.tr("system_status_temp_default", "CPU temp (sensor): –")
-        )
-        self.system_gpu_temp_var = tk.StringVar(
-            value=self.tr("system_status_gpu_temp_default", "GPU temp: –")
-        )
-        self.system_uptime_var = tk.StringVar(
-            value=self.tr("system_status_uptime_default", "Uptime: –")
-        )
-
-        self.system_cpu_bar = self._system_row(
-            body, 0, "CPU-Auslastung", self.system_cpu_var
-        )
-        self.system_ram_bar = self._system_row(body, 1, "RAM", self.system_ram_var)
-        self.system_swap_bar = self._system_row(body, 2, "Swap", self.system_swap_var)
-        self.btn_system_swap_clear = ttk.Button(
-            self.system_swap_bar["box"],
-            text=self.tr("system_swap_clear_btn", "Clear swap"),
-            command=self.clear_swap_async,
-        )
-        self.btn_system_swap_clear.grid(row=2, column=0, sticky="w", pady=(8, 0))
-        self.btn_system_swap_resize = ttk.Button(
-            self.system_swap_bar["box"],
-            text=self.tr("system_swap_resize_btn", "Resize swap"),
-            command=self.resize_swap_async,
-        )
-        self.btn_system_swap_resize.grid(
-            row=2, column=0, sticky="w", padx=(110, 0), pady=(8, 0)
-        )
-        self.system_disk_bar = self._system_row(body, 3, "Disk /", self.system_disk_var)
-        self.system_temp_bar = self._system_row(
-            body,
-            4,
-            self.tr("system_group_cpu_temperature", "CPU temperature"),
-            self.system_temp_var,
-        )
-        self.system_gpu_temp_bar = self._system_row(
-            body,
-            5,
-            self.tr("system_group_gpu_temperature", "GPU temperature"),
-            self.system_gpu_temp_var,
-        )
-        self.system_cpu_bar_widget = self.system_cpu_bar["bar"]
-        self.system_temp_bar_widget = self.system_temp_bar["bar"]
-        self.system_gpu_temp_bar_widget = self.system_gpu_temp_bar["bar"]
-
-        up = ttk.LabelFrame(
-            body, text=self.tr("system_group_uptime", "Uptime"), padding=8
-        )
-        up.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(8, 0))
-        ttk.Label(up, textvariable=self.system_uptime_var).pack(anchor="w")
-
-        sysf = ttk.LabelFrame(
-            body, text=self.tr("system_group_sysinfo", "Sysinfo"), padding=8
-        )
-        sysf.grid(row=7, column=0, columnspan=2, sticky="ew", pady=(10, 0))
-        self.system_sysinfo_group = sysf
-        sysf.columnconfigure(0, weight=1)
-        sysf.columnconfigure(1, weight=1)
-        body.rowconfigure(8, weight=1)
-
-        self.sysinfo_vars = {}
-        self._build_sysinfo_group(
-            sysf,
-            row=0,
-            col=0,
-            title="Betriebssystem",
-            entries=[
-                ("os_distribution", "Distribution"),
-                ("os_version", "Version"),
-                ("os_kernel", "Kernel"),
-                ("os_arch", "Architektur"),
-                ("os_hostname", "Hostname"),
-                ("os_user", "Benutzer"),
-            ],
-        )
-        self._build_sysinfo_group(
-            sysf,
-            row=0,
-            col=1,
-            title="Hardware",
-            entries=[
-                ("hw_cpu", "CPU"),
-                ("hw_cores_threads", "Kerne/Threads"),
-                ("hw_gpu", "GPU"),
-                ("hw_board", "Mainboard"),
-                ("hw_ram_total", "RAM gesamt"),
-                ("hw_swap_total", "Swap gesamt"),
-            ],
-        )
-        self._build_sysinfo_group(
-            sysf,
-            row=1,
-            col=0,
-            title="System",
-            entries=[
-                ("sys_root", "Root /"),
-                ("sys_swap", "Swap"),
-            ],
-        )
-        self._build_sysinfo_group(
-            sysf,
-            row=1,
-            col=1,
-            title="Software",
-            entries=[
-                ("sw_python", "Python"),
-                ("sw_desktop", "Desktop-Session"),
-            ],
-        )
-
-        ttk.Frame(body).grid(row=8, column=0, columnspan=2, sticky="nsew")
-
-        self._load_sysinfo_static()
-        self._update_sysinfo_dynamic()
+        build_system_monitor(self)
 
     def _system_row(self, parent, row, title, value_var):
         box = ttk.LabelFrame(parent, text=title, padding=8)
