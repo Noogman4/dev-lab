@@ -218,3 +218,38 @@ def build_chad_analysis_output(app, chat_layout, light_theme) -> None:
     app.chad_analysis_text.tag_configure("chat_spacer", spacing3=4)
     app._apply_chad_chat_theme(app._app_theme or light_theme)
     app.chad_analysis_text.configure(state="disabled")
+
+
+def build_chad_analysis_footer(app, chat_layout) -> None:
+    """Build the Chad analysis status footer."""
+    footer_frame = ttk.Frame(chat_layout)
+    footer_frame.grid(row=2, column=0, sticky="ew")
+    app.btn_chad_take_analysis = None
+    app.btn_chad_copy = None
+    app.btn_chad_top = None
+    app.btn_chad_bottom = None
+    app.chad_auto_scroll_check = None
+    status_row = ttk.Frame(footer_frame)
+    status_row.pack(fill="x", pady=(0, 2))
+    for status_var, padding in (
+        (app.chad_online_status_var, None),
+        (app.chad_chat_status_var, (16, 0)),
+        (app.chad_analysis_status_var, (16, 0)),
+    ):
+        label = ttk.Label(status_row, textvariable=status_var)
+        if padding is None:
+            label.pack(side="left")
+        else:
+            label.pack(side="left", padx=padding)
+    ttk.Label(
+        footer_frame,
+        textvariable=app.chad_analysis_source_var,
+    ).pack(anchor="w")
+
+
+def build_chad_analysis_content(app, light_theme) -> None:
+    """Build all content for the Chad analysis tab."""
+    chat_layout = build_chad_analysis_header_and_composer(app)
+    build_chad_analysis_output(app, chat_layout, light_theme)
+    build_chad_analysis_footer(app, chat_layout)
+    app._update_chad_controls_state()

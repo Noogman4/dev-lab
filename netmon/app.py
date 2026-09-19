@@ -597,8 +597,7 @@ except ModuleNotFoundError:
 try:
     from netmon.ui.tabs.connections_tab import build_connections_tab
     from netmon.ui.tabs.chad_tab import (
-        build_chad_analysis_header_and_composer,
-        build_chad_analysis_output,
+        build_chad_analysis_content,
         build_chad_tab,
     )
     from netmon.ui.tabs.chad_settings_tab import (
@@ -684,8 +683,7 @@ try:
 except ModuleNotFoundError:
     from ui.tabs.connections_tab import build_connections_tab
     from ui.tabs.chad_tab import (
-        build_chad_analysis_header_and_composer,
-        build_chad_analysis_output,
+        build_chad_analysis_content,
         build_chad_tab,
     )
     from ui.tabs.chad_settings_tab import (
@@ -26698,41 +26696,7 @@ class App(TkBase):
         )
 
     def build_chad_analysis_tab(self):
-        chat_layout = build_chad_analysis_header_and_composer(self)
-        build_chad_analysis_output(self, chat_layout, LIGHT_THEME)
-
-        footer_frame = ttk.Frame(chat_layout)
-        footer_frame.grid(row=2, column=0, sticky="ew")
-
-        self.btn_chad_take_analysis = None
-        self.btn_chad_copy = None
-        self.btn_chad_top = None
-        self.btn_chad_bottom = None
-        self.chad_auto_scroll_check = None
-
-        status_row = ttk.Frame(footer_frame)
-        status_row.pack(fill="x", pady=(0, 2))
-
-        ttk.Label(
-            status_row,
-            textvariable=self.chad_online_status_var,
-        ).pack(side="left")
-
-        ttk.Label(
-            status_row,
-            textvariable=self.chad_chat_status_var,
-        ).pack(side="left", padx=(16, 0))
-
-        ttk.Label(
-            status_row,
-            textvariable=self.chad_analysis_status_var,
-        ).pack(side="left", padx=(16, 0))
-
-        ttk.Label(
-            footer_frame,
-            textvariable=self.chad_analysis_source_var,
-        ).pack(anchor="w")
-        self._update_chad_controls_state()
+        build_chad_analysis_content(self, LIGHT_THEME)
 
     def is_chad_enabled(self) -> bool:
         return chad_controller.is_chad_enabled(self)
