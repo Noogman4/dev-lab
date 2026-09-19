@@ -381,3 +381,58 @@ def build_chad_settings_analysis_filter(app, frame) -> None:
             ),
         ],
     )
+
+
+def build_chad_settings_focus(app, frame) -> None:
+    """Build the Chad analysis focus controls."""
+    focus = ttk.LabelFrame(
+        frame,
+        text=app.tr("chad_settings_group_focus", "Analyse Schwerpunkte"),
+        padding=8,
+    )
+    focus.pack(fill="x", pady=(0, 6))
+    app._build_two_col_toggle_grid(
+        focus,
+        [
+            (
+                app.tr("chad_settings_focus_security", "Sicherheitsanalyse"),
+                app.chad_focus_security_var,
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr("chad_settings_focus_dns", "DNS Analyse"),
+                app.chad_focus_dns_var,
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr("chad_settings_focus_network", "Network analysis"),
+                app.chad_focus_network_var,
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr("chad_settings_focus_process", "Prozessanalyse"),
+                app.chad_focus_process_var,
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr("chad_settings_focus_firewall", "Firewall Analyse"),
+                app.chad_focus_firewall_var,
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr("chad_settings_focus_performance", "Performance Analyse"),
+                app.chad_focus_performance_var,
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr("chad_settings_focus_optimization", "Systemoptimierung"),
+                app.chad_focus_optimization_var,
+                app.mark_chad_profile_custom,
+            ),
+            (
+                app.tr("chad_settings_focus_rootkit", "Rootkit Hinweise priorisieren"),
+                app.chad_focus_rootkit_var,
+                app.mark_chad_profile_custom,
+            ),
+        ],
+    )

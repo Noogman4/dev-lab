@@ -603,6 +603,7 @@ try:
     from netmon.ui.tabs.chad_settings_tab import (
         build_chad_settings_connection,
         build_chad_settings_analysis_filter,
+        build_chad_settings_focus,
         build_chad_settings_profiles,
         build_chad_settings_status,
         build_chad_settings_tab as build_chad_settings_tab_ui,
@@ -694,6 +695,7 @@ except ModuleNotFoundError:
     from ui.tabs.chad_settings_tab import (
         build_chad_settings_connection,
         build_chad_settings_analysis_filter,
+        build_chad_settings_focus,
         build_chad_settings_profiles,
         build_chad_settings_status,
         build_chad_settings_tab as build_chad_settings_tab_ui,
@@ -26135,61 +26137,7 @@ class App(TkBase):
         build_chad_settings_status(self, frame)
         build_chad_settings_profiles(self, frame)
         build_chad_settings_analysis_filter(self, frame)
-
-        focus = ttk.LabelFrame(
-            frame,
-            text=self.tr("chad_settings_group_focus", "Analyse Schwerpunkte"),
-            padding=8,
-        )
-        focus.pack(fill="x", pady=(0, 6))
-        self._build_two_col_toggle_grid(
-            focus,
-            [
-                (
-                    self.tr("chad_settings_focus_security", "Sicherheitsanalyse"),
-                    self.chad_focus_security_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr("chad_settings_focus_dns", "DNS Analyse"),
-                    self.chad_focus_dns_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr("chad_settings_focus_network", "Network analysis"),
-                    self.chad_focus_network_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr("chad_settings_focus_process", "Prozessanalyse"),
-                    self.chad_focus_process_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr("chad_settings_focus_firewall", "Firewall Analyse"),
-                    self.chad_focus_firewall_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr("chad_settings_focus_performance", "Performance Analyse"),
-                    self.chad_focus_performance_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr("chad_settings_focus_optimization", "Systemoptimierung"),
-                    self.chad_focus_optimization_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_focus_rootkit",
-                        "Rootkit Hinweise priorisieren",
-                    ),
-                    self.chad_focus_rootkit_var,
-                    self.mark_chad_profile_custom,
-                ),
-            ],
-        )
+        build_chad_settings_focus(self, frame)
 
         profile = ttk.LabelFrame(
             frame,
