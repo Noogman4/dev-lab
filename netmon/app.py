@@ -647,6 +647,7 @@ try:
         build_settings_general_system,
         build_settings_donation,
         build_settings_logging,
+        build_settings_security,
         build_settings_tooltips,
         build_settings_tab as build_settings_tab_ui,
     )
@@ -740,6 +741,7 @@ except ModuleNotFoundError:
         build_settings_general_system,
         build_settings_donation,
         build_settings_logging,
+        build_settings_security,
         build_settings_tooltips,
         build_settings_tab as build_settings_tab_ui,
     )
@@ -24484,95 +24486,7 @@ class App(TkBase):
             command=self.isp_stealth_off,
         ).pack(side="left", padx=(8, 0))
 
-        security = ttk.LabelFrame(
-            settings_general_tab,
-            text=self.tr("settings_group_security", "Security"),
-            padding=10,
-        )
-        security.pack(fill="x", pady=(0, 10))
-
-        ttk.Checkbutton(
-            security,
-            text=self.tr(
-                "settings_startup_guard_autorun",
-                "Check Startup Guard on program start",
-            ),
-            variable=self.var_startup_guard_autorun,
-        ).pack(anchor="w")
-        self.cb_settings_prequarantine_startup = ttk.Checkbutton(
-            security,
-            text=self.tr(
-                "settings_prequarantine_startup",
-                "Automatically enable pre-quarantine on NetMon start",
-            ),
-            variable=self.download_scan_prequarantine_startup_var,
-            command=self.on_download_scan_prequarantine_startup_toggle,
-        )
-        self.cb_settings_prequarantine_startup.pack(anchor="w", pady=(4, 0))
-        self.add_tooltip(
-            self.cb_settings_prequarantine_startup,
-            self.tr(
-                "settings_prequarantine_startup_tooltip",
-                "Enables download pre-quarantine on NetMon start and keeps the protected temporary folder ready automatically.",
-            ),
-        )
-
-        ttk.Checkbutton(
-            security,
-            text=self.tr(
-                "settings_process_guard_autorun",
-                "Check Process Guard on program start",
-            ),
-            variable=self.var_process_guard_autorun,
-        ).pack(anchor="w", pady=(4, 0))
-
-        ttk.Checkbutton(
-            security,
-            text=self.tr(
-                "settings_path_guard_autorun",
-                "Check PATH Guard on program start",
-            ),
-            variable=self.var_path_guard_autorun,
-        ).pack(anchor="w", pady=(4, 0))
-
-        self.cb_wireshark_launch_blocked = ttk.Checkbutton(
-            security,
-            text=self.tr(
-                "settings_wireshark_launch_blocked",
-                "Block Wireshark launch inside NetMon",
-            ),
-            variable=self.var_wireshark_launch_blocked,
-            command=self.on_wireshark_launch_block_toggle,
-        )
-        self.cb_wireshark_launch_blocked.pack(anchor="w", pady=(8, 0))
-        self.add_tooltip(
-            self.cb_wireshark_launch_blocked,
-            self.tr(
-                "settings_wireshark_launch_blocked_tooltip",
-                "Blocks only Wireshark launches from NetMon. Direct launch via system menu or terminal remains possible.",
-            ),
-        )
-        ttk.Label(
-            security,
-            text=self.tr(
-                "settings_wireshark_launch_blocked_note",
-                "Note: this option only blocks Wireshark launches from NetMon "
-                "and is not a real system-wide lock.",
-            ),
-            justify="left",
-            wraplength=620,
-        ).pack(anchor="w", pady=(4, 0))
-        ttk.Label(
-            security,
-            text=self.tr(
-                "settings_wireshark_launch_blocked_system_hint",
-                "Disable system-wide: e.g. uninstall Wireshark, remove the "
-                "desktop launcher, or revoke user/group permissions for "
-                "wireshark and dumpcap.",
-            ),
-            justify="left",
-            wraplength=620,
-        ).pack(anchor="w", pady=(4, 0))
+        build_settings_security(self, settings_general_tab)
 
         build_settings_logging(self, settings_general_tab)
 

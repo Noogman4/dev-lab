@@ -8,6 +8,7 @@ from netmon.ui.tabs.settings_tab import (
     build_settings_donation,
     build_settings_general_system,
     build_settings_logging,
+    build_settings_security,
     build_settings_tab,
 )
 from netmon.ui.tabs.chad_settings_tab import (
@@ -957,6 +958,7 @@ def test_settings_tab_source_and_hooks_are_present():
     general_system_source = inspect.getsource(build_settings_general_system)
     donation_source = inspect.getsource(build_settings_donation)
     logging_source = inspect.getsource(build_settings_logging)
+    security_source = inspect.getsource(build_settings_security)
     chad_settings_source = inspect.getsource(App.build_chad_settings_tab)
     chad_summary_source = inspect.getsource(build_chad_settings_summary)
     app_source = inspect.getsource(App)
@@ -982,7 +984,7 @@ def test_settings_tab_source_and_hooks_are_present():
     assert '"settings_radio_desktop_launcher"' in general_system_source
     assert "app.radio_desktop_launcher_var" in general_system_source
     assert "app.toggle_radio_desktop_launcher" in general_system_source
-    assert 'self.tr(\n                "settings_path_guard_autorun",' in build_source
+    assert '"settings_path_guard_autorun"' in security_source
     assert '"settings_group_system"' in build_source
     assert "app.var_start_security_monitoring" in general_system_source
     assert "variable=self.var_start_network_mode" not in build_source
