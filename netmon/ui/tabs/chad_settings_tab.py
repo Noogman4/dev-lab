@@ -436,3 +436,45 @@ def build_chad_settings_focus(app, frame) -> None:
             ),
         ],
     )
+
+
+def build_chad_settings_systemcheck_profiles(app, frame) -> None:
+    """Build the Chad systemcheck profile selector."""
+    profile = ttk.LabelFrame(
+        frame,
+        text=app.tr("chad_settings_group_systemcheck", "System check profiles"),
+        padding=8,
+    )
+    profile.pack(fill="x", pady=(0, 6))
+    app._build_two_col_toggle_grid(
+        profile,
+        [
+            (
+                app.tr("chad_settings_systemcheck_quick", "Schnellcheck"),
+                "quick",
+                app.apply_chad_systemcheck_profile,
+            ),
+            (
+                app.tr("chad_settings_systemcheck_security", "Sicherheitscheck"),
+                "security",
+                app.apply_chad_systemcheck_profile,
+            ),
+            (
+                app.tr("chad_settings_systemcheck_network", "Network check"),
+                "network",
+                app.apply_chad_systemcheck_profile,
+            ),
+            (
+                app.tr("chad_settings_systemcheck_full", "Komplettanalyse"),
+                "full",
+                app.apply_chad_systemcheck_profile,
+            ),
+            (
+                app.tr("chad_settings_systemcheck_custom", "Benutzerdefiniert"),
+                "custom",
+                app.apply_chad_systemcheck_profile,
+            ),
+        ],
+        is_radio=True,
+        variable=app.chad_systemcheck_profile_var,
+    )

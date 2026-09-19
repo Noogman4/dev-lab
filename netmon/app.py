@@ -606,6 +606,7 @@ try:
         build_chad_settings_focus,
         build_chad_settings_profiles,
         build_chad_settings_status,
+        build_chad_settings_systemcheck_profiles,
         build_chad_settings_tab as build_chad_settings_tab_ui,
         build_chad_settings_summary,
     )
@@ -698,6 +699,7 @@ except ModuleNotFoundError:
         build_chad_settings_focus,
         build_chad_settings_profiles,
         build_chad_settings_status,
+        build_chad_settings_systemcheck_profiles,
         build_chad_settings_tab as build_chad_settings_tab_ui,
         build_chad_settings_summary,
     )
@@ -26138,45 +26140,7 @@ class App(TkBase):
         build_chad_settings_profiles(self, frame)
         build_chad_settings_analysis_filter(self, frame)
         build_chad_settings_focus(self, frame)
-
-        profile = ttk.LabelFrame(
-            frame,
-            text=self.tr("chad_settings_group_systemcheck", "System check profiles"),
-            padding=8,
-        )
-        profile.pack(fill="x", pady=(0, 6))
-        self._build_two_col_toggle_grid(
-            profile,
-            [
-                (
-                    self.tr("chad_settings_systemcheck_quick", "Schnellcheck"),
-                    "quick",
-                    self.apply_chad_systemcheck_profile,
-                ),
-                (
-                    self.tr("chad_settings_systemcheck_security", "Sicherheitscheck"),
-                    "security",
-                    self.apply_chad_systemcheck_profile,
-                ),
-                (
-                    self.tr("chad_settings_systemcheck_network", "Network check"),
-                    "network",
-                    self.apply_chad_systemcheck_profile,
-                ),
-                (
-                    self.tr("chad_settings_systemcheck_full", "Komplettanalyse"),
-                    "full",
-                    self.apply_chad_systemcheck_profile,
-                ),
-                (
-                    self.tr("chad_settings_systemcheck_custom", "Benutzerdefiniert"),
-                    "custom",
-                    self.apply_chad_systemcheck_profile,
-                ),
-            ],
-            is_radio=True,
-            variable=self.chad_systemcheck_profile_var,
-        )
+        build_chad_settings_systemcheck_profiles(self, frame)
 
         answer = ttk.LabelFrame(
             frame,
