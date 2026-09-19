@@ -602,6 +602,7 @@ try:
     )
     from netmon.ui.tabs.chad_settings_tab import (
         build_chad_settings_content,
+        build_security_systemcheck_panel,
         build_chad_settings_tab as build_chad_settings_tab_ui,
     )
     from netmon.ui.tabs.cleanup_assistant_tab import build_cleanup_assistant_tab
@@ -701,6 +702,7 @@ except ModuleNotFoundError:
     )
     from ui.tabs.chad_settings_tab import (
         build_chad_settings_content,
+        build_security_systemcheck_panel,
         build_chad_settings_tab as build_chad_settings_tab_ui,
     )
     from ui.tabs.cleanup_assistant_tab import build_cleanup_assistant_tab
@@ -24860,133 +24862,17 @@ class App(TkBase):
         grid_column=0,
         grid_sticky="new",
     ):
-        live_systemcheck = ttk.LabelFrame(
+        return build_security_systemcheck_panel(
+            self,
             parent,
-            text=self.tr("settings_security_systemcheck", "Security system check"),
-            padding=8,
-        )
-        if geometry == "grid":
-            live_systemcheck.grid(
-                row=grid_row,
-                column=grid_column,
-                sticky=grid_sticky,
-                pady=pady,
-            )
-        else:
-            live_systemcheck.pack(fill="x", pady=pady)
-        check_specs = [
-            (
-                self.tr(
-                    "settings_systemcheck_security_summary",
-                    "Security Monitoring Zusammenfassung",
-                ),
-                self.var_systemcheck_security_summary,
-                self.mark_chad_systemcheck_profile_custom,
-            ),
-            (
-                self.tr("settings_systemcheck_startup_guard", "Startup Guard"),
-                self.var_systemcheck_startup_guard,
-                self.mark_chad_systemcheck_profile_custom,
-            ),
-            (
-                self.tr("settings_systemcheck_path_guard", "PATH Guard"),
-                self.var_systemcheck_path_guard,
-                self.mark_chad_systemcheck_profile_custom,
-            ),
-            (
-                self.tr("settings_systemcheck_process_guard", "Process Guard"),
-                self.var_systemcheck_process_guard,
-                self.mark_chad_systemcheck_profile_custom,
-            ),
-            (
-                self.tr("settings_systemcheck_lynis", "Lynis quick scan"),
-                self.var_systemcheck_lynis,
-                self.mark_chad_systemcheck_profile_custom,
-            ),
-            (
-                self.tr("settings_systemcheck_rkhunter", "rkhunter scan"),
-                self.var_systemcheck_rkhunter,
-                self.mark_chad_systemcheck_profile_custom,
-            ),
-            (
-                self.tr("settings_systemcheck_clamav", "ClamAV Schnellscan"),
-                self.var_systemcheck_clamav,
-                self.mark_chad_systemcheck_profile_custom,
-            ),
-        ]
-        if compact:
-            check_specs = [
-                (
-                    self.tr(
-                        "settings_systemcheck_security_summary_compact",
-                        "Security Monitoring",
-                    ),
-                    self.var_systemcheck_security_summary,
-                    self.mark_chad_systemcheck_profile_custom,
-                ),
-                (
-                    self.tr("settings_systemcheck_startup_guard", "Startup Guard"),
-                    self.var_systemcheck_startup_guard,
-                    self.mark_chad_systemcheck_profile_custom,
-                ),
-                (
-                    self.tr("settings_systemcheck_path_guard", "PATH Guard"),
-                    self.var_systemcheck_path_guard,
-                    self.mark_chad_systemcheck_profile_custom,
-                ),
-                (
-                    self.tr("settings_systemcheck_process_guard", "Process Guard"),
-                    self.var_systemcheck_process_guard,
-                    self.mark_chad_systemcheck_profile_custom,
-                ),
-                (
-                    self.tr("settings_systemcheck_lynis_compact", "Lynis"),
-                    self.var_systemcheck_lynis,
-                    self.mark_chad_systemcheck_profile_custom,
-                ),
-                (
-                    self.tr("settings_systemcheck_rkhunter_compact", "rkhunter"),
-                    self.var_systemcheck_rkhunter,
-                    self.mark_chad_systemcheck_profile_custom,
-                ),
-                (
-                    self.tr("settings_systemcheck_clamav", "ClamAV Schnellscan"),
-                    self.var_systemcheck_clamav,
-                    self.mark_chad_systemcheck_profile_custom,
-                ),
-            ]
-        self._build_two_col_toggle_grid(
-            live_systemcheck,
-            check_specs,
-            row_gap=1 if compact else 2,
-        )
-        ttk.Label(
-            live_systemcheck,
-            textvariable=self.chad_security_tools_status_var,
-            justify="left",
-        ).pack(anchor="w", pady=(8, 0))
-        ttk.Label(
-            live_systemcheck,
-            text=self.tr(
-                "settings_systemcheck_hint",
-                "Ausgewählte Prüfungen laufen nacheinander und werden direkt an Chad zur Analyse gesendet.",
-            ),
-            justify="left",
             wraplength=wraplength,
-        ).pack(anchor="w", pady=(4, 0))
-        self.refresh_chad_security_tools_status()
-        ttk.Button(
-            live_systemcheck,
-            text=self.tr("settings_systemcheck_run", "Systemcheck ausführen"),
-            command=self.run_selected_security_systemcheck,
-        ).pack(anchor="w", pady=(8, 0))
-        ttk.Label(
-            live_systemcheck,
-            textvariable=self.security_systemcheck_status_var,
-            justify="left",
-            wraplength=wraplength,
-        ).pack(anchor="w", pady=(8, 0))
-        return live_systemcheck
+            pady=pady,
+            compact=compact,
+            geometry=geometry,
+            grid_row=grid_row,
+            grid_column=grid_column,
+            grid_sticky=grid_sticky,
+        )
 
     def build_chad_settings_tab(self):
         build_chad_settings_content(self)

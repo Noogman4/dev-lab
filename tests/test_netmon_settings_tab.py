@@ -14,6 +14,7 @@ from netmon.ui.tabs.settings_tab import (
     build_settings_tab,
 )
 from netmon.ui.tabs.chad_settings_tab import (
+    build_security_systemcheck_panel,
     build_chad_settings_summary,
     build_chad_settings_tab,
 )
@@ -963,7 +964,7 @@ def test_settings_tab_source_and_hooks_are_present():
     maintenance_source = inspect.getsource(build_settings_maintenance)
     privacy_source = inspect.getsource(build_settings_privacy)
     security_source = inspect.getsource(build_settings_security)
-    chad_settings_source = inspect.getsource(App.build_chad_settings_tab)
+    systemcheck_source = inspect.getsource(build_security_systemcheck_panel)
     chad_summary_source = inspect.getsource(build_chad_settings_summary)
     app_source = inspect.getsource(App)
     theme_layout_source = inspect.getsource(build_theme_studio_layout)
@@ -1023,7 +1024,7 @@ def test_settings_tab_source_and_hooks_are_present():
     assert '"theme_studio_btn_save_theme"' in theme_actions_source
     assert '"theme_studio_btn_load_theme"' in theme_actions_source
     assert '"Systembewertung"' in chad_summary_source
-    assert "settings_security_systemcheck" not in chad_settings_source
+    assert "settings_security_systemcheck" in systemcheck_source
     assert "build_security_systemcheck_panel(" in app_source
     assert "vpn_side_panel" not in vpn_slots_source
     assert 'text=app.tr("tab_settings", "Einstellungen")' in wrapper_source

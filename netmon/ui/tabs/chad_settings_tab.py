@@ -480,6 +480,118 @@ def build_chad_settings_systemcheck_profiles(app, frame) -> None:
     )
 
 
+def build_security_systemcheck_panel(
+    app,
+    parent,
+    *,
+    wraplength=520,
+    pady=(0, 6),
+    compact=False,
+    geometry="pack",
+    grid_row=0,
+    grid_column=0,
+    grid_sticky="new",
+):
+    """Build the reusable Chad security system-check panel."""
+    panel = ttk.LabelFrame(
+        parent,
+        text=app.tr("settings_security_systemcheck", "Security system check"),
+        padding=8,
+    )
+    if geometry == "grid":
+        panel.grid(row=grid_row, column=grid_column, sticky=grid_sticky, pady=pady)
+    else:
+        panel.pack(fill="x", pady=pady)
+    specs = [
+        (
+            app.tr(
+                (
+                    "settings_systemcheck_security_summary_compact"
+                    if compact
+                    else "settings_systemcheck_security_summary"
+                ),
+                (
+                    "Security Monitoring"
+                    if compact
+                    else "Security Monitoring Zusammenfassung"
+                ),
+            ),
+            app.var_systemcheck_security_summary,
+        ),
+        (
+            app.tr("settings_systemcheck_startup_guard", "Startup Guard"),
+            app.var_systemcheck_startup_guard,
+        ),
+        (
+            app.tr("settings_systemcheck_path_guard", "PATH Guard"),
+            app.var_systemcheck_path_guard,
+        ),
+        (
+            app.tr("settings_systemcheck_process_guard", "Process Guard"),
+            app.var_systemcheck_process_guard,
+        ),
+        (
+            app.tr(
+                (
+                    "settings_systemcheck_lynis_compact"
+                    if compact
+                    else "settings_systemcheck_lynis"
+                ),
+                "Lynis" if compact else "Lynis quick scan",
+            ),
+            app.var_systemcheck_lynis,
+        ),
+        (
+            app.tr(
+                (
+                    "settings_systemcheck_rkhunter_compact"
+                    if compact
+                    else "settings_systemcheck_rkhunter"
+                ),
+                "rkhunter" if compact else "rkhunter scan",
+            ),
+            app.var_systemcheck_rkhunter,
+        ),
+        (
+            app.tr("settings_systemcheck_clamav", "ClamAV Schnellscan"),
+            app.var_systemcheck_clamav,
+        ),
+    ]
+    app._build_two_col_toggle_grid(
+        panel,
+        [
+            (label, variable, app.mark_chad_systemcheck_profile_custom)
+            for label, variable in specs
+        ],
+        row_gap=1 if compact else 2,
+    )
+    ttk.Label(
+        panel, textvariable=app.chad_security_tools_status_var, justify="left"
+    ).pack(anchor="w", pady=(8, 0))
+    ttk.Label(
+        panel,
+        text=app.tr(
+            "settings_systemcheck_hint",
+            "Ausgewählte Prüfungen laufen nacheinander und werden direkt an Chad zur Analyse gesendet.",
+        ),
+        justify="left",
+        wraplength=wraplength,
+    ).pack(anchor="w", pady=(4, 0))
+    app.refresh_chad_security_tools_status()
+    ttk.Button(
+        panel,
+        text=app.tr("settings_systemcheck_run", "Systemcheck ausführen"),
+        command=app.run_selected_security_systemcheck,
+    ).pack(anchor="w", pady=(8, 0))
+    ttk.Label(
+        panel,
+        textvariable=app.security_systemcheck_status_var,
+        justify="left",
+        wraplength=wraplength,
+    ).pack(anchor="w", pady=(8, 0))
+    return panel
+
+
 def build_chad_settings_answer_style(app, frame) -> None:
     """Build the Chad answer style controls."""
     answer = ttk.LabelFrame(
