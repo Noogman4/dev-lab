@@ -104,6 +104,8 @@ require_file "$ROOT_DIR/site/security-audit-r8.html"
 require_file "$ROOT_DIR/site/security-audit-r9.html"
 require_file "$ROOT_DIR/site/security-audit-r10.html"
 require_file "$ROOT_DIR/site/styles.css"
+require_file "$ROOT_DIR/site/theme-bright.css"
+require_file "$ROOT_DIR/site/theme-dark.css"
 require_file "$ROOT_DIR/site/app.js"
 require_file "$ROOT_DIR/site/download.php"
 require_file "$ROOT_DIR/site/download-stats.php"
@@ -185,6 +187,8 @@ cp "$ROOT_DIR/site/security-audit-r8.html" "$PUBLIC_DIR/security-audit-r8.html"
 cp "$ROOT_DIR/site/security-audit-r9.html" "$PUBLIC_DIR/security-audit-r9.html"
 cp "$ROOT_DIR/site/security-audit-r10.html" "$PUBLIC_DIR/security-audit-r10.html"
 cp "$ROOT_DIR/site/styles.css" "$PUBLIC_DIR/styles.css"
+cp "$ROOT_DIR/site/theme-bright.css" "$PUBLIC_DIR/theme-bright.css"
+cp "$ROOT_DIR/site/theme-dark.css" "$PUBLIC_DIR/theme-dark.css"
 cp "$ROOT_DIR/site/app.js" "$PUBLIC_DIR/app.js"
 cp "$ROOT_DIR/site/download.php" "$PUBLIC_DIR/download.php"
 cp "$ROOT_DIR/site/download-stats.php" "$PUBLIC_DIR/download-stats.php"
@@ -261,6 +265,10 @@ chmod 755 "$VERIFY_DIR/verify_netmon_download.sh" "$MINISIGN_VERIFY_SCRIPT"
 )
 
 sign_release
+
+find "$PUBLIC_DIR" -type d -exec chmod 755 {} +
+find "$PUBLIC_DIR" -type f -exec chmod 644 {} +
+chmod 755 "$VERIFY_DIR/verify_netmon_download.sh" "$MINISIGN_VERIFY_SCRIPT"
 
 (
   cd "$BUILD_DIR"

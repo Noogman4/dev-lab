@@ -2887,6 +2887,7 @@ class App(TkBase):
         )
         self.netmon_roots_homepage = "https://netmonroots.com"
         self.netmon_roots_downloads_url = "https://netmonroots.com/downloads.html"
+        self.netmon_roots_donation_url = "https://paypal.me/NetMonRoots"
         self.netmon_roots_latest_version_url = (
             "https://netmonroots.com/latest-version.json"
         )
@@ -6336,6 +6337,10 @@ class App(TkBase):
     def open_netmon_roots_homepage(self, _event=None):
         target = str(getattr(self, "netmon_roots_homepage", "") or "").strip()
         return self._open_url_with_xdg_open(target, label="NetMonRoots")
+
+    def open_netmon_roots_donation(self, _event=None):
+        target = str(getattr(self, "netmon_roots_donation_url", "") or "").strip()
+        return self._open_url_with_xdg_open(target, label="NetMonRoots PayPal")
 
     def _open_url_with_xdg_open(self, target, label="URL"):
         target = str(target or "").strip()
@@ -19447,6 +19452,11 @@ class App(TkBase):
             text=self.tr("about_title", "Über NetMon"),
             font=("TkDefaultFont", 11, "bold"),
         ).grid(row=0, column=0, sticky="w")
+        ttk.Button(
+            outer,
+            text=self.tr("about_donation_button", "NetMon Roots unterstützen"),
+            command=self.open_netmon_roots_donation,
+        ).grid(row=0, column=1, sticky="e", padx=(8, 0))
 
         content_wrap = ttk.Frame(outer)
         content_wrap.grid(row=1, column=0, columnspan=2, sticky="nsew", pady=(8, 0))
@@ -19541,8 +19551,8 @@ class App(TkBase):
         )
         ttk.Button(
             donation_section,
-            text=self.tr("about_donation_button", "Spendenlink folgt"),
-            state="disabled",
+            text=self.tr("about_donation_button", "NetMon Roots unterstützen"),
+            command=self.open_netmon_roots_donation,
         ).pack(anchor="w", pady=(6, 0))
         docs_path = self._get_available_program_documentation_path()
         docs_section = _add_about_section(
@@ -20312,8 +20322,8 @@ class App(TkBase):
         actions.pack(fill="x", pady=(14, 0))
         ttk.Button(
             actions,
-            text=self.tr("donation_popup_paypal_placeholder", "PayPal folgt"),
-            state="disabled",
+            text=self.tr("donation_popup_paypal_button", "Mit PayPal unterstützen"),
+            command=self.open_netmon_roots_donation,
         ).pack(side="left")
         ttk.Button(
             actions,

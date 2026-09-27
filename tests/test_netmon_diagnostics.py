@@ -669,7 +669,8 @@ def test_about_program_dialog_contains_diagnostic_actions_source():
     assert "self._support_form_placeholders()" in source
     assert "Tipp: Supportpaket erzeugen, ZIP im Supportordner prüfen" in source
     assert 'self.tr("about_section_donation", "NetMon unterstützen")' in source
-    assert 'self.tr("about_donation_button", "Spendenlink folgt")' in source
+    assert 'self.tr("about_donation_button", "NetMon Roots unterstützen")' in source
+    assert "self.open_netmon_roots_donation" in source
 
 
 def test_bootstrap_failure_source_mentions_startup_support_dialog():

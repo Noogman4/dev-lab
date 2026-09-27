@@ -89,6 +89,7 @@ pre code {
   z-index: 10;
   display: grid;
   grid-template-columns: 610px minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
   align-items: center;
   gap: 14px;
   width: min(calc(100% - 12px), 1220px);
@@ -107,6 +108,7 @@ pre code {
   display: flex;
   align-items: center;
   grid-column: 1;
+  grid-row: 1 / span 2;
   justify-self: start;
   justify-content: flex-start;
   min-width: 0;
@@ -189,6 +191,7 @@ pre code {
   display: flex;
   flex-wrap: wrap;
   grid-column: 2;
+  grid-row: 1 / span 2;
   justify-self: end;
   justify-content: flex-end;
   gap: 14px;
@@ -203,8 +206,30 @@ pre code {
 .lang-switch {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 4px;
   grid-column: 3;
+  grid-row: 2;
+  justify-self: end;
+  padding: 6px;
+  width: 96px;
+  border: 1px solid rgba(154, 177, 204, 0.16);
+  border-radius: 999px;
+  background: rgba(35, 151, 100, 0.07);
+  color: var(--muted);
+  font-family: "Cascadia Mono", "Consolas", "Courier New", monospace;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.theme-switch {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  grid-column: 3;
+  grid-row: 1;
   justify-self: end;
   padding: 6px;
   border: 1px solid rgba(154, 177, 204, 0.16);
@@ -217,17 +242,36 @@ pre code {
   text-transform: uppercase;
 }
 
-.lang-switch a {
+.lang-switch a,
+.theme-switch button {
   padding: 6px 10px;
+  border: 0;
   border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.lang-switch a {
+  min-width: 38px;
+  padding-inline: 8px;
+  text-align: center;
+}
+
+.theme-switch button {
+  min-width: 72px;
 }
 
 .lang-switch a:hover,
-.lang-switch a:focus-visible {
+.lang-switch a:focus-visible,
+.theme-switch button:hover,
+.theme-switch button:focus-visible {
   color: var(--text);
 }
 
-.lang-switch .active {
+.lang-switch .active,
+.theme-switch button.active {
   color: #ffffff;
   background: linear-gradient(135deg, var(--accent), #56b97a);
 }
@@ -980,6 +1024,11 @@ h3 {
   }
 
   .lang-switch {
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  .theme-switch {
     grid-column: 1;
     justify-self: start;
   }

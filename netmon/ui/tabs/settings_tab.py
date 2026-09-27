@@ -204,7 +204,7 @@ def build_settings_donation(app, general_tab) -> None:
     ttk.Button(
         option_row,
         text=app.tr("settings_donation_support_button", "NetMon Roots unterstützen"),
-        state="disabled",
+        command=app.open_netmon_roots_donation,
     ).pack(side="left", padx=(12, 0))
     ttk.Label(
         donation_group,

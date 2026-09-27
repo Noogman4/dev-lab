@@ -27,8 +27,9 @@
   <meta name="twitter:description" content="Zentrale Downloadseite fuer NetMon mit Debian-Paket, Dokumentation, SHA256-Pruefsummen, Verifikation und Release-Hinweisen.">
   <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
   <link rel="stylesheet" href="./styles.css">
+  <link id="theme-style" rel="stylesheet" href="./theme-bright.css">
 </head>
-<body class="downloads-page" data-disable-donation-gate="true">
+<body class="downloads-page">
   <div class="page-shell docs-page downloads-page-shell">
     <header class="topbar">
       <a class="brand" href="./index.html" aria-label="NetMon Startseite">
@@ -58,6 +59,10 @@
       <div class="lang-switch" aria-label="Sprachauswahl">
         <a class="active" href="./downloads.html" lang="de">DE</a>
         <a href="./en/downloads.html" lang="en">EN</a>
+      </div>
+      <div class="theme-switch" aria-label="Darstellung">
+        <button type="button" data-theme-option="bright">Bright</button>
+        <button type="button" data-theme-option="dark">Dark</button>
       </div>
     </header>
 
@@ -89,7 +94,7 @@
           </article>
           <article class="download-card">
             <h3>Support</h3>
-            <p>Wenn dir NetMon hilft, freuen wir uns ueber Unterstuetzung. Der direkte Spendenlink folgt wieder, sobald PayPal sauber angebunden ist.</p>
+            <p>Wenn dir NetMon hilft, freuen wir uns ueber Unterstuetzung. Freiwillige Spenden sind direkt ueber <a href="https://paypal.me/NetMonRoots" target="_blank" rel="noopener">PayPal</a> moeglich.</p>
             <div class="inline-actions">
               <a class="button button-secondary" href="https://github.com/Noogman4/dev-lab" target="_blank" rel="noopener noreferrer">Projekt auf GitHub ansehen</a>
             </div>
