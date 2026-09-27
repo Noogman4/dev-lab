@@ -30,4 +30,10 @@ if [[ -z "$PUBKEY_VALUE" ]]; then
   exit 1
 fi
 
+if [[ -n "${NETMON_EXPECTED_MINISIGN_PUBKEY:-}" ]] && \
+   [[ "$PUBKEY_VALUE" != "$NETMON_EXPECTED_MINISIGN_PUBKEY" ]]; then
+  echo "Der Public Key stimmt nicht mit NETMON_EXPECTED_MINISIGN_PUBKEY ueberein." >&2
+  exit 1
+fi
+
 minisign -V -P "$PUBKEY_VALUE" -x "$SIGNATURE_FILE" -m "$MESSAGE_FILE"

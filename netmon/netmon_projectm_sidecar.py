@@ -108,7 +108,9 @@ def _iter_projectm_preset_files(preset_dir: str):
     flat_scan_dir = os.path.abspath(_projectm_flat_scan_dir(root_dir))
     for walk_root, _dirs, files in os.walk(root_dir):
         abs_walk_root = os.path.abspath(walk_root)
-        if abs_walk_root == flat_scan_dir or abs_walk_root.startswith(flat_scan_dir + os.sep):
+        if abs_walk_root == flat_scan_dir or abs_walk_root.startswith(
+            flat_scan_dir + os.sep
+        ):
             continue
         for filename in files:
             ext = os.path.splitext(filename)[1].lower()
@@ -123,7 +125,9 @@ def _projectm_flat_scan_name(root_dir: str, source_path: str) -> str:
     rel_path = os.path.relpath(source_path, root_dir)
     base_name = os.path.basename(source_path)
     stem, ext = os.path.splitext(base_name)
-    digest = hashlib.sha1(rel_path.encode("utf-8", errors="replace")).hexdigest()[:10]
+    digest = hashlib.sha1(
+        rel_path.encode("utf-8", errors="replace"), usedforsecurity=False
+    ).hexdigest()[:10]
     cleaned_stem = stem[:180].rstrip(" ._-") or "preset"
     return f"{cleaned_stem}__{digest}{ext.lower()}"
 
@@ -146,8 +150,7 @@ def _sync_projectm_flat_scan_dir(app, preset_dir: str) -> str:
     existing_entries = []
     try:
         existing_entries = [
-            os.path.join(flat_dir, name)
-            for name in os.listdir(flat_dir)
+            os.path.join(flat_dir, name) for name in os.listdir(flat_dir)
         ]
     except Exception:
         existing_entries = []
@@ -274,7 +277,9 @@ def install_projectm_preset_archive(app, archive_path: str, pack_name: str = "")
             raw_name = str(member.filename or "").replace("\\", "/").strip("/")
             if not raw_name:
                 continue
-            parts = [part for part in raw_name.split("/") if part not in {"", ".", ".."}]
+            parts = [
+                part for part in raw_name.split("/") if part not in {"", ".", ".."}
+            ]
             if not parts:
                 continue
             parsed_members.append((member, parts))
@@ -307,7 +312,9 @@ def install_projectm_preset_archive(app, archive_path: str, pack_name: str = "")
 
     if not imported_presets:
         shutil.rmtree(target_root, ignore_errors=True)
-        raise ValueError("The selected ZIP file does not contain any .milk or .prjm presets.")
+        raise ValueError(
+            "The selected ZIP file does not contain any .milk or .prjm presets."
+        )
 
     _sync_projectm_flat_scan_dir(app, preset_dir)
     _sync_projectm_flatpak_playlist_file(app, preset_dir)
@@ -957,9 +964,7 @@ def describe_projectm_sidecar_runtime(app):
     elif status.installed and backend_label == "Binary":
         preset_access_text = "System-Binary nutzt Dokumente/NetMon mit heruntergeladenen Preset-Packs und eigenen Imports."
     else:
-        preset_access_text = (
-            "Preset-Zugriff nach Installation ueber Dokumente/NetMon verfuegbar. Externe Packs koennen spaeter geladen werden."
-        )
+        preset_access_text = "Preset-Zugriff nach Installation ueber Dokumente/NetMon verfuegbar. Externe Packs koennen spaeter geladen werden."
     if status.installed and backend_label:
         install_text = f"projectM Backend: {backend_label}"
     elif status.install_strategy == "apt":

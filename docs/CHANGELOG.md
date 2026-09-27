@@ -2,6 +2,15 @@
 
 Automatisch aus der Git-Historie des Repositories erzeugt.
 
+## 2026-09-19 - Version 1.1.21
+
+- Umfangreiche Tab-UI-Builder wurden in ihre jeweiligen Tab-Module ausgelagert. Die Oberflaeche bleibt funktional gleich, waehrend die Codebasis klarer strukturiert und besser wartbar wird.
+- Der Debian-Installer veraendert keine aktiven DNS-Profile mehr und stellt bei Upgrades noch vorhandene DNS-Altzustaende frueherer Pakete wieder her.
+- Der Firefox-Basisimport akzeptiert nur regulaere TAR-Dateien und Verzeichnisse und begrenzt Download-, Member- und Extraktionsgroesse.
+- Paket-, Doku- und Website-Build beziehen ihre Version aus einer kanonischen Quelle; ein Konsistenzcheck blockiert abweichende Release-Metadaten.
+- Produktive Release-Bundles erfordern Minisign-Schluesselmaterial und verifizieren die erzeugte Signatur noch im Build.
+- Der Minisign-Public-Key mit ID `54BF5F1867BDD004` ist in `SECURITY.md` und als kanonische Repository-Datei gepinnt; abweichende Build-Keys werden abgelehnt.
+
 ## 2026-07-19 - Unreleased
 
 - UFW-Statusprüfung sprachunabhängig umgesetzt.

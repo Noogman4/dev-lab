@@ -14,7 +14,14 @@ Das Ziel:
 
 - `minisign` ist lokal installiert
 - der geheime Signaturschluessel liegt ausserhalb des Repos
-- der oeffentliche Schluessel kann spaeter mit ausgeliefert werden
+- der passende oeffentliche Schluessel liegt ausserhalb des Repos bereit
+- die Public-Key-Zeile ist unabhaengig von `netmonroots.com` in `SECURITY.md`
+  und unter `docs/security/netmonroots.minisign.pub` gepinnt
+
+Aktueller Release-Key:
+
+- Key-ID: `54BF5F1867BDD004`
+- Public Key: `RWQE0L1nGF+/VDIfeLCEp4x2UutfhhdCmPKSMTZY05kXJprqXyXfzo9R`
 
 ## Schluessel erzeugen
 
@@ -28,16 +35,19 @@ minisign -G \
 Hinweise:
 
 - den Secret Key niemals ins Repository legen
-- den Public Key darfst du mit der Website ausliefern
+- den Public Key mit der Website ausliefern und zusaetzlich unabhaengig pinnen
 - beim Generieren vergibt `minisign` eine Passphrase fuer den Secret Key
 
 ## Signierten Website-Build erzeugen
 
 ```bash
 NETMON_MINISIGN_SECRET_KEY=~/.config/netmonroots/minisign/netmonroots.minisign.key \
-NETMON_MINISIGN_PUBKEY=~/.config/netmonroots/minisign/netmonroots.minisign.pub \
 make site-build
 ```
+
+Ohne `NETMON_MINISIGN_PUBKEY` verwendet der Build automatisch den im
+Repository gepinnten Public Key. Ein abweichender expliziter Public Key wird
+abgelehnt.
 
 Wenn alles vorhanden ist, erzeugt der Build zusaetzlich:
 
@@ -46,13 +56,20 @@ Wenn alles vorhanden ist, erzeugt der Build zusaetzlich:
 - `dist/site-build/public_html/verify/verify_netmon_signature.sh`
 - `dist/site-build/public_html/latest-version.json` bleibt Teil des Upload-Bundles und sollte zum veroeffentlichten Paketstand passen
 
+Ohne `minisign`, Secret Key oder Public Key bricht ein Release-Build ab. Fuer
+einen bewusst unsignierten lokalen Test-Build ist ein explizites Opt-out
+erforderlich:
+
+```bash
+NETMON_ALLOW_UNSIGNED_BUILD=1 make site-build
+```
+
 ## Signiertes Release-Update ohne kompletten Website-Build
 
 Wenn nur Paket, Doku, `SHA256SUMS` und Signatur aktualisiert werden muessen:
 
 ```bash
 NETMON_MINISIGN_SECRET_KEY=~/.config/netmonroots/minisign/netmonroots.minisign.key \
-NETMON_MINISIGN_PUBKEY=~/.config/netmonroots/minisign/netmonroots.minisign.pub \
 make site-release-update
 ```
 
@@ -90,8 +107,25 @@ bash verify_netmon_signature.sh \
   SHA256SUMS
 ```
 
+Der Public Key muss vor dieser Pruefung mit der unabhaengig veroeffentlichten
+Public-Key-Zeile verglichen werden. Der Verifier kann diesen Pin zusaetzlich
+erzwingen:
+
+```bash
+NETMON_EXPECTED_MINISIGN_PUBKEY='RWQE0L1nGF+/VDIfeLCEp4x2UutfhhdCmPKSMTZY05kXJprqXyXfzo9R' \
+bash verify_netmon_signature.sh \
+  netmonroots.minisign.pub \
+  SHA256SUMS.minisig \
+  SHA256SUMS
+```
+
+Die Key-Zeile stammt aus dem bereits kontrolliert erzeugten Release-Key und
+wird nicht automatisch aus der Download-Origin uebernommen.
+
 ## Aktueller Repo-Status
 
-- der Website-Build unterstuetzt signierte Releases bereits
-- ohne installiertes `minisign` oder ohne gesetzte Key-Variablen wird nur unsigniert gebaut
-- das ist fuer Test-Builds in Ordnung, aber fuer produktive Releases ist Signatur empfehlenswert
+- Website- und Release-Update-Build erzwingen signierte Releases
+- Signatur und bereitgestellter Public Key werden im Build direkt verifiziert
+- unsignierte lokale Test-Builds benoetigen `NETMON_ALLOW_UNSIGNED_BUILD=1`
+- der echte Public Key ist in `SECURITY.md` und als kanonische Datei im
+  Repository gepinnt

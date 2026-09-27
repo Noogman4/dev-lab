@@ -61,7 +61,110 @@ PROJECTM_CREAM_OF_THE_CROP_URL = (
 FIREFOX_STANDALONE_LINUX_X64_URL = (
     "https://download.mozilla.org/?product=firefox-latest-ssl&os=linux64&lang=de"
 )
+FIREFOX_ARCHIVE_MAX_DOWNLOAD_BYTES = 512 * 1024 * 1024
+FIREFOX_ARCHIVE_MAX_EXTRACTED_BYTES = 2 * 1024 * 1024 * 1024
+FIREFOX_ARCHIVE_MAX_MEMBERS = 100_000
 NVIDIA_UTILS_PACKAGE_RE = re.compile(r"^nvidia-utils-(\d+)$")
+
+
+def _download_url_to_file_limited(url, destination, max_bytes):
+    parsed_url = urlparse(str(url or "").strip())
+    if parsed_url.scheme != "https":
+        raise ValueError("Firefox-Download erfordert HTTPS")
+
+    with urllib_request.urlopen(parsed_url.geturl(), timeout=90) as response:
+        content_length = response.headers.get("Content-Length")
+        if content_length:
+            try:
+                declared_size = int(content_length)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Ungueltige Downloadgroesse") from exc
+            if declared_size < 0 or declared_size > max_bytes:
+                raise ValueError("Firefox-Archiv ist zu gross")
+
+        written = 0
+        with open(destination, "wb") as handle:
+            while True:
+                chunk = response.read(1024 * 1024)
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > max_bytes:
+                    raise ValueError("Firefox-Archiv ist zu gross")
+                handle.write(chunk)
+
+
+def _extract_regular_tar_archive(
+    archive,
+    target_dir,
+    *,
+    max_members=FIREFOX_ARCHIVE_MAX_MEMBERS,
+    max_total_size=FIREFOX_ARCHIVE_MAX_EXTRACTED_BYTES,
+):
+    target_root = os.path.realpath(target_dir)
+    members = archive.getmembers()
+    if len(members) > max_members:
+        raise ValueError("Firefox-Archiv enthaelt zu viele Dateien")
+
+    validated_members = []
+    seen_targets = set()
+    total_size = 0
+    for member in members:
+        member_name = str(getattr(member, "name", "") or "")
+        if not member_name:
+            raise ValueError("Firefox-Archiv enthaelt einen leeren Pfad")
+        if not member.isfile() and not member.isdir():
+            raise ValueError("Firefox-Archiv enthaelt Links oder Sonderdateien")
+
+        member_target = os.path.realpath(os.path.join(target_root, member_name))
+        try:
+            stays_in_target = (
+                os.path.commonpath([target_root, member_target]) == target_root
+            )
+        except ValueError:
+            stays_in_target = False
+        if not stays_in_target:
+            raise ValueError("Unsicherer TAR-Pfad erkannt")
+        if member_target in seen_targets:
+            raise ValueError("Firefox-Archiv enthaelt doppelte Pfade")
+        seen_targets.add(member_target)
+
+        if member.isfile():
+            member_size = int(getattr(member, "size", 0) or 0)
+            if member_size < 0:
+                raise ValueError("Firefox-Archiv enthaelt eine ungueltige Dateigroesse")
+            total_size += member_size
+            if total_size > max_total_size:
+                raise ValueError("Entpackte Firefox-Basis ist zu gross")
+        validated_members.append((member, member_target))
+
+    directory_modes = []
+    for member, member_target in validated_members:
+        if member.isdir():
+            os.makedirs(member_target, exist_ok=True)
+            directory_modes.append((member_target, member.mode & 0o777))
+            continue
+
+        os.makedirs(os.path.dirname(member_target), exist_ok=True)
+        source = archive.extractfile(member)
+        if source is None:
+            raise ValueError("Firefox-Archivdatei konnte nicht gelesen werden")
+        copied = 0
+        with source, open(member_target, "wb") as destination:
+            while True:
+                chunk = source.read(1024 * 1024)
+                if not chunk:
+                    break
+                copied += len(chunk)
+                if copied > member.size:
+                    raise ValueError("Firefox-Archivdatei ueberschreitet ihre Groesse")
+                destination.write(chunk)
+        if copied != member.size:
+            raise ValueError("Firefox-Archivdatei ist unvollstaendig")
+        os.chmod(member_target, member.mode & 0o777)
+
+    for directory, mode in reversed(directory_modes):
+        os.chmod(directory, mode)
 
 
 def is_debian_package_installed(package_name: str) -> bool:
@@ -15104,7 +15207,9 @@ class App(TkBase):
 
     def tooltip_lang_key(self, text: str) -> str:
         raw = str(text or "").strip()
-        digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
+        digest = hashlib.sha1(raw.encode("utf-8"), usedforsecurity=False).hexdigest()[
+            :12
+        ]
         return f"tooltip_auto_{digest}"
 
     def _translate_tooltip_text(self, text_or_key: str) -> str:
@@ -32347,32 +32452,20 @@ class App(TkBase):
         temp_archive = ""
         temp_extract_dir = ""
         try:
-            with urllib_request.urlopen(str(url or "").strip(), timeout=90) as response:
-                payload = response.read()
-
             fd, temp_archive = tempfile.mkstemp(
                 prefix="netmon-firefox-source-",
                 suffix=".tar.xz",
             )
-            with os.fdopen(fd, "wb") as handle:
-                handle.write(payload)
+            os.close(fd)
+            _download_url_to_file_limited(
+                url,
+                temp_archive,
+                FIREFOX_ARCHIVE_MAX_DOWNLOAD_BYTES,
+            )
 
             temp_extract_dir = tempfile.mkdtemp(prefix="netmon-firefox-extract-")
             with tarfile.open(temp_archive, "r:*") as archive:
-                members = archive.getmembers()
-                for member in members:
-                    member_name = str(getattr(member, "name", "") or "").strip()
-                    if not member_name:
-                        continue
-                    member_target = os.path.abspath(
-                        os.path.join(temp_extract_dir, member_name)
-                    )
-                    if (
-                        member_target != temp_extract_dir
-                        and not member_target.startswith(temp_extract_dir + os.sep)
-                    ):
-                        raise ValueError("Unsicherer TAR-Pfad erkannt")
-                archive.extractall(temp_extract_dir)
+                _extract_regular_tar_archive(archive, temp_extract_dir)
 
             extracted_firefox_dir = ""
             for candidate in (
@@ -32398,7 +32491,7 @@ class App(TkBase):
 
             if os.path.isdir(target_root):
                 shutil.rmtree(target_root)
-            shutil.copytree(extracted_firefox_dir, target_root, symlinks=True)
+            shutil.copytree(extracted_firefox_dir, target_root, symlinks=False)
 
             firefox_binary = os.path.join(target_root, "firefox")
             if os.path.isfile(firefox_binary):

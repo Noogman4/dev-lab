@@ -73,7 +73,7 @@ Die Schnellscan-Auswahl liegt in `config.json`:
 
 ## Standardwerte
 
-- App-Version laut `netmon/config/constants.py`: `1.1.19`
+- App-Version laut `netmon/config/constants.py`: `1.1.21`
 - Theme-Startwert: `light` als bevorzugtes Theme in `App.__init__`.
 - Das losgeloeste Standalone-Radio erzwingt aktuell `dark` als Start- und Laufzeittheme; der eingebettete Radio-Tab folgt weiter dem NetMon-/Radio-Theme.
 - Chad-Startmodell: `gpt-4.1-mini`.

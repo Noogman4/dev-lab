@@ -78,7 +78,7 @@ or from the GitHub Releases page.
 Install the package:
 
 ```bash
-sudo dpkg -i netmon_1.1.19_all.deb
+sudo dpkg -i netmon_1.1.21_all.deb
 sudo apt -f install
 ```
 

@@ -2,10 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PKG_VERSION="1.1.19"
-DOCS_VERSION="1.1.19"
+PKG_VERSION="$(python3 "$ROOT_DIR/scripts/read_netmon_version.py")"
+DOCS_VERSION="$PKG_VERSION"
 CURRENT_AUDIT_HTML="security-audit.html"
-CURRENT_AUDIT_VERSIONED_HTML="security-audit-r11.html"
+CURRENT_AUDIT_VERSIONED_HTML="security-audit-r12.html"
 BUILD_DIR="$ROOT_DIR/dist/site-build"
 PUBLIC_DIR="$BUILD_DIR/public_html"
 DIST_DOCS_DIR="$PUBLIC_DIR/dist/docs"
@@ -18,28 +18,47 @@ DATA_DIR="$PUBLIC_DIR/data"
 SUMS_FILE="$PUBLIC_DIR/dist/SHA256SUMS"
 MINISIGN_PUBKEY_TARGET="$VERIFY_DIR/netmonroots.minisign.pub"
 MINISIGN_VERIFY_SCRIPT="$VERIFY_DIR/verify_netmon_signature.sh"
+PINNED_MINISIGN_PUBKEY="$ROOT_DIR/docs/security/netmonroots.minisign.pub"
+RELEASE_MINISIGN_PUBKEY="${NETMON_MINISIGN_PUBKEY:-$PINNED_MINISIGN_PUBKEY}"
 
-maybe_sign_release() {
-  if ! command -v minisign >/dev/null 2>&1; then
-    echo "Hinweis: minisign nicht gefunden, Signatur wird uebersprungen."
+sign_release() {
+  if [[ "${NETMON_ALLOW_UNSIGNED_BUILD:-0}" == "1" ]]; then
+    cp "$PINNED_MINISIGN_PUBKEY" "$MINISIGN_PUBKEY_TARGET"
+    echo "WARNUNG: Explizit angeforderter unsignierter Test-Build." >&2
     return 0
+  fi
+
+  if ! command -v minisign >/dev/null 2>&1; then
+    echo "Release-Abbruch: minisign ist nicht installiert." >&2
+    exit 1
   fi
 
   if [[ -z "${NETMON_MINISIGN_SECRET_KEY:-}" ]]; then
-    echo "Hinweis: NETMON_MINISIGN_SECRET_KEY nicht gesetzt, Signatur wird uebersprungen."
-    return 0
+    echo "Release-Abbruch: NETMON_MINISIGN_SECRET_KEY ist nicht gesetzt." >&2
+    exit 1
   fi
 
   if [[ ! -f "$NETMON_MINISIGN_SECRET_KEY" ]]; then
-    echo "Hinweis: Minisign-Secret-Key nicht gefunden: $NETMON_MINISIGN_SECRET_KEY"
-    return 0
+    echo "Release-Abbruch: Minisign-Secret-Key nicht gefunden: $NETMON_MINISIGN_SECRET_KEY" >&2
+    exit 1
+  fi
+
+  if [[ ! -f "$RELEASE_MINISIGN_PUBKEY" ]]; then
+    echo "Release-Abbruch: Minisign-Public-Key fehlt: $RELEASE_MINISIGN_PUBKEY" >&2
+    exit 1
+  fi
+
+  if ! cmp -s "$RELEASE_MINISIGN_PUBKEY" "$PINNED_MINISIGN_PUBKEY"; then
+    echo "Release-Abbruch: Der Public Key stimmt nicht mit dem Repository-Pin ueberein." >&2
+    exit 1
   fi
 
   minisign -S -s "$NETMON_MINISIGN_SECRET_KEY" -m "$SUMS_FILE" -x "$PUBLIC_DIR/dist/SHA256SUMS.minisig"
-
-  if [[ -n "${NETMON_MINISIGN_PUBKEY:-}" && -f "${NETMON_MINISIGN_PUBKEY}" ]]; then
-    cp "$NETMON_MINISIGN_PUBKEY" "$MINISIGN_PUBKEY_TARGET"
-  fi
+  cp "$RELEASE_MINISIGN_PUBKEY" "$MINISIGN_PUBKEY_TARGET"
+  "$MINISIGN_VERIFY_SCRIPT" \
+    "$MINISIGN_PUBKEY_TARGET" \
+    "$PUBLIC_DIR/dist/SHA256SUMS.minisig" \
+    "$SUMS_FILE"
 
   echo "Signatur erzeugt: $PUBLIC_DIR/dist/SHA256SUMS.minisig"
 }
@@ -103,6 +122,7 @@ require_file "$ROOT_DIR/site/netmon_security_audit_2026_r8.pdf"
 require_file "$ROOT_DIR/site/netmon_security_audit_2026_r9.pdf"
 require_file "$ROOT_DIR/site/netmon_security_audit_2026_r10.pdf"
 require_file "$ROOT_DIR/site/netmon_security_audit_2026_r11.pdf"
+require_file "$ROOT_DIR/site/netmon_security_audit_2026_r12.pdf"
 require_file "$ROOT_DIR/site/data/.htaccess"
 require_file "$ROOT_DIR/site/data/download-stats.json"
 require_file "$ROOT_DIR/site/en/index.html"
@@ -135,9 +155,11 @@ require_file "$ROOT_DIR/tools/bannericon.png"
 require_file "$ROOT_DIR/tools/netmon.png"
 require_file "$ROOT_DIR/tools/netmon-radio.png"
 require_file "$ROOT_DIR/docs/CHANGELOG.md"
+require_file "$PINNED_MINISIGN_PUBKEY"
 require_file "$ROOT_DIR/scripts/verify_netmon_download.sh"
 
 ensure_no_embedded_stats_token
+python3 "$ROOT_DIR/scripts/check_release_consistency.py"
 
 rm -rf "$BUILD_DIR"
 mkdir -p "$DIST_DOCS_DIR" "$TOOLS_DIR" "$DOCS_DIR" "$VERIFY_DIR" "$EN_DIR" "$SCREENSHOTS_DIR" "$DATA_DIR"
@@ -175,7 +197,7 @@ cp "$ROOT_DIR/tools/bannericon.png" "$PUBLIC_DIR/bannericon.png"
 cp "$ROOT_DIR/site/.htaccess" "$PUBLIC_DIR/.htaccess"
 cp "$ROOT_DIR/site/LICENSE.txt" "$PUBLIC_DIR/LICENSE.txt"
 cp "$ROOT_DIR/site/THIRD_PARTY_NOTICES.md" "$PUBLIC_DIR/THIRD_PARTY_NOTICES.md"
-cp "$ROOT_DIR/site/netmon_security_audit_2026_r11.pdf" "$PUBLIC_DIR/netmon_security_audit_2026.pdf"
+cp "$ROOT_DIR/site/netmon_security_audit_2026_r12.pdf" "$PUBLIC_DIR/netmon_security_audit_2026.pdf"
 cp "$ROOT_DIR/site/netmon_security_audit_2026_r2.pdf" "$PUBLIC_DIR/netmon_security_audit_2026_r2.pdf"
 cp "$ROOT_DIR/site/netmon_security_audit_2026_r3.pdf" "$PUBLIC_DIR/netmon_security_audit_2026_r3.pdf"
 cp "$ROOT_DIR/site/netmon_security_audit_2026_r4.pdf" "$PUBLIC_DIR/netmon_security_audit_2026_r4.pdf"
@@ -186,6 +208,7 @@ cp "$ROOT_DIR/site/netmon_security_audit_2026_r8.pdf" "$PUBLIC_DIR/netmon_securi
 cp "$ROOT_DIR/site/netmon_security_audit_2026_r9.pdf" "$PUBLIC_DIR/netmon_security_audit_2026_r9.pdf"
 cp "$ROOT_DIR/site/netmon_security_audit_2026_r10.pdf" "$PUBLIC_DIR/netmon_security_audit_2026_r10.pdf"
 cp "$ROOT_DIR/site/netmon_security_audit_2026_r11.pdf" "$PUBLIC_DIR/netmon_security_audit_2026_r11.pdf"
+cp "$ROOT_DIR/site/netmon_security_audit_2026_r12.pdf" "$PUBLIC_DIR/netmon_security_audit_2026_r12.pdf"
 cp "$ROOT_DIR/site/data/.htaccess" "$DATA_DIR/.htaccess"
 cp "$ROOT_DIR/site/data/download-stats.json" "$DATA_DIR/download-stats.json"
 
@@ -230,13 +253,13 @@ cp "$ROOT_DIR/scripts/verify_netmon_signature.sh" "$MINISIGN_VERIFY_SCRIPT"
 (
   cd "$PUBLIC_DIR/dist"
   sha256sum \
-    netmon_${PKG_VERSION}_all.deb \
-    docs/netmon_dokumentation_${DOCS_VERSION}.pdf \
-    docs/netmon_dokumentation_${DOCS_VERSION}.html \
+    "netmon_${PKG_VERSION}_all.deb" \
+    "docs/netmon_dokumentation_${DOCS_VERSION}.pdf" \
+    "docs/netmon_dokumentation_${DOCS_VERSION}.html" \
     > "$SUMS_FILE"
 )
 
-maybe_sign_release
+sign_release
 
 (
   cd "$BUILD_DIR"

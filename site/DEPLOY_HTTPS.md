@@ -84,7 +84,7 @@ public_html/screenshots/netmon-status-header-tour.png
 public_html/netmon_security_audit_2026.pdf
 public_html/LICENSE.txt
 public_html/THIRD_PARTY_NOTICES.md
-public_html/dist/netmon_1.1.19_all.deb
+public_html/dist/netmon_1.1.21_all.deb
 public_html/dist/SHA256SUMS
 public_html/tools/netmon.png
 public_html/docs/CHANGELOG.md
@@ -144,7 +144,10 @@ Danach kannst du entweder:
 Fuer signierte Releases:
 
 - `NETMON_MINISIGN_SECRET_KEY=/pfad/zum/seckey.txt make site-build`
-- optional zusaetzlich `NETMON_MINISIGN_PUBKEY=/pfad/zum/pubkey.txt`
+- der Build verwendet den in `docs/security/netmonroots.minisign.pub` gepinnten Public Key
+- ein optional gesetzter `NETMON_MINISIGN_PUBKEY` muss exakt mit dem Repository-Pin uebereinstimmen
+- ohne Secret Key oder ohne `minisign` bricht der Release-Build ab
+- nur lokale Test-Builds duerfen explizit `NETMON_ALLOW_UNSIGNED_BUILD=1` setzen
 - kompletter Ablauf in `docs/MINISIGN_RELEASES.md`
 
 ## Wichtiger Hinweis zu Zertifikaten

@@ -1,4 +1,8 @@
+import io
 import inspect
+import tarfile
+
+import pytest
 
 from netmon.app import (
     App,
@@ -6,6 +10,8 @@ from netmon.app import (
     CODE_THE_CLASSICS_ZIP_SYSTEM,
     DEPENDENCIES,
     SETUP_REMOVABLES,
+    _download_url_to_file_limited,
+    _extract_regular_tar_archive,
     find_code_the_classics_zip,
 )
 from netmon.ui.tabs.log_tab import build_log_tab
@@ -20,6 +26,99 @@ class DummyVar:
 
     def set(self, value):
         self.value = value
+
+
+def _write_test_tar(path, members):
+    with tarfile.open(path, "w") as archive:
+        for member, payload in members:
+            archive.addfile(
+                member, io.BytesIO(payload) if payload is not None else None
+            )
+
+
+def test_extract_regular_tar_archive_accepts_files_and_directories(tmp_path):
+    archive_path = tmp_path / "firefox.tar"
+    directory = tarfile.TarInfo("firefox")
+    directory.type = tarfile.DIRTYPE
+    directory.mode = 0o755
+    binary = tarfile.TarInfo("firefox/firefox")
+    binary.size = 6
+    binary.mode = 0o755
+    _write_test_tar(archive_path, [(directory, None), (binary, b"binary")])
+
+    target = tmp_path / "extract"
+    with tarfile.open(archive_path, "r") as archive:
+        _extract_regular_tar_archive(archive, target)
+
+    assert (target / "firefox" / "firefox").read_bytes() == b"binary"
+    assert (target / "firefox" / "firefox").stat().st_mode & 0o777 == 0o755
+
+
+@pytest.mark.parametrize("member_type", [tarfile.SYMTYPE, tarfile.LNKTYPE])
+def test_extract_regular_tar_archive_rejects_links(tmp_path, member_type):
+    archive_path = tmp_path / "firefox.tar"
+    link = tarfile.TarInfo("firefox/firefox")
+    link.type = member_type
+    link.linkname = "/bin/sh"
+    _write_test_tar(archive_path, [(link, None)])
+
+    with tarfile.open(archive_path, "r") as archive:
+        with pytest.raises(ValueError, match="Links oder Sonderdateien"):
+            _extract_regular_tar_archive(archive, tmp_path / "extract")
+
+
+def test_extract_regular_tar_archive_rejects_path_traversal(tmp_path):
+    archive_path = tmp_path / "firefox.tar"
+    escaped = tarfile.TarInfo("../firefox")
+    escaped.size = 4
+    _write_test_tar(archive_path, [(escaped, b"nope")])
+
+    with tarfile.open(archive_path, "r") as archive:
+        with pytest.raises(ValueError, match="Unsicherer TAR-Pfad"):
+            _extract_regular_tar_archive(archive, tmp_path / "extract")
+
+
+def test_extract_regular_tar_archive_limits_total_size(tmp_path):
+    archive_path = tmp_path / "firefox.tar"
+    binary = tarfile.TarInfo("firefox/firefox")
+    binary.size = 6
+    _write_test_tar(archive_path, [(binary, b"binary")])
+
+    with tarfile.open(archive_path, "r") as archive:
+        with pytest.raises(ValueError, match="zu gross"):
+            _extract_regular_tar_archive(
+                archive,
+                tmp_path / "extract",
+                max_total_size=5,
+            )
+
+
+def test_download_url_to_file_limited_rejects_oversized_stream(tmp_path, monkeypatch):
+    class Response:
+        headers = {}
+
+        def __init__(self):
+            self.chunks = iter((b"abc", b"def", b""))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self, _size):
+            return next(self.chunks)
+
+    monkeypatch.setattr(
+        "netmon.app.urllib_request.urlopen", lambda *_a, **_kw: Response()
+    )
+
+    with pytest.raises(ValueError, match="zu gross"):
+        _download_url_to_file_limited(
+            "https://download.mozilla.org/firefox.tar.xz",
+            tmp_path / "firefox.tar.xz",
+            5,
+        )
 
 
 def test_dependency_registry_contains_selected_tools():

@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NetMonRoots | Security Audit 2026 — Round 11</title>
+  <title>NetMonRoots | Security Audit 2026 — Round 12</title>
   <meta
     name="description"
-    content="Eleventh independent security audit of the NetMon source code on the v1.1.20 state. Focus: the new UFW sysctl override feature, the new runtime measurement module, and a first as-is review of the radio sinks. 0 critical, 0 high, 0 medium findings — eight defense-in-depth hardening measures implemented."
+    content="Twelfth NetMon security audit for v1.1.21. All findings are remediated and the Minisign public key is pinned independently from the download origin in the repository."
   >
   <link rel="icon" type="image/png" href="../favicon.png">
   <link rel="apple-touch-icon" href="../favicon.png">
@@ -14,8 +14,8 @@
   <link rel="alternate" hreflang="de" href="https://netmonroots.com/security-audit.html">
   <link rel="alternate" hreflang="en" href="https://netmonroots.com/en/security-audit.html">
   <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/security-audit.html">
-  <meta property="og:title" content="NetMonRoots | Security Audit 2026 — Round 11">
-  <meta property="og:description" content="Eleventh independent security audit of the NetMon source code on the v1.1.20 state. 0 critical, 0 high, 0 medium findings — eight hardening measures implemented.">
+  <meta property="og:title" content="NetMonRoots | Security Audit 2026 — Round 12">
+  <meta property="og:description" content="Security audit of NetMon v1.1.21: 0 critical, 0 high, 0 medium, and 0 low findings open.">
   <meta property="og:url" content="https://netmonroots.com/en/security-audit.html">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="NetMon Roots">
@@ -23,8 +23,8 @@
   <meta property="og:locale:alternate" content="de_DE">
   <meta property="og:image" content="https://netmonroots.com/favicon.png">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="NetMonRoots | Security Audit 2026 — Round 11">
-  <meta name="twitter:description" content="Eleventh independent security audit of the NetMon source code on the v1.1.20 state. 0 critical, 0 high, 0 medium findings — eight hardening measures implemented.">
+  <meta name="twitter:title" content="NetMonRoots | Security Audit 2026 — Round 12">
+  <meta name="twitter:description" content="Security audit of NetMon v1.1.21: 0 critical, 0 high, 0 medium, and 0 low findings open.">
   <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
   <link rel="stylesheet" href="../styles.css">
   <style>
@@ -133,6 +133,110 @@
     </header>
 
     <main>
+
+      <section class="audit-hero">
+        <p class="eyebrow">Security Audit — September 2026 — Round 12</p>
+        <h1 style="font-size:clamp(2rem,4vw,3rem);margin:0 0 20px;color:var(--text);">
+          Code and Release Security Review<br>
+          <span style="color:var(--accent);">NetMon Roots v1.1.21</span>
+        </h1>
+        <p style="max-width:760px;color:var(--muted);line-height:1.65;font-size:1.05rem;">
+          Round 12 reviewed 96 commits since round 11, the large tab UI
+          extraction, privileged system paths, and the release supply chain.
+          The refactoring adds no new shell, network, or privilege sink. The
+          medium DNS finding, TAR link handling, version drift, and stale support
+          matrix have been remediated. The real Minisign public key is pinned in
+          the security policy and canonical repository file under key ID
+          <code>54BF5F1867BDD004</code>.
+        </p>
+        <p><a class="button button-primary" href="../netmon_security_audit_2026_r12.pdf" download>Download round 12 PDF</a></p>
+      </section>
+
+      <div class="verdict-banner">
+        <div class="verdict-icon">&#10003;</div>
+        <div class="verdict-text">
+          <h2>All round 12 findings remediated</h2>
+          <p>
+            The Debian installer no longer changes DNS profiles, Firefox imports
+            accept only bounded regular files and directories, and release builds
+            now have hard version and signature gates. The real public key is
+            pinned in the repository outside the download origin, and builds
+            reject mismatched keys.
+          </p>
+        </div>
+      </div>
+
+      <div class="audit-meta-grid">
+        <div class="audit-meta-card">
+          <div class="label">Date</div>
+          <div class="value">September 19, 2026</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Reviewed version</div>
+          <div class="value">v1.1.21</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Critical / High</div>
+          <div class="value ok">0 / 0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Open Medium / Low</div>
+          <div class="value ok">0 / 0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Test suite</div>
+          <div class="value ok">2595 passed, 2 skipped</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Dependencies</div>
+          <div class="value ok">No known advisories</div>
+        </div>
+      </div>
+
+      <div class="audit-section" id="summary-r12">
+        <h2>Round 12 findings</h2>
+        <div class="section-rule"></div>
+        <div class="audit-card">
+          <p><strong>NM-R12-01 — Remediated:</strong> the Debian
+          <code>postinst</code> no longer changes active DNS profiles. Upgrades
+          restore state left by older packages and remove that legacy state.</p>
+          <p><strong>NM-R12-02 — Remediated:</strong> Firefox TAR extraction accepts
+          only regular files and directories, rejects links and special files,
+          validates every target path, and enforces download and extraction limits.</p>
+          <p><strong>NM-R12-03 — Remediated:</strong> release builds now
+          require Minisign keys and verify the generated signature. The verifier
+          supports an independently obtained key pin. Key ID
+          <code>54BF5F1867BDD004</code> is pinned in <code>SECURITY.md</code> and
+          the canonical repository key file; builds reject mismatched keys.</p>
+          <p><strong>NM-R12-04 — Remediated:</strong> package, site, and docs builds
+          derive version <code>1.1.21</code> from the canonical app constant. A
+          consistency gate checks the public release metadata before builds.</p>
+          <p><strong>NM-R12-05 — Remediated:</strong> <code>SECURITY.md</code> now
+          identifies <code>1.1.21</code> as the supported release line.</p>
+        </div>
+      </div>
+
+      <div class="audit-section">
+        <h2>Verification</h2>
+        <div class="section-rule"></div>
+        <div class="audit-card">
+          <p>Ruff and formatting checks passed. The initial repository-wide high
+          heuristics were manually validated and technically clarified; the final
+          Bandit scan at the high-severity threshold reports no findings.
+          <code>pip-audit</code> found no known vulnerability in
+          the currently resolved requirements. Shellcheck and the GUI smoke test
+          passed. The focused R12 remediation set completed with 33 passed tests;
+          the full suite completed with 2595 passed and 2 skipped tests.</p>
+          <p>This static review does not replace an independent penetration test.
+          The detailed technical report is stored as
+          <code>docs/SECURITY_AUDIT_2026_R12.md</code> in the repository.</p>
+        </div>
+      </div>
+
+      <div class="audit-section" id="round-11">
+        <h2>Previous round 11 — full report</h2>
+        <div class="section-rule"></div>
+      </div>
 
       <section class="audit-hero">
         <p class="eyebrow">Security Audit — July 2026 — Round 11</p>

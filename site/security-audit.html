@@ -3,26 +3,26 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 11</title>
+  <title>NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 12</title>
   <meta
     name="description"
-    content="Elftes unabhaengiges Sicherheits-Audit des NetMon-Quellcodes auf Stand v1.1.20 (Juli 2026). Fokus: das neue UFW-sysctl-Override-Feature, die neue Laufzeitmessung und eine Ist-Stand-Vertiefung der Radio-Senken. 0 kritische, 0 hohe, 0 mittlere Findings &mdash; acht Defense-in-Depth-Haertungen umgesetzt."
+    content="Zwoelftes Sicherheits-Audit von NetMon auf Stand v1.1.21. Alle Findings sind behoben; der Minisign-Public-Key ist unabhaengig von der Download-Origin im Repository gepinnt."
   >
   <link rel="icon" type="image/png" href="./favicon.png">
   <link rel="apple-touch-icon" href="./favicon.png">
   <link rel="canonical" href="https://netmonroots.com/security-audit.html">
   <link rel="alternate" hreflang="de" href="https://netmonroots.com/security-audit.html">
   <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/security-audit.html">
-  <meta property="og:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 11">
-  <meta property="og:description" content="Elftes Sicherheits-Audit des NetMon-Quellcodes auf Stand v1.1.20. 0 kritische, 0 hohe, 0 mittlere Findings &mdash; acht Haertungen umgesetzt.">
+  <meta property="og:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 12">
+  <meta property="og:description" content="Security-Audit von NetMon v1.1.21: 0 kritische, 0 hohe, 0 mittlere und 0 niedrige Findings offen.">
   <meta property="og:url" content="https://netmonroots.com/security-audit.html">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="NetMon Roots">
   <meta property="og:locale" content="de_DE">
   <meta property="og:image" content="https://netmonroots.com/favicon.png">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 11">
-  <meta name="twitter:description" content="Elftes Sicherheits-Audit des NetMon-Quellcodes auf Stand v1.1.20. 0 kritische, 0 hohe, 0 mittlere Findings &mdash; acht Haertungen umgesetzt.">
+  <meta name="twitter:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 12">
+  <meta name="twitter:description" content="Security-Audit von NetMon v1.1.21: 0 kritische, 0 hohe, 0 mittlere und 0 niedrige Findings offen.">
   <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
   <link rel="stylesheet" href="./styles.css">
   <style>
@@ -266,10 +266,197 @@
       </nav>
       <div class="lang-switch" aria-label="Sprachauswahl">
         <a class="active" href="./security-audit.html" lang="de">DE</a>
+        <a href="./en/security-audit.html" lang="en">EN</a>
       </div>
     </header>
 
     <main>
+
+      <!-- Aktueller Auditstand: Runde 12 -->
+      <section class="audit-hero">
+        <p class="eyebrow">Sicherheits-Audit &mdash; September 2026 &mdash; Runde&nbsp;12</p>
+        <h1 style="font-size:clamp(2rem,4vw,3rem);margin:0 0 20px;color:var(--text);">
+          Code- und Release-Security-Review<br>
+          <span style="color:var(--accent);">NetMon Roots v1.1.21</span>
+        </h1>
+        <p style="max-width:760px;color:var(--muted);line-height:1.65;font-size:1.05rem;">
+          Gepr&uuml;ft wurden 96&nbsp;Commits seit Runde&nbsp;11, die umfangreiche
+          Auslagerung der Tab-Oberfl&auml;chen, privilegierte Systempfade und die
+          Release-Lieferkette. Das Refactoring f&uuml;hrt keine neue Shell-,
+          Netzwerk- oder Privileg-Senke ein. Das mittlere DNS-Finding, die
+          TAR-Linkbehandlung, der Versionsdrift und die veraltete Supportmatrix
+          wurden behoben. Der echte Minisign-Public-Key ist mit der ID
+          <code>54BF5F1867BDD004</code> in der Security Policy und als
+          kanonische Repository-Datei gepinnt.
+        </p>
+        <a class="round-link" href="#round-11">
+          Vollbericht der Vorrunde&nbsp;11 anzeigen
+        </a>
+        <a class="round-link" href="./netmon_security_audit_2026_r12.pdf" download>
+          PDF Runde&nbsp;12 herunterladen
+        </a>
+      </section>
+
+      <div class="verdict-banner">
+        <div class="verdict-icon">&#10003;</div>
+        <div class="verdict-text">
+          <h2>Alle Findings aus Runde 12 behoben</h2>
+          <p>
+            Der Debian-Installer ver&auml;ndert keine DNS-Profile mehr, der
+            Firefox-Import akzeptiert nur begrenzte regul&auml;re Dateien und
+            Verzeichnisse, und der Release-Build besitzt harte Versions- und
+            Signatur-Gates. Der echte Public Key ist au&szlig;erhalb der
+            Download-Origin im Repository gepinnt; abweichende Build-Keys werden
+            abgelehnt.
+          </p>
+        </div>
+      </div>
+
+      <div class="audit-meta-grid">
+        <div class="audit-meta-card">
+          <div class="label">Datum</div>
+          <div class="value">19.&nbsp;September&nbsp;2026</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Analysierte Version</div>
+          <div class="value">v1.1.21</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Kritisch / Hoch</div>
+          <div class="value ok">0 / 0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Offen Mittel / Niedrig</div>
+          <div class="value ok">0 / 0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Testsuite</div>
+          <div class="value ok">2595 bestanden, 2 &uuml;bersprungen</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Abh&auml;ngigkeiten</div>
+          <div class="value ok">Keine bekannten Advisories</div>
+        </div>
+      </div>
+
+      <div class="audit-section" id="findings-r12">
+        <h2>Findings Runde 12</h2>
+        <div class="section-rule"></div>
+
+        <div class="finding-card">
+          <div class="finding-header">
+            <span class="badge badge-ok">Behoben</span>
+            <h3>NM-R12-01 &mdash; Paketinstallation &auml;ndert aktive DNS-Profile ohne Opt-in</h3>
+          </div>
+          <div class="finding-detail">
+            Der automatische DNS-Eingriff wurde aus dem generierten
+            Debian-<code>postinst</code> entfernt. Neue Installationen ver&auml;ndern
+            keine NetworkManager-Profile. Beim Upgrade stellt
+            <code>restore_legacy_install_dns</code> vorhandene Altzust&auml;nde wieder
+            her und entfernt anschlie&szlig;end die alte Statusdatei.
+          </div>
+        </div>
+
+        <div class="finding-card">
+          <div class="finding-header">
+            <span class="badge badge-ok">Behoben</span>
+            <h3>NM-R12-02 &mdash; Firefox-TAR-Pr&uuml;fung verwirft keine Links</h3>
+          </div>
+          <div class="finding-detail">
+            Die Extraktion akzeptiert nur regul&auml;re Dateien und Verzeichnisse,
+            verwirft symbolische und harte Links sowie Sonderdateien und pr&uuml;ft
+            jeden Zielpfad. Downloadgr&ouml;&szlig;e, Memberzahl und entpackte
+            Gesamtgr&ouml;&szlig;e sind begrenzt; Regressionstests decken Links,
+            Traversierung und Gr&ouml;&szlig;enlimits ab.
+          </div>
+        </div>
+
+        <div class="finding-card">
+          <div class="finding-header">
+            <span class="badge badge-ok">Behoben</span>
+            <h3>NM-R12-03 &mdash; Signatur-Vertrauen startet von derselben Web-Origin</h3>
+          </div>
+          <div class="finding-detail">
+            Release-Builds brechen nun ohne Minisign, Secret Key oder passenden
+            Public Key ab und verifizieren ihre neu erzeugte Signatur sofort.
+            Der Verifier kann mit <code>NETMON_EXPECTED_MINISIGN_PUBKEY</code>
+            einen unabh&auml;ngig bezogenen Key erzwingen. Der echte Public Key mit
+            ID <code>54BF5F1867BDD004</code> ist in <code>SECURITY.md</code> und
+            <code>docs/security/netmonroots.minisign.pub</code> gepinnt.
+            Abweichende Public Keys werden vom Release-Build abgelehnt.
+          </div>
+        </div>
+
+        <div class="finding-card">
+          <div class="finding-header">
+            <span class="badge badge-ok">Behoben</span>
+            <h3>NM-R12-04 &mdash; Versionsdrift im Release-Prozess</h3>
+          </div>
+          <div class="finding-detail">
+            Paket-, Site- und Dokumentations-Build lesen die kanonische Version
+            aus <code>netmon/config/constants.py</code>. Downloadseiten,
+            Dokumentation und Update-JSON stehen auf <code>1.1.21</code>.
+            <code>check_release_consistency.py</code> bricht den Release bei
+            abweichenden sichtbaren Metadaten ab.
+          </div>
+        </div>
+
+        <div class="finding-card">
+          <div class="finding-header">
+            <span class="badge badge-ok">Behoben</span>
+            <h3>NM-R12-05 &mdash; Veraltete Supportmatrix</h3>
+          </div>
+          <div class="finding-detail">
+            <code>SECURITY.md</code> weist jetzt <code>1.1.21</code> als einzige
+            unterst&uuml;tzte Release-Linie aus und trennt ver&ouml;ffentlichte Releases
+            von internen Entwicklungsst&auml;nden.
+          </div>
+        </div>
+      </div>
+
+      <div class="audit-section">
+        <h2>Pr&uuml;fung und Einordnung</h2>
+        <div class="section-rule"></div>
+        <div class="methodology-grid">
+          <div class="method-card">
+            <h4>Refactoring-Delta</h4>
+            <p>96 Commits und 21 Produkt-, Build- und Testdateien. Keine neue
+            Shell-, Netzwerk-, Datei- oder Privileg-Senke in den ausgelagerten
+            UI-Modulen.</p>
+          </div>
+          <div class="method-card">
+            <h4>Statische Analyse</h4>
+            <p>Ruff, Ruff-Security, Bandit&nbsp;1.9.4 und manuelle Datenflusspr&uuml;fung.
+            Die urspr&uuml;nglichen High-Heuristiken wurden einzeln validiert und
+            anschlie&szlig;end technisch gekl&auml;rt; der Bandit-Nachscan auf
+            High-Schwelle ist ohne Treffer.</p>
+          </div>
+          <div class="method-card">
+            <h4>Regression und Laufzeit</h4>
+            <p>2595 Tests bestanden, 2 &uuml;bersprungen. Die gezielten
+            R12-Sanierungsregressionen: 33 bestanden. Security-Auswahl:
+            651 bestanden, 1 &uuml;bersprungen. GUI-Smoke, Black und Shellcheck
+            bestanden.</p>
+          </div>
+          <div class="method-card">
+            <h4>Abh&auml;ngigkeiten</h4>
+            <p><code>pip-audit</code> meldet f&uuml;r die aktuell aufgel&ouml;sten
+            Anforderungen keine bekannten Schwachstellen. Die ungebundenen
+            Versionsangaben bleiben ein Reproduzierbarkeitsthema.</p>
+          </div>
+        </div>
+        <p style="margin-top:22px;color:var(--muted);line-height:1.65;max-width:820px;">
+          Der vollst&auml;ndige technische Bericht liegt im Repository unter
+          <code>docs/SECURITY_AUDIT_2026_R12.md</code>. Dieses Review ist eine
+          statische Code- und Release-Prozesspr&uuml;fung und ersetzt keinen
+          unabh&auml;ngigen Penetrationstest.
+        </p>
+      </div>
+
+      <div class="audit-section" id="round-11">
+        <h2>Vorrunde 11 &mdash; vollst&auml;ndiger Bericht</h2>
+        <div class="section-rule"></div>
+      </div>
 
       <!-- ── Hero ── -->
       <section class="audit-hero">

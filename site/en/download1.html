@@ -54,7 +54,7 @@
         <div class="download-layout">
           <article class="download-card featured">
             <p class="download-label">Final Release</p>
-            <h3>NetMon 1.1.19 for Debian/Ubuntu-based systems</h3>
+            <h3>NetMon 1.1.21 for Debian/Ubuntu-based systems</h3>
             <p>Current final release package for installation, production use, and verification.</p>
             <div class="inline-actions">
               <a class="button button-primary" href="/download.php?id=netmon-deb&amp;src=downloads-en&amp;lang=en">Download .deb</a>
@@ -88,13 +88,13 @@
           </article>
           <article class="download-card featured">
             <p class="download-label">HTML</p>
-            <h3>NetMon Documentation 1.1.19</h3>
+            <h3>NetMon Documentation 1.1.21</h3>
             <p>Browser version for quick access.</p>
             <a class="button button-primary" href="/download.php?id=docs-html&amp;src=downloads-en-docs-html&amp;lang=en">Open HTML</a>
           </article>
           <article class="download-card">
             <p class="download-label">PDF</p>
-            <h3>PDF Manual 1.1.19</h3>
+            <h3>PDF Manual 1.1.21</h3>
             <p>Offline version for storage or handoff.</p>
             <a class="button button-secondary" href="/download.php?id=docs-pdf&amp;src=downloads-en-docs-pdf&amp;lang=en">Download PDF</a>
           </article>
@@ -130,9 +130,9 @@
             <p>Checks only the downloaded <code>.deb</code>. Good for a fast routine verification.</p>
 <pre><code>mkdir -p /tmp/netmon-check
 cd /tmp/netmon-check
-wget https://netmonroots.com/dist/netmon_1.1.19_all.deb
+wget https://netmonroots.com/dist/netmon_1.1.21_all.deb
 wget https://netmonroots.com/dist/SHA256SUMS
-grep 'netmon_1.1.19_all.deb' SHA256SUMS | sha256sum -c</code></pre>
+grep 'netmon_1.1.21_all.deb' SHA256SUMS | sha256sum -c</code></pre>
           </article>
           <article class="faq-card">
             <h3>Signed releases</h3>
@@ -143,11 +143,11 @@ grep 'netmon_1.1.19_all.deb' SHA256SUMS | sha256sum -c</code></pre>
             <p>Checks package, docs, and then verifies the origin of the checksum file via Minisign.</p>
 <pre><code>mkdir -p /tmp/netmon-check/docs
 cd /tmp/netmon-check
-wget https://netmonroots.com/dist/netmon_1.1.19_all.deb
+wget https://netmonroots.com/dist/netmon_1.1.21_all.deb
 wget https://netmonroots.com/dist/SHA256SUMS
 wget https://netmonroots.com/dist/SHA256SUMS.minisig
-wget https://netmonroots.com/dist/docs/netmon_dokumentation_1.1.19.pdf -O docs/netmon_dokumentation_1.1.19.pdf
-wget https://netmonroots.com/dist/docs/netmon_dokumentation_1.1.19.html -O docs/netmon_dokumentation_1.1.19.html
+wget https://netmonroots.com/dist/docs/netmon_dokumentation_1.1.21.pdf -O docs/netmon_dokumentation_1.1.21.pdf
+wget https://netmonroots.com/dist/docs/netmon_dokumentation_1.1.21.html -O docs/netmon_dokumentation_1.1.21.html
 wget https://netmonroots.com/verify/netmonroots.minisign.pub
 wget https://netmonroots.com/verify/verify_netmon_signature.sh
 chmod +x verify_netmon_signature.sh
@@ -162,8 +162,8 @@ bash verify_netmon_signature.sh \
 
       <section class="section">
         <div class="version-note">
-          <p><strong>Package:</strong> <code>1.1.19</code></p>
-          <p><strong>Docs:</strong> <code>1.1.19</code></p>
+          <p><strong>Package:</strong> <code>1.1.21</code></p>
+          <p><strong>Docs:</strong> <code>1.1.21</code></p>
           <p><strong>Status:</strong> Final Release. Please check <a href="./updates.html">Updates</a> before installing.</p>
           <p><strong>Signature:</strong> Signed releases are supported via Minisign.</p>
         </div>

@@ -427,7 +427,9 @@ def _legacy_internal_ipv4_profile_name(base_profile):
 def _compact_internal_ipv4_profile_name(base_profile):
     raw = str(base_profile or "").strip().lower()
     cleaned = re.sub(r"[^a-z0-9]+", "", raw) or "wg"
-    digest = hashlib.sha1(str(base_profile or "").encode("utf-8")).hexdigest()[:4]
+    digest = hashlib.sha1(
+        str(base_profile or "").encode("utf-8"), usedforsecurity=False
+    ).hexdigest()[:4]
     stem_max = max(1, 15 - len(INTERNAL_IPV4_PROFILE_PREFIX) - len(digest))
     stem = cleaned[:stem_max]
     return f"{INTERNAL_IPV4_PROFILE_PREFIX}{stem}{digest}"

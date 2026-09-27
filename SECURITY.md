@@ -6,11 +6,25 @@ The current supported public release line is:
 
 | Version | Supported |
 | --- | --- |
-| `1.1.17` | Yes |
-| `1.1.16` | Yes |
-| older releases | No |
+| `1.1.21` | Yes |
+| `1.1.20` and older | No |
 
 Security fixes are prepared against the current maintained release line first.
+Repository development snapshots are not separate supported release lines.
+
+## Release Authenticity
+
+Production release bundles must include a Minisign signature and public key.
+The build fails when either key material or `minisign` is missing. The public
+key is pinned in this repository so users can compare it independently from
+the download server.
+
+- Minisign key ID: `54BF5F1867BDD004`
+- Canonical key file: [`docs/security/netmonroots.minisign.pub`](docs/security/netmonroots.minisign.pub)
+- Public key: `RWQE0L1nGF+/VDIfeLCEp4x2UutfhhdCmPKSMTZY05kXJprqXyXfzo9R`
+
+The copy downloaded from `netmonroots.com` must match this exact public key.
+`SHA256SUMS` alone provides an integrity check and is not proof of origin.
 
 ## Reporting a Vulnerability
 

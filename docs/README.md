@@ -1,6 +1,6 @@
 # NetMon
 
-Dokumentierter Paket- und App-Stand: `1.1.19`.
+Dokumentierter Paket- und App-Stand: `1.1.21`.
 
 NetMon ist eine Linux-GUI fuer Netzwerk-, DNS-, Firewall-, VPN-, Security-, Radio- und Hilfsfunktionen. Der Startpfad liegt in `netmon/main.py`, die Hauptoberflaeche in `netmon/app.py`, und die Funktionslogik ist in Controller-, Service- und Tab-Module aufgeteilt.
 
@@ -27,7 +27,7 @@ NetMon kombiniert klassische Netzwerk-Werkzeuge, DNS-/DoT-Steuerung, Firewall- u
 - About-Dialog mit Online-Versionspruefung gegen `netmonroots.com` und automatischer Weiterleitung auf die Downloadseite bei neueren Website-Releases.
 - Support-/Diagnosebereich mit lokalem Supportpaket-Export und sichtbarem Datenschutzhinweis vor dem Versand.
 - Paketierter Deinstaller mit optionaler Bereinigung von NetMon-, WireGuard-, NetworkManager- und Testsystem-Resten.
-- Aktueller Security-Audit-Stand fuer die Produktdoku: Runde 9 auf Basis des finalen Release-Stands `1.1.19`.
+- Aktueller Security-Audit-Stand fuer die Produktdoku: Runde 12 auf Basis von `1.1.21`; die PDF-Fassung von Runde 11 bleibt als Archiv erhalten.
 
 ## Screenshots
 
@@ -53,7 +53,7 @@ NetMon kombiniert klassische Netzwerk-Werkzeuge, DNS-/DoT-Steuerung, Firewall- u
 
 ### Debian-Paketstand
 
-- Aktueller Test-/Paketstand in diesem Repository: `1.1.19`
+- Aktueller Test-/Paketstand in diesem Repository: `1.1.21`
 - Build-Skript: `scripts/build_netmon_deb.sh`
 - Ergebnisdatei: `dist/netmon_<version>_all.deb`
 - Harte Laufzeitabhaengigkeiten im Paket: `udisks2`, `cryptsetup`
@@ -65,7 +65,7 @@ NetMon kombiniert klassische Netzwerk-Werkzeuge, DNS-/DoT-Steuerung, Firewall- u
   - `netmon.png`
   - `netmon-radio.png` als Radio-spezifisches Asset
   - Secure-Browser-Manager und dessen Builder-/Policy-Ressourcen
-  - aktuelle HTML-/PDF-Dokumentation fuer Version `1.1.19`
+  - aktuelle HTML-/PDF-Dokumentation fuer Version `1.1.21`
 
 ### Beispiel-Setup unter Linux
 
