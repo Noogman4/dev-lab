@@ -249,6 +249,7 @@ cp "$ROOT_DIR/tools/netmon-radio.png" "$TOOLS_DIR/"
 cp "$ROOT_DIR/docs/CHANGELOG.md" "$DOCS_DIR/"
 cp "$ROOT_DIR/scripts/verify_netmon_download.sh" "$VERIFY_DIR/"
 cp "$ROOT_DIR/scripts/verify_netmon_signature.sh" "$MINISIGN_VERIFY_SCRIPT"
+chmod 755 "$VERIFY_DIR/verify_netmon_download.sh" "$MINISIGN_VERIFY_SCRIPT"
 
 (
   cd "$PUBLIC_DIR/dist"
