@@ -15,6 +15,11 @@ from pathlib import Path
 from types import ModuleType
 
 from netmon.core.state import get_netmon_documents_subdir
+from tools.secure_browser_manager.browser_container_builder import (
+    iter_scan_entries,
+    read_text_if_small,
+    search_files,
+)
 
 from .models import BrowserContainer
 
@@ -782,12 +787,12 @@ class SecureBrowserService:
 
         checks.append(
             "user.js: OK"
-            if any(container.path.rglob("user.js"))
+            if search_files(container.path, "user.js")
             else "user.js: nicht gefunden"
         )
         checks.append(
             "policies.json: OK"
-            if any(container.path.rglob("policies.json"))
+            if search_files(container.path, "policies.json")
             else "policies.json: nicht gefunden"
         )
 
@@ -847,10 +852,9 @@ class SecureBrowserService:
     def _read_preview(self, path: Path) -> str:
         if not path.is_file():
             return "nicht gefunden"
-        try:
-            text = path.read_text(encoding="utf-8", errors="ignore")
-        except OSError as exc:
-            return f"nicht lesbar: {exc}"
+        text = read_text_if_small(path)
+        if not text:
+            return "(leer oder nicht sicher lesbar)"
         lines = text.splitlines()
         preview_lines = lines[: self.MAX_PREVIEW_LINES]
         preview = "\n".join(preview_lines).strip()
@@ -864,10 +868,7 @@ class SecureBrowserService:
     def _parse_desktop_entry(path: Path) -> dict[str, str]:
         if not path.is_file():
             return {}
-        try:
-            lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
-        except OSError:
-            return {}
+        lines = read_text_if_small(path).splitlines()
         data: dict[str, str] = {}
         for line in lines:
             stripped = line.strip()
@@ -929,8 +930,8 @@ class SecureBrowserService:
         if not policy_path.is_file():
             raise FileNotFoundError(f"policies.json nicht gefunden: {source_path}")
         try:
-            payload = json.loads(policy_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
+            payload = json.loads(read_text_if_small(policy_path))
+        except (ValueError, RecursionError) as exc:
             raise ValueError(f"policies.json ist ungültig: {exc}") from exc
         return json.dumps(payload, indent=2, ensure_ascii=True) + "\n"
 
@@ -990,7 +991,9 @@ class SecureBrowserService:
         active_name = active_menu_data.get("Name", "")
         desired_exec = container.path / "start.sh"
         if applications_dir.is_dir():
-            for path in applications_dir.glob("*.desktop"):
+            for path, directory in iter_scan_entries(applications_dir, recursive=False):
+                if directory or path.suffix != ".desktop":
+                    continue
                 data = self._parse_desktop_entry(path)
                 exec_target = self._parse_exec_target(data)
                 same_exec = exec_target == desired_exec

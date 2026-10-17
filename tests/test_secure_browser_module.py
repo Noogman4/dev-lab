@@ -1117,8 +1117,14 @@ def test_secure_browser_service_scan_containers_reads_icon_from_launcher(
     assert containers[0].icon_value == str(icon_path)
 
 
-def test_secure_browser_service_inspects_all_associated_menu_entries(monkeypatch):
+def test_secure_browser_service_inspects_all_associated_menu_entries(
+    monkeypatch, tmp_path
+):
     service = SecureBrowserService()
+    applications_dir = tmp_path / "applications"
+    applications_dir.mkdir()
+    for name in ("netmon-secure-browser-sparkasse.desktop", "Sparkasse.desktop"):
+        (applications_dir / name).write_text("[Desktop Entry]\n", encoding="utf-8")
     container = BrowserContainer(
         name="Sparkasse",
         path=Path("/tmp/Sparkasse"),
@@ -1127,33 +1133,14 @@ def test_secure_browser_service_inspects_all_associated_menu_entries(monkeypatch
         homepage_url="https://www.sparkasse-ulm.de",
         allowed_domains=["www.sparkasse-ulm.de"],
         icon_path=Path("/tmp/Sparkasse/icons"),
-        menu_entry_path=Path(
-            "/tmp/applications/netmon-secure-browser-sparkasse.desktop"
-        ),
+        menu_entry_path=applications_dir / "netmon-secure-browser-sparkasse.desktop",
         status="vollständig",
     )
     fake_module = SimpleNamespace(
-        DEFAULT_APPLICATIONS_DIR=Path("/tmp/applications"),
+        DEFAULT_APPLICATIONS_DIR=applications_dir,
     )
 
     monkeypatch.setattr(service, "_load_tool_module", lambda: fake_module)
-    monkeypatch.setattr(
-        Path,
-        "is_dir",
-        lambda self: str(self) == "/tmp/applications",
-    )
-    monkeypatch.setattr(
-        Path,
-        "glob",
-        lambda self, pattern: (
-            [
-                Path("/tmp/applications/netmon-secure-browser-sparkasse.desktop"),
-                Path("/tmp/applications/Sparkasse.desktop"),
-            ]
-            if str(self) == "/tmp/applications" and pattern == "*.desktop"
-            else []
-        ),
-    )
     monkeypatch.setattr(
         service,
         "_parse_desktop_entry",

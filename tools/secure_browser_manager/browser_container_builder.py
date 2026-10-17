@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import configparser
 import json
 import os
 import re
@@ -11,9 +12,9 @@ import shlex
 import shutil
 import sqlite3
 import stat
-import subprocess
 import sys
 import tarfile
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from html.parser import HTMLParser
@@ -50,6 +51,11 @@ DEFAULT_PROFILE_BASE_DIRS = [
     Path.home() / ".mozilla" / "firefox",
 ]
 MAX_SCAN_FILE_SIZE = 256 * 1024
+MAX_VERSION_FILE_SIZE = 64 * 1024
+MAX_SCAN_ENTRIES = 100_000
+MAX_SCAN_DEPTH = 32
+MAX_SCAN_CONTAINERS = 256
+MAX_SCAN_TEXT_BYTES = 16 * 1024 * 1024
 MAX_PROFILE_HISTORY_ROWS = 5000
 CONTAINER_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 DEFAULT_ICON_MODE = "favicon"
@@ -85,7 +91,7 @@ ARTIFACT_SKIP_DIR_NAMES = {
 DOMAIN_PATTERN = re.compile(
     r"(?<![@\w-])(?:https?://)?([A-Za-z0-9.-]+\.[A-Za-z]{2,})(?::\d+)?(?:/|$)"
 )
-VERSION_PATTERN = re.compile(r"(\d+(?:\.\d+)+)")
+VERSION_PATTERN = re.compile(r"[0-9]{1,3}(?:\.[0-9]{1,3}){1,3}(?:[ab][0-9]{1,3}|esr)?")
 HOMEPAGE_PREF_PATTERN = re.compile(r'browser\.startup\.homepage"\s*,\s*"([^"]+)"')
 PROFILE_MATCH_RULES = {
     "firefox-ProtonMail": ["mail.proton.me", "account.proton.me"],
@@ -357,12 +363,120 @@ def ensure_path(value: str | Path) -> Path:
     return Path(value).expanduser().resolve()
 
 
+@contextmanager
+def open_scan_directory(path: Path):
+    """Anchor every path component without following links (POSIX only)."""
+    if not all(
+        hasattr(os, flag) for flag in ("O_NOFOLLOW", "O_DIRECTORY", "O_NONBLOCK")
+    ):
+        raise OSError("Safe passive file access is unavailable on this platform.")
+    absolute = Path(os.path.abspath(path))
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK
+    traverse_flags = flags | getattr(os, "O_PATH", 0)
+    descriptor = os.open(absolute.anchor, traverse_flags)
+    try:
+        for part in absolute.parts[1:]:
+            child = os.open(part, traverse_flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        child = os.open(".", flags, dir_fd=descriptor)
+        os.close(descriptor)
+        descriptor = child
+        yield descriptor
+    finally:
+        os.close(descriptor)
+
+
+def read_small_regular_bytes(path: Path, limit: int) -> bytes | None:
+    """Read at most limit+1 bytes; never follow links or block on a FIFO."""
+    try:
+        with open_scan_directory(path.parent) as parent:
+            before = os.stat(path.name, dir_fd=parent, follow_symlinks=False)
+            if not stat.S_ISREG(before.st_mode) or before.st_size > limit:
+                return None
+            descriptor = os.open(
+                path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent
+            )
+            with os.fdopen(descriptor, "rb") as handle:
+                opened = os.fstat(handle.fileno())
+                if (
+                    not stat.S_ISREG(opened.st_mode)
+                    or opened.st_size > limit
+                    or (before.st_dev, before.st_ino) != (opened.st_dev, opened.st_ino)
+                ):
+                    return None
+                content = handle.read(limit + 1)
+                after = os.fstat(handle.fileno())
+                if len(content) > limit or (
+                    opened.st_size,
+                    opened.st_mtime_ns,
+                    opened.st_ctime_ns,
+                ) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+                    return None
+                return content
+    except (OSError, ValueError):
+        return None
+
+
+@dataclass
+class ScanBudget:
+    entries: int = 0
+    text_bytes: int = 0
+
+    def count(self):
+        self.entries += 1
+        if self.entries > MAX_SCAN_ENTRIES:
+            raise ValueError(
+                "Passive inventory entry budget exceeded; scan incomplete."
+            )
+
+    def count_text(self, content: bytes):
+        self.text_bytes += len(content)
+        if self.text_bytes > MAX_SCAN_TEXT_BYTES:
+            raise ValueError("Passive inventory text budget exceeded; scan incomplete.")
+
+
+def iter_scan_entries(
+    root: Path, *, recursive=True, skip_names=(), skip_firefox_base=False, budget=None
+):
+    """Stream regular files/directories with bounded work and no symlink traversal."""
+    budget = budget if budget is not None else ScanBudget()
+    pending = [(root, 0)]
+    while pending:
+        directory, depth = pending.pop()
+        try:
+            with (
+                open_scan_directory(directory) as descriptor,
+                os.scandir(descriptor) as entries,
+            ):
+                for entry in entries:
+                    budget.count()
+                    if entry.name in skip_names or (
+                        skip_firefox_base and is_firefox_base_dir_name(entry.name)
+                    ):
+                        continue
+                    mode = entry.stat(follow_symlinks=False).st_mode
+                    path = directory / entry.name
+                    if stat.S_ISDIR(mode):
+                        yield path, True
+                        if recursive:
+                            if depth >= MAX_SCAN_DEPTH:
+                                raise ValueError(
+                                    "Passive inventory depth budget exceeded; scan incomplete."
+                                )
+                            pending.append((path, depth + 1))
+                    elif stat.S_ISREG(mode):
+                        yield path, False
+        except OSError:
+            continue
+
+
 def is_executable_file(path: Path) -> bool:
     try:
-        mode = path.stat().st_mode
+        mode = path.lstat().st_mode
     except OSError:
         return False
-    return path.is_file() and bool(mode & stat.S_IXUSR)
+    return stat.S_ISREG(mode) and bool(mode & stat.S_IXUSR)
 
 
 def is_firefox_base_dir_name(name: str) -> bool:
@@ -370,47 +484,60 @@ def is_firefox_base_dir_name(name: str) -> bool:
     return normalized == FIREFOX_BASE_DIRNAME.replace("-", "")
 
 
-def iter_candidate_binaries(base_dir: Path) -> list[Path]:
+def iter_candidate_binaries(base_dir: Path, budget=None) -> list[Path]:
     candidates: list[Path] = []
-    for current_root, dirnames, filenames in os.walk(base_dir):
-        dirnames[:] = [
-            name
-            for name in dirnames
-            if name not in SKIP_DIR_NAMES and not is_firefox_base_dir_name(name)
-        ]
-        if "firefox" not in filenames:
-            continue
-        binary_path = Path(current_root) / "firefox"
-        if binary_path.parent.name != "firefox":
-            continue
-        if is_executable_file(binary_path):
-            candidates.append(binary_path)
-    return sorted(set(candidates))
+    for path, directory in iter_scan_entries(
+        base_dir, skip_names=SKIP_DIR_NAMES, skip_firefox_base=True, budget=budget
+    ):
+        if (
+            not directory
+            and path.name == "firefox"
+            and path.parent.name == "firefox"
+            and is_executable_file(path)
+        ):
+            if len(candidates) >= MAX_SCAN_CONTAINERS:
+                raise ValueError(
+                    "Passive inventory container budget exceeded; scan incomplete."
+                )
+            candidates.append(path)
+    return sorted(candidates)
 
 
-def run_firefox_version(binary_path: Path) -> str:
-    try:
-        result = subprocess.run(
-            [str(binary_path), "--version"],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
+def read_firefox_version(binary_path: Path) -> str:
+    """Display untrusted Firefox metadata; never execute a discovered program."""
+    if (
+        binary_path.name != "firefox"
+        or binary_path.parent.name != "firefox"
+        or not is_executable_file(binary_path)
+    ):
         return "unbekannt"
-    output = " ".join(part.strip() for part in [result.stdout, result.stderr] if part)
-    match = VERSION_PATTERN.search(output)
-    return match.group(1) if match else (output.strip() or "unbekannt")
-
-
-def read_text_if_small(path: Path) -> str:
+    content = read_small_regular_bytes(
+        binary_path.parent / "application.ini", MAX_VERSION_FILE_SIZE
+    )
+    if content is None:
+        return "unbekannt"
+    parser = configparser.ConfigParser(interpolation=None, strict=True)
     try:
-        if path.stat().st_size > MAX_SCAN_FILE_SIZE:
-            return ""
-        return path.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
-        return ""
+        parser.read_string(content.decode("utf-8"))
+        if parser.defaults() or parser.get("App", "Name") != "Firefox":
+            return "unbekannt"
+        if parser.get("App", "Vendor", fallback="Mozilla") != "Mozilla":
+            return "unbekannt"
+        version = parser.get("App", "Version")
+    except (configparser.Error, UnicodeError, ValueError):
+        return "unbekannt"
+    return (
+        version
+        if len(version) <= 32 and VERSION_PATTERN.fullmatch(version)
+        else "unbekannt"
+    )
+
+
+def read_text_if_small(path: Path, *, budget=None) -> str:
+    content = read_small_regular_bytes(path, MAX_SCAN_FILE_SIZE)
+    if content is not None and budget is not None:
+        budget.count_text(content)
+    return content.decode("utf-8", errors="ignore") if content is not None else ""
 
 
 def read_places_domains(profile_dir: Path) -> list[str]:
@@ -441,18 +568,19 @@ def read_places_domains(profile_dir: Path) -> list[str]:
     return extract_domains_from_text("\n".join(urls))
 
 
-def search_files(root_dir: Path, filename: str) -> list[Path]:
+def search_files(root_dir: Path, filename: str, *, budget=None) -> list[Path]:
     return sorted(
         path
-        for path in root_dir.rglob(filename)
-        if path.is_file()
-        and not ARTIFACT_SKIP_DIR_NAMES.intersection(
-            path.relative_to(root_dir).parts[:-1]
+        for path, directory in iter_scan_entries(
+            root_dir, skip_names=ARTIFACT_SKIP_DIR_NAMES, budget=budget
         )
+        if not directory and path.name == filename
     )
 
 
-def detect_profile_path(root_dir: Path, start_script: Path | None) -> Path | None:
+def detect_profile_path(
+    root_dir: Path, start_script: Path | None, *, budget=None
+) -> Path | None:
     if start_script:
         script_text = read_text_if_small(start_script)
         match = re.search(
@@ -461,16 +589,21 @@ def detect_profile_path(root_dir: Path, start_script: Path | None) -> Path | Non
         )
         if match:
             raw_value = next(group for group in match.groups() if group)
-            candidate = (start_script.parent / raw_value).resolve()
-            if candidate.exists():
-                return candidate
+            try:
+                candidate = (start_script.parent / raw_value).resolve()
+                if candidate.is_dir():
+                    return candidate
+            except (OSError, RuntimeError):
+                pass
     direct_profile = root_dir / "profile"
     if direct_profile.is_dir():
         return direct_profile
-    for candidate in sorted(root_dir.glob("profile*")):
-        if candidate.is_dir():
+    for candidate, directory in sorted(
+        iter_scan_entries(root_dir, recursive=False, budget=budget)
+    ):
+        if directory and candidate.name.startswith("profile"):
             return candidate
-    for candidate in root_dir.rglob("prefs.js"):
+    for candidate in search_files(root_dir, "prefs.js", budget=budget):
         return candidate.parent
     return None
 
@@ -502,8 +635,10 @@ def discover_firefox_profiles(base_dirs: list[Path]) -> list[FirefoxProfile]:
     for base_dir in base_dirs:
         if not base_dir.is_dir():
             continue
-        for candidate in sorted(base_dir.iterdir()):
-            if not candidate.is_dir():
+        for candidate, directory in sorted(
+            iter_scan_entries(base_dir, recursive=False)
+        ):
+            if not directory:
                 continue
             domains: set[str] = set()
             sources: list[str] = []
@@ -604,20 +739,32 @@ def build_risk_hints(
     return risks
 
 
-def discover_container(binary_path: Path) -> DiscoveredContainer:
+def discover_container(binary_path: Path, *, budget=None) -> DiscoveredContainer:
+    budget = budget if budget is not None else ScanBudget()
     root_dir = binary_path.parent.parent
+    artifacts = sorted(
+        path
+        for path, directory in iter_scan_entries(
+            root_dir, skip_names=ARTIFACT_SKIP_DIR_NAMES, budget=budget
+        )
+        if not directory
+    )
     start_script = root_dir / "start.sh"
-    if not start_script.exists():
-        matches = search_files(root_dir, "start.sh")
+    if start_script not in artifacts:
+        matches = [path for path in artifacts if path.name == "start.sh"]
         start_script = matches[0] if matches else None
-    desktop_files = sorted(root_dir.glob("*.desktop"))
-    user_js_files = search_files(root_dir, "user.js")
-    policies_files = search_files(root_dir, "policies.json")
-    profile_path = detect_profile_path(root_dir, start_script)
+    desktop_files = [
+        path
+        for path in artifacts
+        if path.parent == root_dir and path.suffix == ".desktop"
+    ]
+    user_js_files = [path for path in artifacts if path.name == "user.js"]
+    policies_files = [path for path in artifacts if path.name == "policies.json"]
+    profile_path = detect_profile_path(root_dir, start_script, budget=budget)
     text_sources: list[str] = []
     for path in [start_script, *desktop_files, *user_js_files, *policies_files]:
         if path is not None:
-            text_sources.append(read_text_if_small(path))
+            text_sources.append(read_text_if_small(path, budget=budget))
     domains = sorted(
         {domain for text in text_sources for domain in extract_domains_from_text(text)}
     )
@@ -635,7 +782,7 @@ def discover_container(binary_path: Path) -> DiscoveredContainer:
         name=root_dir.name,
         root_dir=root_dir,
         binary_path=binary_path,
-        version=run_firefox_version(binary_path),
+        version=read_firefox_version(binary_path),
         profile_path=profile_path,
         start_command=start_command,
         domains=domains,
@@ -650,7 +797,11 @@ def discover_container(binary_path: Path) -> DiscoveredContainer:
 
 
 def discover_existing_containers(base_dir: Path) -> list[DiscoveredContainer]:
-    return [discover_container(binary) for binary in iter_candidate_binaries(base_dir)]
+    budget = ScanBudget()
+    return [
+        discover_container(binary, budget=budget)
+        for binary in iter_candidate_binaries(base_dir, budget=budget)
+    ]
 
 
 def correlate_profiles(
@@ -1347,8 +1498,10 @@ def read_existing_homepage_url(container: DiscoveredContainer) -> str | None:
     policy_path = container.root_dir / "policies.json"
     if policy_path.is_file():
         try:
-            payload = json.loads(policy_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            payload = json.loads(read_text_if_small(policy_path))
+        except (OSError, ValueError, RecursionError):
+            payload = {}
+        if not isinstance(payload, dict):
             payload = {}
         homepage = (
             payload.get("_builder_metadata", {}).get("homepage_url")
@@ -1381,8 +1534,10 @@ def read_existing_allowed_domains(container: DiscoveredContainer) -> list[str]:
         if not policy_path.is_file():
             continue
         try:
-            payload = json.loads(policy_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            payload = json.loads(read_text_if_small(policy_path))
+        except (OSError, ValueError, RecursionError):
+            continue
+        if not isinstance(payload, dict):
             continue
         metadata = payload.get("_builder_metadata")
         if not isinstance(metadata, dict):
@@ -1439,9 +1594,7 @@ def build_repair_policy_spec(container: DiscoveredContainer) -> ContainerSpec:
     homepage_url = (
         existing_homepage_url
         if existing_homepage_url
-        else f"https://{homepage_domain.split(':', 1)[0]}"
-        if homepage_domain
-        else None
+        else f"https://{homepage_domain.split(':', 1)[0]}" if homepage_domain else None
     )
     return ContainerSpec(
         name=container.name,
@@ -1523,7 +1676,13 @@ def list_managed_menu_entries(applications_dir: Path) -> list[MenuEntryInfo]:
     entries: list[MenuEntryInfo] = []
     if not applications_dir.is_dir():
         return entries
-    for path in sorted(applications_dir.glob("netmon-secure-browser-*.desktop")):
+    for path, directory in sorted(iter_scan_entries(applications_dir, recursive=False)):
+        if (
+            directory
+            or not path.name.startswith("netmon-secure-browser-")
+            or path.suffix != ".desktop"
+        ):
+            continue
         exec_target = parse_desktop_exec_target(path)
         container_root = exec_target.parent if exec_target else None
         container_name = container_root.name if container_root else None
@@ -1789,7 +1948,7 @@ exec "$SCRIPT_DIR/firefox/firefox" --class "$WM_CLASS" --no-remote --profile "$S
 
 
 def build_browser_lock_helper() -> str:
-    return '''#!/usr/bin/env python3
+    return """#!/usr/bin/env python3
 import hashlib
 import hmac
 import json
@@ -1833,7 +1992,7 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-'''
+"""
 
 
 def build_backup_script(spec: ContainerSpec) -> str:
@@ -2164,9 +2323,7 @@ def validate_config_payload(
                 hash_bytes = bytes.fromhex(str(child_lock["password_hash"]))
                 iterations = int(child_lock["iterations"])
             except (TypeError, ValueError) as exc:
-                raise ValueError(
-                    f"Container '{name}': child_lock is invalid."
-                ) from exc
+                raise ValueError(f"Container '{name}': child_lock is invalid.") from exc
             if len(salt_bytes) < 16 or len(hash_bytes) != 32:
                 raise ValueError(
                     f"Container '{name}': child_lock hash data is invalid."
@@ -2239,6 +2396,7 @@ def write_inventory(
         f"- Scan-Basis: `{base_dir}`",
         f"- Erstellt am: `{datetime.now().isoformat(timespec='seconds')}`",
         f"- Gefundene Container: `{len(containers)}`",
+        "- Versionsangaben: lokale Metadaten, kein Echtheitsnachweis.",
         "",
     ]
     if not containers:
