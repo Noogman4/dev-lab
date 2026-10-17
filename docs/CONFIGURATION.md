@@ -85,6 +85,9 @@ Die Schnellscan-Auswahl liegt in `config.json`:
 
 - Das Repository enthaelt Shell-Skripte fuer Backups und Restore unter `scripts/`, z. B. `backup_dev_lab.sh`, `restore_dev_lab_backup.sh` und `restore_selected_dev_lab_backup.sh`.
 - Zusaetzlich existiert bereits [BACKUP_RESTORE.md](./BACKUP_RESTORE.md).
+- Diese CLI-Restores verlangen ein signiertes Manifest und einen unabhaengig
+  vertrauten Backup-Public-Key. Standardziel ist ein neues privates Verzeichnis;
+  Originalpfade benoetigen `--restore-original-paths` und privilegierten Aufruf.
 - Fuer Feature-spezifische JSON-Dateien erfolgt die Persistenz ueber `safe_write_json()` oder lokale JSON-Schreiber.
 - Der Backup-Tab exportiert ausgewaehlte NetMon-Dokumentenordner. Der Ordner
   `Security` enthaelt auch `Security/Transferpakete`; die Bearbeitung dieser

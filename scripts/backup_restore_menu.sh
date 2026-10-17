@@ -42,9 +42,10 @@ prompt_with_default() {
 }
 
 run_backup() {
-  local output_dir
+  local output_dir signing_key
   output_dir=$(prompt_with_default "Backup-Zielordner" "$DEFAULT_BACKUP_BASE")
-  "$SCRIPT_DIR/backup_dev_lab.sh" --output-dir "$output_dir"
+  signing_key=$(prompt_with_default "Privater Backup-Signaturschluessel" "${HOME}/.config/dev-lab-backup/backup.key")
+  bash "$SCRIPT_DIR/backup_dev_lab.sh" --output-dir "$output_dir" --signing-key "$signing_key"
 }
 
 choose_backup_dir() {
@@ -61,36 +62,40 @@ choose_backup_dir() {
 
 choose_restore_root() {
   local target_mode restore_root
-  echo "Restore-Ziel waehlen:"
-  echo "1) Originalpfade (/)"
-  echo "2) Testziel ($DEFAULT_RESTORE_TEST_ROOT)"
-  echo "3) Eigener Zielordner"
+  echo "Restore-Ziel waehlen:" >&2
+  echo "1) Neues privates Restore-Verzeichnis (Standard)" >&2
+  echo "2) Testziel ($DEFAULT_RESTORE_TEST_ROOT)" >&2
+  echo "3) Eigener Zielordner" >&2
   read -r -p "Auswahl [1]: " target_mode
   target_mode=${target_mode:-1}
 
   case "$target_mode" in
-    1)
-      printf '/
-'
-      ;;
-    2)
-      printf '%s
-' "$DEFAULT_RESTORE_TEST_ROOT"
-      ;;
+    1) printf '\n' ;;
+    2) printf '%s\n' "$DEFAULT_RESTORE_TEST_ROOT" ;;
     3)
       read -r -p "Eigener Zielordner: " restore_root
       if [[ -z "$restore_root" ]]; then
         echo "Fehler: Zielordner leer." >&2
-        exit 2
+        return 2
       fi
-      printf '%s
-' "$restore_root"
+      printf '%s\n' "$restore_root"
       ;;
-    *)
-      echo "Fehler: Ungueltige Auswahl." >&2
-      exit 2
-      ;;
+    *) echo "Fehler: Ungueltige Auswahl." >&2; return 2 ;;
   esac
+}
+
+restore_arguments() {
+  local backup_dir restore_root public_key
+  backup_dir=$(choose_backup_dir)
+  restore_root=$(choose_restore_root)
+  public_key=$(prompt_with_default "Vertrauenswuerdiger Backup-Public-Key (ausserhalb des Backups)" "${HOME}/.config/dev-lab-backup/backup.pub")
+  RESTORE_ARGS=(--backup-dir "$backup_dir" --trusted-public-key "$public_key")
+  if [[ -n "$restore_root" ]]; then
+    RESTORE_ARGS+=(--restore-root "$restore_root")
+  fi
+  if choose_dry_run; then
+    RESTORE_ARGS+=(--dry-run)
+  fi
 }
 
 choose_dry_run() {
@@ -104,21 +109,14 @@ choose_dry_run() {
 }
 
 run_restore_all() {
-  local backup_dir restore_root
-  backup_dir=$(choose_backup_dir)
-  restore_root=$(choose_restore_root)
-
-  if choose_dry_run; then
-    "$SCRIPT_DIR/restore_dev_lab_backup.sh" --backup-dir "$backup_dir" --restore-root "$restore_root" --dry-run
-  else
-    "$SCRIPT_DIR/restore_dev_lab_backup.sh" --backup-dir "$backup_dir" --restore-root "$restore_root"
-  fi
+  restore_arguments
+  bash "$SCRIPT_DIR/restore_dev_lab_backup.sh" "${RESTORE_ARGS[@]}"
 }
 
 run_restore_selected() {
-  local backup_dir restore_root selection_flag
-  backup_dir=$(choose_backup_dir)
-  restore_root=$(choose_restore_root)
+  local selection_flag
+  local -a selection_args
+  restore_arguments
 
   echo "Selektives Restore:"
   echo "1) Nur Projekt"
@@ -130,16 +128,16 @@ run_restore_selected() {
 
   case "$selection_flag" in
     1)
-      selection_flag="--project"
+      selection_args=(--project)
       ;;
     2)
-      selection_flag="--vscode"
+      selection_args=(--vscode)
       ;;
     3)
-      selection_flag="--configs"
+      selection_args=(--configs)
       ;;
     4)
-      selection_flag="--vscode --configs"
+      selection_args=(--vscode --configs)
       ;;
     *)
       echo "Fehler: Ungueltige Auswahl." >&2
@@ -147,13 +145,7 @@ run_restore_selected() {
       ;;
   esac
 
-  if choose_dry_run; then
-    # shellcheck disable=SC2086
-    "$SCRIPT_DIR/restore_selected_dev_lab_backup.sh" --backup-dir "$backup_dir" --restore-root "$restore_root" $selection_flag --dry-run
-  else
-    # shellcheck disable=SC2086
-    "$SCRIPT_DIR/restore_selected_dev_lab_backup.sh" --backup-dir "$backup_dir" --restore-root "$restore_root" $selection_flag
-  fi
+  bash "$SCRIPT_DIR/restore_selected_dev_lab_backup.sh" "${RESTORE_ARGS[@]}" "${selection_args[@]}"
 }
 
 echo "Backup / Restore Menue"
