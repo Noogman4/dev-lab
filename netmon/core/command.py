@@ -2,8 +2,42 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
+
+try:
+    from netmon.core.performance_monitor import measure, safe_command_name
+except ModuleNotFoundError:
+    from core.performance_monitor import measure, safe_command_name
+
+
+def _is_ufw_status_command(args) -> bool:
+    tokens = [str(part) for part in args]
+    try:
+        status_index = tokens.index("status")
+    except ValueError:
+        return False
+    return status_index > 0 and tokens[status_index - 1] == "ufw"
+
+
+def _command_env(args):
+    if not _is_ufw_status_command(args):
+        return None
+    env = os.environ.copy()
+    env["LANG"] = "C"
+    env["LC_ALL"] = "C"
+    return env
+
+
+def _with_ufw_status_locale(args):
+    tokens = [str(part) for part in args]
+    if not _is_ufw_status_command(tokens):
+        return tokens
+    ufw_index = tokens.index("status") - 1
+    if ufw_index > 0 and tokens[ufw_index - 1] == "LC_ALL=C":
+        return tokens
+    return tokens[:ufw_index] + ["env", "LANG=C", "LC_ALL=C"] + tokens[ufw_index:]
 
 
 def run_cmd(args, timeout=15, text=True):
@@ -12,16 +46,27 @@ def run_cmd(args, timeout=15, text=True):
     returns (returncode, combined_output_str)
     """
     try:
-        exec_args = list(args)
+        exec_args = _with_ufw_status_locale(args)
 
-        p = subprocess.run(
-            exec_args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=text,
-            timeout=timeout,
-            check=False,
-        )
+        with measure(
+            area="system_command",
+            operation="run_cmd",
+            command_name=safe_command_name(exec_args),
+            mode="detailed",
+        ) as measurement:
+            p = subprocess.run(
+                exec_args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=text,
+                timeout=timeout,
+                check=False,
+                env=_command_env(exec_args),
+            )
+            measurement.set_status(
+                "success" if p.returncode == 0 else "error",
+                return_code=p.returncode,
+            )
         out = (p.stdout or "").strip()
         return p.returncode, out
     except subprocess.TimeoutExpired:
@@ -36,15 +81,25 @@ def run_cmd_with_input(args, input_text="", timeout=20):
         exec_args = list(args)
         payload = input_text or ""
 
-        p = subprocess.run(
-            exec_args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            timeout=timeout,
-            check=False,
-            input=payload,
-        )
+        with measure(
+            area="system_command",
+            operation="run_cmd_with_input",
+            command_name=safe_command_name(exec_args),
+            mode="detailed",
+        ) as measurement:
+            p = subprocess.run(
+                exec_args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=timeout,
+                check=False,
+                input=payload,
+            )
+            measurement.set_status(
+                "success" if p.returncode == 0 else "error",
+                return_code=p.returncode,
+            )
         out = (p.stdout or "").strip()
         return p.returncode, out
     except subprocess.TimeoutExpired:

@@ -2,7 +2,7 @@
 
 Diese Datei beschreibt die Soll-Struktur fuer `netmon` als `.deb` auf Basis des aktuellen Repository-Stands.
 
-Aktueller dokumentierter Paketstand: `1.1.19`.
+Aktueller dokumentierter Paketstand: `1.1.21`.
 
 ## Ziel
 

@@ -110,37 +110,40 @@ def _is_negative_finding(line: str) -> bool:
     return bool(_NEGATIVE_FINDING_RE.search(line))
 
 
-def extract_replaced_script_paths(output: str) -> list[str]:
-    """Return command paths from rkhunter 'replaced by script' warnings."""
-
+def _extract_unique_paths_from_lines(
+    output: str, line_matches, path_allowed=None
+) -> list[str]:
     paths = []
     seen = set()
     cleaned_output = _ANSI_RE.sub("", str(output or ""))
     for line in cleaned_output.splitlines():
-        if not _REPLACED_BY_SCRIPT_RE.search(line):
+        if not line_matches(line):
             continue
         for match in _PATH_RE.finditer(line):
             path = match.group(1).rstrip(".")
+            if path_allowed is not None and not path_allowed(path):
+                continue
             if path not in seen:
                 seen.add(path)
                 paths.append(path)
     return paths
 
 
+def extract_replaced_script_paths(output: str) -> list[str]:
+    """Return command paths from rkhunter 'replaced by script' warnings."""
+
+    return _extract_unique_paths_from_lines(
+        output,
+        lambda line: bool(_REPLACED_BY_SCRIPT_RE.search(line)),
+    )
+
+
 def extract_warning_command_paths(output: str) -> list[str]:
-    paths = []
-    seen = set()
-    cleaned_output = _ANSI_RE.sub("", str(output or ""))
-    for line in cleaned_output.splitlines():
-        if "[ Warning ]" not in line:
-            continue
-        for match in _PATH_RE.finditer(line):
-            path = match.group(1).rstrip(".")
-            if path.startswith(("/usr/bin/", "/usr/sbin/", "/bin/", "/sbin/")):
-                if path not in seen:
-                    seen.add(path)
-                    paths.append(path)
-    return paths
+    return _extract_unique_paths_from_lines(
+        output,
+        lambda line: "[ Warning ]" in line,
+        lambda path: path.startswith(("/usr/bin/", "/usr/sbin/", "/bin/", "/sbin/")),
+    )
 
 
 def _parse_path_evidence(output: str) -> dict[str, tuple[int, str]]:
@@ -421,6 +424,26 @@ def _classify_dpkg_line(line: str):
     )
 
 
+def _rkhunter_risk_from_categories(categories: dict, rc: int) -> str:
+    if categories[CATEGORY_CRITICAL]:
+        return RISK_HIGH
+    if categories[CATEGORY_REVIEW] or rc not in (0, 1):
+        return RISK_MEDIUM
+    return RISK_LOW
+
+
+def _rkhunter_critical_flags(codes: set[str]) -> dict[str, bool]:
+    return {
+        "rootkits": "rootkit" in codes,
+        "backdoors": "backdoor" in codes,
+        "suspicious_runtime": "suspicious_runtime" in codes,
+        "system_programs": bool(
+            {"system_program", "dpkg_system_program", "pam_module"} & codes
+        ),
+        "critical_network": bool({"backdoor", "suspicious_runtime"} & codes),
+    }
+
+
 def analyze_rkhunter_output(
     output: str,
     rc: int,
@@ -522,12 +545,7 @@ def analyze_rkhunter_output(
         category: [item for item in findings if item["category"] == category]
         for category in (CATEGORY_EXPECTED, CATEGORY_REVIEW, CATEGORY_CRITICAL)
     }
-    if categories[CATEGORY_CRITICAL]:
-        risk = RISK_HIGH
-    elif categories[CATEGORY_REVIEW] or rc not in (0, 1):
-        risk = RISK_MEDIUM
-    else:
-        risk = RISK_LOW
+    risk = _rkhunter_risk_from_categories(categories, rc)
 
     codes = {item["code"] for item in findings}
     scan_completed = rc in (0, 1) and bool(
@@ -541,15 +559,7 @@ def analyze_rkhunter_output(
         item["category"] in (CATEGORY_REVIEW, CATEGORY_CRITICAL)
         for item in dpkg_findings
     )
-    critical_flags = {
-        "rootkits": "rootkit" in codes,
-        "backdoors": "backdoor" in codes,
-        "suspicious_runtime": "suspicious_runtime" in codes,
-        "system_programs": bool(
-            {"system_program", "dpkg_system_program", "pam_module"} & codes
-        ),
-        "critical_network": bool({"backdoor", "suspicious_runtime"} & codes),
-    }
+    critical_flags = _rkhunter_critical_flags(codes)
     propupd_allowed = (
         scan_completed
         and dpkg_verified

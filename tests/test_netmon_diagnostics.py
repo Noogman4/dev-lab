@@ -7,6 +7,11 @@ from netmon import app as app_module
 from netmon.app import App
 from netmon.core import crash, diagnostics, support_bundle
 from netmon import main
+from netmon.ui.tabs.settings_tab import (
+    build_settings_backup,
+    build_settings_content,
+    build_settings_support,
+)
 
 
 def test_redact_sensitive_text_masks_known_patterns():
@@ -225,13 +230,17 @@ def test_run_system_action_async_requires_phrase_when_strict_protection_is_enabl
     app.strict_protection_var = SimpleNamespace(get=lambda: True)
     app.settings = {"strict_protection": True}
     app.tr = lambda _key, default, **_kwargs: default
-    app._system_action_commands = lambda action: [(["systemctl", "reboot"], False)]
-    app._confirm_danger_action = lambda *args, **kwargs: recorded.setdefault(
-        "kwargs", kwargs
-    ) or True
-    app.ensure_sudo_session = lambda _label: True
+    # Inertes Stub-Kommando + Abbruch im Bestätigungsdialog: der Test prüft nur
+    # die require_phrase-Weitergabe und darf nie den echten Job-Thread starten
+    # (ein echtes ["systemctl", "reboot"] würde den Host ohne Passwort rebooten).
+    app._system_action_commands = lambda action: [(["true"], False)]
+
+    def confirm(*_args, **kwargs):
+        recorded["kwargs"] = kwargs
+        return False
+
+    app._confirm_danger_action = confirm
     app.log = lambda _message: None
-    app.after = lambda _delay, callback: callback()
 
     app.run_system_action_async("Reboot")
 
@@ -244,13 +253,14 @@ def test_run_system_action_async_skips_phrase_when_strict_protection_is_disabled
     app.strict_protection_var = SimpleNamespace(get=lambda: False)
     app.settings = {"strict_protection": False}
     app.tr = lambda _key, default, **_kwargs: default
-    app._system_action_commands = lambda action: [(["systemctl", "reboot"], False)]
-    app._confirm_danger_action = lambda *args, **kwargs: recorded.setdefault(
-        "kwargs", kwargs
-    ) or True
-    app.ensure_sudo_session = lambda _label: True
+    app._system_action_commands = lambda action: [(["true"], False)]
+
+    def confirm(*_args, **kwargs):
+        recorded["kwargs"] = kwargs
+        return False
+
+    app._confirm_danger_action = confirm
     app.log = lambda _message: None
-    app.after = lambda _delay, callback: callback()
 
     app.run_system_action_async("Reboot")
 
@@ -659,7 +669,8 @@ def test_about_program_dialog_contains_diagnostic_actions_source():
     assert "self._support_form_placeholders()" in source
     assert "Tipp: Supportpaket erzeugen, ZIP im Supportordner prüfen" in source
     assert 'self.tr("about_section_donation", "NetMon unterstützen")' in source
-    assert 'self.tr("about_donation_button", "Spendenlink folgt")' in source
+    assert 'self.tr("about_donation_button", "NetMon Roots unterstützen")' in source
+    assert "self.open_netmon_roots_donation" in source
 
 
 def test_bootstrap_failure_source_mentions_startup_support_dialog():
@@ -825,7 +836,7 @@ def test_build_about_support_form_metadata_skips_placeholder_values():
 
 
 def test_settings_tab_contains_support_actions_source():
-    source = inspect.getsource(App.build_settings_tab)
+    source = inspect.getsource(build_settings_support)
 
     assert "Supportpaket erzeugen" in source
     assert "Supportpaket öffnen" in source
@@ -833,6 +844,239 @@ def test_settings_tab_contains_support_actions_source():
     assert (
         "Empfehlung: Paket erzeugen, kurz den Inhalt im Supportordner prüfen" in source
     )
+
+
+def test_settings_tab_contains_backup_tab_source():
+    source = inspect.getsource(build_settings_content)
+    backup_source = inspect.getsource(build_settings_backup)
+    backup_delegate_source = inspect.getsource(App._build_settings_backup_tab)
+    backup_options_source = inspect.getsource(App.refresh_netmon_backup_folder_options)
+
+    assert '"settings_tab_backup", "Backup"' in source
+    assert "build_settings_backup(self, tab)" in backup_delegate_source
+    assert 'app.tr("backup_group_snapshot", "System-Snapshot")' in backup_source
+    assert 'app.tr("backup_group_data", "Datensicherung")' in backup_source
+    assert 'app.tr("backup_group_netmon", "NetMon-Sicherung")' in backup_source
+    assert (
+        'app.tr("backup_btn_open_data_tool", "Datensicherung öffnen")' in backup_source
+    )
+    assert (
+        'app.tr("backup_btn_open_restore_tool", "Wiederherstellung öffnen")'
+        in backup_source
+    )
+    assert '"backup_btn_export_netmon_docs"' in backup_source
+    assert '"NetMon-Sicherung exportieren"' in backup_source
+    assert "command=lambda: app.launch_data_backup_tool(restore=False)" in backup_source
+    assert "command=lambda: app.launch_data_backup_tool(restore=True)" in backup_source
+    assert "command=app.export_netmon_documents_backup" in backup_source
+    assert "command=app.open_netmon_documents_folder" in backup_source
+    assert "command=app.open_security_baseline_transfer_folder" not in backup_source
+    assert "command=app.export_security_baseline_transfer" not in backup_source
+    assert "command=app.import_security_baseline_transfer" not in backup_source
+    assert "command=app.show_security_baseline_transfer_package" not in backup_source
+    assert "command=app.show_security_baseline_transfer_comparison" not in backup_source
+    assert "command=app.clear_security_baseline_transfer" not in backup_source
+    assert '"backup_netmon_full_folder"' in backup_options_source
+    assert '"NetMon-Ordner komplett"' in backup_options_source
+
+
+def test_backup_target_conflict_detects_nested_target():
+    app = App.__new__(App)
+
+    conflict = app._backup_target_conflict(
+        "/home/happy/Dokumente/Backup",
+        [{"label": "Dokumente", "path": "/home/happy/Dokumente"}],
+    )
+    no_conflict = app._backup_target_conflict(
+        "/mnt/usb/netmon-backup",
+        [{"label": "Dokumente", "path": "/home/happy/Dokumente"}],
+    )
+
+    assert conflict == {
+        "label": "Dokumente",
+        "path": "/home/happy/Dokumente",
+    }
+    assert no_conflict is None
+
+
+def test_selected_backup_sources_skip_nested_netmon_when_documents_selected(
+    monkeypatch,
+):
+    class _Var:
+        def __init__(self, value):
+            self.value = value
+
+        def get(self):
+            return self.value
+
+    app = App.__new__(App)
+    app.tr = lambda _key, default=None: default or _key
+    app.backup_include_documents_var = _Var(True)
+    app.backup_include_pictures_var = _Var(False)
+    app.backup_include_desktop_var = _Var(False)
+    app.backup_include_music_var = _Var(False)
+    app.backup_include_videos_var = _Var(False)
+    app.backup_include_downloads_var = _Var(False)
+    app.backup_include_netmon_documents_var = _Var(True)
+
+    monkeypatch.setattr(
+        app_module.os.path,
+        "expanduser",
+        lambda value: value.replace("~", "/home/happy"),
+    )
+    monkeypatch.setattr(
+        app_module.os.path,
+        "exists",
+        lambda path: path
+        in {
+            "/home/happy/Dokumente",
+            "/home/happy/Dokumente/NetMon",
+        },
+    )
+
+    selected = app._selected_backup_source_entries()
+
+    assert selected == [{"label": "Dokumente", "path": "/home/happy/Dokumente"}]
+
+
+def test_netmon_backup_full_toggle_deselects_individual_folders():
+    class _Var:
+        def __init__(self, value):
+            self.value = value
+
+        def get(self):
+            return self.value
+
+        def set(self, value):
+            self.value = value
+
+    app = App.__new__(App)
+    app.backup_netmon_full_var = _Var(True)
+    app.backup_netmon_dir_vars = {
+        "Config": _Var(True),
+        "Security": _Var(True),
+    }
+    app.backup_selected_sources_var = _Var("")
+    app._netmon_backup_selected_entries = lambda: [
+        {"key": "__all__", "label": "NetMon komplett", "path": "/tmp/NetMon"}
+    ]
+
+    app._on_backup_netmon_full_toggle()
+
+    assert app.backup_netmon_dir_vars["Config"].get() is False
+    assert app.backup_netmon_dir_vars["Security"].get() is False
+    assert (
+        app.backup_selected_sources_var.get()
+        == "NetMon-Auswahl: kompletter Dokumente/NetMon-Ordner"
+    )
+
+
+def test_netmon_backup_item_toggle_disables_full_selection():
+    class _Var:
+        def __init__(self, value):
+            self.value = value
+
+        def get(self):
+            return self.value
+
+        def set(self, value):
+            self.value = value
+
+    app = App.__new__(App)
+    app.backup_netmon_full_var = _Var(True)
+    app.backup_netmon_selected_dir_keys = ["Config"]
+    app.backup_selected_sources_var = _Var("")
+    app._netmon_backup_selected_entries = lambda: [
+        {"key": "Security", "label": "Security", "path": "/tmp/NetMon/Security"}
+    ]
+
+    app._on_backup_netmon_item_toggle("Config")
+
+    assert app.backup_netmon_full_var.get() is False
+    assert app.backup_netmon_selected_dir_keys == []
+    assert (
+        app.backup_selected_sources_var.get() == "NetMon-Auswahl: 1 Ordner -> Security"
+    )
+
+
+def test_export_netmon_documents_backup_copies_selected_folders(monkeypatch, tmp_path):
+    class _Var:
+        def __init__(self, value):
+            self.value = value
+
+        def get(self):
+            return self.value
+
+        def set(self, value):
+            self.value = value
+
+    docs_dir = tmp_path / "Documents" / "NetMon"
+    config_dir = docs_dir / "Config"
+    logs_dir = docs_dir / "Logs"
+    config_dir.mkdir(parents=True)
+    logs_dir.mkdir(parents=True)
+    (config_dir / "config.json").write_text('{"ok": true}', encoding="utf-8")
+    (logs_dir / "latest.log").write_text("hello", encoding="utf-8")
+
+    export_root = tmp_path / "external"
+    export_root.mkdir()
+    info_calls = []
+    error_calls = []
+    log_entries = []
+
+    app = App.__new__(App)
+    app.settings = {}
+    app.tr = lambda _key, default, **_kwargs: default
+    app.backup_netmon_full_var = _Var(False)
+    app.backup_netmon_dir_vars = {
+        "Config": _Var(True),
+        "Logs": _Var(False),
+    }
+    app.backup_status_var = _Var("")
+    app._append_backup_log = lambda text, clear=False: log_entries.append((text, clear))
+
+    monkeypatch.setattr(app_module, "get_netmon_documents_dir", lambda: str(docs_dir))
+    monkeypatch.setattr(
+        app_module.filedialog, "askdirectory", lambda **_kwargs: str(export_root)
+    )
+    monkeypatch.setattr(
+        app_module.messagebox,
+        "showinfo",
+        lambda *args, **kwargs: info_calls.append((args, kwargs)),
+    )
+    monkeypatch.setattr(
+        app_module.messagebox,
+        "showerror",
+        lambda *args, **kwargs: error_calls.append((args, kwargs)),
+    )
+
+    result = app.export_netmon_documents_backup()
+
+    export_dirs = sorted(export_root.glob("netmon_documents_backup_*"))
+    assert result is True
+    assert error_calls == []
+    assert info_calls == []
+    assert len(export_dirs) == 1
+    exported_dir = export_dirs[0]
+    assert (exported_dir / "Config" / "config.json").read_text(
+        encoding="utf-8"
+    ) == '{"ok": true}'
+    assert not (exported_dir / "Logs").exists()
+
+    manifest = json.loads(
+        (exported_dir / "netmon_documents_backup_manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert manifest["export_dir"] == str(exported_dir)
+    assert manifest["selection"] == [
+        {
+            "label": "Config",
+            "target": str(exported_dir / "Config"),
+        }
+    ]
+    assert "NetMon-Sicherung exportiert" in app.backup_status_var.get()
+    assert len(log_entries) == 2
 
 
 def test_is_trusted_update_url_accepts_only_netmonroots_https():

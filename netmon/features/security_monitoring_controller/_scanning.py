@@ -399,6 +399,9 @@ def _restore_security_baselines(app, data: dict) -> dict:
     _store_integrity_baseline(app, sanitize_integrity_baseline(app, raw_integrity))
     _store_device_baseline(app, data.get("device", {}))
     _store_input_access_baseline(app, data.get("input_access", {}))
+    app.lynis_security_baseline_state = dict(
+        data.get("lynis_security_baseline", {}) or {}
+    )
     return raw_integrity
 
 
@@ -1110,9 +1113,7 @@ def _run_security_input_access_scan_job(app) -> None:
     try:
         events.extend(app.scan_input_access_changes())
         if events:
-            feedback_message = (
-                f"{len(events)} Input-Access-Änderung(en) erkannt."
-            )
+            feedback_message = f"{len(events)} Input-Access-Änderung(en) erkannt."
     except Exception as exc:
         app.log_safe(f"Input-Zugriffscheck fehlgeschlagen: {exc}")
         feedback_message = f"Input-Zugriffscheck fehlgeschlagen: {exc}"

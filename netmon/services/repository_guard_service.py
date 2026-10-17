@@ -37,10 +37,13 @@ class RepositoryGuardService:
         self,
         source_patterns: list[str] | None = None,
         *,
+        auxiliary_patterns: list[str] | None = None,
+        global_keyring_patterns: list[str] | None = None,
         flatpak_runner=None,
         flatpak_available_fn=None,
         file_exists_fn=None,
     ):
+        use_default_system_patterns = source_patterns is None
         self.source_patterns = list(
             source_patterns
             or [
@@ -49,14 +52,41 @@ class RepositoryGuardService:
                 "/etc/apt/sources.list.d/*.sources",
             ]
         )
+        self.auxiliary_patterns = list(
+            auxiliary_patterns
+            or (
+                [
+                    "/etc/apt/sources.list.d/*.distUpgrade",
+                    "/etc/apt/sources.list.d/*.disabled",
+                    "/etc/apt/sources.list.d/*.bak",
+                    "/etc/apt/sources.list.d/netmon-backup/*",
+                ]
+                if use_default_system_patterns
+                else []
+            )
+        )
+        self.global_keyring_patterns = list(
+            global_keyring_patterns
+            or (
+                [
+                    "/etc/apt/trusted.gpg.d/*.gpg",
+                    "/etc/apt/trusted.gpg.d/*.asc",
+                ]
+                if use_default_system_patterns
+                else []
+            )
+        )
         self.flatpak_runner = flatpak_runner or self._run_flatpak_command
         self.flatpak_available_fn = flatpak_available_fn or self._flatpak_is_available
         self.file_exists_fn = file_exists_fn or os.path.isfile
-        self.known_hosts = {
+        self.core_apt_hosts = {
             "deb.debian.org",
             "security.debian.org",
             "archive.ubuntu.com",
             "security.ubuntu.com",
+        }
+        self.known_hosts = {
+            *self.core_apt_hosts,
             "ppa.launchpadcontent.net",
             "dl.flathub.org",
             "brave-browser-apt-release.s3.brave.com",
@@ -73,14 +103,29 @@ class RepositoryGuardService:
 
     def scan(self, trustlist: dict | None = None) -> dict:
         sources, errors = self.collect_sources()
+        auxiliary_files = self.collect_auxiliary_files()
+        global_keyrings = self.collect_global_keyrings()
         self.apply_trustlist(sources, trustlist)
-        findings = self.build_findings(sources, errors)
-        summary = self.build_summary(sources, findings, errors)
+        findings = self.build_findings(
+            sources,
+            errors,
+            auxiliary_files=auxiliary_files,
+            global_keyrings=global_keyrings,
+        )
+        summary = self.build_summary(
+            sources,
+            findings,
+            errors,
+            auxiliary_files=auxiliary_files,
+            global_keyrings=global_keyrings,
+        )
         return {
             "status": self._status_from_findings(findings, errors),
             "checked_at": self._utc_now(),
             "summary": summary,
             "sources": sources,
+            "auxiliary_files": auxiliary_files,
+            "global_keyrings": global_keyrings,
             "findings": findings,
             "errors": errors,
         }
@@ -175,10 +220,53 @@ class RepositoryGuardService:
                 self._collect_sources_from_file(path, sources, errors)
 
         self._collect_flatpak_sources(sources, errors)
-        sources.sort(key=lambda item: (item.get("file_path", ""), item.get("line_no", 0)))
+        sources.sort(
+            key=lambda item: (item.get("file_path", ""), item.get("line_no", 0))
+        )
         return sources, errors
 
-    def build_findings(self, sources: list[dict], errors: list[dict]) -> list[dict]:
+    def collect_auxiliary_files(self) -> list[dict]:
+        files: list[dict] = []
+        seen: set[str] = set()
+        for pattern in self.auxiliary_patterns:
+            for path in self._expand_pattern(pattern):
+                if path in seen:
+                    continue
+                seen.add(path)
+                files.append(
+                    {
+                        "file_path": path,
+                        "state": self._auxiliary_file_state(path),
+                    }
+                )
+        files.sort(key=lambda item: str(item.get("file_path") or ""))
+        return files
+
+    def collect_global_keyrings(self) -> list[dict]:
+        files: list[dict] = []
+        seen: set[str] = set()
+        for pattern in self.global_keyring_patterns:
+            for path in self._expand_pattern(pattern):
+                if path in seen:
+                    continue
+                seen.add(path)
+                files.append(
+                    {
+                        "file_path": path,
+                        "scope": self._global_keyring_scope(path),
+                    }
+                )
+        files.sort(key=lambda item: str(item.get("file_path") or ""))
+        return files
+
+    def build_findings(
+        self,
+        sources: list[dict],
+        errors: list[dict],
+        *,
+        auxiliary_files: list[dict] | None = None,
+        global_keyrings: list[dict] | None = None,
+    ) -> list[dict]:
         findings: list[dict] = []
         duplicate_groups: dict[tuple, list[dict]] = {}
 
@@ -271,7 +359,7 @@ class RepositoryGuardService:
                     )
                 )
 
-            if origin_class == "unknown" and not signed_by:
+            if self._requires_explicit_signed_by(source) and not signed_by:
                 findings.append(
                     self._finding(
                         source=source,
@@ -322,11 +410,15 @@ class RepositoryGuardService:
             duplicate_key = self._source_identity_key(source)
             duplicate_groups.setdefault(duplicate_key, []).append(source)
 
+        findings.extend(self._auxiliary_file_findings(auxiliary_files))
+        findings.extend(self._global_keyring_findings(global_keyrings))
+
         for duplicate_sources in duplicate_groups.values():
             if len(duplicate_sources) < 2:
                 continue
             config_fingerprints = {
-                self._duplicate_config_fingerprint(source) for source in duplicate_sources
+                self._duplicate_config_fingerprint(source)
+                for source in duplicate_sources
             }
             if len(config_fingerprints) == 1:
                 duplicate_code = "repo_duplicate_source"
@@ -355,6 +447,86 @@ class RepositoryGuardService:
                     )
                 )
 
+        findings.extend(self._repository_error_findings(errors))
+        flatpak_missing_finding = self._flatpak_missing_finding()
+        if flatpak_missing_finding:
+            findings.append(flatpak_missing_finding)
+
+        findings.sort(
+            key=lambda item: (self._severity_rank(item.get("severity")), item["id"])
+        )
+        return findings
+
+    def _auxiliary_file_findings(
+        self, auxiliary_files: list[dict] | None
+    ) -> list[dict]:
+        findings: list[dict] = []
+        for item in list(auxiliary_files or []):
+            state = str(item.get("state") or "").strip().lower()
+            source = {
+                "id": f"aux:{item.get('file_path', '-')}",
+                "file_path": item.get("file_path", ""),
+                "line_no": 0,
+                "uri": "",
+            }
+            if state == "distupgrade":
+                findings.append(
+                    self._finding(
+                        source=source,
+                        severity="warning",
+                        code="repo_legacy_distupgrade_file",
+                        title="Alte distUpgrade-Repositorydatei vorhanden",
+                        summary="Eine alte distUpgrade-Datei kann auf Upgrade-Reste oder doppelte Paketquellen hindeuten.",
+                    )
+                )
+            elif state == "disabled":
+                findings.append(
+                    self._finding(
+                        source=source,
+                        severity="notice",
+                        code="repo_disabled_file_present",
+                        title="Deaktivierte Repositorydatei vorhanden",
+                        summary="Eine deaktivierte Repositorydatei wurde als Inventareintrag erkannt.",
+                    )
+                )
+            elif state == "backup":
+                findings.append(
+                    self._finding(
+                        source=source,
+                        severity="info",
+                        code="repo_backup_file_present",
+                        title="Repository-Sicherung vorhanden",
+                        summary="Eine gesicherte oder archivierte Repositorydatei wurde erkannt.",
+                    )
+                )
+        return findings
+
+    def _global_keyring_findings(
+        self, global_keyrings: list[dict] | None
+    ) -> list[dict]:
+        findings: list[dict] = []
+        for item in list(global_keyrings or []):
+            if str(item.get("scope") or "") != "third_party":
+                continue
+            source = {
+                "id": f"keyring:{item.get('file_path', '-')}",
+                "file_path": item.get("file_path", ""),
+                "line_no": 0,
+                "uri": "",
+            }
+            findings.append(
+                self._finding(
+                    source=source,
+                    severity="notice",
+                    code="repo_global_third_party_keyring",
+                    title="Globaler Drittanbieter-Keyring vorhanden",
+                    summary="Ein Drittanbieter-Schluessel liegt global unter trusted.gpg.d und ist nicht repository-spezifisch eingeschraenkt.",
+                )
+            )
+        return findings
+
+    def _repository_error_findings(self, errors: list[dict]) -> list[dict]:
+        findings: list[dict] = []
         for error in errors:
             findings.append(
                 {
@@ -369,28 +541,34 @@ class RepositoryGuardService:
                     },
                 }
             )
-
-        if self.flatpak_status == "missing":
-            findings.append(
-                {
-                    "id": "finding:repo_flatpak_not_installed",
-                    "severity": "info",
-                    "code": "repo_flatpak_not_installed",
-                    "title": "Flatpak nicht installiert",
-                    "summary": "Flatpak-Remotes konnten nicht geprüft werden, da Flatpak nicht verfügbar ist.",
-                    "source_id": "",
-                    "details": {},
-                }
-            )
-
-        findings.sort(key=lambda item: (self._severity_rank(item.get("severity")), item["id"]))
         return findings
 
+    def _flatpak_missing_finding(self) -> dict | None:
+        if self.flatpak_status != "missing":
+            return None
+        return {
+            "id": "finding:repo_flatpak_not_installed",
+            "severity": "info",
+            "code": "repo_flatpak_not_installed",
+            "title": "Flatpak nicht installiert",
+            "summary": "Flatpak-Remotes konnten nicht geprüft werden, da Flatpak nicht verfügbar ist.",
+            "source_id": "",
+            "details": {},
+        }
+
     def build_summary(
-        self, sources: list[dict], findings: list[dict], errors: list[dict]
+        self,
+        sources: list[dict],
+        findings: list[dict],
+        errors: list[dict],
+        *,
+        auxiliary_files: list[dict] | None = None,
+        global_keyrings: list[dict] | None = None,
     ) -> dict:
         summary = {
             "repositories_total": len(sources),
+            "auxiliary_files_total": len(list(auxiliary_files or [])),
+            "global_keyrings_total": len(list(global_keyrings or [])),
             "findings_total": len(findings),
             "critical": 0,
             "warning": 0,
@@ -423,9 +601,9 @@ class RepositoryGuardService:
 
     def save_baseline(self, path: str, sources: list[dict]) -> tuple[bool, str]:
         payload = {
-            "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace(
-                "+00:00", "Z"
-            ),
+            "generated_at": datetime.now(timezone.utc)
+            .isoformat(timespec="seconds")
+            .replace("+00:00", "Z"),
             "sources": list(sources or []),
         }
         return safe_write_json(path, payload)
@@ -482,7 +660,9 @@ class RepositoryGuardService:
             if source_id not in matched_baseline_ids
         ]
         remaining_current = [
-            item for source_id, item in current_map.items() if source_id not in matched_current_ids
+            item
+            for source_id, item in current_map.items()
+            if source_id not in matched_current_ids
         ]
 
         baseline_by_identity = self._group_sources_by_identity(remaining_baseline)
@@ -606,7 +786,9 @@ class RepositoryGuardService:
 
         blocks = self._split_deb822_blocks(lines)
         for block_index, block in enumerate(blocks, start=1):
-            parsed_entries, parse_error = self._parse_deb822_block(path, block_index, block)
+            parsed_entries, parse_error = self._parse_deb822_block(
+                path, block_index, block
+            )
             if parse_error:
                 errors.append(
                     {
@@ -660,7 +842,7 @@ class RepositoryGuardService:
     ) -> tuple[list[dict], str]:
         fields = self._parse_deb822_fields(str(block.get("raw_block") or ""))
         types = self._split_multivalue_field(fields.get("Types", ""))
-        uris = self._split_multivalue_field(fields.get("URIs", ""))
+        uris = self._split_uri_field(fields.get("URIs", ""))
         suites = self._split_multivalue_field(fields.get("Suites", ""))
         components = self._split_multivalue_field(fields.get("Components", ""))
         signed_by = str(fields.get("Signed-By", "") or "").strip()
@@ -735,6 +917,30 @@ class RepositoryGuardService:
 
     def _split_multivalue_field(self, value: str) -> list[str]:
         return [part.strip() for part in str(value or "").split() if part.strip()]
+
+    def _split_uri_field(self, value: str) -> list[str]:
+        text = str(value or "").strip()
+        if not text:
+            return []
+        parts: list[str] = []
+        current: list[str] = []
+        bracket_depth = 0
+        for char in text:
+            if char == "[":
+                bracket_depth += 1
+            elif char == "]" and bracket_depth > 0:
+                bracket_depth -= 1
+            if char.isspace() and bracket_depth == 0:
+                token = "".join(current).strip()
+                if token:
+                    parts.append(token)
+                current = []
+                continue
+            current.append(char)
+        token = "".join(current).strip()
+        if token:
+            parts.append(token)
+        return parts
 
     def _parse_list_line(
         self,
@@ -949,6 +1155,28 @@ class RepositoryGuardService:
     def _classify_origin(self, host: str) -> str:
         return "known" if host in self.known_hosts else "unknown"
 
+    def _requires_explicit_signed_by(self, source: dict) -> bool:
+        if str(source.get("kind") or "").strip().lower() != "apt":
+            return False
+        if not bool(source.get("enabled", True)):
+            return False
+        host = str(source.get("host") or "").strip().lower()
+        return bool(host) and host not in self.core_apt_hosts
+
+    def _auxiliary_file_state(self, path: str) -> str:
+        normalized = str(path or "").strip()
+        if normalized.endswith(".distUpgrade"):
+            return "distupgrade"
+        if normalized.endswith(".disabled"):
+            return "disabled"
+        return "backup"
+
+    def _global_keyring_scope(self, path: str) -> str:
+        name = os.path.basename(str(path or "").strip()).lower()
+        if name.startswith(("ubuntu-keyring-", "debian-archive-")):
+            return "core"
+        return "third_party"
+
     def _is_absolute_keyring_path(self, path: str) -> bool:
         text = str(path or "").strip()
         return bool(text) and text.startswith("/")
@@ -992,7 +1220,9 @@ class RepositoryGuardService:
             tuple(sorted((item.get("options") or {}).items())),
         )
 
-    def _group_sources_by_identity(self, sources: list[dict]) -> dict[tuple, list[dict]]:
+    def _group_sources_by_identity(
+        self, sources: list[dict]
+    ) -> dict[tuple, list[dict]]:
         groups: dict[tuple, list[dict]] = {}
         for item in list(sources or []):
             groups.setdefault(self._source_identity_key(item), []).append(item)
@@ -1009,12 +1239,16 @@ class RepositoryGuardService:
     def _changed_fields(self, before: dict, after: dict) -> list[str]:
         fields = []
         comparisons = {
-            "enabled": bool(before.get("enabled", True)) != bool(after.get("enabled", True)),
-            "repo_type": str(before.get("repo_type") or "") != str(after.get("repo_type") or ""),
+            "enabled": bool(before.get("enabled", True))
+            != bool(after.get("enabled", True)),
+            "repo_type": str(before.get("repo_type") or "")
+            != str(after.get("repo_type") or ""),
             "uri": str(before.get("uri") or "") != str(after.get("uri") or ""),
             "suite": str(before.get("suite") or "") != str(after.get("suite") or ""),
-            "components": tuple(before.get("components") or []) != tuple(after.get("components") or []),
-            "signed_by": str(before.get("signed_by") or "") != str(after.get("signed_by") or ""),
+            "components": tuple(before.get("components") or [])
+            != tuple(after.get("components") or []),
+            "signed_by": str(before.get("signed_by") or "")
+            != str(after.get("signed_by") or ""),
             "host": str(before.get("host") or "") != str(after.get("host") or ""),
             "scope": str(before.get("scope") or "") != str(after.get("scope") or ""),
             "name": str(before.get("name") or "") != str(after.get("name") or ""),
@@ -1037,7 +1271,9 @@ class RepositoryGuardService:
     def _status_from_findings(self, findings: list[dict], errors: list[dict]) -> str:
         if errors:
             return "error"
-        severities = {str(item.get("severity") or "").strip().lower() for item in findings}
+        severities = {
+            str(item.get("severity") or "").strip().lower() for item in findings
+        }
         if "critical" in severities:
             return "critical"
         if "warning" in severities:
@@ -1074,6 +1310,8 @@ class RepositoryGuardService:
         }
 
     def _utc_now(self) -> str:
-        return datetime.now(timezone.utc).isoformat(timespec="seconds").replace(
-            "+00:00", "Z"
+        return (
+            datetime.now(timezone.utc)
+            .isoformat(timespec="seconds")
+            .replace("+00:00", "Z")
         )

@@ -8,10 +8,11 @@ import html
 import re
 from pathlib import Path
 
+from read_netmon_version import read_netmon_version
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS_DIR = ROOT / "docs"
-DEFAULT_VERSION = "1.1.19"
+DEFAULT_VERSION = read_netmon_version()
 DEFAULT_DOCS = [
     "README.md",
     "USER_GUIDE.md",
@@ -65,7 +66,9 @@ def inline_format_pdf(text: str) -> str:
     return escaped
 
 
-def parse_markdown_tables(lines: list[str], start: int) -> tuple[list[list[str]], int] | None:
+def parse_markdown_tables(
+    lines: list[str], start: int
+) -> tuple[list[list[str]], int] | None:
     if start + 1 >= len(lines):
         return None
     header = lines[start].strip()
@@ -88,7 +91,9 @@ def parse_markdown_tables(lines: list[str], start: int) -> tuple[list[list[str]]
     return [split_row(row) for row in rows], index
 
 
-def parse_markdown_blocks(md_text: str) -> tuple[list[dict], list[tuple[int, str, str]]]:
+def parse_markdown_blocks(
+    md_text: str,
+) -> tuple[list[dict], list[tuple[int, str, str]]]:
     lines = md_text.splitlines()
     blocks: list[dict] = []
     headings: list[tuple[int, str, str]] = []
@@ -212,9 +217,7 @@ def blocks_to_html(blocks: list[dict]) -> str:
                 f'<blockquote><p>{inline_format_html(block["text"])}</p></blockquote>'
             )
         elif block_type == "code":
-            parts.append(
-                f"<pre><code>{html.escape(block['text'])}</code></pre>"
-            )
+            parts.append(f"<pre><code>{html.escape(block['text'])}</code></pre>")
         elif block_type == "list":
             tag = "ol" if block["list_type"] == "ol" else "ul"
             parts.append(f"<{tag}>")
@@ -236,10 +239,12 @@ def blocks_to_html(blocks: list[dict]) -> str:
     return "\n".join(parts)
 
 
-def build_toc_html(document_sections: list[tuple[str, str, list[tuple[int, str, str]]]]) -> str:
+def build_toc_html(
+    document_sections: list[tuple[str, str, list[tuple[int, str, str]]]],
+) -> str:
     parts = ['<div class="toc"><h1 id="inhaltsverzeichnis">Inhaltsverzeichnis</h1>']
     for file_title, section_anchor, headings in document_sections:
-        parts.append("<div class=\"toc-section\">")
+        parts.append('<div class="toc-section">')
         parts.append(
             f'<p class="toc-file"><a href="#{section_anchor}">{inline_format_html(file_title)}</a></p>'
         )
@@ -299,7 +304,9 @@ def html_document(title: str, toc_html: str, body_html: str) -> str:
 </html>"""
 
 
-def build_bundle(version: str, doc_names: list[str], output_dir: Path) -> tuple[Path, Path, list[dict]]:
+def build_bundle(
+    version: str, doc_names: list[str], output_dir: Path
+) -> tuple[Path, Path, list[dict]]:
     output_dir.mkdir(parents=True, exist_ok=True)
     title = f"NetMon Dokumentation {version}"
     sections = []
@@ -338,7 +345,16 @@ def build_bundle(version: str, doc_names: list[str], output_dir: Path) -> tuple[
     return html_path, pdf_path, sections
 
 
-def build_pdf(version: str, sections: list[dict], pdf_path: Path) -> None:
+def build_pdf(
+    version: str,
+    sections: list[dict],
+    pdf_path: Path,
+    *,
+    document_title: str = "NetMon Dokumentation",
+    document_subtitle: str = (
+        "Kompakte Zusammenstellung der zentralen Projekt- und Nutzerdokumentation."
+    ),
+) -> None:
     try:
         from reportlab.lib import colors
         from reportlab.lib.enums import TA_LEFT
@@ -368,7 +384,7 @@ def build_pdf(version: str, sections: list[dict], pdf_path: Path) -> None:
         rightMargin=16 * mm,
         topMargin=18 * mm,
         bottomMargin=18 * mm,
-        title=f"NetMon Dokumentation {version}",
+        title=f"{document_title} {version}",
         author="NetMon",
     )
 
@@ -460,15 +476,17 @@ def build_pdf(version: str, sections: list[dict], pdf_path: Path) -> None:
     )
 
     story = [
-        Paragraph("NetMon Dokumentation", styles["NetMonH1"]),
+        Paragraph(html.escape(document_title), styles["NetMonH1"]),
         Spacer(1, 6),
         Paragraph(f"Version: {html.escape(version)}", styles["NetMonBody"]),
         Paragraph(
-            "Kompakte Zusammenstellung der zentralen Projekt- und Nutzerdokumentation.",
+            html.escape(document_subtitle),
             styles["NetMonBody"],
         ),
         PageBreak(),
-        Paragraph('<a name="inhaltsverzeichnis"/>Inhaltsverzeichnis', styles["NetMonH1"]),
+        Paragraph(
+            '<a name="inhaltsverzeichnis"/>Inhaltsverzeichnis', styles["NetMonH1"]
+        ),
     ]
 
     for section in sections:
@@ -501,7 +519,10 @@ def build_pdf(version: str, sections: list[dict], pdf_path: Path) -> None:
             )
         )
         story.append(
-            Paragraph(f"Quelle: docs/{html.escape(section['doc_name'])}", styles["NetMonSmall"])
+            Paragraph(
+                f"Quelle: docs/{html.escape(section['doc_name'])}",
+                styles["NetMonSmall"],
+            )
         )
 
         for block in section["blocks"]:
@@ -519,9 +540,13 @@ def build_pdf(version: str, sections: list[dict], pdf_path: Path) -> None:
                     )
                 )
             elif block_type == "paragraph":
-                story.append(Paragraph(inline_format_pdf(block["text"]), styles["NetMonBody"]))
+                story.append(
+                    Paragraph(inline_format_pdf(block["text"]), styles["NetMonBody"])
+                )
             elif block_type == "quote":
-                story.append(Paragraph(inline_format_pdf(block["text"]), styles["NetMonQuote"]))
+                story.append(
+                    Paragraph(inline_format_pdf(block["text"]), styles["NetMonQuote"])
+                )
             elif block_type == "code":
                 story.append(Preformatted(block["text"], styles["NetMonCode"]))
             elif block_type == "list":
@@ -540,7 +565,10 @@ def build_pdf(version: str, sections: list[dict], pdf_path: Path) -> None:
                     )
             elif block_type == "table":
                 rows = [
-                    [Paragraph(inline_format_pdf(cell), styles["NetMonSmall"]) for cell in row]
+                    [
+                        Paragraph(inline_format_pdf(cell), styles["NetMonSmall"])
+                        for cell in row
+                    ]
                     for row in block["rows"]
                 ]
                 table = Table(rows, repeatRows=1)
@@ -549,7 +577,13 @@ def build_pdf(version: str, sections: list[dict], pdf_path: Path) -> None:
                         [
                             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#eef3f7")),
                             ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#d9e1e7")),
-                            ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#d9e1e7")),
+                            (
+                                "INNERGRID",
+                                (0, 0),
+                                (-1, -1),
+                                0.5,
+                                colors.HexColor("#d9e1e7"),
+                            ),
                             ("VALIGN", (0, 0), (-1, -1), "TOP"),
                             ("LEFTPADDING", (0, 0), (-1, -1), 6),
                             ("RIGHTPADDING", (0, 0), (-1, -1), 6),

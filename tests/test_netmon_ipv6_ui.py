@@ -17,6 +17,26 @@ class DummyWidget:
     config = configure
 
 
+class DestroyedWidget(DummyWidget):
+    def winfo_exists(self):
+        return 0
+
+    def configure(self, **kwargs):
+        raise RuntimeError('invalid command name ".!label"')
+
+    config = configure
+
+
+class BrokenConfigWidget(DummyWidget):
+    def winfo_exists(self):
+        return 1
+
+    def configure(self, **kwargs):
+        raise RuntimeError('invalid command name ".!label"')
+
+    config = configure
+
+
 class DummyVar:
     def __init__(self, value=""):
         self.value = value
@@ -104,6 +124,27 @@ def test_update_ipv6_controls_state_keeps_left_buttons_enabled_without_active_vp
         == "IPv6 Status:\nSystem:        aktiv\nVPN-Profil:    kein aktives Profil"
     )
     assert app.privacy_ipv6_hint.text == "Gewaehltes Privacy-VPN-Profil nutzt nur IPv4"
+
+
+def test_update_ipv6_controls_state_ignores_destroyed_hint_widgets():
+    app = netmon.App.__new__(netmon.App)
+    app.ufw_lock = threading.Lock()
+    app.btn_ipv6_on = DummyWidget()
+    app.btn_ipv6_off = DummyWidget()
+    app.ipv6_controls_hint = DestroyedWidget()
+    app.cb_privacy_ipv6 = DummyWidget()
+    app.privacy_ipv6_hint = BrokenConfigWidget()
+    app.isp_stealth_vpn_profile = DummyVar("proton")
+    app.isp_stealth_vpn_choice = DummyVar("Proton CH")
+    app.active_wg_profile = lambda: None
+    app._privacy_vpn_profile_from_value = lambda value: "proton"
+    app.profile_supports_ipv6 = lambda profile: False
+
+    app.update_ipv6_controls_state()
+
+    assert app.btn_ipv6_on.state == "normal"
+    assert app.btn_ipv6_off.state == "normal"
+    assert app.cb_privacy_ipv6.state == "disabled"
 
 
 def test_build_ipv4_only_wg_profile_content_filters_ipv6_tokens():

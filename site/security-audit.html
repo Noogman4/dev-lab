@@ -3,28 +3,29 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 9</title>
+  <title>NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 12</title>
   <meta
     name="description"
-    content="Neuntes unabhaengiges Sicherheits-Audit des NetMon-Quellcodes auf dem finalen Release-Stand v1.1.19 (Juli 2026). Fokus: VPN/UFW-Killswitch-Reconcile, DNS-Startup-Recovery, In-App-Update-Check, Debian-Maintainer-Skripte und die Release-Verifikation (SHA256SUMS + minisign). 0 kritische, 0 hohe, 2 mittlere Findings &mdash; beide umgesetzt und verifiziert."
+    content="Zwoelftes Sicherheits-Audit von NetMon auf Stand v1.1.21. Alle Findings sind behoben; der Minisign-Public-Key ist unabhaengig von der Download-Origin im Repository gepinnt."
   >
   <link rel="icon" type="image/png" href="./favicon.png">
   <link rel="apple-touch-icon" href="./favicon.png">
   <link rel="canonical" href="https://netmonroots.com/security-audit.html">
   <link rel="alternate" hreflang="de" href="https://netmonroots.com/security-audit.html">
   <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/security-audit.html">
-  <meta property="og:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 9">
-  <meta property="og:description" content="Neuntes Sicherheits-Audit des NetMon-Quellcodes auf dem finalen Release-Stand v1.1.19. 0 kritische, 0 hohe, 2 mittlere Findings &mdash; beide umgesetzt und verifiziert.">
+  <meta property="og:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 12">
+  <meta property="og:description" content="Security-Audit von NetMon v1.1.21: 0 kritische, 0 hohe, 0 mittlere und 0 niedrige Findings offen.">
   <meta property="og:url" content="https://netmonroots.com/security-audit.html">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="NetMon Roots">
   <meta property="og:locale" content="de_DE">
   <meta property="og:image" content="https://netmonroots.com/favicon.png">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 9">
-  <meta name="twitter:description" content="Neuntes Sicherheits-Audit des NetMon-Quellcodes auf dem finalen Release-Stand v1.1.19. 0 kritische, 0 hohe, 2 mittlere Findings &mdash; beide umgesetzt und verifiziert.">
+  <meta name="twitter:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 12">
+  <meta name="twitter:description" content="Security-Audit von NetMon v1.1.21: 0 kritische, 0 hohe, 0 mittlere und 0 niedrige Findings offen.">
   <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
   <link rel="stylesheet" href="./styles.css">
+  <link id="theme-style" rel="stylesheet" href="./theme-bright.css">
   <style>
     /* ── Audit-spezifische Erweiterungen ─────────────────────────────────── */
     .audit-hero { padding: 64px 0 48px; }
@@ -141,7 +142,7 @@
       border-radius: var(--radius-sm);
       background: var(--surface);
     }
-    .finding-card.fixed { border-color: rgba(255, 184, 107, 0.3); }
+    .finding-card.fixed { border-color: rgba(255, 112, 112, 0.32); }
     .finding-card.design {
       border-color: rgba(90, 160, 240, 0.35);
       background: rgba(90, 160, 240, 0.04);
@@ -266,53 +267,244 @@
       </nav>
       <div class="lang-switch" aria-label="Sprachauswahl">
         <a class="active" href="./security-audit.html" lang="de">DE</a>
+        <a href="./en/security-audit.html" lang="en">EN</a>
+      </div>
+      <div class="theme-switch" aria-label="Darstellung">
+        <button type="button" data-theme-option="bright">Bright</button>
+        <button type="button" data-theme-option="dark">Dark</button>
       </div>
     </header>
 
     <main>
+
+      <!-- Aktueller Auditstand: Runde 12 -->
+      <section class="audit-hero">
+        <p class="eyebrow">Sicherheits-Audit &mdash; September 2026 &mdash; Runde&nbsp;12</p>
+        <h1 style="font-size:clamp(2rem,4vw,3rem);margin:0 0 20px;color:var(--text);">
+          Code- und Release-Security-Review<br>
+          <span style="color:var(--accent);">NetMon Roots v1.1.21</span>
+        </h1>
+        <p style="max-width:760px;color:var(--muted);line-height:1.65;font-size:1.05rem;">
+          Gepr&uuml;ft wurden 96&nbsp;Commits seit Runde&nbsp;11, die umfangreiche
+          Auslagerung der Tab-Oberfl&auml;chen, privilegierte Systempfade und die
+          Release-Lieferkette. Das Refactoring f&uuml;hrt keine neue Shell-,
+          Netzwerk- oder Privileg-Senke ein. Das mittlere DNS-Finding, die
+          TAR-Linkbehandlung, der Versionsdrift und die veraltete Supportmatrix
+          wurden behoben. Der echte Minisign-Public-Key ist mit der ID
+          <code>54BF5F1867BDD004</code> in der Security Policy und als
+          kanonische Repository-Datei gepinnt.
+        </p>
+        <a class="round-link" href="#round-11">
+          Vollbericht der Vorrunde&nbsp;11 anzeigen
+        </a>
+        <a class="round-link" href="./netmon_security_audit_2026_r12.pdf" download>
+          PDF Runde&nbsp;12 herunterladen
+        </a>
+      </section>
+
+      <div class="verdict-banner">
+        <div class="verdict-icon">&#10003;</div>
+        <div class="verdict-text">
+          <h2>Alle Findings aus Runde 12 behoben</h2>
+          <p>
+            Der Debian-Installer ver&auml;ndert keine DNS-Profile mehr, der
+            Firefox-Import akzeptiert nur begrenzte regul&auml;re Dateien und
+            Verzeichnisse, und der Release-Build besitzt harte Versions- und
+            Signatur-Gates. Der echte Public Key ist au&szlig;erhalb der
+            Download-Origin im Repository gepinnt; abweichende Build-Keys werden
+            abgelehnt.
+          </p>
+        </div>
+      </div>
+
+      <div class="audit-meta-grid">
+        <div class="audit-meta-card">
+          <div class="label">Datum</div>
+          <div class="value">19.&nbsp;September&nbsp;2026</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Analysierte Version</div>
+          <div class="value">v1.1.21</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Kritisch / Hoch</div>
+          <div class="value ok">0 / 0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Offen Mittel / Niedrig</div>
+          <div class="value ok">0 / 0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Testsuite</div>
+          <div class="value ok">2595 bestanden, 2 &uuml;bersprungen</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Abh&auml;ngigkeiten</div>
+          <div class="value ok">Keine bekannten Advisories</div>
+        </div>
+      </div>
+
+      <div class="audit-section" id="findings-r12">
+        <h2>Findings Runde 12</h2>
+        <div class="section-rule"></div>
+
+        <div class="finding-card">
+          <div class="finding-header">
+            <span class="badge badge-ok">Behoben</span>
+            <h3>NM-R12-01 &mdash; Paketinstallation &auml;ndert aktive DNS-Profile ohne Opt-in</h3>
+          </div>
+          <div class="finding-detail">
+            Der automatische DNS-Eingriff wurde aus dem generierten
+            Debian-<code>postinst</code> entfernt. Neue Installationen ver&auml;ndern
+            keine NetworkManager-Profile. Beim Upgrade stellt
+            <code>restore_legacy_install_dns</code> vorhandene Altzust&auml;nde wieder
+            her und entfernt anschlie&szlig;end die alte Statusdatei.
+          </div>
+        </div>
+
+        <div class="finding-card">
+          <div class="finding-header">
+            <span class="badge badge-ok">Behoben</span>
+            <h3>NM-R12-02 &mdash; Firefox-TAR-Pr&uuml;fung verwirft keine Links</h3>
+          </div>
+          <div class="finding-detail">
+            Die Extraktion akzeptiert nur regul&auml;re Dateien und Verzeichnisse,
+            verwirft symbolische und harte Links sowie Sonderdateien und pr&uuml;ft
+            jeden Zielpfad. Downloadgr&ouml;&szlig;e, Memberzahl und entpackte
+            Gesamtgr&ouml;&szlig;e sind begrenzt; Regressionstests decken Links,
+            Traversierung und Gr&ouml;&szlig;enlimits ab.
+          </div>
+        </div>
+
+        <div class="finding-card">
+          <div class="finding-header">
+            <span class="badge badge-ok">Behoben</span>
+            <h3>NM-R12-03 &mdash; Signatur-Vertrauen startet von derselben Web-Origin</h3>
+          </div>
+          <div class="finding-detail">
+            Release-Builds brechen nun ohne Minisign, Secret Key oder passenden
+            Public Key ab und verifizieren ihre neu erzeugte Signatur sofort.
+            Der Verifier kann mit <code>NETMON_EXPECTED_MINISIGN_PUBKEY</code>
+            einen unabh&auml;ngig bezogenen Key erzwingen. Der echte Public Key mit
+            ID <code>54BF5F1867BDD004</code> ist in <code>SECURITY.md</code> und
+            <code>docs/security/netmonroots.minisign.pub</code> gepinnt.
+            Abweichende Public Keys werden vom Release-Build abgelehnt.
+          </div>
+        </div>
+
+        <div class="finding-card">
+          <div class="finding-header">
+            <span class="badge badge-ok">Behoben</span>
+            <h3>NM-R12-04 &mdash; Versionsdrift im Release-Prozess</h3>
+          </div>
+          <div class="finding-detail">
+            Paket-, Site- und Dokumentations-Build lesen die kanonische Version
+            aus <code>netmon/config/constants.py</code>. Downloadseiten,
+            Dokumentation und Update-JSON stehen auf <code>1.1.21</code>.
+            <code>check_release_consistency.py</code> bricht den Release bei
+            abweichenden sichtbaren Metadaten ab.
+          </div>
+        </div>
+
+        <div class="finding-card">
+          <div class="finding-header">
+            <span class="badge badge-ok">Behoben</span>
+            <h3>NM-R12-05 &mdash; Veraltete Supportmatrix</h3>
+          </div>
+          <div class="finding-detail">
+            <code>SECURITY.md</code> weist jetzt <code>1.1.21</code> als einzige
+            unterst&uuml;tzte Release-Linie aus und trennt ver&ouml;ffentlichte Releases
+            von internen Entwicklungsst&auml;nden.
+          </div>
+        </div>
+      </div>
+
+      <div class="audit-section">
+        <h2>Pr&uuml;fung und Einordnung</h2>
+        <div class="section-rule"></div>
+        <div class="methodology-grid">
+          <div class="method-card">
+            <h4>Refactoring-Delta</h4>
+            <p>96 Commits und 21 Produkt-, Build- und Testdateien. Keine neue
+            Shell-, Netzwerk-, Datei- oder Privileg-Senke in den ausgelagerten
+            UI-Modulen.</p>
+          </div>
+          <div class="method-card">
+            <h4>Statische Analyse</h4>
+            <p>Ruff, Ruff-Security, Bandit&nbsp;1.9.4 und manuelle Datenflusspr&uuml;fung.
+            Die urspr&uuml;nglichen High-Heuristiken wurden einzeln validiert und
+            anschlie&szlig;end technisch gekl&auml;rt; der Bandit-Nachscan auf
+            High-Schwelle ist ohne Treffer.</p>
+          </div>
+          <div class="method-card">
+            <h4>Regression und Laufzeit</h4>
+            <p>2595 Tests bestanden, 2 &uuml;bersprungen. Die gezielten
+            R12-Sanierungsregressionen: 33 bestanden. Security-Auswahl:
+            651 bestanden, 1 &uuml;bersprungen. GUI-Smoke, Black und Shellcheck
+            bestanden.</p>
+          </div>
+          <div class="method-card">
+            <h4>Abh&auml;ngigkeiten</h4>
+            <p><code>pip-audit</code> meldet f&uuml;r die aktuell aufgel&ouml;sten
+            Anforderungen keine bekannten Schwachstellen. Die ungebundenen
+            Versionsangaben bleiben ein Reproduzierbarkeitsthema.</p>
+          </div>
+        </div>
+        <p style="margin-top:22px;color:var(--muted);line-height:1.65;max-width:820px;">
+          Der vollst&auml;ndige technische Bericht liegt im Repository unter
+          <code>docs/SECURITY_AUDIT_2026_R12.md</code>. Dieses Review ist eine
+          statische Code- und Release-Prozesspr&uuml;fung und ersetzt keinen
+          unabh&auml;ngigen Penetrationstest.
+        </p>
+      </div>
+
+      <div class="audit-section" id="round-11">
+        <h2>Vorrunde 11 &mdash; vollst&auml;ndiger Bericht</h2>
+        <div class="section-rule"></div>
+      </div>
+
       <!-- ── Hero ── -->
       <section class="audit-hero">
-        <p class="eyebrow">Sicherheits-Audit &mdash; Juli 2026 &mdash; Runde&nbsp;9</p>
+        <p class="eyebrow">Sicherheits-Audit &mdash; Juli 2026 &mdash; Runde&nbsp;11</p>
         <h1 style="font-size:clamp(2rem,4vw,3rem);margin:0 0 20px;color:var(--text);">
           Code-Security-Review<br>
-          <span style="color:var(--accent);">NetMon Roots v1.1.19 &mdash; Release-Stand</span>
+          <span style="color:var(--accent);">NetMon Roots v1.1.20</span>
         </h1>
         <p style="max-width:680px;color:var(--muted);line-height:1.65;font-size:1.05rem;">
-          Neuntes automatisiertes Security-Review auf Basis von
-          Claude&nbsp;Fable&nbsp;5 &mdash; erstmals auf dem <strong>finalen
-          Release-Stand v1.1.19</strong> statt auf einem Zwischenstand.
-          Schwerpunkte dieser Runde: der <strong>VPN/UFW-Killswitch-Reconcile</strong>,
-          die <strong>DNS-Startup-Recovery</strong>, der <strong>In-App-Update-Check</strong>,
-          die <strong>Debian-Maintainer-Skripte</strong> (Install/Deinstall als root)
-          sowie der komplette <strong>Release-Verifikationspfad</strong>
-          (<code>SHA256SUMS</code> + <code>minisign</code>). Anders als in den
-          Vorrunden wurden diesmal <strong>zwei belastbare Schwachstellen
-          mittleren Schweregrads</strong> best&auml;tigt &mdash; eine fehlende
-          Schema-Allowlist beim automatischen &Ouml;ffnen der Update-URL und ein
-          <strong>Fail-Open des Killswitch</strong> in fr&uuml;hen Fehlerpfaden
-          des VPN-Slot-Wechsels. <strong>Beide wurden umgesetzt, mit
-          Regressionstests abgesichert und verifiziert.</strong> Die
-          Release-Signaturkette (minisign) wurde empirisch gepr&uuml;ft und ist
-          g&uuml;ltig.
+          Elftes automatisiertes Security-Review auf Basis von
+          Claude&nbsp;Fable&nbsp;5. Gepr&uuml;ft wurde der komplette Diff seit dem
+          Runde-10-Endstand &mdash; 215&nbsp;Commits, davon der weit
+          &uuml;berwiegende Teil mechanische Refactorings. Neu und
+          sicherheitsrelevant war vor allem das noch unver&ouml;ffentlichte
+          <strong>UFW-sysctl-Override-Feature</strong>, das
+          <code>/etc/ufw/sysctl.conf</code> als root umschreibt, dazu ein neues
+          <strong>Laufzeitmess-Modul</strong>. Erg&auml;nzend lief eine
+          <strong>Ist-Stand-Vertiefung der Radio-Senken</strong>, die bisher nie
+          im Diff-Scope einer Runde lagen.
+          <strong>Diese Runde brachte kein Finding oberhalb der
+          Melde-Schwelle</strong> &mdash; von drei Kandidaten wurde einer
+          widerlegt, einer auf LOW herabgestuft. Umgesetzt wurden dennoch
+          <strong>acht Defense-in-Depth-H&auml;rtungen</strong> mit
+          26&nbsp;Regressionstests.
         </p>
-        <a class="round-link" href="./security-audit-r8.html">
-          &#8592; Runde&nbsp;8 (0&nbsp;Findings &mdash; Kindersicherung dokumentiert)
+        <a class="round-link" href="./security-audit-r10.html">
+          &#8592; Runde&nbsp;10 (2&nbsp;hohe Findings &mdash; Sysctl-Injektion &amp; Reboot-Testsuite)
         </a>
       </section>
 
       <!-- ── Aktionen ── -->
       <div style="margin-bottom:32px;">
-        <a class="button button-primary" href="./netmon_security_audit_2026_r9.pdf" download
+        <a class="button button-primary" href="./netmon_security_audit_2026_r11.pdf" download
            style="display:inline-block;padding:12px 28px;border-radius:40px;background:var(--accent);color:#07101d;font-weight:700;font-size:0.95rem;text-decoration:none;margin-right:12px;">
           PDF herunterladen
         </a>
         <a href="#findings"
            style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;">
-          Findings
+          Kandidaten
         </a>
-        <a href="#release"
+        <a href="#hardening"
            style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;margin-left:8px;">
-          Release-Verifikation
+          H&auml;rtungen
         </a>
         <a href="#kategorien"
            style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;margin-left:8px;">
@@ -324,29 +516,22 @@
       <div class="verdict-banner">
         <div class="verdict-icon">&#10003;</div>
         <div class="verdict-text">
-          <h2>0 kritische &mdash; 0 hohe &mdash; 2 mittlere Findings (beide umgesetzt &amp; verifiziert)</h2>
+          <h2>0 kritische &mdash; 0 hohe &mdash; 0 mittlere Findings (8 H&auml;rtungen umgesetzt)</h2>
           <p>
-            Das Review des finalen 1.1.19-Release-Stands identifizierte zwei
-            belastbare Schwachstellen mittleren Schweregrads, die von
-            dedizierten Validierungs-Sub-Agenten je mit <strong>Konfidenz
-            8/10</strong> best&auml;tigt wurden. <strong>F1:</strong> Der
-            In-App-Update-Check &uuml;bergab eine aus einer Remote-Versionsdatei
-            stammende <code>download_url</code> ungepr&uuml;ft an
-            <code>xdg-open</code> &mdash; ohne die http/https-Allowlist, die an
-            vergleichbaren Stellen (Secure-Browser-Favicon, Radio-Logo) bereits
-            existiert. <strong>F2:</strong> Schlug ein VPN-Slot-Wechsel in einem
-            fr&uuml;hen Fehlerpfad fehl, setzte NetMon die Firewall
-            bedingungslos auf <code>default allow outgoing</code> zur&uuml;ck
-            &mdash; auch wenn der Nutzer den Killswitch bewusst aktiv hatte,
-            wodurch Klartext-Traffic entweichen konnte. Beide Findings wurden
-            <strong>direkt behoben</strong> (Schema-Allowlist&nbsp;+&nbsp;Host-Pin
-            f&uuml;r die Update-URL; Killswitch-erhaltender Recover-Pfad), mit
-            neuen Regressionstests abgesichert und verifiziert. Zus&auml;tzlich
-            wurde die Release-Verifikationskette (SHA256SUMS + minisign)
-            empirisch best&auml;tigt und eine UX-Empfehlung zur Sichtbarkeit der
-            Signaturpr&uuml;fung festgehalten. Alle Runde-7/8-H&auml;rtungen sind
-            intakt; die Kindersicherung bleibt als bewusste Design-Entscheidung
-            dokumentiert.
+            Das Review fand <strong>keine Schwachstelle oberhalb der
+            Melde-Schwelle von 8/10</strong>. Drei Kandidaten im neuen
+            UFW-sysctl-Feature wurden von unabh&auml;ngigen
+            Validierungs-Sub-Agenten gegengepr&uuml;ft: einer ist
+            <strong>widerlegt</strong> (2/10 &mdash; die tragende Pr&auml;misse
+            hielt der empirischen Pr&uuml;fung nicht stand), einer wurde von
+            MEDIUM auf <strong>LOW herabgestuft</strong> (6/10 &mdash;
+            Mechanismus real, behaupteter H&auml;rtungsverlust widerlegt), der
+            dritte ist eine reine Defense-in-Depth-Inkonsistenz. Alle drei
+            wurden trotzdem behoben. Zus&auml;tzlich brachte eine
+            Ist-Stand-Vertiefung der bislang nie im Scope gewesenen
+            Radio-Senken vier weitere H&auml;rtungen. Alle H&auml;rtungen der
+            Runden&nbsp;7 bis&nbsp;10 sind intakt; die Kindersicherung bleibt
+            als bewusste Design-Entscheidung dokumentiert.
           </p>
         </div>
       </div>
@@ -355,11 +540,11 @@
       <div class="audit-meta-grid">
         <div class="audit-meta-card">
           <div class="label">Datum</div>
-          <div class="value">18.&nbsp;Juli&nbsp;2026</div>
+          <div class="value">29.&nbsp;Juli&nbsp;2026</div>
         </div>
         <div class="audit-meta-card">
           <div class="label">Analysierte Version</div>
-          <div class="value">v1.1.19 &mdash; finaler Release-Stand</div>
+          <div class="value">v1.1.20</div>
         </div>
         <div class="audit-meta-card">
           <div class="label">Kritische Findings</div>
@@ -371,15 +556,15 @@
         </div>
         <div class="audit-meta-card">
           <div class="label">Mittlere Findings</div>
-          <div class="value warn">2 (beide behoben)</div>
+          <div class="value ok">0</div>
         </div>
         <div class="audit-meta-card">
           <div class="label">H&auml;rtungen umgesetzt</div>
-          <div class="value ok">2 + Regressionstests</div>
+          <div class="value ok">8 + 26 Regressionstests</div>
         </div>
         <div class="audit-meta-card">
-          <div class="label">Release-Signatur (minisign)</div>
-          <div class="value ok">g&uuml;ltig verifiziert</div>
+          <div class="label">Testsuite</div>
+          <div class="value ok">2562 bestanden, 2 &uuml;bersprungen</div>
         </div>
         <div class="audit-meta-card">
           <div class="label">Analysewerkzeug</div>
@@ -392,192 +577,305 @@
         <h2>Umfang &amp; Methodik</h2>
         <div class="section-rule"></div>
         <p style="color:var(--muted);font-size:0.95rem;max-width:760px;line-height:1.65;">
-          Gepr&uuml;ft wurde der finale Release-Stand v1.1.19
-          (<code>constants.py&nbsp;=&nbsp;1.1.19</code>, deb-<code>control</code>,
-          <code>latest-version.json</code> und die Download-Seiten stimmen
-          &uuml;berein). Schwerpunkt auf den seit den Vorrunden nicht im Fokus
-          gewesenen, sicherheitskritischen Pfaden: dem VPN/UFW-Killswitch-
-          Reconcile (<code>vpn_controller.py</code>,
-          <code>firewall_controller.py</code>), der DNS-Startup-Recovery
-          (<code>app.py</code>, <code>dns_control_service.py</code>), dem
-          In-App-Update-Check (<code>_fetch_latest_release_info()</code>,
-          <code>_open_url_with_xdg_open()</code>), den Debian-Maintainer-Skripten
-          (<code>postinst</code>/<code>prerm</code> aus der gebauten
-          <code>.deb</code>) und dem Release-Verifikationspfad
-          (<code>verify_netmon_download.sh</code>,
-          <code>verify_netmon_signature.sh</code>, <code>SHA256SUMS.minisig</code>).
-          Die in Runde&nbsp;7/8 geh&auml;rteten Bereiche wurden auf Regressionen
-          gegengepr&uuml;ft.
+          Gepr&uuml;ft wurde der komplette Diff seit dem Runde-10-Endstand
+          (<code>445279ac</code>, 20.&nbsp;Juli&nbsp;2026) bis zum aktuellen
+          Arbeitsstand: <strong>215&nbsp;Commits, 468&nbsp;Dateien, rund
+          40.000&nbsp;Zeilen</strong> &mdash; davon jedoch nur etwa
+          <strong>3.750&nbsp;Zeilen Produktivcode</strong> in 22&nbsp;Modulen;
+          der Rest sind Tests und Refactoring-Dokumentation. Schwerpunkte: das
+          neue, noch uncommittete <strong>UFW-sysctl-Override-Feature</strong>
+          (<code>security_audit_controller.py</code>), das neue
+          <strong>Laufzeitmess-Modul</strong>
+          (<code>core/performance_monitor.py</code>) samt seiner Einbindung in
+          den zentralen Kommandopfad <code>core/command.py</code>, sowie die
+          umfangreichen Refactorings in Radio-App und -Tab. Erg&auml;nzend
+          wurde der Scope bewusst erweitert: die scharfen Radio-Senken
+          (<code>radio_controller.py</code>, <code>netmon_radio_core.py</code>)
+          sind seit Runden unver&auml;ndert und lagen daher nie in einem
+          Diff-Scope &mdash; sie wurden erstmals im <strong>Ist-Stand</strong>
+          gepr&uuml;ft. Die H&auml;rtungen der Runden&nbsp;9 und&nbsp;10 wurden
+          auf Regressionen gegengepr&uuml;ft.
         </p>
         <div class="methodology-grid">
           <div class="method-card">
-            <h4>Phase&nbsp;1 &mdash; Release-Recon</h4>
-            <p>Verifikation der Artefakte: <code>sha256sum&nbsp;-c&nbsp;SHA256SUMS</code>
-            (alle drei OK), <code>minisign&nbsp;-V</code> gegen den gepinnten
-            Public Key (Signatur g&uuml;ltig). Extraktion und Review der
-            <code>.deb</code>-Maintainer-Skripte. Versionskonsistenz-Abgleich.</p>
+            <h4>Phase&nbsp;1 &mdash; Diff-Recon</h4>
+            <p>Bestimmung des Rundenscopes gegen den Runde-10-Endstand,
+            Trennung von Produktivcode, Tests und Dokumentation. Gegenpr&uuml;fung
+            der Vorrunden-H&auml;rtungen (xdg-open-Allowlist, Killswitch-Recover,
+            Sysctl-Allowlist, Reboot-Guard) auf Regressionen &mdash; alle
+            intakt.</p>
           </div>
           <div class="method-card">
-            <h4>Phase&nbsp;2 &mdash; Kandidaten-Analyse</h4>
-            <p>Ein Analyse-Sub-Agent verfolgte Datenfl&uuml;sse von Fremdeingaben
-            (Update-/API-Antworten, VPN-Profil-/Slot-Daten, Install-Zeit-Zustand)
-            bis zu privilegierten Senken (<code>ufw</code>/<code>nmcli</code>/
-            <code>wg-quick</code>, <code>xdg-open</code>, root-<code>cp</code>/
-            <code>chown</code>). 5&nbsp;Kandidaten identifiziert.</p>
+            <h4>Phase&nbsp;2 &mdash; Analyse-Sub-Agenten</h4>
+            <p>Vier parallele Analyse-Sub-Agenten: Security-Controller,
+            Core&nbsp;&amp;&nbsp;Services, Radio-Diff und &mdash; nach einem
+            Abdeckungshinweis aus dem Radio-Diff &mdash; die Radio-Senken im
+            Ist-Stand. Der Radio-Diff wurde &uuml;ber einen normalisierten
+            Inhaltsdiff als reines Refactoring belegt statt zeilenweise
+            gesichtet.</p>
           </div>
           <div class="method-card">
             <h4>Phase&nbsp;3 &mdash; False-Positive-Validierung</h4>
-            <p>Die zwei belastbaren Kandidaten wurden von je einem eigenen
-            Validierungs-Sub-Agenten gegengepr&uuml;ft (beide Konfidenz
-            <strong>8/10</strong>, MEDIUM). Drei weitere Kandidaten
-            (postinst-DNS-Policy, State-Datei-Parsing, root-Symlink-chown) lagen
-            als Policy-/Grenzfall unter der Schwelle.</p>
+            <p>Je ein unabh&auml;ngiger Validierungs-Sub-Agent mit dem
+            ausdr&uuml;cklichen Auftrag, den Kandidaten zu <em>widerlegen</em>.
+            Einer extrahierte dazu das Original-<code>ufw</code>-Paket, der
+            andere testete das <code>sysctl</code>-Fehlerverhalten empirisch an
+            tempor&auml;ren Kopien. Ergebnis: 2/10 (widerlegt) und 6/10
+            (herabgestuft).</p>
           </div>
           <div class="method-card">
             <h4>Phase&nbsp;4 &mdash; H&auml;rtung &amp; Regressionscheck</h4>
-            <p>Beide MEDIUM-Findings wurden umgesetzt, mit neuen Regressionstests
-            abgesichert und verifiziert. Suiten erneut ausgef&uuml;hrt:
-            Killswitch/VPN/DNS/Firewall (253) und Diagnostik/Update-Check (80)
-            &mdash; alle sicherheitsrelevanten Tests gr&uuml;n.</p>
+            <p>Acht Defense-in-Depth-H&auml;rtungen umgesetzt und mit
+            26&nbsp;neuen Regressionstests abgesichert. Gesamtsuite danach:
+            <strong>2562&nbsp;bestanden, 2&nbsp;&uuml;bersprungen</strong>
+            &mdash; keine Regression.</p>
           </div>
         </div>
       </div>
 
-      <!-- ── Findings ── -->
+      <!-- ── Kandidaten ── -->
       <div class="audit-section" id="findings">
-        <h2>Best&auml;tigte Findings (Runde&nbsp;9)</h2>
+        <h2>Kandidaten &amp; Validierung (Runde&nbsp;11)</h2>
         <div class="section-rule"></div>
         <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:28px;">
-          Zwei Findings mittleren Schweregrads wurden best&auml;tigt (Konfidenz
-          je 8/10) und <strong>direkt behoben</strong>. Keine kritischen oder
-          hohen, keine klar remote-ausnutzbaren RCE-Befunde.
+          <strong>Kein Kandidat erreichte die Melde-Schwelle von 8/10</strong>,
+          es gibt in dieser Runde also keine best&auml;tigten Findings. Der
+          Vollst&auml;ndigkeit halber ist unten dokumentiert, was gemeldet, wie
+          es gegengepr&uuml;ft und wie es eingestuft wurde &mdash;
+          einschlie&szlig;lich der Teilbehauptungen, die sich als falsch
+          erwiesen. Behoben wurden alle drei trotzdem.
         </p>
 
-        <!-- F1 -->
-        <div class="finding-card fixed">
+        <!-- K1 -->
+        <div class="finding-card">
           <div class="finding-header">
-            <h3>F1 &mdash; Update-Check &ouml;ffnet server-gelieferte URL ohne Schema-Allowlist</h3>
-            <span class="badge badge-med">Mittel &middot; 8/10</span>
-            <span class="badge badge-ok">Behoben</span>
+            <h3>K1 &mdash; stderr-Kontamination beim Read-Modify-Write von <code>/etc/ufw/sysctl.conf</code></h3>
+            <span class="badge badge-low">Niedrig &middot; 6/10</span>
+            <span class="badge badge-ok">Geh&auml;rtet</span>
           </div>
           <div class="finding-detail">
-            <p><strong>Datei:</strong> <code>netmon/app.py</code> &mdash;
-              <code>_fetch_latest_release_info()</code>,
-              <code>check_about_latest_version()</code>,
-              <code>_open_url_with_xdg_open()</code>.</p>
+            <p><strong>Datei:</strong>
+              <code>netmon/features/security_audit_controller.py</code> &mdash;
+              <code>_apply_ufw_sysctl_overrides()</code>,
+              <code>_read_existing_sysctl_dropin()</code>.</p>
             <p>
-              Der In-App-Update-Check l&auml;dt <code>latest-version.json</code>
-              per HTTPS und &uuml;bernimmt das Feld <code>download_url</code>
-              daraus <em>ungepr&uuml;ft</em>. Wird beim &Ouml;ffnen des
-              &bdquo;&Uuml;ber&ldquo;-Dialogs eine neuere Version erkannt, wird
-              diese URL <em>ohne weiteren Klick</em> an <code>xdg-open</code>
-              &uuml;bergeben &mdash; ganz ohne Schema-/Host-Pr&uuml;fung. Genau
-              diese http/https-Allowlist existiert an vergleichbaren Stellen
-              bereits (Secure-Browser-<code>fetch_url()</code>, Radio-
-              <code>_station_logo_url()</code>); der Update-Pfad war die einzige
-              &uuml;bersehene Fremd-URL-Senke.
+              Das neue Feature liest <code>/etc/ufw/sysctl.conf</code> per
+              <code>sudo&nbsp;-n&nbsp;cat</code> &uuml;ber
+              <code>run_cmd</code>, veraendert den Inhalt und schreibt ihn als
+              root zur&uuml;ck. <code>run_cmd</code> f&uuml;hrt jedoch
+              <code>stderr</code> mit <code>stdout</code> zusammen: eine
+              sudo-Warnung wie
+              <code>&bdquo;unable&nbsp;to&nbsp;resolve&nbsp;host&nbsp;&hellip;&ldquo;</code>
+              erscheint mit <strong>Exit-Code&nbsp;0</strong> im vermeintlichen
+              Dateiinhalt, passiert die Filter unver&auml;ndert und landet als
+              M&uuml;llzeile in einer Root-Konfigdatei.
             </p>
             <p>
-              <strong>Bedrohung:</strong> Ein kompromittierter Server/CDN
-              (im Bedrohungsmodell ausdr&uuml;cklich enthalten) kann eine
-              <code>download_url</code> mit beliebigem Schema liefern
-              (<code>file://</code>, Custom-Handler wie <code>vnc://</code>) oder
-              auf eine Phishing-Seite verweisen, die <code>xdg-open</code> an den
-              zust&auml;ndigen Desktop-Handler weiterreicht. Kein direktes RCE
-              (Listenform-<code>Popen</code>, keine Shell-Injection), aber
-              zuverl&auml;ssig f&uuml;r Phishing und &mdash; situativ &mdash;
-              zum Ansteuern eines registrierten Scheme-Handlers.
+              <strong>Was die Validierung widerlegt hat:</strong> Der Melder
+              behauptete, die H&auml;rtungswerte k&ouml;nnten dadurch beim Boot
+              ausfallen. Empirisch gepr&uuml;ft (procps-ng&nbsp;4.0.4, tempor&auml;re
+              Kopien): <code>sysctl</code> warnt bei einer Syntax-M&uuml;llzeile,
+              <strong>verarbeitet die Folgezeilen aber weiter</strong> und liefert
+              rc&nbsp;=&nbsp;0; <code>ufw-init</code> ignoriert Fehler ohnehin per
+              <code>||&nbsp;true</code>. <strong>Kein H&auml;rtungsverlust.</strong>
+              &Uuml;bersehen hatte der Melder au&szlig;erdem, dass ein
+              Zur&uuml;ckschreiben nur bei tats&auml;chlicher &Auml;nderung
+              stattfindet, und dass dasselbe Muster bereits committed existiert
+              &mdash; neu eingef&uuml;hrt wurde es also nicht. Der Inhalt der
+              sudo-Warnungen ist zudem <strong>nicht angreiferkontrolliert</strong>
+              (Hostname/PAM/Audit), es gibt keinen Injektionsvektor.
             </p>
           </div>
           <div class="finding-verdict pass">
-            <strong>H&auml;rtung umgesetzt &amp; verifiziert:</strong>
-            <code>_open_url_with_xdg_open()</code> begrenzt Ziel-URLs jetzt auf
-            <code>http</code>/<code>https</code> (deckt alle Aufrufer ab);
-            zus&auml;tzlich l&auml;sst der Update-Pfad &uuml;ber
-            <code>_is_trusted_update_url()</code> nur eine
-            <code>netmonroots.com</code>-URL automatisch &ouml;ffnen und
-            f&auml;llt sonst auf die fest konfigurierte Download-Seite
-            zur&uuml;ck. Mit Regressionstests abgesichert
-            (<code>test_is_trusted_update_url_accepts_only_netmonroots_https</code>,
-            <code>test_open_url_with_xdg_open_rejects_non_web_scheme</code>).
+            <strong>Verdikt: TEILWEISE BEST&Auml;TIGT, LOW (6/10)</strong> &mdash;
+            unterhalb der Melde-Schwelle, daher kein Finding. Trotzdem geh&auml;rtet:
+            ein neues Plausibilit&auml;tsgate
+            (<code>_implausible_sysctl_config_line()</code>) bricht den Lauf mit
+            klarer Meldung ab, sobald der gelesene Inhalt eine Zeile
+            enth&auml;lt, die keine sysctl-Konfigzeile sein kann &mdash; an
+            <em>beiden</em> Lesestellen, also auch am bereits bestehenden
+            Drop-in-Pfad. Bewusst Abbruch statt stillem Verwerfen: eine
+            unerwartete Zeile in einer Root-Konfigdatei darf nicht kommentarlos
+            gel&ouml;scht werden.
           </div>
         </div>
 
-        <!-- F2 -->
-        <div class="finding-card fixed">
+        <!-- K2 -->
+        <div class="finding-card">
           <div class="finding-header">
-            <h3>F2 &mdash; Killswitch-Fail-Open in fr&uuml;hen VPN-Slot-Wechsel-Fehlerpfaden</h3>
-            <span class="badge badge-med">Mittel &middot; 8/10</span>
-            <span class="badge badge-ok">Behoben</span>
+            <h3>K2 &mdash; Neue Schreibsenke ohne die Allowlist ihrer Schwester-Senke</h3>
+            <span class="badge badge-low">Niedrig &middot; 3/10</span>
+            <span class="badge badge-ok">Geh&auml;rtet</span>
           </div>
           <div class="finding-detail">
-            <p><strong>Dateien:</strong>
-              <code>netmon/features/vpn_controller.py</code>
-              (<code>vpn_switch()</code>),
-              <code>netmon/features/firewall_controller.py</code>
-              (<code>recover_firewall_after_killswitch_failure()</code>).</p>
+            <p><strong>Datei:</strong>
+              <code>netmon/features/security_audit_controller.py</code> &mdash;
+              <code>_build_ufw_sysctl_override_content()</code>.</p>
             <p>
-              <code>recover_firewall_after_killswitch_failure()</code> setzt die
-              Firewall bedingungslos auf <code>ufw default allow outgoing</code>.
-              Sie wurde in drei fr&uuml;hen Fehlerpfaden von
-              <code>vpn_switch()</code> aufgerufen (leeres Ziel, nicht
-              aufl&ouml;sbares Runtime-Profil, WG-Cleanup-Fehler) &mdash;
-              <em>ohne</em> zu pr&uuml;fen, ob der Killswitch zu diesem Zeitpunkt
-              bewusst aktiv war.
+              Die in Runde&nbsp;10 eingezogene Schl&uuml;ssel-Allowlist sitzt
+              bewusst <em>direkt an der Schreibsenke</em>
+              (<code>_render_sysctl_dropin_content()</code>) &mdash; als zweite
+              Verteidigungslinie f&uuml;r den Fall, dass ein Spec auf anderem Weg
+              als &uuml;ber die Transfer-Import-Validierung hereinkommt. Die neue
+              Senke schreibt nach <code>/etc/ufw/sysctl.conf</code>, eine Datei,
+              die laut eigenem Header <code>/etc/sysctl.conf</code> und
+              <code>/etc/sysctl.d</code> <strong>&uuml;berschreibt</strong> &mdash;
+              wirkt also eher st&auml;rker als die Drop-in-Datei, trug aber
+              <strong>keine</strong> dieser Pr&uuml;fungen.
             </p>
             <p>
-              <strong>Bedrohung:</strong> Nutzer hat Killswitch AN + VPN aktiv,
-              w&auml;hlt einen VPN-Slot, dessen Profil gel&ouml;scht/umbenannt
-              wurde oder dessen IPv4-Runtime-Kopie fehlt &rarr;
-              <code>vpn_switch()</code> bricht fr&uuml;h ab &rarr; die
-              deny-outgoing-Garantie wird still auf <em>allow</em>
-              zur&uuml;ckgesetzt, und Klartext-Traffic kann das System verlassen,
-              obwohl der Nutzer Killswitch-Schutz erwartet. Das ist genau der
-              Leak, den das Feature verhindern soll &mdash; ein Fail-Open in
-              einer Kontrolle, deren einziger Zweck Fail-Closed ist. (Kein
-              Remote-Trigger; die UI-Statusanzeige wechselt zwar auf Rot, es gab
-              aber keinen Warnhinweis.)
+              <strong>Heute nicht ausnutzbar:</strong> Der einzige Aufrufer
+              &uuml;bergibt eine Modulkonstante; es existiert kein Datenfluss von
+              Transferpaket, Remote-JSON oder Dateinamen zu dieser Senke. Das
+              wurde explizit nachverfolgt. Gemeldet als
+              <strong>Defense-in-Depth-Regression</strong> gegen eine dokumentierte
+              Schutzentscheidung, nicht als Exploit.
             </p>
           </div>
           <div class="finding-verdict pass">
-            <strong>H&auml;rtung umgesetzt &amp; verifiziert:</strong> Die drei
-            Aufrufstellen nutzen jetzt
-            <code>_recover_firewall_preserving_killswitch()</code>: War der
-            Killswitch aktiv (<code>killswitch_is_on()</code>, ausgewertet
-            <em>vor</em> jeder Zustands&auml;nderung), wird die
-            deny-outgoing-Policy per idempotentem
-            <code>_killswitch_on_sync()</code> <strong>erhalten</strong> statt
-            ge&ouml;ffnet; nur ohne aktiven Killswitch wird wie bisher auf
-            allow-outgoing zur&uuml;ckgesetzt, damit sich der Nutzer nicht
-            aussperrt. Mit Regressionstests abgesichert
-            (<code>test_recover_preserving_killswitch_*</code>,
-            <code>test_vpn_switch_empty_target_preserves_active_killswitch</code>).
+            <strong>Geh&auml;rtet:</strong> Die neue Senke pr&uuml;ft jetzt
+            dieselbe <code>SECURITY_BASELINE_ALLOWED_SYSCTL_KEYS</code>-Allowlist
+            und dieselbe Wert-Validierung wie ihre Schwester-Senke. Ein Eintrag
+            wie <code>kernel.core_pattern&nbsp;=&nbsp;|/tmp/payload</code> oder ein
+            Wert mit eingebettetem Zeilenumbruch wird verworfen, statt als root
+            persistiert zu werden.
+          </div>
+        </div>
+
+        <!-- K3 -->
+        <div class="finding-card design">
+          <div class="finding-header">
+            <h3>K3 &mdash; &bdquo;Sysctl-Re-Apply dreht Kernelh&auml;rtung still zur&uuml;ck&ldquo;</h3>
+            <span class="badge badge-info">Widerlegt &middot; 2/10</span>
+          </div>
+          <div class="finding-detail">
+            <p>
+              Gemeldet wurde, das unbedingte Neuladen von
+              <code>/etc/ufw/sysctl.conf</code> am Ende des UFW-Schritts k&ouml;nne
+              NetMons eigene Kernelh&auml;rtung &uuml;berschreiben &mdash; konkret
+              <code>rp_filter</code>.
+            </p>
+            <p>
+              <strong>Widerlegt an drei Stellen.</strong> Erstens empirisch: der
+              Validierer extrahierte das Original-Paket
+              <code>ufw_0.36.2-6_all.deb</code> und wies nach, dass
+              <code>/etc/ufw/sysctl.conf</code> <strong>&uuml;berhaupt kein
+              <code>rp_filter</code></strong> enth&auml;lt &mdash; weder gesetzt
+              noch auskommentiert. Die tragende Pr&auml;misse war falsch.
+              Zweitens: die einzige reale &Uuml;berschneidung mit der
+              NetMon-Baseline ist <code>log_martians</code> &mdash; und
+              <strong>genau daf&uuml;r existiert der beanstandete Code</strong>.
+              Die Paketdatei liefert <code>log_martians=0</code> gegen NetMons
+              Soll&nbsp;<code>1</code>; das neue Override korrigiert das, bevor
+              neu geladen wird. Der Melder hatte die Gegenma&szlig;nahme als Bug
+              gemeldet. Drittens: eine nachgelagerte Wert-Verifikation existiert
+              sehr wohl &mdash; nach allen Schritten l&auml;uft ein erneuter
+              Baseline-Check, der die <em>Live-Kernelwerte</em> liest. Eine stille
+              R&uuml;ckdrehung ist strukturell ausgeschlossen.
+            </p>
+            <p>
+              Hinzu kommt ein Denkfehler in der Richtung der Abweichung:
+              <code>rp_filter=1</code> (strict) ist <em>strenger</em> als NetMons
+              bewusstes <code>2</code> (loose). Selbst im hypothetischen Fall
+              w&uuml;rde also die Sicherheit steigen und allein NetMons
+              Funktionsabsicht (VPN&nbsp;/&nbsp;Multi-Interface) leiden &mdash;
+              und das w&auml;re in der UI als &bdquo;Bewusste Abweichung&ldquo;
+              sichtbar, nicht still.
+            </p>
+          </div>
+          <div class="finding-verdict design">
+            <strong>Verdikt: WIDERLEGT (2/10)</strong> &mdash; kein
+            Sicherheits-Finding, keine Code&auml;nderung n&ouml;tig. Das
+            Entfernen der beanstandeten Zeile w&uuml;rde im Gegenteil die
+            <code>log_martians</code>-Gegenma&szlig;nahme wirkungslos machen.
           </div>
         </div>
       </div>
 
-      <!-- ── Weitere Kandidaten / Empfehlungen ── -->
-      <div class="audit-section" id="release">
-        <h2>Release-Verifikation &amp; weitere Beobachtungen</h2>
+      <!-- ── Weitere Beobachtungen ── -->
+      <div class="audit-section" id="beobachtungen">
+        <h2>Weitere Beobachtungen &amp; Design-Entscheidungen</h2>
         <div class="section-rule"></div>
 
         <div class="fixed-card">
-          <div class="fixed-icon">&#128273;</div>
+          <div class="fixed-icon">&#128269;</div>
           <div class="fixed-body">
-            <h4>Signaturkette technisch dicht &mdash; Empfehlung zur Sichtbarkeit</h4>
+            <h4>Scope-L&uuml;cke geschlossen &mdash; die Radio-Senken lagen nie in einem Diff</h4>
             <p>
-              <code>SHA256SUMS</code> deckt alle drei Artefakte korrekt ab
-              (<code>sha256sum&nbsp;-c</code>&nbsp;OK) und ist per
-              <code>minisign</code> signiert; die Signatur wurde gegen den
-              gepinnten Public Key <strong>g&uuml;ltig verifiziert</strong>. Das
-              Verifier-Skript pr&uuml;ft jedoch nur die Hashes, und die
-              prominente &bdquo;Schnellpr&uuml;fung&ldquo; auf der Downloadseite
-              empfiehlt ebenfalls nur <code>sha256sum&nbsp;-c</code> &mdash; ein
-              MitM, der <code>.deb</code> <em>und</em> <code>SHA256SUMS</code>
-              gemeinsam ersetzt, best&uuml;nde diesen Schnellcheck.
-              <strong>Empfehlung (Doku/UX, keine Code-L&uuml;cke):</strong> die
-              minisign-Vollpr&uuml;fung als <em>empfohlenen Standardweg</em>
-              hervorheben statt als optionalen &bdquo;falls signiert&ldquo;-Zusatz.
+              Der Radio-Diff-Agent stellte fest, dass die eigentlich
+              sicherheitsrelevanten Radio-Pfade &mdash; mpv-/ffmpeg-Start,
+              ICY-Metadaten, Aufnahme-Dateinamen, Playlist-Parsing &mdash; gar
+              nicht in den ge&auml;nderten Dateien liegen, sondern in
+              <code>radio_controller.py</code> und
+              <code>netmon_radio_core.py</code>. Beide sind seit Runden
+              unver&auml;ndert und fielen damit systematisch durch jeden
+              Diff-basierten Scope. Sie wurden in dieser Runde erstmals im
+              Ist-Stand gepr&uuml;ft &mdash; mit vier H&auml;rtungen als Ergebnis.
+              <strong>Konsequenz f&uuml;r kommende Runden:</strong> lange
+              unver&auml;nderte Senken periodisch im Ist-Stand pr&uuml;fen, nicht
+              nur den Diff.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#9989;</div>
+          <div class="fixed-body">
+            <h4>Aufnahme-Dateinamen aus ICY-Metadaten &mdash; sauber</h4>
+            <p>
+              Der naheliegendste Verdacht im Radio-Modul best&auml;tigte sich
+              <em>nicht</em>: Stationsname und ICY-Titel laufen beide durch eine
+              Slug-Funktion, die alles au&szlig;er Kleinbuchstaben und Ziffern
+              ersetzt. Pfad-Traversal, Newlines, Null-Bytes, Shell-Metazeichen
+              und f&uuml;hrende Bindestriche sind damit konstruktiv
+              ausgeschlossen. Ebenso sauber: die Stream-URL-Schema-Allowlist wird
+              auf <em>allen</em> Lade- und Speicherpfaden erzwungen, der
+              EQ-Filter ist auf ganzzahlige Werte geklemmt, und der
+              projectM-ZIP-Import ist gegen Zip-Slip abgesichert.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128260;</div>
+          <div class="fixed-body">
+            <h4>3.000 Zeilen Radio-Refactoring &mdash; ohne Verhaltens&auml;nderung belegt</h4>
+            <p>
+              Statt den gro&szlig;en Refactoring-Diff zeilenweise zu sichten,
+              wurde ein <strong>normalisierter Inhaltsdiff</strong> gefahren:
+              beide Fassungen whitespace-normalisiert, sortiert und verglichen.
+              Ergebnis: die entfernten Zeilen sind ausnahmslos
+              State-Initialisierungen und Geometrie-Ausdr&uuml;cke, die 1:1 in
+              neue Hilfsfunktionen gewandert sind. Die Whitelist beim Laden der
+              Sprachdatei &mdash; ohne die ein Pfad-Traversal &uuml;ber die
+              Konfigdatei m&ouml;glich w&auml;re &mdash; hat das Refactoring
+              nachweislich &uuml;berlebt.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128203;</div>
+          <div class="fixed-body">
+            <h4>UFW-Konflikthinweis im <code>rp_filter</code>-Zweig &mdash; gepr&uuml;ft, vorhanden</h4>
+            <p>
+              Bei der Widerlegung von K3 wurde zus&auml;tzlich behauptet, den
+              erkl&auml;renden Hinweis &bdquo;<code>/etc/ufw/sysctl.conf</code>
+              setzt denselben Wert anders&ldquo; erzeuge nur der
+              <code>sysctl</code>-Zweig der Baseline-Auswertung, nicht der
+              <code>rp_filter</code>-Zweig &mdash; eine Diagnose-L&uuml;cke also.
+              <strong>Auch das hat der Nachtest widerlegt.</strong> Der
+              <code>rp_filter</code>-Zweig ruft nicht den Low-Level-Helfer
+              <code>_sysctl_ufw_override_value()</code> auf, nach dem gesucht
+              wurde, sondern den Wrapper
+              <code>_sysctl_ufw_override_hint()</code>, und h&auml;ngt dessen
+              Ergebnis an die Begr&uuml;ndung an. Beide
+              <code>rp_filter</code>-Specs tragen das dazu n&ouml;tige
+              <code>config_source</code>. End-to-End nachgestellt (Drop-in
+              setzt&nbsp;2, ufw-Datei setzt&nbsp;1, Kernel meldet&nbsp;1) liefert
+              die Auswertung Status &bdquo;Bewusste Abweichung&ldquo;
+              <em>samt</em> ufw-Hinweis. <strong>Keine L&uuml;cke, kein
+              Handlungsbedarf.</strong>
             </p>
           </div>
         </div>
@@ -590,7 +888,7 @@
               Die PBKDF2-gest&uuml;tzte Kindersicherung im Secure-Browser bleibt
               wie in Runde&nbsp;8 dokumentiert: Alltagsh&uuml;rde gegen
               Gelegenheitszugriff im selben Konto, keine harte Grenze gegen
-              technisch versierte Nutzer mit Kontozugriff. Keine
+              technisch versierte Nutzer mit Kontozugriff (No-Root-Design). Keine
               Code&auml;nderung, unver&auml;ndert g&uuml;ltig.
             </p>
           </div>
@@ -599,18 +897,15 @@
         <div class="fixed-card">
           <div class="fixed-icon">&#128203;</div>
           <div class="fixed-body">
-            <h4>postinst setzt aktive NM-DNS auf 8.8.8.8 &mdash; Policy-Hinweis</h4>
+            <h4>postinst-DNS &amp; Nur-Hash-Schnellpr&uuml;fung &mdash; Policy-Hinweise weiter offen</h4>
             <p>
-              Das root-<code>postinst</code> biegt aktive
-              NetworkManager-Verbindungen bei der Installation auf
-              <code>ipv4.dns&nbsp;8.8.8.8</code> um (Vorzustand wird gesichert und
-              in <code>prerm</code> restauriert). Funktional sauber, aber f&uuml;r
-              ein Privacy-Tool eine &uuml;berraschende Richtung.
-              <strong>Empfehlung:</strong> Opt-in statt hart verdrahtetem
-              Public-Resolver. Kein ausnutzbarer Befund (State-Datei
-              <code>0600&nbsp;root</code>, Argumentlisten-Aufrufe, keine
-              Injection). Keine Code&auml;nderung in dieser Runde &mdash; als
-              Design-Entscheidung des Projektverantwortlichen offen.
+              Die beiden Policy-Hinweise aus Runde&nbsp;9 bleiben unver&auml;ndert
+              bestehen: das root-<code>postinst</code> biegt aktive NM-DNS bei der
+              Installation auf <code>8.8.8.8</code> (Opt-in empfohlen), und die
+              &bdquo;Schnellpr&uuml;fung&ldquo; auf der Downloadseite empfiehlt nur
+              <code>sha256sum&nbsp;-c</code> statt der minisign-Vollpr&uuml;fung.
+              Kein ausnutzbarer Befund &mdash; als Design-Entscheidungen des
+              Projektverantwortlichen offen.
             </p>
           </div>
         </div>
@@ -618,41 +913,147 @@
 
       <!-- ── Umgesetzte Härtungen ── -->
       <div class="audit-section" id="hardening">
-        <h2>Umgesetzte H&auml;rtungsma&szlig;nahmen (Runde&nbsp;9)</h2>
+        <h2>Umgesetzte H&auml;rtungsma&szlig;nahmen (Runde&nbsp;11)</h2>
         <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:24px;">
+          Acht H&auml;rtungen, keine davon durch ein best&auml;tigtes Finding
+          erzwungen &mdash; alle als Defense in Depth umgesetzt, jede mit
+          Regressionstests abgesichert.
+        </p>
+
         <div class="fixed-card">
           <div class="fixed-icon">&#128274;</div>
           <div class="fixed-body">
-            <h4>Schema-Allowlist&nbsp;+&nbsp;Host-Pin f&uuml;r die Update-URL &mdash; <code>app.py</code></h4>
+            <h4>Allowlist an der UFW-sysctl-Schreibsenke &mdash; <code>security_audit_controller.py</code></h4>
             <p>
-              <code>_open_url_with_xdg_open()</code> l&auml;sst nur noch
-              <code>http</code>/<code>https</code> zu;
-              <code>_is_trusted_update_url()</code> beschr&auml;nkt die
-              automatisch ge&ouml;ffnete Update-URL zus&auml;tzlich auf die
-              <code>netmonroots.com</code>-Domain.
+              <code>_build_ufw_sysctl_override_content()</code> pr&uuml;ft
+              Schl&uuml;ssel und Werte jetzt gegen dieselbe Allowlist und
+              dieselben Format-Regeln wie die Drop-in-Senke. Unerlaubte
+              Schl&uuml;ssel und Werte mit Zeilenumbr&uuml;chen oder
+              Shell-Metazeichen werden verworfen.
             </p>
           </div>
         </div>
+
         <div class="fixed-card">
           <div class="fixed-icon">&#128737;</div>
           <div class="fixed-body">
-            <h4>Killswitch-erhaltender Recover-Pfad &mdash; <code>vpn_controller.py</code></h4>
+            <h4>Plausibilit&auml;tsgate gegen stderr-Kontamination &mdash; <code>security_audit_controller.py</code></h4>
             <p>
-              <code>_recover_firewall_preserving_killswitch()</code> h&auml;lt die
-              deny-outgoing-Policy bei aktivem Killswitch aufrecht, statt sie bei
-              einem fehlgeschlagenen Slot-Wechsel still zu &ouml;ffnen.
+              <code>_implausible_sysctl_config_line()</code> bricht jeden
+              Read-Modify-Write ab, dessen gelesener Inhalt eine Zeile
+              enth&auml;lt, die weder leer, noch Kommentar, noch
+              <code>key&nbsp;=&nbsp;value</code> ist &mdash; an beiden
+              Lesestellen. Verhindert, dass eine sudo-Warnung mit
+              Exit-Code&nbsp;0 als root in eine Root-Konfigdatei
+              zur&uuml;ckgeschrieben wird.
             </p>
           </div>
         </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#127925;</div>
+          <div class="fixed-body">
+            <h4><code>--</code>-Optionsterminator vor dem mpv-Medienargument &mdash; <code>radio_controller.py</code></h4>
+            <p>
+              mpv wertet Optionen an <em>jeder</em> Position aus. Ein
+              Playlist-Eintrag namens
+              <code>--script=payload.lua</code> w&auml;re als Option geladen
+              worden statt als Dateiname. Das Medienargument steht jetzt hinter
+              einem <code>--</code>; der EQ-Filter wird korrekt davor
+              einsortiert.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128279;</div>
+          <div class="fixed-body">
+            <h4>Handover-Payload durchl&auml;uft die URL-Allowlist &mdash; <code>radio_controller.py</code></h4>
+            <p>
+              Die einzige Stelle im Modul, an der ein Stations-Datensatz ohne
+              <code>normalize_station_entry()</code> in den App-Zustand gelangte
+              &mdash; und damit die Stream-URL-Schema-Allowlist umging, die
+              &uuml;berall sonst erzwungen wird. Ein <code>file://</code>-Eintrag
+              im &Uuml;bergabe-Payload wird jetzt verworfen.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128274;</div>
+          <div class="fixed-body">
+            <h4>mpv-IPC-Socket in ein privates Verzeichnis &mdash; <code>radio_controller.py</code></h4>
+            <p>
+              Wer auf diesen Socket schreiben darf, darf mpv steuern &mdash; und
+              mpv kennt ein <code>run</code>-Kommando. Der Socket lag bisher
+              direkt im State-Verzeichnis (typisch 0755). Er liegt jetzt in
+              <code>XDG_RUNTIME_DIR</code>, ersatzweise in einem eigens
+              angelegten <strong>0700</strong>-Unterverzeichnis.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#127909;</div>
+          <div class="fixed-body">
+            <h4>ffmpeg-Protokoll-Allowlist ohne <code>file</code> &mdash; <code>radio_controller.py</code></h4>
+            <p>
+              Die Aufnahme erh&auml;lt jetzt ein explizites
+              <code>-protocol_whitelist&nbsp;http,https,tcp,tls,crypto</code>.
+              Ohne diese Grenze w&auml;hlt ffmpeg den Demuxer nach Inhalt &mdash;
+              eine als Stream ausgelieferte HLS-/concat-Playlist konnte damit
+              lokale Dateien in die Aufnahme ziehen.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128065;</div>
+          <div class="fixed-body">
+            <h4>Wert-seitige Redaction im Messlog &mdash; <code>core/performance_monitor.py</code></h4>
+            <p>
+              Die Redaction pr&uuml;fte bisher nur den Metadaten-<em>Schl&uuml;ssel</em>;
+              ein Secret unter einem harmlosen Schl&uuml;ssel w&auml;re im Klartext
+              im Log gelandet. Werte laufen jetzt zus&auml;tzlich durch dieselbe
+              Redaction wie die Diagnosedaten &mdash; rekursiv auch in Listen und
+              verschachtelten Dicts, ebenso der Fehlertext. Kein damaliger
+              Aufrufer war betroffen; die H&auml;rtung schlie&szlig;t die Falle
+              f&uuml;r k&uuml;nftige.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128193;</div>
+          <div class="fixed-body">
+            <h4>Symlink-sicherer, nutzerprivater Messlog &mdash; <code>core/performance_monitor.py</code></h4>
+            <p>
+              Der Log wird jetzt mit
+              <code>O_NOFOLLOW&nbsp;|&nbsp;O_APPEND</code> und Modus
+              <strong>0600</strong> ge&ouml;ffnet, die Rotation r&uuml;hrt
+              symlink-verlinkte Pfade nicht an. Ein untergeschobener Symlink kann
+              die Messwerte damit weder umlenken noch eine fremde Datei
+              &uuml;berschreiben.
+            </p>
+          </div>
+        </div>
+
         <div class="fixed-card">
           <div class="fixed-icon">&#129514;</div>
           <div class="fixed-body">
-            <h4>Neue Regressionstests</h4>
+            <h4>26 neue Regressionstests</h4>
             <p>
-              F&uuml;nf neue Tests in <code>test_netmon_diagnostics.py</code> und
-              <code>test_netmon_killswitch.py</code> sichern die Update-URL-
-              Allowlist und das Killswitch-erhaltende Recover-Verhalten ab.
-              Sicherheitsrelevante Suiten (253 + 80 Tests) sind gr&uuml;n.
+              Elf in <code>test_netmon_lynis_output.py</code> (Allowlist an der
+              UFW-Senke, Erkennung von stderr-Zeilen, Abbruch statt
+              Zur&uuml;ckschreiben, ufw-Konflikthinweis im
+              <code>rp_filter</code>-Zweig), neun in
+              <code>test_netmon_radio_module.py</code> (Optionsterminator,
+              EQ-Reihenfolge, Protokoll-Allowlist, Socket-Rechte,
+              inklusive Fehlerfallback, Handover-Normalisierung) und sechs in
+              <code>test_performance_monitor.py</code> (Wert-Redaction
+              verschachtelt, Symlink-Verweigerung, Dateirechte). Gesamtsuite
+              danach <strong>2562 bestanden, 2 &uuml;bersprungen</strong>.
             </p>
           </div>
         </div>
@@ -672,39 +1073,54 @@
           </thead>
           <tbody>
             <tr>
-              <td>Sicherheitskontroll-Umgehung (Killswitch Fail-Open)</td>
+              <td>Schreiben in root-eigene Konfig (<code>/etc/ufw/sysctl.conf</code>)</td>
               <td>Ja</td>
-              <td><span class="badge badge-ok">F2 &rarr; behoben (fail-closed)</span></td>
+              <td><span class="badge badge-ok">Kein Finding &mdash; Allowlist&nbsp;+&nbsp;Plausibilit&auml;tsgate erg&auml;nzt</span></td>
             </tr>
             <tr>
-              <td>Unvalidierte Fremd-URL an Desktop-Handler (<code>xdg-open</code>)</td>
+              <td>Argument-/Options-Injektion in externe Player (mpv, ffmpeg)</td>
               <td>Ja</td>
-              <td><span class="badge badge-ok">F1 &rarr; behoben (Allowlist+Host-Pin)</span></td>
+              <td><span class="badge badge-ok">Kein Finding &mdash; <code>--</code>&nbsp;+&nbsp;Protokoll-Allowlist erg&auml;nzt</span></td>
             </tr>
             <tr>
-              <td>Command-/Argument-Injection (ufw/nmcli/wg-quick, subprocess)</td>
+              <td>Fremddaten in Dateinamen (ICY-Metadaten, Stationsnamen)</td>
               <td>Ja</td>
-              <td><span class="badge badge-ok">Kein Finding (durchg&auml;ngig list-form)</span></td>
+              <td><span class="badge badge-ok">Kein Finding (Slug-Normalisierung)</span></td>
             </tr>
             <tr>
-              <td>DNS-Startup-Recovery (privilegierte nmcli/resolvectl-Aufrufe)</td>
+              <td>URL-Schema-Allowlists (Streams, Logos, Homepages)</td>
               <td>Ja</td>
-              <td><span class="badge badge-ok">Kein Finding (validiert, fail-safe)</span></td>
+              <td><span class="badge badge-ok">Durchg&auml;ngig erzwungen; Handover-L&uuml;cke geschlossen</span></td>
             </tr>
             <tr>
-              <td>Debian-Maintainer-Skripte (root: <code>cp</code>/<code>chown</code>, State-Parsing)</td>
+              <td>Zentraler Kommandopfad (<code>core/command.py</code>)</td>
               <td>Ja</td>
-              <td><span class="badge badge-ok">Kein ausnutzbarer Befund (Policy-Hinweis)</span></td>
+              <td><span class="badge badge-ok">Kein Finding (nur Mess-Wrapper, argv unver&auml;ndert)</span></td>
             </tr>
             <tr>
-              <td>Release-Integrit&auml;t (SHA256SUMS + minisign)</td>
+              <td>Secret-Leaks in Logs, Support-Bundle und Diagnose</td>
               <td>Ja</td>
-              <td><span class="badge badge-ok">Signatur g&uuml;ltig (UX-Empfehlung)</span></td>
+              <td><span class="badge badge-ok">Kein Finding &mdash; Wert-Redaction erg&auml;nzt</span></td>
             </tr>
             <tr>
-              <td>Pfad-Traversal / TOCTOU / Symlink (privilegierte Dateiops)</td>
+              <td>Dateirechte, Symlink&nbsp;/&nbsp;TOCTOU an neuen Schreibpfaden</td>
               <td>Ja</td>
-              <td><span class="badge badge-ok">Kein Finding im Threat-Model</span></td>
+              <td><span class="badge badge-ok">Kein Finding &mdash; <code>O_NOFOLLOW</code>&nbsp;+&nbsp;0600&nbsp;+&nbsp;0700-Socketdir erg&auml;nzt</span></td>
+            </tr>
+            <tr>
+              <td>Repository-Guard, DNS-Service, Prozess-Guard (Refactorings)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (Detektionszweige vollst&auml;ndig erhalten)</span></td>
+            </tr>
+            <tr>
+              <td>Unsichere Deserialisierung (pickle, eval, <code>shell=True</code>)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>TLS-Verifikation und Redirect-Handling</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (keine Abschaltung, kein http&rarr;file)</span></td>
             </tr>
             <tr>
               <td>Autorisierung / Kindersicherung</td>
@@ -712,19 +1128,9 @@
               <td><span class="badge badge-info">Bewusste Design-Entscheidung</span></td>
             </tr>
             <tr>
-              <td>Unsichere Deserialisierung (pickle, yaml.load, eval, <code>shell=True</code>)</td>
-              <td>Ja</td>
-              <td><span class="badge badge-ok">Kein Finding</span></td>
-            </tr>
-            <tr>
-              <td>Regression der Runde-7/8-H&auml;rtungen</td>
+              <td>Regression der Runde-9/10-H&auml;rtungen</td>
               <td>Ja</td>
               <td><span class="badge badge-ok">Alle intakt</span></td>
-            </tr>
-            <tr>
-              <td>Versionskonsistenz (App / deb / Site / latest-version.json)</td>
-              <td>Ja</td>
-              <td><span class="badge badge-ok">Durchg&auml;ngig 1.1.19</span></td>
             </tr>
           </tbody>
         </table>
@@ -734,22 +1140,24 @@
       <div class="signature-block">
         <p>
           <strong>Auditor:</strong> Claude Fable&nbsp;5 (Anthropic) &mdash;
-          Analyse-Sub-Agent + zwei dedizierte False-Positive-Validierungs-Sub-Agenten<br>
+          vier Analyse-Sub-Agenten + zwei unabh&auml;ngige
+          False-Positive-Validierungs-Sub-Agenten<br>
           <strong>Projektverantwortlicher:</strong> Sven Fr&ouml;hlich<br>
-          <strong>Datum:</strong> 18.&nbsp;Juli&nbsp;2026<br>
+          <strong>Datum:</strong> 29.&nbsp;Juli&nbsp;2026<br>
           <strong>Analysierter Codestand:</strong>
-          finaler Release-Stand v1.1.19 (Arbeitsstand auf
-          <code>c2087b63</code>), einschlie&szlig;lich der gebauten
-          <code>netmon_1.1.19_all.deb</code> und der signierten
-          Release-Artefakte &mdash; Runde&nbsp;9<br>
+          Arbeitsstand v1.1.20 (Diff seit dem Runde-10-Endstand
+          <code>445279ac</code>, einschlie&szlig;lich uncommitteter
+          &Auml;nderungen), erg&auml;nzt um eine Ist-Stand-Pr&uuml;fung der
+          Radio-Senken &mdash; Runde&nbsp;11<br>
           <strong>Methode:</strong> Statische Code-Analyse + manuelle
-          Datenfluss-Verifikation + empirische Verifikation der Release-Signatur
-          (<code>sha256sum&nbsp;-c</code> + <code>minisign&nbsp;-V</code>) +
-          Konfidenz-gescorte FP-Validierung pro Kandidat + Umsetzung von zwei
-          Defense-in-Depth-H&auml;rtungen mit Regressionstests +
-          Regressions-Gegenpr&uuml;fung der Runde-7/8-H&auml;rtungen (Suiten:
-          253 + 80 Tests, alle sicherheitsrelevanten bestanden) &mdash; kein
-          Laufzeit-Penetrationstest<br>
+          Datenfluss-Verifikation + normalisierter Inhaltsdiff f&uuml;r die
+          Refactoring-Masse + konfidenz-gescorte FP-Validierung mit
+          empirischer Gegenpr&uuml;fung (Paketextraktion,
+          <code>sysctl</code>-Verhaltenstests) + Umsetzung von acht
+          H&auml;rtungen mit 26 Regressionstests + Regressions-Gegenpr&uuml;fung
+          der Vorrunden-H&auml;rtungen (Gesamtsuite 2562 bestanden,
+          2 &uuml;bersprungen)
+          &mdash; kein Laufzeit-Penetrationstest<br>
           <strong>Haftungsausschluss:</strong> Dieses Audit ersetzt keinen professionellen
           Penetrationstest durch eine zertifizierte Sicherheitsfirma. Die Analyse
           beschr&auml;nkt sich auf den angegebenen Codestand. Nicht erfasst werden:
@@ -763,7 +1171,7 @@
           &nbsp;&nbsp;&bull;&nbsp;&nbsp;
           <a href="./docs.html" style="color:var(--accent);">Dokumentation</a>
           &nbsp;&nbsp;&bull;&nbsp;&nbsp;
-          <a href="./security-audit-r8.html" style="color:var(--accent);">Runde&nbsp;8</a>
+          <a href="./security-audit-r10.html" style="color:var(--accent);">Runde&nbsp;10</a>
         </p>
       </div>
     </main>

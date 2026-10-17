@@ -61,7 +61,110 @@ PROJECTM_CREAM_OF_THE_CROP_URL = (
 FIREFOX_STANDALONE_LINUX_X64_URL = (
     "https://download.mozilla.org/?product=firefox-latest-ssl&os=linux64&lang=de"
 )
+FIREFOX_ARCHIVE_MAX_DOWNLOAD_BYTES = 512 * 1024 * 1024
+FIREFOX_ARCHIVE_MAX_EXTRACTED_BYTES = 2 * 1024 * 1024 * 1024
+FIREFOX_ARCHIVE_MAX_MEMBERS = 100_000
 NVIDIA_UTILS_PACKAGE_RE = re.compile(r"^nvidia-utils-(\d+)$")
+
+
+def _download_url_to_file_limited(url, destination, max_bytes):
+    parsed_url = urlparse(str(url or "").strip())
+    if parsed_url.scheme != "https":
+        raise ValueError("Firefox-Download erfordert HTTPS")
+
+    with urllib_request.urlopen(parsed_url.geturl(), timeout=90) as response:
+        content_length = response.headers.get("Content-Length")
+        if content_length:
+            try:
+                declared_size = int(content_length)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Ungueltige Downloadgroesse") from exc
+            if declared_size < 0 or declared_size > max_bytes:
+                raise ValueError("Firefox-Archiv ist zu gross")
+
+        written = 0
+        with open(destination, "wb") as handle:
+            while True:
+                chunk = response.read(1024 * 1024)
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > max_bytes:
+                    raise ValueError("Firefox-Archiv ist zu gross")
+                handle.write(chunk)
+
+
+def _extract_regular_tar_archive(
+    archive,
+    target_dir,
+    *,
+    max_members=FIREFOX_ARCHIVE_MAX_MEMBERS,
+    max_total_size=FIREFOX_ARCHIVE_MAX_EXTRACTED_BYTES,
+):
+    target_root = os.path.realpath(target_dir)
+    members = archive.getmembers()
+    if len(members) > max_members:
+        raise ValueError("Firefox-Archiv enthaelt zu viele Dateien")
+
+    validated_members = []
+    seen_targets = set()
+    total_size = 0
+    for member in members:
+        member_name = str(getattr(member, "name", "") or "")
+        if not member_name:
+            raise ValueError("Firefox-Archiv enthaelt einen leeren Pfad")
+        if not member.isfile() and not member.isdir():
+            raise ValueError("Firefox-Archiv enthaelt Links oder Sonderdateien")
+
+        member_target = os.path.realpath(os.path.join(target_root, member_name))
+        try:
+            stays_in_target = (
+                os.path.commonpath([target_root, member_target]) == target_root
+            )
+        except ValueError:
+            stays_in_target = False
+        if not stays_in_target:
+            raise ValueError("Unsicherer TAR-Pfad erkannt")
+        if member_target in seen_targets:
+            raise ValueError("Firefox-Archiv enthaelt doppelte Pfade")
+        seen_targets.add(member_target)
+
+        if member.isfile():
+            member_size = int(getattr(member, "size", 0) or 0)
+            if member_size < 0:
+                raise ValueError("Firefox-Archiv enthaelt eine ungueltige Dateigroesse")
+            total_size += member_size
+            if total_size > max_total_size:
+                raise ValueError("Entpackte Firefox-Basis ist zu gross")
+        validated_members.append((member, member_target))
+
+    directory_modes = []
+    for member, member_target in validated_members:
+        if member.isdir():
+            os.makedirs(member_target, exist_ok=True)
+            directory_modes.append((member_target, member.mode & 0o777))
+            continue
+
+        os.makedirs(os.path.dirname(member_target), exist_ok=True)
+        source = archive.extractfile(member)
+        if source is None:
+            raise ValueError("Firefox-Archivdatei konnte nicht gelesen werden")
+        copied = 0
+        with source, open(member_target, "wb") as destination:
+            while True:
+                chunk = source.read(1024 * 1024)
+                if not chunk:
+                    break
+                copied += len(chunk)
+                if copied > member.size:
+                    raise ValueError("Firefox-Archivdatei ueberschreitet ihre Groesse")
+                destination.write(chunk)
+        if copied != member.size:
+            raise ValueError("Firefox-Archivdatei ist unvollstaendig")
+        os.chmod(member_target, member.mode & 0o777)
+
+    for directory, mode in reversed(directory_modes):
+        os.chmod(directory, mode)
 
 
 def is_debian_package_installed(package_name: str) -> bool:
@@ -596,14 +699,20 @@ except ModuleNotFoundError:
 
 try:
     from netmon.ui.tabs.connections_tab import build_connections_tab
-    from netmon.ui.tabs.chad_tab import build_chad_tab
+    from netmon.ui.tabs.chad_tab import (
+        build_chad_analysis_content,
+        build_chad_tab,
+    )
     from netmon.ui.tabs.chad_settings_tab import (
+        build_chad_settings_content,
+        build_security_systemcheck_panel,
         build_chad_settings_tab as build_chad_settings_tab_ui,
     )
     from netmon.ui.tabs.cleanup_assistant_tab import build_cleanup_assistant_tab
     from netmon.ui.tabs.dns_tab import build_dns_tab
     from netmon.ui.tabs.download_scan_tab import (
         build_download_scan_tab as build_download_scan_tab_ui,
+        build_download_scan_content,
     )
     from netmon.ui.tabs.fun_tab import build_fun_tab
     from netmon.ui.tabs.hdd_tab import build_hdd_tab
@@ -613,21 +722,63 @@ try:
     from netmon.ui.tabs.radio_tab import build_radio_tab
     from netmon.ui.tabs.secure_browser_tab import build_secure_browser_tab
     from netmon.ui.tabs.security_tabs import (
+        build_lynis_content,
+        build_rkhunter_tab as build_rkhunter_tab_ui,
+        build_packet_capture_tab as build_packet_capture_tab_ui,
         build_security_tabs,
         build_startup_guard_tab,
     )
-    from netmon.ui.tabs.settings_tab import build_settings_tab as build_settings_tab_ui
-    from netmon.ui.tabs.system_tab import build_system_tab
+    from netmon.ui.tabs.settings_tab import (
+        build_settings_backup,
+        build_settings_content,
+        build_settings_tab as build_settings_tab_ui,
+    )
+    from netmon.ui.tabs.system_tab import build_system_monitor, build_system_tab
     from netmon.ui.tabs.tools_tabs import build_basic_tools_tabs
+    from netmon.ui.tabs.theme_studio_tab import (
+        build_theme_studio_content,
+    )
     from netmon.ui.tabs.trace_tab import build_trace_tab
     from netmon.ui.tabs.vpn_slots_tab import build_vpn_slots_tab
+    from netmon.ui.settings_sync import (
+        app_var_value,
+        sync_app_vars_from_mapping,
+        update_backup_and_download_scan_settings_from_app,
+        update_base_network_settings_from_app,
+        update_chad_runtime_options_from_app,
+        update_chad_settings_from_app,
+        update_clamav_quickscan_settings_from_app,
+        update_guided_tour_and_donation_settings_from_app,
+        update_security_tool_settings_from_app,
+        update_systemcheck_settings_from_app,
+        update_theme_logging_settings_from_app,
+    )
+    from netmon.ui.tour_specs import (
+        build_full_tour_steps,
+        build_guided_tab_tour_steps,
+        build_guided_tour_full_sequence,
+        build_guided_tour_primary_definitions,
+        build_guided_tour_tab_prepare_callable,
+        build_guided_tour_tab_definitions,
+        guided_tour_button_text,
+        guided_tour_status_symbol,
+        guided_tour_status_text,
+        guided_tour_title_text,
+        is_guided_tour_completed,
+        normalize_guided_tour_completed_settings,
+    )
     from netmon.ui.widgets.lights import make_light as build_light_widget
     from netmon.ui.widgets.lights import set_light as update_light_widget
     from netmon.ui.widgets.tooltip import SimpleTooltip
 except ModuleNotFoundError:
     from ui.tabs.connections_tab import build_connections_tab
-    from ui.tabs.chad_tab import build_chad_tab
+    from ui.tabs.chad_tab import (
+        build_chad_analysis_content,
+        build_chad_tab,
+    )
     from ui.tabs.chad_settings_tab import (
+        build_chad_settings_content,
+        build_security_systemcheck_panel,
         build_chad_settings_tab as build_chad_settings_tab_ui,
     )
     from ui.tabs.cleanup_assistant_tab import build_cleanup_assistant_tab
@@ -638,16 +789,57 @@ except ModuleNotFoundError:
     from ui.tabs.dns_tab import build_dns_tab
     from ui.tabs.download_scan_tab import (
         build_download_scan_tab as build_download_scan_tab_ui,
+        build_download_scan_content,
     )
     from ui.tabs.hdd_tab import build_hdd_tab
     from ui.tabs.linux_help_tab import build_linux_help_tab
     from ui.tabs.links_tab import build_links_tab
-    from ui.tabs.security_tabs import build_security_tabs, build_startup_guard_tab
-    from ui.tabs.settings_tab import build_settings_tab as build_settings_tab_ui
-    from ui.tabs.system_tab import build_system_tab
+    from ui.tabs.security_tabs import (
+        build_lynis_content,
+        build_rkhunter_tab as build_rkhunter_tab_ui,
+        build_packet_capture_tab as build_packet_capture_tab_ui,
+        build_security_tabs,
+        build_startup_guard_tab,
+    )
+    from ui.tabs.settings_tab import (
+        build_settings_backup,
+        build_settings_content,
+        build_settings_tab as build_settings_tab_ui,
+    )
+    from ui.tabs.system_tab import build_system_monitor, build_system_tab
     from ui.tabs.tools_tabs import build_basic_tools_tabs
+    from ui.tabs.theme_studio_tab import (
+        build_theme_studio_content,
+    )
     from ui.tabs.trace_tab import build_trace_tab
     from ui.tabs.vpn_slots_tab import build_vpn_slots_tab
+    from ui.settings_sync import (
+        app_var_value,
+        sync_app_vars_from_mapping,
+        update_backup_and_download_scan_settings_from_app,
+        update_base_network_settings_from_app,
+        update_chad_runtime_options_from_app,
+        update_chad_settings_from_app,
+        update_clamav_quickscan_settings_from_app,
+        update_guided_tour_and_donation_settings_from_app,
+        update_security_tool_settings_from_app,
+        update_systemcheck_settings_from_app,
+        update_theme_logging_settings_from_app,
+    )
+    from ui.tour_specs import (
+        build_full_tour_steps,
+        build_guided_tab_tour_steps,
+        build_guided_tour_full_sequence,
+        build_guided_tour_primary_definitions,
+        build_guided_tour_tab_prepare_callable,
+        build_guided_tour_tab_definitions,
+        guided_tour_button_text,
+        guided_tour_status_symbol,
+        guided_tour_status_text,
+        guided_tour_title_text,
+        is_guided_tour_completed,
+        normalize_guided_tour_completed_settings,
+    )
     from ui.widgets.lights import make_light as build_light_widget
     from ui.widgets.lights import set_light as update_light_widget
     from ui.widgets.tooltip import SimpleTooltip
@@ -881,6 +1073,36 @@ DEPENDENCIES = {
         "checks": ["cryptsetup"],
         "apt_packages": ["cryptsetup"],
         "pip_packages": [],
+    },
+    "timeshift": {
+        "label": "Timeshift",
+        "category": "Security",
+        "description": "Snapshot-Backups vor Hardening oder grösseren Systemänderungen",
+        "checks": ["timeshift"],
+        "apt_packages": ["timeshift"],
+        "pip_packages": [],
+        "type": "optional_backend",
+        "availability_check": "timeshift_installable",
+    },
+    "mintbackup": {
+        "label": "Linux Mint Datensicherung",
+        "category": "Backup",
+        "description": "Desktop-Datensicherung für Linux Mint",
+        "checks": ["mintbackup"],
+        "apt_packages": ["mintbackup"],
+        "pip_packages": [],
+        "type": "optional_backend",
+        "availability_check": "mintbackup_installable",
+    },
+    "deja_dup": {
+        "label": "Deja Dup",
+        "category": "Backup",
+        "description": "Desktop-Datensicherung für Ubuntu-, Debian- und Zorin-Systeme",
+        "checks": ["deja_dup"],
+        "apt_packages": ["deja-dup"],
+        "pip_packages": [],
+        "type": "optional_backend",
+        "availability_check": "deja_dup_installable",
     },
     "python3_runtime": {
         "label": "python3",
@@ -2665,6 +2887,7 @@ class App(TkBase):
         )
         self.netmon_roots_homepage = "https://netmonroots.com"
         self.netmon_roots_downloads_url = "https://netmonroots.com/downloads.html"
+        self.netmon_roots_donation_url = "https://paypal.me/NetMonRoots"
         self.netmon_roots_latest_version_url = (
             "https://netmonroots.com/latest-version.json"
         )
@@ -2673,6 +2896,10 @@ class App(TkBase):
             "Security",
             self.netmon_state_dir,
             SECURITY_BASELINE_FILE,
+        )
+        self.security_baseline_transfer_dir = get_netmon_documents_subdir(
+            "Security",
+            "Transferpakete",
         )
         self.startup_guard_baseline_path = _prepare_documents_data_path(
             "Security",
@@ -3075,6 +3302,67 @@ class App(TkBase):
                 or self._default_download_scan_target_dir()
             )
         )
+        self.backup_target_dir_var = tk.StringVar(
+            value=str(
+                self.settings.get(
+                    "backup_data_target_dir",
+                    self._default_backup_data_target_dir(),
+                )
+                or self._default_backup_data_target_dir()
+            )
+        )
+        self.backup_include_documents_var = tk.BooleanVar(
+            value=bool(self.settings.get("backup_include_documents", True))
+        )
+        self.backup_include_pictures_var = tk.BooleanVar(
+            value=bool(self.settings.get("backup_include_pictures", True))
+        )
+        self.backup_include_desktop_var = tk.BooleanVar(
+            value=bool(self.settings.get("backup_include_desktop", True))
+        )
+        self.backup_include_music_var = tk.BooleanVar(
+            value=bool(self.settings.get("backup_include_music", True))
+        )
+        self.backup_include_videos_var = tk.BooleanVar(
+            value=bool(self.settings.get("backup_include_videos", True))
+        )
+        self.backup_include_downloads_var = tk.BooleanVar(
+            value=bool(self.settings.get("backup_include_downloads", True))
+        )
+        self.backup_include_netmon_documents_var = tk.BooleanVar(
+            value=bool(self.settings.get("backup_include_netmon_documents", True))
+        )
+        self.backup_netmon_full_var = tk.BooleanVar(
+            value=bool(self.settings.get("backup_netmon_full", False))
+        )
+        self.backup_netmon_selected_dir_keys = list(
+            self.settings.get("backup_netmon_selected_dirs", []) or []
+        )
+        self.backup_netmon_dir_vars = {}
+        self.backup_status_var = tk.StringVar(
+            value="Backup-Bereich bereit. Vor dem Hardening zuerst Snapshot und Datenbackup erstellen."
+        )
+        self.backup_timeshift_status_var = tk.StringVar(value="Timeshift: wird geprüft")
+        self.backup_root_status_var = tk.StringVar(value="Root: wird geprüft")
+        self.backup_last_snapshot_var = tk.StringVar(
+            value="Letzter Snapshot: noch nicht erkannt"
+        )
+        self.backup_data_tool_status_var = tk.StringVar(
+            value="Datensicherung: wird geprüft"
+        )
+        self.backup_data_tool_hint_var = tk.StringVar(
+            value="Datensicherung-Hinweis: wird geprüft"
+        )
+        self.backup_last_data_backup_var = tk.StringVar(
+            value="Letztes Datenbackup: noch keines"
+        )
+        self.backup_target_status_var = tk.StringVar(value="Backup-Ziel: -")
+        self.backup_free_space_var = tk.StringVar(value="Freier Speicher: -")
+        self.backup_transfer_status_var = tk.StringVar(
+            value="Transferpaket: keines geladen"
+        )
+        self.backup_selected_sources_var = tk.StringVar(value="Auswahl: wird geprüft")
+        self.backup_data_running = False
         self.download_scan_prequarantine_startup_var = tk.BooleanVar(
             value=bool(self.settings.get("download_scan_prequarantine_startup", False))
         )
@@ -3184,11 +3472,92 @@ class App(TkBase):
         self.lynis_status_var = tk.StringVar(
             value=self.tr("status_ready_short", "ready")
         )
+        self.lynis_hardening_index_var = tk.StringVar(
+            value=self.tr("lynis_hardening_index_default", "Hardening Index: -")
+        )
         self.lynis_summary_var = tk.StringVar(
             value=self.tr("lynis_summary_default", "Noch kein Audit ausgeführt.")
         )
         self.lynis_last_result = {}
         self.lynis_last_output = ""
+        self.security_baseline_profile_id = (
+            str(
+                self.settings.get(
+                    "security_baseline_profile_id", "zorin_desktop_development"
+                )
+                or "zorin_desktop_development"
+            ).strip()
+            or "zorin_desktop_development"
+        )
+        self.security_baseline_profile_choice_var = tk.StringVar(value="")
+        self.security_baseline_profile_var = tk.StringVar(
+            value=self.tr("baseline_profile_value", "Profil: {value}").format(
+                value="Desktop / Development"
+            )
+        )
+        self.security_baseline_version_var = tk.StringVar(
+            value=self.tr(
+                "baseline_version_value", "Baseline: {name} {version}"
+            ).format(
+                name="NetMon Security Baseline",
+                version="1.0",
+            )
+        )
+        self.security_baseline_reference_var = tk.StringVar(
+            value=self.tr("baseline_reference_value", "Referenz: {value}").format(
+                value="Zorin OS 18 / Ubuntu 24.04"
+            )
+        )
+        self.security_baseline_date_var = tk.StringVar(
+            value=self.tr("baseline_date_value", "Stand: {value}").format(
+                value="19.07.2026"
+            )
+        )
+        self.security_baseline_last_check_var = tk.StringVar(
+            value=self.tr(
+                "baseline_last_check_default",
+                "Letzte Baseline-Pruefung: noch nicht durchgeführt",
+            )
+        )
+        self.security_baseline_status_var = tk.StringVar(
+            value=self.tr(
+                "baseline_status_default",
+                "Gesamtstatus: noch keine Baseline-Pruefung",
+            )
+        )
+        self.security_baseline_lynis_summary_var = tk.StringVar(
+            value=self.tr("baseline_lynis_summary_default", "Lynis: keine Daten")
+        )
+        self.security_baseline_transfer_var = tk.StringVar(
+            value=self.tr(
+                "baseline_transfer_status_default",
+                "Transferpaket: keines geladen",
+            )
+        )
+        self.security_baseline_optional_services_var = tk.StringVar(
+            value=self.tr(
+                "baseline_optional_services_overview_none",
+                "Optionale Dienste im Profil: keine.",
+            )
+        )
+        self.security_game_mode_preset_var = tk.StringVar(
+            value=str(
+                self.settings.get("security_game_mode_preset", "online") or "online"
+            )
+        )
+        self.security_game_mode_profile_hint_var = tk.StringVar(
+            value="Spielprofil: Online. Kernel-Haertung bleibt aktiv; nur netzbezogene Kompatibilitaet wird angepasst."
+        )
+        self.security_game_mode_status_var = tk.StringVar(
+            value="Spielmodus: aus. Pausiert bei Bedarf Killswitch, DNS Guard und aggressives UFW-Logging fuer Spiele."
+        )
+        self.security_baseline_results = []
+        self.security_baseline_visible_rows = []
+        self.security_baseline_filter_mode = "all"
+        self.security_baseline_last_checked = ""
+        self.security_baseline_transfer_package = None
+        self.security_baseline_transfer_source_path = ""
+        self.game_mode_state = {}
         self.rkhunter_running = False
         self.rkhunter_updating = False
         self.rkhunter_active_process = None
@@ -3961,6 +4330,19 @@ class App(TkBase):
                 "Aktiviert die Netzwerkverbindung systemweit wieder über NetworkManager.",
             ),
         )
+        self.btn_sudo_auth = ttk.Button(
+            inet_row,
+            text=self.tr("btn_sudo_auth_unlock", "Systemrechte freischalten"),
+            command=self.setup_sudo_auth,
+        )
+        self.btn_sudo_auth.pack(side="right", padx=(0, 8))
+        self.add_tooltip(
+            self.btn_sudo_auth,
+            self.tr(
+                "tooltip_sudo_auth_unlock",
+                "Fordert einmalig sudo fuer NetMon an, damit Firewall- und Security-Status direkt gelesen werden koennen.",
+            ),
+        )
 
         btn_ip_country = ttk.Button(
             inet_row,
@@ -4031,6 +4413,8 @@ class App(TkBase):
         self.l_startup_guard = self.make_light(amp_core, "Startup Guard")
         self.l_process_guard = self.make_light(amp_extra, "Process Guard")
         self.l_path_guard = self.make_light(amp_extra, "PATH Guard")
+        self.l_capture = self.make_light(amp_extra, "Capture")
+        self.l_game_mode = self.make_light(amp_extra, "Spielmodus")
         self._bind_light_click(self.l_inet, "connections")
         self._bind_light_click(self.l_vpn, "vpn")
         self.l_vpn[2].bind(
@@ -4143,6 +4527,8 @@ class App(TkBase):
         self._bind_light_click(self.l_startup_guard, "startup_guard")
         self._bind_light_click(self.l_process_guard, "process_guard")
         self._bind_light_click(self.l_path_guard, "path_guard")
+        self._bind_light_click(self.l_capture, "capture")
+        self._bind_light_click(self.l_game_mode, "game_mode")
         self.l_startup_guard[2].bind(
             "<Button-3>",
             lambda e: self.show_startup_guard_menu(e),
@@ -4183,12 +4569,44 @@ class App(TkBase):
             "<Button-3>",
             lambda e: self.show_path_guard_menu(e),
         )
+        self.l_capture[2].bind(
+            "<Button-3>",
+            lambda e: self.show_capture_menu(e),
+        )
+        self.l_capture[0].bind(
+            "<Button-3>",
+            lambda e: self.show_capture_menu(e),
+        )
+        self.l_game_mode[2].bind(
+            "<Button-3>",
+            lambda e: self.show_game_mode_menu(e),
+        )
+        self.l_game_mode[0].bind(
+            "<Button-3>",
+            lambda e: self.show_game_mode_menu(e),
+        )
         try:
             self.l_path_guard[0].configure(cursor="hand2")
         except Exception:
             pass
         try:
             self.l_path_guard[2].configure(cursor="hand2")
+        except Exception:
+            pass
+        try:
+            self.l_capture[0].configure(cursor="hand2")
+        except Exception:
+            pass
+        try:
+            self.l_capture[2].configure(cursor="hand2")
+        except Exception:
+            pass
+        try:
+            self.l_game_mode[0].configure(cursor="hand2")
+        except Exception:
+            pass
+        try:
+            self.l_game_mode[2].configure(cursor="hand2")
         except Exception:
             pass
         self.add_tooltip(
@@ -4261,6 +4679,48 @@ class App(TkBase):
                 "Grau: noch nicht geprüft\n\n"
                 "Linksklick: Security Tab öffnen\n"
                 "Rechtsklick: PATH Guard prüfen",
+            ),
+        )
+        self.add_tooltip(
+            self.l_capture[0],
+            self.tr(
+                "tooltip_capture_light",
+                "Zeigt, ob aktuell ein Packet Capture läuft.\n"
+                "Grün: Capture läuft\n"
+                "Rot: kein Capture aktiv\n\n"
+                "Linksklick: Capture-Tab öffnen",
+            ),
+        )
+        self.add_tooltip(
+            self.l_capture[2],
+            self.tr(
+                "tooltip_capture_light",
+                "Zeigt, ob aktuell ein Packet Capture läuft.\n"
+                "Grün: Capture läuft\n"
+                "Rot: kein Capture aktiv\n\n"
+                "Linksklick: Capture-Tab öffnen",
+            ),
+        )
+        self.add_tooltip(
+            self.l_game_mode[0],
+            self.tr(
+                "tooltip_game_mode_light",
+                "Zeigt den aktuellen Status des Spielemodus.\n"
+                "Grün: Spielemodus aktiv\n"
+                "Rot: Spielemodus aus\n\n"
+                "Linksklick: Lynis-Härtung öffnen\n"
+                "Rechtsklick: Spielemodus aktivieren/deaktivieren",
+            ),
+        )
+        self.add_tooltip(
+            self.l_game_mode[2],
+            self.tr(
+                "tooltip_game_mode_light",
+                "Zeigt den aktuellen Status des Spielemodus.\n"
+                "Grün: Spielemodus aktiv\n"
+                "Rot: Spielemodus aus\n\n"
+                "Linksklick: Lynis-Härtung öffnen\n"
+                "Rechtsklick: Spielemodus aktivieren/deaktivieren",
             ),
         )
         self.dns_guard_indicator = self.l_dnscons
@@ -5414,6 +5874,73 @@ class App(TkBase):
             row=5, column=1, sticky="w", padx=(8, 0), pady=(2, 0)
         )
 
+        right_quick_actions = ttk.LabelFrame(
+            self.right_reserve_space,
+            text=self.tr("group_right_quick_actions", "Schnellzugriff"),
+            padding=8,
+        )
+        right_quick_actions.grid(row=3, column=0, sticky="new", pady=(8, 0))
+        right_quick_actions.columnconfigure(0, weight=1)
+
+        self.btn_right_quick_timeshift = ttk.Button(
+            right_quick_actions,
+            text=self.tr("baseline_btn_timeshift", "Timeshift starten"),
+            command=self.launch_timeshift_snapshot_tool,
+        )
+        self.btn_right_quick_timeshift.pack(fill="x", pady=(0, 6))
+        self.add_tooltip(
+            self.btn_right_quick_timeshift,
+            self.tr(
+                "tooltip_right_quick_timeshift",
+                "Startet Timeshift direkt fuer einen Snapshot oder eine Wiederherstellung.",
+            ),
+        )
+
+        btn_right_quick_apt_update = ttk.Button(
+            right_quick_actions,
+            text=self.tr("maintenance_btn_apt_update", "Update package lists"),
+            command=self.run_apt_update_in_terminal,
+        )
+        btn_right_quick_apt_update.pack(fill="x", pady=(0, 6))
+
+        btn_right_quick_apt_upgrade = ttk.Button(
+            right_quick_actions,
+            text=self.tr("maintenance_btn_apt_upgrade", "Upgrade system"),
+            command=self.run_apt_upgrade_in_terminal,
+        )
+        btn_right_quick_apt_upgrade.pack(fill="x", pady=(0, 6))
+
+        btn_right_quick_network_reset = ttk.Button(
+            right_quick_actions,
+            text=self.tr("settings_reset_network_stack", "Reset network stack"),
+            command=self.reset_network_stack,
+        )
+        btn_right_quick_network_reset.pack(fill="x", pady=(0, 6))
+
+        btn_right_quick_apt_autoremove = ttk.Button(
+            right_quick_actions,
+            text=self.tr(
+                "maintenance_btn_apt_autoremove",
+                "Remove unused packages",
+            ),
+            command=self.run_apt_autoremove_in_terminal,
+        )
+        btn_right_quick_apt_autoremove.pack(fill="x", pady=(0, 6))
+
+        btn_right_quick_restart = ttk.Button(
+            right_quick_actions,
+            text=self.tr("settings_restart_netmon_only", "Restart NetMon"),
+            command=self.restart_netmon_only,
+        )
+        btn_right_quick_restart.pack(fill="x", pady=(0, 6))
+
+        btn_right_quick_menu_refresh = ttk.Button(
+            right_quick_actions,
+            text=self.tr("maintenance_btn_refresh_menu", "Refresh menu"),
+            command=self.run_menu_refresh_in_terminal,
+        )
+        btn_right_quick_menu_refresh.pack(fill="x")
+
         self.update_speedtest_panel(self.speedtest_last_result)
 
         self.nb = ttk.Notebook(self.main_work_area, width=main_work_width)
@@ -5487,7 +6014,6 @@ class App(TkBase):
             pass
 
         self.log(self.tr("log_startup", "Start."))
-        self.setup_sudo_auth()
         self.refresh_wg_profiles()
         self.update_startup_vpn_profile_options()
         self.refresh_radio_ui()
@@ -5656,6 +6182,7 @@ class App(TkBase):
             "startup_guard_tree",
             "startup_guard_details_text",
             "settings_support_details_text",
+            "settings_backup_log_text",
         ]
         self._local_mousewheel_target_names = tuple(targets)
         for widget_name in targets:
@@ -5810,6 +6337,10 @@ class App(TkBase):
     def open_netmon_roots_homepage(self, _event=None):
         target = str(getattr(self, "netmon_roots_homepage", "") or "").strip()
         return self._open_url_with_xdg_open(target, label="NetMonRoots")
+
+    def open_netmon_roots_donation(self, _event=None):
+        target = str(getattr(self, "netmon_roots_donation_url", "") or "").strip()
+        return self._open_url_with_xdg_open(target, label="NetMonRoots PayPal")
 
     def _open_url_with_xdg_open(self, target, label="URL"):
         target = str(target or "").strip()
@@ -6342,70 +6873,27 @@ class App(TkBase):
             pass
 
     def _guided_tour_completed_settings(self) -> dict:
-        raw = self.settings.get("guided_tour_completed", {})
-        if not isinstance(raw, dict):
-            return {}
-        normalized = {}
-        for key, value in raw.items():
-            name = str(key or "").strip().lower()
-            if name:
-                normalized[name] = bool(value)
-        return normalized
+        return normalize_guided_tour_completed_settings(
+            self.settings.get("guided_tour_completed", {})
+        )
 
     def is_guided_tour_completed(self, tour_name) -> bool:
-        tour_id = str(tour_name or "").strip().lower()
-        if not tour_id:
-            return False
-        return bool(self._guided_tour_completed_settings().get(tour_id, False))
+        return is_guided_tour_completed(
+            self.settings.get("guided_tour_completed", {}),
+            tour_name,
+        )
 
     def _guided_tour_status_text(self) -> str:
-        labels = (
-            ("full-tour", self.tr("tour_label_full", "Volle Tour")),
-            ("quickstart", self.tr("tour_label_quickstart", "Schnellstart")),
-            ("dns", self.tr("tour_label_dns_short", "DNS")),
-            ("security", self.tr("tour_label_security_short", "Security")),
-            ("download-scan", self.tr("tour_label_download_scan_short", "D-Scan")),
-            ("radio", self.tr("tour_label_radio_short", "Radio")),
-        )
-        done = []
-        open_items = []
-        for key, label in labels:
-            if self.is_guided_tour_completed(key):
-                done.append(label)
-            else:
-                open_items.append(label)
-        if done and open_items:
-            return (
-                self.tr("tour_status_completed_prefix", "Tourstatus: abgeschlossen: ")
-                + ", ".join(done)
-                + self.tr("tour_status_open_separator", " | offen: ")
-                + ", ".join(open_items)
-            )
-        if done:
-            return self.tr(
-                "tour_status_all_completed",
-                "Tourstatus: alle verfügbaren Touren abgeschlossen.",
-            )
-        return self.tr(
-            "tour_status_none_completed",
-            "Tourstatus: noch keine Tour abgeschlossen.",
-        )
+        return guided_tour_status_text(self)
 
     def _guided_tour_button_text(self, _tour_name, _base_label) -> str:
-        return self.tr("guided_tour_btn_start_short", "Start")
+        return guided_tour_button_text(self, _tour_name, _base_label)
 
     def _guided_tour_status_symbol(self, tour_name) -> str:
-        return "[x]" if self.is_guided_tour_completed(tour_name) else "[ ]"
+        return guided_tour_status_symbol(self.is_guided_tour_completed(tour_name))
 
     def _guided_tour_title_text(self, tour_name, base_label) -> str:
-        label = str(base_label or "").strip()
-        if not label:
-            return ""
-        if self.is_guided_tour_completed(tour_name):
-            return self.tr(
-                "tour_status_title_completed", "{label} abgeschlossen"
-            ).format(label=label)
-        return label
+        return guided_tour_title_text(self, tour_name, base_label)
 
     def _guided_tour_launcher_specs(self):
         return [
@@ -6707,86 +7195,16 @@ class App(TkBase):
         return definitions
 
     def _guided_tour_primary_definitions(self):
-        return {
-            "quickstart": {
-                "id": "quickstart",
-                "title": self.tr("tour_def_quickstart_title", "NetMon Schnellstart"),
-                "steps": self._build_quickstart_tour_steps(),
-            },
-            "dns": {
-                "id": "dns",
-                "title": self.tr("tour_def_dns_title", "NetMon DNS Tour"),
-                "steps": self._build_dns_tour_steps(),
-            },
-            "security": {
-                "id": "security",
-                "title": self.tr("tour_def_security_title", "NetMon Security Tour"),
-                "steps": self._build_security_tour_steps(),
-            },
-            "download-scan": {
-                "id": "download-scan",
-                "title": self.tr("tour_def_download_scan_title", "NetMon D-Scan Tour"),
-                "steps": self._build_download_scan_tour_steps(),
-            },
-            "radio": {
-                "id": "radio",
-                "title": self.tr("tour_def_radio_title", "NetMon Radio Tour"),
-                "steps": self._build_radio_tour_steps(),
-            },
-        }
+        return build_guided_tour_primary_definitions(self)
 
     def _guided_tour_full_sequence(self):
-        sequence = []
-        for _group_title, tours in self._guided_tour_launcher_specs():
-            for tour_id, _label in tours:
-                normalized = str(tour_id or "").strip().lower()
-                if normalized in {"", "full-tour", "quickstart"}:
-                    continue
-                sequence.append(normalized)
-        return sequence
+        return build_guided_tour_full_sequence(self)
 
     def _build_full_tour_steps(self, definitions):
-        steps = [
-            {
-                "title": self.tr("tour_full_step_intro_title", "NetMon Volle Tour"),
-                "body": self.tr(
-                    "tour_full_step_intro_body",
-                    "Diese Führung arbeitet die im Tour-Tab erfassten Bereiche der Reihe nach ab. Sie ist deutlich ausführlicher als der schnelle Einstieg und eignet sich für einen kompletten Rundgang.",
-                ),
-                "prepare": lambda: self.nb.select(self.tab_settings),
-            }
-        ]
-        for tour_id in self._guided_tour_full_sequence():
-            selected = definitions.get(tour_id)
-            if not isinstance(selected, dict):
-                continue
-            steps.extend(list(selected.get("steps") or []))
-        steps.append(
-            {
-                "title": self.tr(
-                    "tour_full_step_done_title", "Volle Tour abgeschlossen"
-                ),
-                "body": self.tr(
-                    "tour_full_step_done_body",
-                    "Du hast jetzt alle aktuell erfassten Tour-Bereiche einmal der Reihe nach durchlaufen. Für einzelne Themen kannst du später gezielt in die Spezial- oder Tab-Touren zurückspringen.",
-                ),
-                "prepare": lambda: self.nb.select(self.tab_settings),
-            }
-        )
-        return steps
+        return build_full_tour_steps(self, definitions)
 
     def _guided_tour_tab_definitions(self):
-        definitions = {}
-        for spec in self._guided_tour_tab_specs():
-            tour_id = str(spec.get("id") or "").strip().lower()
-            if not tour_id:
-                continue
-            definitions[tour_id] = {
-                "id": tour_id,
-                "title": str(spec.get("tour_title") or "NetMon Tab Tour").strip(),
-                "steps": self._build_guided_tab_tour_steps(spec),
-            }
-        return definitions
+        return build_guided_tour_tab_definitions(self)
 
     def _guided_tour_tab_specs(self):
         return [
@@ -8780,88 +9198,10 @@ class App(TkBase):
         ]
 
     def _build_guided_tab_tour_steps(self, spec):
-        tab_title = str(spec.get("tab_title") or "Tab").strip() or "Tab"
-        description = str(spec.get("description") or "").strip()
-        hint = spec.get("hint")
-        target = spec.get("target") or spec.get("tab_attr")
-        prepare = self._guided_tour_tab_prepare_callable(
-            str(spec.get("selector") or "").strip().lower(),
-            str(spec.get("tab_attr") or "").strip(),
-        )
-        steps = [
-            {
-                "title": self.tr(
-                    "tour_tab_overview_title",
-                    "{tab_title} im Überblick",
-                ).format(tab_title=tab_title),
-                "body": self.tr(
-                    "tour_tab_overview_body",
-                    "Diese Mini-Tour führt dich gezielt durch den Bereich {tab_title}. Sie erklärt kurz Zweck, Einordnung und den sinnvollsten Einstieg.",
-                ).format(tab_title=tab_title),
-                "prepare": prepare,
-            },
-            {
-                "target": target,
-                "title": tab_title,
-                "body": description,
-                "hint": hint,
-                "prepare": prepare,
-            },
-            {
-                "title": self.tr(
-                    "tour_tab_done_title",
-                    "{tab_title} abgeschlossen",
-                ).format(tab_title=tab_title),
-                "body": self.tr(
-                    "tour_tab_done_body",
-                    "Du hast jetzt den Bereich {tab_title} eingeordnet. Als nächster Schritt lohnt sich meist ein kurzer Praxistest oder der Wechsel in einen angrenzenden Fachbereich.",
-                ).format(tab_title=tab_title),
-                "hint": self.tr(
-                    "tour_tab_done_hint",
-                    "Diese Mini-Tour kannst du später erneut starten, wenn du den Bereich wieder einordnen willst.",
-                ),
-                "prepare": prepare,
-            },
-        ]
-        action = spec.get("action")
-        action_label = spec.get("action_label")
-        if callable(action) and action_label:
-            steps[1]["action"] = action
-            steps[1]["action_label"] = action_label
-            if spec.get("action_success"):
-                steps[1]["action_success"] = spec.get("action_success")
-            if spec.get("action_failure"):
-                steps[1]["action_failure"] = spec.get("action_failure")
-        detail_steps = spec.get("detail_steps") or []
-        if detail_steps:
-            normalized_steps = []
-            for raw_step in detail_steps:
-                if not isinstance(raw_step, dict):
-                    continue
-                step = dict(raw_step)
-                step.setdefault("prepare", prepare)
-                normalized_steps.append(step)
-            if normalized_steps:
-                steps = steps[:-1] + normalized_steps + steps[-1:]
-        return steps
+        return build_guided_tab_tour_steps(self, spec)
 
     def _guided_tour_tab_prepare_callable(self, selector, tab_attr):
-        def _prepare():
-            tab = self.__dict__.get(tab_attr)
-            if tab is None:
-                return
-            if selector == "system":
-                self._select_system_tab(tab)
-                return
-            if selector == "tools":
-                self._select_tools_tab(tab)
-                return
-            if selector == "security":
-                self._select_security_tab(tab)
-                return
-            self.nb.select(tab)
-
-        return _prepare
+        return build_guided_tour_tab_prepare_callable(self, selector, tab_attr)
 
     def _build_quickstart_tour_steps(self):
         return [
@@ -10872,6 +11212,12 @@ class App(TkBase):
             tab = self.__dict__.get("tab_process_guard")
             if tab is not None:
                 self._select_security_tab(tab)
+        elif key == "capture":
+            tab = self.__dict__.get("tab_packet_capture")
+            if tab is not None:
+                self._select_security_tab(tab)
+        elif key == "game_mode":
+            self.open_game_mode_tab()
         elif key == "dot":
             tab = self.__dict__.get("tab_dns")
             if nb is not None and tab is not None:
@@ -11119,6 +11465,66 @@ class App(TkBase):
         )
         return self._show_context_menu(menu, event)
 
+    def show_capture_menu(self, event):
+        menu = tk.Menu(self, tearoff=0)
+        menu.add_command(
+            label="Capture starten",
+            command=lambda: self._run_security_monitor_menu_action(
+                self.packet_capture_start_async,
+                target_tab="capture",
+                action_delay_ms=140,
+            ),
+        )
+        menu.add_command(
+            label="Capture stoppen",
+            command=lambda: self._run_security_monitor_menu_action(
+                self.packet_capture_stop,
+                target_tab="capture",
+                action_delay_ms=140,
+            ),
+        )
+        menu.add_separator()
+        menu.add_command(
+            label="In Wireshark öffnen",
+            command=lambda: self._run_security_monitor_menu_action(
+                self.open_packet_capture_in_wireshark,
+                target_tab="capture",
+                action_delay_ms=140,
+            ),
+        )
+        return self._show_context_menu(menu, event)
+
+    def show_game_mode_menu(self, event):
+        menu = tk.Menu(self, tearoff=0)
+        for preset_id in (
+            "singleplayer",
+            "online",
+            "steam",
+            "heroic",
+            "lutris",
+            "lan_host",
+            "steam_remote_play",
+            "minecraft_lan",
+        ):
+            menu.add_command(
+                label=self._game_mode_preset_label(preset_id),
+                command=lambda selected_preset=preset_id: self._run_security_monitor_menu_action(
+                    lambda: self.enable_game_mode_with_preset(selected_preset),
+                    target_tab="game_mode",
+                    action_delay_ms=140,
+                ),
+            )
+        menu.add_separator()
+        menu.add_command(
+            label="Spielemodus deaktivieren",
+            command=lambda: self._run_security_monitor_menu_action(
+                self.disable_game_mode,
+                target_tab="game_mode",
+                action_delay_ms=140,
+            ),
+        )
+        return self._show_context_menu(menu, event)
+
     def show_startup_guard_menu(self, event):
         menu = tk.Menu(self, tearoff=0)
         menu.add_command(
@@ -11247,24 +11653,95 @@ class App(TkBase):
         normalized = str(target_tab or "").strip().lower()
         if normalized == "firewall":
             tab = self.__dict__.get("tab_firewall") or self.__dict__.get("tab_security")
+            subtab = self.__dict__.get("tab_firewall_overview")
+        elif normalized == "guard_events":
+            tab = self.__dict__.get("tab_firewall") or self.__dict__.get("tab_security")
+            subtab = self.__dict__.get("tab_firewall_events")
         elif normalized == "guards":
             tab = self.__dict__.get("tab_security") or self.__dict__.get("tab_firewall")
+            subtab = None
         elif normalized == "path_guard":
             tab = self.__dict__.get("tab_path_guard") or self.__dict__.get(
                 "tab_security"
             )
+            subtab = None
         elif normalized == "process_guard":
             tab = self.__dict__.get("tab_process_guard") or self.__dict__.get(
                 "tab_security"
             )
+            subtab = None
+        elif normalized in {"capture", "packet_capture"}:
+            tab = self.__dict__.get("tab_packet_capture") or self.__dict__.get(
+                "tab_security"
+            )
+            subtab = None
+        elif normalized == "game_mode":
+            self.open_game_mode_tab()
+            return
         elif normalized == "startup_guard":
             tab = self.__dict__.get("tab_startup_guard") or self.__dict__.get(
                 "tab_security"
             )
+            subtab = None
         else:
             tab = self.__dict__.get("tab_firewall") or self.__dict__.get("tab_security")
+            subtab = self.__dict__.get("tab_firewall_overview")
         if tab is not None:
             self._select_security_tab(tab)
+        firewall_subtabs = self.__dict__.get("firewall_subtabs")
+        if firewall_subtabs is not None and subtab is not None:
+            try:
+                firewall_subtabs.select(subtab)
+            except Exception:
+                pass
+
+    def open_game_mode_tab(self):
+        tab = self.__dict__.get("tab_lynis")
+        if tab is not None:
+            self._select_security_tab(tab)
+        lynis_sections = self.__dict__.get("lynis_sections")
+        hardening_tab = self.__dict__.get("tab_lynis_hardening")
+        if lynis_sections is not None and hardening_tab is not None:
+            try:
+                lynis_sections.select(hardening_tab)
+            except Exception:
+                pass
+
+    def enable_game_mode_with_preset(self, preset_id):
+        normalized = self._normalize_game_mode_preset(preset_id)
+        preset = dict(self._game_mode_presets().get(normalized, {}) or {})
+        if not preset:
+            self.log_safe(f"Spielmodus-Profil unbekannt: {preset_id}")
+            return False
+
+        current_state = dict(self.__dict__.get("game_mode_state", {}) or {})
+        active_preset_id = str(current_state.get("preset_id") or "").strip()
+        if bool(current_state.get("active")) and active_preset_id == normalized:
+            self.refresh_game_mode_status()
+            self.log_safe(
+                f"Spielmodus-Profil {str(preset.get('label') or normalized)} ist bereits aktiv."
+            )
+            return True
+
+        if bool(current_state.get("active")) and not self.disable_game_mode():
+            return False
+
+        preset_label = str(preset.get("label") or normalized).strip() or normalized
+        preset_var = self.__dict__.get("security_game_mode_preset_var")
+        if preset_var is not None:
+            try:
+                preset_var.set(preset_label)
+            except Exception:
+                pass
+        settings = self.__dict__.setdefault("settings", {})
+        settings["security_game_mode_preset"] = normalized
+        try:
+            self.save_settings(log_success=False)
+        except Exception:
+            pass
+        self.refresh_game_mode_preset_ui()
+        self.refresh_game_mode_status()
+        return self.enable_game_mode()
 
     def _run_security_monitor_menu_action(
         self,
@@ -11824,6 +12301,10 @@ class App(TkBase):
             return False
         try:
             self._select_security_tab(tab)
+            firewall_subtabs = self.__dict__.get("firewall_subtabs")
+            firewall_overview = self.__dict__.get("tab_firewall_overview")
+            if firewall_subtabs is not None and firewall_overview is not None:
+                firewall_subtabs.select(firewall_overview)
             return True
         except Exception:
             return False
@@ -14731,7 +15212,9 @@ class App(TkBase):
 
     def tooltip_lang_key(self, text: str) -> str:
         raw = str(text or "").strip()
-        digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
+        digest = hashlib.sha1(raw.encode("utf-8"), usedforsecurity=False).hexdigest()[
+            :12
+        ]
         return f"tooltip_auto_{digest}"
 
     def _translate_tooltip_text(self, text_or_key: str) -> str:
@@ -15427,154 +15910,7 @@ class App(TkBase):
         )
 
     def _build_system_tab(self):
-        top = ttk.Frame(self.tab_system)
-        top.pack(fill="x", pady=(0, 3))
-        ttk.Label(
-            top,
-            text=self.tr(
-                "system_monitor_intro",
-                "Integrierter Systemmonitor (aktualisiert alle 1-2 Sekunden).",
-            ),
-        ).pack(side="left")
-        self.btn_system_monitor_refresh = ttk.Button(
-            top,
-            text=self.tr("system_monitor_btn_refresh_now", "Jetzt aktualisieren"),
-            command=self.system_monitor_refresh,
-        )
-        self.btn_system_monitor_refresh.pack(side="right")
-
-        body = ttk.Frame(self.tab_system)
-        body.pack(fill="both", expand=True)
-        body.columnconfigure(0, weight=1)
-        body.columnconfigure(1, weight=0)
-
-        self.system_cpu_var = tk.StringVar(
-            value=self.tr("system_status_cpu_default", "CPU: –")
-        )
-        self.system_ram_var = tk.StringVar(
-            value=self.tr("system_status_ram_default", "RAM: –")
-        )
-        self.system_swap_var = tk.StringVar(
-            value=self.tr("system_status_swap_default", "Swap: –")
-        )
-        self.system_disk_var = tk.StringVar(
-            value=self.tr("system_status_disk_default", "Disk /: –")
-        )
-        self.system_temp_var = tk.StringVar(
-            value=self.tr("system_status_temp_default", "CPU temp (sensor): –")
-        )
-        self.system_gpu_temp_var = tk.StringVar(
-            value=self.tr("system_status_gpu_temp_default", "GPU temp: –")
-        )
-        self.system_uptime_var = tk.StringVar(
-            value=self.tr("system_status_uptime_default", "Uptime: –")
-        )
-
-        self.system_cpu_bar = self._system_row(
-            body, 0, "CPU-Auslastung", self.system_cpu_var
-        )
-        self.system_ram_bar = self._system_row(body, 1, "RAM", self.system_ram_var)
-        self.system_swap_bar = self._system_row(body, 2, "Swap", self.system_swap_var)
-        self.btn_system_swap_clear = ttk.Button(
-            self.system_swap_bar["box"],
-            text=self.tr("system_swap_clear_btn", "Clear swap"),
-            command=self.clear_swap_async,
-        )
-        self.btn_system_swap_clear.grid(row=2, column=0, sticky="w", pady=(8, 0))
-        self.btn_system_swap_resize = ttk.Button(
-            self.system_swap_bar["box"],
-            text=self.tr("system_swap_resize_btn", "Resize swap"),
-            command=self.resize_swap_async,
-        )
-        self.btn_system_swap_resize.grid(
-            row=2, column=0, sticky="w", padx=(110, 0), pady=(8, 0)
-        )
-        self.system_disk_bar = self._system_row(body, 3, "Disk /", self.system_disk_var)
-        self.system_temp_bar = self._system_row(
-            body,
-            4,
-            self.tr("system_group_cpu_temperature", "CPU temperature"),
-            self.system_temp_var,
-        )
-        self.system_gpu_temp_bar = self._system_row(
-            body,
-            5,
-            self.tr("system_group_gpu_temperature", "GPU temperature"),
-            self.system_gpu_temp_var,
-        )
-        self.system_cpu_bar_widget = self.system_cpu_bar["bar"]
-        self.system_temp_bar_widget = self.system_temp_bar["bar"]
-        self.system_gpu_temp_bar_widget = self.system_gpu_temp_bar["bar"]
-
-        up = ttk.LabelFrame(
-            body, text=self.tr("system_group_uptime", "Uptime"), padding=8
-        )
-        up.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(8, 0))
-        ttk.Label(up, textvariable=self.system_uptime_var).pack(anchor="w")
-
-        sysf = ttk.LabelFrame(
-            body, text=self.tr("system_group_sysinfo", "Sysinfo"), padding=8
-        )
-        sysf.grid(row=7, column=0, columnspan=2, sticky="ew", pady=(10, 0))
-        self.system_sysinfo_group = sysf
-        sysf.columnconfigure(0, weight=1)
-        sysf.columnconfigure(1, weight=1)
-        body.rowconfigure(8, weight=1)
-
-        self.sysinfo_vars = {}
-        self._build_sysinfo_group(
-            sysf,
-            row=0,
-            col=0,
-            title="Betriebssystem",
-            entries=[
-                ("os_distribution", "Distribution"),
-                ("os_version", "Version"),
-                ("os_kernel", "Kernel"),
-                ("os_arch", "Architektur"),
-                ("os_hostname", "Hostname"),
-                ("os_user", "Benutzer"),
-            ],
-        )
-        self._build_sysinfo_group(
-            sysf,
-            row=0,
-            col=1,
-            title="Hardware",
-            entries=[
-                ("hw_cpu", "CPU"),
-                ("hw_cores_threads", "Kerne/Threads"),
-                ("hw_gpu", "GPU"),
-                ("hw_board", "Mainboard"),
-                ("hw_ram_total", "RAM gesamt"),
-                ("hw_swap_total", "Swap gesamt"),
-            ],
-        )
-        self._build_sysinfo_group(
-            sysf,
-            row=1,
-            col=0,
-            title="System",
-            entries=[
-                ("sys_root", "Root /"),
-                ("sys_swap", "Swap"),
-            ],
-        )
-        self._build_sysinfo_group(
-            sysf,
-            row=1,
-            col=1,
-            title="Software",
-            entries=[
-                ("sw_python", "Python"),
-                ("sw_desktop", "Desktop-Session"),
-            ],
-        )
-
-        ttk.Frame(body).grid(row=8, column=0, columnspan=2, sticky="nsew")
-
-        self._load_sysinfo_static()
-        self._update_sysinfo_dynamic()
+        build_system_monitor(self)
 
     def _system_row(self, parent, row, title, value_var):
         box = ttk.LabelFrame(parent, text=title, padding=8)
@@ -16446,11 +16782,7 @@ class App(TkBase):
             score = (
                 100
                 if "edge" in label_low
-                else 80
-                if "junction" in label_low
-                else 60
-                if "mem" in label_low
-                else 40
+                else 80 if "junction" in label_low else 60 if "mem" in label_low else 40
             )
             ranked.append((score, cur, label))
         if ranked:
@@ -16542,9 +16874,9 @@ class App(TkBase):
                     )
                 )
                 self.system_temp_bar["bar"]["value"] = 0
-                self.system_temp_bar["bar"]["style"] = (
-                    "SystemGreen.Horizontal.TProgressbar"
-                )
+                self.system_temp_bar["bar"][
+                    "style"
+                ] = "SystemGreen.Horizontal.TProgressbar"
                 self.system_temp_bar["status"].config(text="–", fg="#666666")
             else:
                 sensor_hint = f" ({cpu_temp_label})" if cpu_temp_label else ""
@@ -16562,9 +16894,9 @@ class App(TkBase):
                     )
                 )
                 self.system_gpu_temp_bar["bar"]["value"] = 0
-                self.system_gpu_temp_bar["bar"]["style"] = (
-                    "SystemGreen.Horizontal.TProgressbar"
-                )
+                self.system_gpu_temp_bar["bar"][
+                    "style"
+                ] = "SystemGreen.Horizontal.TProgressbar"
                 self.system_gpu_temp_bar["status"].config(text="–", fg="#666666")
             else:
                 gpu_hint = f" ({gpu_temp_label})" if gpu_temp_label else ""
@@ -18528,6 +18860,331 @@ class App(TkBase):
         self.wait_window(win)
         return result["ok"]
 
+    def confirm_security_baseline_apply(
+        self,
+        title: str,
+        *,
+        profile_name: str,
+        preview_text: str = "",
+        rollback_text: str = "",
+    ) -> bool:
+        intro_text = self.tr(
+            "baseline_apply_all_confirm_intro",
+            "NetMon wendet jetzt alle freigegebenen Hardening-Schritte fuer das aktive Baseline-Profil an.",
+        )
+        preview_body = str(preview_text or "").strip() or "-"
+        rollback_body = str(rollback_text or "").strip() or "-"
+        if tk is None or ttk is None:
+            fallback_text = (
+                f"{intro_text}\n\n"
+                f"{self.tr('baseline_transfer_compare_section_profile', 'Profil')}: {profile_name}\n\n"
+                f"{self.tr('baseline_apply_all_preview_label', 'Vorschau')}:\n{preview_body}\n\n"
+                f"{self.tr('baseline_apply_all_rollback_label', 'Rollback-Hinweise')}:\n{rollback_body}\n\n"
+                f"{self.tr('btn_continue', 'Fortfahren')}?"
+            )
+            return messagebox.askyesno(title, fallback_text, parent=self)
+
+        result = {"ok": False}
+        win = tk.Toplevel(self)
+        win.title(title)
+        win.withdraw()
+        win.minsize(860, 620)
+        win.resizable(True, True)
+        win.transient(self)
+
+        outer = ttk.Frame(win, padding=12)
+        outer.pack(fill="both", expand=True)
+        outer.columnconfigure(0, weight=1)
+        outer.rowconfigure(2, weight=3)
+        outer.rowconfigure(3, weight=2)
+
+        ttk.Label(
+            outer,
+            text=intro_text,
+            justify="left",
+            wraplength=760,
+            font=("TkDefaultFont", 11, "bold"),
+        ).grid(row=0, column=0, sticky="w")
+
+        ttk.Label(
+            outer,
+            text=(
+                f"{self.tr('baseline_transfer_compare_section_profile', 'Profil')}: "
+                f"{profile_name}"
+            ),
+            justify="left",
+            wraplength=920,
+        ).grid(row=1, column=0, sticky="w", pady=(8, 10))
+
+        preview_frame = ttk.LabelFrame(
+            outer,
+            text=self.tr("baseline_apply_all_preview_label", "Vorschau"),
+            padding=6,
+        )
+        preview_frame.grid(row=2, column=0, sticky="nsew")
+        preview_frame.columnconfigure(0, weight=1)
+        preview_frame.rowconfigure(0, weight=1)
+
+        preview_scroll_y = ttk.Scrollbar(preview_frame, orient="vertical")
+        preview_scroll_y.grid(row=0, column=1, sticky="ns")
+        preview_scroll_x = ttk.Scrollbar(preview_frame, orient="horizontal")
+        preview_scroll_x.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+        preview_widget = tk.Text(
+            preview_frame,
+            wrap="none",
+            yscrollcommand=preview_scroll_y.set,
+            xscrollcommand=preview_scroll_x.set,
+            height=14,
+            relief="solid",
+            borderwidth=1,
+            font=("TkFixedFont", 10),
+        )
+        preview_widget.grid(row=0, column=0, sticky="nsew")
+        preview_scroll_y.configure(command=preview_widget.yview)
+        preview_scroll_x.configure(command=preview_widget.xview)
+        preview_widget.insert("1.0", preview_body)
+        preview_widget.configure(state="disabled")
+
+        rollback_frame = ttk.LabelFrame(
+            outer,
+            text=self.tr("baseline_apply_all_rollback_label", "Rollback-Hinweise"),
+            padding=6,
+        )
+        rollback_frame.grid(row=3, column=0, sticky="nsew", pady=(10, 0))
+        rollback_frame.columnconfigure(0, weight=1)
+        rollback_frame.rowconfigure(0, weight=1)
+
+        rollback_scroll_y = ttk.Scrollbar(rollback_frame, orient="vertical")
+        rollback_scroll_y.grid(row=0, column=1, sticky="ns")
+        rollback_scroll_x = ttk.Scrollbar(rollback_frame, orient="horizontal")
+        rollback_scroll_x.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+        rollback_widget = tk.Text(
+            rollback_frame,
+            wrap="none",
+            yscrollcommand=rollback_scroll_y.set,
+            xscrollcommand=rollback_scroll_x.set,
+            height=8,
+            relief="solid",
+            borderwidth=1,
+            font=("TkFixedFont", 10),
+        )
+        rollback_widget.grid(row=0, column=0, sticky="nsew")
+        rollback_scroll_y.configure(command=rollback_widget.yview)
+        rollback_scroll_x.configure(command=rollback_widget.xview)
+        rollback_widget.insert("1.0", rollback_body)
+        rollback_widget.configure(state="disabled")
+
+        btn_row = ttk.Frame(outer)
+        btn_row.grid(row=4, column=0, sticky="ew", pady=(12, 0))
+
+        def _close(ok: bool):
+            result["ok"] = bool(ok)
+            try:
+                win.grab_release()
+            except Exception:
+                pass
+            try:
+                win.destroy()
+            except Exception:
+                pass
+
+        ttk.Button(
+            btn_row,
+            text=self.tr("btn_cancel", "Abbrechen"),
+            command=lambda: _close(False),
+        ).pack(side="right")
+        ttk.Button(
+            btn_row,
+            text=self.tr("btn_continue", "Fortfahren"),
+            command=lambda: _close(True),
+        ).pack(side="right", padx=(0, 8))
+
+        win.protocol("WM_DELETE_WINDOW", lambda: _close(False))
+        try:
+            win.update_idletasks()
+            width = max(980, min(win.winfo_reqwidth() + 32, 1280))
+            height = max(760, min(win.winfo_reqheight() + 32, 920))
+            parent_x = self.winfo_rootx()
+            parent_y = self.winfo_rooty()
+            parent_w = max(self.winfo_width(), 1)
+            parent_h = max(self.winfo_height(), 1)
+            x = parent_x + max((parent_w - width) // 2, 20)
+            y = parent_y + max((parent_h - height) // 2, 20)
+            win.geometry(f"{width}x{height}+{x}+{y}")
+            win.deiconify()
+            win.grab_set()
+            win.focus_force()
+            preview_widget.focus_set()
+        except Exception:
+            pass
+        self.wait_window(win)
+        return result["ok"]
+
+    def confirm_game_mode_apply(
+        self,
+        title: str,
+        *,
+        preset_name: str,
+        actions_text: str = "",
+        profile_note: str = "",
+        kernel_note: str = "",
+    ) -> bool:
+        intro_text = self.tr(
+            "game_mode_enable_intro",
+            "NetMon schaltet jetzt einen temporaeren Kompatibilitaetsmodus fuer Spiele ein.",
+        )
+        actions_body = (
+            str(actions_text or "").strip() or "- keine Aenderungen notwendig"
+        )
+        profile_body = str(profile_note or "").strip() or "-"
+        kernel_body = str(kernel_note or "").strip() or "-"
+
+        if tk is None or ttk is None or self.__dict__.get("tk") is None:
+            fallback_text = self.tr(
+                "game_mode_enable_prompt",
+                "NetMon schaltet jetzt einen temporaeren Kompatibilitaetsmodus fuer Spiele ein.\n\n"
+                "Profil: {preset}\n\n"
+                "Geplante Schritte:\n{actions}\n\n"
+                "Profilhinweis:\n{profile_note}\n\n"
+                "Kernel-Hinweis:\n{kernel_note}\n\n"
+                "Beim Deaktivieren versucht NetMon den vorherigen Zustand wiederherzustellen.\n\n"
+                "Fortfahren?",
+            ).format(
+                preset=preset_name,
+                actions=actions_body,
+                profile_note=profile_body,
+                kernel_note=kernel_body,
+            )
+            return messagebox.askyesno(title, fallback_text, parent=self)
+
+        result = {"ok": False}
+        win = tk.Toplevel(self)
+        win.title(title)
+        win.withdraw()
+        win.minsize(840, 620)
+        win.resizable(True, True)
+        win.transient(self)
+
+        outer = ttk.Frame(win, padding=12)
+        outer.pack(fill="both", expand=True)
+        outer.columnconfigure(0, weight=1)
+        outer.rowconfigure(2, weight=1)
+        outer.rowconfigure(3, weight=1)
+        outer.rowconfigure(4, weight=1)
+
+        ttk.Label(
+            outer,
+            text=intro_text,
+            justify="left",
+            wraplength=760,
+            font=("TkDefaultFont", 11, "bold"),
+        ).grid(row=0, column=0, sticky="w")
+
+        ttk.Label(
+            outer,
+            text=f"{self.tr('baseline_transfer_compare_section_profile', 'Profil')}: {preset_name}",
+            justify="left",
+            wraplength=760,
+        ).grid(row=1, column=0, sticky="w", pady=(8, 10))
+
+        section_specs = [
+            (
+                self.tr("game_mode_enable_actions_label", "Geplante Schritte"),
+                actions_body,
+                10,
+            ),
+            (
+                self.tr("game_mode_enable_profile_note_label", "Profilhinweis"),
+                profile_body,
+                8,
+            ),
+            (
+                self.tr("game_mode_enable_kernel_note_label", "Kernel-Hinweis"),
+                kernel_body
+                + "\n\n"
+                + self.tr(
+                    "game_mode_enable_rollback_note",
+                    "Beim Deaktivieren versucht NetMon den vorherigen Zustand wiederherzustellen.",
+                ),
+                8,
+            ),
+        ]
+
+        for row_index, (section_title, section_body, height) in enumerate(
+            section_specs,
+            start=2,
+        ):
+            frame = ttk.LabelFrame(outer, text=section_title, padding=6)
+            frame.grid(
+                row=row_index,
+                column=0,
+                sticky="nsew",
+                pady=(0, 10) if row_index < 4 else (0, 0),
+            )
+            frame.columnconfigure(0, weight=1)
+            frame.rowconfigure(0, weight=1)
+
+            scroll_y = ttk.Scrollbar(frame, orient="vertical")
+            scroll_y.grid(row=0, column=1, sticky="ns")
+            widget = tk.Text(
+                frame,
+                wrap="word",
+                yscrollcommand=scroll_y.set,
+                height=height,
+                relief="solid",
+                borderwidth=1,
+                font=("TkDefaultFont", 10),
+            )
+            widget.grid(row=0, column=0, sticky="nsew")
+            scroll_y.configure(command=widget.yview)
+            widget.insert("1.0", section_body)
+            widget.configure(state="disabled")
+
+        btn_row = ttk.Frame(outer)
+        btn_row.grid(row=5, column=0, sticky="ew", pady=(12, 0))
+
+        def _close(ok: bool):
+            result["ok"] = bool(ok)
+            try:
+                win.grab_release()
+            except Exception:
+                pass
+            try:
+                win.destroy()
+            except Exception:
+                pass
+
+        ttk.Button(
+            btn_row,
+            text=self.tr("button_no", "Nein"),
+            command=lambda: _close(False),
+        ).pack(side="right")
+        ttk.Button(
+            btn_row,
+            text=self.tr("button_yes", "Ja"),
+            command=lambda: _close(True),
+        ).pack(side="right", padx=(0, 8))
+
+        win.protocol("WM_DELETE_WINDOW", lambda: _close(False))
+        try:
+            win.update_idletasks()
+            width = max(960, min(win.winfo_reqwidth() + 32, 1260))
+            height = max(760, min(win.winfo_reqheight() + 32, 920))
+            parent_x = self.winfo_rootx()
+            parent_y = self.winfo_rooty()
+            parent_w = max(self.winfo_width(), 1)
+            parent_h = max(self.winfo_height(), 1)
+            x = parent_x + max((parent_w - width) // 2, 20)
+            y = parent_y + max((parent_h - height) // 2, 20)
+            win.geometry(f"{width}x{height}+{x}+{y}")
+            win.deiconify()
+            win.grab_set()
+            win.focus_force()
+        except Exception:
+            pass
+        self.wait_window(win)
+        return result["ok"]
+
     def _get_about_program_system_info(self):
         distro_name = "folgt"
         try:
@@ -18795,6 +19452,11 @@ class App(TkBase):
             text=self.tr("about_title", "Über NetMon"),
             font=("TkDefaultFont", 11, "bold"),
         ).grid(row=0, column=0, sticky="w")
+        ttk.Button(
+            outer,
+            text=self.tr("about_donation_button", "NetMon Roots unterstützen"),
+            command=self.open_netmon_roots_donation,
+        ).grid(row=0, column=1, sticky="e", padx=(8, 0))
 
         content_wrap = ttk.Frame(outer)
         content_wrap.grid(row=1, column=0, columnspan=2, sticky="nsew", pady=(8, 0))
@@ -18889,8 +19551,8 @@ class App(TkBase):
         )
         ttk.Button(
             donation_section,
-            text=self.tr("about_donation_button", "Spendenlink folgt"),
-            state="disabled",
+            text=self.tr("about_donation_button", "NetMon Roots unterstützen"),
+            command=self.open_netmon_roots_donation,
         ).pack(anchor="w", pady=(6, 0))
         docs_path = self._get_available_program_documentation_path()
         docs_section = _add_about_section(
@@ -19267,6 +19929,9 @@ class App(TkBase):
 
     def _default_download_scan_target_dir(self) -> str:
         return os.path.expanduser("~/Downloads")
+
+    def _default_backup_data_target_dir(self) -> str:
+        return os.path.abspath(os.path.expanduser("~/NetMon-Backups"))
 
     def _download_scan_temp_dir_candidates(
         self, preferred: str | None = None
@@ -19657,8 +20322,8 @@ class App(TkBase):
         actions.pack(fill="x", pady=(14, 0))
         ttk.Button(
             actions,
-            text=self.tr("donation_popup_paypal_placeholder", "PayPal folgt"),
-            state="disabled",
+            text=self.tr("donation_popup_paypal_button", "Mit PayPal unterstützen"),
+            command=self.open_netmon_roots_donation,
         ).pack(side="left")
         ttk.Button(
             actions,
@@ -19705,6 +20370,8 @@ class App(TkBase):
             "systemcheck_lynis": True,
             "systemcheck_rkhunter": False,
             "systemcheck_clamav": False,
+            "security_baseline_profile_id": "zorin_desktop_development",
+            "security_game_mode_preset": "online",
             "wireshark_launch_blocked": False,
             "guided_tour_offer_on_startup": True,
             "guided_tour_startup_mode": "quickstart",
@@ -19722,6 +20389,18 @@ class App(TkBase):
             "clamav_quickscan_custom_paths": [],
             "download_scan_temp_dir": self._default_download_scan_temp_dir(),
             "download_scan_target_dir": self._default_download_scan_target_dir(),
+            "backup_data_target_dir": self._default_backup_data_target_dir(),
+            "backup_include_documents": True,
+            "backup_include_pictures": True,
+            "backup_include_desktop": True,
+            "backup_include_music": True,
+            "backup_include_videos": True,
+            "backup_include_downloads": True,
+            "backup_include_netmon_documents": True,
+            "backup_netmon_full": False,
+            "backup_netmon_selected_dirs": [],
+            "backup_last_data_backup_path": "",
+            "backup_last_data_backup_at": "",
             "download_scan_prequarantine_startup": False,
             "download_scan_auto_move": False,
             "download_scan_ask_before_move": True,
@@ -19845,6 +20524,9 @@ class App(TkBase):
             "var_systemcheck_clamav": bool(
                 self.settings.get("systemcheck_clamav", False)
             ),
+            "security_game_mode_preset_var": str(
+                self.settings.get("security_game_mode_preset", "online") or "online"
+            ),
             "var_wireshark_launch_blocked": bool(
                 self.settings.get("wireshark_launch_blocked", False)
             ),
@@ -19870,6 +20552,34 @@ class App(TkBase):
                     self._default_download_scan_target_dir(),
                 )
                 or self._default_download_scan_target_dir()
+            ),
+            "backup_target_dir_var": str(
+                self.settings.get(
+                    "backup_data_target_dir",
+                    self._default_backup_data_target_dir(),
+                )
+                or self._default_backup_data_target_dir()
+            ),
+            "backup_include_documents_var": bool(
+                self.settings.get("backup_include_documents", True)
+            ),
+            "backup_include_pictures_var": bool(
+                self.settings.get("backup_include_pictures", True)
+            ),
+            "backup_include_desktop_var": bool(
+                self.settings.get("backup_include_desktop", True)
+            ),
+            "backup_include_music_var": bool(
+                self.settings.get("backup_include_music", True)
+            ),
+            "backup_include_videos_var": bool(
+                self.settings.get("backup_include_videos", True)
+            ),
+            "backup_include_downloads_var": bool(
+                self.settings.get("backup_include_downloads", True)
+            ),
+            "backup_include_netmon_documents_var": bool(
+                self.settings.get("backup_include_netmon_documents", True)
             ),
             "download_scan_prequarantine_startup_var": bool(
                 self.settings.get("download_scan_prequarantine_startup", False)
@@ -19964,14 +20674,7 @@ class App(TkBase):
                 self.settings.get("chad_answer_recommendations", True)
             ),
         }
-        for attr_name, value in mapping.items():
-            var = self.__dict__.get(attr_name)
-            if var is None:
-                continue
-            try:
-                var.set(value)
-            except Exception:
-                pass
+        sync_app_vars_from_mapping(self, mapping)
         self.refresh_guided_tour_status()
         self.refresh_donation_settings_controls()
 
@@ -20076,326 +20779,47 @@ class App(TkBase):
             self.log(f"[WARN] Einstellungen konnten nicht gespeichert werden: {e}")
 
     def apply_settings_from_ui(self):
-        def _var_value(name, default):
-            var = self.__dict__.get(name)
-            if var is None:
-                return default
-            try:
-                return var.get()
-            except Exception:
-                return default
-
         previous_language = str(self.settings.get("language", "de") or "de")
         new_language = self._language_choice_code(self.var_language.get())
         language_changed = new_language != previous_language
         new_theme = (
-            str(_var_value("var_theme_choice", self.settings.get("theme", "dark")))
+            str(
+                app_var_value(
+                    self, "var_theme_choice", self.settings.get("theme", "dark")
+                )
+            )
             .strip()
             .lower()
             or "dark"
         )
 
-        self.settings["language"] = new_language
-        self.settings["startup_guard_autorun"] = bool(
-            self.var_startup_guard_autorun.get()
+        update_base_network_settings_from_app(self, new_language=new_language)
+        update_theme_logging_settings_from_app(
+            self,
+            new_theme=new_theme,
+            normalize_hex_color=normalize_hex_color,
         )
-        self.settings["process_guard_autorun"] = bool(
-            _var_value(
-                "var_process_guard_autorun",
-                self.settings.get("process_guard_autorun", True),
-            )
-        )
-        self.settings["path_guard_autorun"] = bool(self.var_path_guard_autorun.get())
-        self.settings["start_network_mode"] = "system"
-        self.settings["start_vpn_profile"] = ""
-        self.settings["dns_guard_enabled"] = bool(self.var_dns_guard_enabled.get())
-        dnssec_mode = (
-            str(
-                _var_value(
-                    "var_dnssec_mode",
-                    self.settings.get("dnssec_mode", "standard"),
-                )
-            )
-            .strip()
-            .lower()
-            or "standard"
-        )
-        self.settings["dnssec_mode"] = (
-            "strict" if dnssec_mode == "strict" else "standard"
-        )
-        self.settings["isp_dns_fallback_profile"] = (
-            self._normalize_isp_dns_fallback_profile(
-                _var_value(
-                    "var_isp_dns_fallback_profile",
-                    self.settings.get("isp_dns_fallback_profile"),
-                )
-            )
-        )
-        self.settings["start_killswitch"] = False
-        self.settings["start_security_monitoring"] = bool(
-            _var_value(
-                "var_start_security_monitoring",
-                self.settings.get("start_security_monitoring", False),
-            )
-        )
-        self.settings["start_dot"] = False
-        self.settings["theme"] = self._normalize_theme_name(new_theme)
-        self.settings["theme_custom_accent"] = normalize_hex_color(
-            _var_value(
-                "var_theme_studio_accent",
-                self.settings.get("theme_custom_accent", ""),
-            )
-        )
-        self.settings["theme_custom_panel_bg"] = normalize_hex_color(
-            _var_value(
-                "var_theme_studio_panel",
-                self.settings.get("theme_custom_panel_bg", ""),
-            )
-        )
-        self.settings["theme_custom_style"] = (
-            str(
-                _var_value(
-                    "var_theme_studio_style",
-                    self.settings.get("theme_custom_style", "dezent"),
-                )
-            )
-            .strip()
-            .lower()
-            or "dezent"
-        )
-        self.settings["theme_custom_profile_name"] = str(
-            _var_value(
-                "var_theme_studio_profile_name",
-                self.settings.get(
-                    "theme_custom_profile_name",
-                    self.tr("theme_studio_default_profile_name", "My Theme"),
-                ),
-            )
-        ).strip() or self.tr("theme_studio_default_profile_name", "My Theme")
-        self.settings["tooltips_enabled"] = bool(
-            _var_value(
-                "tooltips_enabled",
-                self.settings.get("tooltips_enabled", True),
-            )
-        )
-        self.settings["auto_log_clear"] = bool(
-            _var_value("var_auto_log_clear", self.settings.get("auto_log_clear", False))
-        )
-        self.settings["debug_network_logging"] = bool(
-            _var_value(
-                "var_debug_network_logging",
-                self.settings.get("debug_network_logging", False),
-            )
-        )
-        self.settings["strict_protection"] = bool(
-            _var_value(
-                "strict_protection_var", self.settings.get("strict_protection", True)
-            )
-        )
-        ufw_logging_default = (
-            str(
-                _var_value(
-                    "var_ufw_logging_default",
-                    self.settings.get("ufw_logging_default", "keep"),
-                )
-            )
-            .strip()
-            .lower()
-            or "keep"
-        )
-        self.settings["ufw_logging_default"] = (
-            ufw_logging_default
-            if ufw_logging_default in {"keep", "off", "low", "high"}
-            else "keep"
-        )
-        self.settings["auto_switch_to_chad"] = bool(self.var_auto_switch_to_chad.get())
-        self.settings["chad_preview_popup"] = bool(self.var_chad_preview_popup.get())
-        self.settings["chad_model"] = (
-            str(self.chad_model_var.get() or "gpt-4.1-mini").strip() or "gpt-4.1-mini"
-        )
-        self.settings["systemcheck_security_summary"] = bool(
-            self.var_systemcheck_security_summary.get()
-        )
-        self.settings["systemcheck_startup_guard"] = bool(
-            self.var_systemcheck_startup_guard.get()
-        )
-        self.settings["systemcheck_path_guard"] = bool(
-            self.var_systemcheck_path_guard.get()
-        )
-        self.settings["systemcheck_process_guard"] = bool(
-            self.var_systemcheck_process_guard.get()
-        )
-        self.settings["systemcheck_lynis"] = bool(self.var_systemcheck_lynis.get())
-        self.settings["systemcheck_rkhunter"] = bool(
-            self.var_systemcheck_rkhunter.get()
-        )
-        self.settings["systemcheck_clamav"] = bool(self.var_systemcheck_clamav.get())
-        self.settings["wireshark_launch_blocked"] = bool(
-            _var_value(
-                "var_wireshark_launch_blocked",
-                self.settings.get("wireshark_launch_blocked", False),
-            )
-        )
-        self.settings["guided_tour_offer_on_startup"] = bool(
-            _var_value(
-                "var_guided_tour_offer_on_startup",
-                self.settings.get("guided_tour_offer_on_startup", True),
-            )
-        )
-        self.settings["guided_tour_startup_mode"] = (
-            "full-tour"
-            if bool(
-                _var_value(
-                    "var_guided_tour_full_on_startup",
-                    self._guided_tour_startup_mode() == "full-tour",
-                )
-            )
-            else "quickstart"
-        )
-        self.settings["guided_tour_completed"] = self._guided_tour_completed_settings()
-        donation_popup_requested = bool(
-            _var_value(
-                "var_donation_popup_enabled",
-                self.settings.get("donation_popup_enabled", True),
-            )
-        )
-        if donation_popup_requested or self.donation_popup_disable_allowed():
-            if not donation_popup_requested and bool(
-                self.settings.get("donation_popup_enabled", True)
-            ):
-                self.settings["donation_popup_disabled_at"] = int(time.time())
-            self.settings["donation_popup_enabled"] = donation_popup_requested
-        else:
-            self.settings["donation_popup_enabled"] = True
-        self.settings["clamav_quickscan_targets"] = (
-            clamav_controller.clamav_normalize_quick_target_ids(
-                self.__dict__.get("clamav_quickscan_target_ids", [])
-            )
-        )
-        self.settings["clamav_quickscan_custom_paths"] = (
-            clamav_controller.clamav_normalize_custom_quick_paths(
-                self.__dict__.get("clamav_quickscan_custom_paths", [])
-            )
-        )
-        self.settings["download_scan_temp_dir"] = (
-            str(
-                _var_value(
-                    "download_scan_temp_dir_var",
-                    self._default_download_scan_temp_dir(),
-                )
-                or self._default_download_scan_temp_dir()
-            ).strip()
-            or self._default_download_scan_temp_dir()
-        )
-        self.settings["download_scan_target_dir"] = (
-            str(
-                _var_value(
-                    "download_scan_target_dir_var",
-                    self._default_download_scan_target_dir(),
-                )
-                or self._default_download_scan_target_dir()
-            ).strip()
-            or self._default_download_scan_target_dir()
-        )
-        self.settings["download_scan_prequarantine_startup"] = bool(
-            _var_value(
-                "download_scan_prequarantine_startup_var",
-                self.settings.get("download_scan_prequarantine_startup", False),
-            )
-        )
-        self.settings["download_scan_auto_move"] = bool(
-            _var_value(
-                "download_scan_auto_move_var",
-                self.settings.get("download_scan_auto_move", False),
-            )
-        )
-        self.settings["download_scan_ask_before_move"] = bool(
-            _var_value(
-                "download_scan_ask_before_move_var",
-                self.settings.get("download_scan_ask_before_move", True),
-            )
-        )
-        self.settings["download_scan_keep_original"] = bool(
-            _var_value(
-                "download_scan_keep_original_var",
-                self.settings.get("download_scan_keep_original", True),
-            )
-        )
-        self.settings["download_scan_save_report"] = bool(
-            _var_value(
-                "download_scan_save_report_var",
-                self.settings.get("download_scan_save_report", True),
-            )
-        )
-        self.settings["speedtest_server_id"] = (
-            speedtest_controller.normalize_speedtest_server_id(
-                _var_value(
-                    "speedtest_server_id_var",
-                    self.settings.get("speedtest_server_id", ""),
-                )
-            )
-        )
-        self.settings["chad_profile"] = (
-            str(self.chad_profile_var.get() or "custom").strip().lower() or "custom"
-        )
-        self.settings["chad_analysis_mode"] = (
-            str(self.chad_analysis_mode_var.get() or "standard").strip().lower()
-            or "standard"
-        )
-        self.settings["chad_filter_relevant"] = bool(
-            self.chad_filter_relevant_var.get()
-        )
-        self.settings["chad_filter_critical"] = bool(
-            self.chad_filter_critical_var.get()
-        )
-        self.settings["chad_filter_recommendations"] = bool(
-            self.chad_filter_recommendations_var.get()
-        )
-        self.settings["chad_filter_beginner"] = bool(
-            self.chad_filter_beginner_var.get()
-        )
-        self.settings["chad_filter_rawdata"] = bool(self.chad_filter_rawdata_var.get())
-        self.settings["chad_filter_technical"] = bool(
-            self.chad_filter_technical_var.get()
-        )
-        self.settings["chad_filter_hide_normal_services"] = bool(
-            self.chad_filter_hide_normal_services_var.get()
-        )
-        self.settings["chad_filter_ignore_harmless_processes"] = bool(
-            self.chad_filter_ignore_harmless_processes_var.get()
-        )
-        self.settings["chad_filter_ignore_dev_environment"] = bool(
-            self.chad_filter_ignore_dev_environment_var.get()
-        )
-        self.settings["chad_focus_security"] = bool(self.chad_focus_security_var.get())
-        self.settings["chad_focus_dns"] = bool(self.chad_focus_dns_var.get())
-        self.settings["chad_focus_network"] = bool(self.chad_focus_network_var.get())
-        self.settings["chad_focus_process"] = bool(self.chad_focus_process_var.get())
-        self.settings["chad_focus_firewall"] = bool(self.chad_focus_firewall_var.get())
-        self.settings["chad_focus_performance"] = bool(
-            self.chad_focus_performance_var.get()
-        )
-        self.settings["chad_focus_optimization"] = bool(
-            self.chad_focus_optimization_var.get()
-        )
-        self.settings["chad_focus_rootkit"] = bool(self.chad_focus_rootkit_var.get())
-        self.settings["chad_systemcheck_profile"] = (
-            str(self.chad_systemcheck_profile_var.get() or "custom").strip().lower()
-            or "custom"
-        )
-        self.settings["chad_answer_short"] = bool(self.chad_answer_short_var.get())
-        self.settings["chad_answer_detailed"] = bool(
-            self.chad_answer_detailed_var.get()
-        )
-        self.settings["chad_answer_step"] = bool(self.chad_answer_step_var.get())
-        self.settings["chad_answer_linux_help"] = bool(
-            self.chad_answer_linux_help_var.get()
-        )
-        self.settings["chad_answer_risk"] = bool(self.chad_answer_risk_var.get())
-        self.settings["chad_answer_recommendations"] = bool(
-            self.chad_answer_recommendations_var.get()
-        )
+        update_chad_runtime_options_from_app(self)
+        update_systemcheck_settings_from_app(self)
+        update_security_tool_settings_from_app(self, speedtest_controller)
+        update_guided_tour_and_donation_settings_from_app(self)
+        update_clamav_quickscan_settings_from_app(self, clamav_controller)
+        update_backup_and_download_scan_settings_from_app(self)
+        update_chad_settings_from_app(self)
 
+        self._finalize_settings_application(new_language)
+
+        if language_changed:
+            self.log(
+                self.tr(
+                    "log_language_changed_restart",
+                    "Sprache geändert – Neustart empfohlen.",
+                )
+            )
+        self.log(self.tr("log_settings_applied", "Einstellungen übernommen."))
+
+    def _finalize_settings_application(self, new_language: str) -> None:
+        """Apply runtime state and persist an already synchronized settings payload."""
         if self.lang_service is not None:
             self.lang = self.lang_service.load(new_language)
 
@@ -20406,15 +20830,6 @@ class App(TkBase):
 
         if "privacy_config" in self.__dict__:
             self.save_privacy_config()
-
-        if language_changed:
-            self.log(
-                self.tr(
-                    "log_language_changed_restart",
-                    "Sprache geändert – Neustart empfohlen.",
-                )
-            )
-        self.log(self.tr("log_settings_applied", "Einstellungen übernommen."))
 
     def reset_settings_to_defaults(self):
         self.settings.update(self._default_settings_payload())
@@ -21033,6 +21448,821 @@ class App(TkBase):
                 "Zielordner gesetzt: {path}",
             ).format(path=normalized),
         )
+
+    def _normalized_backup_data_target_dir(self) -> str:
+        raw = str(self.backup_target_dir_var.get() or "").strip()
+        target = raw or self._default_backup_data_target_dir()
+        return os.path.abspath(os.path.expanduser(target))
+
+    def _backup_source_specs(self):
+        home = os.path.expanduser("~")
+        pictures_dir = ""
+        try:
+            pictures_dir = str(get_user_pictures_dir() or "").strip()
+        except Exception:
+            pictures_dir = ""
+        return (
+            (
+                self.tr("backup_source_documents", "Dokumente"),
+                "backup_include_documents_var",
+                [os.path.join(home, "Dokumente"), os.path.join(home, "Documents")],
+            ),
+            (
+                self.tr("backup_source_pictures", "Bilder"),
+                "backup_include_pictures_var",
+                [
+                    pictures_dir,
+                    os.path.join(home, "Bilder"),
+                    os.path.join(home, "Pictures"),
+                ],
+            ),
+            (
+                self.tr("backup_source_desktop", "Desktop"),
+                "backup_include_desktop_var",
+                [os.path.join(home, "Desktop"), os.path.join(home, "Schreibtisch")],
+            ),
+            (
+                self.tr("backup_source_music", "Musik"),
+                "backup_include_music_var",
+                [os.path.join(home, "Musik"), os.path.join(home, "Music")],
+            ),
+            (
+                self.tr("backup_source_videos", "Videos"),
+                "backup_include_videos_var",
+                [os.path.join(home, "Videos")],
+            ),
+            (
+                self.tr("backup_source_downloads", "Downloads"),
+                "backup_include_downloads_var",
+                [os.path.join(home, "Downloads")],
+            ),
+            (
+                self.tr("backup_source_netmon_documents", "NetMon-Ordner"),
+                "backup_include_netmon_documents_var",
+                [
+                    os.path.join(home, "Dokumente", "NetMon"),
+                    os.path.join(home, "Documents", "NetMon"),
+                ],
+            ),
+        )
+
+    def _selected_backup_source_entries(self) -> list[dict]:
+        selected = []
+        seen_paths = set()
+        for label, var_name, candidates in self._backup_source_specs():
+            var = self.__dict__.get(var_name)
+            enabled = True
+            if var is not None:
+                try:
+                    enabled = bool(var.get())
+                except Exception:
+                    enabled = True
+            if not enabled:
+                continue
+            chosen = ""
+            for candidate in candidates:
+                path = os.path.abspath(os.path.expanduser(str(candidate or "").strip()))
+                if not path or not os.path.exists(path):
+                    continue
+                chosen = path
+                break
+            if not chosen:
+                continue
+            key = os.path.normcase(chosen)
+            if key in seen_paths:
+                continue
+            skip_nested = False
+            for existing in selected:
+                existing_path = os.path.abspath(
+                    os.path.expanduser(str(existing.get("path") or "").strip())
+                )
+                if not existing_path:
+                    continue
+                try:
+                    if os.path.commonpath([chosen, existing_path]) == existing_path:
+                        skip_nested = True
+                        break
+                except Exception:
+                    continue
+            if skip_nested:
+                continue
+            seen_paths.add(key)
+            selected.append({"label": label, "path": chosen})
+        return selected
+
+    def _backup_target_conflict(self, target_dir: str, sources: list[dict]):
+        normalized_target = os.path.abspath(
+            os.path.expanduser(str(target_dir or "").strip())
+        )
+        if not normalized_target:
+            return None
+        for item in sources:
+            source_path = os.path.abspath(
+                os.path.expanduser(str(item.get("path") or "").strip())
+            )
+            if not source_path:
+                continue
+            try:
+                if os.path.commonpath([normalized_target, source_path]) == source_path:
+                    return {
+                        "label": str(item.get("label") or source_path),
+                        "path": source_path,
+                    }
+            except Exception:
+                continue
+        return None
+
+    def _append_backup_log(self, text: str, *, clear: bool = False):
+        message = str(text or "").strip()
+        if not message:
+            return
+        widget = self.__dict__.get("settings_backup_log_text")
+        if widget is None:
+            self.log_safe(message)
+            return
+        try:
+            widget.configure(state="normal")
+            if clear:
+                widget.delete("1.0", "end")
+            elif str(widget.get("1.0", "end-1c") or "").strip():
+                widget.insert("end", "\n\n")
+            widget.insert("end", message)
+            widget.see("end")
+            widget.configure(state="disabled")
+        except Exception:
+            self.log_safe(message)
+
+    def _netmon_backup_dir_entries(self) -> list[dict]:
+        base_dir = os.path.abspath(os.path.expanduser(get_netmon_documents_dir()))
+        label_map = {
+            "Config": "Config",
+            "Security": "Security",
+            "Logs": "Logs",
+            "Log-Pics": "Log-Pics",
+            "Secure Browser": "Secure Browser",
+            "support": "Support",
+            "diagnostics": "Diagnostik",
+            "ThemeStudio": "ThemeStudio",
+            "WireGuard": "WireGuard",
+        }
+        entries = []
+        if not os.path.isdir(base_dir):
+            return entries
+        try:
+            child_names = sorted(os.listdir(base_dir), key=lambda item: item.lower())
+        except Exception:
+            return entries
+        for name in child_names:
+            path = os.path.join(base_dir, name)
+            if not os.path.isdir(path):
+                continue
+            entries.append(
+                {
+                    "key": name,
+                    "label": label_map.get(name, name),
+                    "path": path,
+                }
+            )
+        return entries
+
+    def _netmon_backup_selected_entries(self) -> list[dict]:
+        base_dir = os.path.abspath(os.path.expanduser(get_netmon_documents_dir()))
+        if bool(self.backup_netmon_full_var.get()):
+            if os.path.isdir(base_dir):
+                return [
+                    {
+                        "key": "__all__",
+                        "label": "NetMon komplett",
+                        "path": base_dir,
+                    }
+                ]
+            return []
+        selected = []
+        for entry in self._netmon_backup_dir_entries():
+            key = str(entry.get("key") or "").strip()
+            var = (self.__dict__.get("backup_netmon_dir_vars") or {}).get(key)
+            if var is None:
+                continue
+            try:
+                enabled = bool(var.get())
+            except Exception:
+                enabled = False
+            if enabled:
+                selected.append(entry)
+        return selected
+
+    def _update_netmon_backup_selection_summary(self):
+        selected = self._netmon_backup_selected_entries()
+        if selected:
+            if selected[0].get("key") == "__all__":
+                self.backup_selected_sources_var.set(
+                    "NetMon-Auswahl: kompletter Dokumente/NetMon-Ordner"
+                )
+            else:
+                labels = ", ".join(item["label"] for item in selected)
+                self.backup_selected_sources_var.set(
+                    f"NetMon-Auswahl: {len(selected)} Ordner -> {labels}"
+                )
+        else:
+            self.backup_selected_sources_var.set(
+                "NetMon-Auswahl: keine Ordner markiert"
+            )
+
+    def _on_backup_netmon_full_toggle(self):
+        if bool(self.backup_netmon_full_var.get()):
+            for var in (self.__dict__.get("backup_netmon_dir_vars") or {}).values():
+                try:
+                    var.set(False)
+                except Exception:
+                    pass
+        self._update_netmon_backup_selection_summary()
+
+    def _on_backup_netmon_item_toggle(self, key: str = ""):
+        if key:
+            self.backup_netmon_selected_dir_keys = [
+                k for k in self.backup_netmon_selected_dir_keys if k != key
+            ]
+        try:
+            if bool(self.backup_netmon_full_var.get()):
+                self.backup_netmon_full_var.set(False)
+        except Exception:
+            pass
+        self._update_netmon_backup_selection_summary()
+
+    def refresh_netmon_backup_folder_options(self):
+        frame = self.__dict__.get("backup_netmon_select_frame")
+        if frame is None:
+            return False
+        previous_selection = set(
+            self.settings.get("backup_netmon_selected_dirs", []) or []
+        )
+        current_vars = self.__dict__.get("backup_netmon_dir_vars") or {}
+        for key, var in current_vars.items():
+            try:
+                if bool(var.get()):
+                    previous_selection.add(str(key))
+            except Exception:
+                pass
+        for child in frame.winfo_children():
+            try:
+                child.destroy()
+            except Exception:
+                pass
+        self.backup_netmon_dir_vars = {}
+
+        full_toggle = ttk.Checkbutton(
+            frame,
+            text=self.tr(
+                "backup_netmon_full_folder",
+                "NetMon-Ordner komplett",
+            ),
+            variable=self.backup_netmon_full_var,
+            command=self._on_backup_netmon_full_toggle,
+        )
+        full_toggle.grid(row=0, column=0, sticky="w")
+
+        entries = self._netmon_backup_dir_entries()
+        for column in range(2):
+            frame.columnconfigure(column, weight=1)
+        for idx, entry in enumerate(entries, start=1):
+            key = str(entry.get("key") or "").strip()
+            var = tk.BooleanVar(value=key in previous_selection)
+            self.backup_netmon_dir_vars[key] = var
+            ttk.Checkbutton(
+                frame,
+                text=str(entry.get("label") or key),
+                variable=var,
+                command=lambda selected_key=key: self._on_backup_netmon_item_toggle(
+                    selected_key
+                ),
+            ).grid(
+                row=1 + ((idx - 1) // 2),
+                column=(idx - 1) % 2,
+                sticky="w",
+                padx=(0, 12) if (idx - 1) % 2 == 0 else (0, 0),
+                pady=(4, 0),
+            )
+        self._update_netmon_backup_selection_summary()
+        return True
+
+    def open_netmon_documents_folder(self):
+        target = os.path.abspath(os.path.expanduser(get_netmon_documents_dir()))
+        if not os.path.isdir(target):
+            try:
+                os.makedirs(target, exist_ok=True)
+            except Exception:
+                pass
+        opened = self._open_path_with_xdg_open(target, label="NetMon-Ordner")
+        if opened:
+            self.backup_status_var.set(f"NetMon-Ordner geöffnet: {target}")
+        return opened
+
+    def export_netmon_documents_backup(self):
+        selected = self._netmon_backup_selected_entries()
+        if not selected:
+            messagebox.showinfo(
+                self.tr("backup_netmon_export_title", "NetMon-Sicherung exportieren"),
+                self.tr(
+                    "backup_netmon_export_no_selection",
+                    "Es sind keine NetMon-Ordner für den Export ausgewählt.",
+                ),
+                parent=self,
+            )
+            self.backup_status_var.set(
+                "NetMon-Sicherung nicht gestartet: keine Auswahl."
+            )
+            return False
+
+        target_root = filedialog.askdirectory(
+            title=self.tr(
+                "backup_netmon_export_target_title",
+                "Externes Ziel für NetMon-Sicherung wählen",
+            ),
+            initialdir=os.path.expanduser("~"),
+        )
+        if not target_root:
+            self.backup_status_var.set("NetMon-Sicherung abgebrochen.")
+            return False
+        target_root = os.path.abspath(os.path.expanduser(target_root))
+
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        export_dir = os.path.join(target_root, f"netmon_documents_backup_{timestamp}")
+        self._append_backup_log(
+            "NetMon-Sicherung gestartet:\n"
+            + f"- Ziel: {export_dir}\n"
+            + "\n".join(f"- {item['label']}: {item['path']}" for item in selected),
+            clear=False,
+        )
+        copied = []
+        try:
+            os.makedirs(export_dir, exist_ok=False)
+            if selected[0].get("key") == "__all__":
+                target_path = os.path.join(export_dir, "NetMon")
+                shutil.copytree(
+                    selected[0]["path"],
+                    target_path,
+                    dirs_exist_ok=True,
+                    symlinks=True,
+                    copy_function=shutil.copy2,
+                )
+                copied.append({"label": "NetMon komplett", "target": target_path})
+            else:
+                for item in selected:
+                    target_path = os.path.join(
+                        export_dir, os.path.basename(item["path"])
+                    )
+                    shutil.copytree(
+                        item["path"],
+                        target_path,
+                        dirs_exist_ok=True,
+                        symlinks=True,
+                        copy_function=shutil.copy2,
+                    )
+                    copied.append({"label": item["label"], "target": target_path})
+
+            manifest = {
+                "created_at": datetime.now().isoformat(timespec="seconds"),
+                "export_dir": export_dir,
+                "selection": copied,
+            }
+            manifest_path = os.path.join(
+                export_dir, "netmon_documents_backup_manifest.json"
+            )
+            ok, err = safe_write_json(
+                manifest_path,
+                manifest,
+                indent=2,
+                ensure_ascii=False,
+            )
+            if not ok:
+                raise RuntimeError(
+                    str(err or "Manifest konnte nicht geschrieben werden.")
+                )
+        except Exception as exc:
+            self.backup_status_var.set("NetMon-Sicherung fehlgeschlagen.")
+            self._append_backup_log(f"NetMon-Sicherung fehlgeschlagen:\n- {exc}")
+            messagebox.showerror(
+                self.tr("backup_netmon_export_title", "NetMon-Sicherung exportieren"),
+                self.tr(
+                    "backup_netmon_export_failed",
+                    "Die NetMon-Sicherung konnte nicht exportiert werden.",
+                )
+                + f"\n\n{exc}",
+                parent=self,
+            )
+            return False
+
+        self.backup_status_var.set(
+            f"NetMon-Sicherung exportiert: {os.path.basename(export_dir)}"
+        )
+        self._append_backup_log(
+            "NetMon-Sicherung abgeschlossen:\n"
+            + f"- Ziel: {export_dir}\n"
+            + "\n".join(f"- {item['label']} -> {item['target']}" for item in copied)
+        )
+        return True
+
+    def _latest_data_backup_directory(self) -> str:
+        remembered = str(
+            self.settings.get("backup_last_data_backup_path", "") or ""
+        ).strip()
+        if remembered and os.path.isdir(remembered):
+            return os.path.abspath(os.path.expanduser(remembered))
+        target_root = self._normalized_backup_data_target_dir()
+        if not os.path.isdir(target_root):
+            return ""
+        candidates = []
+        try:
+            for name in os.listdir(target_root):
+                path = os.path.join(target_root, name)
+                if not os.path.isdir(path):
+                    continue
+                if not name.startswith("netmon_fullbackup_"):
+                    continue
+                try:
+                    stamp = os.path.getmtime(path)
+                except Exception:
+                    stamp = 0.0
+                candidates.append((stamp, path))
+        except Exception:
+            return ""
+        if not candidates:
+            return ""
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        return candidates[0][1]
+
+    def _latest_timeshift_snapshot_directory(self) -> str:
+        candidate_roots = [
+            "/timeshift/snapshots",
+            "/run/timeshift/backup/timeshift/snapshots",
+        ]
+        snapshots = []
+        for root in candidate_roots:
+            if not os.path.isdir(root):
+                continue
+            try:
+                for name in os.listdir(root):
+                    path = os.path.join(root, name)
+                    if not os.path.isdir(path):
+                        continue
+                    try:
+                        stamp = os.path.getmtime(path)
+                    except Exception:
+                        stamp = 0.0
+                    snapshots.append((stamp, path))
+            except Exception:
+                continue
+        if not snapshots:
+            return ""
+        snapshots.sort(key=lambda item: item[0], reverse=True)
+        return snapshots[0][1]
+
+    def choose_backup_target_dir(self):
+        folder = filedialog.askdirectory(
+            title=self.tr("backup_target_dialog_title", "Backup-Ziel waehlen"),
+            initialdir=self._normalized_backup_data_target_dir(),
+        )
+        if not folder:
+            return False
+        normalized = os.path.abspath(os.path.expanduser(folder))
+        self.backup_target_dir_var.set(normalized)
+        self.settings["backup_data_target_dir"] = normalized
+        self.save_settings(log_success=False)
+        self.backup_status_var.set(f"Backup-Ziel aktualisiert: {normalized}")
+        self._append_backup_log(f"Backup-Ziel gesetzt: {normalized}")
+        self.refresh_backup_overview()
+        return True
+
+    def open_backup_target_dir(self):
+        target = self._normalized_backup_data_target_dir()
+        try:
+            os.makedirs(target, exist_ok=True)
+        except Exception:
+            pass
+        opened = self._open_path_with_xdg_open(target, label="Backup-Ordner")
+        if opened:
+            self.backup_status_var.set(f"Backup-Ordner geoeffnet: {target}")
+        return opened
+
+    def open_security_baseline_transfer_folder(self):
+        target = self._security_baseline_transfer_directory()
+        opened = self._open_path_with_xdg_open(target, label="Transfer-Ordner")
+        if opened:
+            self.backup_status_var.set(f"Transfer-Ordner geoeffnet: {target}")
+        return opened
+
+    def refresh_backup_overview(self):
+        command, path = self._resolve_timeshift_launch_command()
+        if command is not None:
+            self.backup_timeshift_status_var.set(
+                f"Timeshift: installiert ({path or command[0]})"
+            )
+        elif has_cmd("timeshift"):
+            self.backup_timeshift_status_var.set(
+                "Timeshift: CLI vorhanden, grafischer Launcher fehlt"
+            )
+        else:
+            self.backup_timeshift_status_var.set("Timeshift: nicht installiert")
+
+        if os.geteuid() == 0:
+            self.backup_root_status_var.set("Root: aktiv")
+        elif bool(getattr(self, "sudo_nopasswd", False)):
+            self.backup_root_status_var.set("Root: sudo-Session aktiv")
+        else:
+            self.backup_root_status_var.set("Root: aktuell nicht aktiv")
+
+        snapshot_dir = self._latest_timeshift_snapshot_directory()
+        if snapshot_dir:
+            try:
+                stamp = datetime.fromtimestamp(os.path.getmtime(snapshot_dir)).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+            except Exception:
+                stamp = "unbekannt"
+            self.backup_last_snapshot_var.set(
+                f"Letzter Snapshot: {stamp} ({os.path.basename(snapshot_dir)})"
+            )
+        else:
+            self.backup_last_snapshot_var.set(
+                "Letzter Snapshot: noch nicht automatisch erkannt"
+            )
+
+        backup_tool = self._resolve_data_backup_tool(restore=False)
+        restore_tool = self._resolve_data_backup_tool(restore=True)
+        if backup_tool is not None:
+            label = str(backup_tool.get("label") or "Desktop-Backup-Tool").strip()
+            self.backup_data_tool_status_var.set(f"Datensicherung: {label}")
+            if restore_tool is not None and not bool(
+                backup_tool.get("supports_restore_mode", False)
+            ):
+                self.backup_data_tool_hint_var.set(
+                    f"Hinweis: {label} verwaltet Sicherung und Wiederherstellung im selben Fenster."
+                )
+            else:
+                self.backup_data_tool_hint_var.set(
+                    f"Hinweis: {label} wird direkt aus NetMon geöffnet."
+                )
+            self.backup_last_data_backup_var.set(
+                "Letztes Datenbackup: wird vom Desktop-Tool selbst verwaltet"
+            )
+        else:
+            self.backup_data_tool_status_var.set(
+                "Datensicherung: kein unterstütztes Desktop-Tool erkannt"
+            )
+            self.backup_last_data_backup_var.set("Letztes Datenbackup: unbekannt")
+            self.backup_data_tool_hint_var.set(
+                "Hinweis: unterstützt werden aktuell Linux Mint Datensicherung und Deja Dup."
+            )
+
+        target_dir = self._security_baseline_transfer_directory()
+        self.backup_target_status_var.set(f"NetMon-Transferordner: {target_dir}")
+        usage_base = (
+            target_dir if os.path.isdir(target_dir) else os.path.expanduser("~")
+        )
+        try:
+            usage = shutil.disk_usage(usage_base)
+            self.backup_free_space_var.set(f"Freier Speicher: {human_size(usage.free)}")
+        except Exception:
+            self.backup_free_space_var.set("Freier Speicher: unbekannt")
+
+        loaded_transfer = bool(
+            getattr(self, "security_baseline_transfer_package", None)
+        )
+        if loaded_transfer:
+            source_path = str(
+                getattr(self, "security_baseline_transfer_source_path", "") or ""
+            ).strip()
+            detail = f" ({os.path.basename(source_path)})" if source_path else ""
+            self.backup_transfer_status_var.set(f"Transferpaket: geladen{detail}")
+        else:
+            self.backup_transfer_status_var.set("Transferpaket: keines geladen")
+        self._update_netmon_backup_selection_summary()
+        return True
+
+    def check_timeshift_backup_status(self):
+        self.refresh_backup_overview()
+        status = self.backup_timeshift_status_var.get()
+        snapshot = self.backup_last_snapshot_var.get()
+        root_status = self.backup_root_status_var.get()
+        message = "\n".join([status, snapshot, root_status])
+        self.backup_status_var.set(f"Timeshift-Pruefung: {status}")
+        self.log_safe(f"Timeshift-Pruefung im Backup-Tab: {status}")
+        messagebox.showinfo(
+            self.tr("backup_timeshift_check_title", "Timeshift pruefen"),
+            message,
+            parent=self,
+        )
+        return True
+
+    def run_data_backup_async(self):
+        if bool(getattr(self, "backup_data_running", False)):
+            self.backup_status_var.set("Datenbackup laeuft bereits.")
+            return False
+
+        target_root = self._normalized_backup_data_target_dir()
+        sources = self._selected_backup_source_entries()
+        if not sources:
+            messagebox.showinfo(
+                self.tr("backup_run_title", "Komplettbackup starten"),
+                self.tr(
+                    "backup_no_sources",
+                    "Es sind keine vorhandenen Quellordner fuer das Datenbackup ausgewaehlt.",
+                ),
+                parent=self,
+            )
+            self.backup_status_var.set("Datenbackup nicht gestartet: keine Quellen.")
+            return False
+
+        conflict = self._backup_target_conflict(target_root, sources)
+        if conflict is not None:
+            messagebox.showerror(
+                self.tr("backup_run_title", "Komplettbackup starten"),
+                self.tr(
+                    "backup_target_conflict",
+                    "Das Backup-Ziel liegt innerhalb eines zu sichernden Ordners.\n\nBitte ein anderes Ziel waehlen, damit keine Rekursion entsteht.",
+                )
+                + f"\n\n{conflict['label']}: {conflict['path']}\nZiel: {target_root}",
+                parent=self,
+            )
+            self.backup_status_var.set(
+                "Datenbackup blockiert: Ziel liegt innerhalb der Quellauswahl."
+            )
+            return False
+
+        if not messagebox.askyesno(
+            self.tr("backup_run_title", "Komplettbackup starten"),
+            self.tr(
+                "backup_run_confirm",
+                "NetMon schreibt jetzt ein datiertes Komplettbackup der ausgewaehlten Benutzerordner.\n\nFortfahren?",
+            )
+            + "\n\n"
+            + "\n".join(f"- {item['label']}: {item['path']}" for item in sources)
+            + f"\n\nZiel: {target_root}",
+            parent=self,
+        ):
+            self.backup_status_var.set("Datenbackup abgebrochen.")
+            return False
+
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        backup_dir = os.path.join(target_root, f"netmon_fullbackup_{timestamp}")
+        source_log = "\n".join(f"- {item['label']}: {item['path']}" for item in sources)
+        self.backup_data_running = True
+        self.backup_status_var.set("Datenbackup laeuft ...")
+        self._append_backup_log(
+            f"Backup gestartet: {runtime_log_timestamp()}\nZiel: {backup_dir}\nQuellen:\n{source_log}",
+            clear=True,
+        )
+
+        def worker():
+            copied = []
+            errors = []
+            try:
+                os.makedirs(backup_dir, exist_ok=False)
+                for item in sources:
+                    source_path = item["path"]
+                    label = item["label"]
+                    target_name = os.path.basename(source_path.rstrip(os.sep)) or label
+                    target_path = os.path.join(backup_dir, target_name)
+                    if os.path.isdir(source_path):
+                        shutil.copytree(
+                            source_path,
+                            target_path,
+                            dirs_exist_ok=True,
+                            symlinks=True,
+                            copy_function=shutil.copy2,
+                        )
+                    else:
+                        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                        shutil.copy2(
+                            source_path,
+                            target_path,
+                            follow_symlinks=False,
+                        )
+                    copied.append(
+                        {"label": label, "source": source_path, "target": target_path}
+                    )
+                manifest = {
+                    "created_at": datetime.now().isoformat(timespec="seconds"),
+                    "target_dir": backup_dir,
+                    "sources": copied,
+                }
+                manifest_path = os.path.join(backup_dir, "netmon_backup_manifest.json")
+                ok, err = safe_write_json(
+                    manifest_path,
+                    manifest,
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                if not ok:
+                    errors.append(
+                        str(err or "Manifest konnte nicht geschrieben werden.")
+                    )
+            except Exception as exc:
+                errors.append(str(exc))
+
+            def finish():
+                self.backup_data_running = False
+                if errors:
+                    self.backup_status_var.set("Datenbackup fehlgeschlagen.")
+                    self._append_backup_log(
+                        "Backup fehlgeschlagen:\n"
+                        + "\n".join(f"- {err}" for err in errors)
+                    )
+                    self.refresh_backup_overview()
+                    return
+
+                self.settings["backup_data_target_dir"] = target_root
+                self.settings["backup_last_data_backup_path"] = backup_dir
+                self.settings["backup_last_data_backup_at"] = datetime.now().isoformat(
+                    timespec="seconds"
+                )
+                self.save_settings(log_success=False)
+                self.backup_status_var.set(
+                    f"Datenbackup abgeschlossen: {os.path.basename(backup_dir)}"
+                )
+                self._append_backup_log(
+                    "Backup abgeschlossen:\n"
+                    + f"- Ziel: {backup_dir}\n"
+                    + f"- Bereiche: {len(copied)}\n"
+                    + "\n".join(
+                        f"- {item['label']} -> {item['target']}" for item in copied
+                    )
+                )
+                self.refresh_backup_overview()
+
+            self.after(0, finish)
+
+        threading.Thread(target=worker, daemon=True).start()
+        return True
+
+    def verify_latest_data_backup(self):
+        latest_backup = self._latest_data_backup_directory()
+        if not latest_backup:
+            messagebox.showinfo(
+                self.tr("backup_verify_title", "Backup pruefen"),
+                self.tr(
+                    "backup_verify_missing",
+                    "Es wurde noch kein Datenbackup gefunden.",
+                ),
+                parent=self,
+            )
+            self.backup_status_var.set("Backup-Pruefung: kein Datenbackup gefunden.")
+            return False
+
+        manifest_path = os.path.join(latest_backup, "netmon_backup_manifest.json")
+        if not os.path.isfile(manifest_path):
+            self.backup_status_var.set(
+                "Backup-Pruefung: Manifest fehlt, Backup bitte manuell pruefen."
+            )
+            self._append_backup_log(
+                f"Backup-Pruefung: Manifest fehlt in {latest_backup}"
+            )
+            messagebox.showwarning(
+                self.tr("backup_verify_title", "Backup pruefen"),
+                self.tr(
+                    "backup_verify_manifest_missing",
+                    "Das letzte Datenbackup wurde gefunden, aber die Manifest-Datei fehlt. Bitte den Ordner manuell pruefen.",
+                )
+                + f"\n\n{latest_backup}",
+                parent=self,
+            )
+            self.refresh_backup_overview()
+            return False
+
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as handle:
+                manifest = json.load(handle)
+        except Exception as exc:
+            self.backup_status_var.set("Backup-Pruefung fehlgeschlagen.")
+            self._append_backup_log(f"Backup-Pruefung Fehler: {exc}")
+            messagebox.showerror(
+                self.tr("backup_verify_title", "Backup pruefen"),
+                self.tr(
+                    "backup_verify_failed",
+                    "Das Backup konnte nicht gelesen werden.",
+                )
+                + f"\n\n{exc}",
+                parent=self,
+            )
+            return False
+
+        sources = list(manifest.get("sources") or [])
+        summary_lines = [
+            f"Backup geprueft: {runtime_log_timestamp()}",
+            f"Ordner: {latest_backup}",
+            f"Manifest: {manifest_path}",
+            f"Bereiche: {len(sources)}",
+        ]
+        for item in sources:
+            summary_lines.append(
+                f"- {item.get('label', '-')}: {item.get('target', item.get('source', '-'))}"
+            )
+        self.backup_status_var.set(
+            f"Backup geprueft: {os.path.basename(latest_backup)}"
+        )
+        self._append_backup_log("\n".join(summary_lines))
+        self.refresh_backup_overview()
+        return True
 
     def clear_download_scan_temp_folder(self):
         target = self._normalized_download_scan_temp_dir()
@@ -21807,7 +23037,9 @@ class App(TkBase):
         try:
             return bool(self.is_vpn_active())
         except Exception as exc:
-            self.log_debug_safe(f"Startup-Killswitch: VPN-Prüfung fehlgeschlagen: {exc}")
+            self.log_debug_safe(
+                f"Startup-Killswitch: VPN-Prüfung fehlgeschlagen: {exc}"
+            )
             return False
 
     def repair_orphaned_killswitch_on_startup(self) -> bool:
@@ -23031,1157 +24263,13 @@ class App(TkBase):
         threading.Thread(target=worker, daemon=True).start()
 
     def build_settings_tab(self):
-        frame = ttk.Frame(self.tab_settings, padding=12)
-        frame.pack(fill="both", expand=True)
-        frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(0, weight=1)
+        build_settings_content(self, THEME_DISPLAY_NAMES, DNS_PROFILES)
 
-        self.settings_nb = ttk.Notebook(frame)
-        self.settings_nb.grid(row=0, column=0, sticky="nsew")
-
-        settings_general_tab = ttk.Frame(self.settings_nb, padding=12)
-        self.settings_tours_tab = ttk.Frame(self.settings_nb, padding=12)
-        settings_support_tab = ttk.Frame(self.settings_nb, padding=12)
-
-        self.settings_nb.add(
-            settings_general_tab,
-            text=self.tr("settings_tab_general", "Allgemein"),
-        )
-        self.settings_nb.add(
-            self.settings_tours_tab,
-            text=self.tr("settings_tab_tours", "Tour"),
-        )
-        self.settings_nb.add(
-            settings_support_tab,
-            text=self.tr("settings_tab_support", "Support"),
-        )
-
-        # legacy fallback reference for source-based UI tests: text="System"
-        system_group = ttk.LabelFrame(
-            settings_general_tab,
-            text=self.tr("settings_group_start_system", "Start & System"),
-            padding=10,
-        )
-        system_group.pack(fill="x", pady=(0, 10))
-        system_group.columnconfigure(1, weight=1)
-
-        system_group_actions = ttk.Frame(system_group)
-        system_group_actions.grid(row=0, column=1, sticky="e", padx=(8, 0), pady=(0, 6))
-        ttk.Button(
-            system_group_actions,
-            text=self.tr("settings_save_button", "Einstellungen speichern"),
-            command=self.apply_settings_from_ui,
-        ).pack(anchor="e")
-        ttk.Button(
-            system_group_actions,
-            text=self.tr("settings_restart_netmon_only", "NetMon neu starten"),
-            command=self.restart_netmon_only,
-        ).pack(anchor="e", pady=(6, 0))
-        ttk.Button(
-            system_group_actions,
-            text=self.tr("settings_reset_button", "Zurücksetzen"),
-            command=self.reset_settings_to_defaults,
-        ).pack(anchor="e", pady=(6, 0))
-
-        ttk.Checkbutton(
-            system_group,
-            text=self.tr(
-                "settings_autostart",
-                "NetMon automatisch beim Login starten",
-            ),
-            variable=self.autostart_var,
-            command=self.toggle_autostart,
-        ).grid(row=1, column=0, columnspan=2, sticky="w")
-
-        ttk.Checkbutton(
-            system_group,
-            text=self.tr(
-                "settings_radio_desktop_launcher",
-                "Radio-Desktopstarter aktivieren",
-            ),
-            variable=self.radio_desktop_launcher_var,
-            command=self.toggle_radio_desktop_launcher,
-        ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(4, 0))
-
-        ttk.Label(
-            system_group,
-            text=self.tr("settings_language_label", "Sprache:"),
-        ).grid(row=3, column=0, sticky="w", pady=(8, 0))
-        ttk.Combobox(
-            system_group,
-            textvariable=self.var_language,
-            values=self._language_choice_values(),
-            state="readonly",
-            width=18,
-        ).grid(row=3, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
-
-        ttk.Label(
-            system_group,
-            text=self.tr("settings_theme_label", "Theme:"),
-        ).grid(row=4, column=0, sticky="w", pady=(8, 0))
-        ttk.Combobox(
-            system_group,
-            textvariable=self.var_theme_choice,
-            values=list(THEME_DISPLAY_NAMES.values()),
-            state="readonly",
-            width=18,
-        ).grid(row=4, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
-
-        ttk.Checkbutton(
-            system_group,
-            text=self.tr(
-                "settings_start_security_monitoring",
-                "Security Monitoring beim Start aktivieren",
-            ),
-            variable=self.var_start_security_monitoring,
-        ).grid(row=5, column=0, columnspan=2, sticky="w", pady=(4, 0))
-
-        ttk.Label(
-            system_group,
-            text=self.tr("settings_isp_dns_fallback", "DNS after VPN disconnect:"),
-        ).grid(row=6, column=0, sticky="w", pady=(8, 0))
-        ttk.Combobox(
-            system_group,
-            textvariable=self.var_isp_dns_fallback_profile,
-            values=[
-                choice for choice in DNS_PROFILES if choice != "System (DHCP/auto)"
-            ],
-            state="readonly",
-            width=24,
-        ).grid(row=6, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
-
-        tooltip_group = ttk.LabelFrame(
-            settings_general_tab,
-            text=self.tr("settings_group_status_tooltips", "Status / Tooltips"),
-            padding=10,
-        )
-        tooltip_group.pack(fill="x", pady=(0, 10))
-
-        ttk.Checkbutton(
-            tooltip_group,
-            text=self.tr(
-                "settings_tooltips_enabled", "Enable tooltips in the main window"
-            ),
-            variable=self.tooltips_enabled,
-            command=self.on_tooltip_toggle,
-        ).pack(anchor="w")
-
-        ttk.Label(
-            tooltip_group,
-            text=self.tr(
-                "settings_tooltips_help_text",
-                "Status help for the left header area:\n"
-                "Firewall: left click opens Security, right click toggles / shows status.\n"
-                "VPN: left click opens VPN, right click switches profile / disconnects.\n"
-                "DNS Guard: left click opens DNS, right click opens maintenance / guard.\n"
-                "Startup Guard / Process Guard / PATH Guard: left click opens Security, "
-                "right click starts the matching check.\n"
-                "DoT / Killswitch / Security / UFW Logging: left click opens details, "
-                "right click controls the respective function.",
-            ),
-            justify="left",
-            wraplength=620,
-        ).pack(anchor="w", pady=(8, 0))
-
-        donation_group = ttk.LabelFrame(
-            settings_general_tab,
-            text=self.tr("settings_group_donation", "NetMon unterstützen"),
-            padding=10,
-        )
-        donation_group.pack(fill="x", pady=(0, 10))
-
-        donation_option_row = ttk.Frame(donation_group)
-        donation_option_row.pack(fill="x")
-        self.cb_donation_popup_enabled = ttk.Checkbutton(
-            donation_option_row,
-            text=self.tr(
-                "settings_donation_popup_enabled",
-                "Spendenhinweis beim Start anzeigen",
-            ),
-            variable=self.var_donation_popup_enabled,
-        )
-        self.cb_donation_popup_enabled.pack(side="left", anchor="w")
-        ttk.Button(
-            donation_option_row,
-            text=self.tr(
-                "settings_donation_support_button",
-                "NetMon Roots unterstützen",
-            ),
-            state="disabled",
-        ).pack(side="left", padx=(12, 0))
-        ttk.Label(
-            donation_group,
-            textvariable=self.donation_popup_settings_note_var,
-            justify="left",
-            wraplength=620,
-        ).pack(anchor="w", pady=(6, 0))
-        self.refresh_donation_settings_controls()
-
-        # source marker: self.tr("privacy_group_stealth", "ISP-Stealthmodus")
-        privacy = ttk.LabelFrame(
-            settings_general_tab,
-            text=self.tr("privacy_group_stealth", "ISP-Stealthmodus"),
-            padding=10,
-        )
-        privacy.pack(fill="x", pady=(0, 10))
-
-        ttk.Label(
-            privacy,
-            text=self.tr(
-                "privacy_intro_text",
-                "Manage the full ISP stealth mode here.",
-            ),
-            justify="left",
-        ).pack(anchor="w", pady=(0, 8))
-
-        ttk.Checkbutton(
-            privacy,
-            text=self.tr("privacy_check_enabled", "Stealth mode enabled"),
-            variable=self.isp_stealth_enabled,
-            command=self.save_privacy_config,
-        ).pack(anchor="w")
-
-        ttk.Checkbutton(
-            privacy,
-            text=self.tr("privacy_check_autostart", "Start automatically with NetMon"),
-            variable=self.isp_stealth_autostart,
-            command=self.save_privacy_config,
-        ).pack(anchor="w", pady=(4, 0))
-
-        self.cb_privacy_ipv6 = ttk.Checkbutton(
-            privacy,
-            text=self.tr("privacy_check_disable_ipv6", "Disable IPv6"),
-            variable=self.isp_stealth_disable_ipv6,
-            command=self.save_privacy_config,
-        )
-        self.cb_privacy_ipv6.pack(anchor="w", pady=(4, 0))
-        self.add_tooltip(
-            self.cb_privacy_ipv6,
-            "This option is only available if the active or selected VPN profile supports IPv6.",
-        )
-        self.privacy_ipv6_hint = ttk.Label(
-            privacy,
-            text="",
-            foreground="#666666",
-            wraplength=240,
-            justify="left",
-        )
-        self.privacy_ipv6_hint.pack(anchor="w")
-        self.cb_privacy_ipv6.pack_forget()
-        self.privacy_ipv6_hint.pack_forget()
-
-        ttk.Checkbutton(
-            privacy,
-            text=self.tr("privacy_check_killswitch", "Enable killswitch"),
-            variable=self.isp_stealth_enable_killswitch,
-            command=self.save_privacy_config,
-        ).pack(anchor="w", pady=(4, 0))
-
-        ttk.Checkbutton(
-            privacy,
-            text=self.tr(
-                "privacy_check_strict",
-                "Enable strict protection",
-            ),
-            variable=self.strict_protection_var,
-            command=self.save_privacy_config,
-        ).pack(anchor="w", pady=(4, 0))
-
-        vpn_frame = ttk.Frame(privacy)
-        vpn_frame.pack(fill="x", pady=(8, 0))
-        ttk.Label(
-            vpn_frame, text=self.tr("privacy_label_vpn_profile", "VPN profile:")
-        ).pack(side="left")
-        self.isp_stealth_vpn_combo = ttk.Combobox(
-            vpn_frame,
-            textvariable=self.isp_stealth_vpn_choice,
-            values=[item["label"] for item in self.get_privacy_vpn_options()],
-            state="readonly",
-        )
-        self.isp_stealth_vpn_combo.pack(side="left", fill="x", expand=True, padx=(8, 0))
-        self.isp_stealth_vpn_combo.bind(
-            "<<ComboboxSelected>>", lambda e: self.on_privacy_vpn_selected()
-        )
-
-        ttk.Label(
-            privacy,
-            text=self.tr(
-                "privacy_dns_profile_vpn_managed_hint",
-                "Um vor DNS-Leaks zu schützen,\n"
-                "wird das DNS-Profil vom gewählten VPN-Profil verwaltet.",
-            ),
-            justify="left",
-            wraplength=620,
-        ).pack(anchor="w", pady=(2, 0))
-
-        btn_frame = ttk.Frame(privacy)
-        btn_frame.pack(fill="x", pady=(12, 0))
-        ttk.Button(
-            btn_frame,
-            text=self.tr("privacy_btn_on", "Stealth mode ON"),
-            command=self.isp_stealth_on,
-        ).pack(side="left")
-        ttk.Button(
-            btn_frame,
-            text=self.tr("privacy_btn_off", "Stealth mode OFF"),
-            command=self.isp_stealth_off,
-        ).pack(side="left", padx=(8, 0))
-
-        security = ttk.LabelFrame(
-            settings_general_tab,
-            text=self.tr("settings_group_security", "Security"),
-            padding=10,
-        )
-        security.pack(fill="x", pady=(0, 10))
-
-        ttk.Checkbutton(
-            security,
-            text=self.tr(
-                "settings_startup_guard_autorun",
-                "Check Startup Guard on program start",
-            ),
-            variable=self.var_startup_guard_autorun,
-        ).pack(anchor="w")
-        self.cb_settings_prequarantine_startup = ttk.Checkbutton(
-            security,
-            text=self.tr(
-                "settings_prequarantine_startup",
-                "Automatically enable pre-quarantine on NetMon start",
-            ),
-            variable=self.download_scan_prequarantine_startup_var,
-            command=self.on_download_scan_prequarantine_startup_toggle,
-        )
-        self.cb_settings_prequarantine_startup.pack(anchor="w", pady=(4, 0))
-        self.add_tooltip(
-            self.cb_settings_prequarantine_startup,
-            self.tr(
-                "settings_prequarantine_startup_tooltip",
-                "Enables download pre-quarantine on NetMon start and keeps the protected temporary folder ready automatically.",
-            ),
-        )
-
-        ttk.Checkbutton(
-            security,
-            text=self.tr(
-                "settings_process_guard_autorun",
-                "Check Process Guard on program start",
-            ),
-            variable=self.var_process_guard_autorun,
-        ).pack(anchor="w", pady=(4, 0))
-
-        ttk.Checkbutton(
-            security,
-            text=self.tr(
-                "settings_path_guard_autorun",
-                "Check PATH Guard on program start",
-            ),
-            variable=self.var_path_guard_autorun,
-        ).pack(anchor="w", pady=(4, 0))
-
-        self.cb_wireshark_launch_blocked = ttk.Checkbutton(
-            security,
-            text=self.tr(
-                "settings_wireshark_launch_blocked",
-                "Block Wireshark launch inside NetMon",
-            ),
-            variable=self.var_wireshark_launch_blocked,
-            command=self.on_wireshark_launch_block_toggle,
-        )
-        self.cb_wireshark_launch_blocked.pack(anchor="w", pady=(8, 0))
-        self.add_tooltip(
-            self.cb_wireshark_launch_blocked,
-            self.tr(
-                "settings_wireshark_launch_blocked_tooltip",
-                "Blocks only Wireshark launches from NetMon. Direct launch via system menu or terminal remains possible.",
-            ),
-        )
-        ttk.Label(
-            security,
-            text=self.tr(
-                "settings_wireshark_launch_blocked_note",
-                "Note: this option only blocks Wireshark launches from NetMon "
-                "and is not a real system-wide lock.",
-            ),
-            justify="left",
-            wraplength=620,
-        ).pack(anchor="w", pady=(4, 0))
-        ttk.Label(
-            security,
-            text=self.tr(
-                "settings_wireshark_launch_blocked_system_hint",
-                "Disable system-wide: e.g. uninstall Wireshark, remove the "
-                "desktop launcher, or revoke user/group permissions for "
-                "wireshark and dumpcap.",
-            ),
-            justify="left",
-            wraplength=620,
-        ).pack(anchor="w", pady=(4, 0))
-
-        logging_group = ttk.LabelFrame(
-            settings_general_tab,
-            text=self.tr("settings_group_logging", "Logging"),
-            padding=10,
-        )
-        logging_group.pack(fill="x", pady=(0, 10))
-        logging_group.columnconfigure(1, weight=1)
-
-        ttk.Checkbutton(
-            logging_group,
-            text=self.tr(
-                "settings_auto_log_clear", "Clear log automatically on startup"
-            ),
-            variable=self.var_auto_log_clear,
-        ).grid(row=0, column=0, columnspan=2, sticky="w")
-
-        ttk.Checkbutton(
-            logging_group,
-            text=self.tr(
-                "settings_debug_network_logging",
-                "Enable advanced network debug logging",
-            ),
-            variable=self.var_debug_network_logging,
-        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
-        ttk.Button(
-            logging_group,
-            text=self.tr(
-                "settings_open_network_debug_log",
-                "Netzwerk-Debug-Log öffnen",
-            ),
-            command=self.open_network_debug_log_file,
-        ).grid(row=1, column=1, sticky="w", padx=(8, 0), pady=(4, 0))
-        ttk.Button(
-            logging_group,
-            text=self.tr(
-                "settings_clear_network_debug_log",
-                "Log-Datei leeren",
-            ),
-            command=self.clear_network_debug_log_file,
-        ).grid(row=1, column=2, sticky="w", padx=(8, 0), pady=(4, 0))
-
-        ttk.Label(
-            logging_group,
-            text=self.tr("settings_ufw_logging_default", "Default UFW logging:"),
-        ).grid(row=2, column=0, sticky="w", pady=(8, 0))
-        ttk.Combobox(
-            logging_group,
-            textvariable=self.var_ufw_logging_default,
-            values=["off", "low", "medium", "high", "full"],
-            state="readonly",
-            width=14,
-        ).grid(row=2, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
-
-        tours_group = ttk.LabelFrame(
-            self.settings_tours_tab,
-            text=self.tr("tours_group_title", "Guided tours"),
-            padding=10,
-        )
-        tours_group.pack(fill="x", pady=(0, 10))
-
-        ttk.Label(
-            tours_group,
-            text=self.tr(
-                "tours_group_intro",
-                "Starts guided introductions for major areas and individual tabs. "
-                "Completed tours are marked and can be opened again at any time.",
-            ),
-            justify="left",
-            wraplength=620,
-        ).pack(anchor="w")
-        ttk.Checkbutton(
-            tours_group,
-            text=self.tr(
-                "tours_offer_on_startup",
-                "Offer quick-start tour on startup",
-            ),
-            variable=self.var_guided_tour_offer_on_startup,
-            command=self.on_guided_tour_offer_toggle,
-        ).pack(anchor="w", pady=(8, 0))
-        ttk.Checkbutton(
-            tours_group,
-            text=self.tr(
-                "tours_default_full_on_startup",
-                "Preselect the full tour by default in the startup dialog",
-            ),
-            variable=self.var_guided_tour_full_on_startup,
-            command=self.on_guided_tour_startup_mode_toggle,
-        ).pack(anchor="w", pady=(6, 0))
-        ttk.Button(
-            tours_group,
-            text=self.tr("tours_reset_progress", "Reset tour progress"),
-            command=self.reset_guided_tour_progress,
-        ).pack(anchor="w", pady=(8, 0))
-        ttk.Label(
-            tours_group,
-            textvariable=self.guided_tour_status_var,
-            justify="left",
-            wraplength=620,
-        ).pack(anchor="w", pady=(8, 0))
-
-        tours_grid = ttk.Frame(tours_group)
-        tours_grid.pack(fill="x", pady=(10, 0))
-        tours_grid.columnconfigure(0, weight=1)
-        tours_grid.columnconfigure(1, weight=1)
-
-        launcher_columns = [ttk.Frame(tours_grid), ttk.Frame(tours_grid)]
-        launcher_columns[0].grid(row=0, column=0, sticky="nw", padx=(0, 8))
-        launcher_columns[1].grid(row=0, column=1, sticky="nw", padx=(8, 0))
-        launcher_specs = self._guided_tour_launcher_specs()
-        split_index = (len(launcher_specs) + 1) // 2
-        self.guided_tour_launcher_buttons = {}
-        for idx, (group_title, tours) in enumerate(launcher_specs):
-            column = launcher_columns[0] if idx < split_index else launcher_columns[1]
-            section = ttk.LabelFrame(column, text=group_title, padding=8)
-            section.pack(fill="x", pady=(0, 8))
-            for tour_name, base_label in tours:
-                row = ttk.Frame(section)
-                row.pack(fill="x", pady=(0, 6))
-                row.columnconfigure(1, weight=1)
-                status_label = ttk.Label(
-                    row,
-                    text=self._guided_tour_status_symbol(tour_name),
-                    width=4,
-                    anchor="w",
-                )
-                status_label.grid(row=0, column=0, sticky="w")
-                title_label = ttk.Label(
-                    row,
-                    text=base_label,
-                    anchor="w",
-                )
-                title_label.grid(row=0, column=1, sticky="ew", padx=(4, 10))
-                button = ttk.Button(
-                    row,
-                    text=self.tr("guided_tour_btn_start_short", "Start"),
-                    width=8,
-                    command=lambda name=tour_name: self.start_guided_tour(name),
-                )
-                button.grid(row=0, column=2, sticky="e")
-                self._register_guided_tour_launcher_button(
-                    tour_name,
-                    button,
-                    base_label,
-                    title_widget=title_label,
-                    status_widget=status_label,
-                )
-                if tour_name == "full-tour":
-                    self.btn_full_tour = button
-                elif tour_name == "quickstart":
-                    self.btn_quickstart_tour = button
-                elif tour_name == "dns":
-                    self.btn_dns_tour = button
-                elif tour_name == "security":
-                    self.btn_security_tour = button
-                elif tour_name == "download-scan":
-                    self.btn_download_scan_tour = button
-                elif tour_name == "radio":
-                    self.btn_radio_tour = button
-        self.refresh_guided_tour_status()
-
-        support_group = ttk.LabelFrame(
-            settings_support_tab,
-            text=self.tr("support_group_title", "Support / diagnostics"),
-            padding=10,
-        )
-        support_group.pack(fill="x", pady=(0, 10))
-
-        ttk.Label(
-            support_group,
-            text=self.tr(
-                "support_intro_text",
-                "Creates a support package with the current diagnostic reports and basic technical information under Documents/NetMon/support.",
-            ),
-            justify="left",
-            wraplength=620,
-        ).pack(anchor="w")
-        ttk.Label(
-            support_group,
-            text=self.tr(
-                "support_recommendation_text",
-                "Empfehlung: Paket erzeugen, kurz den Inhalt im Supportordner prüfen und die ZIP-Datei anschließend manuell an den Support oder den eigenen Mail-Client anhängen.",
-            ),
-            justify="left",
-            wraplength=620,
-        ).pack(anchor="w", pady=(6, 0))
-        support_privacy_box = tk.Frame(
-            support_group,
-            bg="#6b4b00",
-            bd=1,
-            relief="solid",
-            padx=10,
-            pady=10,
-        )
-        support_privacy_box.pack(fill="x", pady=(10, 0))
-        tk.Label(
-            support_privacy_box,
-            text=self.tr(
-                "support_privacy_box_title",
-                "⚠ Datenschutzhinweis",
-            ),
-            bg="#6b4b00",
-            fg="#fff4d6",
-            font=("TkDefaultFont", 10, "bold"),
-            justify="left",
-            anchor="w",
-        ).pack(anchor="w")
-        for line in (
-            self.tr(
-                "support_privacy_line_1",
-                "Das Diagnosepaket wird ausschließlich zur Analyse gemeldeter Fehler und zur Verbesserung von NetMon Roots verwendet.",
-            ),
-            self.tr(
-                "support_privacy_line_2",
-                "Die übermittelten Daten werden nicht an Dritte weitergegeben und nicht für Werbezwecke oder Nutzerprofile verwendet.",
-            ),
-            self.tr(
-                "support_privacy_line_3",
-                "Diagnoseprotokolle können je nach Fehlerfall systembezogene Informationen wie Hostname, Benutzernamen, Dateipfade oder IP-Adressen enthalten.",
-            ),
-            self.tr(
-                "support_privacy_line_4",
-                "Bitte prüfen Sie das Paket vor dem Versand, wenn Sie bestimmte Informationen nicht weitergeben möchten.",
-            ),
-            self.tr(
-                "support_privacy_line_5",
-                "Eingesandte Diagnosepakete werden ausschließlich zur Bearbeitung Ihrer Supportanfrage verwendet und anschließend gelöscht.",
-            ),
-        ):
-            tk.Label(
-                support_privacy_box,
-                text=line,
-                bg="#6b4b00",
-                fg="#fff4d6",
-                justify="left",
-                wraplength=600,
-                anchor="w",
-            ).pack(anchor="w", pady=(6, 0))
-
-        support_buttons = ttk.Frame(support_group)
-        support_buttons.pack(fill="x", pady=(8, 0))
-        for col in range(4):
-            support_buttons.columnconfigure(col, weight=1)
-        self.btn_create_support_package = ttk.Button(
-            support_buttons,
-            text=self.tr("support_btn_create_package", "Supportpaket erzeugen"),
-            command=self.create_support_package,
-        )
-        self.btn_create_support_package.grid(
-            row=0, column=0, sticky="ew", padx=(0, 8), pady=0
-        )
-        ttk.Button(
-            support_buttons,
-            text=self.tr("support_btn_open_package", "Supportpaket öffnen"),
-            command=self.open_latest_support_package,
-        ).grid(row=0, column=1, sticky="ew", padx=4, pady=0)
-        ttk.Button(
-            support_buttons,
-            text=self.tr("support_btn_open_folder", "Supportordner öffnen"),
-            command=self.open_support_packages_folder,
-        ).grid(row=0, column=2, sticky="ew", padx=4, pady=0)
-        ttk.Button(
-            support_buttons,
-            text=self.tr("support_btn_copy_path", "Copy path"),
-            command=self.copy_latest_support_package_path,
-        ).grid(row=0, column=3, sticky="ew", padx=(4, 0), pady=0)
-
-        support_form_placeholders = self._support_form_placeholders()
-        support_contact_name_var = tk.StringVar(
-            value=support_form_placeholders["contact_name"]
-        )
-        support_contact_email_var = tk.StringVar(
-            value=support_form_placeholders["contact_email"]
-        )
-        support_last_step_var = tk.StringVar(
-            value=support_form_placeholders["last_step"]
-        )
-        support_repro_var = tk.StringVar(value=support_form_placeholders["repro"])
-
-        def _settings_support_details_text():
-            return support_details_text.get("1.0", "end-1c")
-
-        def _create_settings_support_package():
-            metadata = self._build_about_support_form_metadata(
-                contact_name=support_contact_name_var.get(),
-                contact_email=support_contact_email_var.get(),
-                last_step=support_last_step_var.get(),
-                repro_status=support_repro_var.get(),
-                details=_settings_support_details_text(),
-            )
-            return self.create_support_package(extra_metadata=metadata)
-
-        support_form = ttk.LabelFrame(
-            support_group,
-            text=self.tr("support_group_form", "Supportformular"),
-            padding=8,
-        )
-        support_form.pack(fill="x", pady=(10, 0))
-        support_form.columnconfigure(1, weight=1)
-
-        ttk.Label(
-            support_form,
-            text=self.tr(
-                "support_form_intro_text",
-                "Optional: briefly describe the error and export it together with the support package.",
-            ),
-            justify="left",
-            wraplength=620,
-        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
-
-        ttk.Label(
-            support_form, text=self.tr("support_label_name_short", "Name / short tag")
-        ).grid(row=1, column=0, sticky="w", pady=(0, 6))
-        ttk.Entry(
-            support_form,
-            textvariable=support_contact_name_var,
-        ).grid(row=1, column=1, sticky="ew", pady=(0, 6))
-
-        ttk.Label(support_form, text=self.tr("support_label_email", "Email")).grid(
-            row=2, column=0, sticky="w", pady=(0, 6)
-        )
-        ttk.Entry(
-            support_form,
-            textvariable=support_contact_email_var,
-        ).grid(row=2, column=1, sticky="ew", pady=(0, 6))
-
-        ttk.Label(
-            support_form, text=self.tr("support_label_last_step", "Last step")
-        ).grid(row=3, column=0, sticky="w", pady=(0, 6))
-        ttk.Entry(
-            support_form,
-            textvariable=support_last_step_var,
-        ).grid(row=3, column=1, sticky="ew", pady=(0, 6))
-
-        ttk.Label(
-            support_form,
-            text=self.tr("support_label_reproducibility", "Reproducibility"),
-        ).grid(row=4, column=0, sticky="w", pady=(0, 6))
-        ttk.Entry(
-            support_form,
-            textvariable=support_repro_var,
-        ).grid(row=4, column=1, sticky="ew", pady=(0, 6))
-
-        ttk.Label(
-            support_form,
-            text=self.tr("support_label_error_description", "Error description"),
-        ).grid(row=5, column=0, sticky="nw", pady=(0, 6))
-        support_details_wrap = ttk.Frame(support_form)
-        support_details_wrap.grid(row=5, column=1, sticky="nsew", pady=(0, 6))
-        support_details_wrap.columnconfigure(0, weight=1)
-        support_details_wrap.rowconfigure(0, weight=1)
-        support_details_text = tk.Text(
-            support_details_wrap,
-            height=11,
-            wrap="word",
-        )
-        self.settings_support_details_text = support_details_text
-        support_details_scrollbar = ttk.Scrollbar(
-            support_details_wrap,
-            orient="vertical",
-            command=support_details_text.yview,
-        )
-        support_details_text.configure(yscrollcommand=support_details_scrollbar.set)
-        support_details_text.grid(row=0, column=0, sticky="nsew")
-        support_details_scrollbar.grid(row=0, column=1, sticky="ns")
-        support_details_text.insert("1.0", support_form_placeholders["details"])
-
-        ttk.Button(
-            support_form,
-            text=self.tr(
-                "support_btn_create_package_with_form",
-                "Supportpaket mit Formular erzeugen",
-            ),
-            command=_create_settings_support_package,
-        ).grid(row=6, column=0, columnspan=2, sticky="w", pady=(4, 0))
-
-        system = ttk.LabelFrame(
-            settings_general_tab,
-            text=self.tr("settings_group_system", "System"),
-            padding=10,
-        )
-        system.pack(fill="x", pady=(0, 10))
-
-        ttk.Button(
-            system,
-            text=self.tr("settings_restart_netmon_only", "Restart NetMon"),
-            command=self.restart_netmon_only,
-        ).pack(anchor="w")
-
-        ttk.Button(
-            system,
-            text=self.tr(
-                "settings_restart_netmon_with_reset",
-                "Restart NetMon with network reset",
-            ),
-            command=self.restart_netmon_with_network_reset,
-        ).pack(anchor="w", pady=(6, 0))
-
-        ttk.Button(
-            system,
-            text=self.tr("settings_reset_network_stack", "Reset network stack"),
-            command=self.reset_network_stack,
-        ).pack(anchor="w", pady=(6, 0))
-
-        ttk.Button(
-            system,
-            text=self.tr("settings_emergency_stop_radio", "Radio emergency stop"),
-            command=self.emergency_stop_radio_mpv,
-        ).pack(anchor="w", pady=(6, 0))
-
-        maintenance = ttk.LabelFrame(
-            system,
-            text=self.tr("maintenance_group_system_updates", "System & updates"),
-            padding=8,
-        )
-        maintenance.pack(fill="x", pady=(10, 0))
-
-        maintenance_buttons = ttk.Frame(maintenance)
-        maintenance_buttons.pack(anchor="w")
-
-        ttk.Button(
-            maintenance_buttons,
-            text=self.tr("maintenance_btn_apt_update", "Update package lists"),
-            command=self.run_apt_update_in_terminal,
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Button(
-            maintenance_buttons,
-            text=self.tr("maintenance_btn_apt_upgrade", "Upgrade system"),
-            command=self.run_apt_upgrade_in_terminal,
-        ).grid(row=0, column=1, sticky="w", padx=(8, 0))
-        ttk.Button(
-            maintenance_buttons,
-            text=self.tr(
-                "maintenance_btn_apt_autoremove",
-                "Remove unused packages",
-            ),
-            command=self.run_apt_autoremove_in_terminal,
-        ).grid(row=1, column=0, sticky="w", pady=(8, 0))
-        ttk.Button(
-            maintenance_buttons,
-            text=self.tr("maintenance_btn_apt_clean", "Clean APT cache"),
-            command=self.run_apt_clean_in_terminal,
-        ).grid(row=1, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
-        ttk.Button(
-            maintenance_buttons,
-            text=self.tr("maintenance_btn_refresh_menu", "Refresh menu"),
-            command=self.run_menu_refresh_in_terminal,
-        ).grid(row=2, column=0, sticky="w", pady=(8, 0))
-        ttk.Button(
-            maintenance_buttons,
-            text=self.tr(
-                "maintenance_btn_refresh_menu_icon_cache",
-                "Menü + Icon-Cache aktualisieren",
-            ),
-            command=self.run_menu_and_icon_refresh_in_terminal,
-        ).grid(row=2, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
+    def _build_settings_backup_tab(self, tab):
+        build_settings_backup(self, tab)
 
     def build_download_scan_tab(self):
-        frame = ttk.Frame(self.tab_download_scan, padding=12)
-        frame.pack(fill="both", expand=True)
-
-        header = ttk.LabelFrame(
-            frame,
-            text=self.tr("download_scan_group_header", "Download scan / temp download"),
-            padding=10,
-        )
-        header.pack(fill="x", pady=(0, 10))
-
-        ttk.Label(
-            header,
-            text=self.tr(
-                "download_scan_header_intro",
-                "Save downloads to this pre-quarantine folder first. After a successful check, NetMon can move the file to the normal download folder.",
-            ),
-            justify="left",
-            wraplength=760,
-        ).pack(anchor="w")
-        ttk.Label(
-            header,
-            text=self.tr(
-                "download_scan_label_files_not_auto_deleted",
-                "Files are not deleted automatically.",
-            ),
-            justify="left",
-        ).pack(anchor="w", pady=(4, 0))
-        ttk.Label(
-            header,
-            text=self.tr(
-                "download_scan_header_hint_persistent",
-                "Note: files in this area are intended for temporary use only, but they remain across NetMon restarts and usually disappear only after a system/mount restart or manual clearing.",
-            ),
-            justify="left",
-            wraplength=760,
-        ).pack(anchor="w", pady=(4, 0))
-
-        temp_group = ttk.LabelFrame(
-            frame,
-            text=self.tr("download_scan_group_prequarantine", "Pre-quarantine folder"),
-            padding=8,
-        )
-        temp_group.pack(fill="x", pady=(0, 8))
-        temp_group.columnconfigure(1, weight=1)
-
-        ttk.Label(
-            temp_group,
-            text=self.tr(
-                "download_scan_label_current_prequarantine_path",
-                "Current pre-quarantine path:",
-            ),
-        ).grid(row=0, column=0, sticky="nw")
-        ttk.Label(
-            temp_group,
-            textvariable=self.download_scan_temp_dir_var,
-            justify="left",
-            wraplength=520,
-        ).grid(row=0, column=1, sticky="w", padx=(8, 0))
-        ttk.Label(
-            temp_group,
-            textvariable=self.download_scan_temp_security_var,
-            justify="left",
-            wraplength=520,
-        ).grid(row=1, column=1, sticky="w", padx=(8, 0), pady=(4, 0))
-        ttk.Label(
-            temp_group,
-            textvariable=self.download_scan_temp_hint_var,
-            justify="left",
-            wraplength=520,
-        ).grid(row=2, column=1, sticky="w", padx=(8, 0), pady=(4, 0))
-        ttk.Label(
-            temp_group,
-            textvariable=self.download_scan_temp_success_var,
-            justify="left",
-            wraplength=520,
-            foreground="#2e7d32",
-            font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=3, column=1, sticky="w", padx=(8, 0), pady=(4, 0))
-        ttk.Label(
-            temp_group,
-            textvariable=self.download_scan_temp_warning_var,
-            justify="left",
-            wraplength=520,
-            foreground="#c62828",
-            font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=4, column=1, sticky="w", padx=(8, 0), pady=(4, 0))
-
-        temp_btns = ttk.Frame(temp_group)
-        temp_btns.grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 0))
-
-        temp_manage_btns = ttk.Frame(temp_btns)
-        temp_manage_btns.grid(row=0, column=0, sticky="w")
-        self.btn_download_scan_temp_activate = ttk.Button(
-            temp_manage_btns,
-            text="Temp-Ordner aktivieren",
-            command=self.create_download_scan_temp_folder,
-        )
-        self.btn_download_scan_temp_activate.pack(side="left")
-        ttk.Button(
-            temp_manage_btns,
-            text="Temp-Ordner deaktivieren",
-            command=self.disable_download_scan_temp_folder,
-        ).pack(side="left", padx=(8, 0))
-        ttk.Button(
-            temp_manage_btns,
-            text="Temp-Ordner leeren",
-            command=self.clear_download_scan_temp_folder,
-        ).pack(side="left", padx=(8, 0))
-
-        temp_access_btns = ttk.Frame(temp_btns)
-        temp_access_btns.grid(row=1, column=0, sticky="w", pady=(8, 0))
-        ttk.Button(
-            temp_access_btns,
-            text="Temp-Ordner öffnen",
-            command=self.open_download_scan_temp_folder,
-        ).pack(side="left")
-        ttk.Button(
-            temp_access_btns,
-            text="Pfad kopieren",
-            command=self.copy_download_scan_temp_folder_path,
-        ).pack(side="left", padx=(8, 0))
-        ttk.Button(
-            temp_access_btns,
-            text=self.tr("download_scan_btn_change_path", "Change path"),
-            command=self.choose_download_scan_temp_dir,
-        ).pack(side="left", padx=(8, 0))
-        self.cb_download_scan_prequarantine_startup = ttk.Checkbutton(
-            temp_group,
-            text="Vor-Quarantäne bei NetMon-Start automatisch aktivieren",
-            variable=self.download_scan_prequarantine_startup_var,
-            command=self.on_download_scan_prequarantine_startup_toggle,
-        )
-        self.cb_download_scan_prequarantine_startup.grid(
-            row=6, column=0, columnspan=2, sticky="w", pady=(8, 0)
-        )
-
-        target_group = ttk.LabelFrame(
-            frame,
-            text=self.tr("download_scan_group_target_folder", "Target folder"),
-            padding=8,
-        )
-        target_group.pack(fill="x", pady=(0, 8))
-        target_group.columnconfigure(1, weight=1)
-
-        ttk.Label(
-            target_group,
-            text=self.tr(
-                "download_scan_label_normal_download_folder",
-                "Normal download folder:",
-            ),
-        ).grid(row=0, column=0, sticky="nw")
-        ttk.Label(
-            target_group,
-            textvariable=self.download_scan_target_dir_var,
-            justify="left",
-            wraplength=520,
-        ).grid(row=0, column=1, sticky="w", padx=(8, 0))
-
-        target_btns = ttk.Frame(target_group)
-        target_btns.grid(row=1, column=0, columnspan=2, sticky="w", pady=(8, 0))
-        ttk.Button(
-            target_btns,
-            text=self.tr("download_scan_btn_choose_target", "Choose target folder"),
-            command=self.choose_download_scan_target_dir,
-        ).pack(side="left")
-        ttk.Button(
-            target_btns,
-            text=self.tr("download_scan_btn_open_target", "Open target folder"),
-            command=self.open_download_scan_target_folder,
-        ).pack(side="left", padx=(8, 0))
-
-        scan_actions = ttk.LabelFrame(
-            frame,
-            text=self.tr("download_scan_group_scan_actions", "Scan actions"),
-            padding=8,
-        )
-        scan_actions.pack(fill="x", pady=(0, 8))
-
-        scan_btns_top = ttk.Frame(scan_actions)
-        scan_btns_top.pack(fill="x")
-        self.btn_download_scan_scan_file = ttk.Button(
-            scan_btns_top,
-            text=self.tr("download_scan_btn_choose_and_scan", "Choose file and scan"),
-            command=self.choose_and_scan_download_scan_file,
-        )
-        self.btn_download_scan_scan_file.pack(side="left")
-        self.btn_download_scan_scan_temp = ttk.Button(
-            scan_btns_top,
-            text=self.tr(
-                "download_scan_btn_scan_temp_with_clamav",
-                "Scan temporary folder with ClamAV",
-            ),
-            command=self.scan_download_scan_temp_folder,
-        )
-        self.btn_download_scan_scan_temp.pack(side="left", padx=(8, 0))
-
-        post_scan = ttk.LabelFrame(
-            frame,
-            text=self.tr("download_scan_group_after_success", "After successful scan"),
-            padding=8,
-        )
-        post_scan.pack(fill="x", pady=(0, 8))
-        ttk.Checkbutton(
-            post_scan,
-            text=self.tr(
-                "download_scan_check_auto_move_clean",
-                "Automatically move to Downloads after a clean ClamAV scan",
-            ),
-            variable=self.download_scan_auto_move_var,
-        ).pack(anchor="w")
-        ttk.Checkbutton(
-            post_scan,
-            text=self.tr(
-                "download_scan_check_ask_before_move",
-                "Ask before moving",
-            ),
-            variable=self.download_scan_ask_before_move_var,
-        ).pack(anchor="w", pady=(4, 0))
-        ttk.Checkbutton(
-            post_scan,
-            text=self.tr(
-                "download_scan_check_keep_original",
-                "Keep original in temporary folder",
-            ),
-            variable=self.download_scan_keep_original_var,
-        ).pack(anchor="w", pady=(4, 0))
-        ttk.Checkbutton(
-            post_scan,
-            text=self.tr("download_scan_check_save_report", "Save scan report"),
-            variable=self.download_scan_save_report_var,
-        ).pack(anchor="w", pady=(4, 0))
-
-        status_group = ttk.LabelFrame(
-            frame,
-            text=self.tr("download_scan_group_status", "Download scan status"),
-            padding=8,
-        )
-        status_group.pack(fill="x", pady=(0, 8))
-        status_group.columnconfigure(1, weight=1)
-        status_group.columnconfigure(3, weight=1)
-
-        ttk.Label(
-            status_group,
-            text=self.tr("download_scan_label_traffic_light", "Indicator:"),
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Label(
-            status_group,
-            textvariable=self.download_scan_status_var,
-            font=("TkDefaultFont", 10, "bold"),
-        ).grid(row=0, column=1, sticky="w", padx=(8, 20))
-        ttk.Label(
-            status_group,
-            text=self.tr(
-                "download_scan_legend",
-                "🟢 clean   🟡 unchecked   🔴 finding / suspicious",
-            ),
-        ).grid(row=0, column=2, columnspan=2, sticky="w")
-
-        ttk.Label(
-            status_group, text=self.tr("download_scan_label_last_scan", "Last scan:")
-        ).grid(row=1, column=0, sticky="w", pady=(6, 0))
-        ttk.Label(
-            status_group,
-            textvariable=self.download_scan_last_scan_var,
-        ).grid(row=1, column=1, sticky="w", padx=(8, 20), pady=(6, 0))
-        ttk.Label(
-            status_group, text=self.tr("download_scan_label_result", "Result:")
-        ).grid(row=1, column=2, sticky="w", pady=(6, 0))
-        ttk.Label(
-            status_group,
-            textvariable=self.download_scan_result_summary_var,
-        ).grid(row=1, column=3, sticky="w", padx=(8, 0), pady=(6, 0))
-        ttk.Label(status_group, text=self.tr("download_scan_label_file", "File:")).grid(
-            row=2, column=0, sticky="w", pady=(6, 0)
-        )
-        ttk.Label(
-            status_group,
-            textvariable=self.download_scan_file_var,
-            wraplength=620,
-        ).grid(row=2, column=1, columnspan=3, sticky="w", padx=(8, 0), pady=(6, 0))
-
-        result_group = ttk.LabelFrame(
-            frame,
-            text=self.tr("download_scan_group_result", "Scan result"),
-            padding=8,
-        )
-        result_group.pack(fill="both", expand=True)
-        result_group.columnconfigure(0, weight=1)
-        result_group.rowconfigure(0, weight=1)
-
-        self.download_scan_result_text = tk.Text(
-            result_group,
-            height=7,
-            wrap="word",
-            relief="solid",
-            borderwidth=1,
-        )
-        self.download_scan_result_text.grid(row=0, column=0, sticky="nsew")
-        self.download_scan_result_text.insert(
-            "1.0",
-            self.tr(
-                "download_scan_result_text_default",
-                "No scan executed yet.",
-            ),
-        )
-        self.download_scan_result_text.configure(state="disabled")
-        self.attach_selection_copy_shortcuts(self.download_scan_result_text, "text")
-        self.attach_text_context_menu(self.download_scan_result_text)
+        build_download_scan_content(self)
 
     def choose_theme_studio_accent_color(self):
         chooser = colorchooser
@@ -24735,417 +24823,7 @@ class App(TkBase):
         )
 
     def build_theme_studio_tab(self):
-        frame = ttk.Frame(self.tab_theme_studio, padding=12)
-        frame.pack(fill="both", expand=True)
-        frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(0, weight=1)
-
-        layout = ttk.Frame(frame)
-        layout.grid(row=0, column=0, sticky="nsew")
-        layout.columnconfigure(0, weight=0, minsize=320)
-        layout.columnconfigure(1, weight=1)
-        layout.rowconfigure(0, weight=1)
-
-        controls = ttk.Frame(layout)
-        controls.grid(row=0, column=0, sticky="nsw", padx=(0, 12))
-        # source marker: text="Live-Vorschau"
-        preview = ttk.LabelFrame(
-            layout,
-            text=self.tr("theme_studio_group_live_preview", "Live-Vorschau"),
-            padding=10,
-        )
-        preview.grid(row=0, column=1, sticky="nsew")
-        preview.columnconfigure(0, weight=1)
-
-        basics = ttk.LabelFrame(
-            controls,
-            text=self.tr("theme_studio_group_pop_profile", "Pop profile"),
-            padding=8,
-        )
-        basics.pack(fill="x", pady=(0, 8))
-        self.var_theme_studio_base_theme.set(self._get_theme_display_name("pop"))
-        ttk.Label(
-            basics,
-            text=self.tr("theme_studio_label_edited_profile", "Edited profile:"),
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Label(
-            basics,
-            text="Pop",
-            font=("TkDefaultFont", 10, "bold"),
-        ).grid(row=0, column=1, sticky="w", padx=(8, 0))
-        ttk.Label(
-            basics,
-            text=self.tr(
-                "theme_studio_pop_profile_note",
-                "Theme Studio only affects the Pop test profile.\nLight, Dark and Beige remain unchanged.",
-            ),
-            justify="left",
-            wraplength=260,
-        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(8, 0))
-
-        ttk.Label(
-            basics,
-            text=self.tr("theme_studio_label_profile_name", "Profilname:"),
-        ).grid(row=2, column=0, sticky="w", pady=(8, 0))
-        self.theme_studio_profile_entry = ttk.Entry(
-            basics,
-            textvariable=self.var_theme_studio_profile_name,
-            width=20,
-        )
-        self.theme_studio_profile_entry.grid(
-            row=2, column=1, sticky="w", padx=(8, 0), pady=(8, 0)
-        )
-
-        colors = ttk.LabelFrame(
-            controls,
-            text=self.tr("theme_studio_group_color_adjustment", "Farbanpassung"),
-            padding=8,
-        )
-        # source markers:
-        # text="Farbe wählen"
-        # text="Theme speichern"
-        # text="Theme laden"
-        colors.pack(fill="x", pady=(0, 8))
-        ttk.Label(
-            colors,
-            text=self.tr("theme_studio_label_primary_color", "Hauptfarbe:"),
-        ).grid(row=0, column=0, sticky="w")
-        self.theme_studio_accent_entry = ttk.Entry(
-            colors,
-            textvariable=self.var_theme_studio_accent,
-            width=12,
-        )
-        self.theme_studio_accent_entry.grid(row=0, column=1, sticky="w", padx=(8, 0))
-        self.theme_studio_accent_entry.bind(
-            "<KeyRelease>", lambda _event: self.refresh_theme_studio_preview()
-        )
-        self.btn_theme_studio_choose_accent = ttk.Button(
-            colors,
-            text=self.tr("theme_studio_btn_choose_color", "Farbe wählen"),
-            command=self.choose_theme_studio_accent_color,
-        )
-        self.btn_theme_studio_choose_accent.grid(
-            row=0, column=2, sticky="w", padx=(8, 0)
-        )
-
-        ttk.Label(
-            colors,
-            text=self.tr("theme_studio_label_panel_color", "Panelfarbe:"),
-        ).grid(row=1, column=0, sticky="w", pady=(8, 0))
-        self.theme_studio_panel_entry = ttk.Entry(
-            colors,
-            textvariable=self.var_theme_studio_panel,
-            width=12,
-        )
-        self.theme_studio_panel_entry.grid(
-            row=1, column=1, sticky="w", padx=(8, 0), pady=(8, 0)
-        )
-        self.theme_studio_panel_entry.bind(
-            "<KeyRelease>", lambda _event: self.refresh_theme_studio_preview()
-        )
-        self.btn_theme_studio_choose_panel = ttk.Button(
-            colors,
-            text=self.tr("theme_studio_btn_choose_color", "Farbe wählen"),
-            command=self.choose_theme_studio_panel_color,
-        )
-        self.btn_theme_studio_choose_panel.grid(
-            row=1, column=2, sticky="w", padx=(8, 0), pady=(8, 0)
-        )
-
-        preset_row = ttk.Frame(colors)
-        preset_row.grid(row=2, column=0, columnspan=3, sticky="w", pady=(8, 0))
-        ttk.Label(
-            preset_row,
-            text=self.tr("theme_studio_label_button_presets", "Button-Presets:"),
-        ).pack(side="left")
-        for label, color in (
-            ("Ocean", "#58a6ff"),
-            ("Sunset", "#ff8f5a"),
-            ("Berry", "#ff5a8a"),
-            ("Terminal", "#7cff6b"),
-        ):
-            ttk.Button(
-                preset_row,
-                text=label,
-                width=9,
-                command=lambda c=color: self.set_theme_studio_accent_preset(c),
-            ).pack(side="left", padx=(6, 0))
-
-        panel_preset_row = ttk.Frame(colors)
-        panel_preset_row.grid(row=3, column=0, columnspan=3, sticky="w", pady=(8, 0))
-        ttk.Label(
-            panel_preset_row,
-            text=self.tr("theme_studio_label_panel_presets", "Panel-Presets:"),
-        ).pack(side="left")
-        for label, color in (
-            ("Soft Pop", "#fff4ef"),
-            ("Night Ink", "#1c1824"),
-            ("Cream", "#f6ead7"),
-            ("Mint", "#e6fff3"),
-        ):
-            ttk.Button(
-                panel_preset_row,
-                text=label,
-                width=9,
-                command=lambda c=color: self.set_theme_studio_panel_preset(c),
-            ).pack(side="left", padx=(6, 0))
-
-        style_box = ttk.LabelFrame(
-            controls,
-            text=self.tr("theme_studio_group_style_direction", "Stilrichtung"),
-            padding=8,
-        )
-        style_box.pack(fill="x", pady=(0, 8))
-        for index, (key, fallback, value) in enumerate(
-            (
-                ("theme_studio_style_subtle", "Subtle", "dezent"),
-                ("theme_studio_style_bold", "Bold", "kräftig"),
-                ("theme_studio_style_warm", "Warm", "warm"),
-                ("theme_studio_style_cool", "Cool", "kühl"),
-            )
-        ):
-            ttk.Radiobutton(
-                style_box,
-                text=self.tr(key, fallback),
-                value=value,
-                variable=self.var_theme_studio_style,
-                command=self.refresh_theme_studio_preview,
-            ).grid(
-                row=index // 2,
-                column=index % 2,
-                sticky="w",
-                padx=(0, 14 if index % 2 == 0 else 0),
-                pady=(0 if index < 2 else 6, 0),
-            )
-
-        actions = ttk.LabelFrame(
-            controls, text=self.tr("theme_studio_group_actions", "Actions"), padding=8
-        )
-        actions.pack(fill="x")
-        self.btn_theme_studio_apply = ttk.Button(
-            actions,
-            text=self.tr("btn_apply", "Anwenden"),
-            command=self.apply_theme_studio_settings,
-        )
-        self.btn_theme_studio_apply.pack(fill="x")
-        self.btn_theme_studio_save = ttk.Button(
-            actions,
-            text=self.tr("theme_studio_btn_save_theme", "Theme speichern"),
-            command=self.save_theme_studio_profile,
-        )
-        self.btn_theme_studio_save.pack(fill="x", pady=(6, 0))
-        self.btn_theme_studio_load = ttk.Button(
-            actions,
-            text=self.tr("theme_studio_btn_load_theme", "Theme laden"),
-            command=self.load_theme_studio_profile,
-        )
-        self.btn_theme_studio_load.pack(fill="x", pady=(6, 0))
-        self.btn_theme_studio_load_pop = ttk.Button(
-            actions,
-            text=self.tr("theme_studio_btn_load_pop_profile", "Load pop profile"),
-            command=self.load_theme_studio_from_current_theme,
-        )
-        self.btn_theme_studio_load_pop.pack(fill="x", pady=(6, 0))
-        self.btn_theme_studio_reset = ttk.Button(
-            actions,
-            text=self.tr(
-                "theme_studio_btn_restore_pop_default",
-                "Pop-Standard wiederherstellen",
-            ),
-            command=self.reset_theme_studio_settings,
-        )
-        self.btn_theme_studio_reset.pack(fill="x", pady=(6, 0))
-        ttk.Label(
-            actions,
-            textvariable=self.theme_studio_status_var,
-            justify="left",
-            wraplength=260,
-        ).pack(anchor="w", pady=(8, 0))
-
-        preview_hint = ttk.Label(
-            preview,
-            text=(
-                "V1: Hier wird ausschließlich das Testprofil Pop gestaltet. "
-                "Andere Themes bleiben unberührt."
-            ),
-            justify="left",
-            wraplength=520,
-        )
-        preview_hint.grid(row=0, column=0, sticky="w")
-
-        self.theme_studio_preview_shell = tk.Frame(
-            preview,
-            bd=1,
-            relief="solid",
-            padx=12,
-            pady=12,
-        )
-        self.theme_studio_preview_shell.grid(row=1, column=0, sticky="ew", pady=(10, 0))
-        self.theme_studio_preview_shell.grid_columnconfigure(0, weight=1)
-
-        self.theme_studio_preview_title = tk.Label(
-            self.theme_studio_preview_shell,
-            text=self.tr("theme_studio_preview_title", "NetMon Theme Studio"),
-            font=("TkDefaultFont", 11, "bold"),
-            anchor="w",
-        )
-        self.theme_studio_preview_title.grid(row=0, column=0, sticky="w")
-        self.theme_studio_preview_subtitle = tk.Label(
-            self.theme_studio_preview_shell,
-            text=self.tr(
-                "theme_studio_preview_subtitle",
-                "Vorschau für Buttons, Tabs, Status und Logbereiche",
-            ),
-            anchor="w",
-        )
-        self.theme_studio_preview_subtitle.grid(
-            row=1, column=0, sticky="w", pady=(2, 10)
-        )
-
-        tabs_row = tk.Frame(self.theme_studio_preview_shell, bd=0)
-        tabs_row.grid(row=2, column=0, sticky="w")
-        self.theme_studio_preview_tab_active = tk.Label(
-            tabs_row,
-            text=self.tr("theme_studio_preview_active_tab", "Aktiver Tab"),
-            padx=10,
-            pady=4,
-        )
-        self.theme_studio_preview_tab_active.pack(side="left")
-        self.theme_studio_preview_tab_idle = tk.Label(
-            tabs_row,
-            text=self.tr("theme_studio_preview_inactive_tab", "Inactive tab"),
-            padx=10,
-            pady=4,
-        )
-        self.theme_studio_preview_tab_idle.pack(side="left", padx=(8, 0))
-
-        action_row = tk.Frame(self.theme_studio_preview_shell, bd=0)
-        action_row.grid(row=3, column=0, sticky="w", pady=(12, 0))
-        self.theme_studio_preview_button = tk.Button(
-            action_row,
-            text=self.tr("theme_studio_preview_test_button", "Test-Button"),
-            padx=14,
-            pady=4,
-        )
-        self.theme_studio_preview_button.pack(side="left")
-        self.theme_studio_preview_status_ok = tk.Label(
-            action_row,
-            text=self.tr("theme_studio_preview_status_active", "Aktiv"),
-            padx=10,
-            pady=4,
-        )
-        self.theme_studio_preview_status_ok.pack(side="left", padx=(10, 0))
-        self.theme_studio_preview_status_warn = tk.Label(
-            action_row,
-            text=self.tr("theme_studio_preview_status_warning", "Warnung"),
-            padx=10,
-            pady=4,
-        )
-        self.theme_studio_preview_status_warn.pack(side="left", padx=(10, 0))
-        self.theme_studio_preview_status_err = tk.Label(
-            action_row,
-            text=self.tr("theme_studio_preview_status_error", "Fehler"),
-            padx=10,
-            pady=4,
-        )
-        self.theme_studio_preview_status_err.pack(side="left", padx=(10, 0))
-
-        self.theme_studio_preview_entry = tk.Entry(
-            self.theme_studio_preview_shell,
-            relief="solid",
-            bd=1,
-        )
-        self.theme_studio_preview_entry.grid(row=4, column=0, sticky="ew", pady=(12, 0))
-        self.theme_studio_preview_entry.insert(
-            0,
-            self.tr(
-                "theme_studio_preview_entry_example",
-                "Beispiel für Eingabefeld und Fokusfarbe",
-            ),
-        )
-
-        self.theme_studio_preview_log = tk.Label(
-            self.theme_studio_preview_shell,
-            text=self.tr(
-                "theme_studio_preview_log_ready",
-                "[LOG] Theme Studio bereit. Vorschau aktualisiert.",
-            ),
-            justify="left",
-            anchor="w",
-            padx=10,
-            pady=8,
-            relief="solid",
-            bd=1,
-        )
-        self.theme_studio_preview_log.grid(row=5, column=0, sticky="ew", pady=(12, 0))
-
-        swatch_row = tk.Frame(self.theme_studio_preview_shell, bd=0)
-        swatch_row.grid(row=6, column=0, sticky="w", pady=(12, 0))
-        for label_text, widget_name in (
-            ("Akzent", "theme_studio_swatch_accent"),
-            ("Panel", "theme_studio_swatch_panel"),
-            ("Rahmen", "theme_studio_swatch_border"),
-            ("Log", "theme_studio_swatch_log"),
-        ):
-            block = tk.Frame(swatch_row, bd=0)
-            block.pack(side="left", padx=(0, 12))
-            tk.Label(block, text=label_text, anchor="w").pack(anchor="w")
-            swatch = tk.Frame(
-                block,
-                width=46,
-                height=18,
-                bd=1,
-                relief="solid",
-            )
-            swatch.pack(anchor="w", pady=(4, 0))
-            swatch.pack_propagate(False)
-            setattr(self, widget_name, swatch)
-
-        self.theme_studio_preview_meta = tk.Label(
-            self.theme_studio_preview_shell,
-            text=self.tr("theme_studio_preview_profile_placeholder", "Profil: –"),
-            anchor="w",
-        )
-        self.theme_studio_preview_meta.grid(row=7, column=0, sticky="w", pady=(12, 0))
-        self.theme_studio_preview_status_line = tk.Label(
-            self.theme_studio_preview_shell,
-            text=self.tr(
-                "theme_studio_preview_status_placeholder",
-                "Basis: – | Akzent: – | Stil: –",
-            ),
-            anchor="w",
-        )
-        self.theme_studio_preview_status_line.grid(
-            row=8, column=0, sticky="w", pady=(4, 0)
-        )
-
-        for source_var in (
-            self.var_theme_studio_profile_name,
-            self.var_theme_studio_accent,
-            self.var_theme_studio_panel,
-            self.var_theme_studio_style,
-            self.var_theme_studio_base_theme,
-        ):
-            try:
-                source_var.trace_add(
-                    "write",
-                    lambda *_args: self.refresh_theme_studio_preview(),
-                )
-            except Exception:
-                pass
-
-        self.refresh_theme_studio_preview()
-        self.theme_studio_preview_meta.configure(
-            text=self.tr(
-                "theme_studio_preview_profile_value",
-                "Profile: {profile}",
-            ).format(
-                profile=(
-                    self.var_theme_studio_profile_name.get()
-                    or self.tr("theme_studio_default_profile_name", "My Theme")
-                )
-            )
-        )
+        build_theme_studio_content(self)
 
     def _build_two_col_toggle_grid(
         self, parent, specs, *, is_radio=False, variable=None, row_gap=2
@@ -25195,966 +24873,23 @@ class App(TkBase):
         grid_column=0,
         grid_sticky="new",
     ):
-        live_systemcheck = ttk.LabelFrame(
+        return build_security_systemcheck_panel(
+            self,
             parent,
-            text=self.tr("settings_security_systemcheck", "Security system check"),
-            padding=8,
-        )
-        if geometry == "grid":
-            live_systemcheck.grid(
-                row=grid_row,
-                column=grid_column,
-                sticky=grid_sticky,
-                pady=pady,
-            )
-        else:
-            live_systemcheck.pack(fill="x", pady=pady)
-        check_specs = [
-            (
-                self.tr(
-                    "settings_systemcheck_security_summary",
-                    "Security Monitoring Zusammenfassung",
-                ),
-                self.var_systemcheck_security_summary,
-                self.mark_chad_systemcheck_profile_custom,
-            ),
-            (
-                self.tr("settings_systemcheck_startup_guard", "Startup Guard"),
-                self.var_systemcheck_startup_guard,
-                self.mark_chad_systemcheck_profile_custom,
-            ),
-            (
-                self.tr("settings_systemcheck_path_guard", "PATH Guard"),
-                self.var_systemcheck_path_guard,
-                self.mark_chad_systemcheck_profile_custom,
-            ),
-            (
-                self.tr("settings_systemcheck_process_guard", "Process Guard"),
-                self.var_systemcheck_process_guard,
-                self.mark_chad_systemcheck_profile_custom,
-            ),
-            (
-                self.tr("settings_systemcheck_lynis", "Lynis quick scan"),
-                self.var_systemcheck_lynis,
-                self.mark_chad_systemcheck_profile_custom,
-            ),
-            (
-                self.tr("settings_systemcheck_rkhunter", "rkhunter scan"),
-                self.var_systemcheck_rkhunter,
-                self.mark_chad_systemcheck_profile_custom,
-            ),
-            (
-                self.tr("settings_systemcheck_clamav", "ClamAV Schnellscan"),
-                self.var_systemcheck_clamav,
-                self.mark_chad_systemcheck_profile_custom,
-            ),
-        ]
-        if compact:
-            check_specs = [
-                (
-                    self.tr(
-                        "settings_systemcheck_security_summary_compact",
-                        "Security Monitoring",
-                    ),
-                    self.var_systemcheck_security_summary,
-                    self.mark_chad_systemcheck_profile_custom,
-                ),
-                (
-                    self.tr("settings_systemcheck_startup_guard", "Startup Guard"),
-                    self.var_systemcheck_startup_guard,
-                    self.mark_chad_systemcheck_profile_custom,
-                ),
-                (
-                    self.tr("settings_systemcheck_path_guard", "PATH Guard"),
-                    self.var_systemcheck_path_guard,
-                    self.mark_chad_systemcheck_profile_custom,
-                ),
-                (
-                    self.tr("settings_systemcheck_process_guard", "Process Guard"),
-                    self.var_systemcheck_process_guard,
-                    self.mark_chad_systemcheck_profile_custom,
-                ),
-                (
-                    self.tr("settings_systemcheck_lynis_compact", "Lynis"),
-                    self.var_systemcheck_lynis,
-                    self.mark_chad_systemcheck_profile_custom,
-                ),
-                (
-                    self.tr("settings_systemcheck_rkhunter_compact", "rkhunter"),
-                    self.var_systemcheck_rkhunter,
-                    self.mark_chad_systemcheck_profile_custom,
-                ),
-                (
-                    self.tr("settings_systemcheck_clamav", "ClamAV Schnellscan"),
-                    self.var_systemcheck_clamav,
-                    self.mark_chad_systemcheck_profile_custom,
-                ),
-            ]
-        self._build_two_col_toggle_grid(
-            live_systemcheck,
-            check_specs,
-            row_gap=1 if compact else 2,
-        )
-        ttk.Label(
-            live_systemcheck,
-            textvariable=self.chad_security_tools_status_var,
-            justify="left",
-        ).pack(anchor="w", pady=(8, 0))
-        ttk.Label(
-            live_systemcheck,
-            text=self.tr(
-                "settings_systemcheck_hint",
-                "Ausgewählte Prüfungen laufen nacheinander und werden direkt an Chad zur Analyse gesendet.",
-            ),
-            justify="left",
             wraplength=wraplength,
-        ).pack(anchor="w", pady=(4, 0))
-        self.refresh_chad_security_tools_status()
-        ttk.Button(
-            live_systemcheck,
-            text=self.tr("settings_systemcheck_run", "Systemcheck ausführen"),
-            command=self.run_selected_security_systemcheck,
-        ).pack(anchor="w", pady=(8, 0))
-        ttk.Label(
-            live_systemcheck,
-            textvariable=self.security_systemcheck_status_var,
-            justify="left",
-            wraplength=wraplength,
-        ).pack(anchor="w", pady=(8, 0))
-        return live_systemcheck
+            pady=pady,
+            compact=compact,
+            geometry=geometry,
+            grid_row=grid_row,
+            grid_column=grid_column,
+            grid_sticky=grid_sticky,
+        )
 
     def build_chad_settings_tab(self):
-        # source marker: text="Systembewertung"
-        frame = ttk.Frame(self.tab_chad_settings, padding=12)
-        frame.pack(fill="both", expand=True)
-
-        summary = ttk.LabelFrame(
-            frame,
-            text=self.tr("chad_settings_group_system_summary", "Systembewertung"),
-            padding=8,
-        )
-        summary.pack(fill="x", pady=(0, 6))
-
-        summary_top = ttk.Frame(summary)
-        summary_top.pack(fill="x")
-
-        self.chad_settings_summary_indicator_label = tk.Label(
-            summary_top,
-            text="●",
-            fg="#2e7d32",
-            font=("TkDefaultFont", 12, "bold"),
-        )
-        self.chad_settings_summary_indicator_label.pack(side="left")
-        ttk.Label(
-            summary_top,
-            textvariable=self.chad_settings_summary_state_var,
-            font=("TkDefaultFont", 10, "bold"),
-        ).pack(side="left", padx=(6, 0))
-
-        summary_grid = ttk.Frame(summary)
-        summary_grid.pack(fill="x", pady=(8, 0))
-        summary_grid.columnconfigure(1, weight=1)
-        summary_grid.columnconfigure(3, weight=1)
-
-        ttk.Label(
-            summary_grid,
-            text=self.tr("chad_settings_label_critical", "Kritisch:"),
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Label(
-            summary_grid, textvariable=self.chad_settings_summary_critical_var
-        ).grid(row=0, column=1, sticky="w", padx=(8, 18))
-        ttk.Label(
-            summary_grid,
-            text=self.tr("chad_settings_label_warnings", "Warnungen:"),
-        ).grid(row=0, column=2, sticky="w")
-        ttk.Label(
-            summary_grid, textvariable=self.chad_settings_summary_warning_var
-        ).grid(row=0, column=3, sticky="w", padx=(8, 0))
-        ttk.Label(
-            summary_grid,
-            text=self.tr("chad_settings_label_notices", "Hinweise:"),
-        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
-        ttk.Label(
-            summary_grid, textvariable=self.chad_settings_summary_notice_var
-        ).grid(row=1, column=1, sticky="w", padx=(8, 18), pady=(4, 0))
-        ttk.Label(
-            summary_grid,
-            text=self.tr("chad_settings_label_info", "Info:"),
-        ).grid(row=1, column=2, sticky="w", pady=(4, 0))
-        ttk.Label(summary_grid, textvariable=self.chad_settings_summary_info_var).grid(
-            row=1, column=3, sticky="w", padx=(8, 0), pady=(4, 0)
-        )
-
-        recent = ttk.LabelFrame(
-            summary,
-            text=self.tr("chad_settings_group_recent", "Letzte Analysen"),
-            padding=8,
-        )
-        recent.pack(fill="x", pady=(6, 0))
-        recent.columnconfigure(0, weight=2)
-        recent.columnconfigure(1, weight=2)
-        recent.columnconfigure(2, weight=1)
-        recent.columnconfigure(3, weight=1)
-        recent.columnconfigure(4, weight=1)
-
-        ttk.Label(
-            recent,
-            text=self.tr("chad_settings_recent_header_timestamp", "Datum/Uhrzeit"),
-            font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Label(
-            recent,
-            text=self.tr("chad_settings_recent_header_type", "Analyseart"),
-            font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=0, column=1, sticky="w", padx=(8, 0))
-        ttk.Label(
-            recent,
-            text=self.tr("chad_settings_recent_header_status", "Status"),
-            font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=0, column=2, sticky="w", padx=(8, 0))
-        ttk.Label(
-            recent,
-            text=self.tr("chad_settings_recent_header_warnings", "Warn."),
-            font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=0, column=3, sticky="w", padx=(8, 0))
-        ttk.Label(
-            recent,
-            text=self.tr("chad_settings_recent_header_critical", "Krit."),
-            font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=0, column=4, sticky="w", padx=(8, 0))
-
-        for row_index, row_vars in enumerate(
-            self.chad_settings_recent_analysis_rows, start=1
-        ):
-            values = [
-                row_vars["timestamp_var"],
-                row_vars["type_var"],
-                row_vars["status_var"],
-                row_vars["warning_var"],
-                row_vars["critical_var"],
-            ]
-            for column_index, value_var in enumerate(values):
-                padx = (8, 0) if column_index > 0 else (0, 0)
-                pady = (4, 0)
-                ttk.Label(recent, textvariable=value_var).grid(
-                    row=row_index,
-                    column=column_index,
-                    sticky="w",
-                    padx=padx,
-                    pady=pady,
-                )
-
-        connection = ttk.LabelFrame(
-            frame,
-            text=self.tr("settings_group_chad_openai", "Chad Analyse / OpenAI"),
-            padding=8,
-        )
-        connection.pack(fill="x", pady=(0, 6))
-
-        ttk.Checkbutton(
-            connection,
-            text=self.tr(
-                "settings_auto_switch_to_chad",
-                "Beim Senden an Chad automatisch zum Chad-Tab wechseln",
-            ),
-            variable=self.var_auto_switch_to_chad,
-        ).pack(anchor="w")
-
-        ttk.Checkbutton(
-            connection,
-            text=self.tr(
-                "settings_chad_preview_popup",
-                "Vorschau-Popup bei Chad-Analyse anzeigen",
-            ),
-            variable=self.var_chad_preview_popup,
-        ).pack(anchor="w", pady=(4, 0))
-
-        api_row = ttk.Frame(connection)
-        api_row.pack(fill="x", pady=(6, 0))
-
-        ttk.Label(
-            api_row,
-            text=self.tr("chad_label_api_key", "API Key:"),
-        ).pack(side="left")
-
-        self.openai_api_key_entry = ttk.Entry(
-            api_row,
-            textvariable=self.openai_api_key_var,
-            show="*",
-            width=40,
-        )
-        self.openai_api_key_entry.pack(side="left", padx=(6, 6), fill="x", expand=True)
-        self.openai_api_key_entry.bind("<Control-v>", self.paste_api_key_from_clipboard)
-        self.openai_api_key_entry.bind("<Control-V>", self.paste_api_key_from_clipboard)
-        self.openai_api_key_entry.bind(
-            "<Shift-Insert>", self.paste_api_key_from_clipboard
-        )
-
-        self.btn_chad_api_save = ttk.Button(
-            api_row,
-            text=self.tr("btn_save", "Speichern"),
-            command=self.save_ai_config,
-            width=9,
-        )
-        self.btn_chad_api_save.pack(side="left", padx=(6, 0))
-
-        self.btn_chad_api_load = ttk.Button(
-            api_row,
-            text=self.tr("btn_load", "Laden"),
-            command=self.load_ai_config,
-            width=9,
-        )
-        self.btn_chad_api_load.pack(side="left", padx=(6, 0))
-
-        self.btn_chad_api_clear = ttk.Button(
-            api_row,
-            text=self.tr("btn_clear", "Leeren"),
-            command=self.clear_api_key,
-            width=9,
-        )
-        self.btn_chad_api_clear.pack(side="left", padx=(6, 0))
-
-        self.btn_chad_api_delete = ttk.Button(
-            api_row,
-            text=self.tr("btn_delete", "Delete"),
-            command=self.delete_saved_api_key,
-            width=9,
-        )
-        self.btn_chad_api_delete.pack(side="left", padx=(6, 0))
-
-        model_row = ttk.Frame(connection)
-        model_row.pack(fill="x", pady=(8, 0))
-
-        ttk.Label(
-            model_row,
-            text=self.tr("chad_settings_label_model", "Modell:"),
-        ).pack(side="left")
-
-        self.chad_model_combo = ttk.Combobox(
-            model_row,
-            textvariable=self.chad_model_var,
-            values=self.chad_model_choices,
-            state="readonly",
-            width=18,
-        )
-        self.chad_model_combo.pack(side="left", padx=(6, 0))
-        self.chad_model_combo.bind(
-            "<<ComboboxSelected>>",
-            self.apply_chad_model_selection,
-        )
-
-        ttk.Label(
-            connection,
-            textvariable=self.chad_analysis_status_var,
-            justify="left",
-        ).pack(anchor="w", pady=(8, 0))
-
-        status = ttk.LabelFrame(
-            frame,
-            text="KI Status",
-            padding=8,
-        )
-        status.pack(fill="x", pady=(0, 6))
-        status.columnconfigure(1, weight=1)
-        ttk.Label(
-            status,
-            text=self.tr(
-                "chad_settings_label_api_connected_status",
-                "API verbunden Status:",
-            ),
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Label(status, textvariable=self.chad_settings_api_status_var).grid(
-            row=0, column=1, sticky="w", padx=(8, 0)
-        )
-        ttk.Label(
-            status,
-            text=self.tr("chad_settings_label_model_name", "Modellname:"),
-        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
-        ttk.Label(status, textvariable=self.chad_settings_model_var).grid(
-            row=1, column=1, sticky="w", padx=(8, 0), pady=(4, 0)
-        )
-        ttk.Label(
-            status,
-            text=self.tr("chad_settings_label_latency", "Antwortzeit:"),
-        ).grid(row=2, column=0, sticky="w", pady=(4, 0))
-        ttk.Label(status, textvariable=self.chad_settings_latency_var).grid(
-            row=2, column=1, sticky="w", padx=(8, 0), pady=(4, 0)
-        )
-        ttk.Label(
-            status,
-            text=self.tr("chad_settings_label_last_analysis", "Letzte Analyse:"),
-        ).grid(row=3, column=0, sticky="w", pady=(4, 0))
-        ttk.Label(status, textvariable=self.chad_settings_last_analysis_var).grid(
-            row=3, column=1, sticky="w", padx=(8, 0), pady=(4, 0)
-        )
-        ttk.Label(
-            status,
-            text=self.tr("chad_settings_label_token_usage", "Tokenverbrauch:"),
-        ).grid(row=4, column=0, sticky="w", pady=(4, 0))
-        ttk.Label(status, textvariable=self.chad_settings_tokens_var).grid(
-            row=4, column=1, sticky="w", padx=(8, 0), pady=(4, 0)
-        )
-
-        chad_profile = ttk.LabelFrame(
-            frame,
-            text=self.tr("chad_settings_group_profile", "Chad profile"),
-            padding=8,
-        )
-        chad_profile.pack(fill="x", pady=(0, 6))
-        self._build_two_col_toggle_grid(
-            chad_profile,
-            [
-                (
-                    self.tr("chad_settings_profile_beginner", "Anfängerprofil"),
-                    "beginner",
-                    self.apply_chad_profile,
-                ),
-                (
-                    self.tr("chad_settings_profile_security", "Sicherheitsfokus"),
-                    "security",
-                    self.apply_chad_profile,
-                ),
-                (
-                    self.tr("chad_settings_profile_network", "Network focus"),
-                    "network",
-                    self.apply_chad_profile,
-                ),
-                (
-                    self.tr("chad_settings_profile_expert", "Expertenprofil"),
-                    "expert",
-                    self.apply_chad_profile,
-                ),
-                (
-                    self.tr("chad_settings_profile_custom", "Benutzerdefiniert"),
-                    "custom",
-                    self.apply_chad_profile,
-                ),
-            ],
-            is_radio=True,
-            variable=self.chad_profile_var,
-        )
-
-        analysis_mode = ttk.LabelFrame(
-            frame,
-            text="Analysemodus",
-            padding=8,
-        )
-        analysis_mode.pack(fill="x", pady=(0, 6))
-        self._build_two_col_toggle_grid(
-            analysis_mode,
-            [
-                (
-                    self.tr("chad_settings_mode_beginner", "Anfänger"),
-                    "beginner",
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr("chad_settings_mode_standard", "Standard"),
-                    "standard",
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr("chad_settings_mode_expert", "Experte"),
-                    "expert",
-                    self.mark_chad_profile_custom,
-                ),
-            ],
-            is_radio=True,
-            variable=self.chad_analysis_mode_var,
-        )
-
-        analysis_filter = ttk.LabelFrame(
-            frame,
-            text=self.tr("chad_settings_group_analysis_filter", "Analyse Filter"),
-            padding=8,
-        )
-        analysis_filter.pack(fill="x", pady=(0, 6))
-        self._build_two_col_toggle_grid(
-            analysis_filter,
-            [
-                (
-                    self.tr(
-                        "chad_settings_filter_relevant",
-                        "Nur relevante Warnungen",
-                    ),
-                    self.chad_filter_relevant_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_filter_critical",
-                        "Nur kritische Warnungen",
-                    ),
-                    self.chad_filter_critical_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_filter_recommendations",
-                        "Handlungsempfehlungen anzeigen",
-                    ),
-                    self.chad_filter_recommendations_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_filter_beginner",
-                        "Anfängerfreundliche Erklärungen",
-                    ),
-                    self.chad_filter_beginner_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr("chad_settings_filter_rawdata", "Rohdaten anhängen"),
-                    self.chad_filter_rawdata_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_filter_technical",
-                        "Technische Details anzeigen",
-                    ),
-                    self.chad_filter_technical_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_filter_hide_normal_services",
-                        "Normale Systemdienste ausblenden",
-                    ),
-                    self.chad_filter_hide_normal_services_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_filter_ignore_harmless_processes",
-                        "Bekannte harmlose Prozesse ignorieren",
-                    ),
-                    self.chad_filter_ignore_harmless_processes_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_filter_ignore_dev_environment",
-                        "VS Code-, Codex- und Docker-Hinweise minimieren",
-                    ),
-                    self.chad_filter_ignore_dev_environment_var,
-                    lambda: (
-                        self._update_chad_controls_state(),
-                        self.mark_chad_profile_custom(),
-                    ),
-                ),
-            ],
-        )
-
-        focus = ttk.LabelFrame(
-            frame,
-            text=self.tr("chad_settings_group_focus", "Analyse Schwerpunkte"),
-            padding=8,
-        )
-        focus.pack(fill="x", pady=(0, 6))
-        self._build_two_col_toggle_grid(
-            focus,
-            [
-                (
-                    self.tr("chad_settings_focus_security", "Sicherheitsanalyse"),
-                    self.chad_focus_security_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr("chad_settings_focus_dns", "DNS Analyse"),
-                    self.chad_focus_dns_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr("chad_settings_focus_network", "Network analysis"),
-                    self.chad_focus_network_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr("chad_settings_focus_process", "Prozessanalyse"),
-                    self.chad_focus_process_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr("chad_settings_focus_firewall", "Firewall Analyse"),
-                    self.chad_focus_firewall_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr("chad_settings_focus_performance", "Performance Analyse"),
-                    self.chad_focus_performance_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr("chad_settings_focus_optimization", "Systemoptimierung"),
-                    self.chad_focus_optimization_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_focus_rootkit",
-                        "Rootkit Hinweise priorisieren",
-                    ),
-                    self.chad_focus_rootkit_var,
-                    self.mark_chad_profile_custom,
-                ),
-            ],
-        )
-
-        profile = ttk.LabelFrame(
-            frame,
-            text=self.tr("chad_settings_group_systemcheck", "System check profiles"),
-            padding=8,
-        )
-        profile.pack(fill="x", pady=(0, 6))
-        self._build_two_col_toggle_grid(
-            profile,
-            [
-                (
-                    self.tr("chad_settings_systemcheck_quick", "Schnellcheck"),
-                    "quick",
-                    self.apply_chad_systemcheck_profile,
-                ),
-                (
-                    self.tr("chad_settings_systemcheck_security", "Sicherheitscheck"),
-                    "security",
-                    self.apply_chad_systemcheck_profile,
-                ),
-                (
-                    self.tr("chad_settings_systemcheck_network", "Network check"),
-                    "network",
-                    self.apply_chad_systemcheck_profile,
-                ),
-                (
-                    self.tr("chad_settings_systemcheck_full", "Komplettanalyse"),
-                    "full",
-                    self.apply_chad_systemcheck_profile,
-                ),
-                (
-                    self.tr("chad_settings_systemcheck_custom", "Benutzerdefiniert"),
-                    "custom",
-                    self.apply_chad_systemcheck_profile,
-                ),
-            ],
-            is_radio=True,
-            variable=self.chad_systemcheck_profile_var,
-        )
-
-        answer = ttk.LabelFrame(
-            frame,
-            text=self.tr("chad_settings_group_answer_style", "KI Antwortverhalten"),
-            padding=8,
-        )
-        answer.pack(fill="x", pady=(0, 6))
-        self._build_two_col_toggle_grid(
-            answer,
-            [
-                (
-                    self.tr(
-                        "chad_settings_answer_short",
-                        "Kurze Antworten bevorzugen",
-                    ),
-                    self.chad_answer_short_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_answer_detailed",
-                        "Ausführliche Analyse",
-                    ),
-                    self.chad_answer_detailed_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_answer_step",
-                        "Schritt-für-Schritt-Erklärungen",
-                    ),
-                    self.chad_answer_step_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_answer_linux_help",
-                        "Linux-Befehle erklären",
-                    ),
-                    self.chad_answer_linux_help_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_answer_risk",
-                        "Risiko-Einstufung anzeigen",
-                    ),
-                    self.chad_answer_risk_var,
-                    self.mark_chad_profile_custom,
-                ),
-                (
-                    self.tr(
-                        "chad_settings_answer_recommendations",
-                        "Empfehlungen priorisieren",
-                    ),
-                    self.chad_answer_recommendations_var,
-                    self.mark_chad_profile_custom,
-                ),
-            ],
-        )
+        build_chad_settings_content(self)
 
     def build_chad_analysis_tab(self):
-        self.tab_chad_analysis.columnconfigure(0, weight=1)
-        self.tab_chad_analysis.rowconfigure(2, weight=1)
-
-        top = ttk.Frame(self.tab_chad_analysis)
-        top.grid(row=0, column=0, sticky="ew", pady=(0, 3))
-        top.columnconfigure(1, weight=1)
-
-        ttk.Label(
-            top,
-            text=self.tr("chad_title", "Chad Analyse"),
-            font=("TkDefaultFont", 12, "bold"),
-        ).grid(row=0, column=0, sticky="w")
-
-        ttk.Label(
-            top,
-            textvariable=self.chad_analysis_status_var,
-        ).grid(row=0, column=1, sticky="w", padx=(12, 0))
-
-        self.chad_enabled_check = ttk.Checkbutton(
-            top,
-            text=self.tr("chad_check_enabled", "Chad-Anbindung aktiv"),
-            variable=self.chad_enabled_var,
-            onvalue=True,
-            offvalue=False,
-            command=self._update_chad_controls_state,
-        )
-        self.chad_enabled_check.grid(row=0, column=2, sticky="e")
-
-        ttk.Label(
-            self.tab_chad_analysis,
-            textvariable=self.chad_dev_filter_status_var,
-        ).grid(row=1, column=0, sticky="ew", pady=(0, 3))
-
-        chat_layout = ttk.Frame(self.tab_chad_analysis)
-        chat_layout.grid(row=2, column=0, sticky="nsew")
-        chat_layout.columnconfigure(0, weight=1)
-        chat_layout.rowconfigure(1, weight=1)
-
-        composer_frame = ttk.Frame(chat_layout)
-        composer_frame.grid(row=0, column=0, sticky="ew", pady=(0, 3))
-        composer_frame.columnconfigure(0, weight=1)
-
-        self.btn_chad_import_file = ttk.Button(
-            composer_frame,
-            text=self.tr("chad_btn_import_file", "Insert file"),
-            command=self.import_file_to_chad_chat,
-        )
-        self.btn_chad_import_file.grid(row=0, column=0, sticky="w", padx=(0, 3))
-
-        self.btn_chad_online = ttk.Button(
-            composer_frame,
-            text=self.tr("chad_btn_online_analysis", "Online analysieren"),
-            command=self.run_chad_online_analysis,
-        )
-        self.btn_chad_online.grid(row=0, column=1, sticky="w", padx=(0, 6))
-
-        composer_input_frame = ttk.Frame(composer_frame)
-        composer_input_frame.grid(
-            row=1, column=0, columnspan=2, sticky="ew", pady=(6, 0)
-        )
-        composer_input_frame.columnconfigure(0, weight=1)
-        composer_input_frame.rowconfigure(0, weight=1)
-
-        composer_input_scroll = ttk.Scrollbar(
-            composer_input_frame,
-            orient="vertical",
-        )
-        composer_input_scroll.grid(row=0, column=1, sticky="ns")
-
-        self.chad_chat_input = tk.Text(
-            composer_input_frame,
-            wrap="word",
-            height=6,
-            yscrollcommand=composer_input_scroll.set,
-        )
-        self.chad_chat_input.grid(row=0, column=0, sticky="ew")
-        composer_input_scroll.configure(command=self.chad_chat_input.yview)
-        self.chad_chat_input.bind(
-            "<Return>",
-            lambda _event: self.send_chad_chat_message(),
-        )
-        self.chad_chat_input.bind(
-            "<KP_Enter>",
-            lambda _event: self.send_chad_chat_message(),
-        )
-        self.attach_copy_paste_context_menu(self.chad_chat_input)
-
-        output_frame = ttk.Frame(chat_layout)
-        output_frame.grid(row=1, column=0, sticky="nsew", pady=(0, 2))
-        output_frame.columnconfigure(0, weight=1)
-        output_frame.rowconfigure(1, weight=1)
-
-        output_head = ttk.Frame(output_frame)
-        output_head.grid(row=0, column=0, sticky="ew", pady=(0, 3))
-        output_head.columnconfigure(1, weight=1)
-
-        ttk.Label(
-            output_head,
-            text=self.tr("chad_group_output", "Ausgabe / Analyse / Chatverlauf"),
-        ).grid(row=0, column=0, sticky="w")
-
-        output_controls = ttk.Frame(output_head)
-        output_controls.grid(row=0, column=2, sticky="e")
-
-        self.btn_chad_clear = ttk.Button(
-            output_controls,
-            text=self.tr("chad_btn_clear_analysis", "Analyse leeren"),
-            command=self.clear_chad_analysis,
-            width=14,
-        )
-        self.btn_chad_clear.pack(side="right", padx=(0, 18))
-
-        self.btn_chad_save_analysis = ttk.Button(
-            output_controls,
-            text=self.tr("chad_btn_save_analysis", "Analyse sichern"),
-            command=self.save_chad_analysis_to_file,
-            width=13,
-        )
-        self.btn_chad_save_analysis.pack(side="right", padx=(0, 6))
-
-        self.btn_chad_load_analysis = ttk.Button(
-            output_controls,
-            text=self.tr("chad_btn_load_analysis", "Analyse einlesen"),
-            command=self.load_chad_analysis_from_file,
-            width=14,
-        )
-        self.btn_chad_load_analysis.pack(side="right", padx=(0, 6))
-
-        self.chad_output_filter_combo = ttk.Combobox(
-            output_controls,
-            textvariable=self.chad_output_filter_var,
-            state="readonly",
-            width=18,
-            values=[
-                self.tr("chad_filter_all", "Alles"),
-                self.tr("chad_filter_answers", "Nur Antworten"),
-                self.tr("chad_filter_results", "Results only"),
-            ],
-        )
-        self.chad_output_filter_combo.pack(side="right", padx=(0, 8))
-        self.chad_output_filter_combo.bind(
-            "<<ComboboxSelected>>",
-            lambda _event: chad_controller.refresh_chad_output_view(self),
-        )
-
-        ttk.Label(
-            output_controls,
-            text=self.tr("chad_filter_label", "Filter:"),
-        ).pack(side="right", padx=(0, 6))
-
-        analysis_body = ttk.Frame(output_frame)
-        analysis_body.grid(row=1, column=0, sticky="nsew")
-        analysis_body.columnconfigure(0, weight=1)
-        analysis_body.rowconfigure(0, weight=1)
-
-        analysis_text_frame = ttk.Frame(analysis_body)
-        analysis_text_frame.grid(row=0, column=0, sticky="nsew")
-        analysis_text_frame.columnconfigure(0, weight=1)
-        analysis_text_frame.rowconfigure(0, weight=1)
-
-        analysis_scroll = ttk.Scrollbar(analysis_text_frame, orient="vertical")
-        analysis_scroll.grid(row=0, column=1, sticky="ns")
-
-        self.chad_analysis_text = tk.Text(
-            analysis_text_frame,
-            wrap="word",
-            height=18,
-            yscrollcommand=analysis_scroll.set,
-        )
-        self.chad_analysis_text.grid(row=0, column=0, sticky="nsew")
-        analysis_scroll.configure(command=self.chad_analysis_text.yview)
-
-        def _activate_chad_analysis_scroll(_event=None):
-            try:
-                self.chad_analysis_text.focus_force()
-            except Exception:
-                pass
-
-        self.chad_analysis_text.bind(
-            "<Button-1>", _activate_chad_analysis_scroll, add="+"
-        )
-        self.chad_analysis_text.tag_configure(
-            "chat_user_header",
-            font=("TkDefaultFont", 10, "bold"),
-            spacing1=8,
-            spacing3=2,
-        )
-        self.chad_analysis_text.tag_configure(
-            "chat_assistant_header",
-            font=("TkDefaultFont", 10, "bold"),
-            spacing1=8,
-            spacing3=2,
-        )
-        self.chad_analysis_text.tag_configure(
-            "chat_system_header",
-            font=("TkDefaultFont", 10, "bold"),
-            spacing1=8,
-            spacing3=2,
-        )
-        self.chad_analysis_text.tag_configure(
-            "chat_user_body",
-            lmargin1=14,
-            lmargin2=14,
-            spacing3=6,
-        )
-        self.chad_analysis_text.tag_configure(
-            "chat_assistant_body",
-            lmargin1=14,
-            lmargin2=14,
-            spacing3=6,
-        )
-        self.chad_analysis_text.tag_configure(
-            "chat_system_body",
-            lmargin1=14,
-            lmargin2=14,
-            spacing3=6,
-        )
-        self.chad_analysis_text.tag_configure("chat_spacer", spacing3=4)
-        self._apply_chad_chat_theme(self._app_theme or LIGHT_THEME)
-        self.chad_analysis_text.configure(state="disabled")
-
-        footer_frame = ttk.Frame(chat_layout)
-        footer_frame.grid(row=2, column=0, sticky="ew")
-
-        self.btn_chad_take_analysis = None
-        self.btn_chad_copy = None
-        self.btn_chad_top = None
-        self.btn_chad_bottom = None
-        self.chad_auto_scroll_check = None
-
-        status_row = ttk.Frame(footer_frame)
-        status_row.pack(fill="x", pady=(0, 2))
-
-        ttk.Label(
-            status_row,
-            textvariable=self.chad_online_status_var,
-        ).pack(side="left")
-
-        ttk.Label(
-            status_row,
-            textvariable=self.chad_chat_status_var,
-        ).pack(side="left", padx=(16, 0))
-
-        ttk.Label(
-            status_row,
-            textvariable=self.chad_analysis_status_var,
-        ).pack(side="left", padx=(16, 0))
-
-        ttk.Label(
-            footer_frame,
-            textvariable=self.chad_analysis_source_var,
-        ).pack(anchor="w")
-        self._update_chad_controls_state()
+        build_chad_analysis_content(self, LIGHT_THEME)
 
     def is_chad_enabled(self) -> bool:
         return chad_controller.is_chad_enabled(self)
@@ -26828,7 +25563,9 @@ class App(TkBase):
         for widget_name in entry_targets:
             self.safe_attach_entry_edit_shortcuts(widget_name)
 
-    def attach_chad_context_menu(self, text_widget, title: str):
+    def attach_chad_context_menu(
+        self, text_widget, title: str, *, include_translate_to_german: bool = False
+    ):
         attached = self.__dict__.setdefault("_chad_context_menu_attached", set())
         widget_id = str(text_widget)
         if widget_id in attached:
@@ -26932,6 +25669,35 @@ class App(TkBase):
             except Exception:
                 pass
 
+        def translate_selection_to_german():
+            if not self.is_chad_enabled():
+                self._show_chad_activation_required_popup()
+                return
+
+            selected = get_selected_text()
+            if not selected:
+                try:
+                    self.chad_analysis_status_var.set(
+                        self.tr(
+                            "chad_status_no_selection_for_translation",
+                            "Keine Auswahl für Übersetzung markiert.",
+                        )
+                    )
+                except Exception:
+                    pass
+                return
+
+            prompt = (
+                "Übersetze die folgende Lynis-Ausgabe ins Deutsche.\n"
+                "Erhalte Lynis-Test-IDs, Befehle, Dateipfade, Paketnamen, "
+                "Konfigurationsschlüssel, Ports und Zahlen unverändert.\n"
+                "Gib zusätzlich kurze, verständliche Hinweise, falls ein Befund "
+                "eine Aktion nahelegt.\n\n"
+                "=== Lynis-Ausgabe ===\n"
+                f"{selected}"
+            )
+            self.prepare_chad_analysis("Lynis Übersetzung Deutsch", prompt)
+
         menu.add_command(label="Kopieren", command=copy_selection)
         menu.add_command(label="Einfügen", command=paste_from_clipboard)
         menu.add_command(label="Alles auswählen", command=select_all)
@@ -26940,6 +25706,11 @@ class App(TkBase):
             label="Auswahl an Chad Analyse senden",
             command=send_selection_to_chad,
         )
+        if include_translate_to_german:
+            menu.add_command(
+                label="Auswahl ins Deutsche übersetzen",
+                command=translate_selection_to_german,
+            )
         menu.add_command(
             label="Auswahl als Chad-Prompt kopieren",
             command=copy_selection_as_prompt,
@@ -26951,13 +25722,23 @@ class App(TkBase):
         text_widget.bind("<Button-3>", show_menu, add="+")
         text_widget._chad_context_menu = menu
 
-    def safe_attach_chad_context_menu(self, widget_name: str, title: str):
+    def safe_attach_chad_context_menu(
+        self,
+        widget_name: str,
+        title: str,
+        *,
+        include_translate_to_german: bool = False,
+    ):
         widget = self.__dict__.get(widget_name)
         if widget is None:
             return
 
         try:
-            self.attach_chad_context_menu(widget, title)
+            self.attach_chad_context_menu(
+                widget,
+                title,
+                include_translate_to_german=include_translate_to_german,
+            )
         except Exception as exc:
             try:
                 self.log(
@@ -27115,29 +25896,34 @@ class App(TkBase):
 
     def attach_all_chad_context_menus(self):
         targets = [
-            ("text", "NetMon Log Analyse"),
-            ("dns_text", "DNS Analyse"),
-            ("nmap_text", "Nmap Analyse"),
-            ("mtr_text", "MTR Analyse"),
-            ("iftop_text", "iftop Analyse"),
-            ("htop_text", "htop Analyse"),
-            ("linux_help_text", "Linux Hilfe Analyse"),
-            ("hdd_info_text", "HDD Analyse"),
-            ("security_detail", "Security Analyse"),
-            ("process_guard_detail", "Process Guard Analyse"),
-            ("clamav_output_text", "ClamAV Analyse"),
-            ("packet_capture_text", "Packet Capture Analyse"),
-            ("lynis_text", "Lynis Analyse"),
-            ("rkhunter_text", "rkhunter Analyse"),
+            ("text", "NetMon Log Analyse", False),
+            ("dns_text", "DNS Analyse", False),
+            ("nmap_text", "Nmap Analyse", False),
+            ("mtr_text", "MTR Analyse", False),
+            ("iftop_text", "iftop Analyse", False),
+            ("htop_text", "htop Analyse", False),
+            ("linux_help_text", "Linux Hilfe Analyse", False),
+            ("hdd_info_text", "HDD Analyse", False),
+            ("security_detail", "Security Analyse", False),
+            ("process_guard_detail", "Process Guard Analyse", False),
+            ("clamav_output_text", "ClamAV Analyse", False),
+            ("packet_capture_text", "Packet Capture Analyse", False),
+            ("lynis_text", "Lynis Analyse", True),
+            ("rkhunter_text", "rkhunter Analyse", False),
             (
                 "startup_guard_details_text",
                 "Startup Guard Eintrag Analyse",
+                False,
             ),
-            ("chad_analysis_text", "Chad Verlauf Analyse"),
+            ("chad_analysis_text", "Chad Verlauf Analyse", False),
         ]
 
-        for widget_name, title in targets:
-            self.safe_attach_chad_context_menu(widget_name, title)
+        for widget_name, title, include_translate_to_german in targets:
+            self.safe_attach_chad_context_menu(
+                widget_name,
+                title,
+                include_translate_to_german=include_translate_to_german,
+            )
 
     def set_chad_analysis(self, title: str, raw_text: str):
         chad_controller.set_chad_analysis(self, title, raw_text)
@@ -27513,225 +26299,7 @@ class App(TkBase):
         dot_controller.test_dot_async(self)
 
     def build_packet_capture_tab(self):
-        config = ttk.LabelFrame(
-            self.tab_packet_capture,
-            text=self.tr("packet_capture_group_config", "Konfiguration"),
-            padding=6,
-        )
-        config.pack(fill="x")
-        config.columnconfigure(1, weight=1)
-
-        ttk.Label(
-            config, text=self.tr("packet_capture_label_interface", "Interface:")
-        ).grid(row=0, column=0, sticky="w")
-        self.packet_capture_interface_combo = ttk.Combobox(
-            config,
-            textvariable=self.packet_capture_interface_var,
-            state="readonly",
-            values=[],
-        )
-        self.packet_capture_interface_combo.grid(
-            row=0, column=1, sticky="ew", padx=(8, 8)
-        )
-        self.btn_packet_capture_refresh = ttk.Button(
-            config,
-            text=self.tr("btn_refresh_interfaces", "Interfaces aktualisieren"),
-            command=self.refresh_packet_capture_interfaces,
-        )
-        self.btn_packet_capture_refresh.grid(row=0, column=2, sticky="ew")
-        self.register_feature_button(
-            "packet_capture_ui", self.btn_packet_capture_refresh
-        )
-        self.add_tooltip(
-            self.btn_packet_capture_refresh,
-            "Aktualisiert die verfügbare Liste der Capture-Interfaces.",
-        )
-
-        ttk.Label(
-            config,
-            text=self.tr("packet_capture_label_filter", "Capture-Filter:"),
-        ).grid(row=1, column=0, sticky="w", pady=(6, 0))
-        ttk.Entry(config, textvariable=self.packet_capture_filter_var).grid(
-            row=1,
-            column=1,
-            columnspan=2,
-            sticky="ew",
-            padx=(8, 0),
-            pady=(6, 0),
-        )
-
-        ttk.Label(config, text=self.tr("packet_capture_label_file", "File:")).grid(
-            row=2, column=0, sticky="w", pady=(6, 0)
-        )
-        ttk.Entry(config, textvariable=self.packet_capture_file_var).grid(
-            row=2, column=1, sticky="ew", padx=(8, 8), pady=(6, 0)
-        )
-        self.btn_packet_capture_choose = ttk.Button(
-            config,
-            text=self.tr("packet_capture_btn_choose_file", "Choose file"),
-            command=self.choose_packet_capture_file,
-        )
-        self.btn_packet_capture_choose.grid(row=2, column=2, sticky="ew", pady=(6, 0))
-        self.register_feature_button(
-            "packet_capture_ui", self.btn_packet_capture_choose
-        )
-        self.add_tooltip(
-            self.btn_packet_capture_choose,
-            "Sets the save location and file name for the capture file.",
-        )
-
-        actions = ttk.LabelFrame(
-            self.tab_packet_capture,
-            text=self.tr("packet_capture_group_actions", "Actions"),
-            padding=6,
-        )
-        actions.pack(fill="x", pady=(8, 0))
-        for col in range(3):
-            actions.columnconfigure(col, weight=1)
-
-        self.btn_packet_capture_start = ttk.Button(
-            actions,
-            text=self.tr("packet_capture_btn_start", "Start capture"),
-            command=self.packet_capture_start_async,
-        )
-        self.btn_packet_capture_start.grid(row=0, column=0, sticky="ew")
-        self.register_feature_button("packet_capture", self.btn_packet_capture_start)
-        self.add_tooltip(
-            self.btn_packet_capture_start,
-            "Starts a packet capture with tshark or dumpcap.",
-        )
-
-        self.btn_packet_capture_stop = ttk.Button(
-            actions,
-            text=self.tr("packet_capture_btn_stop", "Stop capture"),
-            command=self.packet_capture_stop,
-        )
-        self.btn_packet_capture_stop.grid(
-            row=0, column=1, sticky="ew", padx=(8, 0)
-        )
-        self.register_feature_button("packet_capture", self.btn_packet_capture_stop)
-        self.add_tooltip(
-            self.btn_packet_capture_stop,
-            "Stops a running capture cleanly.",
-        )
-
-        self.btn_packet_capture_open_wireshark = ttk.Button(
-            actions,
-            text=self.tr("packet_capture_btn_open_wireshark", "Open in Wireshark"),
-            command=self.open_packet_capture_in_wireshark,
-        )
-        self.btn_packet_capture_open_wireshark.grid(
-            row=0, column=2, sticky="ew", padx=(8, 0)
-        )
-        self.register_feature_button(
-            "wireshark_open", self.btn_packet_capture_open_wireshark
-        )
-        self.add_tooltip(
-            self.btn_packet_capture_open_wireshark,
-            "Opens the current capture file in Wireshark if installed.",
-        )
-        self.refresh_wireshark_launch_controls()
-
-        self.btn_packet_capture_open_file = ttk.Button(
-            actions,
-            text=self.tr("packet_capture_btn_open_file", "Open capture file"),
-            command=self.open_packet_capture_file_location,
-        )
-        self.btn_packet_capture_open_file.grid(
-            row=1, column=0, sticky="ew", pady=(6, 0)
-        )
-        self.register_feature_button(
-            "packet_capture", self.btn_packet_capture_open_file
-        )
-        self.add_tooltip(
-            self.btn_packet_capture_open_file,
-            "Opens the capture file or its folder in the file manager.",
-        )
-
-        self.btn_packet_capture_info = ttk.Button(
-            actions,
-            text=self.tr("packet_capture_btn_file_info", "File info"),
-            command=self.packet_capture_show_file_info,
-        )
-        self.btn_packet_capture_info.grid(
-            row=1, column=1, sticky="ew", padx=(8, 0), pady=(6, 0)
-        )
-        self.register_feature_button("packet_capture_ui", self.btn_packet_capture_info)
-        self.add_tooltip(
-            self.btn_packet_capture_info,
-            "Shows metadata and size of the current capture file.",
-        )
-
-        self.btn_packet_capture_fix_permissions = ttk.Button(
-            actions,
-            text=self.tr(
-                "packet_capture_btn_fix_permissions",
-                "Capture-Rechte reparieren",
-            ),
-            command=self.repair_packet_capture_permissions,
-        )
-        self.btn_packet_capture_fix_permissions.grid(
-            row=1, column=2, sticky="ew", padx=(8, 0), pady=(6, 0)
-        )
-        self.register_feature_button(
-            "packet_capture_ui", self.btn_packet_capture_fix_permissions
-        )
-        self.add_tooltip(
-            self.btn_packet_capture_fix_permissions,
-            "Starts a guided repair for missing tshark/dumpcap capture permissions.",
-        )
-
-        status = ttk.LabelFrame(
-            self.tab_packet_capture,
-            text=self.tr("packet_capture_group_status", "Status"),
-            padding=6,
-        )
-        status.pack(fill="x", pady=(8, 0))
-        for col in range(4):
-            status.columnconfigure(col, weight=1)
-
-        ttk.Label(status, text=self.tr("label_status", "Status:")).grid(
-            row=0, column=0, sticky="w"
-        )
-        ttk.Label(status, textvariable=self.packet_capture_status_var).grid(
-            row=0, column=1, sticky="w", padx=(8, 12)
-        )
-        ttk.Label(
-            status, text=self.tr("packet_capture_label_runtime", "Runtime:")
-        ).grid(row=0, column=2, sticky="w")
-        ttk.Label(status, textvariable=self.packet_capture_runtime_var).grid(
-            row=0, column=3, sticky="w", padx=(8, 0)
-        )
-        ttk.Label(
-            status, text=self.tr("packet_capture_label_packets", "Packets:")
-        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
-        ttk.Label(status, textvariable=self.packet_capture_packets_var).grid(
-            row=1, column=1, sticky="w", padx=(8, 12), pady=(4, 0)
-        )
-        ttk.Label(
-            status, text=self.tr("packet_capture_label_filesize", "File size:")
-        ).grid(row=1, column=2, sticky="w", pady=(4, 0))
-        ttk.Label(status, textvariable=self.packet_capture_size_var).grid(
-            row=1, column=3, sticky="w", padx=(8, 0), pady=(4, 0)
-        )
-
-        output_frame = ttk.LabelFrame(
-            self.tab_packet_capture,
-            text=self.tr("packet_capture_group_output", "Capture status"),
-            padding=6,
-        )
-        output_frame.pack(fill="both", expand=True, pady=(8, 0))
-        self.packet_capture_text = tk.Text(output_frame, wrap="word", height=14)
-        self.packet_capture_text.pack(fill="both", expand=True)
-        self.packet_capture_text.insert(
-            "1.0",
-            self.tr(
-                "packet_capture_output_default",
-                "Packet capture status and file information will appear here.\n",
-            ),
-        )
-        self.packet_capture_text.configure(state="disabled")
-        self.packet_capture_set_running_state(False)
+        build_packet_capture_tab_ui(self)
 
     def packet_capture_set_running_state(self, running):
         packet_capture_controller.packet_capture_set_running_state(self, running)
@@ -27932,171 +26500,11 @@ class App(TkBase):
             pass
 
     def build_lynis_tab(self):
-        lynis_top = ttk.LabelFrame(
-            self.tab_lynis,
-            text=self.tr("lynis_group_actions", "Lynis actions"),
-            padding=6,
+        security_audit_controller.restore_security_baseline_state(self)
+        baseline_profile_choices = (
+            security_audit_controller.baseline_profile_choice_items(self)
         )
-        lynis_top.pack(fill="x", pady=(0, 8))
-        for col in range(3):
-            lynis_top.columnconfigure(col, weight=1)
-
-        self.btn_lynis_quick = ttk.Button(
-            lynis_top,
-            text=self.tr("lynis_btn_quick_scan", "Quick scan"),
-            command=self.run_lynis_quick,
-        )
-        self.btn_lynis_quick.grid(
-            row=0, column=0, sticky="ew", padx=(0, 6), pady=(0, 6)
-        )
-        self.register_feature_button("lynis", self.btn_lynis_quick)
-        self.add_tooltip(
-            self.btn_lynis_quick,
-            self.tr(
-                "lynis_btn_quick_scan_tooltip",
-                "Starts a quick Lynis scan without root privileges.",
-            ),
-        )
-
-        self.btn_lynis_full = ttk.Button(
-            lynis_top,
-            text=self.tr("lynis_btn_full_scan", "Full security scan (sudo)"),
-            command=self.run_lynis_full,
-        )
-        self.btn_lynis_full.grid(row=0, column=1, sticky="ew", padx=6, pady=(0, 6))
-        self.register_feature_button("lynis", self.btn_lynis_full)
-        self.add_tooltip(
-            self.btn_lynis_full,
-            self.tr(
-                "lynis_btn_full_scan_tooltip",
-                "Starts a full Lynis security audit with sudo.",
-            ),
-        )
-
-        self.btn_lynis_clear = ttk.Button(
-            lynis_top,
-            text=self.tr("lynis_btn_clear_output", "Clear Lynis output"),
-            command=self.clear_lynis_output,
-        )
-        self.btn_lynis_clear.grid(
-            row=0, column=2, sticky="ew", padx=(6, 0), pady=(0, 6)
-        )
-        self.add_tooltip(
-            self.btn_lynis_clear,
-            self.tr(
-                "lynis_btn_clear_output_tooltip",
-                "Clears the current Lynis output in this tab.",
-            ),
-        )
-
-        self.btn_lynis_chad_issues = ttk.Button(
-            lynis_top,
-            text=self.tr(
-                "lynis_btn_analyze_issues_with_chad",
-                "Analyze issues with Chad",
-            ),
-            command=self.analyze_lynis_issues_with_chad,
-        )
-        self.btn_lynis_chad_issues.grid(
-            row=1, column=0, sticky="ew", padx=(0, 6), pady=6
-        )
-        self.add_tooltip(
-            self.btn_lynis_chad_issues,
-            self.tr(
-                "lynis_btn_analyze_issues_with_chad_tooltip",
-                "Prepares only Lynis issues and recommendations for Chad.",
-            ),
-        )
-
-        lynis_status_row = ttk.Frame(lynis_top)
-        lynis_status_row.grid(
-            row=1,
-            column=1,
-            columnspan=2,
-            sticky="ew",
-            padx=(6, 0),
-            pady=6,
-        )
-        ttk.Label(lynis_status_row, text=self.tr("label_status", "Status:")).pack(
-            side="left"
-        )
-        ttk.Label(lynis_status_row, textvariable=self.lynis_status_var).pack(
-            side="left", padx=(6, 0)
-        )
-
-        lynis_filter_row = ttk.Frame(lynis_top)
-        lynis_filter_row.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(6, 0))
-        ttk.Label(lynis_filter_row, text=self.tr("label_filter", "Filter:")).pack(
-            side="left"
-        )
-
-        self.btn_lynis_issues = ttk.Button(
-            lynis_filter_row,
-            text=self.tr(
-                "lynis_btn_only_issues_recommendations",
-                "Issues & recommendations only",
-            ),
-            command=self.show_lynis_issues_only,
-        )
-        self.btn_lynis_issues.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_lynis_issues,
-            self.tr(
-                "lynis_btn_only_issues_recommendations_tooltip",
-                "Shows only warnings, recommendations, and notable Lynis lines.",
-            ),
-        )
-
-        self.btn_lynis_full_output = ttk.Button(
-            lynis_filter_row,
-            text=self.tr("lynis_btn_full_output", "Full output"),
-            command=self.show_lynis_full_output,
-        )
-        self.btn_lynis_full_output.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_lynis_full_output,
-            self.tr(
-                "lynis_btn_full_output_tooltip",
-                "Restores the full cleaned Lynis output.",
-            ),
-        )
-
-        lynis_summary = ttk.LabelFrame(
-            self.tab_lynis,
-            text=self.tr("group_summary", "Summary"),
-            padding=6,
-        )
-        lynis_summary.pack(fill="x", pady=(0, 8))
-        ttk.Label(
-            lynis_summary,
-            textvariable=self.lynis_summary_var,
-            justify="left",
-        ).pack(anchor="w")
-
-        lynis_output_frame = ttk.Frame(self.tab_lynis)
-        lynis_output_frame.pack(fill="both", expand=True)
-        lynis_output_frame.columnconfigure(0, weight=1)
-        lynis_output_frame.rowconfigure(0, weight=1)
-
-        lynis_scroll_y = ttk.Scrollbar(lynis_output_frame, orient="vertical")
-        lynis_scroll_y.grid(row=0, column=1, sticky="ns")
-
-        self.lynis_text = tk.Text(
-            lynis_output_frame,
-            wrap="word",
-            height=20,
-            yscrollcommand=lynis_scroll_y.set,
-        )
-        self.lynis_text.grid(row=0, column=0, sticky="nsew")
-        lynis_scroll_y.configure(command=self.lynis_text.yview)
-        self.lynis_text.insert(
-            "1.0",
-            self.tr(
-                "lynis_output_placeholder",
-                "Lynis output will appear here.\n",
-            ),
-        )
-        self.lynis_text.configure(state="disabled")
+        build_lynis_content(self, baseline_profile_choices)
 
     def open_lynis_tab(self):
         security_audit_controller.open_lynis_tab(self)
@@ -28176,206 +26584,1485 @@ class App(TkBase):
     def run_lynis_full(self):
         security_audit_controller.run_lynis_full(self)
 
-    def build_rkhunter_tab(self):
-        rkh_top = ttk.LabelFrame(
-            self.tab_rkhunter,
-            text=self.tr("rkhunter_group_actions", "rkhunter actions"),
-            padding=6,
-        )
-        rkh_top.pack(fill="x", pady=(0, 8))
-        rkh_actions_row = ttk.Frame(rkh_top)
-        rkh_actions_row.pack(fill="x")
-        rkh_secondary_actions_row = ttk.Frame(rkh_top)
-        rkh_secondary_actions_row.pack(fill="x", pady=(6, 0))
-        rkh_status_row = ttk.Frame(rkh_top)
-        rkh_status_row.pack(fill="x", pady=(6, 0))
+    def refresh_security_baseline_overview(self):
+        security_audit_controller.refresh_security_baseline_overview(self)
 
-        self.btn_rkhunter_update = ttk.Button(
-            rkh_actions_row,
-            text=self.tr("rkhunter_btn_update", "rkhunter update"),
-            command=self.rkhunter_update_async,
+    def refresh_security_baseline_table(self):
+        security_audit_controller.refresh_security_baseline_table(self)
+
+    def apply_security_baseline_filter(self, mode: str):
+        security_audit_controller.apply_security_baseline_filter(self, mode)
+
+    def apply_security_baseline_profile_choice(self, choice_label: str):
+        security_audit_controller.apply_security_baseline_profile_choice(
+            self,
+            choice_label,
         )
-        self.btn_rkhunter_update.pack(side="left")
-        self.register_feature_button("rkhunter", self.btn_rkhunter_update)
-        self.add_tooltip(
-            self.btn_rkhunter_update,
-            self.tr(
-                "rkhunter_btn_update_tooltip",
-                "Updates the rkhunter data set without making further system changes.",
+
+    def show_security_baseline_list_view(self):
+        security_audit_controller.show_security_baseline_list_view(self)
+
+    def show_security_baseline_detail_view(self, *, title: str = ""):
+        security_audit_controller.show_security_baseline_detail_view(
+            self,
+            title=title,
+        )
+
+    def on_security_baseline_select(self, _event=None):
+        security_audit_controller.on_security_baseline_select(self, _event=_event)
+
+    def run_security_baseline_checks(self):
+        security_audit_controller.run_security_baseline_checks(self, run_cmd_fn=run_cmd)
+
+    def check_security_baseline_privileges(self):
+        return security_audit_controller.check_security_baseline_privileges(self)
+
+    def _apply_game_mode_dns_guard(self, enabled: bool):
+        enabled = bool(enabled)
+        self.dns_guard_enabled = enabled
+        guard_var = self.__dict__.get("dns_guard_enabled_var")
+        if guard_var is not None:
+            try:
+                guard_var.set(enabled)
+            except Exception:
+                pass
+        if enabled:
+            try:
+                self.rebuild_dns_guard_whitelist()
+            except Exception:
+                pass
+        try:
+            self.refresh_dns_policy_status()
+        except Exception:
+            pass
+        try:
+            self.update_dns_controls_state_safe()
+        except Exception:
+            pass
+        try:
+            self.run_dns_guard_check_once()
+        except Exception:
+            pass
+        try:
+            self.update_dns_guard_indicator()
+        except Exception:
+            pass
+
+    def _set_ufw_logging_sync(
+        self,
+        level,
+        *,
+        ensure_sudo: bool = True,
+        log_context: str = "",
+    ):
+        normalized = str(level or "").strip().lower()
+        if normalized not in {"off", "low", "medium", "high"}:
+            return False
+        if ensure_sudo and not self.ensure_sudo_session(
+            f"UFW Logging {normalized.upper()} setzen"
+        ):
+            return False
+
+        attempts = [["sudo", "-n", "ufw", "logging", normalized]]
+        if not ensure_sudo:
+            attempts.append(["ufw", "logging", normalized])
+
+        last_out = ""
+        for cmd in attempts:
+            rc, out = run_cmd(cmd, timeout=12)
+            last_out = str(out or "").strip()
+            if rc == 0:
+                context = f" ({log_context})" if str(log_context or "").strip() else ""
+                self.log_safe(
+                    f"Security: UFW Logging auf {normalized.upper()} gesetzt{context}"
+                )
+                try:
+                    self.update_ufw_logging_light()
+                except Exception:
+                    pass
+                try:
+                    self.refresh_firewall_transparency_view()
+                except Exception:
+                    pass
+                return True
+        self.log_safe(
+            "Security: Fehler beim Setzen von UFW Logging"
+            + (f" ({log_context})" if str(log_context or "").strip() else "")
+            + (f": {last_out}" if last_out else ".")
+        )
+        return False
+
+    def _game_mode_presets(self):
+        kernel_note = (
+            "Kernel-Haertung bleibt aktiv. Relevante Grenzfaelle fuer Spiele sind "
+            "eher perf_event_paranoid, unprivileged_bpf und rp_filter bei VPN/"
+            "Multi-Interface, nicht normales Online-Gameplay."
+        )
+        return {
+            "singleplayer": {
+                "id": "singleplayer",
+                "label": "Singleplayer",
+                "pause_dns_guard": False,
+                "pause_killswitch": False,
+                "lower_ufw_logging": True,
+                "profile_note": (
+                    "Fuer lokale oder offline-lastige Spiele. Netzwerk-Schutz bleibt "
+                    "weitgehend unveraendert; nur auffaelliges UFW-Logging wird entschärft."
+                ),
+                "kernel_note": kernel_note,
+            },
+            "online": {
+                "id": "online",
+                "label": "Online",
+                "pause_dns_guard": True,
+                "pause_killswitch": False,
+                "lower_ufw_logging": True,
+                "profile_note": (
+                    "Fuer Matchmaking, Launcher, Voice-Chat und Anti-Cheat-nahe Online-Pfade. "
+                    "DNS Guard wird pausiert, Killswitch bleibt standardmaessig aktiv."
+                ),
+                "kernel_note": kernel_note,
+            },
+            "steam": {
+                "id": "steam",
+                "label": "Steam",
+                "pause_dns_guard": True,
+                "pause_killswitch": False,
+                "lower_ufw_logging": True,
+                "profile_note": (
+                    "Fuer Steam, Proton und typische Matchmaking-/Workshop-/Cloud-Pfade. "
+                    "Netzwerk-Haertung wird leicht entschärft, Kernel-Haertung bleibt aktiv."
+                ),
+                "kernel_note": kernel_note,
+            },
+            "heroic": {
+                "id": "heroic",
+                "label": "Heroic",
+                "pause_dns_guard": True,
+                "pause_killswitch": False,
+                "lower_ufw_logging": True,
+                "profile_note": (
+                    "Fuer Heroic Games Launcher mit Epic- oder GOG-Titeln. "
+                    "DNS Guard wird pausiert, Killswitch bleibt standardmaessig aktiv."
+                ),
+                "kernel_note": kernel_note,
+            },
+            "lutris": {
+                "id": "lutris",
+                "label": "Lutris",
+                "pause_dns_guard": True,
+                "pause_killswitch": False,
+                "lower_ufw_logging": True,
+                "profile_note": (
+                    "Fuer Lutris, Wine-Runner und gemischte Launcher-/Emulator-Setups. "
+                    "Netzwerkpfade werden entschärft, Kernel-Werte bleiben unveraendert."
+                ),
+                "kernel_note": kernel_note,
+            },
+            "lan_host": {
+                "id": "lan_host",
+                "label": "LAN / Host",
+                "pause_dns_guard": True,
+                "pause_killswitch": True,
+                "lower_ufw_logging": True,
+                "profile_note": (
+                    "Fuer LAN-Erkennung, Listen-Server und Host-Betrieb. "
+                    "Eingehende UFW-Freigaben bleiben trotzdem manuell zu pruefen."
+                ),
+                "kernel_note": kernel_note,
+                "recommended_ufw_exception_sets": ["lan_discovery"],
+            },
+            "steam_remote_play": {
+                "id": "steam_remote_play",
+                "label": "Steam Remote Play",
+                "pause_dns_guard": True,
+                "pause_killswitch": True,
+                "lower_ufw_logging": True,
+                "profile_note": (
+                    "Fuer Steam Remote Play und aehnliche Streaming-Pfade. "
+                    "Broadcast/Multicast, lokale Discovery und Host-Freigaben muessen ggf. manuell ergaenzt werden."
+                ),
+                "kernel_note": kernel_note,
+                "recommended_ufw_exception_sets": [
+                    "lan_discovery",
+                    "steam_remote_play_outbound",
+                ],
+            },
+            "minecraft_lan": {
+                "id": "minecraft_lan",
+                "label": "Minecraft LAN",
+                "pause_dns_guard": True,
+                "pause_killswitch": True,
+                "lower_ufw_logging": True,
+                "profile_note": (
+                    "Fuer Minecraft-LAN-Sessions und lokale Host-Freigaben. "
+                    "Lokale Discovery wird unterstützt; eingehende Host-Ports bleiben bewusst manuell."
+                ),
+                "kernel_note": kernel_note,
+                "recommended_ufw_exception_sets": ["lan_discovery"],
+            },
+        }
+
+    def _game_mode_ufw_exception_sets(self):
+        return {
+            "lan_discovery": {
+                "label": "LAN Discovery",
+                "note": (
+                    "Erlaubt ausgehende mDNS- und SSDP-Anfragen fuer lokale "
+                    "Spielesuche. Host-spezifische eingehende Ports bleiben manuell."
+                ),
+                "rules": [
+                    {
+                        "type": "standard_port",
+                        "direction": "out",
+                        "port": "5353",
+                        "proto": "udp",
+                        "label": "mDNS ausgehend",
+                    },
+                    {
+                        "type": "standard_port",
+                        "direction": "out",
+                        "port": "1900",
+                        "proto": "udp",
+                        "label": "SSDP ausgehend",
+                    },
+                ],
+            },
+            "steam_remote_play_outbound": {
+                "label": "Steam Remote Play (Outbound)",
+                "note": (
+                    "Erlaubt ausgehende Steam-Remote-Play-Verbindungen. "
+                    "Eingehende Host-Freigaben und NAT-Themen bleiben bewusst manuell."
+                ),
+                "rules": [
+                    *[
+                        {
+                            "type": "standard_port",
+                            "direction": "out",
+                            "port": str(port),
+                            "proto": proto,
+                            "label": f"Steam Remote Play {port}/{proto}",
+                        }
+                        for port in range(27031, 27037)
+                        for proto in ("tcp", "udp")
+                    ]
+                ],
+            },
+        }
+
+    def _normalize_game_mode_preset(self, value) -> str:
+        presets = self._game_mode_presets()
+        raw = str(value or "").strip().lower()
+        if raw in presets:
+            return raw
+        for preset_id, preset in presets.items():
+            if raw == str(preset.get("label") or "").strip().lower():
+                return preset_id
+        return "online"
+
+    def _game_mode_preset_label(self, preset_id: str) -> str:
+        preset = self._game_mode_presets().get(
+            self._normalize_game_mode_preset(preset_id),
+            {},
+        )
+        return str(preset.get("label") or "Online").strip() or "Online"
+
+    def _active_game_mode_preset(self) -> dict:
+        settings = self.__dict__.get("settings", {}) or {}
+        preset_id = self._normalize_game_mode_preset(
+            getattr(self, "security_game_mode_preset_var", "").get()
+            if self.__dict__.get("security_game_mode_preset_var") is not None
+            else settings.get("security_game_mode_preset", "online")
+        )
+        preset = dict(self._game_mode_presets().get(preset_id, {}))
+        if not preset:
+            preset = dict(self._game_mode_presets()["online"])
+        return preset
+
+    def _game_mode_recommended_exception_sets(
+        self, preset: dict | None = None
+    ) -> list[dict]:
+        preset = dict(preset or self._active_game_mode_preset())
+        catalog = self._game_mode_ufw_exception_sets()
+        items = []
+        for set_id in list(preset.get("recommended_ufw_exception_sets") or []):
+            entry = dict(catalog.get(str(set_id).strip(), {}) or {})
+            if not entry:
+                continue
+            entry["id"] = str(set_id).strip()
+            items.append(entry)
+        return items
+
+    def _build_custom_game_mode_exception_set(
+        self,
+        port_text,
+        protocol_label,
+        custom_label="",
+    ) -> dict | None:
+        port = str(port_text or "").strip()
+        if not port.isdigit():
+            return None
+        port_value = int(port)
+        if port_value < 1 or port_value > 65535:
+            return None
+
+        normalized_proto = str(protocol_label or "").strip().lower()
+        protocol_map = {
+            "tcp": ("tcp",),
+            "udp": ("udp",),
+            "tcp + udp": ("tcp", "udp"),
+            "tcp+udp": ("tcp", "udp"),
+        }
+        protocols = protocol_map.get(normalized_proto)
+        if not protocols:
+            return None
+
+        custom_note = str(custom_label or "").strip()
+        label_suffix = f" ({custom_note})" if custom_note else ""
+
+        return {
+            "id": f"custom_host_port_{port_value}_{'_'.join(protocols)}",
+            "label": f"Benutzerdefinierter Host-Port {port_value}{label_suffix}",
+            "note": (
+                "Öffnet einen bewusst ausgewählten eingehenden Host-Port für "
+                "Listen-Server oder gezielte Direktverbindungen."
             ),
-        )
+            "rules": [
+                {
+                    "type": "standard_port",
+                    "direction": "in",
+                    "port": str(port_value),
+                    "proto": proto,
+                    "label": f"Host-Port {port_value}/{proto}{label_suffix}",
+                }
+                for proto in protocols
+            ],
+        }
 
-        self.btn_rkhunter_scan = ttk.Button(
-            rkh_actions_row,
-            text=self.tr("rkhunter_btn_start_scan", "Start rkhunter scan"),
-            command=self.rkhunter_scan_async,
-        )
-        self.btn_rkhunter_scan.pack(side="left", padx=(8, 0))
-        self.register_feature_button("rkhunter", self.btn_rkhunter_scan)
-        self.add_tooltip(
-            self.btn_rkhunter_scan,
+    def _prompt_game_mode_ufw_exception_sets(
+        self,
+        *,
+        preset_label: str,
+        exception_sets: list[dict],
+    ) -> list[dict] | None:
+        options = [
+            dict(item) for item in list(exception_sets or []) if dict(item or {})
+        ]
+        if not options:
+            return []
+
+        if self.__dict__.get("tk") is None:
+            return options
+
+        parent = self if self.__dict__.get("tk") is not None else None
+        dialog = tk.Toplevel(parent)
+        dialog.title(
             self.tr(
-                "rkhunter_btn_start_scan_tooltip",
-                "Starts a non-interactive rkhunter check without repair actions.",
-            ),
+                "game_mode_ufw_exceptions_title",
+                "Optionale UFW-Ausnahmen auswählen",
+            )
         )
+        dialog.transient(parent)
+        dialog.grab_set()
+        dialog.resizable(False, False)
 
-        self.btn_rkhunter_propupd = ttk.Button(
-            rkh_actions_row,
-            text=self.tr("rkhunter_btn_propupd", "Accept trusted reference"),
-            command=self.rkhunter_propupd_async,
-        )
-        self.btn_rkhunter_propupd.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_rkhunter_propupd,
-            self.tr(
-                "rkhunter_btn_propupd_tooltip",
-                "Enabled only after a low-risk scan and a successful dpkg verification. Never runs automatically.",
-            ),
-        )
-        self.btn_rkhunter_propupd.configure(state="disabled")
+        frame = ttk.Frame(dialog, padding=12)
+        frame.grid(row=0, column=0, sticky="nsew")
+        frame.columnconfigure(0, weight=1)
 
-        self.btn_rkhunter_repair = ttk.Button(
-            rkh_secondary_actions_row,
-            text=self.tr("rkhunter_btn_repair_update", "Repair RKHunter update"),
-            command=self.rkhunter_repair_update_async,
-        )
-        self.btn_rkhunter_repair.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_rkhunter_repair,
-            self.tr(
-                "rkhunter_btn_repair_update_tooltip",
-                "Backs up /etc/rkhunter.conf, repairs common update settings, and retries the update.",
-            ),
-        )
-        self.btn_rkhunter_repair.configure(state="disabled")
-
-        self.btn_rkhunter_show_scan = ttk.Button(
-            rkh_secondary_actions_row,
-            text=self.tr("rkhunter_btn_show_scan", "Show scan"),
-            command=self.show_rkhunter_scan_output,
-        )
-        self.btn_rkhunter_show_scan.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_rkhunter_show_scan,
-            self.tr(
-                "rkhunter_btn_show_scan_tooltip",
-                "Shows the last rkhunter scan output and analysis.",
-            ),
-        )
-        self.register_feature_button("rkhunter", self.btn_rkhunter_show_scan)
-
-        self.btn_rkhunter_revoke_reference = ttk.Button(
-            rkh_secondary_actions_row,
-            text=self.tr("rkhunter_btn_revoke_reference", "Revoke reference"),
-            command=self.rkhunter_revoke_reference_async,
-        )
-        self.btn_rkhunter_revoke_reference.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_rkhunter_revoke_reference,
-            self.tr(
-                "rkhunter_btn_revoke_reference_tooltip",
-                "Restores the rkhunter file-property database from the NetMon backup created before the last accepted reference.",
-            ),
-        )
-        self.register_feature_button("rkhunter", self.btn_rkhunter_revoke_reference)
-
-        self.btn_rkhunter_log = ttk.Button(
-            rkh_secondary_actions_row,
-            text=self.tr("rkhunter_btn_show_log", "Show log"),
-            command=self.show_rkhunter_log,
-        )
-        self.btn_rkhunter_log.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_rkhunter_log,
-            self.tr(
-                "rkhunter_btn_show_log_tooltip",
-                "Shows /var/log/rkhunter.log in the output area.",
-            ),
-        )
-        self.register_feature_button("rkhunter", self.btn_rkhunter_log)
-
-        self.btn_rkhunter_clear = ttk.Button(
-            rkh_secondary_actions_row,
-            text=self.tr("btn_clear_output", "Clear output"),
-            command=self.clear_rkhunter_output,
-        )
-        self.btn_rkhunter_clear.pack(side="left", padx=(8, 0))
-        self.add_tooltip(
-            self.btn_rkhunter_clear,
-            self.tr(
-                "rkhunter_btn_clear_tooltip",
-                "Clears the current rkhunter output in this tab.",
-            ),
-        )
-
-        ttk.Label(rkh_status_row, text=self.tr("label_status", "Status:")).pack(
-            side="left", padx=(0, 4)
-        )
-        ttk.Label(rkh_status_row, textvariable=self.rkhunter_status_var).pack(
-            side="left"
-        )
         ttk.Label(
-            rkh_status_row,
-            text=self.tr("rkhunter_label_update_state", " | Update-Stand:"),
-        ).pack(side="left", padx=(12, 4))
-        ttk.Label(rkh_status_row, textvariable=self.rkhunter_last_update_var).pack(
-            side="left"
-        )
-
-        rkh_progress_row = ttk.Frame(self.tab_rkhunter)
-        rkh_progress_row.pack(fill="x", pady=(0, 8))
-        self.rkhunter_progress_bar = ttk.Progressbar(
-            rkh_progress_row,
-            orient="horizontal",
-            mode="determinate",
-            maximum=100,
-            variable=self.rkhunter_progress_var,
-            style="SystemGreen.Horizontal.TProgressbar",
-        )
-        self.rkhunter_progress_bar.pack(side="left", fill="x", expand=True)
-        ttk.Label(
-            rkh_progress_row,
-            textvariable=self.rkhunter_progress_text_var,
-            width=24,
-            anchor="w",
-        ).pack(side="left", padx=(8, 0))
-
-        rkh_summary = ttk.LabelFrame(
-            self.tab_rkhunter,
-            text=self.tr("group_summary", "Summary"),
-            padding=6,
-        )
-        rkh_summary.pack(fill="x", pady=(0, 8))
-        ttk.Label(
-            rkh_summary,
-            textvariable=self.rkhunter_summary_var,
+            frame,
+            text=self.tr(
+                "game_mode_ufw_exceptions_prompt",
+                "Für das Profil {preset} kann NetMon zusätzliche UFW-Ausnahmesets setzen.\n"
+                "Wähle gezielt aus, was wirklich gebraucht wird. Nicht gewählte Sets werden übersprungen.",
+            ).format(preset=preset_label),
             justify="left",
-        ).pack(anchor="w")
+            wraplength=520,
+        ).grid(row=0, column=0, sticky="w", pady=(0, 10))
 
-        rkh_output_frame = ttk.Frame(self.tab_rkhunter)
-        rkh_output_frame.pack(fill="both", expand=True)
-        self.rkhunter_scrollbar = ttk.Scrollbar(
-            rkh_output_frame,
-            orient="vertical",
-        )
-        self.rkhunter_scrollbar.pack(side="right", fill="y")
-        self.rkhunter_text = tk.Text(
-            rkh_output_frame,
-            wrap="word",
-            height=20,
-            yscrollcommand=self.rkhunter_scrollbar.set,
-        )
-        self.rkhunter_text.pack(side="left", fill="both", expand=True)
-        self.rkhunter_scrollbar.configure(command=self.rkhunter_text.yview)
-        self.rkhunter_text.insert(
-            "1.0",
-            self.tr(
-                "rkhunter_output_placeholder",
-                "rkhunter output will appear here.\n",
+        selected_vars = {}
+        for idx, item in enumerate(options, start=1):
+            row = ttk.Frame(frame)
+            row.grid(row=idx, column=0, sticky="ew", pady=(0, 8))
+            row.columnconfigure(0, weight=1)
+            var = tk.BooleanVar(value=True)
+            set_id = str(item.get("id") or "").strip()
+            selected_vars[set_id] = var
+            ttk.Checkbutton(
+                row,
+                text=str(item.get("label") or set_id or "UFW-Ausnahme"),
+                variable=var,
+            ).grid(row=0, column=0, sticky="w")
+            note = str(item.get("note") or "").strip()
+            if note:
+                ttk.Label(
+                    row,
+                    text=note,
+                    justify="left",
+                    wraplength=500,
+                ).grid(row=1, column=0, sticky="w", padx=(22, 0), pady=(2, 0))
+
+        custom_row_index = len(options) + 1
+        custom_frame = ttk.LabelFrame(
+            frame,
+            text=self.tr(
+                "game_mode_custom_host_port_title",
+                "Benutzerdefinierter Host-Port",
             ),
+            padding=8,
         )
-        self.rkhunter_text.configure(state="disabled")
+        custom_frame.grid(
+            row=custom_row_index,
+            column=0,
+            sticky="ew",
+            pady=(4, 0),
+        )
+        custom_frame.columnconfigure(1, weight=1)
+        custom_enabled_var = tk.BooleanVar(value=False)
+        custom_protocol_var = tk.StringVar(value="TCP")
+        custom_port_var = tk.StringVar(value="")
+        custom_label_var = tk.StringVar(value="")
+        ttk.Checkbutton(
+            custom_frame,
+            text=self.tr(
+                "game_mode_custom_host_port_enable",
+                "Zusätzlichen eingehenden Host-Port öffnen",
+            ),
+            variable=custom_enabled_var,
+        ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 6))
+        ttk.Label(
+            custom_frame,
+            text=self.tr("label_port", "Port:"),
+        ).grid(row=1, column=0, sticky="w", padx=(0, 8))
+        ttk.Entry(
+            custom_frame,
+            textvariable=custom_port_var,
+            width=10,
+        ).grid(row=1, column=1, sticky="w")
+        ttk.Label(
+            custom_frame,
+            text=self.tr(
+                "game_mode_custom_host_port_label",
+                "Bezeichnung:",
+            ),
+        ).grid(row=1, column=2, sticky="w", padx=(12, 8))
+        ttk.Entry(
+            custom_frame,
+            textvariable=custom_label_var,
+            width=18,
+        ).grid(row=1, column=3, sticky="w")
+        ttk.Label(
+            custom_frame,
+            text=self.tr("label_protocol", "Protokoll:"),
+        ).grid(row=2, column=0, sticky="w", padx=(0, 8), pady=(6, 0))
+        custom_protocol_combo = ttk.Combobox(
+            custom_frame,
+            textvariable=custom_protocol_var,
+            values=["TCP", "UDP", "TCP + UDP"],
+            state="readonly",
+            width=12,
+        )
+        custom_protocol_combo.grid(row=2, column=1, sticky="w", pady=(6, 0))
+        ttk.Label(
+            custom_frame,
+            text=self.tr(
+                "game_mode_custom_host_port_note",
+                "Optional eine Bezeichnung wie Minecraft, Valheim oder Factorio setzen. "
+                "Nur für bewusst benötigte Listen-Server oder Direktverbindungen verwenden.",
+            ),
+            justify="left",
+            wraplength=500,
+        ).grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 0))
+
+        result = {"selection": None}
+
+        button_row = ttk.Frame(frame)
+        button_row.grid(row=custom_row_index + 1, column=0, sticky="e", pady=(10, 0))
+        button_row.columnconfigure((0, 1, 2), weight=0)
+
+        def _apply():
+            selected = []
+            for item in options:
+                set_id = str(item.get("id") or "").strip()
+                var = selected_vars.get(set_id)
+                if var is not None and bool(var.get()):
+                    selected.append(dict(item))
+            if bool(custom_enabled_var.get()):
+                custom_set = self._build_custom_game_mode_exception_set(
+                    custom_port_var.get(),
+                    custom_protocol_var.get(),
+                    custom_label_var.get(),
+                )
+                if custom_set is None:
+                    messagebox.showwarning(
+                        self.tr(
+                            "game_mode_custom_host_port_invalid_title",
+                            "Host-Port ungültig",
+                        ),
+                        self.tr(
+                            "game_mode_custom_host_port_invalid_prompt",
+                            "Bitte einen gültigen Port zwischen 1 und 65535 sowie ein gültiges Protokoll auswählen.",
+                        ),
+                        parent=dialog,
+                    )
+                    return
+                selected.append(custom_set)
+            result["selection"] = selected
+            dialog.destroy()
+
+        def _skip():
+            result["selection"] = []
+            dialog.destroy()
+
+        def _cancel():
+            result["selection"] = None
+            dialog.destroy()
+
+        dialog.protocol("WM_DELETE_WINDOW", _cancel)
+
+        ttk.Button(
+            button_row,
+            text=self.tr("button_cancel", "Abbrechen"),
+            command=_cancel,
+        ).grid(row=0, column=0, padx=(0, 8))
+        ttk.Button(
+            button_row,
+            text=self.tr("button_skip", "Ohne Ausnahmen"),
+            command=_skip,
+        ).grid(row=0, column=1, padx=(0, 8))
+        ttk.Button(
+            button_row,
+            text=self.tr("button_apply", "Übernehmen"),
+            command=_apply,
+        ).grid(row=0, column=2)
+
+        try:
+            dialog.wait_visibility()
+        except Exception:
+            pass
+        try:
+            dialog.focus_set()
+        except Exception:
+            pass
+        dialog.wait_window()
+        return result["selection"]
+
+    def _game_mode_ufw_rule_exists(self, status_text: str, rule: dict) -> bool:
+        if str(rule.get("type") or "").strip() != "standard_port":
+            return False
+        direction = str(rule.get("direction") or "").strip().upper()
+        port = str(rule.get("port") or "").strip()
+        proto = str(rule.get("proto") or "").strip().lower()
+        if direction not in {"IN", "OUT"} or not port or proto not in {"tcp", "udp"}:
+            return False
+        for raw_line in (status_text or "").splitlines():
+            parsed = self._parse_ufw_structured_rule(raw_line)
+            if not parsed:
+                continue
+            if str(parsed.get("policy") or "").upper() != "ALLOW":
+                continue
+            if str(parsed.get("direction") or "").upper() != direction:
+                continue
+            if str(parsed.get("port") or "").strip() != port:
+                continue
+            if str(parsed.get("proto") or "").strip().lower() != proto:
+                continue
+            return True
+        return False
+
+    def _refresh_security_hardening_text_wrap(self, _event=None):
+        frame = self.__dict__.get("tab_lynis_hardening_actions_frame")
+        if frame is None:
+            return
+        try:
+            width = int(frame.winfo_width() or frame.winfo_reqwidth() or 0)
+        except Exception:
+            width = 0
+        wraplength = max(260, width - 20) if width > 0 else 360
+        for attr_name in (
+            "lbl_security_game_mode_profile_hint",
+            "lbl_security_game_mode_status",
+            "lbl_security_hardening_scope",
+        ):
+            widget = self.__dict__.get(attr_name)
+            if widget is None:
+                continue
+            try:
+                widget.configure(wraplength=wraplength)
+            except Exception:
+                pass
+
+    def _apply_game_mode_ufw_exception_rules(
+        self, rules: list[dict]
+    ) -> tuple[bool, list[dict], str]:
+        if not rules:
+            return True, [], ""
+        rc_status, status_text = self._read_ufw_status(verbose=True)
+        if rc_status != 0:
+            return (
+                False,
+                [],
+                str(status_text or "").strip() or "UFW-Status nicht lesbar",
+            )
+
+        current_status = str(status_text or "")
+        added_rules = []
+        for rule in list(rules or []):
+            if self._game_mode_ufw_rule_exists(current_status, rule):
+                continue
+            if str(rule.get("type") or "").strip() != "standard_port":
+                return False, added_rules, "ungueltige Spielmodus-UFW-Regel"
+            direction = str(rule.get("direction") or "").strip().lower()
+            port = str(rule.get("port") or "").strip()
+            proto = str(rule.get("proto") or "").strip().lower()
+            if (
+                direction not in {"in", "out"}
+                or not port
+                or proto not in {"tcp", "udp"}
+            ):
+                return False, added_rules, "ungueltige Spielmodus-UFW-Regel"
+            rc_cmd, out_cmd = run_cmd(
+                ["sudo", "-n", "ufw", "allow", direction, f"{port}/{proto}"],
+                timeout=20,
+            )
+            if rc_cmd != 0:
+                return (
+                    False,
+                    added_rules,
+                    str(out_cmd or "").strip() or "UFW-Regel fehlgeschlagen",
+                )
+            added_rules.append(dict(rule))
+            current_status += f"\nALLOW {direction.upper()} {port}/{proto}"
+        return True, added_rules, ""
+
+    def _rollback_game_mode_ufw_exception_rules(
+        self, rules: list[dict]
+    ) -> tuple[bool, list[str]]:
+        errors = []
+        for rule in reversed(list(rules or [])):
+            if str(rule.get("type") or "").strip() != "standard_port":
+                continue
+            direction = str(rule.get("direction") or "").strip().lower()
+            port = str(rule.get("port") or "").strip()
+            proto = str(rule.get("proto") or "").strip().lower()
+            if (
+                direction not in {"in", "out"}
+                or not port
+                or proto not in {"tcp", "udp"}
+            ):
+                continue
+            rc_cmd, out_cmd = run_cmd(
+                ["sudo", "-n", "ufw", "delete", "allow", direction, f"{port}/{proto}"],
+                timeout=20,
+            )
+            if rc_cmd != 0:
+                errors.append(
+                    str(out_cmd or "").strip() or f"{direction} {port}/{proto}"
+                )
+        return not errors, errors
+
+    def refresh_game_mode_preset_ui(self):
+        preset = self._active_game_mode_preset()
+        preset_label = str(preset.get("label") or "Online").strip() or "Online"
+        preset_var = self.__dict__.get("security_game_mode_preset_var")
+        if preset_var is not None:
+            try:
+                preset_var.set(preset_label)
+            except Exception:
+                pass
+        hint_var = self.__dict__.get("security_game_mode_profile_hint_var")
+        if hint_var is not None:
+            exception_sets = self._game_mode_recommended_exception_sets(preset)
+            exception_hint = ""
+            if exception_sets:
+                labels = ", ".join(
+                    str(item.get("label") or "").strip()
+                    for item in exception_sets
+                    if str(item.get("label") or "").strip()
+                )
+                if labels:
+                    exception_hint = f" Empfohlene UFW-Ausnahmen: {labels}."
+            try:
+                hint_var.set(
+                    f"Spielprofil: {preset_label}. "
+                    f"{str(preset.get('profile_note') or '').strip()} "
+                    f"Kernel-Hinweis: {str(preset.get('kernel_note') or '').strip()}"
+                    f"{exception_hint}"
+                )
+            except Exception:
+                pass
+        return preset
+
+    def on_game_mode_preset_selected(self, _event=None):
+        preset = self.refresh_game_mode_preset_ui()
+        settings = self.__dict__.setdefault("settings", {})
+        settings["security_game_mode_preset"] = (
+            str(preset.get("id") or "online").strip() or "online"
+        )
+        try:
+            self.save_settings(log_success=False)
+        except Exception:
+            pass
+        self.refresh_game_mode_status()
+        return preset
+
+    def refresh_game_mode_status(self):
+        state = dict(self.__dict__.get("game_mode_state", {}) or {})
+        settings = self.__dict__.get("settings", {}) or {}
+        active = bool(state.get("active"))
+        if active:
+            preset_label = self._game_mode_preset_label(
+                state.get("preset_id", "online")
+            )
+        else:
+            preset_label = self._game_mode_preset_label(
+                self._normalize_game_mode_preset(
+                    settings.get("security_game_mode_preset", "online")
+                )
+            )
+        details = []
+        if active:
+            details.append(f"Preset {preset_label}")
+            if bool(state.get("dns_guard_paused")):
+                details.append("DNS Guard pausiert")
+            if bool(state.get("killswitch_paused")):
+                details.append("Killswitch pausiert")
+            if bool(state.get("ufw_logging_lowered")):
+                details.append("UFW Logging LOW")
+            if list(state.get("ufw_exception_sets") or []):
+                details.append(
+                    "UFW-Ausnahmen: "
+                    + ", ".join(
+                        str(item)
+                        for item in list(state.get("ufw_exception_sets") or [])
+                    )
+                )
+            if bool(state.get("dot_active")):
+                details.append("DoT unveraendert")
+            if bool(state.get("vpn_active")):
+                details.append("VPN unveraendert")
+            status_text = "Spielmodus: aktiv"
+            if details:
+                status_text += " | " + " | ".join(details)
+        else:
+            status_text = (
+                f"Spielmodus: aus. Vorauswahl {preset_label}. "
+                "Kernel-Haertung bleibt aktiv; nur netzbezogene Kompatibilitaet wird angepasst."
+            )
+
+        status_var = self.__dict__.get("security_game_mode_status_var")
+        if status_var is not None:
+            try:
+                status_var.set(status_text)
+            except Exception:
+                pass
+        self.update_game_mode_light(active)
+
+        btn_on = self.__dict__.get("btn_security_game_mode_on")
+        if btn_on is not None:
+            try:
+                btn_on.configure(state="disabled" if active else "normal")
+            except Exception:
+                pass
+        btn_off = self.__dict__.get("btn_security_game_mode_off")
+        if btn_off is not None:
+            try:
+                btn_off.configure(state="normal" if active else "disabled")
+            except Exception:
+                pass
+        return status_text
+
+    def update_game_mode_light(self, active=None):
+        if active is None:
+            active = bool(
+                dict(self.__dict__.get("game_mode_state", {}) or {}).get("active")
+            )
+        light = self.__dict__.get("l_game_mode")
+        if light is not None:
+            self.set_light(light, "green" if bool(active) else "red")
+
+    def enable_game_mode(self):
+        current_state = dict(self.__dict__.get("game_mode_state", {}) or {})
+        if bool(current_state.get("active")):
+            self.refresh_game_mode_status()
+            self.log_safe("Spielmodus ist bereits aktiv.")
+            return True
+
+        preset = self._active_game_mode_preset()
+        pause_dns_guard = bool(preset.get("pause_dns_guard"))
+        pause_killswitch = bool(preset.get("pause_killswitch"))
+        lower_ufw_logging = bool(preset.get("lower_ufw_logging"))
+        preset_label = str(preset.get("label") or "Online").strip() or "Online"
+        guard_var = self.__dict__.get("dns_guard_enabled_var")
+        dns_guard_enabled = bool(guard_var.get()) if guard_var is not None else False
+        killswitch_active = bool(self.killswitch_is_on())
+        ufw_logging_level = str(self._security_query_log_level() or "").strip().upper()
+        if ufw_logging_level not in {"OFF", "LOW", "MEDIUM", "HIGH"}:
+            ufw_logging_level = "UNKNOWN"
+        dot_active = bool(self.is_dot_active())
+        vpn_active = bool(self.is_vpn_active())
+
+        actions = []
+        if pause_dns_guard and dns_guard_enabled:
+            actions.append("- DNS Guard temporaer pausieren")
+        if pause_killswitch and killswitch_active:
+            actions.append("- Killswitch temporaer deaktivieren")
+        if lower_ufw_logging and ufw_logging_level in {"HIGH", "MEDIUM"}:
+            actions.append("- UFW Logging auf LOW reduzieren")
+        actions.append("- VPN und DoT bleiben unveraendert")
+        profile_note = str(preset.get("profile_note") or "").strip()
+        kernel_note = str(preset.get("kernel_note") or "").strip()
+        exception_sets = self._game_mode_recommended_exception_sets(preset)
+        selected_exception_sets = [dict(item) for item in exception_sets]
+        exception_labels = [
+            str(item.get("label") or "").strip()
+            for item in selected_exception_sets
+            if str(item.get("label") or "").strip()
+        ]
+        if exception_labels:
+            actions.append("- optionale UFW-Ausnahmen: " + ", ".join(exception_labels))
+
+        if not self.confirm_game_mode_apply(
+            self.tr("game_mode_enable_title", "Spielmodus aktivieren"),
+            preset_name=preset_label,
+            actions_text="\n".join(actions) or "- keine Aenderungen notwendig",
+            profile_note=profile_note or "-",
+            kernel_note=kernel_note or "-",
+        ):
+            return False
+
+        if selected_exception_sets:
+            chosen_exception_sets = self._prompt_game_mode_ufw_exception_sets(
+                preset_label=preset_label,
+                exception_sets=selected_exception_sets,
+            )
+            if chosen_exception_sets is None:
+                self.log_safe(
+                    "Spielmodus abgebrochen: UFW-Ausnahmendialog geschlossen."
+                )
+                return False
+            selected_exception_sets = [
+                dict(item) for item in list(chosen_exception_sets or [])
+            ]
+            exception_labels = [
+                str(item.get("label") or "").strip()
+                for item in selected_exception_sets
+                if str(item.get("label") or "").strip()
+            ]
+
+        requires_root = (
+            (pause_killswitch and killswitch_active)
+            or (lower_ufw_logging and ufw_logging_level in {"HIGH", "MEDIUM"})
+            or bool(selected_exception_sets)
+        )
+        if requires_root and not self.ensure_sudo_session(
+            "NetMon-Spielmodus aktivieren"
+        ):
+            return False
+
+        snapshot = {
+            "active": True,
+            "enabled_at": datetime.now().isoformat(timespec="seconds"),
+            "preset_id": str(preset.get("id") or "online").strip() or "online",
+            "preset_label": preset_label,
+            "dns_guard_enabled": dns_guard_enabled,
+            "killswitch_was_on": killswitch_active,
+            "ufw_logging_level": ufw_logging_level,
+            "dot_active": dot_active,
+            "vpn_active": vpn_active,
+            "dns_guard_paused": pause_dns_guard and dns_guard_enabled,
+            "killswitch_paused": False,
+            "ufw_logging_lowered": False,
+            "ufw_exception_sets": [],
+            "ufw_exception_rules_added": [],
+        }
+
+        if pause_dns_guard:
+            self._apply_game_mode_dns_guard(False)
+        if pause_killswitch and killswitch_active:
+            if not self.killswitch_off(
+                async_mode=False,
+                ensure_sudo=False,
+                refresh_ui=True,
+                interactive_guard=False,
+            ):
+                if pause_dns_guard:
+                    self._apply_game_mode_dns_guard(dns_guard_enabled)
+                self.log_safe(
+                    "Spielmodus fehlgeschlagen: Killswitch konnte nicht pausiert werden."
+                )
+                return False
+            snapshot["killswitch_paused"] = True
+
+        if lower_ufw_logging and ufw_logging_level in {"HIGH", "MEDIUM"}:
+            if not self._set_ufw_logging_sync(
+                "low",
+                ensure_sudo=False,
+                log_context="Spielmodus",
+            ):
+                if snapshot["killswitch_paused"]:
+                    self.killswitch_on(
+                        async_mode=False,
+                        ensure_sudo=False,
+                        refresh_ui=True,
+                        interactive_guard=False,
+                    )
+                if pause_dns_guard:
+                    self._apply_game_mode_dns_guard(dns_guard_enabled)
+                self.log_safe(
+                    "Spielmodus fehlgeschlagen: UFW Logging konnte nicht auf LOW reduziert werden."
+                )
+                return False
+            snapshot["ufw_logging_lowered"] = True
+
+        if selected_exception_sets:
+            exception_rules = []
+            for item in selected_exception_sets:
+                exception_rules.extend(list(item.get("rules") or []))
+            ok_rules, added_rules, error_detail = (
+                self._apply_game_mode_ufw_exception_rules(exception_rules)
+            )
+            if not ok_rules:
+                if snapshot["ufw_logging_lowered"]:
+                    self._set_ufw_logging_sync(
+                        ufw_logging_level.lower(),
+                        ensure_sudo=False,
+                        log_context="Spielmodus-Rollback",
+                    )
+                if snapshot["killswitch_paused"]:
+                    self.killswitch_on(
+                        async_mode=False,
+                        ensure_sudo=False,
+                        refresh_ui=True,
+                        interactive_guard=False,
+                    )
+                if pause_dns_guard:
+                    self._apply_game_mode_dns_guard(dns_guard_enabled)
+                self.log_safe(
+                    "Spielmodus fehlgeschlagen: UFW-Ausnahmen konnten nicht gesetzt werden."
+                    + (f" ({error_detail})" if error_detail else "")
+                )
+                return False
+            snapshot["ufw_exception_sets"] = [
+                str(item.get("label") or "").strip()
+                for item in selected_exception_sets
+                if str(item.get("label") or "").strip()
+            ]
+            snapshot["ufw_exception_rules_added"] = list(added_rules)
+
+        self.game_mode_state = snapshot
+        self.refresh_game_mode_status()
+        self.log_safe("Spielmodus aktiviert.")
+        return True
+
+    def disable_game_mode(self):
+        state = dict(self.__dict__.get("game_mode_state", {}) or {})
+        if not bool(state.get("active")):
+            self.refresh_game_mode_status()
+            self.log_safe("Spielmodus ist bereits aus.")
+            return True
+
+        requires_root = bool(state.get("killswitch_paused")) or bool(
+            state.get("ufw_logging_lowered")
+        )
+        if requires_root and not self.ensure_sudo_session(
+            "NetMon-Spielmodus deaktivieren"
+        ):
+            return False
+
+        errors = []
+        original_logging = str(state.get("ufw_logging_level") or "").strip().lower()
+        if bool(state.get("ufw_logging_lowered")) and original_logging in {
+            "off",
+            "low",
+            "medium",
+            "high",
+        }:
+            if not self._set_ufw_logging_sync(
+                original_logging,
+                ensure_sudo=False,
+                log_context="Spielmodus-Rollback",
+            ):
+                errors.append("UFW Logging")
+
+        if list(state.get("ufw_exception_rules_added") or []):
+            rollback_ok, rollback_errors = self._rollback_game_mode_ufw_exception_rules(
+                list(state.get("ufw_exception_rules_added") or [])
+            )
+            if not rollback_ok:
+                errors.append("UFW-Ausnahmen")
+                for item in rollback_errors[:2]:
+                    self.log_safe(f"Spielmodus-UFW-Rollback Hinweis: {item}")
+
+        if bool(state.get("killswitch_was_on")) and not self.killswitch_is_on():
+            if not self.killswitch_on(
+                async_mode=False,
+                ensure_sudo=False,
+                refresh_ui=True,
+                interactive_guard=False,
+            ):
+                errors.append("Killswitch")
+
+        self._apply_game_mode_dns_guard(bool(state.get("dns_guard_enabled")))
+
+        if errors:
+            self.refresh_game_mode_status()
+            self.log_safe(
+                "Spielmodus-Rollback unvollstaendig: "
+                + ", ".join(errors)
+                + " bitte manuell pruefen."
+            )
+            return False
+
+        self.game_mode_state = {}
+        self.refresh_game_mode_status()
+        self.log_safe(
+            "Spielmodus deaktiviert und vorheriger Zustand wiederhergestellt."
+        )
+        return True
+
+    def apply_security_baseline_sysctl(self):
+        return security_audit_controller.apply_security_baseline_sysctl(
+            self,
+            run_cmd_fn=run_cmd,
+        )
+
+    def apply_security_baseline_profile(self):
+        return security_audit_controller.apply_security_baseline_profile(
+            self,
+            run_cmd_fn=run_cmd,
+        )
+
+    def _security_baseline_transfer_directory(self) -> str:
+        transfer_dir = str(
+            getattr(self, "security_baseline_transfer_dir", "") or ""
+        ).strip()
+        if transfer_dir:
+            try:
+                os.makedirs(transfer_dir, exist_ok=True)
+            except Exception:
+                pass
+            return transfer_dir
+        return get_netmon_documents_subdir("Security", "Transferpakete")
+
+    def export_security_baseline_transfer(self):
+        initial_dir = self._security_baseline_transfer_directory()
+        initial_file = (
+            security_audit_controller.default_security_baseline_transfer_filename(self)
+        )
+        file_path = filedialog.asksaveasfilename(
+            title=self.tr(
+                "baseline_transfer_export_title",
+                "Baseline-Transferpaket exportieren",
+            ),
+            initialdir=initial_dir,
+            initialfile=initial_file,
+            defaultextension=".json",
+            filetypes=[("JSON", "*.json"), ("All files", "*.*")],
+        )
+        if not file_path:
+            return False
+        return security_audit_controller.export_security_baseline_transfer(
+            self,
+            file_path,
+        )
+
+    def import_security_baseline_transfer(self):
+        initial_dir = self._security_baseline_transfer_directory()
+        file_path = filedialog.askopenfilename(
+            title=self.tr(
+                "baseline_transfer_import_title",
+                "Baseline-Transferpaket importieren",
+            ),
+            initialdir=initial_dir,
+            filetypes=[("JSON", "*.json"), ("All files", "*.*")],
+        )
+        if not file_path:
+            return False
+        return security_audit_controller.import_security_baseline_transfer(
+            self,
+            file_path,
+            run_cmd_fn=run_cmd,
+        )
+
+    def _resolve_timeshift_launch_command(self):
+        for binary in ("timeshift-launcher", "timeshift-gtk"):
+            path = get_cmd_path(binary)
+            if path:
+                return [binary], path
+        return None, ""
+
+    def _resolve_data_backup_tool(self, *, restore: bool = False):
+        mintbackup_path = get_cmd_path("mintbackup")
+        if mintbackup_path:
+            return {
+                "label": "Linux Mint Datensicherung",
+                "command": ["mintbackup"],
+                "path": mintbackup_path,
+                "supports_restore_mode": False,
+            }
+
+        deja_dup_path = get_cmd_path("deja-dup")
+        if deja_dup_path:
+            command = ["deja-dup", "--restore"] if restore else ["deja-dup"]
+            return {
+                "label": "Deja Dup",
+                "command": command,
+                "path": deja_dup_path,
+                "supports_restore_mode": True,
+            }
+        return None
+
+    def _desktop_backup_preference(self):
+        os_release = self._read_os_release()
+        distro_id = str(os_release.get("ID") or "").strip().lower()
+        like_tokens = {
+            token.strip().lower()
+            for token in str(os_release.get("ID_LIKE") or "").split()
+            if token.strip()
+        }
+        if distro_id in {"linuxmint", "mint"}:
+            return {
+                "dependency_key": "mintbackup",
+                "check_key": "mintbackup",
+                "installable_key": "mintbackup_installable",
+                "label": "Linux Mint Datensicherung",
+                "fallback_dependency_key": "deja_dup",
+            }
+        if distro_id in {"ubuntu", "zorin", "pop", "elementary", "neon", "debian"} or (
+            {"ubuntu", "debian"} & like_tokens
+        ):
+            return {
+                "dependency_key": "deja_dup",
+                "check_key": "deja_dup",
+                "installable_key": "deja_dup_installable",
+                "label": "Deja Dup",
+                "fallback_dependency_key": "",
+            }
+        return {
+            "dependency_key": "deja_dup",
+            "check_key": "deja_dup",
+            "installable_key": "deja_dup_installable",
+            "label": "Deja Dup",
+            "fallback_dependency_key": "",
+        }
+
+    def _preferred_desktop_backup_preflight_spec(self, checks: dict):
+        preference = self._desktop_backup_preference()
+        dep_key = str(preference.get("dependency_key") or "").strip()
+        check_key = str(preference.get("check_key") or dep_key).strip()
+        installable_key = str(preference.get("installable_key") or "").strip()
+        base_label = str(preference.get("label") or dep_key).strip() or dep_key
+        fallback_dep_key = str(preference.get("fallback_dependency_key") or "").strip()
+        path_map = {
+            "mintbackup": get_cmd_path("mintbackup"),
+            "deja_dup": get_cmd_path("deja-dup"),
+        }
+        path = str(path_map.get(dep_key) or "").strip()
+        ok = bool(checks.get(check_key, False))
+        if not ok and fallback_dep_key:
+            fallback_check_key = fallback_dep_key
+            fallback_path = str(path_map.get(fallback_dep_key) or "").strip()
+            if checks.get(fallback_check_key, False):
+                fallback_label = str(
+                    DEPENDENCIES.get(fallback_dep_key, {}).get(
+                        "label", fallback_dep_key
+                    )
+                    or fallback_dep_key
+                ).strip()
+                return f"Desktop-Datensicherung: {fallback_label}", True, fallback_path
+        if not path and installable_key and checks.get(installable_key, False):
+            path = "Optional"
+        return f"Desktop-Datensicherung: {base_label}", ok, path
+
+    def _log_preflight_desktop_backup_tool(self, checks: dict):
+        label, ok, path = self._preferred_desktop_backup_preflight_spec(checks)
+        self._log_preflight_tool_state(label, ok, path)
+
+    def refresh_timeshift_launch_controls(self):
+        command, _path = self._resolve_timeshift_launch_command()
+        for button_name in (
+            "btn_security_baseline_timeshift",
+            "btn_right_quick_timeshift",
+            "btn_backup_timeshift_start",
+        ):
+            button = self.__dict__.get(button_name)
+            if button is None:
+                continue
+            try:
+                button.configure(state="normal" if command is not None else "disabled")
+            except Exception:
+                pass
+        if "backup_timeshift_status_var" in self.__dict__:
+            self.refresh_backup_overview()
+
+    def refresh_data_backup_launch_controls(self):
+        backup_tool = self._resolve_data_backup_tool(restore=False)
+        restore_tool = self._resolve_data_backup_tool(restore=True)
+        for button_name, enabled in (
+            ("btn_backup_open_data_tool", backup_tool is not None),
+            ("btn_backup_open_restore_tool", restore_tool is not None),
+        ):
+            button = self.__dict__.get(button_name)
+            if button is None:
+                continue
+            try:
+                button.configure(state="normal" if enabled else "disabled")
+            except Exception:
+                pass
+        self.refresh_backup_overview()
+
+    def launch_timeshift_snapshot_tool(self):
+        command, path = self._resolve_timeshift_launch_command()
+        if command is None:
+            self.log_safe(
+                self.tr(
+                    "baseline_timeshift_missing_log",
+                    "Timeshift-Launcher nicht gefunden. Bitte Timeshift ueber den Setup Assistant oder den Paketmanager installieren.",
+                )
+            )
+            messagebox.showinfo(
+                self.tr(
+                    "baseline_timeshift_title",
+                    "Timeshift starten",
+                ),
+                self.tr(
+                    "baseline_timeshift_missing",
+                    "Es wurde kein startbarer Timeshift-Launcher gefunden.\n\nBitte Timeshift zuerst installieren oder manuell ueber das Systemmenue starten.",
+                ),
+                parent=self,
+            )
+            return False
+
+        try:
+            subprocess.Popen(
+                command,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            self.log_safe(
+                self.tr(
+                    "baseline_timeshift_started_log",
+                    "Timeshift gestartet: {path}",
+                ).format(path=path or command[0])
+            )
+            return True
+        except Exception as exc:
+            self.log_safe(
+                self.tr(
+                    "baseline_timeshift_failed_log",
+                    "Timeshift konnte nicht gestartet werden: {error}",
+                ).format(error=exc)
+            )
+            messagebox.showerror(
+                self.tr(
+                    "baseline_timeshift_title",
+                    "Timeshift starten",
+                ),
+                self.tr(
+                    "baseline_timeshift_failed",
+                    "Timeshift konnte nicht gestartet werden.",
+                )
+                + f"\n\n{exc}",
+                parent=self,
+            )
+            return False
+
+    def launch_data_backup_tool(self, *, restore: bool = False):
+        tool = self._resolve_data_backup_tool(restore=restore)
+        if tool is None:
+            mode_label = (
+                self.tr("backup_btn_open_restore_tool", "Wiederherstellung öffnen")
+                if restore
+                else self.tr("backup_btn_open_data_tool", "Datensicherung öffnen")
+            )
+            self.log_safe(
+                f"{mode_label} nicht verfügbar: kein passendes Desktop-Backup-Tool gefunden."
+            )
+            messagebox.showinfo(
+                self.tr("backup_data_tool_title", "Datensicherung"),
+                self.tr(
+                    "backup_data_tool_missing",
+                    "Es wurde kein unterstütztes Desktop-Backup-Tool gefunden.\n\nUnterstützt werden aktuell Linux Mint Datensicherung und Deja Dup.",
+                ),
+                parent=self,
+            )
+            return False
+
+        command = list(tool.get("command") or [])
+        if not command:
+            return False
+
+        try:
+            subprocess.Popen(
+                command,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            action = "Wiederherstellung" if restore else "Datensicherung"
+            label = str(tool.get("label") or command[0]).strip() or command[0]
+            self.log_safe(f"{action} gestartet: {label}")
+            self.backup_status_var.set(f"{action} geöffnet: {label}")
+            return True
+        except Exception as exc:
+            self.log_safe(f"Desktop-Backup-Tool konnte nicht gestartet werden: {exc}")
+            messagebox.showerror(
+                self.tr("backup_data_tool_title", "Datensicherung"),
+                self.tr(
+                    "backup_data_tool_failed",
+                    "Das Desktop-Backup-Tool konnte nicht gestartet werden.",
+                )
+                + f"\n\n{exc}",
+                parent=self,
+            )
+            return False
+
+    def clear_security_baseline_transfer(self):
+        return security_audit_controller.clear_security_baseline_transfer(self)
+
+    def _show_security_baseline_transfer_text_window(
+        self,
+        *,
+        window_attr: str,
+        title: str,
+        heading: str,
+        text: str,
+    ):
+        existing = self.__dict__.get(window_attr)
+        if existing is not None:
+            try:
+                if existing.winfo_exists():
+                    existing.destroy()
+            except Exception:
+                pass
+
+        win = tk.Toplevel(self)
+        self.__dict__[window_attr] = win
+        win.title(title)
+        win.transient(self)
+        win.geometry("760x560")
+        win.minsize(620, 420)
+
+        def _close():
+            self.__dict__[window_attr] = None
+            try:
+                win.destroy()
+            except Exception:
+                pass
+
+        win.protocol("WM_DELETE_WINDOW", _close)
+
+        container = ttk.Frame(win, padding=12)
+        container.pack(fill="both", expand=True)
+        ttk.Label(
+            container,
+            text=heading,
+            font=("TkDefaultFont", 11, "bold"),
+            justify="left",
+        ).pack(anchor="w", pady=(0, 8))
+
+        text_frame = ttk.Frame(container)
+        text_frame.pack(fill="both", expand=True)
+        text_frame.columnconfigure(0, weight=1)
+        text_frame.rowconfigure(0, weight=1)
+
+        scroll_y = ttk.Scrollbar(text_frame, orient="vertical")
+        scroll_y.grid(row=0, column=1, sticky="ns")
+        body = tk.Text(
+            text_frame,
+            wrap="word",
+            height=24,
+            yscrollcommand=scroll_y.set,
+        )
+        body.grid(row=0, column=0, sticky="nsew")
+        scroll_y.configure(command=body.yview)
+        body.insert("1.0", text)
+        body.configure(state="disabled")
+        self.attach_selection_copy_shortcuts(body, "text")
+        self.attach_text_context_menu(body)
+
+        actions = ttk.Frame(container)
+        actions.pack(fill="x", pady=(10, 0))
+        ttk.Button(
+            actions,
+            text=self.tr("btn_close", "Close"),
+            command=_close,
+        ).pack(side="right")
+        return True
+
+    def show_security_baseline_transfer_package(self):
+        text = security_audit_controller.security_baseline_transfer_package_text(self)
+        if not text:
+            messagebox.showinfo(
+                self.tr(
+                    "baseline_transfer_show_title",
+                    "Transferpaket anzeigen",
+                ),
+                self.tr(
+                    "baseline_transfer_show_missing",
+                    "Aktuell ist kein importiertes Transferpaket geladen.",
+                ),
+                parent=self,
+            )
+            return False
+
+        return self._show_security_baseline_transfer_text_window(
+            window_attr="security_baseline_transfer_show_window",
+            title=self.tr(
+                "baseline_transfer_show_title",
+                "Transferpaket anzeigen",
+            ),
+            heading=self.tr(
+                "baseline_transfer_show_heading",
+                "Geladenes Transferpaket",
+            ),
+            text=text,
+        )
+
+    def show_security_baseline_transfer_comparison(self):
+        text = security_audit_controller.security_baseline_transfer_comparison_text(
+            self
+        )
+        if not text:
+            messagebox.showinfo(
+                self.tr(
+                    "baseline_transfer_compare_title",
+                    "Transferpaket vergleichen",
+                ),
+                self.tr(
+                    "baseline_transfer_compare_missing",
+                    "Aktuell ist kein importiertes Transferpaket geladen.",
+                ),
+                parent=self,
+            )
+            return False
+        return self._show_security_baseline_transfer_text_window(
+            window_attr="security_baseline_transfer_compare_window",
+            title=self.tr(
+                "baseline_transfer_compare_title",
+                "Transferpaket vergleichen",
+            ),
+            heading=self.tr(
+                "baseline_transfer_compare_heading",
+                "Vergleich lokales Profil vs. importiertes Transferpaket",
+            ),
+            text=text,
+        )
+
+    def apply_security_baseline_ufw(self):
+        return security_audit_controller.apply_security_baseline_ufw(
+            self,
+            run_cmd_fn=run_cmd,
+        )
+
+    def restore_security_baseline_state(self):
+        return security_audit_controller.restore_security_baseline_state(self)
+
+    def build_rkhunter_tab(self):
+        build_rkhunter_tab_ui(self)
 
     def _set_rkhunter_repair_available(self, enabled):
         security_audit_controller.set_rkhunter_repair_available(self, enabled)
@@ -29861,11 +29548,17 @@ class App(TkBase):
     def refresh_connected_device_table(self):
         return security_monitoring_controller.refresh_connected_device_table(self)
 
+    def set_connected_device_filter(self, mode: str):
+        return security_monitoring_controller.set_connected_device_filter(self, mode)
+
     def on_connected_device_select(self, _event=None):
         security_monitoring_controller.on_connected_device_select(self, _event=_event)
 
     def security_show_connected_devices(self):
         security_monitoring_controller.security_show_connected_devices(self)
+
+    def on_security_device_view_toggle(self):
+        security_monitoring_controller.on_security_device_view_toggle(self)
 
     def refresh_input_access_table(self, log_result=True):
         return security_monitoring_controller.refresh_input_access_table(
@@ -30041,7 +29734,7 @@ class App(TkBase):
         message: str,
         events=None,
     ) -> None:
-        self._open_security_menu_target_tab("guards")
+        self._open_security_menu_target_tab("guard_events")
         detail_widget = self.__dict__.get("security_detail")
         if detail_widget is None:
             return
@@ -32769,32 +32462,20 @@ class App(TkBase):
         temp_archive = ""
         temp_extract_dir = ""
         try:
-            with urllib_request.urlopen(str(url or "").strip(), timeout=90) as response:
-                payload = response.read()
-
             fd, temp_archive = tempfile.mkstemp(
                 prefix="netmon-firefox-source-",
                 suffix=".tar.xz",
             )
-            with os.fdopen(fd, "wb") as handle:
-                handle.write(payload)
+            os.close(fd)
+            _download_url_to_file_limited(
+                url,
+                temp_archive,
+                FIREFOX_ARCHIVE_MAX_DOWNLOAD_BYTES,
+            )
 
             temp_extract_dir = tempfile.mkdtemp(prefix="netmon-firefox-extract-")
             with tarfile.open(temp_archive, "r:*") as archive:
-                members = archive.getmembers()
-                for member in members:
-                    member_name = str(getattr(member, "name", "") or "").strip()
-                    if not member_name:
-                        continue
-                    member_target = os.path.abspath(
-                        os.path.join(temp_extract_dir, member_name)
-                    )
-                    if (
-                        member_target != temp_extract_dir
-                        and not member_target.startswith(temp_extract_dir + os.sep)
-                    ):
-                        raise ValueError("Unsicherer TAR-Pfad erkannt")
-                archive.extractall(temp_extract_dir)
+                _extract_regular_tar_archive(archive, temp_extract_dir)
 
             extracted_firefox_dir = ""
             for candidate in (
@@ -32820,7 +32501,7 @@ class App(TkBase):
 
             if os.path.isdir(target_root):
                 shutil.rmtree(target_root)
-            shutil.copytree(extracted_firefox_dir, target_root, symlinks=True)
+            shutil.copytree(extracted_firefox_dir, target_root, symlinks=False)
 
             firefox_binary = os.path.join(target_root, "firefox")
             if os.path.isfile(firefox_binary):
@@ -33099,6 +32780,9 @@ class App(TkBase):
         if (
             "projectm_visualizer" not in missing_keys
             and "nvidia_smi" not in missing_keys
+            and "timeshift" not in missing_keys
+            and "mintbackup" not in missing_keys
+            and "deja_dup" not in missing_keys
         ):
             return
 
@@ -33215,6 +32899,72 @@ class App(TkBase):
                 command=lambda: self._select_only_missing_dependency("nvidia_smi"),
             ).pack(anchor="w", pady=(6, 0))
 
+        if "timeshift" in missing_keys:
+            box = ttk.Frame(frame, padding=(8, 6))
+            box.pack(fill="x", pady=(0, 8))
+            ttk.Label(
+                box,
+                text=self.tr(
+                    "setup_assistant_optional_timeshift",
+                    "Optional empfohlen: Timeshift Snapshots",
+                ),
+                font=("TkDefaultFont", 10, "bold"),
+            ).pack(anchor="w")
+            ttk.Label(
+                box,
+                text=self.tr(
+                    "setup_assistant_optional_timeshift_detail",
+                    "Vor Hardening, Firewall-Aenderungen oder anderen tieferen Systemeingriffen sollte ein Timeshift-Snapshot vorhanden sein. Installation ist ueber APT moeglich.",
+                ),
+                foreground="#555555",
+                wraplength=680,
+                justify="left",
+            ).pack(anchor="w", pady=(2, 0))
+            ttk.Button(
+                box,
+                text=self.tr(
+                    "setup_assistant_btn_select_only_timeshift",
+                    "Nur Timeshift auswaehlen",
+                ),
+                command=lambda: self._select_only_missing_dependency("timeshift"),
+            ).pack(anchor="w", pady=(6, 0))
+
+        preference = self._desktop_backup_preference()
+        preferred_dep_key = str(preference.get("dependency_key") or "").strip()
+        if preferred_dep_key in missing_keys:
+            info = DEPENDENCIES.get(preferred_dep_key, {})
+            label = str(
+                info.get("label", preferred_dep_key) or preferred_dep_key
+            ).strip()
+            detail = str(info.get("description", "") or "").strip()
+            box = ttk.Frame(frame, padding=(8, 6))
+            box.pack(fill="x", pady=(0, 8))
+            ttk.Label(
+                box,
+                text=self.tr(
+                    "setup_assistant_optional_desktop_backup",
+                    "Optional empfohlen: Desktop-Datensicherung",
+                ),
+                font=("TkDefaultFont", 10, "bold"),
+            ).pack(anchor="w")
+            ttk.Label(
+                box,
+                text=f"{label}: {detail or 'Desktop-Backup-Tool per APT installierbar.'}",
+                foreground="#555555",
+                wraplength=680,
+                justify="left",
+            ).pack(anchor="w", pady=(2, 0))
+            ttk.Button(
+                box,
+                text=self.tr(
+                    "setup_assistant_btn_select_only_desktop_backup",
+                    "Nur Desktop-Datensicherung auswählen",
+                ),
+                command=lambda dep_key=preferred_dep_key: self._select_only_missing_dependency(
+                    dep_key
+                ),
+            ).pack(anchor="w", pady=(6, 0))
+
     def _select_only_missing_dependency(self, dep_key):
         has_match = False
         for key, var in (self.dep_installer_vars or {}).items():
@@ -33238,6 +32988,9 @@ class App(TkBase):
             "projectm_visualizer": 0,
             "mpv": 1,
             "nvidia_smi": 2,
+            "timeshift": 3,
+            "mintbackup": 4,
+            "deja_dup": 5,
         }
         info = DEPENDENCIES.get(dep_key, {})
         category = str(info.get("category", "") or "").strip().lower()
@@ -33845,6 +33598,7 @@ class App(TkBase):
             ("capinfos", "capinfos"),
             ("lynis", "lynis"),
             ("rkhunter", "rkhunter"),
+            ("Timeshift", "timeshift"),
             ("whois", "whois"),
             ("nvidia-smi", "nvidia-smi"),
             ("mpv (Radio)", "mpv"),
@@ -33873,6 +33627,10 @@ class App(TkBase):
                         )
                 elif checks.get("projectm_visualizer_installable", False):
                     path = "Optional"
+            elif key == "timeshift":
+                path = get_cmd_path(key)
+                if not path and checks.get("timeshift_installable", False):
+                    path = "Optional"
             elif key == "nvidia-smi":
                 path = get_cmd_path(key)
                 if not path and checks.get("nvidia_smi_installable", False):
@@ -33882,6 +33640,7 @@ class App(TkBase):
             else:
                 path = get_cmd_path(key)
             self._log_preflight_tool_state(label, checks.get(key, False), path)
+        self._log_preflight_desktop_backup_tool(checks)
 
         speedtest_path = get_cmd_path("speedtest") or get_cmd_path("speedtest-cli")
         self._log_preflight_tool_state(
@@ -33985,6 +33744,9 @@ class App(TkBase):
             "capinfos": has_cmd("capinfos"),
             "lynis": has_cmd("lynis"),
             "rkhunter": has_cmd("rkhunter"),
+            "timeshift": has_cmd("timeshift"),
+            "mintbackup": has_cmd("mintbackup"),
+            "deja_dup": has_cmd("deja-dup"),
             "clamav": has_cmd("clamscan"),
             "freshclam": has_cmd("freshclam"),
             "pillow": (Image is not None and ImageTk is not None)
@@ -34040,6 +33802,19 @@ class App(TkBase):
             checks.get("nvidia_gpu_present", False)
             and nvidia_smi_probe.get("installable", False)
         )
+        backup_preference = self._desktop_backup_preference()
+        preferred_backup_dep = str(
+            backup_preference.get("dependency_key") or ""
+        ).strip()
+        checks["mintbackup_installable"] = bool(
+            preferred_backup_dep == "mintbackup"
+            and (has_cmd("apt") or has_cmd("apt-get"))
+        )
+        checks["deja_dup_installable"] = bool(
+            preferred_backup_dep == "deja_dup"
+            and (has_cmd("apt") or has_cmd("apt-get"))
+        )
+        checks["timeshift_installable"] = bool(has_cmd("apt") or has_cmd("apt-get"))
         checks["flatpak"] = bool(projectm_probe.get("flatpak_available", False))
         checks["projectm_visualizer"] = bool(projectm_state.installed)
         checks["projectm_preset_pack_available"] = bool(
@@ -34118,6 +33893,15 @@ class App(TkBase):
                 )
 
             self._log_strict_protection_state()
+            timeshift_path = get_cmd_path("timeshift")
+            if not timeshift_path and checks.get("timeshift_installable", False):
+                timeshift_path = "Optional"
+            self._log_preflight_tool_state(
+                "Timeshift",
+                checks.get("timeshift", False),
+                timeshift_path,
+            )
+            self._log_preflight_desktop_backup_tool(checks)
             if checks.get("speedtest") and not checks.get("speedtest_module"):
                 self.log(
                     self.tr(
@@ -34206,6 +33990,8 @@ class App(TkBase):
 
         self._update_clamav_findings_buttons_state()
         self._update_dependency_installer_button()
+        self.refresh_timeshift_launch_controls()
+        self.refresh_data_backup_launch_controls()
         self.refresh_wireshark_launch_controls()
         self.update_radio_dependency_state()
         self.refresh_fun_games()
@@ -34258,12 +34044,26 @@ class App(TkBase):
         def _widget_exists(widget):
             if widget is None:
                 return False
-            if hasattr(widget, "configure") or hasattr(widget, "config"):
-                return True
             try:
-                return bool(int(widget.winfo_exists()))
+                exists_fn = getattr(widget, "winfo_exists", None)
+                if callable(exists_fn):
+                    return bool(int(exists_fn()))
             except Exception:
                 return False
+            return bool(hasattr(widget, "configure") or hasattr(widget, "config"))
+
+        def _configure_existing_widget(widget, **kwargs):
+            if not _widget_exists(widget):
+                return False
+            try:
+                widget.configure(**kwargs)
+                return True
+            except Exception:
+                try:
+                    widget.config(**kwargs)
+                    return True
+                except Exception:
+                    return False
 
         active_profile = (self.active_wg_profile() or "").strip()
         selected_profile = ""
@@ -34324,7 +34124,11 @@ class App(TkBase):
                 hint_color = "#2e7d32"
             else:
                 hint_color = "#c62828"
-            ipv6_controls_hint.config(text=ipv6_hint, foreground=hint_color)
+            _configure_existing_widget(
+                ipv6_controls_hint,
+                text=ipv6_hint,
+                foreground=hint_color,
+            )
 
         privacy_profile = active_profile or selected_profile
         privacy_enabled = True
@@ -34348,7 +34152,7 @@ class App(TkBase):
                     pass
         privacy_ipv6_hint = self.__dict__.get("privacy_ipv6_hint")
         if _widget_exists(privacy_ipv6_hint):
-            privacy_ipv6_hint.config(text=privacy_hint)
+            _configure_existing_widget(privacy_ipv6_hint, text=privacy_hint)
 
     def ipv6_disable(self, refresh_ui=True):
         ok = True
@@ -36446,6 +36250,12 @@ class App(TkBase):
             rc, out = self._read_ufw_status(verbose=True)
         except Exception:
             rc, out = 1, ""
+
+        if rc != 0 and not check_sudo_nopasswd():
+            snapshot["status_label"] = self.tr(
+                "firewall_status_auth_pending_short",
+                "Autorisierung ausstehend",
+            )
 
         metadata_lines = []
         structured_rules = []
@@ -42119,9 +41929,20 @@ class App(TkBase):
             inet_state = self._update_internet_indicator_state(bool(inet))
         vpn_profile = self.active_wg_profile()
 
-        fw = self.check_ufw_active()
-        ssh_rule = self.check_ssh_rule_active() if fw else None
-        ks = self.killswitch_is_on()
+        fw = False
+        fw_readable = True
+        if "check_ufw_active" in self.__dict__:
+            fw = self.check_ufw_active()
+        else:
+            try:
+                rc_fw, out_fw = self._read_ufw_status()
+            except Exception:
+                rc_fw, out_fw = 1, ""
+            fw_readable = rc_fw == 0
+            if fw_readable:
+                fw = self._ufw_status_is_active(out_fw)
+        ssh_rule = self.check_ssh_rule_active() if fw_readable and fw else None
+        ks = self.killswitch_is_on() if fw_readable else None
 
         self.update_ipv6_controls_state()
         if hasattr(self, "vpn_profile_combo"):
@@ -42144,7 +41965,10 @@ class App(TkBase):
             self.set_light(self.l_inet, "red")
         self.set_light(self.l_vpn, "green" if vpn_profile else "gray")
         self.update_vpn_status_text()
-        self.set_light(self.l_fw, "green" if fw else "red")
+        if fw_readable:
+            self.set_light(self.l_fw, "green" if fw else "red")
+        else:
+            self.set_light(self.l_fw, "gray")
         if ssh_rule is True:
             self.set_light(self.l_ssh, "green")
         elif ssh_rule is False:
@@ -42152,7 +41976,13 @@ class App(TkBase):
         else:
             self.set_light(self.l_ssh, "gray")
         self.update_ufw_logging_light()
-        self.set_light(self.l_ks, "green" if ks else "red")
+        if ks is True:
+            self.set_light(self.l_ks, "green")
+        elif ks is False:
+            self.set_light(self.l_ks, "red")
+        else:
+            self.set_light(self.l_ks, "gray")
+        self.update_game_mode_light()
         active_profile_for_ipv6 = (vpn_profile or "").strip()
         active_iface_for_ipv6 = (self.get_wg_iface() or "").strip()
         if not active_profile_for_ipv6:

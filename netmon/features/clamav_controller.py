@@ -702,9 +702,7 @@ def clamav_scan_failure_lines(app, title, target_label, scanned_files, rc, outpu
         _tr(app, "clamav_output_scanned_files", "Dateien gescannt: {value}").format(
             value=scanned_files
         ),
-        _tr(app, "clamav_output_return_code", "Rückgabecode: {value}").format(
-            value=rc
-        ),
+        _tr(app, "clamav_output_return_code", "Rückgabecode: {value}").format(value=rc),
     ]
     if error_line:
         lines.append(
@@ -723,7 +721,11 @@ def clamav_scan_failure_lines(app, title, target_label, scanned_files, rc, outpu
     raw_lines = [line.strip() for line in (output or "").splitlines() if line.strip()]
     if raw_lines:
         lines.extend(
-            ["", _tr(app, "clamav_output_raw_section", "ClamAV-Ausgabe:"), *raw_lines[-8:]]
+            [
+                "",
+                _tr(app, "clamav_output_raw_section", "ClamAV-Ausgabe:"),
+                *raw_lines[-8:],
+            ]
         )
     return lines
 
@@ -845,15 +847,22 @@ def clamav_progress_finish_safe(app):
     call_in_ui_thread(app, _finish)
 
 
-def clamav_parse_scanned_files(output):
+def _clamav_summary_int(output, label: str):
+    prefix = f"{str(label or '').strip()}:"
+    if prefix == ":":
+        return None
     for line in (output or "").splitlines():
         s = line.strip()
-        if s.startswith("Scanned files:"):
+        if s.startswith(prefix):
             try:
                 return int(s.split(":", 1)[1].strip())
             except Exception:
                 return None
     return None
+
+
+def clamav_parse_scanned_files(output):
+    return _clamav_summary_int(output, "Scanned files")
 
 
 def load_clamav_findings(app):
@@ -1211,16 +1220,12 @@ def clamav_configure_quickscan_paths_dialog(app):
             "Auswahl entfernen",
         ),
         command=on_remove_selected,
-    ).pack(
-        side="left", padx=(8, 0)
-    )
+    ).pack(side="left", padx=(8, 0))
     ttk.Button(
         buttons,
         text=_tr(app, "clamav_quick_paths_btn_reset", "Standard"),
         command=on_reset_defaults,
-    ).pack(
-        side="left", padx=(8, 0)
-    )
+    ).pack(side="left", padx=(8, 0))
 
     status_var = tk.StringVar(value="")
     ttk.Label(container, textvariable=status_var).grid(
@@ -1271,9 +1276,7 @@ def clamav_configure_quickscan_paths_dialog(app):
         action_row,
         text=_tr(app, "btn_save", "Speichern"),
         command=on_save,
-    ).pack(
-        side="right", padx=(0, 8)
-    )
+    ).pack(side="right", padx=(0, 8))
 
     win.protocol("WM_DELETE_WINDOW", close_popup)
 
@@ -1385,15 +1388,7 @@ def clamav_is_nonfatal_update_issue(output):
 
 
 def clamav_parse_infected_count(output):
-    infected_count = None
-    for line in (output or "").splitlines():
-        s = line.strip()
-        if s.startswith("Infected files:"):
-            try:
-                infected_count = int(s.split(":", 1)[1].strip())
-            except Exception:
-                infected_count = None
-            break
+    infected_count = _clamav_summary_int(output, "Infected files")
     if infected_count is None:
         infected_count = sum(
             1 for line in (output or "").splitlines() if line.strip().endswith("FOUND")
@@ -1851,12 +1846,12 @@ def security_clamav_quickscan_async(app):
                     _tr(app, "clamav_output_targets", "Ziele: {value}").format(
                         value=target_label or "-"
                     ),
-                    _tr(app, "clamav_output_scanned_files", "Dateien gescannt: {value}").format(
-                        value=scanned_live
-                    ),
-                    _tr(app, "clamav_output_return_code", "Rückgabecode: {value}").format(
-                        value=rc
-                    ),
+                    _tr(
+                        app, "clamav_output_scanned_files", "Dateien gescannt: {value}"
+                    ).format(value=scanned_live),
+                    _tr(
+                        app, "clamav_output_return_code", "Rückgabecode: {value}"
+                    ).format(value=rc),
                 ]
                 raw_lines = [
                     line.strip() for line in (out or "").splitlines() if line.strip()
@@ -1902,9 +1897,11 @@ def security_clamav_quickscan_async(app):
                         _tr(app, "clamav_output_targets", "Ziele: {value}").format(
                             value=target_label
                         ),
-                        _tr(app, "clamav_output_scanned_files", "Dateien gescannt: {value}").format(
-                            value=scanned_live
-                        ),
+                        _tr(
+                            app,
+                            "clamav_output_scanned_files",
+                            "Dateien gescannt: {value}",
+                        ).format(value=scanned_live),
                     ],
                     replace=True,
                 )
@@ -2152,12 +2149,12 @@ def security_clamav_folder_scan_async(app):
                     _tr(app, "clamav_output_target", "Ziel: {value}").format(
                         value=target
                     ),
-                    _tr(app, "clamav_output_scanned_files", "Dateien gescannt: {value}").format(
-                        value=scanned_live
-                    ),
-                    _tr(app, "clamav_output_return_code", "Rückgabecode: {value}").format(
-                        value=rc
-                    ),
+                    _tr(
+                        app, "clamav_output_scanned_files", "Dateien gescannt: {value}"
+                    ).format(value=scanned_live),
+                    _tr(
+                        app, "clamav_output_return_code", "Rückgabecode: {value}"
+                    ).format(value=rc),
                 ]
                 raw_lines = [
                     line.strip() for line in (out or "").splitlines() if line.strip()
@@ -2203,9 +2200,11 @@ def security_clamav_folder_scan_async(app):
                         _tr(app, "clamav_output_target", "Ziel: {value}").format(
                             value=target
                         ),
-                        _tr(app, "clamav_output_scanned_files", "Dateien gescannt: {value}").format(
-                            value=scanned_live
-                        ),
+                        _tr(
+                            app,
+                            "clamav_output_scanned_files",
+                            "Dateien gescannt: {value}",
+                        ).format(value=scanned_live),
                     ],
                     replace=True,
                 )
@@ -2432,9 +2431,11 @@ def security_clamav_systemscan_async(app):
                         _tr(app, "clamav_output_targets", "Ziele: {value}").format(
                             value=target_label
                         ),
-                        _tr(app, "clamav_output_scanned_files", "Dateien gescannt: {value}").format(
-                            value=scanned_files
-                        ),
+                        _tr(
+                            app,
+                            "clamav_output_scanned_files",
+                            "Dateien gescannt: {value}",
+                        ).format(value=scanned_files),
                     ],
                     replace=True,
                 )
@@ -2466,9 +2467,11 @@ def security_clamav_systemscan_async(app):
                         _tr(app, "clamav_output_targets", "Ziele: {value}").format(
                             value=target_label
                         ),
-                        _tr(app, "clamav_output_scanned_files", "Dateien gescannt: {value}").format(
-                            value=scanned_files
-                        ),
+                        _tr(
+                            app,
+                            "clamav_output_scanned_files",
+                            "Dateien gescannt: {value}",
+                        ).format(value=scanned_files),
                     ],
                     replace=True,
                 )
@@ -2540,9 +2543,11 @@ def security_clamav_systemscan_async(app):
                         _tr(app, "clamav_output_targets", "Ziele: {value}").format(
                             value=target_label
                         ),
-                        _tr(app, "clamav_output_scanned_files", "Dateien gescannt: {value}").format(
-                            value=scanned_files
-                        ),
+                        _tr(
+                            app,
+                            "clamav_output_scanned_files",
+                            "Dateien gescannt: {value}",
+                        ).format(value=scanned_files),
                         f"Funde: {infected_count}",
                         f"Ergebnis: {result_txt}",
                     ],

@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NetMonRoots | Changelog bis Version 1.1.19</title>
+  <title>NetMonRoots | Changelog bis Version 1.1.21</title>
   <meta
     name="description"
-    content="Kompakte Release-Highlights von NetMon bis zum lokalen Stand 1.1.19."
+    content="Kompakte Release-Highlights von NetMon bis zum lokalen Stand 1.1.21."
   >
   <link rel="icon" type="image/png" href="./favicon.png">
   <link rel="apple-touch-icon" href="./favicon.png">
@@ -14,8 +14,8 @@
   <link rel="alternate" hreflang="de" href="https://netmonroots.com/changelog.html">
   <link rel="alternate" hreflang="en" href="https://netmonroots.com/en/changelog.html">
   <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/changelog.html">
-  <meta property="og:title" content="NetMonRoots | Changelog bis Version 1.1.19">
-  <meta property="og:description" content="Kompakte Release-Highlights von NetMon bis zum lokalen Stand 1.1.19.">
+  <meta property="og:title" content="NetMonRoots | Changelog bis Version 1.1.21">
+  <meta property="og:description" content="Kompakte Release-Highlights von NetMon bis zum lokalen Stand 1.1.21.">
   <meta property="og:url" content="https://netmonroots.com/changelog.html">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="NetMon Roots">
@@ -23,10 +23,11 @@
   <meta property="og:locale:alternate" content="en_US">
   <meta property="og:image" content="https://netmonroots.com/favicon.png">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="NetMonRoots | Changelog bis Version 1.1.19">
-  <meta name="twitter:description" content="Kompakte Release-Highlights von NetMon bis zum lokalen Stand 1.1.19.">
+  <meta name="twitter:title" content="NetMonRoots | Changelog bis Version 1.1.21">
+  <meta name="twitter:description" content="Kompakte Release-Highlights von NetMon bis zum lokalen Stand 1.1.21.">
   <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
   <link rel="stylesheet" href="./styles.css">
+  <link id="theme-style" rel="stylesheet" href="./theme-bright.css">
 </head>
 <body class="downloads-page updates-page">
   <div class="page-shell docs-page downloads-page-shell">
@@ -58,6 +59,10 @@
         <a class="active" href="./changelog.html" lang="de">DE</a>
         <a href="./en/changelog.html" lang="en">EN</a>
       </div>
+      <div class="theme-switch" aria-label="Darstellung">
+        <button type="button" data-theme-option="bright">Bright</button>
+        <button type="button" data-theme-option="dark">Dark</button>
+      </div>
     </header>
 
     <main>
@@ -68,7 +73,7 @@
         <div class="download-layout">
           <article class="download-card featured">
             <p class="download-label">Stand</p>
-            <h3>Diese Seite zeigt die kompakten Release-Highlights bis NetMon 1.1.19.</h3>
+            <h3>Diese Seite zeigt die kompakten Release-Highlights bis NetMon 1.1.21.</h3>
             <p>Fokus ist eine kurze, website-taugliche Uebersicht der wichtigsten Aenderungen pro Version ohne technische Detailtiefe.</p>
             <div class="inline-actions">
               <a class="button button-primary" href="./downloads.html">Zur Downloadseite</a>
@@ -77,8 +82,8 @@
           </article>
           <article class="download-card">
             <p class="download-label">Schwerpunkt</p>
-            <h3>Fokus auf Stabilitaet, Security-Workflows und Linux-Hilfe.</h3>
-            <p>Im aktuellen Release stehen Startup-Reparaturen, bessere VPN-/Firewall-Synchronisierung, RKHunter-/ClamAV-Haertung und neue PDF-Workflows im Vordergrund.</p>
+            <h3>Fokus auf eine besser wartbare Oberflaechenstruktur.</h3>
+            <p>Version 1.1.21 ordnet umfangreiche Tab-Builder ihren jeweiligen Funktionsmodulen zu. Das erleichtert die Pflege und Weiterentwicklung, ohne den gewohnten Ablauf in NetMon zu veraendern.</p>
           </article>
         </div>
       </section>
@@ -103,6 +108,30 @@
           <article class="faq-card">
             <h3>Linux-Hilfe mit PDF-Workflow</h3>
             <p>Prompts koennen inklusive PDF-Kontext vorbereitet werden; importierte PDFs lassen sich in einer Bibliothek anzeigen, oeffnen und verwalten.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Version 1.1.21</p>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>Tab-Oberflaechen klarer organisiert</h3>
+            <p>Umfangreiche UI-Builder liegen jetzt bei ihren jeweiligen Tab-Modulen. Das schaerft die Struktur der Anwendung und vereinfacht kuenftige Weiterentwicklungen.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Gewohnter NetMon-Workflow</h3>
+            <p>Die Reorganisation betrifft die interne Struktur. Funktionen, Bedienwege und die bestehende Oberflaeche bleiben fuer Anwender vertraut.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Sicherere Installation und Importe</h3>
+            <p>Die Paketinstallation veraendert keine aktiven DNS-Profile mehr. Der Firefox-Basisimport verwirft Links und Sonderdateien und begrenzt Download sowie Extraktion.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Gepruefter Release-Prozess</h3>
+            <p>Builds verwenden eine kanonische Versionsquelle, pruefen sichtbare Release-Metadaten und erzwingen Minisign fuer produktive Bundles.</p>
           </article>
         </div>
       </section>
@@ -197,9 +226,9 @@
 
       <section class="section">
         <div class="version-note">
-          <p><strong>Lokaler Release-Stand:</strong> <code>1.1.19</code></p>
-          <p><strong>Zusammengefasste Releases:</strong> <code>1.1.16</code>, <code>1.1.17</code>, <code>1.1.18</code>, <code>1.1.19</code></p>
-          <p><strong>Stand dieser Seite:</strong> <code>2026-07-18</code></p>
+          <p><strong>Lokaler Release-Stand:</strong> <code>1.1.21</code></p>
+          <p><strong>Zusammengefasste Releases:</strong> <code>1.1.16</code>, <code>1.1.17</code>, <code>1.1.18</code>, <code>1.1.19</code>, <code>1.1.21</code></p>
+          <p><strong>Stand dieser Seite:</strong> <code>2026-09-19</code></p>
         </div>
       </section>
     </main>

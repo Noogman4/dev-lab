@@ -1,4 +1,14 @@
-netmon (1.1.19) unstable; urgency=medium
+netmon (1.1.21) unstable; urgency=medium
+
+  * Delegate large tab UI builders into their dedicated tab modules.
+  * Stop changing active DNS profiles during package installation.
+  * Harden Firefox archive imports against links, special files, and archive bombs.
+  * Add canonical version checks and mandatory Minisign release gates.
+  * Pin Minisign public key 54BF5F1867BDD004 in the repository and release build.
+
+ -- Mr. Happy <netmon.proglab@protonmail.ch>  Sat, 19 Sep 2026 00:00:00 +0200
+
+netmon (1.1.20) unstable; urgency=medium
 
   * Repair DNS fallback and orphaned killswitch handling during startup.
   * Protect the Secure Browser Firefox base from inventory removal.

@@ -14,6 +14,1170 @@ ROOTS_GUARD_INITIAL_ENABLED_AREAS = {
 }
 
 
+def build_lynis_sections(app):
+    """Create and register the Baseline, Hardening and Audit Lynis sections."""
+    lynis_sections = ttk.Notebook(app.tab_lynis)
+    app.lynis_sections = lynis_sections
+    lynis_sections.pack(fill="both", expand=True)
+    baseline_tab = ttk.Frame(lynis_sections)
+    hardening_tab = ttk.Frame(lynis_sections)
+    audit_tab = ttk.Frame(lynis_sections)
+    app.tab_lynis_baseline = baseline_tab
+    app.tab_lynis_hardening = hardening_tab
+    app.tab_lynis_audit = audit_tab
+    lynis_sections.add(
+        baseline_tab,
+        text=app.tr("lynis_subtab_baseline", "Baseline"),
+    )
+    lynis_sections.add(
+        hardening_tab,
+        text=app.tr("lynis_subtab_hardening", "Haertung"),
+    )
+    lynis_sections.add(
+        audit_tab,
+        text=app.tr("lynis_subtab_audit", "Lynis"),
+    )
+    return baseline_tab, hardening_tab, audit_tab
+
+
+def build_lynis_content(app, baseline_profile_choices) -> None:
+    """Compose the complete Baseline, Hardening, and Lynis audit UI."""
+    baseline_tab, hardening_tab, audit_tab = build_lynis_sections(app)
+    baseline_summary = build_security_baseline_summary_panel(app, baseline_tab)
+    build_security_baseline_profile_selector(
+        app, baseline_summary, baseline_profile_choices
+    )
+    build_security_baseline_summary_statuses(app, baseline_summary)
+    build_security_baseline_actions(app, baseline_summary)
+    baseline_content, baseline_table_frame = build_security_baseline_list_container(
+        app, baseline_tab
+    )
+    build_security_baseline_tree(app, baseline_table_frame)
+    build_security_baseline_detail_view(app, baseline_content)
+    build_security_baseline_hardening_summary(app, hardening_tab)
+    hardening_actions = build_security_baseline_hardening_actions_panel(
+        app, hardening_tab
+    )
+    build_security_baseline_game_mode_preset(app, hardening_actions)
+    build_security_baseline_hardening_action_buttons(app, hardening_actions)
+    build_security_baseline_game_mode_status(app, hardening_actions)
+    build_security_baseline_hardening_scope(app, hardening_actions)
+    lynis_top = build_lynis_actions_panel(app, audit_tab)
+    build_lynis_scan_controls(app, lynis_top)
+    build_lynis_chad_action(app, lynis_top)
+    build_lynis_status_row(app, lynis_top)
+    build_lynis_filter_controls(app, lynis_top)
+    build_lynis_output_panel(app, audit_tab)
+    app.refresh_security_baseline_overview()
+    app.refresh_security_baseline_table()
+
+
+def build_security_baseline_summary_panel(app, baseline_tab):
+    """Build the Security Baseline summary container."""
+    baseline_summary = ttk.LabelFrame(
+        baseline_tab,
+        text=app.tr("baseline_group_summary", "Security Baseline"),
+        padding=6,
+    )
+    baseline_summary.pack(fill="x", pady=(0, 8))
+    return baseline_summary
+
+
+def build_security_baseline_profile_selector(app, baseline_summary, choices) -> None:
+    """Build the baseline profile selector from controller-provided choices."""
+    ttk.Label(
+        baseline_summary,
+        textvariable=app.security_baseline_profile_var,
+        justify="left",
+    ).pack(anchor="w")
+    baseline_profile_row = ttk.Frame(baseline_summary)
+    baseline_profile_row.pack(fill="x", pady=(6, 0))
+    ttk.Label(
+        baseline_profile_row,
+        text=app.tr("baseline_profile_select_label", "Profilauswahl:"),
+        justify="left",
+    ).pack(side="left")
+    app.security_baseline_profile_choice_labels = {
+        profile_id: label for profile_id, label in choices
+    }
+    app.security_baseline_profile_choice_ids_by_label = {
+        label: profile_id for profile_id, label in choices
+    }
+    app.security_baseline_profile_combo = ttk.Combobox(
+        baseline_profile_row,
+        state="readonly",
+        textvariable=app.security_baseline_profile_choice_var,
+        values=[label for _profile_id, label in choices],
+        width=42,
+    )
+    app.security_baseline_profile_combo.pack(side="left", padx=(8, 0))
+    app.security_baseline_profile_combo.bind(
+        "<<ComboboxSelected>>",
+        lambda _event: app.apply_security_baseline_profile_choice(
+            app.security_baseline_profile_choice_var.get()
+        ),
+    )
+
+
+def build_security_baseline_summary_statuses(app, baseline_summary) -> None:
+    """Build the baseline metadata and current-status summary labels."""
+    for variable in (
+        app.security_baseline_version_var,
+        app.security_baseline_reference_var,
+        app.security_baseline_date_var,
+    ):
+        ttk.Label(baseline_summary, textvariable=variable, justify="left").pack(
+            anchor="w"
+        )
+    ttk.Label(
+        baseline_summary,
+        textvariable=app.security_baseline_last_check_var,
+        justify="left",
+    ).pack(anchor="w", pady=(4, 0))
+    for variable in (
+        app.security_baseline_status_var,
+        app.security_baseline_lynis_summary_var,
+    ):
+        ttk.Label(baseline_summary, textvariable=variable, justify="left").pack(
+            anchor="w"
+        )
+
+
+def build_security_baseline_actions(app, baseline_summary) -> None:
+    """Build baseline check and filter actions below the summary."""
+    baseline_actions = ttk.Frame(baseline_summary)
+    baseline_actions.pack(fill="x", pady=(6, 0))
+    app.btn_security_baseline_run = ttk.Button(
+        baseline_actions,
+        text=app.tr("baseline_btn_run", "Baseline pruefen"),
+        command=app.run_security_baseline_checks,
+    )
+    app.btn_security_baseline_run.pack(side="left")
+    app.btn_security_baseline_root_check = ttk.Button(
+        baseline_actions,
+        text=app.tr("baseline_btn_root_check", "Root-Check"),
+        command=app.check_security_baseline_privileges,
+    )
+    app.btn_security_baseline_root_check.pack(side="left", padx=(8, 0))
+    for attr_name, label_key, default, mode in (
+        (
+            "btn_security_baseline_show_all",
+            "baseline_btn_show_all",
+            "Alle anzeigen",
+            "all",
+        ),
+        (
+            "btn_security_baseline_show_deviations",
+            "baseline_btn_show_deviations",
+            "Nur Abweichungen",
+            "deviations",
+        ),
+        (
+            "btn_security_baseline_show_manual",
+            "baseline_btn_show_manual",
+            "Nur manuelle Pruefungen",
+            "manual",
+        ),
+        (
+            "btn_security_baseline_show_kernel",
+            "baseline_btn_show_kernel",
+            "Nur Kernel",
+            "kernel",
+        ),
+    ):
+        button = ttk.Button(
+            baseline_actions,
+            text=app.tr(label_key, default),
+            command=lambda selected_mode=mode: app.apply_security_baseline_filter(
+                selected_mode
+            ),
+        )
+        setattr(app, attr_name, button)
+        button.pack(side="left", padx=(8, 0))
+    ttk.Label(
+        baseline_summary,
+        text=app.tr(
+            "baseline_read_only_hint",
+            "Hinweis: Die Baseline fuehrt nur lesende Pruefungen aus und nimmt keine Systemaenderungen vor.",
+        ),
+        justify="left",
+    ).pack(anchor="w", pady=(6, 0))
+
+
+def build_security_baseline_list_container(app, baseline_tab):
+    """Build the baseline checks container and return the treeview parent."""
+    baseline_content = ttk.LabelFrame(
+        baseline_tab,
+        text=app.tr("baseline_group_checks", "Baseline Checks"),
+        padding=6,
+    )
+    baseline_content.pack(fill="both", expand=True, pady=(0, 8))
+    baseline_content.columnconfigure(0, weight=1)
+    baseline_content.rowconfigure(0, weight=1)
+    app.security_baseline_list_view = ttk.Frame(baseline_content)
+    app.security_baseline_list_view.grid(row=0, column=0, sticky="nsew")
+    app.security_baseline_list_view.columnconfigure(0, weight=1)
+    app.security_baseline_list_view.rowconfigure(1, weight=1)
+    ttk.Label(
+        app.security_baseline_list_view,
+        text=app.tr(
+            "baseline_list_hint",
+            "Eintrag anklicken, um die Erklaerung im selben Fenster zu oeffnen.",
+        ),
+        justify="left",
+    ).grid(row=0, column=0, sticky="w", pady=(0, 6))
+    baseline_table_frame = ttk.Frame(app.security_baseline_list_view)
+    baseline_table_frame.grid(row=1, column=0, sticky="nsew")
+    baseline_table_frame.columnconfigure(0, weight=1)
+    baseline_table_frame.rowconfigure(0, weight=1)
+    return baseline_content, baseline_table_frame
+
+
+def build_security_baseline_tree(app, baseline_table_frame) -> None:
+    """Build the baseline checks tree, scrollbars and selection wiring."""
+    scroll_y = ttk.Scrollbar(baseline_table_frame, orient="vertical")
+    scroll_y.grid(row=0, column=1, sticky="ns")
+    scroll_x = ttk.Scrollbar(baseline_table_frame, orient="horizontal")
+    scroll_x.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+    app.security_baseline_tree = ttk.Treeview(
+        baseline_table_frame,
+        columns=("status", "group", "title", "expected", "actual", "source"),
+        show="headings",
+        height=8,
+        yscrollcommand=scroll_y.set,
+        xscrollcommand=scroll_x.set,
+        selectmode="browse",
+    )
+    app.security_baseline_tree.grid(row=0, column=0, sticky="nsew")
+    scroll_y.configure(command=app.security_baseline_tree.yview)
+    scroll_x.configure(command=app.security_baseline_tree.xview)
+    for column, heading, width, stretch in (
+        ("status", "Status", 240, False),
+        ("group", "Gruppe", 180, False),
+        ("title", "Check", 420, True),
+        ("expected", "Soll", 180, False),
+        ("actual", "Ist", 220, False),
+        ("source", "Quelle", 260, False),
+    ):
+        app.security_baseline_tree.heading(column, text=heading)
+        app.security_baseline_tree.column(
+            column,
+            width=width,
+            minwidth=width if not stretch else max(260, width),
+            stretch=stretch,
+            anchor="w",
+        )
+    for tag, color in (
+        ("ok", "#1b8a3a"),
+        ("error", "#b22222"),
+        ("manual", "#b36b00"),
+        ("deviation", "#005fa3"),
+        ("na", "#666666"),
+        ("unknown", "#914f1e"),
+        ("idle", "#666666"),
+    ):
+        app.security_baseline_tree.tag_configure(tag, foreground=color)
+    app.security_baseline_tree.bind(
+        "<<TreeviewSelect>>",
+        app.on_security_baseline_select,
+    )
+    app.attach_selection_copy_shortcuts(app.security_baseline_tree, "treeview")
+
+
+def build_security_baseline_detail_view(app, baseline_content) -> None:
+    """Build the baseline check detail view and its navigation controls."""
+    app.security_baseline_detail_view = ttk.Frame(baseline_content)
+    app.security_baseline_detail_view.grid(row=0, column=0, sticky="nsew")
+    app.security_baseline_detail_view.columnconfigure(0, weight=1)
+    app.security_baseline_detail_view.rowconfigure(1, weight=1)
+    detail_header = ttk.Frame(app.security_baseline_detail_view)
+    detail_header.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+    detail_header.columnconfigure(1, weight=1)
+    app.btn_security_baseline_back = ttk.Button(
+        detail_header,
+        text=app.tr("baseline_btn_back_to_entries", "Zurueck zu den Eintraegen"),
+        command=app.show_security_baseline_list_view,
+    )
+    app.btn_security_baseline_back.grid(row=0, column=0, sticky="w")
+    app.security_baseline_detail_heading_var = tk.StringVar(
+        value=app.tr("baseline_group_details", "Check Details")
+    )
+    ttk.Label(
+        detail_header,
+        textvariable=app.security_baseline_detail_heading_var,
+        justify="left",
+        font=("TkDefaultFont", 10, "bold"),
+    ).grid(row=0, column=1, sticky="w", padx=(10, 0))
+    detail_frame = ttk.Frame(app.security_baseline_detail_view)
+    detail_frame.grid(row=1, column=0, sticky="nsew")
+    detail_frame.columnconfigure(0, weight=1)
+    detail_frame.rowconfigure(0, weight=1)
+    scroll_y = ttk.Scrollbar(detail_frame, orient="vertical")
+    scroll_y.grid(row=0, column=1, sticky="ns")
+    app.security_baseline_detail_text = tk.Text(
+        detail_frame,
+        wrap="word",
+        height=14,
+        yscrollcommand=scroll_y.set,
+    )
+    app.security_baseline_detail_text.grid(row=0, column=0, sticky="nsew")
+    scroll_y.configure(command=app.security_baseline_detail_text.yview)
+    app.security_baseline_detail_text.insert(
+        "1.0",
+        app.tr("baseline_detail_placeholder", "Noch kein Check ausgewaehlt."),
+    )
+    app.security_baseline_detail_text.configure(state="disabled")
+    app.attach_selection_copy_shortcuts(app.security_baseline_detail_text, "text")
+    app.attach_text_context_menu(app.security_baseline_detail_text)
+    app.security_baseline_detail_view.grid_remove()
+
+
+def build_security_baseline_hardening_summary(app, hardening_tab) -> None:
+    """Build the hardening overview shown above its available actions."""
+    hardening_summary = ttk.LabelFrame(
+        hardening_tab,
+        text=app.tr("baseline_group_hardening", "Baseline-Haertung"),
+        padding=6,
+    )
+    hardening_summary.pack(fill="x", pady=(0, 8))
+    for variable, pady in (
+        (app.security_baseline_profile_var, None),
+        (app.security_baseline_version_var, None),
+        (app.security_baseline_last_check_var, (4, 0)),
+        (app.security_baseline_status_var, None),
+    ):
+        kwargs = {"anchor": "w"}
+        if pady is not None:
+            kwargs["pady"] = pady
+        ttk.Label(hardening_summary, textvariable=variable, justify="left").pack(
+            **kwargs
+        )
+    ttk.Label(
+        hardening_summary,
+        text=app.tr(
+            "baseline_hardening_intro",
+            "Wendet freigegebene Hardening-Schritte fuer das aktive Baseline-Profil an.",
+        ),
+        justify="left",
+    ).pack(anchor="w", pady=(6, 0))
+    ttk.Label(
+        hardening_summary,
+        textvariable=app.security_baseline_transfer_var,
+        justify="left",
+    ).pack(anchor="w", pady=(4, 0))
+    ttk.Label(
+        hardening_summary,
+        text=app.tr(
+            "baseline_hardening_timeshift_hint",
+            "Empfehlung: Vor jeder Hardening-Aenderung zuerst einen Timeshift-Snapshot erstellen.",
+        ),
+        justify="left",
+        wraplength=900,
+    ).pack(anchor="w", pady=(6, 0))
+    ttk.Label(
+        hardening_summary,
+        textvariable=app.security_baseline_optional_services_var,
+        justify="left",
+        wraplength=900,
+    ).pack(anchor="w", pady=(4, 0))
+
+
+def build_security_baseline_hardening_actions_panel(app, hardening_tab):
+    """Build the hardening actions container and configure its button grid."""
+    hardening_actions = ttk.LabelFrame(
+        hardening_tab,
+        text=app.tr("baseline_group_hardening_actions", "Hardening-Aktionen"),
+        padding=6,
+    )
+    app.tab_lynis_hardening_actions_frame = hardening_actions
+    hardening_actions.pack(fill="x", pady=(0, 8))
+    for column in range(4):
+        hardening_actions.grid_columnconfigure(
+            column, weight=1, uniform="hardening_actions"
+        )
+    return hardening_actions
+
+
+def build_security_baseline_game_mode_preset(app, hardening_actions) -> None:
+    """Build the game-mode preset selector for hardening actions."""
+    preset_row = ttk.Frame(hardening_actions)
+    preset_row.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 8))
+    preset_row.columnconfigure(1, weight=1)
+    ttk.Label(
+        preset_row,
+        text=app.tr("baseline_game_mode_preset_label", "Spielprofil:"),
+    ).grid(row=0, column=0, sticky="w", padx=(0, 8))
+    app.security_game_mode_preset_combo = ttk.Combobox(
+        preset_row,
+        textvariable=app.security_game_mode_preset_var,
+        values=[
+            app._game_mode_preset_label("singleplayer"),
+            app._game_mode_preset_label("online"),
+            app._game_mode_preset_label("steam"),
+            app._game_mode_preset_label("heroic"),
+            app._game_mode_preset_label("lutris"),
+            app._game_mode_preset_label("lan_host"),
+            app._game_mode_preset_label("steam_remote_play"),
+            app._game_mode_preset_label("minecraft_lan"),
+        ],
+        state="readonly",
+        width=26,
+    )
+    app.security_game_mode_preset_combo.grid(row=0, column=1, sticky="w")
+    app.security_game_mode_preset_combo.bind(
+        "<<ComboboxSelected>>",
+        app.on_game_mode_preset_selected,
+    )
+
+
+def build_security_baseline_hardening_action_buttons(app, hardening_actions) -> None:
+    """Build and place the hardening action buttons."""
+    app.btn_security_baseline_timeshift = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_timeshift", "Timeshift starten"),
+        command=app.launch_timeshift_snapshot_tool,
+    )
+    app.btn_security_baseline_apply_all = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_apply_all", "Profil-Haertung anwenden"),
+        command=app.apply_security_baseline_profile,
+    )
+    app.btn_security_baseline_apply_sysctl = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_apply_sysctl", "Kernel-Haertung anwenden"),
+        command=app.apply_security_baseline_sysctl,
+    )
+    app.btn_security_baseline_apply_ufw = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_apply_ufw", "Firewall-Haertung anwenden"),
+        command=app.apply_security_baseline_ufw,
+    )
+    app.btn_security_baseline_export_transfer = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_export_transfer", "Transferpaket exportieren"),
+        command=app.export_security_baseline_transfer,
+    )
+    app.btn_security_baseline_import_transfer = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_import_transfer", "Transferpaket importieren"),
+        command=app.import_security_baseline_transfer,
+    )
+    app.btn_security_baseline_show_transfer = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_show_transfer", "Transferpaket anzeigen"),
+        command=app.show_security_baseline_transfer_package,
+    )
+    app.btn_security_baseline_compare_transfer = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_compare_transfer", "Transferpaket vergleichen"),
+        command=app.show_security_baseline_transfer_comparison,
+    )
+    app.btn_security_baseline_clear_transfer = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_clear_transfer", "Transferpaket entladen"),
+        command=app.clear_security_baseline_transfer,
+    )
+    app.btn_security_game_mode_on = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_game_mode_on", "Spielmodus aktivieren"),
+        command=app.enable_game_mode,
+    )
+    app.btn_security_game_mode_off = ttk.Button(
+        hardening_actions,
+        text=app.tr("baseline_btn_game_mode_off", "Spielmodus deaktivieren"),
+        command=app.disable_game_mode,
+    )
+    for index, button in enumerate(
+        (
+            app.btn_security_baseline_timeshift,
+            app.btn_security_baseline_apply_all,
+            app.btn_security_baseline_apply_sysctl,
+            app.btn_security_baseline_apply_ufw,
+            app.btn_security_baseline_export_transfer,
+            app.btn_security_baseline_import_transfer,
+            app.btn_security_baseline_compare_transfer,
+            app.btn_security_baseline_clear_transfer,
+            app.btn_security_baseline_show_transfer,
+            app.btn_security_game_mode_on,
+            app.btn_security_game_mode_off,
+        )
+    ):
+        button_row = index // 4
+        column = index % 4
+        button.grid(
+            row=1 + button_row,
+            column=column,
+            padx=(0, 8) if column < 3 else (0, 0),
+            pady=(0, 8) if button_row < 2 else (0, 0),
+            sticky="ew",
+        )
+
+
+def build_security_baseline_game_mode_status(app, hardening_actions) -> None:
+    """Build and refresh the game-mode status labels."""
+    app.refresh_timeshift_launch_controls()
+    app.lbl_security_game_mode_profile_hint = ttk.Label(
+        hardening_actions,
+        textvariable=app.security_game_mode_profile_hint_var,
+        justify="left",
+        wraplength=360,
+    )
+    app.lbl_security_game_mode_profile_hint.grid(
+        row=4,
+        column=0,
+        columnspan=4,
+        sticky="ew",
+        pady=(8, 6),
+    )
+    app.lbl_security_game_mode_status = ttk.Label(
+        hardening_actions,
+        textvariable=app.security_game_mode_status_var,
+        justify="left",
+        wraplength=360,
+    )
+    app.lbl_security_game_mode_status.grid(
+        row=5,
+        column=0,
+        columnspan=4,
+        sticky="ew",
+        pady=(0, 8),
+    )
+    app.refresh_game_mode_preset_ui()
+    app.refresh_game_mode_status()
+
+
+def build_security_baseline_hardening_scope(app, hardening_actions) -> None:
+    """Build the hardening scope notice and attach responsive text wrapping."""
+    app.lbl_security_hardening_scope = ttk.Label(
+        hardening_actions,
+        text=app.tr(
+            "baseline_hardening_scope",
+            "Automatisiert sind nur klar begrenzte Sysctl-Drop-ins und UFW-Profilregeln. Dienst-, Port- und VPN-spezifische Freigaben bleiben bewusst manuell.",
+        ),
+        justify="left",
+        wraplength=360,
+    )
+    app.lbl_security_hardening_scope.grid(
+        row=6,
+        column=0,
+        columnspan=4,
+        sticky="ew",
+        pady=(0, 0),
+    )
+    hardening_actions.bind(
+        "<Configure>",
+        app._refresh_security_hardening_text_wrap,
+        add="+",
+    )
+    app._refresh_security_hardening_text_wrap()
+
+
+def build_rkhunter_output_panel(app) -> None:
+    """Build the RKHunter progress, summary and output widgets."""
+    rkh_progress_row = ttk.Frame(app.tab_rkhunter)
+    rkh_progress_row.pack(fill="x", pady=(0, 8))
+    app.rkhunter_progress_bar = ttk.Progressbar(
+        rkh_progress_row,
+        orient="horizontal",
+        mode="determinate",
+        maximum=100,
+        variable=app.rkhunter_progress_var,
+        style="SystemGreen.Horizontal.TProgressbar",
+    )
+    app.rkhunter_progress_bar.pack(side="left", fill="x", expand=True)
+    ttk.Label(
+        rkh_progress_row,
+        textvariable=app.rkhunter_progress_text_var,
+        width=24,
+        anchor="w",
+    ).pack(side="left", padx=(8, 0))
+    rkh_summary = ttk.LabelFrame(
+        app.tab_rkhunter,
+        text=app.tr("group_summary", "Summary"),
+        padding=6,
+    )
+    rkh_summary.pack(fill="x", pady=(0, 8))
+    ttk.Label(
+        rkh_summary,
+        textvariable=app.rkhunter_summary_var,
+        justify="left",
+    ).pack(anchor="w")
+    rkh_output_frame = ttk.Frame(app.tab_rkhunter)
+    rkh_output_frame.pack(fill="both", expand=True)
+    app.rkhunter_scrollbar = ttk.Scrollbar(rkh_output_frame, orient="vertical")
+    app.rkhunter_scrollbar.pack(side="right", fill="y")
+    app.rkhunter_text = tk.Text(
+        rkh_output_frame,
+        wrap="word",
+        height=20,
+        yscrollcommand=app.rkhunter_scrollbar.set,
+    )
+    app.rkhunter_text.pack(side="left", fill="both", expand=True)
+    app.rkhunter_scrollbar.configure(command=app.rkhunter_text.yview)
+    app.rkhunter_text.insert(
+        "1.0",
+        app.tr("rkhunter_output_placeholder", "rkhunter output will appear here.\n"),
+    )
+    app.rkhunter_text.configure(state="disabled")
+
+
+def build_rkhunter_status_row(app, rkh_top) -> None:
+    """Build the RKHunter runtime and update status row."""
+    rkh_status_row = ttk.Frame(rkh_top)
+    rkh_status_row.pack(fill="x", pady=(6, 0))
+    ttk.Label(rkh_status_row, text=app.tr("label_status", "Status:")).pack(
+        side="left", padx=(0, 4)
+    )
+    ttk.Label(rkh_status_row, textvariable=app.rkhunter_status_var).pack(side="left")
+    ttk.Label(
+        rkh_status_row,
+        text=app.tr("rkhunter_label_update_state", " | Update-Stand:"),
+    ).pack(side="left", padx=(12, 4))
+    ttk.Label(rkh_status_row, textvariable=app.rkhunter_last_update_var).pack(
+        side="left"
+    )
+
+
+def build_rkhunter_actions_panel(app):
+    """Build the RKHunter actions container and return its button rows."""
+    rkh_top = ttk.LabelFrame(
+        app.tab_rkhunter,
+        text=app.tr("rkhunter_group_actions", "rkhunter actions"),
+        padding=6,
+    )
+    rkh_top.pack(fill="x", pady=(0, 8))
+    rkh_actions_row = ttk.Frame(rkh_top)
+    rkh_actions_row.pack(fill="x")
+    rkh_secondary_actions_row = ttk.Frame(rkh_top)
+    rkh_secondary_actions_row.pack(fill="x", pady=(6, 0))
+    return rkh_top, rkh_actions_row, rkh_secondary_actions_row
+
+
+def build_rkhunter_primary_actions(app, rkh_actions_row) -> None:
+    """Build RKHunter update, scan and trusted-reference actions."""
+    app.btn_rkhunter_update = ttk.Button(
+        rkh_actions_row,
+        text=app.tr("rkhunter_btn_update", "rkhunter update"),
+        command=app.rkhunter_update_async,
+    )
+    app.btn_rkhunter_update.pack(side="left")
+    app.register_feature_button("rkhunter", app.btn_rkhunter_update)
+    app.add_tooltip(
+        app.btn_rkhunter_update,
+        app.tr(
+            "rkhunter_btn_update_tooltip",
+            "Updates the rkhunter data set without making further system changes.",
+        ),
+    )
+    app.btn_rkhunter_scan = ttk.Button(
+        rkh_actions_row,
+        text=app.tr("rkhunter_btn_start_scan", "Start rkhunter scan"),
+        command=app.rkhunter_scan_async,
+    )
+    app.btn_rkhunter_scan.pack(side="left", padx=(8, 0))
+    app.register_feature_button("rkhunter", app.btn_rkhunter_scan)
+    app.add_tooltip(
+        app.btn_rkhunter_scan,
+        app.tr(
+            "rkhunter_btn_start_scan_tooltip",
+            "Starts a non-interactive rkhunter check without repair actions.",
+        ),
+    )
+    app.btn_rkhunter_propupd = ttk.Button(
+        rkh_actions_row,
+        text=app.tr("rkhunter_btn_propupd", "Accept trusted reference"),
+        command=app.rkhunter_propupd_async,
+    )
+    app.btn_rkhunter_propupd.pack(side="left", padx=(8, 0))
+    app.add_tooltip(
+        app.btn_rkhunter_propupd,
+        app.tr(
+            "rkhunter_btn_propupd_tooltip",
+            "Enabled only after a low-risk scan and a successful dpkg verification. Never runs automatically.",
+        ),
+    )
+    app.btn_rkhunter_propupd.configure(state="disabled")
+
+
+def build_rkhunter_secondary_actions(app, rkh_secondary_actions_row) -> None:
+    """Build RKHunter maintenance and output actions."""
+    app.btn_rkhunter_repair = ttk.Button(
+        rkh_secondary_actions_row,
+        text=app.tr("rkhunter_btn_repair_update", "Repair RKHunter update"),
+        command=app.rkhunter_repair_update_async,
+    )
+    app.btn_rkhunter_repair.pack(side="left", padx=(8, 0))
+    app.add_tooltip(
+        app.btn_rkhunter_repair,
+        app.tr(
+            "rkhunter_btn_repair_update_tooltip",
+            "Backs up /etc/rkhunter.conf, repairs common update settings, and retries the update.",
+        ),
+    )
+    app.btn_rkhunter_repair.configure(state="disabled")
+    app.btn_rkhunter_show_scan = ttk.Button(
+        rkh_secondary_actions_row,
+        text=app.tr("rkhunter_btn_show_scan", "Show scan"),
+        command=app.show_rkhunter_scan_output,
+    )
+    app.btn_rkhunter_show_scan.pack(side="left", padx=(8, 0))
+    app.add_tooltip(
+        app.btn_rkhunter_show_scan,
+        app.tr(
+            "rkhunter_btn_show_scan_tooltip",
+            "Shows the last rkhunter scan output and analysis.",
+        ),
+    )
+    app.register_feature_button("rkhunter", app.btn_rkhunter_show_scan)
+    app.btn_rkhunter_revoke_reference = ttk.Button(
+        rkh_secondary_actions_row,
+        text=app.tr("rkhunter_btn_revoke_reference", "Revoke reference"),
+        command=app.rkhunter_revoke_reference_async,
+    )
+    app.btn_rkhunter_revoke_reference.pack(side="left", padx=(8, 0))
+    app.add_tooltip(
+        app.btn_rkhunter_revoke_reference,
+        app.tr(
+            "rkhunter_btn_revoke_reference_tooltip",
+            "Restores the rkhunter file-property database from the NetMon backup created before the last accepted reference.",
+        ),
+    )
+    app.register_feature_button("rkhunter", app.btn_rkhunter_revoke_reference)
+    app.btn_rkhunter_log = ttk.Button(
+        rkh_secondary_actions_row,
+        text=app.tr("rkhunter_btn_show_log", "Show log"),
+        command=app.show_rkhunter_log,
+    )
+    app.btn_rkhunter_log.pack(side="left", padx=(8, 0))
+    app.add_tooltip(
+        app.btn_rkhunter_log,
+        app.tr(
+            "rkhunter_btn_show_log_tooltip",
+            "Shows /var/log/rkhunter.log in the output area.",
+        ),
+    )
+    app.register_feature_button("rkhunter", app.btn_rkhunter_log)
+    app.btn_rkhunter_clear = ttk.Button(
+        rkh_secondary_actions_row,
+        text=app.tr("btn_clear_output", "Clear output"),
+        command=app.clear_rkhunter_output,
+    )
+    app.btn_rkhunter_clear.pack(side="left", padx=(8, 0))
+    app.add_tooltip(
+        app.btn_rkhunter_clear,
+        app.tr(
+            "rkhunter_btn_clear_tooltip",
+            "Clears the current rkhunter output in this tab.",
+        ),
+    )
+
+
+def build_rkhunter_tab(app) -> None:
+    """Build the complete RKHunter tab from its focused UI sections."""
+    rkh_top, rkh_actions_row, rkh_secondary_actions_row = build_rkhunter_actions_panel(
+        app
+    )
+    build_rkhunter_status_row(app, rkh_top)
+    build_rkhunter_primary_actions(app, rkh_actions_row)
+    build_rkhunter_secondary_actions(app, rkh_secondary_actions_row)
+    build_rkhunter_output_panel(app)
+
+
+def build_packet_capture_output_panel(app) -> None:
+    """Build the Packet Capture output view and initialize its placeholder."""
+    output_frame = ttk.LabelFrame(
+        app.tab_packet_capture,
+        text=app.tr("packet_capture_group_output", "Capture status"),
+        padding=6,
+    )
+    output_frame.pack(fill="both", expand=True, pady=(8, 0))
+    app.packet_capture_text = tk.Text(output_frame, wrap="word", height=14)
+    app.packet_capture_text.pack(fill="both", expand=True)
+    app.packet_capture_text.insert(
+        "1.0",
+        app.tr(
+            "packet_capture_output_default",
+            "Packet capture status and file information will appear here.\n",
+        ),
+    )
+    app.packet_capture_text.configure(state="disabled")
+
+
+def build_packet_capture_status_panel(app) -> None:
+    """Build the Packet Capture live status panel."""
+    status = ttk.LabelFrame(
+        app.tab_packet_capture,
+        text=app.tr("packet_capture_group_status", "Status"),
+        padding=6,
+    )
+    status.pack(fill="x", pady=(8, 0))
+    for col in range(4):
+        status.columnconfigure(col, weight=1)
+    ttk.Label(status, text=app.tr("label_status", "Status:")).grid(
+        row=0, column=0, sticky="w"
+    )
+    ttk.Label(status, textvariable=app.packet_capture_status_var).grid(
+        row=0, column=1, sticky="w", padx=(8, 12)
+    )
+    ttk.Label(status, text=app.tr("packet_capture_label_runtime", "Runtime:")).grid(
+        row=0, column=2, sticky="w"
+    )
+    ttk.Label(status, textvariable=app.packet_capture_runtime_var).grid(
+        row=0, column=3, sticky="w", padx=(8, 0)
+    )
+    ttk.Label(status, text=app.tr("packet_capture_label_packets", "Packets:")).grid(
+        row=1, column=0, sticky="w", pady=(4, 0)
+    )
+    ttk.Label(status, textvariable=app.packet_capture_packets_var).grid(
+        row=1, column=1, sticky="w", padx=(8, 12), pady=(4, 0)
+    )
+    ttk.Label(status, text=app.tr("packet_capture_label_filesize", "File size:")).grid(
+        row=1, column=2, sticky="w", pady=(4, 0)
+    )
+    ttk.Label(status, textvariable=app.packet_capture_size_var).grid(
+        row=1, column=3, sticky="w", padx=(8, 0), pady=(4, 0)
+    )
+
+
+def build_packet_capture_configuration_panel(app) -> None:
+    """Build Packet Capture interface, filter and output-file controls."""
+    config = ttk.LabelFrame(
+        app.tab_packet_capture,
+        text=app.tr("packet_capture_group_config", "Konfiguration"),
+        padding=6,
+    )
+    config.pack(fill="x")
+    config.columnconfigure(1, weight=1)
+    ttk.Label(config, text=app.tr("packet_capture_label_interface", "Interface:")).grid(
+        row=0, column=0, sticky="w"
+    )
+    app.packet_capture_interface_combo = ttk.Combobox(
+        config,
+        textvariable=app.packet_capture_interface_var,
+        state="readonly",
+        values=[],
+    )
+    app.packet_capture_interface_combo.grid(row=0, column=1, sticky="ew", padx=(8, 8))
+    app.btn_packet_capture_refresh = ttk.Button(
+        config,
+        text=app.tr("btn_refresh_interfaces", "Interfaces aktualisieren"),
+        command=app.refresh_packet_capture_interfaces,
+    )
+    app.btn_packet_capture_refresh.grid(row=0, column=2, sticky="ew")
+    app.register_feature_button("packet_capture_ui", app.btn_packet_capture_refresh)
+    app.add_tooltip(
+        app.btn_packet_capture_refresh,
+        "Aktualisiert die verfügbare Liste der Capture-Interfaces.",
+    )
+    ttk.Label(
+        config,
+        text=app.tr("packet_capture_label_filter", "Capture-Filter:"),
+    ).grid(row=1, column=0, sticky="w", pady=(6, 0))
+    ttk.Entry(config, textvariable=app.packet_capture_filter_var).grid(
+        row=1,
+        column=1,
+        columnspan=2,
+        sticky="ew",
+        padx=(8, 0),
+        pady=(6, 0),
+    )
+    ttk.Label(config, text=app.tr("packet_capture_label_file", "File:")).grid(
+        row=2, column=0, sticky="w", pady=(6, 0)
+    )
+    ttk.Entry(config, textvariable=app.packet_capture_file_var).grid(
+        row=2, column=1, sticky="ew", padx=(8, 8), pady=(6, 0)
+    )
+    app.btn_packet_capture_choose = ttk.Button(
+        config,
+        text=app.tr("packet_capture_btn_choose_file", "Choose file"),
+        command=app.choose_packet_capture_file,
+    )
+    app.btn_packet_capture_choose.grid(row=2, column=2, sticky="ew", pady=(6, 0))
+    app.register_feature_button("packet_capture_ui", app.btn_packet_capture_choose)
+    app.add_tooltip(
+        app.btn_packet_capture_choose,
+        "Sets the save location and file name for the capture file.",
+    )
+
+
+def build_packet_capture_actions_panel(app):
+    """Build the Packet Capture actions container and configure its grid."""
+    actions = ttk.LabelFrame(
+        app.tab_packet_capture,
+        text=app.tr("packet_capture_group_actions", "Actions"),
+        padding=6,
+    )
+    actions.pack(fill="x", pady=(8, 0))
+    for col in range(3):
+        actions.columnconfigure(col, weight=1)
+    return actions
+
+
+def build_packet_capture_primary_actions(app, actions) -> None:
+    """Build Packet Capture start, stop and Wireshark actions."""
+    app.btn_packet_capture_start = ttk.Button(
+        actions,
+        text=app.tr("packet_capture_btn_start", "Start capture"),
+        command=app.packet_capture_start_async,
+    )
+    app.btn_packet_capture_start.grid(row=0, column=0, sticky="ew")
+    app.register_feature_button("packet_capture", app.btn_packet_capture_start)
+    app.add_tooltip(
+        app.btn_packet_capture_start,
+        "Starts a packet capture with tshark or dumpcap.",
+    )
+    app.btn_packet_capture_stop = ttk.Button(
+        actions,
+        text=app.tr("packet_capture_btn_stop", "Stop capture"),
+        command=app.packet_capture_stop,
+    )
+    app.btn_packet_capture_stop.grid(row=0, column=1, sticky="ew", padx=(8, 0))
+    app.register_feature_button("packet_capture", app.btn_packet_capture_stop)
+    app.add_tooltip(
+        app.btn_packet_capture_stop,
+        "Stops a running capture cleanly.",
+    )
+    app.btn_packet_capture_open_wireshark = ttk.Button(
+        actions,
+        text=app.tr("packet_capture_btn_open_wireshark", "Open in Wireshark"),
+        command=app.open_packet_capture_in_wireshark,
+    )
+    app.btn_packet_capture_open_wireshark.grid(
+        row=0, column=2, sticky="ew", padx=(8, 0)
+    )
+    app.register_feature_button("wireshark_open", app.btn_packet_capture_open_wireshark)
+    app.add_tooltip(
+        app.btn_packet_capture_open_wireshark,
+        "Opens the current capture file in Wireshark if installed.",
+    )
+    app.refresh_wireshark_launch_controls()
+
+
+def build_packet_capture_secondary_actions(app, actions) -> None:
+    """Build Packet Capture file, metadata and repair actions."""
+    app.btn_packet_capture_open_file = ttk.Button(
+        actions,
+        text=app.tr("packet_capture_btn_open_file", "Open capture file"),
+        command=app.open_packet_capture_file_location,
+    )
+    app.btn_packet_capture_open_file.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+    app.register_feature_button("packet_capture", app.btn_packet_capture_open_file)
+    app.add_tooltip(
+        app.btn_packet_capture_open_file,
+        "Opens the capture file or its folder in the file manager.",
+    )
+    app.btn_packet_capture_info = ttk.Button(
+        actions,
+        text=app.tr("packet_capture_btn_file_info", "File info"),
+        command=app.packet_capture_show_file_info,
+    )
+    app.btn_packet_capture_info.grid(
+        row=1, column=1, sticky="ew", padx=(8, 0), pady=(6, 0)
+    )
+    app.register_feature_button("packet_capture_ui", app.btn_packet_capture_info)
+    app.add_tooltip(
+        app.btn_packet_capture_info,
+        "Shows metadata and size of the current capture file.",
+    )
+    app.btn_packet_capture_fix_permissions = ttk.Button(
+        actions,
+        text=app.tr(
+            "packet_capture_btn_fix_permissions",
+            "Capture-Rechte reparieren",
+        ),
+        command=app.repair_packet_capture_permissions,
+    )
+    app.btn_packet_capture_fix_permissions.grid(
+        row=1, column=2, sticky="ew", padx=(8, 0), pady=(6, 0)
+    )
+    app.register_feature_button(
+        "packet_capture_ui", app.btn_packet_capture_fix_permissions
+    )
+    app.add_tooltip(
+        app.btn_packet_capture_fix_permissions,
+        "Starts a guided repair for missing tshark/dumpcap capture permissions.",
+    )
+
+
+def build_packet_capture_tab(app) -> None:
+    """Build the complete Packet Capture tab from focused UI sections."""
+    build_packet_capture_configuration_panel(app)
+    actions = build_packet_capture_actions_panel(app)
+    build_packet_capture_primary_actions(app, actions)
+    build_packet_capture_secondary_actions(app, actions)
+    build_packet_capture_status_panel(app)
+    build_packet_capture_output_panel(app)
+    app.packet_capture_set_running_state(False)
+
+
+def build_lynis_actions_panel(app, audit_tab):
+    """Build the shared Lynis actions panel and configure its grid."""
+    lynis_top = ttk.LabelFrame(
+        audit_tab,
+        text=app.tr("lynis_group_actions", "Lynis actions"),
+        padding=6,
+    )
+    lynis_top.pack(fill="x", pady=(0, 8))
+    for col in range(3):
+        lynis_top.columnconfigure(col, weight=1)
+    return lynis_top
+
+
+def build_lynis_output_panel(app, audit_tab) -> None:
+    """Build the Lynis summary and scrollable output widgets."""
+    lynis_summary = ttk.LabelFrame(
+        audit_tab, text=app.tr("group_summary", "Summary"), padding=6
+    )
+    lynis_summary.pack(fill="x", pady=(0, 8))
+    ttk.Label(lynis_summary, textvariable=app.lynis_summary_var, justify="left").pack(
+        anchor="w"
+    )
+    lynis_output_frame = ttk.Frame(audit_tab)
+    lynis_output_frame.pack(fill="both", expand=True)
+    lynis_output_frame.columnconfigure(0, weight=1)
+    lynis_output_frame.rowconfigure(0, weight=1)
+    lynis_scroll_y = ttk.Scrollbar(lynis_output_frame, orient="vertical")
+    lynis_scroll_y.grid(row=0, column=1, sticky="ns")
+    app.lynis_text = tk.Text(
+        lynis_output_frame,
+        wrap="word",
+        height=20,
+        yscrollcommand=lynis_scroll_y.set,
+    )
+    app.lynis_text.grid(row=0, column=0, sticky="nsew")
+    lynis_scroll_y.configure(command=app.lynis_text.yview)
+    app.lynis_text.insert(
+        "1.0",
+        app.tr("lynis_output_placeholder", "Lynis output will appear here.\n"),
+    )
+    app.lynis_text.configure(state="disabled")
+
+
+def build_lynis_filter_controls(app, lynis_top) -> None:
+    """Build Lynis output filter controls inside the actions panel."""
+    lynis_filter_row = ttk.Frame(lynis_top)
+    lynis_filter_row.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(6, 0))
+    ttk.Label(lynis_filter_row, text=app.tr("label_filter", "Filter:")).pack(
+        side="left"
+    )
+    app.btn_lynis_issues = ttk.Button(
+        lynis_filter_row,
+        text=app.tr(
+            "lynis_btn_only_issues_recommendations",
+            "Issues & recommendations only",
+        ),
+        command=app.show_lynis_issues_only,
+    )
+    app.btn_lynis_issues.pack(side="left", padx=(8, 0))
+    app.add_tooltip(
+        app.btn_lynis_issues,
+        app.tr(
+            "lynis_btn_only_issues_recommendations_tooltip",
+            "Shows only warnings, recommendations, and notable Lynis lines.",
+        ),
+    )
+    app.btn_lynis_full_output = ttk.Button(
+        lynis_filter_row,
+        text=app.tr("lynis_btn_full_output", "Full output"),
+        command=app.show_lynis_full_output,
+    )
+    app.btn_lynis_full_output.pack(side="left", padx=(8, 0))
+    app.add_tooltip(
+        app.btn_lynis_full_output,
+        app.tr(
+            "lynis_btn_full_output_tooltip",
+            "Restores the full cleaned Lynis output.",
+        ),
+    )
+
+
+def build_lynis_scan_controls(app, lynis_top) -> None:
+    """Build the standard Lynis scan and output-clear actions."""
+    app.btn_lynis_quick = ttk.Button(
+        lynis_top,
+        text=app.tr("lynis_btn_quick_scan", "Quick scan"),
+        command=app.run_lynis_quick,
+    )
+    app.btn_lynis_quick.grid(row=0, column=0, sticky="ew", padx=(0, 6), pady=(0, 6))
+    app.register_feature_button("lynis", app.btn_lynis_quick)
+    app.add_tooltip(
+        app.btn_lynis_quick,
+        app.tr(
+            "lynis_btn_quick_scan_tooltip",
+            "Starts a quick Lynis scan without root privileges.",
+        ),
+    )
+    app.btn_lynis_full = ttk.Button(
+        lynis_top,
+        text=app.tr("lynis_btn_full_scan", "Full security scan (sudo)"),
+        command=app.run_lynis_full,
+    )
+    app.btn_lynis_full.grid(row=0, column=1, sticky="ew", padx=6, pady=(0, 6))
+    app.register_feature_button("lynis", app.btn_lynis_full)
+    app.add_tooltip(
+        app.btn_lynis_full,
+        app.tr(
+            "lynis_btn_full_scan_tooltip",
+            "Starts a full Lynis security audit with sudo.",
+        ),
+    )
+    app.btn_lynis_clear = ttk.Button(
+        lynis_top,
+        text=app.tr("lynis_btn_clear_output", "Clear Lynis output"),
+        command=app.clear_lynis_output,
+    )
+    app.btn_lynis_clear.grid(row=0, column=2, sticky="ew", padx=(6, 0), pady=(0, 6))
+    app.add_tooltip(
+        app.btn_lynis_clear,
+        app.tr(
+            "lynis_btn_clear_output_tooltip",
+            "Clears the current Lynis output in this tab.",
+        ),
+    )
+
+
+def build_lynis_chad_action(app, lynis_top) -> None:
+    """Build the Lynis issue-analysis action for Chad."""
+    app.btn_lynis_chad_issues = ttk.Button(
+        lynis_top,
+        text=app.tr(
+            "lynis_btn_analyze_issues_with_chad",
+            "Analyze issues with Chad",
+        ),
+        command=app.analyze_lynis_issues_with_chad,
+    )
+
+
+def build_lynis_status_row(app, lynis_top) -> None:
+    """Build the Lynis scan status and hardening-index display."""
+    lynis_status_row = ttk.Frame(lynis_top)
+    lynis_status_row.grid(
+        row=1,
+        column=1,
+        columnspan=2,
+        sticky="ew",
+        padx=(6, 0),
+        pady=6,
+    )
+    ttk.Label(lynis_status_row, text=app.tr("label_status", "Status:")).pack(
+        side="left"
+    )
+    ttk.Label(lynis_status_row, textvariable=app.lynis_status_var).pack(
+        side="left", padx=(6, 0)
+    )
+    ttk.Label(lynis_status_row, textvariable=app.lynis_hardening_index_var).pack(
+        side="left", padx=(18, 0)
+    )
+    app.btn_lynis_chad_issues.grid(row=1, column=0, sticky="ew", padx=(0, 6), pady=6)
+    app.add_tooltip(
+        app.btn_lynis_chad_issues,
+        app.tr(
+            "lynis_btn_analyze_issues_with_chad_tooltip",
+            "Prepares only Lynis issues and recommendations for Chad.",
+        ),
+    )
+
+
 def _selected_filter_mode(choice_var, modes_by_label: dict, default: str) -> str:
     if choice_var is None:
         return default
@@ -171,6 +1335,201 @@ def _install_vertical_pane_drag_markers(
         try:
             delta = int(event.y_root) - int(drag_state["root_y"])
             new_sash = int(drag_state["sash_y"]) + delta
+            _set_sash_pos(index, new_sash)
+            _place_marker(index, new_sash)
+            _schedule_marker_update()
+        except Exception:
+            pass
+        return "break"
+
+    def _end_drag(_event=None):
+        drag_state["active"] = None
+        _update_markers()
+        return "break"
+
+    for widget in (container, pane):
+        try:
+            widget.bind("<Configure>", _update_markers, add="+")
+            widget.bind("<ButtonRelease-1>", _update_markers, add="+")
+            widget.bind("<B1-Motion>", _update_markers, add="+")
+        except Exception:
+            pass
+
+    for index in range(4):
+        marker, grip = _ensure_marker(index)
+        try:
+            grip.bind(
+                "<Button-1>",
+                lambda event, sash_index=index: _start_drag(event, sash_index),
+                add="+",
+            )
+            grip.bind(
+                "<B1-Motion>",
+                lambda event, sash_index=index: _drag(event, sash_index),
+                add="+",
+            )
+            grip.bind("<ButtonRelease-1>", _end_drag, add="+")
+        except Exception:
+            pass
+        try:
+            marker.place_forget()
+        except Exception:
+            pass
+
+    try:
+        container.after(0, _update_markers)
+    except Exception:
+        pass
+    return markers
+
+
+def _install_horizontal_pane_drag_markers(
+    container,
+    pane,
+    *,
+    color="#0a84ff",
+    min_pane_size=180,
+):
+    markers = []
+    drag_state = {
+        "active": None,
+        "root_x": 0,
+        "sash_x": 0,
+        "update_pending": False,
+    }
+
+    def _clamp_sash_pos(index, new_x):
+        if int(min_pane_size) <= 0:
+            return int(new_x)
+        try:
+            total_width = max(
+                int(container.winfo_width() or 0),
+                int(pane.winfo_width() or 0),
+            )
+        except Exception:
+            total_width = 0
+        if total_width <= 0:
+            return int(new_x)
+
+        sash_count = max(len(pane.panes()) - 1, 0)
+        lower_bound = int(min_pane_size)
+        upper_bound = max(total_width - int(min_pane_size), lower_bound)
+        if index > 0:
+            try:
+                lower_bound = max(
+                    lower_bound, int(pane.sashpos(index - 1)) + int(min_pane_size)
+                )
+            except Exception:
+                pass
+        if index < sash_count - 1:
+            try:
+                upper_bound = min(
+                    upper_bound, int(pane.sashpos(index + 1)) - int(min_pane_size)
+                )
+            except Exception:
+                pass
+        if upper_bound < lower_bound:
+            upper_bound = lower_bound
+        return max(lower_bound, min(int(new_x), upper_bound))
+
+    def _set_sash_pos(index, new_x):
+        new_x = _clamp_sash_pos(index, new_x)
+        try:
+            pane.sashpos(index, int(new_x))
+            return
+        except Exception:
+            pass
+        try:
+            pane.sash_place(index, int(new_x), 0)
+        except Exception:
+            pass
+
+    def _ensure_marker(index):
+        while len(markers) <= index:
+            marker = tk.Frame(
+                container,
+                bg=color,
+                bd=1,
+                relief="solid",
+            )
+            marker.rowconfigure(0, weight=1)
+            grip = tk.Label(
+                marker,
+                text="⋮",
+                bg=color,
+                fg="#ffffff",
+                font=("TkDefaultFont", 9, "bold"),
+                cursor="sb_h_double_arrow",
+                padx=0,
+                pady=0,
+                anchor="center",
+            )
+            grip.grid(row=0, column=0, sticky="nsew")
+            markers.append((marker, grip))
+        return markers[index]
+
+    def _place_marker(index, sash_x):
+        marker, _grip = _ensure_marker(index)
+        try:
+            height = max(int(container.winfo_height() or 0), 0)
+            marker_height = min(66, max(height - 24, 42))
+            y = max((height - marker_height) // 2, 8)
+            pane_offset_x = max(int(pane.winfo_x() or 0), 0)
+            x = max(pane_offset_x + int(sash_x) - 9, 2)
+            marker.place(x=x, y=y, width=12, height=marker_height)
+            marker.lift()
+        except Exception:
+            try:
+                marker.place_forget()
+            except Exception:
+                pass
+
+    def _hide_unused_markers(start_index):
+        for marker, _grip in markers[start_index:]:
+            try:
+                marker.place_forget()
+            except Exception:
+                pass
+
+    def _update_markers(_event=None):
+        sash_count = max(len(pane.panes()) - 1, 0)
+        for index in range(sash_count):
+            try:
+                _place_marker(index, int(pane.sashpos(index)))
+            except Exception:
+                pass
+        _hide_unused_markers(sash_count)
+
+    def _schedule_marker_update():
+        if drag_state["update_pending"]:
+            return
+        drag_state["update_pending"] = True
+
+        def _run():
+            drag_state["update_pending"] = False
+            _update_markers()
+
+        try:
+            container.after_idle(_run)
+        except Exception:
+            _run()
+
+    def _start_drag(event, index):
+        drag_state["active"] = index
+        try:
+            drag_state["root_x"] = int(event.x_root)
+            drag_state["sash_x"] = int(pane.sashpos(index))
+        except Exception:
+            drag_state["root_x"] = 0
+            drag_state["sash_x"] = 0
+        return "break"
+
+    def _drag(event, index):
+        if drag_state["active"] != index:
+            return "break"
+        try:
+            delta = int(event.x_root) - int(drag_state["root_x"])
+            new_sash = int(drag_state["sash_x"]) + delta
             _set_sash_pos(index, new_sash)
             _place_marker(index, new_sash)
             _schedule_marker_update()
@@ -621,12 +1980,18 @@ def build_repository_guard_tab(app):
 
     top_actions_row = ttk.Frame(info_frame)
     top_actions_row.pack(fill="x", pady=(0, 6))
+    for column in range(3):
+        top_actions_row.columnconfigure(
+            column, weight=1, uniform="repository_guard_actions"
+        )
     app.btn_repository_guard_scan = ttk.Button(
         top_actions_row,
         text=app.tr("repository_guard_btn_scan", "Repository scan"),
         command=app.run_repository_guard_scan,
     )
-    app.btn_repository_guard_scan.pack(side="left")
+    app.btn_repository_guard_scan.grid(
+        row=0, column=0, sticky="ew", padx=(0, 8), pady=(0, 6)
+    )
     app.add_tooltip(
         app.btn_repository_guard_scan,
         app.tr(
@@ -635,14 +2000,14 @@ def build_repository_guard_tab(app):
         ),
     )
 
-    action_buttons_row = ttk.Frame(top_actions_row)
-    action_buttons_row.pack(side="right")
     app.btn_repository_guard_baseline = ttk.Button(
-        action_buttons_row,
+        top_actions_row,
         text=app.tr("repository_guard_btn_baseline", "Save baseline"),
         command=app.create_repository_guard_baseline,
     )
-    app.btn_repository_guard_baseline.pack(side="left", padx=(0, 8))
+    app.btn_repository_guard_baseline.grid(
+        row=0, column=1, sticky="ew", padx=4, pady=(0, 6)
+    )
     app.add_tooltip(
         app.btn_repository_guard_baseline,
         app.tr(
@@ -651,11 +2016,13 @@ def build_repository_guard_tab(app):
         ),
     )
     app.btn_repository_guard_reset_baseline = ttk.Button(
-        action_buttons_row,
+        top_actions_row,
         text=app.tr("repository_guard_btn_reset_baseline", "Reset baseline"),
         command=app.reset_repository_guard_baseline,
     )
-    app.btn_repository_guard_reset_baseline.pack(side="left", padx=(0, 8))
+    app.btn_repository_guard_reset_baseline.grid(
+        row=0, column=2, sticky="ew", padx=(8, 0), pady=(0, 6)
+    )
     app.add_tooltip(
         app.btn_repository_guard_reset_baseline,
         app.tr(
@@ -664,11 +2031,13 @@ def build_repository_guard_tab(app):
         ),
     )
     app.btn_repository_guard_clear = ttk.Button(
-        action_buttons_row,
+        top_actions_row,
         text=app.tr("repository_guard_btn_clear", "Clear display"),
         command=app.clear_repository_guard_view,
     )
-    app.btn_repository_guard_clear.pack(side="left", padx=(0, 8))
+    app.btn_repository_guard_clear.grid(
+        row=1, column=0, sticky="ew", padx=(0, 8), pady=(0, 0)
+    )
     app.add_tooltip(
         app.btn_repository_guard_clear,
         app.tr(
@@ -677,11 +2046,13 @@ def build_repository_guard_tab(app):
         ),
     )
     app.btn_repository_guard_copy = ttk.Button(
-        action_buttons_row,
+        top_actions_row,
         text=app.tr("repository_guard_btn_copy", "Copy result"),
         command=app.copy_repository_guard_report,
     )
-    app.btn_repository_guard_copy.pack(side="left", padx=(0, 8))
+    app.btn_repository_guard_copy.grid(
+        row=1, column=1, sticky="ew", padx=4, pady=(0, 0)
+    )
     app.add_tooltip(
         app.btn_repository_guard_copy,
         app.tr(
@@ -690,11 +2061,13 @@ def build_repository_guard_tab(app):
         ),
     )
     app.btn_repository_guard_export = ttk.Button(
-        action_buttons_row,
+        top_actions_row,
         text=app.tr("repository_guard_btn_export", "Export result"),
         command=app.export_repository_guard_report,
     )
-    app.btn_repository_guard_export.pack(side="left")
+    app.btn_repository_guard_export.grid(
+        row=1, column=2, sticky="ew", padx=(8, 0), pady=(0, 0)
+    )
     app.add_tooltip(
         app.btn_repository_guard_export,
         app.tr(
@@ -702,6 +2075,16 @@ def build_repository_guard_tab(app):
             "Exportiert das aktuelle Ergebnis als JSON oder Text.",
         ),
     )
+
+    ttk.Label(
+        info_frame,
+        text=app.tr(
+            "repository_guard_baseline_hint",
+            "Ablauf bei gewollten Repository-Aenderungen: Erst Repository-Scan ausfuehren, danach 'Baseline jetzt aktualisieren', damit der neue Soll-Zustand als Referenz gilt.",
+        ),
+        justify="left",
+        wraplength=920,
+    ).pack(fill="x", pady=(0, 6))
 
     source_filter_row = ttk.Frame(info_frame)
     source_filter_row.pack(fill="x", pady=(0, 6))
@@ -1781,10 +3164,23 @@ def build_firewall_tab(app):
     frame.columnconfigure(0, weight=1)
     frame.rowconfigure(0, weight=1)
 
-    app.firewall_tab_pane = ttk.Panedwindow(frame, orient="vertical")
+    app.firewall_subtabs = ttk.Notebook(frame)
+    app.firewall_subtabs.grid(row=0, column=0, sticky="nsew")
+
+    app.tab_firewall_overview = ttk.Frame(app.firewall_subtabs, padding=0)
+    app.firewall_subtabs.add(
+        app.tab_firewall_overview,
+        text=app.tr("firewall_subtab_overview", "Übersicht"),
+    )
+    app.tab_firewall_overview.columnconfigure(0, weight=1)
+    app.tab_firewall_overview.rowconfigure(0, weight=1)
+
+    app.firewall_tab_pane = ttk.Panedwindow(
+        app.tab_firewall_overview, orient="vertical"
+    )
     app.firewall_tab_pane.grid(row=0, column=0, sticky="nsew")
     app.firewall_tab_pane_markers = _install_vertical_pane_drag_markers(
-        frame, app.firewall_tab_pane
+        app.tab_firewall_overview, app.firewall_tab_pane
     )
 
     top = ttk.Frame(app.firewall_tab_pane, padding=0)
@@ -2186,29 +3582,9 @@ def build_security_tabs(app):
     security_body.columnconfigure(0, weight=1)
     security_body.rowconfigure(0, weight=1)
 
-    app.security_tab_pane = ttk.Panedwindow(security_body, orient="vertical")
-    app.security_tab_pane.grid(row=0, column=0, sticky="nsew")
-    app.security_tab_pane_markers = _install_vertical_pane_drag_markers(
-        security_body, app.security_tab_pane
-    )
-
-    security_overview = ttk.Frame(app.security_tab_pane, padding=0)
+    security_overview = ttk.Frame(security_body, padding=0)
+    security_overview.grid(row=0, column=0, sticky="nsew")
     security_overview.columnconfigure(0, weight=1)
-    security_events = ttk.Frame(app.security_tab_pane, padding=0)
-    security_events.columnconfigure(0, weight=1)
-    security_events.rowconfigure(0, weight=1)
-    security_detail_frame = ttk.LabelFrame(
-        app.security_tab_pane,
-        text=app.tr("security_details_title", "Details"),
-        padding=6,
-    )
-    app.security_detail_frame = security_detail_frame
-    security_detail_frame.columnconfigure(0, weight=1)
-    security_detail_frame.rowconfigure(0, weight=1)
-
-    app.security_tab_pane.add(security_overview, weight=3)
-    app.security_tab_pane.add(security_events, weight=3)
-    app.security_tab_pane.add(security_detail_frame, weight=2)
 
     security_devices_frame = ttk.LabelFrame(
         security_overview,
@@ -2227,11 +3603,61 @@ def build_security_tabs(app):
             "Live-Snapshot der aktuell erkannten Eingabe-Geräte.",
         ),
     ).pack(side="left")
+    app.security_device_detail_mode_var = tk.BooleanVar(value=False)
+    app.security_device_view_status_var = tk.StringVar(
+        value=app.tr("security_device_view_list", "Listenansicht")
+    )
+    ttk.Label(
+        security_devices_top,
+        textvariable=app.security_device_view_status_var,
+    ).pack(side="right", padx=(8, 0))
+    app.security_device_view_switch = ttk.Checkbutton(
+        security_devices_top,
+        text=app.tr("security_device_view_switch", "Detailschalter"),
+        variable=app.security_device_detail_mode_var,
+        command=app.on_security_device_view_toggle,
+    )
+    app.security_device_view_switch.pack(side="right")
 
-    security_devices_table_frame = ttk.Frame(security_devices_frame)
-    security_devices_table_frame.pack(fill="both", expand=True)
+    security_devices_filter_row = ttk.Frame(security_devices_frame)
+    security_devices_filter_row.pack(fill="x", pady=(0, 4))
+    ttk.Label(
+        security_devices_filter_row,
+        text=app.tr("security_device_filter_label", "Filter:"),
+    ).pack(side="left")
+    app.security_device_filter_var = tk.StringVar(value="all")
+    app.security_device_filter_buttons = []
+    for mode, label in [
+        ("all", app.tr("security_device_filter_all", "Alle")),
+        ("new", app.tr("security_device_filter_new", "Neu")),
+        ("known", app.tr("security_device_filter_known", "Bekannt")),
+        (
+            "mouse_keyboard",
+            app.tr("security_device_filter_mouse_keyboard", "Tastatur/Maus"),
+        ),
+        ("suspicious", app.tr("security_device_filter_suspicious", "Verdächtig")),
+    ]:
+        btn = ttk.Radiobutton(
+            security_devices_filter_row,
+            text=label,
+            value=mode,
+            variable=app.security_device_filter_var,
+            command=lambda selected=mode: app.set_connected_device_filter(selected),
+        )
+        btn.pack(side="left", padx=(8, 0))
+        app.security_device_filter_buttons.append(btn)
+
+    security_devices_content = ttk.Frame(security_devices_frame)
+    security_devices_content.pack(fill="both", expand=True)
+    security_devices_content.columnconfigure(0, weight=1)
+    security_devices_content.rowconfigure(0, weight=1)
+    app.security_devices_content = security_devices_content
+
+    security_devices_table_frame = ttk.Frame(security_devices_content)
     security_devices_table_frame.columnconfigure(0, weight=1)
     security_devices_table_frame.rowconfigure(0, weight=1)
+    security_devices_table_frame.grid(row=0, column=0, sticky="nsew")
+    app.security_devices_table_frame = security_devices_table_frame
     security_devices_scroll_y = ttk.Scrollbar(
         security_devices_table_frame,
         orient="vertical",
@@ -2269,6 +3695,27 @@ def build_security_tabs(app):
         app.on_connected_device_select,
     )
     app.attach_security_devices_tree_context_menu()
+
+    security_devices_detail_frame = ttk.Frame(security_devices_content)
+    security_devices_detail_frame.columnconfigure(0, weight=1)
+    security_devices_detail_frame.rowconfigure(0, weight=1)
+    app.security_devices_detail_frame = security_devices_detail_frame
+    security_devices_detail_scroll_y = ttk.Scrollbar(
+        security_devices_detail_frame,
+        orient="vertical",
+    )
+    security_devices_detail_scroll_y.grid(row=0, column=1, sticky="ns")
+    app.security_devices_detail = tk.Text(
+        security_devices_detail_frame,
+        wrap="word",
+        height=8,
+        yscrollcommand=security_devices_detail_scroll_y.set,
+    )
+    app.security_devices_detail.grid(row=0, column=0, sticky="nsew")
+    security_devices_detail_scroll_y.configure(
+        command=app.security_devices_detail.yview
+    )
+    app.attach_text_context_menu(app.security_devices_detail)
 
     sec_controls = ttk.Frame(security_overview)
     sec_controls.pack(fill="x", pady=(0, 8))
@@ -2739,11 +4186,59 @@ def build_security_tabs(app):
     app.process_guard_detail.configure(state="disabled")
     app.attach_text_context_menu(app.process_guard_detail)
 
+    app.tab_firewall_events = ttk.Frame(app.firewall_subtabs, padding=10)
+    app.firewall_subtabs.add(
+        app.tab_firewall_events,
+        text=app.tr("firewall_subtab_guard_events", "Guard Events"),
+    )
+    app.tab_firewall_events.columnconfigure(0, weight=1)
+    app.tab_firewall_events.rowconfigure(0, weight=1)
+
+    firewall_events_body = ttk.Frame(app.tab_firewall_events)
+    firewall_events_body.grid(row=0, column=0, sticky="nsew")
+    firewall_events_body.columnconfigure(0, weight=1)
+    firewall_events_body.rowconfigure(0, weight=1)
+
+    app.security_tab_pane = ttk.Panedwindow(firewall_events_body, orient="vertical")
+    app.security_tab_pane.grid(row=0, column=0, sticky="nsew")
+    app.security_tab_pane_markers = _install_vertical_pane_drag_markers(
+        firewall_events_body, app.security_tab_pane
+    )
+
+    security_events = ttk.Frame(app.security_tab_pane, padding=0)
+    security_events.columnconfigure(0, weight=1)
+    security_events.rowconfigure(0, weight=1)
+    security_detail_frame = ttk.LabelFrame(
+        app.security_tab_pane,
+        text=app.tr("security_details_title", "Details"),
+        padding=6,
+    )
+    app.security_detail_frame = security_detail_frame
+    security_detail_frame.columnconfigure(0, weight=1)
+    security_detail_frame.rowconfigure(0, weight=1)
+
+    app.security_tab_pane.add(security_events, weight=3)
+    app.security_tab_pane.add(security_detail_frame, weight=2)
+
     app.security_table = ttk.Treeview(
         security_events,
         columns=("time", "type", "src", "port", "proto", "level", "action"),
         show="headings",
         height=12,
+    )
+    security_events_scroll_y = ttk.Scrollbar(
+        security_events,
+        orient="vertical",
+        command=app.security_table.yview,
+    )
+    security_events_scroll_x = ttk.Scrollbar(
+        security_events,
+        orient="horizontal",
+        command=app.security_table.xview,
+    )
+    app.security_table.configure(
+        xscrollcommand=security_events_scroll_x.set,
+        yscrollcommand=security_events_scroll_y.set,
     )
     for col, title, w, anchor in [
         ("time", "Zeit", 150, "w"),
@@ -2757,6 +4252,8 @@ def build_security_tabs(app):
         app.security_table.heading(col, text=title)
         app.security_table.column(col, width=w, anchor=anchor)
     app.security_table.grid(row=0, column=0, sticky="nsew")
+    security_events_scroll_y.grid(row=0, column=1, sticky="ns")
+    security_events_scroll_x.grid(row=1, column=0, sticky="ew")
     app.security_table.bind("<<TreeviewSelect>>", app.on_security_event_select)
     app.attach_security_table_context_menu()
 
@@ -2774,6 +4271,7 @@ def build_security_tabs(app):
     app.security_detail.grid(row=0, column=0, sticky="nsew")
     security_detail_scroll_y.configure(command=app.security_detail.yview)
     app.attach_text_context_menu(app.security_detail)
+    app.on_security_device_view_toggle()
 
     app.tab_clamav = ttk.Frame(app.security_nb, padding=10)
     app.security_nb.add(

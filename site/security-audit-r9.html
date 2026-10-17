@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 9</title>
+  <meta
+    name="description"
+    content="Neuntes unabhaengiges Sicherheits-Audit des NetMon-Quellcodes auf dem finalen Release-Stand v1.1.19 (Juli 2026). Fokus: VPN/UFW-Killswitch-Reconcile, DNS-Startup-Recovery, In-App-Update-Check, Debian-Maintainer-Skripte und die Release-Verifikation (SHA256SUMS + minisign). 0 kritische, 0 hohe, 2 mittlere Findings &mdash; beide umgesetzt und verifiziert."
+  >
+  <link rel="icon" type="image/png" href="./favicon.png">
+  <link rel="apple-touch-icon" href="./favicon.png">
+  <link rel="canonical" href="https://netmonroots.com/security-audit.html">
+  <link rel="alternate" hreflang="de" href="https://netmonroots.com/security-audit.html">
+  <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/security-audit.html">
+  <meta property="og:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 9">
+  <meta property="og:description" content="Neuntes Sicherheits-Audit des NetMon-Quellcodes auf dem finalen Release-Stand v1.1.19. 0 kritische, 0 hohe, 2 mittlere Findings &mdash; beide umgesetzt und verifiziert.">
+  <meta property="og:url" content="https://netmonroots.com/security-audit.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NetMon Roots">
+  <meta property="og:locale" content="de_DE">
+  <meta property="og:image" content="https://netmonroots.com/favicon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="NetMonRoots | Sicherheits-Audit 2026 &mdash; Runde 9">
+  <meta name="twitter:description" content="Neuntes Sicherheits-Audit des NetMon-Quellcodes auf dem finalen Release-Stand v1.1.19. 0 kritische, 0 hohe, 2 mittlere Findings &mdash; beide umgesetzt und verifiziert.">
+  <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
+  <link rel="stylesheet" href="./styles.css">
+  <link id="theme-style" rel="stylesheet" href="./theme-bright.css">
+  <style>
+    /* ── Audit-spezifische Erweiterungen ─────────────────────────────────── */
+    .audit-hero { padding: 64px 0 48px; }
+    .audit-hero .eyebrow { color: var(--accent); }
+
+    .verdict-banner {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 28px 32px;
+      margin: 40px 0;
+      border: 1px solid rgba(114, 240, 182, 0.4);
+      border-radius: var(--radius-sm);
+      background: rgba(58, 198, 143, 0.08);
+    }
+    .verdict-icon {
+      font-size: 2.8rem;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .verdict-text h2 { margin: 0 0 6px; font-size: 1.4rem; color: var(--accent); }
+    .verdict-text p  { margin: 0; color: var(--muted); font-size: 0.97rem; line-height: 1.55; }
+
+    .audit-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 32px 0;
+    }
+    .audit-meta-card {
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .audit-meta-card .label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .audit-meta-card .value {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .audit-meta-card .value.ok   { color: var(--accent); }
+    .audit-meta-card .value.warn { color: var(--accent-warm); }
+    .audit-meta-card .value.info { color: #7ab8f5; }
+
+    .audit-section { margin-top: 56px; }
+    .audit-section h2 {
+      font-size: 1.55rem;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+    .audit-section .section-rule {
+      height: 1px;
+      background: var(--line);
+      margin-bottom: 28px;
+    }
+
+    .scope-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.93rem;
+    }
+    .scope-table th {
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .scope-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(154, 177, 204, 0.08);
+      vertical-align: top;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .scope-table tr:last-child td { border-bottom: none; }
+    .scope-table code {
+      font-size: 0.83rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .badge-ok   { background: rgba(58, 198, 143, 0.15); color: #72f0b6; }
+    .badge-low  { background: rgba(255, 184, 107, 0.15); color: #ffb86b; }
+    .badge-med  { background: rgba(255, 184, 107, 0.2);  color: #ffb86b; }
+    .badge-high { background: rgba(220, 60, 60, 0.15);   color: #ff7070; }
+    .badge-info { background: rgba(90, 160, 240, 0.15);  color: #7ab8f5; }
+
+    .finding-card {
+      margin-bottom: 24px;
+      padding: 24px 28px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .finding-card.fixed { border-color: rgba(255, 184, 107, 0.3); }
+    .finding-card.design {
+      border-color: rgba(90, 160, 240, 0.35);
+      background: rgba(90, 160, 240, 0.04);
+    }
+    .finding-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .finding-header h3 { margin: 0; font-size: 1rem; flex: 1; min-width: 200px; }
+    .finding-detail { color: var(--muted); font-size: 0.92rem; line-height: 1.6; }
+    .finding-detail strong { color: var(--text); }
+    .finding-detail code {
+      font-size: 0.83rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .finding-verdict {
+      margin-top: 12px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: rgba(2, 8, 15, 0.4);
+      font-size: 0.88rem;
+      color: var(--muted);
+      border-left: 3px solid rgba(154, 177, 204, 0.25);
+    }
+    .finding-verdict.pass { border-left-color: var(--accent); }
+    .finding-verdict.design { border-left-color: #7ab8f5; }
+
+    .fixed-card {
+      display: flex;
+      gap: 16px;
+      padding: 18px 22px;
+      margin-bottom: 14px;
+      border: 1px solid rgba(58, 198, 143, 0.2);
+      border-radius: var(--radius-sm);
+      background: rgba(58, 198, 143, 0.04);
+    }
+    .fixed-icon { font-size: 1.4rem; flex-shrink: 0; line-height: 1.2; }
+    .fixed-body h4 { margin: 0 0 4px; font-size: 0.97rem; color: var(--accent); }
+    .fixed-body p  { margin: 0; font-size: 0.9rem; color: var(--muted); line-height: 1.5; }
+    .fixed-body code {
+      font-size: 0.82rem;
+      color: var(--accent);
+      background: rgba(114, 240, 182, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .methodology-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .method-card {
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .method-card h4 { margin: 0 0 8px; font-size: 0.93rem; color: var(--accent); }
+    .method-card p  { margin: 0; font-size: 0.87rem; color: var(--muted); line-height: 1.5; }
+
+    .signature-block {
+      margin-top: 48px;
+      padding: 28px 32px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .signature-block strong { color: var(--text); }
+
+    .round-link {
+      display: inline-block;
+      padding: 10px 18px;
+      border-radius: 40px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-decoration: none;
+      margin-top: 16px;
+    }
+
+    @media (max-width: 640px) {
+      .verdict-banner { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .audit-meta-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="./index.html" aria-label="NetMon Startseite">
+        <span class="brand-mark">
+          <span class="brand-lockup">
+            <span class="brand-title">
+              <span class="brand-title-main">NETMON</span>
+              <span class="brand-title-accent">ROOTS</span>
+            </span>
+            <span class="brand-subline">MONITOR. CONTROL. UNDERSTAND.</span>
+            <span class="brand-tagline">BACK TO THE ROOTS.</span>
+          </span>
+          <img class="brand-icon" src="./bannericon.png" alt="" aria-hidden="true">
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="./index.html">Start</a>
+        <a href="./tour.html">Rundgang</a>
+        <a href="./downloads.html">Download</a>
+        <a href="./aktuelles.html">Aktuelles</a>
+        <a href="./changelog.html">Changelog</a>
+        <a href="./docs.html">Doku</a>
+        <a href="./legal.html">Legal</a>
+      </nav>
+      <div class="lang-switch" aria-label="Sprachauswahl">
+        <a class="active" href="./security-audit.html" lang="de">DE</a>
+      </div>
+      <div class="theme-switch" aria-label="Darstellung">
+        <button type="button" data-theme-option="bright">Bright</button>
+        <button type="button" data-theme-option="dark">Dark</button>
+      </div>
+    </header>
+
+    <main>
+      <!-- ── Hero ── -->
+      <section class="audit-hero">
+        <p class="eyebrow">Sicherheits-Audit &mdash; Juli 2026 &mdash; Runde&nbsp;9</p>
+        <h1 style="font-size:clamp(2rem,4vw,3rem);margin:0 0 20px;color:var(--text);">
+          Code-Security-Review<br>
+          <span style="color:var(--accent);">NetMon Roots v1.1.19 &mdash; Release-Stand</span>
+        </h1>
+        <p style="max-width:680px;color:var(--muted);line-height:1.65;font-size:1.05rem;">
+          Neuntes automatisiertes Security-Review auf Basis von
+          Claude&nbsp;Fable&nbsp;5 &mdash; erstmals auf dem <strong>finalen
+          Release-Stand v1.1.19</strong> statt auf einem Zwischenstand.
+          Schwerpunkte dieser Runde: der <strong>VPN/UFW-Killswitch-Reconcile</strong>,
+          die <strong>DNS-Startup-Recovery</strong>, der <strong>In-App-Update-Check</strong>,
+          die <strong>Debian-Maintainer-Skripte</strong> (Install/Deinstall als root)
+          sowie der komplette <strong>Release-Verifikationspfad</strong>
+          (<code>SHA256SUMS</code> + <code>minisign</code>). Anders als in den
+          Vorrunden wurden diesmal <strong>zwei belastbare Schwachstellen
+          mittleren Schweregrads</strong> best&auml;tigt &mdash; eine fehlende
+          Schema-Allowlist beim automatischen &Ouml;ffnen der Update-URL und ein
+          <strong>Fail-Open des Killswitch</strong> in fr&uuml;hen Fehlerpfaden
+          des VPN-Slot-Wechsels. <strong>Beide wurden umgesetzt, mit
+          Regressionstests abgesichert und verifiziert.</strong> Die
+          Release-Signaturkette (minisign) wurde empirisch gepr&uuml;ft und ist
+          g&uuml;ltig.
+        </p>
+        <a class="round-link" href="./security-audit-r8.html">
+          &#8592; Runde&nbsp;8 (0&nbsp;Findings &mdash; Kindersicherung dokumentiert)
+        </a>
+      </section>
+
+      <!-- ── Aktionen ── -->
+      <div style="margin-bottom:32px;">
+        <a class="button button-primary" href="./netmon_security_audit_2026_r9.pdf" download
+           style="display:inline-block;padding:12px 28px;border-radius:40px;background:var(--accent);color:#07101d;font-weight:700;font-size:0.95rem;text-decoration:none;margin-right:12px;">
+          PDF herunterladen
+        </a>
+        <a href="#findings"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;">
+          Findings
+        </a>
+        <a href="#release"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;margin-left:8px;">
+          Release-Verifikation
+        </a>
+        <a href="#kategorien"
+           style="display:inline-block;padding:12px 22px;border-radius:40px;border:1px solid var(--line);color:var(--muted);font-size:0.9rem;text-decoration:none;margin-left:8px;">
+          Kategorien
+        </a>
+      </div>
+
+      <!-- ── Gesamtverdikt ── -->
+      <div class="verdict-banner">
+        <div class="verdict-icon">&#10003;</div>
+        <div class="verdict-text">
+          <h2>0 kritische &mdash; 0 hohe &mdash; 2 mittlere Findings (beide umgesetzt &amp; verifiziert)</h2>
+          <p>
+            Das Review des finalen 1.1.19-Release-Stands identifizierte zwei
+            belastbare Schwachstellen mittleren Schweregrads, die von
+            dedizierten Validierungs-Sub-Agenten je mit <strong>Konfidenz
+            8/10</strong> best&auml;tigt wurden. <strong>F1:</strong> Der
+            In-App-Update-Check &uuml;bergab eine aus einer Remote-Versionsdatei
+            stammende <code>download_url</code> ungepr&uuml;ft an
+            <code>xdg-open</code> &mdash; ohne die http/https-Allowlist, die an
+            vergleichbaren Stellen (Secure-Browser-Favicon, Radio-Logo) bereits
+            existiert. <strong>F2:</strong> Schlug ein VPN-Slot-Wechsel in einem
+            fr&uuml;hen Fehlerpfad fehl, setzte NetMon die Firewall
+            bedingungslos auf <code>default allow outgoing</code> zur&uuml;ck
+            &mdash; auch wenn der Nutzer den Killswitch bewusst aktiv hatte,
+            wodurch Klartext-Traffic entweichen konnte. Beide Findings wurden
+            <strong>direkt behoben</strong> (Schema-Allowlist&nbsp;+&nbsp;Host-Pin
+            f&uuml;r die Update-URL; Killswitch-erhaltender Recover-Pfad), mit
+            neuen Regressionstests abgesichert und verifiziert. Zus&auml;tzlich
+            wurde die Release-Verifikationskette (SHA256SUMS + minisign)
+            empirisch best&auml;tigt und eine UX-Empfehlung zur Sichtbarkeit der
+            Signaturpr&uuml;fung festgehalten. Alle Runde-7/8-H&auml;rtungen sind
+            intakt; die Kindersicherung bleibt als bewusste Design-Entscheidung
+            dokumentiert.
+          </p>
+        </div>
+      </div>
+
+      <!-- ── Meta-Daten ── -->
+      <div class="audit-meta-grid">
+        <div class="audit-meta-card">
+          <div class="label">Datum</div>
+          <div class="value">18.&nbsp;Juli&nbsp;2026</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Analysierte Version</div>
+          <div class="value">v1.1.19 &mdash; finaler Release-Stand</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Kritische Findings</div>
+          <div class="value ok">0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Hohe Findings</div>
+          <div class="value ok">0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Mittlere Findings</div>
+          <div class="value warn">2 (beide behoben)</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">H&auml;rtungen umgesetzt</div>
+          <div class="value ok">2 + Regressionstests</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Release-Signatur (minisign)</div>
+          <div class="value ok">g&uuml;ltig verifiziert</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Analysewerkzeug</div>
+          <div class="value">Claude Fable&nbsp;5</div>
+        </div>
+      </div>
+
+      <!-- ── Umfang & Methodik ── -->
+      <div class="audit-section" id="methodik">
+        <h2>Umfang &amp; Methodik</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:760px;line-height:1.65;">
+          Gepr&uuml;ft wurde der finale Release-Stand v1.1.19
+          (<code>constants.py&nbsp;=&nbsp;1.1.19</code>, deb-<code>control</code>,
+          <code>latest-version.json</code> und die Download-Seiten stimmen
+          &uuml;berein). Schwerpunkt auf den seit den Vorrunden nicht im Fokus
+          gewesenen, sicherheitskritischen Pfaden: dem VPN/UFW-Killswitch-
+          Reconcile (<code>vpn_controller.py</code>,
+          <code>firewall_controller.py</code>), der DNS-Startup-Recovery
+          (<code>app.py</code>, <code>dns_control_service.py</code>), dem
+          In-App-Update-Check (<code>_fetch_latest_release_info()</code>,
+          <code>_open_url_with_xdg_open()</code>), den Debian-Maintainer-Skripten
+          (<code>postinst</code>/<code>prerm</code> aus der gebauten
+          <code>.deb</code>) und dem Release-Verifikationspfad
+          (<code>verify_netmon_download.sh</code>,
+          <code>verify_netmon_signature.sh</code>, <code>SHA256SUMS.minisig</code>).
+          Die in Runde&nbsp;7/8 geh&auml;rteten Bereiche wurden auf Regressionen
+          gegengepr&uuml;ft.
+        </p>
+        <div class="methodology-grid">
+          <div class="method-card">
+            <h4>Phase&nbsp;1 &mdash; Release-Recon</h4>
+            <p>Verifikation der Artefakte: <code>sha256sum&nbsp;-c&nbsp;SHA256SUMS</code>
+            (alle drei OK), <code>minisign&nbsp;-V</code> gegen den gepinnten
+            Public Key (Signatur g&uuml;ltig). Extraktion und Review der
+            <code>.deb</code>-Maintainer-Skripte. Versionskonsistenz-Abgleich.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;2 &mdash; Kandidaten-Analyse</h4>
+            <p>Ein Analyse-Sub-Agent verfolgte Datenfl&uuml;sse von Fremdeingaben
+            (Update-/API-Antworten, VPN-Profil-/Slot-Daten, Install-Zeit-Zustand)
+            bis zu privilegierten Senken (<code>ufw</code>/<code>nmcli</code>/
+            <code>wg-quick</code>, <code>xdg-open</code>, root-<code>cp</code>/
+            <code>chown</code>). 5&nbsp;Kandidaten identifiziert.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;3 &mdash; False-Positive-Validierung</h4>
+            <p>Die zwei belastbaren Kandidaten wurden von je einem eigenen
+            Validierungs-Sub-Agenten gegengepr&uuml;ft (beide Konfidenz
+            <strong>8/10</strong>, MEDIUM). Drei weitere Kandidaten
+            (postinst-DNS-Policy, State-Datei-Parsing, root-Symlink-chown) lagen
+            als Policy-/Grenzfall unter der Schwelle.</p>
+          </div>
+          <div class="method-card">
+            <h4>Phase&nbsp;4 &mdash; H&auml;rtung &amp; Regressionscheck</h4>
+            <p>Beide MEDIUM-Findings wurden umgesetzt, mit neuen Regressionstests
+            abgesichert und verifiziert. Suiten erneut ausgef&uuml;hrt:
+            Killswitch/VPN/DNS/Firewall (253) und Diagnostik/Update-Check (80)
+            &mdash; alle sicherheitsrelevanten Tests gr&uuml;n.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Findings ── -->
+      <div class="audit-section" id="findings">
+        <h2>Best&auml;tigte Findings (Runde&nbsp;9)</h2>
+        <div class="section-rule"></div>
+        <p style="color:var(--muted);font-size:0.95rem;max-width:720px;line-height:1.65;margin-bottom:28px;">
+          Zwei Findings mittleren Schweregrads wurden best&auml;tigt (Konfidenz
+          je 8/10) und <strong>direkt behoben</strong>. Keine kritischen oder
+          hohen, keine klar remote-ausnutzbaren RCE-Befunde.
+        </p>
+
+        <!-- F1 -->
+        <div class="finding-card fixed">
+          <div class="finding-header">
+            <h3>F1 &mdash; Update-Check &ouml;ffnet server-gelieferte URL ohne Schema-Allowlist</h3>
+            <span class="badge badge-med">Mittel &middot; 8/10</span>
+            <span class="badge badge-ok">Behoben</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Datei:</strong> <code>netmon/app.py</code> &mdash;
+              <code>_fetch_latest_release_info()</code>,
+              <code>check_about_latest_version()</code>,
+              <code>_open_url_with_xdg_open()</code>.</p>
+            <p>
+              Der In-App-Update-Check l&auml;dt <code>latest-version.json</code>
+              per HTTPS und &uuml;bernimmt das Feld <code>download_url</code>
+              daraus <em>ungepr&uuml;ft</em>. Wird beim &Ouml;ffnen des
+              &bdquo;&Uuml;ber&ldquo;-Dialogs eine neuere Version erkannt, wird
+              diese URL <em>ohne weiteren Klick</em> an <code>xdg-open</code>
+              &uuml;bergeben &mdash; ganz ohne Schema-/Host-Pr&uuml;fung. Genau
+              diese http/https-Allowlist existiert an vergleichbaren Stellen
+              bereits (Secure-Browser-<code>fetch_url()</code>, Radio-
+              <code>_station_logo_url()</code>); der Update-Pfad war die einzige
+              &uuml;bersehene Fremd-URL-Senke.
+            </p>
+            <p>
+              <strong>Bedrohung:</strong> Ein kompromittierter Server/CDN
+              (im Bedrohungsmodell ausdr&uuml;cklich enthalten) kann eine
+              <code>download_url</code> mit beliebigem Schema liefern
+              (<code>file://</code>, Custom-Handler wie <code>vnc://</code>) oder
+              auf eine Phishing-Seite verweisen, die <code>xdg-open</code> an den
+              zust&auml;ndigen Desktop-Handler weiterreicht. Kein direktes RCE
+              (Listenform-<code>Popen</code>, keine Shell-Injection), aber
+              zuverl&auml;ssig f&uuml;r Phishing und &mdash; situativ &mdash;
+              zum Ansteuern eines registrierten Scheme-Handlers.
+            </p>
+          </div>
+          <div class="finding-verdict pass">
+            <strong>H&auml;rtung umgesetzt &amp; verifiziert:</strong>
+            <code>_open_url_with_xdg_open()</code> begrenzt Ziel-URLs jetzt auf
+            <code>http</code>/<code>https</code> (deckt alle Aufrufer ab);
+            zus&auml;tzlich l&auml;sst der Update-Pfad &uuml;ber
+            <code>_is_trusted_update_url()</code> nur eine
+            <code>netmonroots.com</code>-URL automatisch &ouml;ffnen und
+            f&auml;llt sonst auf die fest konfigurierte Download-Seite
+            zur&uuml;ck. Mit Regressionstests abgesichert
+            (<code>test_is_trusted_update_url_accepts_only_netmonroots_https</code>,
+            <code>test_open_url_with_xdg_open_rejects_non_web_scheme</code>).
+          </div>
+        </div>
+
+        <!-- F2 -->
+        <div class="finding-card fixed">
+          <div class="finding-header">
+            <h3>F2 &mdash; Killswitch-Fail-Open in fr&uuml;hen VPN-Slot-Wechsel-Fehlerpfaden</h3>
+            <span class="badge badge-med">Mittel &middot; 8/10</span>
+            <span class="badge badge-ok">Behoben</span>
+          </div>
+          <div class="finding-detail">
+            <p><strong>Dateien:</strong>
+              <code>netmon/features/vpn_controller.py</code>
+              (<code>vpn_switch()</code>),
+              <code>netmon/features/firewall_controller.py</code>
+              (<code>recover_firewall_after_killswitch_failure()</code>).</p>
+            <p>
+              <code>recover_firewall_after_killswitch_failure()</code> setzt die
+              Firewall bedingungslos auf <code>ufw default allow outgoing</code>.
+              Sie wurde in drei fr&uuml;hen Fehlerpfaden von
+              <code>vpn_switch()</code> aufgerufen (leeres Ziel, nicht
+              aufl&ouml;sbares Runtime-Profil, WG-Cleanup-Fehler) &mdash;
+              <em>ohne</em> zu pr&uuml;fen, ob der Killswitch zu diesem Zeitpunkt
+              bewusst aktiv war.
+            </p>
+            <p>
+              <strong>Bedrohung:</strong> Nutzer hat Killswitch AN + VPN aktiv,
+              w&auml;hlt einen VPN-Slot, dessen Profil gel&ouml;scht/umbenannt
+              wurde oder dessen IPv4-Runtime-Kopie fehlt &rarr;
+              <code>vpn_switch()</code> bricht fr&uuml;h ab &rarr; die
+              deny-outgoing-Garantie wird still auf <em>allow</em>
+              zur&uuml;ckgesetzt, und Klartext-Traffic kann das System verlassen,
+              obwohl der Nutzer Killswitch-Schutz erwartet. Das ist genau der
+              Leak, den das Feature verhindern soll &mdash; ein Fail-Open in
+              einer Kontrolle, deren einziger Zweck Fail-Closed ist. (Kein
+              Remote-Trigger; die UI-Statusanzeige wechselt zwar auf Rot, es gab
+              aber keinen Warnhinweis.)
+            </p>
+          </div>
+          <div class="finding-verdict pass">
+            <strong>H&auml;rtung umgesetzt &amp; verifiziert:</strong> Die drei
+            Aufrufstellen nutzen jetzt
+            <code>_recover_firewall_preserving_killswitch()</code>: War der
+            Killswitch aktiv (<code>killswitch_is_on()</code>, ausgewertet
+            <em>vor</em> jeder Zustands&auml;nderung), wird die
+            deny-outgoing-Policy per idempotentem
+            <code>_killswitch_on_sync()</code> <strong>erhalten</strong> statt
+            ge&ouml;ffnet; nur ohne aktiven Killswitch wird wie bisher auf
+            allow-outgoing zur&uuml;ckgesetzt, damit sich der Nutzer nicht
+            aussperrt. Mit Regressionstests abgesichert
+            (<code>test_recover_preserving_killswitch_*</code>,
+            <code>test_vpn_switch_empty_target_preserves_active_killswitch</code>).
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Weitere Kandidaten / Empfehlungen ── -->
+      <div class="audit-section" id="release">
+        <h2>Release-Verifikation &amp; weitere Beobachtungen</h2>
+        <div class="section-rule"></div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128273;</div>
+          <div class="fixed-body">
+            <h4>Signaturkette technisch dicht &mdash; Empfehlung zur Sichtbarkeit</h4>
+            <p>
+              <code>SHA256SUMS</code> deckt alle drei Artefakte korrekt ab
+              (<code>sha256sum&nbsp;-c</code>&nbsp;OK) und ist per
+              <code>minisign</code> signiert; die Signatur wurde gegen den
+              gepinnten Public Key <strong>g&uuml;ltig verifiziert</strong>. Das
+              Verifier-Skript pr&uuml;ft jedoch nur die Hashes, und die
+              prominente &bdquo;Schnellpr&uuml;fung&ldquo; auf der Downloadseite
+              empfiehlt ebenfalls nur <code>sha256sum&nbsp;-c</code> &mdash; ein
+              MitM, der <code>.deb</code> <em>und</em> <code>SHA256SUMS</code>
+              gemeinsam ersetzt, best&uuml;nde diesen Schnellcheck.
+              <strong>Empfehlung (Doku/UX, keine Code-L&uuml;cke):</strong> die
+              minisign-Vollpr&uuml;fung als <em>empfohlenen Standardweg</em>
+              hervorheben statt als optionalen &bdquo;falls signiert&ldquo;-Zusatz.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128272;</div>
+          <div class="fixed-body">
+            <h4>Kindersicherung &mdash; weiterhin bewusste Design-Entscheidung</h4>
+            <p>
+              Die PBKDF2-gest&uuml;tzte Kindersicherung im Secure-Browser bleibt
+              wie in Runde&nbsp;8 dokumentiert: Alltagsh&uuml;rde gegen
+              Gelegenheitszugriff im selben Konto, keine harte Grenze gegen
+              technisch versierte Nutzer mit Kontozugriff. Keine
+              Code&auml;nderung, unver&auml;ndert g&uuml;ltig.
+            </p>
+          </div>
+        </div>
+
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128203;</div>
+          <div class="fixed-body">
+            <h4>postinst setzt aktive NM-DNS auf 8.8.8.8 &mdash; Policy-Hinweis</h4>
+            <p>
+              Das root-<code>postinst</code> biegt aktive
+              NetworkManager-Verbindungen bei der Installation auf
+              <code>ipv4.dns&nbsp;8.8.8.8</code> um (Vorzustand wird gesichert und
+              in <code>prerm</code> restauriert). Funktional sauber, aber f&uuml;r
+              ein Privacy-Tool eine &uuml;berraschende Richtung.
+              <strong>Empfehlung:</strong> Opt-in statt hart verdrahtetem
+              Public-Resolver. Kein ausnutzbarer Befund (State-Datei
+              <code>0600&nbsp;root</code>, Argumentlisten-Aufrufe, keine
+              Injection). Keine Code&auml;nderung in dieser Runde &mdash; als
+              Design-Entscheidung des Projektverantwortlichen offen.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Umgesetzte Härtungen ── -->
+      <div class="audit-section" id="hardening">
+        <h2>Umgesetzte H&auml;rtungsma&szlig;nahmen (Runde&nbsp;9)</h2>
+        <div class="section-rule"></div>
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128274;</div>
+          <div class="fixed-body">
+            <h4>Schema-Allowlist&nbsp;+&nbsp;Host-Pin f&uuml;r die Update-URL &mdash; <code>app.py</code></h4>
+            <p>
+              <code>_open_url_with_xdg_open()</code> l&auml;sst nur noch
+              <code>http</code>/<code>https</code> zu;
+              <code>_is_trusted_update_url()</code> beschr&auml;nkt die
+              automatisch ge&ouml;ffnete Update-URL zus&auml;tzlich auf die
+              <code>netmonroots.com</code>-Domain.
+            </p>
+          </div>
+        </div>
+        <div class="fixed-card">
+          <div class="fixed-icon">&#128737;</div>
+          <div class="fixed-body">
+            <h4>Killswitch-erhaltender Recover-Pfad &mdash; <code>vpn_controller.py</code></h4>
+            <p>
+              <code>_recover_firewall_preserving_killswitch()</code> h&auml;lt die
+              deny-outgoing-Policy bei aktivem Killswitch aufrecht, statt sie bei
+              einem fehlgeschlagenen Slot-Wechsel still zu &ouml;ffnen.
+            </p>
+          </div>
+        </div>
+        <div class="fixed-card">
+          <div class="fixed-icon">&#129514;</div>
+          <div class="fixed-body">
+            <h4>Neue Regressionstests</h4>
+            <p>
+              F&uuml;nf neue Tests in <code>test_netmon_diagnostics.py</code> und
+              <code>test_netmon_killswitch.py</code> sichern die Update-URL-
+              Allowlist und das Killswitch-erhaltende Recover-Verhalten ab.
+              Sicherheitsrelevante Suiten (253 + 80 Tests) sind gr&uuml;n.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Geprüfte Kategorien ── -->
+      <div class="audit-section" id="kategorien">
+        <h2>Gepr&uuml;fte Sicherheitskategorien</h2>
+        <div class="section-rule"></div>
+        <table class="scope-table">
+          <thead>
+            <tr>
+              <th>Kategorie</th>
+              <th>Gepr&uuml;ft</th>
+              <th>Ergebnis</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Sicherheitskontroll-Umgehung (Killswitch Fail-Open)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">F2 &rarr; behoben (fail-closed)</span></td>
+            </tr>
+            <tr>
+              <td>Unvalidierte Fremd-URL an Desktop-Handler (<code>xdg-open</code>)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">F1 &rarr; behoben (Allowlist+Host-Pin)</span></td>
+            </tr>
+            <tr>
+              <td>Command-/Argument-Injection (ufw/nmcli/wg-quick, subprocess)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (durchg&auml;ngig list-form)</span></td>
+            </tr>
+            <tr>
+              <td>DNS-Startup-Recovery (privilegierte nmcli/resolvectl-Aufrufe)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding (validiert, fail-safe)</span></td>
+            </tr>
+            <tr>
+              <td>Debian-Maintainer-Skripte (root: <code>cp</code>/<code>chown</code>, State-Parsing)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein ausnutzbarer Befund (Policy-Hinweis)</span></td>
+            </tr>
+            <tr>
+              <td>Release-Integrit&auml;t (SHA256SUMS + minisign)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Signatur g&uuml;ltig (UX-Empfehlung)</span></td>
+            </tr>
+            <tr>
+              <td>Pfad-Traversal / TOCTOU / Symlink (privilegierte Dateiops)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding im Threat-Model</span></td>
+            </tr>
+            <tr>
+              <td>Autorisierung / Kindersicherung</td>
+              <td>Ja</td>
+              <td><span class="badge badge-info">Bewusste Design-Entscheidung</span></td>
+            </tr>
+            <tr>
+              <td>Unsichere Deserialisierung (pickle, yaml.load, eval, <code>shell=True</code>)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Kein Finding</span></td>
+            </tr>
+            <tr>
+              <td>Regression der Runde-7/8-H&auml;rtungen</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Alle intakt</span></td>
+            </tr>
+            <tr>
+              <td>Versionskonsistenz (App / deb / Site / latest-version.json)</td>
+              <td>Ja</td>
+              <td><span class="badge badge-ok">Durchg&auml;ngig 1.1.19</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ── Signatur ── -->
+      <div class="signature-block">
+        <p>
+          <strong>Auditor:</strong> Claude Fable&nbsp;5 (Anthropic) &mdash;
+          Analyse-Sub-Agent + zwei dedizierte False-Positive-Validierungs-Sub-Agenten<br>
+          <strong>Projektverantwortlicher:</strong> Sven Fr&ouml;hlich<br>
+          <strong>Datum:</strong> 18.&nbsp;Juli&nbsp;2026<br>
+          <strong>Analysierter Codestand:</strong>
+          finaler Release-Stand v1.1.19 (Arbeitsstand auf
+          <code>c2087b63</code>), einschlie&szlig;lich der gebauten
+          <code>netmon_1.1.19_all.deb</code> und der signierten
+          Release-Artefakte &mdash; Runde&nbsp;9<br>
+          <strong>Methode:</strong> Statische Code-Analyse + manuelle
+          Datenfluss-Verifikation + empirische Verifikation der Release-Signatur
+          (<code>sha256sum&nbsp;-c</code> + <code>minisign&nbsp;-V</code>) +
+          Konfidenz-gescorte FP-Validierung pro Kandidat + Umsetzung von zwei
+          Defense-in-Depth-H&auml;rtungen mit Regressionstests +
+          Regressions-Gegenpr&uuml;fung der Runde-7/8-H&auml;rtungen (Suiten:
+          253 + 80 Tests, alle sicherheitsrelevanten bestanden) &mdash; kein
+          Laufzeit-Penetrationstest<br>
+          <strong>Haftungsausschluss:</strong> Dieses Audit ersetzt keinen professionellen
+          Penetrationstest durch eine zertifizierte Sicherheitsfirma. Die Analyse
+          beschr&auml;nkt sich auf den angegebenen Codestand. Nicht erfasst werden:
+          Laufzeitverhalten, abh&auml;ngige Systembibliotheken,
+          Netzwerkkonfiguration und soziale Angriffsvektoren.
+        </p>
+        <p style="margin-top:16px;">
+          <a href="./downloads.html" style="color:var(--accent);">Zur Downloadseite</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./aktuelles.html" style="color:var(--accent);">Aktuelles</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./docs.html" style="color:var(--accent);">Dokumentation</a>
+          &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+          <a href="./security-audit-r8.html" style="color:var(--accent);">Runde&nbsp;8</a>
+        </p>
+      </div>
+    </main>
+
+    <footer style="margin-top:64px;padding:24px 0;border-top:1px solid var(--line);text-align:center;color:var(--muted);font-size:0.85rem;">
+      &copy; 2026 Sven Fr&ouml;hlich &mdash; NetMon Roots &mdash;
+      <a href="./legal.html" style="color:var(--muted);">Lizenz &amp; Credits</a>
+      &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+      <a href="https://github.com/Noogman4/dev-lab" target="_blank" rel="noopener noreferrer" style="color:var(--muted);">GitHub</a>
+    </footer>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>

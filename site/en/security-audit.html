@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NetMonRoots | Security Audit 2026 — Round 9</title>
+  <title>NetMonRoots | Security Audit 2026 — Round 12</title>
   <meta
     name="description"
-    content="Ninth independent security audit of the NetMon source code on the final v1.1.19 release state. 0 critical, 0 high, 2 medium findings — both fixed and verified."
+    content="Twelfth NetMon security audit for v1.1.21. All findings are remediated and the Minisign public key is pinned independently from the download origin in the repository."
   >
   <link rel="icon" type="image/png" href="../favicon.png">
   <link rel="apple-touch-icon" href="../favicon.png">
@@ -14,8 +14,8 @@
   <link rel="alternate" hreflang="de" href="https://netmonroots.com/security-audit.html">
   <link rel="alternate" hreflang="en" href="https://netmonroots.com/en/security-audit.html">
   <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/security-audit.html">
-  <meta property="og:title" content="NetMonRoots | Security Audit 2026 — Round 9">
-  <meta property="og:description" content="Ninth independent security audit of the NetMon source code on the final v1.1.19 release state. 0 critical, 0 high, 2 medium findings — both fixed and verified.">
+  <meta property="og:title" content="NetMonRoots | Security Audit 2026 — Round 12">
+  <meta property="og:description" content="Security audit of NetMon v1.1.21: 0 critical, 0 high, 0 medium, and 0 low findings open.">
   <meta property="og:url" content="https://netmonroots.com/en/security-audit.html">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="NetMon Roots">
@@ -23,10 +23,11 @@
   <meta property="og:locale:alternate" content="de_DE">
   <meta property="og:image" content="https://netmonroots.com/favicon.png">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="NetMonRoots | Security Audit 2026 — Round 9">
-  <meta name="twitter:description" content="Ninth independent security audit of the NetMon source code on the final v1.1.19 release state. 0 critical, 0 high, 2 medium findings — both fixed and verified.">
+  <meta name="twitter:title" content="NetMonRoots | Security Audit 2026 — Round 12">
+  <meta name="twitter:description" content="Security audit of NetMon v1.1.21: 0 critical, 0 high, 0 medium, and 0 low findings open.">
   <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
   <link rel="stylesheet" href="../styles.css">
+  <link id="theme-style" rel="stylesheet" href="../theme-bright.css">
   <style>
     .audit-hero { padding: 64px 0 48px; }
     .audit-hero .eyebrow { color: var(--accent); }
@@ -130,41 +131,42 @@
         <a href="../security-audit.html" lang="de">DE</a>
         <a class="active" href="./security-audit.html" lang="en">EN</a>
       </div>
+      <div class="theme-switch" aria-label="Theme">
+        <button type="button" data-theme-option="bright">Bright</button>
+        <button type="button" data-theme-option="dark">Dark</button>
+      </div>
     </header>
 
     <main>
+
       <section class="audit-hero">
-        <p class="eyebrow">Security Audit — July 2026 — Round 9</p>
+        <p class="eyebrow">Security Audit — September 2026 — Round 12</p>
         <h1 style="font-size:clamp(2rem,4vw,3rem);margin:0 0 20px;color:var(--text);">
-          Code Security Review<br>
-          <span style="color:var(--accent);">NetMon Roots v1.1.19 — release state</span>
+          Code and Release Security Review<br>
+          <span style="color:var(--accent);">NetMon Roots v1.1.21</span>
         </h1>
-        <p style="max-width:680px;color:var(--muted);line-height:1.65;font-size:1.05rem;">
-          Ninth automated security review based on Claude Fable 5, performed on the
-          <strong>final 1.1.19 release state</strong> rather than on an intermediate
-          snapshot. This round focused on the <strong>VPN/UFW killswitch reconcile</strong>,
-          <strong>DNS startup recovery</strong>, the <strong>in-app update check</strong>,
-          <strong>Debian maintainer scripts</strong>, and the complete
-          <strong>release verification chain</strong> via
-          <code>SHA256SUMS</code> and <code>minisign</code>.
+        <p style="max-width:760px;color:var(--muted);line-height:1.65;font-size:1.05rem;">
+          Round 12 reviewed 96 commits since round 11, the large tab UI
+          extraction, privileged system paths, and the release supply chain.
+          The refactoring adds no new shell, network, or privilege sink. The
+          medium DNS finding, TAR link handling, version drift, and stale support
+          matrix have been remediated. The real Minisign public key is pinned in
+          the security policy and canonical repository file under key ID
+          <code>54BF5F1867BDD004</code>.
         </p>
+        <p><a class="button button-primary" href="../netmon_security_audit_2026_r12.pdf" download>Download round 12 PDF</a></p>
       </section>
 
-      <div style="margin-bottom:32px;">
-        <a class="button button-primary" href="../netmon_security_audit_2026_r9.pdf" download>Download PDF</a>
-        <a class="button button-secondary" href="#summary">Summary</a>
-        <a class="button button-secondary" href="#findings">Findings</a>
-        <a class="button button-secondary" href="#release">Release verification</a>
-      </div>
-
-      <div class="verdict-banner" id="summary">
+      <div class="verdict-banner">
         <div class="verdict-icon">&#10003;</div>
         <div class="verdict-text">
-          <h2>0 critical — 0 high — 2 medium findings</h2>
+          <h2>All round 12 findings remediated</h2>
           <p>
-            Two medium-severity issues were confirmed, fixed, regression-tested,
-            and re-verified on the final release build. No critical or high findings
-            remained open in scope.
+            The Debian installer no longer changes DNS profiles, Firefox imports
+            accept only bounded regular files and directories, and release builds
+            now have hard version and signature gates. The real public key is
+            pinned in the repository outside the download origin, and builds
+            reject mismatched keys.
           </p>
         </div>
       </div>
@@ -172,11 +174,133 @@
       <div class="audit-meta-grid">
         <div class="audit-meta-card">
           <div class="label">Date</div>
-          <div class="value">July 18, 2026</div>
+          <div class="value">September 19, 2026</div>
         </div>
         <div class="audit-meta-card">
           <div class="label">Reviewed version</div>
-          <div class="value">v1.1.19 — final release state</div>
+          <div class="value">v1.1.21</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Critical / High</div>
+          <div class="value ok">0 / 0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Open Medium / Low</div>
+          <div class="value ok">0 / 0</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Test suite</div>
+          <div class="value ok">2595 passed, 2 skipped</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Dependencies</div>
+          <div class="value ok">No known advisories</div>
+        </div>
+      </div>
+
+      <div class="audit-section" id="summary-r12">
+        <h2>Round 12 findings</h2>
+        <div class="section-rule"></div>
+        <div class="audit-card">
+          <p><strong>NM-R12-01 — Remediated:</strong> the Debian
+          <code>postinst</code> no longer changes active DNS profiles. Upgrades
+          restore state left by older packages and remove that legacy state.</p>
+          <p><strong>NM-R12-02 — Remediated:</strong> Firefox TAR extraction accepts
+          only regular files and directories, rejects links and special files,
+          validates every target path, and enforces download and extraction limits.</p>
+          <p><strong>NM-R12-03 — Remediated:</strong> release builds now
+          require Minisign keys and verify the generated signature. The verifier
+          supports an independently obtained key pin. Key ID
+          <code>54BF5F1867BDD004</code> is pinned in <code>SECURITY.md</code> and
+          the canonical repository key file; builds reject mismatched keys.</p>
+          <p><strong>NM-R12-04 — Remediated:</strong> package, site, and docs builds
+          derive version <code>1.1.21</code> from the canonical app constant. A
+          consistency gate checks the public release metadata before builds.</p>
+          <p><strong>NM-R12-05 — Remediated:</strong> <code>SECURITY.md</code> now
+          identifies <code>1.1.21</code> as the supported release line.</p>
+        </div>
+      </div>
+
+      <div class="audit-section">
+        <h2>Verification</h2>
+        <div class="section-rule"></div>
+        <div class="audit-card">
+          <p>Ruff and formatting checks passed. The initial repository-wide high
+          heuristics were manually validated and technically clarified; the final
+          Bandit scan at the high-severity threshold reports no findings.
+          <code>pip-audit</code> found no known vulnerability in
+          the currently resolved requirements. Shellcheck and the GUI smoke test
+          passed. The focused R12 remediation set completed with 33 passed tests;
+          the full suite completed with 2595 passed and 2 skipped tests.</p>
+          <p>This static review does not replace an independent penetration test.
+          The detailed technical report is stored as
+          <code>docs/SECURITY_AUDIT_2026_R12.md</code> in the repository.</p>
+        </div>
+      </div>
+
+      <div class="audit-section" id="round-11">
+        <h2>Previous round 11 — full report</h2>
+        <div class="section-rule"></div>
+      </div>
+
+      <section class="audit-hero">
+        <p class="eyebrow">Security Audit — July 2026 — Round 11</p>
+        <h1 style="font-size:clamp(2rem,4vw,3rem);margin:0 0 20px;color:var(--text);">
+          Code Security Review<br>
+          <span style="color:var(--accent);">NetMon Roots v1.1.20</span>
+        </h1>
+        <p style="max-width:680px;color:var(--muted);line-height:1.65;font-size:1.05rem;">
+          Eleventh automated security review based on Claude Fable 5, covering the
+          full diff since the round 10 state — 215 commits, the vast majority of
+          them mechanical refactoring. The security-relevant new work was the
+          still-unreleased <strong>UFW sysctl override feature</strong>, which
+          rewrites <code>/etc/ufw/sysctl.conf</code> as root, plus a new
+          <strong>runtime measurement module</strong>. The scope was deliberately
+          widened by a first <strong>as-is review of the radio sinks</strong>,
+          which had never fallen inside a diff-based scope.
+          <strong>This round produced no finding above the reporting
+          threshold</strong> — of three candidates, one was refuted and one
+          downgraded. Eight <strong>defense-in-depth hardening measures</strong>
+          were implemented anyway, backed by 26 regression tests.
+        </p>
+      </section>
+
+      <div style="margin-bottom:32px;">
+        <a class="button button-primary" href="../netmon_security_audit_2026_r11.pdf" download>Download PDF</a>
+        <a class="button button-secondary" href="#summary">Summary</a>
+        <a class="button button-secondary" href="#findings">Candidates</a>
+        <a class="button button-secondary" href="#hardening">Hardening</a>
+      </div>
+
+      <div class="verdict-banner" id="summary">
+        <div class="verdict-icon">&#10003;</div>
+        <div class="verdict-text">
+          <h2>0 critical — 0 high — 0 medium findings (8 hardening measures)</h2>
+          <p>
+            The review found no vulnerability above the 8/10 reporting threshold.
+            Three candidates in the new UFW sysctl feature were re-examined by
+            independent validation sub-agents tasked with refuting them: one was
+            <strong>refuted</strong> (2/10 — its central premise did not survive
+            empirical checking), one was <strong>downgraded to LOW</strong> (6/10 —
+            the mechanism is real, the claimed loss of hardening is not), and the
+            third is a pure defense-in-depth inconsistency. All three were fixed
+            regardless. A first as-is review of the radio sinks — code unchanged for
+            several rounds and therefore never inside a diff scope — produced four
+            further hardening measures. All hardening from rounds 7 through 10 is
+            intact; the child-lock remains documented as a deliberate design
+            decision.
+          </p>
+        </div>
+      </div>
+
+      <div class="audit-meta-grid">
+        <div class="audit-meta-card">
+          <div class="label">Date</div>
+          <div class="value">July 29, 2026</div>
+        </div>
+        <div class="audit-meta-card">
+          <div class="label">Reviewed version</div>
+          <div class="value">v1.1.20</div>
         </div>
         <div class="audit-meta-card">
           <div class="label">Critical findings</div>
@@ -188,11 +312,11 @@
         </div>
         <div class="audit-meta-card">
           <div class="label">Medium findings</div>
-          <div class="value">2 — both fixed</div>
+          <div class="value ok">0</div>
         </div>
         <div class="audit-meta-card">
-          <div class="label">Release signature</div>
-          <div class="value ok">validated</div>
+          <div class="label">Test suite</div>
+          <div class="value ok">2562 passed, 2 skipped</div>
         </div>
       </div>
 
@@ -201,44 +325,29 @@
         <div class="section-rule"></div>
         <div class="audit-card">
           <p>
-            The reviewed scope was the final 1.1.19 release state, including version
-            consistency across the application, Debian package, download pages, and
-            release metadata. The audit concentrated on privileged or externally
-            influenced paths with release impact.
+            The reviewed scope was the full diff since the round 10 state
+            (<code>445279ac</code>, July 20, 2026) up to the current working state,
+            including uncommitted changes: 215 commits and 468 files, but only about
+            3,750 lines of production code across 22 modules — the remainder is tests
+            and refactoring documentation.
           </p>
           <ul>
-            <li>VPN/UFW/killswitch reconcile and recovery behavior</li>
-            <li>DNS startup recovery and fallback handling</li>
-            <li>Remote update metadata and URL opening flow</li>
-            <li>Debian package maintainer scripts and install-time behavior</li>
-            <li>Release verification with SHA256SUMS and minisign</li>
+            <li>New UFW sysctl override feature writing to <code>/etc/ufw/sysctl.conf</code> as root</li>
+            <li>New runtime measurement module and its hook into the central command path</li>
+            <li>Large radio refactoring, proven behaviour-preserving via a normalised content diff</li>
+            <li>As-is review of the radio sinks (mpv/ffmpeg invocation, ICY metadata, recording filenames, playlist parsing)</li>
+            <li>Regression re-check of the round 9 and 10 hardening — all intact</li>
           </ul>
         </div>
       </div>
 
       <div class="audit-section" id="findings">
-        <h2>Confirmed findings</h2>
+        <h2>Candidates and validation</h2>
         <div class="section-rule"></div>
         <div class="audit-card">
-          <p><strong>F1 — Update URL allowlist gap:</strong> the in-app update check accepted a server-provided <code>download_url</code> without a strict scheme/host allowlist before handing it to <code>xdg-open</code>. This was fixed with a web-only scheme restriction plus trusted-host pinning for the update path.</p>
-          <p><strong>F2 — Killswitch fail-open on early VPN switch failure:</strong> early VPN slot switch error paths could reset outbound firewall policy too broadly even when the user intended killswitch protection to stay active. This was fixed with a killswitch-preserving recovery path and regression coverage.</p>
-        </div>
-      </div>
-
-      <div class="audit-section" id="release">
-        <h2>Release verification</h2>
-        <div class="section-rule"></div>
-        <div class="audit-card">
-          <p>
-            The release artifacts were cross-checked via <code>sha256sum -c SHA256SUMS</code>
-            and verified against the shipped minisign signature and public key. The
-            signature chain for the 1.1.19 release bundle validated successfully.
-          </p>
-          <ul>
-            <li><code>netmon_1.1.19_all.deb</code> matched the published SHA256 sums</li>
-            <li><code>netmon_dokumentation_1.1.19.html</code> and <code>.pdf</code> matched the published SHA256 sums</li>
-            <li><code>SHA256SUMS.minisig</code> validated against the shipped minisign public key</li>
-          </ul>
+          <p><strong>K1 — stderr contamination in the read-modify-write of <code>/etc/ufw/sysctl.conf</code> [LOW, 6/10, hardened]:</strong> the file is read via <code>sudo -n cat</code> through a helper that merges stderr into stdout, so a sudo warning ("unable to resolve host …") arrives with exit code 0 inside the supposed file content and would be written back into a root config file. The reporter's claim that this could disable hardening at boot was <em>refuted empirically</em>: sysctl warns about a malformed line but continues processing the remaining lines and returns 0, and ufw-init ignores errors anyway. The reporter also missed that a write-back only happens on an actual change, and that the same pattern already existed in committed code. The warning text is not attacker-controlled, so there is no injection vector. Hardened regardless with a plausibility gate that aborts the run — at both read sites — as soon as the content contains a line that cannot be a sysctl config line.</p>
+          <p><strong>K2 — new write sink missing its sister sink's allowlist [LOW, 3/10, hardened]:</strong> the key allowlist introduced in round 10 sits deliberately at the write sink as a second line of defense, but the new sink writing to <code>/etc/ufw/sysctl.conf</code> — a file that per its own header overrides <code>/etc/sysctl.conf</code> and <code>/etc/sysctl.d</code> — carried none of those checks. Not exploitable today (the only caller passes a module constant, and no data flow from transfer packages or remote JSON reaches this sink), but a regression against a documented protection decision. The sink now applies the same allowlist and value validation as its sister.</p>
+          <p><strong>K3 — "sysctl re-apply silently reverts kernel hardening" [REFUTED, 2/10]:</strong> the validator extracted the original <code>ufw_0.36.2-6_all.deb</code> and showed that <code>/etc/ufw/sysctl.conf</code> contains no <code>rp_filter</code> at all, so the central premise was wrong. The only real overlap with the NetMon baseline is <code>log_martians</code> — and the code under complaint is precisely the countermeasure for it, since the package ships <code>log_martians=0</code> against NetMon's target of <code>1</code>. A downstream value verification also exists: a baseline re-check reads the live kernel values after every step. Finally, the direction of the deviation was misjudged — <code>rp_filter=1</code> is stricter than NetMon's deliberate <code>2</code>, so security would rise, not fall. No code change needed.</p>
         </div>
       </div>
 
@@ -247,21 +356,26 @@
         <div class="section-rule"></div>
         <div class="audit-card">
           <ul>
-            <li>Trusted-host and scheme checks for the automatic update URL path</li>
-            <li>Killswitch-preserving firewall recovery for early VPN switch failure paths</li>
-            <li>Regression coverage for both confirmed findings</li>
-            <li>Re-validation of the release signature chain for the final 1.1.19 bundle</li>
+            <li>Key allowlist and value validation at the UFW sysctl write sink</li>
+            <li>Plausibility gate aborting any read-modify-write whose content contains a non-config line (both read sites)</li>
+            <li><code>--</code> option terminator before the mpv media argument, so a playlist entry named <code>--script=payload.lua</code> cannot become an option</li>
+            <li>Handover payload now passes through the stream URL scheme allowlist — the only path that bypassed it</li>
+            <li>mpv IPC socket moved into <code>XDG_RUNTIME_DIR</code> or a private 0700 directory (socket access means mpv's <code>run</code> command)</li>
+            <li>Explicit ffmpeg protocol allowlist without <code>file</code>, so a crafted HLS/concat playlist cannot pull local files into a recording</li>
+            <li>Value-side redaction in the measurement log — previously only metadata keys were checked, not values</li>
+            <li>Measurement log opened with <code>O_NOFOLLOW</code> and mode 0600; rotation skips symlinked paths</li>
+            <li>26 new regression tests; full suite 2562 passed, 2 skipped</li>
           </ul>
         </div>
       </div>
 
       <div class="signature-block">
         <p>
-          <strong>Auditor:</strong> Claude Fable 5 (Anthropic) — automated multi-agent security review<br>
+          <strong>Auditor:</strong> Claude Fable 5 (Anthropic) — four analysis sub-agents plus two independent false-positive validation sub-agents<br>
           <strong>Project owner:</strong> Sven Froehlich<br>
-          <strong>Date:</strong> July 18, 2026<br>
-          <strong>Reviewed state:</strong> final NetMon 1.1.19 release build<br>
-          <strong>Method:</strong> static security review with targeted validation and regression confirmation
+          <strong>Date:</strong> July 29, 2026<br>
+          <strong>Reviewed state:</strong> NetMon 1.1.20 working state (diff since the round 10 state <code>445279ac</code>, including uncommitted changes), extended by an as-is review of the radio sinks<br>
+          <strong>Method:</strong> static code analysis with manual data-flow verification, a normalised content diff for the refactoring bulk, confidence-scored false-positive validation with empirical counter-checks (package extraction, sysctl behaviour tests), eight hardening measures with 26 regression tests, and a regression re-check of the previous rounds' hardening — no runtime penetration testing
         </p>
         <p style="margin-top:16px;">
           <a href="./downloads.html" style="color:var(--accent);">Download page</a>

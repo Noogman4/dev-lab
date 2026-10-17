@@ -62,6 +62,24 @@ Wenn beim GUI-Start `tkinter` fehlt, verweist `netmon/main.py` auf `sudo apt ins
 - **Screenshot-Platzhalter:** Screenshot-Platzhalter: Security-Notebook mit Firewall- und Monitoring-Ansicht.
 - **Typische Anwendung:** Typische Nutzung: UFW-Status pruefen, Security-Logs sichten, Baselines erstellen, Paketmitschnitte starten.
 - **VPN/UFW-Hinweis:** Nach einem erfolgreichen VPN-Profilwechsel synchronisiert NetMon die referenzierten Interface- und UDP-Endpoint-Regeln wieder mit UFW, auch wenn der Killswitch aus ist.
+- **Haertungshinweis:** Der Lynis-/Haertungsbereich verwaltet Baseline-Transferpakete
+  und kann freigegebene Kernel-/UFW-Haertung anwenden. Bei UFW-sysctl-Konflikten
+  nennt NetMon `/etc/ufw/sysctl.conf` als Ursache; `log_martians` kann dort
+  dauerhaft auf den NetMon-Sollwert gesetzt werden.
+
+### Backup
+
+- **Zweck:** Der Backup-Tab buendelt Timeshift-Start/-Pruefung, Desktop-Datensicherung
+  und den Export eigener NetMon-Ordner.
+- **Beschreibung:** Die NetMon-Sicherung exportiert ausgewaehlte Ordner unter
+  `Dokumente/NetMon`. Wenn `Security` ausgewaehlt ist, wird auch der
+  Security-Unterordner inklusive Baseline-Transferpaketen mitgesichert.
+- **Bedienregel:** Baseline-Transferpakete werden im Haertungs-Tab bearbeitet,
+  nicht im Backup-Tab. Der Backup-Tab enthaelt deshalb nur Sicherungs- und
+  Oeffnen-Aktionen fuer die NetMon-Ordner.
+- **Timeshift:** `Timeshift pruefen` aktualisiert den Backup-Status, schreibt
+  einen Logeintrag und zeigt eine kurze Rueckmeldung mit Timeshift-, Snapshot-
+  und Root-Status.
 
 ### Radio
 

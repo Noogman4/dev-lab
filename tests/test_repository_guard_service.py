@@ -172,6 +172,7 @@ def test_known_third_party_hosts_do_not_raise_unknown_origin(tmp_path):
     codes = {item["code"] for item in result["findings"]}
 
     assert "repo_unknown_origin" not in codes
+    assert "repo_no_signed_by" in codes
 
 
 def test_scan_creates_http_unknown_and_missing_signed_by_findings(tmp_path):
@@ -192,6 +193,114 @@ def test_scan_creates_http_unknown_and_missing_signed_by_findings(tmp_path):
     assert "repo_no_signed_by" in codes
 
 
+def test_scan_collects_auxiliary_repository_files(tmp_path):
+    active = tmp_path / "demo.sources"
+    legacy = tmp_path / "zorin.list.distUpgrade"
+    disabled = tmp_path / "zorin.list.distUpgrade.disabled"
+    backup_dir = tmp_path / "netmon-backup"
+    backup_dir.mkdir()
+    backup = backup_dir / "zorin.sources.20260719-120000.bak"
+    active.write_text(
+        "Types: deb\nURIs: https://deb.debian.org/debian\nSuites: bookworm\nComponents: main\n",
+        encoding="utf-8",
+    )
+    legacy.write_text(
+        "deb https://example.invalid/repo stable main\n", encoding="utf-8"
+    )
+    disabled.write_text(
+        "deb https://example.invalid/repo stable main\n", encoding="utf-8"
+    )
+    backup.write_text(
+        "deb https://example.invalid/repo stable main\n", encoding="utf-8"
+    )
+
+    service = RepositoryGuardService(
+        source_patterns=[str(active)],
+        auxiliary_patterns=[
+            str(legacy),
+            str(disabled),
+            str(backup),
+        ],
+        flatpak_available_fn=lambda: False,
+    )
+
+    result = service.scan()
+    codes = {item["code"] for item in result["findings"]}
+
+    assert result["summary"]["auxiliary_files_total"] == 3
+    assert "repo_legacy_distupgrade_file" in codes
+    assert "repo_disabled_file_present" in codes
+    assert "repo_backup_file_present" in codes
+
+
+def test_scan_reports_global_third_party_keyrings(tmp_path):
+    sources_file = tmp_path / "sources.list"
+    sources_file.write_text(
+        "deb [signed-by=/etc/apt/keyrings/demo.gpg] https://example.invalid/repo stable main\n",
+        encoding="utf-8",
+    )
+    ubuntu_keyring = tmp_path / "ubuntu-keyring-2018-archive.gpg"
+    zorin_keyring = tmp_path / "zorin-os.gpg"
+    ubuntu_keyring.write_text("core", encoding="utf-8")
+    zorin_keyring.write_text("third-party", encoding="utf-8")
+
+    service = RepositoryGuardService(
+        source_patterns=[str(sources_file)],
+        global_keyring_patterns=[str(ubuntu_keyring), str(zorin_keyring)],
+        file_exists_fn=lambda path: True,
+        flatpak_available_fn=lambda: False,
+    )
+
+    result = service.scan()
+    codes = [item["code"] for item in result["findings"]]
+
+    assert result["summary"]["global_keyrings_total"] == 2
+    assert codes.count("repo_global_third_party_keyring") == 1
+
+
+def test_build_findings_adds_auxiliary_file_findings():
+    service = RepositoryGuardService(flatpak_available_fn=lambda: False)
+
+    findings = service.build_findings(
+        [],
+        [],
+        auxiliary_files=[
+            {"file_path": "/tmp/old.distUpgrade", "state": "distupgrade"},
+            {"file_path": "/tmp/demo.disabled", "state": "disabled"},
+            {"file_path": "/tmp/demo.bak", "state": "backup"},
+        ],
+    )
+
+    codes = {item["code"] for item in findings}
+    assert codes == {
+        "repo_legacy_distupgrade_file",
+        "repo_disabled_file_present",
+        "repo_backup_file_present",
+    }
+
+
+def test_build_findings_adds_global_third_party_keyring_only():
+    service = RepositoryGuardService(flatpak_available_fn=lambda: False)
+
+    findings = service.build_findings(
+        [],
+        [],
+        global_keyrings=[
+            {
+                "file_path": "/etc/apt/trusted.gpg.d/vendor.gpg",
+                "scope": "third_party",
+            },
+            {
+                "file_path": "/etc/apt/trusted.gpg.d/ubuntu-keyring-demo.gpg",
+                "scope": "core",
+            },
+        ],
+    )
+
+    codes = [item["code"] for item in findings]
+    assert codes == ["repo_global_third_party_keyring"]
+
+
 def test_scan_marks_duplicate_sources(tmp_path):
     first = tmp_path / "first.list"
     second = tmp_path / "second.list"
@@ -199,9 +308,7 @@ def test_scan_marks_duplicate_sources(tmp_path):
     first.write_text(line, encoding="utf-8")
     second.write_text(line, encoding="utf-8")
 
-    service = RepositoryGuardService(
-        source_patterns=[str(first), str(second)]
-    )
+    service = RepositoryGuardService(source_patterns=[str(first), str(second)])
     result = service.scan()
     duplicate_findings = [
         item for item in result["findings"] if item["code"] == "repo_duplicate_source"
@@ -286,7 +393,9 @@ def test_collect_sources_parses_deb822_sources_blocks(tmp_path):
     assert all(source["format"] == "deb822" for source in sources)
     assert all(source["enabled"] is True for source in sources)
     assert sources[0]["signed_by"] == "/usr/share/keyrings/debian-archive-keyring.gpg"
-    assert sources[0]["signed_by_paths"] == ["/usr/share/keyrings/debian-archive-keyring.gpg"]
+    assert sources[0]["signed_by_paths"] == [
+        "/usr/share/keyrings/debian-archive-keyring.gpg"
+    ]
     assert sources[0]["host"] == "deb.debian.org"
     assert sources[0]["origin_class"] == "known"
     assert sources[0]["components"] == ["main", "contrib"]
@@ -315,6 +424,33 @@ def test_collect_sources_parses_disabled_deb822_block(tmp_path):
     assert len(sources) == 1
     assert sources[0]["enabled"] is False
     assert sources[0]["origin_class"] == "unknown"
+
+
+def test_collect_sources_keeps_cdrom_deb822_uri_with_spaces_intact(tmp_path):
+    sources_file = tmp_path / "third-party.sources"
+    sources_file.write_text(
+        "\n".join(
+            [
+                "Enabled: no",
+                "Types: deb",
+                "URIs: cdrom:[Zorin-OS 18 Pro 64bit]/",
+                "Suites: noble",
+                "Components: main restricted",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    service = RepositoryGuardService(source_patterns=[str(sources_file)])
+    sources, errors = service.collect_sources()
+
+    assert errors == []
+    assert len(sources) == 1
+    assert sources[0]["enabled"] is False
+    assert sources[0]["uri"] == "cdrom:[Zorin-OS 18 Pro 64bit]/"
+    assert sources[0]["suite"] == "noble"
+    assert sources[0]["components"] == ["main", "restricted"]
 
 
 def test_collect_sources_detects_embedded_deb822_signed_by_key(tmp_path):
@@ -498,7 +634,9 @@ def test_repository_guard_baseline_roundtrip_and_compare(tmp_path):
     assert comparison["changed"][0]["after"]["suite"] == "bookworm-updates"
 
 
-def test_repository_guard_baseline_detects_moved_source_without_false_new_removed(tmp_path):
+def test_repository_guard_baseline_detects_moved_source_without_false_new_removed(
+    tmp_path,
+):
     first = tmp_path / "sources.list"
     first.write_text(
         "deb https://deb.debian.org/debian bookworm main\n",

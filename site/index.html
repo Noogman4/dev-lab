@@ -27,6 +27,7 @@
   <meta name="twitter:description" content="NetMon ist eine Linux-Desktop-App fuer DNS, Firewall, VPN, Security-Monitoring, Diagnose und Radio in einer Oberflaeche.">
   <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
   <link rel="stylesheet" href="./styles.css">
+  <link id="theme-style" rel="stylesheet" href="./theme-bright.css">
 </head>
 <body class="home-page">
   <div class="page-shell">
@@ -60,6 +61,10 @@
         <a class="active" href="./index.html" lang="de">DE</a>
         <a href="./en/index.html" lang="en">EN</a>
       </div>
+      <div class="theme-switch" aria-label="Darstellung">
+        <button type="button" data-theme-option="bright">Bright</button>
+        <button type="button" data-theme-option="dark">Dark</button>
+      </div>
     </header>
 
     <main>
@@ -79,8 +84,8 @@
             <a class="button button-secondary" href="./legal.html">Lizenz und Credits</a>
           </div>
           <ul class="hero-meta">
-            <li><span>Release</span><strong>1.1.19</strong></li>
-            <li><span>Doku-Stand</span><strong>1.1.19</strong></li>
+            <li><span>Release</span><strong>1.1.21</strong></li>
+            <li><span>Doku-Stand</span><strong>1.1.21</strong></li>
             <li><span>Plattform</span><strong>Debian/Ubuntu-basiert</strong></li>
           </ul>
         </div>
@@ -142,59 +147,59 @@
 
       <section class="signal-strip" aria-label="NetMon Schwerpunktbereiche">
         <div>DNS Guard</div>
-        <div>DoT-Profile</div>
-        <div>Paketmitschnitt</div>
-        <div>Repository Guard</div>
-        <div>KI-Prompts</div>
-        <div>Funbereich</div>
-        <div>Radio + projectM</div>
+        <div>VPN + Killswitch</div>
+        <div>Security Guards</div>
+        <div>ClamAV / Lynis / RKHunter</div>
+        <div>Secure Browser</div>
+        <div>Chad KI-Analyse</div>
+        <div>Support + Backup</div>
       </section>
 
       <section class="section" id="features">
         <div class="section-heading">
           <p class="eyebrow">Kernfunktionen</p>
-          <h2>NetMon ist keine generische SaaS-Huelle, sondern ein Linux-Werkzeugkasten mit UI.</h2>
+          <h2>Die wichtigsten Netzwerk- und Sicherheitswerkzeuge an einem Ort.</h2>
         </div>
         <div class="feature-grid">
           <article class="feature-card">
-            <h3>DNS und Resolver-Kontrolle</h3>
-            <p>DNS Guard, DNS-over-TLS, Resolver-Pruefung und Statusbewertung in einem Tab.</p>
+            <h3>Netzwerk-Diagnose</h3>
+            <p>Trace, MTR, Nmap, Verbindungs- und Traffic-Analyse machen Netzwerkprobleme schnell nachvollziehbar.</p>
           </article>
           <article class="feature-card">
-            <h3>Firewall und Security</h3>
-            <p>UFW, Security-Events, Startup Guard, Process Guard, Repository Guard und Roots Baseline Guard.</p>
+            <h3>DNS Guard und Resolver</h3>
+            <p>DNS-Profile, DNS-over-TLS, DNSSEC und Resolver-Checks bringen die Namensauflösung unter Kontrolle.</p>
           </article>
           <article class="feature-card">
-            <h3>VPN und WireGuard</h3>
-            <p>VPN-Slots, WireGuard-Import und gezielte Bereinigung von NetMon-bezogenen Resten.</p>
+            <h3>Firewall mit UFW</h3>
+            <p>Regeln, Logs, Sicherheitsereignisse und Härtungschecks direkt aus einer zentralen Oberfläche verwalten.</p>
           </article>
           <article class="feature-card">
-            <h3>Diagnose und Support</h3>
-            <p>Startprotokolle, strukturierte Diagnoseberichte und Supportpakete als ZIP.</p>
+            <h3>WireGuard und Killswitch</h3>
+            <p>VPN-Profile importieren und verwalten, Verbindungsschutz aktivieren sowie öffentliche IP und Exit-Land prüfen.</p>
           </article>
           <article class="feature-card">
-            <h3>Linux-Hilfe und Glossar</h3>
-            <p>Rund 700 Linux-Befehle und IT-Fachbegriffe, direkt in der App nutzbar und selbst erweiterbar.</p>
+            <h3>Security Guards</h3>
+            <p>Process, Startup, Repository und Roots Baseline Guard erkennen auffaellige Aenderungen im System.</p>
           </article>
           <article class="feature-card">
-            <h3>Linkblock und Schnellzugriff</h3>
-            <p>Frei beschriftbare Buttons mit internen oder externen Links fuer Dokumente, Tools und feste Ziele.</p>
+            <h3>Malware- und Security-Scans</h3>
+            <p>ClamAV, Lynis und RKHunter liefern Malware-Pruefungen, Hardening-Hinweise und nachvollziehbare Bewertungen.</p>
           </article>
           <article class="feature-card">
-            <h3>KI und Prompt-Workflow</h3>
-            <p>API-Key-gestuetzte Onlineanalyse und kopierbare Prompts fuer externe Chats.</p>
+            <h3>Secure Browser</h3>
+            <p>Getrennte, gehaertete Firefox-Profile fuer sensible Recherchen und eine besser isolierte Browser-Nutzung.</p>
           </article>
           <article class="feature-card">
-            <h3>Netzwerk-Tools</h3>
-            <p>Trace, Verbindungen, Port-Analyse, Packet Capture und klassische Linux-Werkzeuge.</p>
+            <h3>Chad: KI-gestuetzte Analyse</h3>
+            <p>Logs, Diagnosen und Sicherheitsmeldungen aufbereiten, analysieren oder als saubere Prompts weitergeben.</p>
           </article>
           <article class="feature-card">
-            <h3>Radio und Extras</h3>
-            <p>Losloesbarer Radio-Player, Favoriten, EQ, projectM-Optionen und Theme Studio.</p>
+            <h3>Support, Backup und Wartung</h3>
+            <p>Diagnoseberichte und ZIP-Supportpakete exportieren, Timeshift nutzen und Wartungsaufgaben beschleunigen.</p>
           </article>
           <article class="feature-card">
-            <h3>Theme Studio und Funbereich</h3>
-            <p>Visuelle Anpassung, kleine Extras und ein eigener Bereich zur Entspannung direkt in NetMon.</p>
+            <h3>Werkzeuge fuer den Alltag</h3>
+            <p>Speedtest, Paketmitschnitt, Linux-Hilfe, Datentraeger- und Link-Verwaltung sowie Radio und Theme Studio.</p>
           </article>
         </div>
       </section>

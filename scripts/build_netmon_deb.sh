@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PKG_NAME="netmon"
-PKG_VERSION="1.1.19"
-DOCS_VERSION="1.1.19"
+PKG_VERSION="$(python3 "$ROOT_DIR/scripts/read_netmon_version.py")"
+DOCS_VERSION="$PKG_VERSION"
 PKG_ARCH="all"
 MAINTAINER="Mr. Happy <netmon.proglab@protonmail.ch>"
 
@@ -226,44 +226,30 @@ fi
 
 NETMON_STATE_DIR="/var/lib/netmon"
 NETMON_INSTALL_DNS_STATE="$NETMON_STATE_DIR/install-dns-nm.state"
-NETMON_INSTALL_DNS_SERVER="8.8.8.8"
 ASSET_DIR="/usr/share/netmon/assets/log-pics"
 
-netmon_dns_state_has_uuid() {
-  UUID="$1"
-  [ -n "$UUID" ] || return 1
-  [ -f "$NETMON_INSTALL_DNS_STATE" ] || return 1
-  grep -Fq "$UUID|" "$NETMON_INSTALL_DNS_STATE" 2>/dev/null
-}
-
-apply_netmon_install_dns() {
+restore_legacy_install_dns() {
+  [ -f "$NETMON_INSTALL_DNS_STATE" ] || return 0
   command -v nmcli >/dev/null 2>&1 || return 0
 
-  mkdir -p "$NETMON_STATE_DIR" >/dev/null 2>&1 || return 0
-  chmod 0755 "$NETMON_STATE_DIR" >/dev/null 2>&1 || true
-  touch "$NETMON_INSTALL_DNS_STATE" >/dev/null 2>&1 || return 0
-  chmod 0600 "$NETMON_INSTALL_DNS_STATE" >/dev/null 2>&1 || true
-
-  nmcli -t -f UUID,DEVICE connection show --active 2>/dev/null | while IFS=: read -r UUID DEVICE; do
+  while IFS='|' read -r UUID OLD_DNS OLD_IGNORE_AUTO_DNS; do
     [ -n "$UUID" ] || continue
-    [ -n "$DEVICE" ] || continue
-    case "$DEVICE" in
-      lo|wg*|tun*|tap*|ppp*)
-        continue
-        ;;
-    esac
+    nmcli connection show "$UUID" >/dev/null 2>&1 || continue
 
-    if ! netmon_dns_state_has_uuid "$UUID"; then
-      OLD_DNS="$(nmcli -g ipv4.dns connection show "$UUID" 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
-      OLD_IGNORE_AUTO_DNS="$(nmcli -g ipv4.ignore-auto-dns connection show "$UUID" 2>/dev/null | tr -d '\n')"
-      printf '%s|%s|%s\n' "$UUID" "$OLD_DNS" "$OLD_IGNORE_AUTO_DNS" >> "$NETMON_INSTALL_DNS_STATE" 2>/dev/null || true
+    if [ -n "$OLD_IGNORE_AUTO_DNS" ]; then
+      nmcli connection modify "$UUID" \
+        ipv4.dns "$OLD_DNS" \
+        ipv4.ignore-auto-dns "$OLD_IGNORE_AUTO_DNS" >/dev/null 2>&1 || true
+    else
+      nmcli connection modify "$UUID" \
+        ipv4.dns "$OLD_DNS" \
+        ipv4.ignore-auto-dns no >/dev/null 2>&1 || true
     fi
-
-    nmcli connection modify "$UUID" \
-      ipv4.dns "$NETMON_INSTALL_DNS_SERVER" \
-      ipv4.ignore-auto-dns yes >/dev/null 2>&1 || true
     nmcli connection up "$UUID" >/dev/null 2>&1 || true
-  done
+  done < "$NETMON_INSTALL_DNS_STATE"
+
+  rm -f "$NETMON_INSTALL_DNS_STATE" >/dev/null 2>&1 || true
+  rmdir "$NETMON_STATE_DIR" >/dev/null 2>&1 || true
 }
 
 seed_log_pics_dir() {
@@ -303,7 +289,7 @@ seed_netmon_log_pics_for_home() {
 }
 
 seed_netmon_log_pics_for_home "/etc/skel"
-apply_netmon_install_dns
+restore_legacy_install_dns
 
 if [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER}" != "root" ]; then
   USER_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6)"

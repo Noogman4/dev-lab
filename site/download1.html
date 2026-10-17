@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetMonRoots | Download, Doku und Verifikation</title>
+  <meta
+    name="description"
+    content="Zentrale Downloadseite fuer NetMon mit Debian-Paket, Dokumentation, SHA256-Pruefsummen, Verifikation und Release-Hinweisen."
+  >
+  <link rel="icon" type="image/png" href="./favicon.png">
+  <link rel="apple-touch-icon" href="./favicon.png">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="./styles.css">
+  <link id="theme-style" rel="stylesheet" href="./theme-bright.css">
+</head>
+<body class="downloads-page">
+  <div class="page-shell docs-page downloads-page-shell">
+    <header class="topbar">
+      <a class="brand" href="./index.html" aria-label="NetMon Startseite">
+        <span class="brand-mark">
+          <span class="brand-lockup">
+            <span class="brand-title">
+              <span class="brand-title-main">NETMON</span>
+              <span class="brand-title-accent">ROOTS</span>
+            </span>
+            <span class="brand-subline">MONITOR. CONTROL. UNDERSTAND.</span>
+            <span class="brand-tagline">BACK TO THE ROOTS.</span>
+          </span>
+          <img class="brand-icon" src="./bannericon.png" alt="" aria-hidden="true">
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="./index.html">Start</a>
+        <a href="./tour.html">Rundgang</a>
+        <a href="#package">Paket</a>
+        <a href="./aktuelles.html">Aktuelles</a>
+        <a href="./changelog.html">Changelog</a>
+        <a href="#docs">Doku</a>
+        <a href="./security-audit.html">Audit</a>
+        <a href="#verify">Verifikation</a>
+        <a href="./legal.html">Legal</a>
+      </nav>
+      <div class="lang-switch" aria-label="Sprachauswahl">
+        <a class="active" href="./download1.html" lang="de">DE</a>
+        <a href="./en/download1.html" lang="en">EN</a>
+      </div>
+      <div class="theme-switch" aria-label="Darstellung">
+        <button type="button" data-theme-option="bright">Bright</button>
+        <button type="button" data-theme-option="dark">Dark</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="section" id="package">
+        <div class="section-heading">
+          <p class="eyebrow">Paketdownload</p>
+        </div>
+        <div class="download-layout">
+          <article class="download-card featured">
+            <p class="download-label">Final Release</p>
+            <h3>NetMon 1.1.21 fuer Debian/Ubuntu-basierte Systeme</h3>
+            <p>Aktuelles Final-Release-Paket fuer Installation, Betrieb und Verifikation.</p>
+            <div class="inline-actions">
+              <a class="button button-primary" href="/download.php?id=netmon-deb&amp;src=downloads-de&amp;lang=de">.deb herunterladen</a>
+            </div>
+          </article>
+          <article class="download-card">
+            <h3>Vor dem Download pruefen</h3>
+            <p>Bitte zuerst die Seite <code>Aktuelles</code> ansehen. Dort werden kuenftig Hinweise zu bekannten Problemen und Systembesonderheiten gesammelt.</p>
+            <div class="inline-actions">
+              <a class="button button-secondary" href="./aktuelles.html">Aktuelles ansehen</a>
+            </div>
+          </article>
+          <article class="download-card">
+            <h3>Hash</h3>
+            <p><a href="/download.php?id=sha256sums&amp;src=downloads-de-hash&amp;lang=de"><code>/dist/SHA256SUMS</code></a></p>
+            <pre><code>sha256sum -c SHA256SUMS</code></pre>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="docs">
+        <div class="section-heading">
+          <p class="eyebrow">Dokumentation</p>
+        </div>
+        <div class="download-layout">
+          <article class="download-card featured">
+            <p class="download-label">GitHub</p>
+            <h3>Bitte besuche uns auch auf GitHub</h3>
+            <p>Dort findest du den aktuellen Projektstand, die README, Screenshots und die oeffentliche Projektbasis von NetMon Roots.</p>
+            <a class="button button-primary" href="https://github.com/Noogman4/dev-lab" target="_blank" rel="noopener noreferrer">Projekt auf GitHub oeffnen</a>
+          </article>
+          <article class="download-card featured">
+            <p class="download-label">HTML</p>
+            <h3>NetMon Dokumentation 1.1.21</h3>
+            <p>Browserfassung fuer schnellen Zugriff.</p>
+            <a class="button button-primary" href="/download.php?id=docs-html&amp;src=downloads-de-docs-html&amp;lang=de">HTML oeffnen</a>
+          </article>
+          <article class="download-card">
+            <p class="download-label">PDF</p>
+            <h3>PDF-Handbuch 1.1.21</h3>
+            <p>Offline-Version zum Speichern oder Weitergeben.</p>
+            <a class="button button-secondary" href="/download.php?id=docs-pdf&amp;src=downloads-de-docs-pdf&amp;lang=de">PDF herunterladen</a>
+          </article>
+          <article class="download-card">
+            <p class="download-label">Audit</p>
+            <h3>Sicherheits-Audit 2026</h3>
+            <p>Aktueller Auditbericht: Runde 10 fuer NetMon v1.1.20. Zwei hohe Findings (Sysctl-Injektion ueber importierte Baseline-Transferpakete, Testsuite mit echtem Host-Neustart) wurden umgesetzt und mit Regressionstests verifiziert.</p>
+            <div class="inline-actions">
+              <a class="button button-primary" href="./security-audit.html">HTML oeffnen</a>
+              <a class="button button-secondary" href="/download.php?id=audit-pdf&amp;src=downloads-de-audit-pdf&amp;lang=de">PDF laden</a>
+            </div>
+          </article>
+          <article class="download-card">
+            <p class="download-label">Lizenz</p>
+            <h3>GPL-3.0-or-later</h3>
+            <p>Die Projektlizenz ist bereits im Paket enthalten und hier direkt einsehbar.</p>
+            <a class="button button-secondary" href="./LICENSE.txt">Lizenz oeffnen</a>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="verify">
+        <div class="section-heading">
+          <p class="eyebrow">Verifikation</p>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>Verifier-Skript</h3>
+            <p><a href="/download.php?id=verify-download-script&amp;src=downloads-de-verify-script&amp;lang=de"><code>/verify/verify_netmon_download.sh</code></a></p>
+          </article>
+          <article class="faq-card">
+            <h3>Schnellpruefung Paket</h3>
+            <p>Prueft nur die heruntergeladene <code>.deb</code>. Gut fuer den schnellen Alltagscheck.</p>
+            <pre><code>mkdir -p /tmp/netmon-check
+cd /tmp/netmon-check
+wget https://netmonroots.com/dist/netmon_1.1.21_all.deb
+wget https://netmonroots.com/dist/SHA256SUMS
+grep 'netmon_1.1.21_all.deb' SHA256SUMS | sha256sum -c</code></pre>
+          </article>
+          <article class="faq-card">
+            <h3>Signierte Releases</h3>
+            <p>Wenn ein Release signiert ausgeliefert wird, liegen zusaetzlich <code>SHA256SUMS.minisig</code>, der Public Key <code>netmonroots.minisign.pub</code> und das Verifier-Skript im Release-Bereich.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Vollpruefung inkl. Signatur</h3>
+            <p>Prueft Paket, Doku und danach die Herkunft der Hash-Datei per Minisign.</p>
+            <pre><code>mkdir -p /tmp/netmon-check/docs
+cd /tmp/netmon-check
+wget https://netmonroots.com/dist/netmon_1.1.21_all.deb
+wget https://netmonroots.com/dist/SHA256SUMS
+wget https://netmonroots.com/dist/SHA256SUMS.minisig
+wget https://netmonroots.com/dist/docs/netmon_dokumentation_1.1.21.pdf -O docs/netmon_dokumentation_1.1.21.pdf
+wget https://netmonroots.com/dist/docs/netmon_dokumentation_1.1.21.html -O docs/netmon_dokumentation_1.1.21.html
+wget https://netmonroots.com/verify/netmonroots.minisign.pub
+wget https://netmonroots.com/verify/verify_netmon_signature.sh
+chmod +x verify_netmon_signature.sh
+sha256sum -c SHA256SUMS
+bash verify_netmon_signature.sh \
+  netmonroots.minisign.pub \
+  SHA256SUMS.minisig \
+  SHA256SUMS</code></pre>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="version-note">
+          <p><strong>Paket:</strong> <code>1.1.21</code></p>
+          <p><strong>Doku:</strong> <code>1.1.21</code></p>
+          <p><strong>Status:</strong> Final Release. Vor der Installation bitte <a href="./aktuelles.html">Aktuelles</a> pruefen.</p>
+          <p><strong>Signatur:</strong> Signed releases werden per Minisign unterstuetzt.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <a href="./impressum.html">Impressum</a>
+      <a href="https://github.com/Noogman4/dev-lab" target="_blank" rel="noopener noreferrer">GitHub</a>
+    </footer>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>

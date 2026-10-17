@@ -26,7 +26,15 @@ except ModuleNotFoundError:
 
 
 def _app_value(app, name: str, default=None):
-    return app.__dict__.get(name, default)
+    if app is None:
+        return default
+    data = getattr(app, "__dict__", None)
+    if isinstance(data, dict) and name in data:
+        return data.get(name, default)
+    try:
+        return object.__getattribute__(app, name)
+    except AttributeError:
+        return default
 
 
 def _app_var_get(app, name: str, default=""):
@@ -53,6 +61,47 @@ def _app_var_set(app, name: str, value) -> bool:
 
 def _packet_capture_dep_enabled(app, name: str) -> bool:
     return bool((_app_value(app, "dep_status", {}) or {}).get(name))
+
+
+def _packet_capture_interfaces_from_tshark_output(
+    output: str,
+) -> tuple[list[str], list[str]]:
+    interfaces = []
+    details = []
+    for line in str(output or "").splitlines():
+        raw = line.strip()
+        if not raw:
+            continue
+        entry = raw.split(".", 1)[-1].strip() if "." in raw else raw
+        name = entry.split(" ", 1)[0].strip()
+        if name:
+            interfaces.append(name)
+            details.append(raw)
+    return interfaces, details
+
+
+def _packet_capture_interfaces_from_ip_output(output: str) -> list[str]:
+    interfaces = []
+    for line in str(output or "").splitlines():
+        parts = line.split(":", 2)
+        if len(parts) < 2:
+            continue
+        name = parts[1].strip().split("@", 1)[0]
+        if name:
+            interfaces.append(name)
+    return interfaces
+
+
+def _packet_capture_unique_interfaces(interfaces) -> list[str]:
+    unique = []
+    seen = set()
+    for name in interfaces:
+        value = str(name or "").strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        unique.append(value)
+    return unique
 
 
 def _packet_capture_text_widget(app):
@@ -440,6 +489,13 @@ def packet_capture_set_running_state(app, running):
     packet_capture_ready = _packet_capture_ready(app)
     states = _packet_capture_button_states(running, packet_capture_ready)
     _packet_capture_apply_button_states(app, states)
+    light = _app_value(app, "l_capture")
+    set_light = _app_value(app, "set_light")
+    if light is not None and callable(set_light):
+        try:
+            set_light(light, "green" if running else "red")
+        except Exception:
+            pass
 
 
 def append_packet_capture_output(app, text: str, replace: bool = False):
@@ -495,15 +551,10 @@ def refresh_packet_capture_interfaces(app):
     if _packet_capture_dep_enabled(app, "tshark"):
         rc, out = run_cmd(["tshark", "-D"], timeout=8)
         if rc == 0:
-            for line in (out or "").splitlines():
-                raw = line.strip()
-                if not raw:
-                    continue
-                entry = raw.split(".", 1)[-1].strip() if "." in raw else raw
-                name = entry.split(" ", 1)[0].strip()
-                if name:
-                    interfaces.append(name)
-                    details.append(raw)
+            parsed_interfaces, details = _packet_capture_interfaces_from_tshark_output(
+                out
+            )
+            interfaces.extend(parsed_interfaces)
         elif _packet_capture_looks_like_permission_issue(app, out):
             app.packet_capture_status_var.set("permission missing")
             append_packet_capture_output(
@@ -515,20 +566,8 @@ def refresh_packet_capture_interfaces(app):
     if not interfaces and _packet_capture_dep_enabled(app, "ip"):
         rc, out = run_cmd(["ip", "-o", "link", "show"], timeout=6)
         if rc == 0:
-            for line in (out or "").splitlines():
-                parts = line.split(":", 2)
-                if len(parts) < 2:
-                    continue
-                name = parts[1].strip().split("@", 1)[0]
-                if name:
-                    interfaces.append(name)
-    unique = []
-    seen = set()
-    for name in interfaces:
-        if name in seen:
-            continue
-        seen.add(name)
-        unique.append(name)
+            interfaces.extend(_packet_capture_interfaces_from_ip_output(out))
+    unique = _packet_capture_unique_interfaces(interfaces)
     app.packet_capture_interfaces = unique
     app.dep_status["packet_capture_interfaces"] = bool(unique)
     interface_combo = _app_value(app, "packet_capture_interface_combo")
@@ -820,7 +859,10 @@ def packet_capture_stop(app):
 
 
 def open_packet_capture_in_wireshark(app):
-    if callable(getattr(app, "wireshark_launch_blocked", None)) and app.wireshark_launch_blocked():
+    if (
+        callable(getattr(app, "wireshark_launch_blocked", None))
+        and app.wireshark_launch_blocked()
+    ):
         message = (
             "Wireshark launch is blocked in NetMon.\n"
             "Note: this option only blocks it inside NetMon. "

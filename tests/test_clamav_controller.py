@@ -189,7 +189,10 @@ def test_clamav_database_dir_has_signatures_detects_cvd_files(tmp_path):
 def test_clamav_user_database_dir_prefers_xdg_data_home(monkeypatch):
     monkeypatch.setenv("XDG_DATA_HOME", "/tmp/netmon-xdg")
 
-    assert clamav_controller.clamav_user_database_dir() == "/tmp/netmon-xdg/netmon/clamav-db"
+    assert (
+        clamav_controller.clamav_user_database_dir()
+        == "/tmp/netmon-xdg/netmon/clamav-db"
+    )
 
 
 def test_clamav_user_database_dir_falls_back_to_local_share(monkeypatch):
@@ -252,7 +255,10 @@ def test_clamav_database_args_skips_insecure_user_database_dir(tmp_path, monkeyp
     )
     app = SimpleNamespace(clamav_database_dir=str(insecure_db_dir))
 
-    assert clamav_controller.clamav_database_args(app) == ["--database", "/var/lib/clamav"]
+    assert clamav_controller.clamav_database_args(app) == [
+        "--database",
+        "/var/lib/clamav",
+    ]
 
 
 def test_clamav_quick_excluded_roots_keeps_existing_heavy_dirs(tmp_path, monkeypatch):
@@ -340,6 +346,32 @@ def test_clamav_nonfatal_completion_allows_access_warnings_after_real_scan():
     )
 
     assert clamav_controller.clamav_allows_nonfatal_scan_completion(output, 12) is True
+
+
+def test_clamav_summary_int_extracts_matching_label_value():
+    output = "Scanned files: 12\nInfected files: 3\n"
+
+    assert clamav_controller._clamav_summary_int(output, "Scanned files") == 12
+    assert clamav_controller._clamav_summary_int(output, "Infected files") == 3
+
+
+def test_clamav_summary_int_returns_none_for_invalid_or_missing_value():
+    assert (
+        clamav_controller._clamav_summary_int(
+            "Scanned files: unknown\n", "Scanned files"
+        )
+        is None
+    )
+    assert (
+        clamav_controller._clamav_summary_int("Infected files: 0\n", "Scanned files")
+        is None
+    )
+
+
+def test_clamav_parse_infected_count_falls_back_to_found_lines():
+    output = "/tmp/a: Eicar-Test-Signature FOUND\n/tmp/b: Other FOUND\n"
+
+    assert clamav_controller.clamav_parse_infected_count(output) == 2
 
 
 def test_load_clamav_findings_skips_invalid_entries_and_keeps_recent_300(tmp_path):

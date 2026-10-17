@@ -11,11 +11,22 @@ from netmon.features import security_audit_controller
 from netmon.features import security_monitoring_controller
 from netmon.services.lang_service import LangService
 from netmon.ui.tabs.connections_tab import build_connections_tab
+from netmon.ui.tabs.chad_tab import build_chad_analysis_header_and_composer
+from netmon.ui.tabs.chad_settings_tab import (
+    build_chad_settings_analysis_filter,
+    build_chad_settings_connection,
+    build_chad_settings_profiles,
+    build_chad_settings_status,
+)
 from netmon.ui.tabs.dns_tab import build_dns_tab
 from netmon.ui.tabs.fun_tab import build_fun_tab
 from netmon.ui.tabs.hdd_tab import build_hdd_tab
 from netmon.ui.tabs.linux_help_tab import build_linux_help_tab
 from netmon.ui.tabs.log_tab import build_log_tab
+from netmon.ui.tabs.settings_tab import (
+    build_settings_general_system,
+    build_settings_privacy,
+)
 from netmon.ui.tabs.security_tabs import build_security_tabs, build_startup_guard_tab
 from netmon.ui.tabs.tools_tabs import build_basic_tools_tabs
 
@@ -109,7 +120,7 @@ def test_main_tabs_and_security_sections_use_translation_keys():
     security_tabs_source = inspect.getsource(build_security_tabs)
     hdd_tab_source = inspect.getsource(build_hdd_tab)
     startup_source = inspect.getsource(build_startup_guard_tab)
-    chad_source = inspect.getsource(App.build_chad_analysis_tab)
+    chad_source = inspect.getsource(build_chad_analysis_header_and_composer)
     dnssec_source = inspect.getsource(App.run_dnssec_check)
     preflight_source = inspect.getsource(App.preflight_recheck)
     trace_source = inspect.getsource(App.trace_table_async)
@@ -170,29 +181,30 @@ def test_main_tabs_and_security_sections_use_translation_keys():
     )
     assert 'text=app.tr("security_group_actions", "Aktionen")' in security_tabs_source
     assert 'text=app.tr("path_guard_btn_check", "PATH prüfen")' in security_tabs_source
+    assert '"privacy_check_strict"' in inspect.getsource(build_settings_privacy)
     assert (
-        'text=self.tr(\n                "privacy_check_strict",'
-        in inspect.getsource(App.build_settings_tab)
-    )
-    assert (
-        'text=self.tr("settings_group_start_system", "Start & System")'
-        in inspect.getsource(App.build_settings_tab)
+        'text=app.tr("settings_group_start_system", "Start & System")'
+        in inspect.getsource(build_settings_general_system)
     )
     assert (
         'text=app.tr("startup_guard_btn_baseline", "Baseline erstellen")'
         in startup_source
     )
-    assert 'text=self.tr("chad_title", "Chad Analyse")' in chad_source
-    assert 'text=self.tr("chad_check_enabled", "Chad-Anbindung aktiv")' in chad_source
+    assert 'text=app.tr("chad_title", "Chad Analyse")' in chad_source
+    assert 'text=app.tr("chad_check_enabled", "Chad-Anbindung aktiv")' in chad_source
     assert '"<Return>"' in chad_source
+    chad_settings_connection_source = inspect.getsource(build_chad_settings_connection)
+    chad_settings_status_source = inspect.getsource(build_chad_settings_status)
+    chad_settings_profiles_source = inspect.getsource(build_chad_settings_profiles)
+    chad_settings_filter_source = inspect.getsource(build_chad_settings_analysis_filter)
     assert (
-        'text=self.tr("settings_group_chad_openai", "Chad Analyse / OpenAI")'
-        in inspect.getsource(App.build_chad_settings_tab)
+        'text=app.tr("settings_group_chad_openai", "Chad Analyse / OpenAI")'
+        in chad_settings_connection_source
     )
-    assert 'text="KI Status"' in inspect.getsource(App.build_chad_settings_tab)
-    assert 'text="Analysemodus"' in inspect.getsource(App.build_chad_settings_tab)
-    assert "VS Code-, Codex- und Docker-Hinweise minimieren" in inspect.getsource(
-        App.build_chad_settings_tab
+    assert 'text="KI Status"' in chad_settings_status_source
+    assert 'text="Analysemodus"' in chad_settings_profiles_source
+    assert (
+        "VS Code-, Codex- und Docker-Hinweise minimieren" in chad_settings_filter_source
     )
     assert 'chat_input = app.__dict__.get("chad_chat_input")' in inspect.getsource(
         chad_controller.send_chad_chat_message
@@ -222,7 +234,7 @@ def test_link_slot_and_vpn_slot_buttons_keep_original_per_button_size():
     assert 'style="LinkSlot.TButton"' in init_source
     assert "width=19," in init_source
     assert init_source.count("padding=(8, 6),") >= 2
-    assert 'pady=(0, 6) if idx < LINK_SLOT_COUNT - 1 else 0' in init_source
+    assert "pady=(0, 6) if idx < LINK_SLOT_COUNT - 1 else 0" in init_source
     assert "command=lambda i=idx: self.open_link_slot(i)," in init_source
     assert "command=lambda i=idx: self.open_vpn_slot(i)," in init_source
 
@@ -314,8 +326,12 @@ def test_download_scan_workspace_and_systemcheck_use_translation_keys():
     update_text_source = inspect.getsource(App._update_download_scan_result_text)
     choose_file_source = inspect.getsource(App.choose_download_scan_file)
     disable_temp_source = inspect.getsource(App.disable_download_scan_temp_folder)
-    missing_rkhunter_source = inspect.getsource(App._missing_rkhunter_for_chad_systemcheck_message)
-    missing_clamav_source = inspect.getsource(App._missing_clamav_for_chad_systemcheck_message)
+    missing_rkhunter_source = inspect.getsource(
+        App._missing_rkhunter_for_chad_systemcheck_message
+    )
+    missing_clamav_source = inspect.getsource(
+        App._missing_clamav_for_chad_systemcheck_message
+    )
 
     assert "download_scan_result_text_default" in update_text_source
     assert "download_scan_import_failed" in choose_file_source
@@ -482,9 +498,19 @@ def test_german_repository_guard_and_lynis_strings_do_not_use_known_english_ui_l
     assert de["lynis_btn_full_scan"] == "Vollständiger Sicherheitsscan (sudo)"
     assert de["settings_systemcheck_lynis"] == "Lynis Schnellaudit"
     assert de["repository_guard_btn_scan"] == "Repository-Scan"
-    assert de["repository_guard_scan_unavailable"] == "Repository-Scan: Noch nicht verfügbar"
-    assert de["repository_guard_findings_hint"] == "Bewertete Befunde erscheinen hier nach dem Scan."
-    assert de["chad_status_repository_guard_findings_copied"] == "Repository-Guard-Befunde in Zwischenablage kopiert."
+    assert de["repository_guard_btn_baseline"] == "Baseline jetzt aktualisieren"
+    assert (
+        de["repository_guard_scan_unavailable"]
+        == "Repository-Scan: Noch nicht verfügbar"
+    )
+    assert (
+        de["repository_guard_findings_hint"]
+        == "Bewertete Befunde erscheinen hier nach dem Scan."
+    )
+    assert (
+        de["chad_status_repository_guard_findings_copied"]
+        == "Repository-Guard-Befunde in Zwischenablage kopiert."
+    )
     assert de["dns_group_control"] == "DNS-Steuerung"
     assert de["dns_btn_health_check"] == "DNS-Health-Check"
     assert de["dns_btn_leak_check"] == "DNS-Leak-Check"

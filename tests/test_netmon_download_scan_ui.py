@@ -1,6 +1,10 @@
 import inspect
 
 from netmon.app import App
+from netmon.ui.tabs.download_scan_tab import (
+    build_download_scan_content,
+    build_download_scan_prequarantine_actions,
+)
 from netmon.ui.tabs.security_tabs import build_security_tabs
 
 
@@ -17,18 +21,27 @@ class DummyVar:
 
 def test_download_scan_tab_source_contains_startup_checkbox():
     source = inspect.getsource(App.build_download_scan_tab)
+    content_source = inspect.getsource(build_download_scan_content)
+    actions_source = inspect.getsource(build_download_scan_prequarantine_actions)
 
-    assert 'text="Temp-Ordner aktivieren"' in source
-    assert 'text="Temp-Ordner deaktivieren"' in source
-    assert 'text="Temp-Ordner öffnen"' in source
-    assert 'text="Pfad kopieren"' in source
-    assert 'text="Temp-Ordner leeren"' in source
-    assert "command=self.disable_download_scan_temp_folder" in source
-    assert 'text="Vor-Quarantäne bei NetMon-Start automatisch aktivieren"' in source
-    assert "variable=self.download_scan_prequarantine_startup_var" in source
-    assert "command=self.on_download_scan_prequarantine_startup_toggle" in source
-    assert "temp_manage_btns = ttk.Frame(temp_btns)" in source
-    assert "temp_access_btns = ttk.Frame(temp_btns)" in source
+    assert "build_download_scan_content(self)" in source
+    assert (
+        "build_download_scan_prequarantine_actions(app, temp_group)" in content_source
+    )
+    assert 'text="Temp-Ordner aktivieren"' in actions_source
+    assert 'text="Temp-Ordner deaktivieren"' in actions_source
+    assert 'text="Temp-Ordner öffnen"' in actions_source
+    assert 'text="Pfad kopieren"' in actions_source
+    assert 'text="Temp-Ordner leeren"' in actions_source
+    assert "command=app.disable_download_scan_temp_folder" in actions_source
+    assert (
+        'text="Vor-Quarantäne bei NetMon-Start automatisch aktivieren"'
+        in actions_source
+    )
+    assert "variable=app.download_scan_prequarantine_startup_var" in actions_source
+    assert "command=app.on_download_scan_prequarantine_startup_toggle" in actions_source
+    assert "temp_manage_btns = ttk.Frame(temp_btns)" in actions_source
+    assert "temp_access_btns = ttk.Frame(temp_btns)" in actions_source
 
 
 def test_prepare_download_scan_startup_state_only_prepares_when_enabled():

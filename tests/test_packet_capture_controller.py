@@ -20,6 +20,14 @@ class DummyButton:
         self.calls.append(kwargs)
 
 
+class DummyCombo:
+    def __init__(self):
+        self.calls = []
+
+    def configure(self, **kwargs):
+        self.calls.append(kwargs)
+
+
 class DummyText:
     def __init__(self):
         self.value = ""
@@ -57,6 +65,9 @@ def test_packet_capture_set_running_state_updates_button_states():
     app.dep_status = {"tshark": True, "dumpcap": False}
     app.btn_packet_capture_start = DummyButton()
     app.btn_packet_capture_stop = DummyButton()
+    app.l_capture = object()
+    light_calls = []
+    app.set_light = lambda light, color: light_calls.append((light, color))
 
     packet_capture_controller.packet_capture_set_running_state(app, True)
     packet_capture_controller.packet_capture_set_running_state(app, False)
@@ -65,6 +76,19 @@ def test_packet_capture_set_running_state_updates_button_states():
     assert app.btn_packet_capture_stop.calls[0]["state"] == "normal"
     assert app.btn_packet_capture_start.calls[1]["state"] == "normal"
     assert app.btn_packet_capture_stop.calls[1]["state"] == "disabled"
+    assert light_calls == [(app.l_capture, "green"), (app.l_capture, "red")]
+
+
+def test_packet_capture_app_value_falls_back_to_bound_methods():
+    app = type(
+        "DummyApp",
+        (),
+        {"set_light": lambda self, light, color: (light, color)},
+    )()
+
+    value = packet_capture_controller._app_value(app, "set_light")
+
+    assert callable(value)
 
 
 def test_packet_capture_ready_returns_true_if_any_capture_tool_exists():
@@ -219,8 +243,14 @@ def test_packet_capture_has_existing_file_returns_true_only_for_real_file(tmp_pa
     missing_app = type("DummyApp", (), {})()
     missing_app.packet_capture_output_path = str(missing_file)
 
-    assert packet_capture_controller._packet_capture_has_existing_file(existing_app) is True
-    assert packet_capture_controller._packet_capture_has_existing_file(missing_app) is False
+    assert (
+        packet_capture_controller._packet_capture_has_existing_file(existing_app)
+        is True
+    )
+    assert (
+        packet_capture_controller._packet_capture_has_existing_file(missing_app)
+        is False
+    )
 
 
 def test_packet_capture_start_async_skips_file_info_for_permission_error_without_capture_file(
@@ -270,18 +300,23 @@ def test_packet_capture_start_async_skips_file_info_for_permission_error_without
     app._looks_like_dumpcap_permission_issue = (
         lambda text: "operation not permitted" in str(text).lower()
     )
-    app.show_dumpcap_permission_hint = (
-        lambda: setattr(app, "permission_hint_calls", app.permission_hint_calls + 1)
+    app.show_dumpcap_permission_hint = lambda: setattr(
+        app, "permission_hint_calls", app.permission_hint_calls + 1
     )
     app.after = lambda _delay, callback: callback()
 
     monkeypatch.setattr(packet_capture_controller.subprocess, "Popen", FakeProc)
     monkeypatch.setattr(packet_capture_controller.threading, "Thread", ImmediateThread)
-    monkeypatch.setattr(packet_capture_controller, "call_in_ui_thread", lambda _app, fn: fn())
+    monkeypatch.setattr(
+        packet_capture_controller, "call_in_ui_thread", lambda _app, fn: fn()
+    )
 
     packet_capture_controller.packet_capture_start_async(app)
 
-    assert "You do not have permission to capture on device" not in app.packet_capture_text.value
+    assert (
+        "You do not have permission to capture on device"
+        not in app.packet_capture_text.value
+    )
     assert "Capture fehlgeschlagen: keine Berechtigung" in app.packet_capture_text.value
     assert "Hinweis: Capture wurde mit Fehler beendet." in app.packet_capture_text.value
     assert "Capture-Datei nicht gefunden" not in app.packet_capture_text.value
@@ -889,6 +924,60 @@ def test_packet_capture_no_interfaces_message_mentions_required_tools():
 
     assert "tshark" in message
     assert "iproute2" in message
+
+
+def test_packet_capture_interfaces_from_tshark_output_extracts_names_and_details():
+    interfaces, details = (
+        packet_capture_controller._packet_capture_interfaces_from_tshark_output(
+            "1. eth0\n2. any (Pseudo-device)\n\nlo\n"
+        )
+    )
+
+    assert interfaces == ["eth0", "any", "lo"]
+    assert details == ["1. eth0", "2. any (Pseudo-device)", "lo"]
+
+
+def test_packet_capture_interfaces_from_ip_output_strips_peer_suffix():
+    assert packet_capture_controller._packet_capture_interfaces_from_ip_output(
+        "1: lo: <LOOPBACK>\n" "2: enp4s0@if3: <BROADCAST>\n" "invalid\n"
+    ) == ["lo", "enp4s0"]
+
+
+def test_packet_capture_unique_interfaces_keeps_first_seen_order():
+    assert packet_capture_controller._packet_capture_unique_interfaces(
+        ["eth0", "lo", "eth0", "", " wlan0 "]
+    ) == ["eth0", "lo", "wlan0"]
+
+
+def test_refresh_packet_capture_interfaces_deduplicates_tshark_interfaces(monkeypatch):
+    app = type("DummyApp", (), {})()
+    app.dep_status = {"tshark": True, "ip": False}
+    app.tab_packet_capture = object()
+    app.packet_capture_interface_var = DummyVar("")
+    app.packet_capture_status_var = DummyVar("")
+    app.packet_capture_text = DummyText()
+    app.packet_capture_interface_combo = DummyCombo()
+    app.selected_tabs = []
+    app._select_security_tab = lambda tab: app.selected_tabs.append(tab)
+    app.show_dumpcap_permission_hint = lambda: None
+
+    def fake_run_cmd(args, timeout=0):
+        assert args == ["tshark", "-D"]
+        assert timeout == 8
+        return 0, "1. eth0\n2. lo\n3. eth0\n"
+
+    monkeypatch.setattr(packet_capture_controller, "run_cmd", fake_run_cmd)
+
+    packet_capture_controller.refresh_packet_capture_interfaces(app)
+
+    assert app.packet_capture_interfaces == ["eth0", "lo"]
+    assert app.dep_status["packet_capture_interfaces"] is True
+    assert app.packet_capture_interface_var.get() == "eth0"
+    assert app.packet_capture_status_var.get() == "interfaces ready"
+    assert app.packet_capture_interface_combo.calls == [{"values": ["eth0", "lo"]}]
+    assert app.packet_capture_text.value == (
+        "Verfügbare Interfaces: eth0, lo\n\n1. eth0\n2. lo\n3. eth0\n"
+    )
 
 
 def test_packet_capture_dumpcap_permission_message_matches_expected_text():

@@ -976,12 +976,10 @@ def test_apply_profile_ufw_rules_non_killswitch_uses_dedupe_wrapper_without_tk_g
     app._read_ufw_status = lambda verbose=True: (0, "Status: active")
     app._ufw_status_is_active = lambda _text: True
     app._ufw_existing_rule_keys = lambda _text: set()
-    app.ensure_ufw_rule_exists = (
-        lambda rule, network_service=None, known_keys=None: (
-            ensure_calls.append(rule),
-            (True, True, "", known_keys if known_keys is not None else set()),
-        )[1]
-    )
+    app.ensure_ufw_rule_exists = lambda rule, network_service=None, known_keys=None: (
+        ensure_calls.append(rule),
+        (True, True, "", known_keys if known_keys is not None else set()),
+    )[1]
     app._dedupe_vpn_ufw_rules = lambda: 2
 
     assert (
@@ -1009,8 +1007,10 @@ def test_validate_manual_wireguard_form_requires_and_normalizes_address():
     app.manual_wg_keepalive_var = DummyVar("25")
     app._is_internal_ipv4_profile = lambda profile: False
     app._is_valid_wireguard_key = lambda value: True
-    app._parse_manual_wireguard_endpoint = (
-        lambda endpoint: ("146.70.174.162", "51820", "")
+    app._parse_manual_wireguard_endpoint = lambda endpoint: (
+        "146.70.174.162",
+        "51820",
+        "",
     )
 
     payload, err = app._validate_manual_wireguard_form()
@@ -1277,6 +1277,25 @@ def test_base_wg_profile_name_strips_internal_ipv4_suffix():
     assert app._base_wg_profile_name("") == ""
 
 
+def test_internal_ipv4_profile_candidates_keep_legacy_name_for_short_profile():
+    app = netmon.App.__new__(netmon.App)
+
+    assert app._internal_ipv4_profile_candidates("proton") == ["proton__ipv4"]
+
+
+def test_internal_ipv4_profile_candidates_prefer_compact_name_for_long_profile():
+    app = netmon.App.__new__(netmon.App)
+
+    candidates = app._internal_ipv4_profile_candidates(
+        "very-long-profile-name-for-wireguard"
+    )
+
+    assert len(candidates) == 2
+    assert candidates[0].startswith("n4_")
+    assert len(candidates[0]) <= 15
+    assert candidates[1] == "very-long-profile-name-for-wireguard__ipv4"
+
+
 def test_privacy_vpn_options_and_mappings_from_netmon_profiles():
     app = netmon.App.__new__(netmon.App)
     app.wg_profiles = ["proton", "user-vpn", "custom", "custom-other"]
@@ -1433,8 +1452,7 @@ def test_check_wireguard_profile_for_multiple_endpoints_logs_warning(tmp_path):
     app.log_safe = lambda msg: logs.append(msg)
 
     path = tmp_path / "proton.conf"
-    path.write_text(
-        """
+    path.write_text("""
 [Interface]
 PrivateKey=abc
 
@@ -1442,8 +1460,7 @@ PrivateKey=abc
 PublicKey=abc
 Endpoint=1.1.1.1:51820
 Endpoint=2.2.2.2:51820
-"""
-    )
+""")
     logs = []
 
     app._check_wireguard_profile_for_multiple_endpoints("proton")
@@ -1465,7 +1482,7 @@ def test_list_wg_profiles_omits_missing_default_profiles():
         lambda _app, include_internal=False: ["wg-b"],
     )
     monkeypatch.setattr(
-        netmon.vpn_controller, "get_nm_vpn_profiles", lambda _app: ["wg-b"]
+        netmon.vpn_controller, "get_nm_wireguard_profiles", lambda _app: ["wg-b"]
     )
     try:
         assert app.list_wg_profiles() == ["wg-a", "wg-b"]

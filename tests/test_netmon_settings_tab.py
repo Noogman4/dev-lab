@@ -4,8 +4,26 @@ import os
 
 import netmon.app as app_module
 from netmon.app import App
-from netmon.ui.tabs.settings_tab import build_settings_tab
-from netmon.ui.tabs.chad_settings_tab import build_chad_settings_tab
+from netmon.ui.tabs.settings_tab import (
+    build_settings_donation,
+    build_settings_content,
+    build_settings_general_system,
+    build_settings_logging,
+    build_settings_maintenance,
+    build_settings_privacy,
+    build_settings_security,
+    build_settings_tab,
+)
+from netmon.ui.tabs.chad_settings_tab import (
+    build_security_systemcheck_panel,
+    build_chad_settings_summary,
+    build_chad_settings_tab,
+)
+from netmon.ui.tabs.theme_studio_tab import (
+    build_theme_studio_color_controls,
+    build_theme_studio_layout,
+    build_theme_studio_style_actions,
+)
 from netmon.ui.tabs.vpn_slots_tab import build_vpn_slots_tab
 
 
@@ -172,9 +190,13 @@ def test_apply_settings_from_ui_updates_runtime_and_persists():
     assert app.settings["chad_answer_risk"] is True
     assert app.settings["chad_answer_recommendations"] is False
     assert app.lang["loaded_language"] == "en"
-    assert ("runtime", None) in calls
-    assert ("settings", True) in calls
-    assert ("privacy", None) in calls
+    assert calls == [
+        ("runtime", None),
+        ("settings", True),
+        ("privacy", None),
+        ("log", "Sprache geändert – Neustart empfohlen."),
+        ("log", "Einstellungen übernommen."),
+    ]
 
 
 def test_save_theme_studio_profile_writes_json_payload(tmp_path, monkeypatch):
@@ -937,68 +959,74 @@ def test_enable_and_disable_radio_desktop_launcher_manage_user_entry(
 
 def test_settings_tab_source_and_hooks_are_present():
     build_source = inspect.getsource(App.build_settings_tab)
-    chad_settings_source = inspect.getsource(App.build_chad_settings_tab)
+    content_source = inspect.getsource(build_settings_content)
+    general_system_source = inspect.getsource(build_settings_general_system)
+    donation_source = inspect.getsource(build_settings_donation)
+    logging_source = inspect.getsource(build_settings_logging)
+    maintenance_source = inspect.getsource(build_settings_maintenance)
+    privacy_source = inspect.getsource(build_settings_privacy)
+    security_source = inspect.getsource(build_settings_security)
+    systemcheck_source = inspect.getsource(build_security_systemcheck_panel)
+    chad_summary_source = inspect.getsource(build_chad_settings_summary)
     app_source = inspect.getsource(App)
+    theme_layout_source = inspect.getsource(build_theme_studio_layout)
+    theme_color_source = inspect.getsource(build_theme_studio_color_controls)
+    theme_actions_source = inspect.getsource(build_theme_studio_style_actions)
     vpn_slots_source = inspect.getsource(build_vpn_slots_tab)
     wrapper_source = inspect.getsource(build_settings_tab)
     chad_wrapper_source = inspect.getsource(build_chad_settings_tab)
 
-    assert 'self.tr("settings_save_button", "Einstellungen speichern")' in build_source
-    save_button_pos = build_source.index('self.tr("settings_save_button"')
-    restart_button_pos = build_source.index(
-        'self.tr("settings_restart_netmon_only"', save_button_pos
+    assert '"settings_save_button"' in general_system_source
+    save_button_pos = general_system_source.index('"settings_save_button"')
+    restart_button_pos = general_system_source.index(
+        '"settings_restart_netmon_only"', save_button_pos
     )
-    reset_button_pos = build_source.index(
-        'self.tr("settings_reset_button"', restart_button_pos
+    reset_button_pos = general_system_source.index(
+        '"settings_reset_button"', restart_button_pos
     )
     assert save_button_pos < restart_button_pos < reset_button_pos
-    assert 'self.tr(\n                "settings_autostart",' in build_source
-    assert "variable=self.autostart_var" in build_source
-    assert "command=self.toggle_autostart" in build_source
-    assert (
-        'self.tr(\n                "settings_radio_desktop_launcher",' in build_source
-    )
-    assert "variable=self.radio_desktop_launcher_var" in build_source
-    assert "command=self.toggle_radio_desktop_launcher" in build_source
-    assert 'self.tr(\n                "settings_path_guard_autorun",' in build_source
-    assert 'text="System"' in build_source
-    assert "variable=self.var_start_security_monitoring" in build_source
+    assert '"settings_autostart"' in general_system_source
+    assert "app.autostart_var" in general_system_source
+    assert "app.toggle_autostart" in general_system_source
+    assert '"settings_radio_desktop_launcher"' in general_system_source
+    assert "app.radio_desktop_launcher_var" in general_system_source
+    assert "app.toggle_radio_desktop_launcher" in general_system_source
+    assert '"settings_path_guard_autorun"' in security_source
+    assert '"settings_group_system"' in maintenance_source
+    assert "app.var_start_security_monitoring" in general_system_source
     assert "variable=self.var_start_network_mode" not in build_source
     assert "textvariable=self.var_start_vpn_profile" not in build_source
     assert "variable=self.var_start_killswitch" not in build_source
     assert "variable=self.var_start_dot" not in build_source
-    assert "textvariable=self.var_theme_choice" in build_source
-    assert "values=list(THEME_DISPLAY_NAMES.values())" in build_source
-    assert 'self.tr("privacy_group_stealth", "ISP-Stealthmodus")' in build_source
-    assert "variable=self.isp_stealth_enabled" in build_source
-    assert "variable=self.isp_stealth_autostart" in build_source
-    assert "variable=self.isp_stealth_disable_ipv6" in build_source
-    assert "variable=self.isp_stealth_enable_killswitch" in build_source
-    assert "textvariable=self.isp_stealth_vpn_choice" in build_source
-    assert (
-        'self.tr(\n                "privacy_dns_profile_vpn_managed_hint",'
-        in build_source
-    )
-    assert "variable=self.var_auto_log_clear" in build_source
-    assert "variable=self.var_debug_network_logging" in build_source
-    assert "textvariable=self.var_ufw_logging_default" in build_source
-    assert 'self.tr("settings_group_donation", "NetMon unterstützen")' in build_source
-    assert "variable=self.var_donation_popup_enabled" in build_source
-    assert (
-        'self.tr(\n                "settings_donation_support_button",' in build_source
-    )
-    assert 'self.tr("settings_group_system", "System")' in build_source
-    assert "command=self.restart_netmon_only" in build_source
+    assert "app.var_theme_choice" in general_system_source
+    assert "list(theme_display_names.values())" in general_system_source
+    assert 'app.tr("privacy_group_stealth", "ISP-Stealthmodus")' in privacy_source
+    assert "app.isp_stealth_enabled" in privacy_source
+    assert "app.isp_stealth_autostart" in privacy_source
+    assert "app.isp_stealth_disable_ipv6" in privacy_source
+    assert "app.isp_stealth_enable_killswitch" in privacy_source
+    assert "textvariable=app.isp_stealth_vpn_choice" in privacy_source
+    assert '"privacy_dns_profile_vpn_managed_hint"' in privacy_source
+    assert "app.var_auto_log_clear" in logging_source
+    assert "app.var_debug_network_logging" in logging_source
+    assert "app.var_ufw_logging_default" in logging_source
+    assert '"settings_tab_backup", "Backup"' in content_source
+    assert 'app.tr("settings_group_donation", "NetMon unterstützen")' in donation_source
+    assert "app.var_donation_popup_enabled" in donation_source
+    assert '"settings_donation_support_button"' in donation_source
+    assert 'app.tr("settings_group_system", "System")' in maintenance_source
+    assert "app._build_settings_backup_tab(backup_tab)" in content_source
+    assert "app.restart_netmon_only" in maintenance_source
     assert "def build_theme_studio_tab(self):" in app_source
     assert "def apply_theme_studio_settings(self):" in app_source
     assert "def save_theme_studio_profile(self):" in app_source
     assert "def load_theme_studio_profile(self):" in app_source
-    assert 'text="Live-Vorschau"' in app_source
-    assert 'text="Farbe wählen"' in app_source
-    assert 'text="Theme speichern"' in app_source
-    assert 'text="Theme laden"' in app_source
-    assert 'text="Systembewertung"' in chad_settings_source
-    assert "settings_security_systemcheck" not in chad_settings_source
+    assert '"Live-Vorschau"' in theme_layout_source
+    assert '"Farbe wählen"' in theme_color_source
+    assert '"theme_studio_btn_save_theme"' in theme_actions_source
+    assert '"theme_studio_btn_load_theme"' in theme_actions_source
+    assert '"Systembewertung"' in chad_summary_source
+    assert "settings_security_systemcheck" in systemcheck_source
     assert "build_security_systemcheck_panel(" in app_source
     assert "vpn_side_panel" not in vpn_slots_source
     assert 'text=app.tr("tab_settings", "Einstellungen")' in wrapper_source

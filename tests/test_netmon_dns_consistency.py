@@ -235,11 +235,14 @@ def test_on_light_click_routes_to_matching_tabs():
     app.tab_dns = object()
     app.tab_conn = object()
     app.tab_security = object()
+    app.tab_lynis = object()
+    app.tab_lynis_hardening = object()
     app.tab_path_guard = object()
     app.tab_system = object()
     app.tab_vpn_slots = object()
     app._select_system_tab = lambda tab: events.append(("system", tab))
     app._select_security_tab = lambda tab: events.append(("security", tab))
+    app.lynis_sections = DummyNotebook()
     app.show_dns_guard_details = lambda: events.append(("dns_guard", None))
     app.open_startup_guard_tab = lambda: events.append(("startup", None))
 
@@ -256,6 +259,7 @@ def test_on_light_click_routes_to_matching_tabs():
     app.on_light_click("dot")
     app.on_light_click("dns_guard")
     app.on_light_click("startup_guard")
+    app.on_light_click("game_mode")
 
     assert events == [
         ("select", app.tab_dns),
@@ -271,6 +275,8 @@ def test_on_light_click_routes_to_matching_tabs():
         ("select", app.tab_dns),
         ("dns_guard", None),
         ("startup", None),
+        ("security", app.tab_lynis),
+        ("select", app.tab_lynis_hardening),
     ]
 
 
@@ -301,14 +307,12 @@ def test_update_dns_header_falls_back_to_active_resolver_dns():
 
 def test_parse_dot_resolvectl_status_extracts_mode_and_servers():
     app = netmon.App.__new__(netmon.App)
-    parsed = app._parse_dot_resolvectl_status(
-        """
+    parsed = app._parse_dot_resolvectl_status("""
 Global
          Protocols: +LLMNR +mDNS +DNSOverTLS DNSSEC=no/unsupported
 Current DNS Server: 1.1.1.1#cloudflare-dns.com
        DNS Servers: 1.1.1.1#cloudflare-dns.com 1.0.0.1#cloudflare-dns.com
-"""
-    )
+""")
 
     assert parsed["mode"] == "yes"
     assert parsed["current_server"] == "1.1.1.1"
@@ -431,15 +435,13 @@ def test_analyze_dns_health_reports_dot_vpn_conflict(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(netmon, "DOT_DROPIN_PATH", str(dropin))
 
-    result = app.analyze_dns_health_output(
-        """
+    result = app.analyze_dns_health_output("""
 Link 7 (proton0)
     Protocols: +DNSOverTLS
     DNSSEC setting: allow-downgrade
     Current DNS Server: 10.2.0.1
     DNS Servers: 10.2.0.1
-"""
-    )
+""")
 
     assert "✔ Aktiver DNS-Server: 10.2.0.1" in result
     assert "✔ DNS-over-TLS: aktiv" in result
@@ -903,16 +905,14 @@ def test_evaluate_dns_policy_flags_global_dns_with_vpn(monkeypatch, tmp_path):
     monkeypatch.setattr(netmon, "DOT_DROPIN_PATH", str(dropin))
     monkeypatch.setattr(netmon, "DOT_DROPIN_DIR", str(tmp_path))
 
-    evaluation = app.evaluate_dns_policy(
-        """
+    evaluation = app.evaluate_dns_policy("""
 Link 2 (enp4s0)
     Current DNS Server: 1.1.1.1
     DNS Servers: 1.1.1.1
 Link 7 (proton0)
     Current DNS Server: 10.2.0.1
     DNS Servers: 10.2.0.1 2a07:b944::2:1
-"""
-    )
+""")
 
     assert evaluation["vpn_active"] is True
     assert evaluation["vpn_dns"] == ["10.2.0.1", "2a07:b944::2:1"]
@@ -925,26 +925,16 @@ Link 7 (proton0)
 def test_detect_vpn_active_ignores_non_link_text():
     app = netmon.App.__new__(netmon.App)
 
-    assert (
-        app.detect_vpn_active(
-            """
+    assert app.detect_vpn_active("""
 Global
     DNS Domain: vpn.example.org
     Current DNS Server: 1.1.1.1
-"""
-        )
-        is False
-    )
-    assert (
-        app.detect_vpn_active(
-            """
+""") is False
+    assert app.detect_vpn_active("""
 Link 7 (proton0)
     Current DNS Server: 10.2.0.1
     DNS Servers: 10.2.0.1 2a07:b944::2:1
-"""
-        )
-        is True
-    )
+""") is True
 
 
 def test_detect_vpn_active_recognizes_custom_wireguard_interface():
@@ -957,16 +947,11 @@ def test_detect_vpn_active_recognizes_custom_wireguard_interface():
         dot_dropin_dir="/tmp",
     )
 
-    assert (
-        service.detect_vpn_active(
-            """
+    assert service.detect_vpn_active("""
 Link 7 (work0)
     Current DNS Server: 10.2.0.1
     DNS Servers: 10.2.0.1 2a07:b944::2:1
-"""
-        )
-        is True
-    )
+""") is True
 
 
 def test_find_vpn_dns_servers_recognizes_custom_wireguard_interface():
@@ -979,19 +964,62 @@ def test_find_vpn_dns_servers_recognizes_custom_wireguard_interface():
         dot_dropin_dir="/tmp",
     )
 
-    iface, servers = service.find_vpn_dns_servers(
-        """
+    iface, servers = service.find_vpn_dns_servers("""
 Link 7 (work0)
     Current DNS Server: 10.2.0.1
     DNS Servers: 10.2.0.1 2a07:b944::2:1
 Link 2 (enp4s0)
     Current DNS Server: 1.1.1.1
     DNS Servers: 1.1.1.1
-"""
-    )
+""")
 
     assert iface == "work0"
     assert servers == ["10.2.0.1", "2a07:b944::2:1"]
+
+
+def test_parse_active_dns_servers_includes_continuation_lines():
+    service = netmon.DNSControlService(
+        lambda *_args, **_kwargs: (0, ""),
+        lambda _name: False,
+        dot_dropin_path="/tmp/netmon-dot.conf",
+        dot_dropin_dir="/tmp",
+    )
+
+    servers = service.parse_active_dns_servers("""
+Global
+    DNS Servers: 1.1.1.1
+                 8.8.8.8 2606:4700:4700::1111
+    DNSSEC setting: no
+""")
+
+    assert servers == ["1.1.1.1", "2606:4700:4700::1111", "8.8.8.8"]
+
+
+def test_parse_link_sections_stops_dns_collection_on_non_dns_line():
+    service = netmon.DNSControlService(
+        lambda *_args, **_kwargs: (0, ""),
+        lambda _name: False,
+        dot_dropin_path="/tmp/netmon-dot.conf",
+        dot_dropin_dir="/tmp",
+    )
+
+    sections = service.parse_link_sections("""
+Link 2 (enp4s0)
+    DNS Servers: 192.168.1.1
+                 1.1.1.1
+    DNS Domain: lan
+                 not-a-dns-token
+""")
+
+    assert sections == [
+        {
+            "header": "Link 2 (enp4s0)",
+            "iface": "enp4s0",
+            "is_vpn": False,
+            "dns_servers": ["1.1.1.1", "192.168.1.1"],
+            "current_dns_server": "",
+        }
+    ]
 
 
 def test_dns_private_detection_normalizes_hostname_suffixes():
@@ -2717,6 +2745,71 @@ def test_refresh_updates_ufw_logging_light():
     assert calls == ["ufw-log"]
 
 
+def test_refresh_sets_firewall_gray_when_ufw_status_is_not_readable_yet():
+    app = netmon.App.__new__(netmon.App)
+    colors = []
+
+    app.check_internet = lambda: True
+    app.active_wg_profile = lambda: None
+    app._read_ufw_status = lambda verbose=False: (1, "")
+    app.killswitch_is_on = lambda: False
+    app.update_ipv6_controls_state = lambda: None
+    app.update_primary_vpn_form_controls = lambda: None
+    app.sync_primary_vpn_form_selection = lambda: None
+    app.sync_vpn_profile_form_selection = lambda: None
+    app.update_dns_header = lambda: None
+    app.update_wg_rates = lambda: None
+    app.set_light = lambda light, color: colors.append((light, color))
+    app.l_inet = object()
+    app.l_vpn = object()
+    app.l_fw = object()
+    app.l_ssh = object()
+    app.l_ufw_log = object()
+    app.l_ks = object()
+    app.l_ipv6 = object()
+    app.dns_choice = DummyVar("Cloudflare")
+    app.wg_profiles = []
+    app.vpn_profile_combo = DummyCombo()
+    app._update_dns_consistency_light = lambda: None
+    app._update_dot_light = lambda: None
+    app.update_vpn_slot_buttons = lambda: None
+    app.refresh_vpn_slots_table = lambda: None
+    app.ip_country_async = lambda force=False: None
+    app.whoami_async = lambda force=False: None
+    app.get_wg_iface = lambda: ""
+    app.get_default_iface = lambda: "enp4s0"
+    app.profile_supports_ipv6 = lambda profile: False
+    app.ipv6_is_disabled = lambda: False
+    app.ipv6_runtime_available_on_iface = lambda iface: False
+    app.info = DummyVar()
+    app.wg_rx_rate = 0.0
+    app.wg_tx_rate = 0.0
+    app.public_ip = "198.51.100.42"
+    app.country = "DE"
+    app.isp_stealth_enabled = DummyVar(False)
+    app.status_text = DummyTkLabel()
+    app.refresh_dns_policy_status = lambda: None
+    app.refresh_security_summary = lambda: None
+    app.update_dns_controls_state = lambda: None
+    app.update_ipv6_controls_state_safe = lambda: None
+    app.system_monitor_refresh = lambda: None
+    app.dns_guard_transition_until = 0.0
+    app.dns_policy_running = False
+    app.dot_running = False
+    app.internet_fail_streak = 0
+    app.update_ufw_logging_light = lambda: None
+    app.update_vpn_status_text = lambda: None
+
+    app.refresh()
+
+    fw_colors = [color for light, color in colors if light is app.l_fw]
+    ks_colors = [color for light, color in colors if light is app.l_ks]
+    ssh_colors = [color for light, color in colors if light is app.l_ssh]
+    assert fw_colors == ["gray"]
+    assert ks_colors == ["gray"]
+    assert ssh_colors == ["gray"]
+
+
 def test_refresh_no_longer_starts_dns_consistency_loop():
     app = netmon.App.__new__(netmon.App)
     calls = []
@@ -3294,9 +3387,9 @@ def test_apply_automatic_dns_restore_choice_bypasses_ui_lock_during_transition()
 
     app._dns_runtime_transition_active = lambda: True
     app._set_dns_choice_safe = lambda choice: calls.append(("set", choice))
-    app._apply_dns_profile_choice_via_control = (
-        lambda choice: calls.append(("control", choice)) or {"success": True}
-    )
+    app._apply_dns_profile_choice_via_control = lambda choice: calls.append(
+        ("control", choice)
+    ) or {"success": True}
     app.refresh_dns_policy_status = lambda: calls.append(("refresh", None))
     app.apply_dns = lambda **kwargs: calls.append(("apply_dns", kwargs)) or False
     app.log_safe = lambda _message: None
@@ -3345,7 +3438,9 @@ def test_restore_isp_dns_on_startup_skips_when_dns_already_present(monkeypatch):
     app.log_network_debug = debug_logs.append
 
     monkeypatch.setattr(netmon, "has_cmd", lambda name: name == "resolvectl")
-    monkeypatch.setattr(netmon, "run_cmd", lambda args, timeout=0: (0, "DNS Servers: 1.1.1.1"))
+    monkeypatch.setattr(
+        netmon, "run_cmd", lambda args, timeout=0: (0, "DNS Servers: 1.1.1.1")
+    )
 
     assert app._restore_isp_dns_on_startup_if_needed() is False
     assert calls == []

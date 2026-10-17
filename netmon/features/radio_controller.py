@@ -180,15 +180,55 @@ RADIO_DATABASE_EXCLUSIVE_COUNTRY_SOURCE_IDS = {
 }
 
 RADIO_STATION_LIST_COLUMN_DEFS = {
-    "name": {"title_key": "radio_col_name", "title": "Station", "width": 260, "anchor": "w"},
-    "genre": {"title_key": "radio_col_genre", "title": "Genre", "width": 180, "anchor": "w"},
-    "tags": {"title_key": "radio_col_tags", "title": "Tags", "width": 260, "anchor": "w"},
-    "bitrate": {"title_key": "radio_col_bitrate", "title": "Bitrate", "width": 80, "anchor": "e"},
+    "name": {
+        "title_key": "radio_col_name",
+        "title": "Station",
+        "width": 260,
+        "anchor": "w",
+    },
+    "genre": {
+        "title_key": "radio_col_genre",
+        "title": "Genre",
+        "width": 180,
+        "anchor": "w",
+    },
+    "tags": {
+        "title_key": "radio_col_tags",
+        "title": "Tags",
+        "width": 260,
+        "anchor": "w",
+    },
+    "bitrate": {
+        "title_key": "radio_col_bitrate",
+        "title": "Bitrate",
+        "width": 80,
+        "anchor": "e",
+    },
     "url": {"title_key": "radio_col_url", "title": "URL", "width": 220, "anchor": "w"},
-    "homepage": {"title_key": "radio_col_homepage", "title": "Homepage", "width": 220, "anchor": "w"},
-    "country": {"title_key": "radio_col_country", "title": "Country", "width": 120, "anchor": "w"},
-    "language": {"title_key": "radio_col_language", "title": "Language", "width": 100, "anchor": "w"},
-    "codec": {"title_key": "radio_col_codec", "title": "Codec", "width": 80, "anchor": "w"},
+    "homepage": {
+        "title_key": "radio_col_homepage",
+        "title": "Homepage",
+        "width": 220,
+        "anchor": "w",
+    },
+    "country": {
+        "title_key": "radio_col_country",
+        "title": "Country",
+        "width": 120,
+        "anchor": "w",
+    },
+    "language": {
+        "title_key": "radio_col_language",
+        "title": "Language",
+        "width": 100,
+        "anchor": "w",
+    },
+    "codec": {
+        "title_key": "radio_col_codec",
+        "title": "Codec",
+        "width": 80,
+        "anchor": "w",
+    },
 }
 
 RADIO_STATION_LIST_COLUMN_ORDER = (
@@ -584,7 +624,6 @@ def _selected_station_id(app):
     return str(focused or "").strip()
 
 
-
 def save_radio_stations(app, stations=None):
     payload = []
     for station in list(
@@ -616,7 +655,6 @@ def save_radio_stations(app, stations=None):
     except Exception:
         pass
     return False
-
 
 
 def save_radio_settings(app):
@@ -703,7 +741,9 @@ def save_radio_settings(app):
                 or ""
             ).strip(),
             "projectm_preset_download_url": str(
-                getattr(app, "radio_settings", {}).get("projectm_preset_download_url", "")
+                getattr(app, "radio_settings", {}).get(
+                    "projectm_preset_download_url", ""
+                )
                 or ""
             ).strip(),
         }
@@ -885,8 +925,15 @@ def apply_radio_handover_payload(app, payload, *, auto_play=False):
     )
     app.radio_current_station_id = station_id
     station = payload.get("current_station")
-    if isinstance(station, dict) and station.get("id"):
-        app.radio_current_station = dict(station)
+    # Einzige Stelle, an der ein Station-Dict frueher ohne
+    # normalize_station_entry in den App-Zustand kam - damit umging der
+    # Handover-Payload die Stream-URL-Schema-Allowlist, die auf allen anderen
+    # Lade-/Speicherpfaden erzwungen wird.
+    normalized_station = (
+        normalize_station_entry(station) if isinstance(station, dict) else None
+    )
+    if normalized_station and normalized_station.get("id"):
+        app.radio_current_station = normalized_station
     else:
         app.radio_current_station = _resolve_station_by_id(app, station_id)
     for var_name, key_name, fallback in (
@@ -1077,8 +1124,6 @@ def radio_eq_filter_spec(app):
     )
 
 
-
-
 def filtered_radio_stations(app, query=None):
     stations = list(getattr(app, "radio_stations", []) or [])
     if query is None:
@@ -1106,8 +1151,6 @@ def filtered_radio_stations(app, query=None):
         if text in haystack:
             result.append(station)
     return result
-
-
 
 
 def update_radio_dependency_state(app):
@@ -1178,14 +1221,38 @@ def _resolve_target_station(app, station_id=""):
     return None
 
 
+def _radio_ipc_dir(app):
+    """Privates Verzeichnis fuer den mpv-IPC-Socket.
+
+    Wer auf diesen Socket schreiben darf, darf mpv steuern - und mpv kennt
+    das "run"-Kommando. Der Socket gehoert daher in ein Verzeichnis, das nur
+    der eigene Nutzer betreten darf: bevorzugt XDG_RUNTIME_DIR (0700 vom
+    System), sonst das State-Verzeichnis bzw. /tmp, dann aber mit einem
+    eigenen 0700-Unterverzeichnis statt direkt im weltlesbaren Elternpfad.
+    """
+    runtime_dir = str(os.environ.get("XDG_RUNTIME_DIR", "") or "").strip()
+    if runtime_dir and os.path.isdir(runtime_dir):
+        base = runtime_dir
+    else:
+        base = str(
+            getattr(app, "netmon_state_dir", tempfile.gettempdir())
+            or tempfile.gettempdir()
+        )
+    target = os.path.join(base, "netmon-radio")
+    try:
+        os.makedirs(target, mode=0o700, exist_ok=True)
+        os.chmod(target, 0o700)
+    except OSError:
+        target = tempfile.mkdtemp(prefix="netmon-radio-")
+        os.chmod(target, 0o700)
+    return target
+
+
 def _radio_ipc_path(app):
     current = str(getattr(app, "radio_ipc_path", "") or "").strip()
     if current:
         return current
-    state_dir = str(
-        getattr(app, "netmon_state_dir", tempfile.gettempdir()) or tempfile.gettempdir()
-    )
-    return os.path.join(state_dir, f"netmon-radio-{os.getpid()}.sock")
+    return os.path.join(_radio_ipc_dir(app), f"netmon-radio-{os.getpid()}.sock")
 
 
 def _radio_playback_lock(app):
@@ -1289,7 +1356,9 @@ def radio_recording_available(app):
 
 
 def _recording_status_text(app, text):
-    value = str(text or "").strip() or _tr(app, "radio_record_status_off", "Recording off.")
+    value = str(text or "").strip() or _tr(
+        app, "radio_record_status_off", "Recording off."
+    )
     for target in _radio_targets(app):
         var = getattr(target, "radio_record_status_var", None)
         if var is not None:
@@ -1463,7 +1532,9 @@ def _playlist_folder_status_text(app):
     entries = list(getattr(app, "radio_playlist_files_entries", []) or [])
     count = len(entries)
     if count == 1:
-        return _tr(app, "radio_playlist_folder_status_single", "Playlistordner: 1 Datei")
+        return _tr(
+            app, "radio_playlist_folder_status_single", "Playlistordner: 1 Datei"
+        )
     return _tr(
         app,
         "radio_playlist_folder_status_many",
@@ -2200,6 +2271,11 @@ def _recording_command(stream_url, output_path):
     return [
         "ffmpeg",
         "-y",
+        # Ohne Allowlist waehlt ffmpeg den Demuxer nach Inhalt: eine als Stream
+        # ausgelieferte HLS-/concat-Playlist koennte sonst lokale Dateien in
+        # die Aufnahme ziehen. "file" fehlt hier bewusst.
+        "-protocol_whitelist",
+        "http,https,tcp,tls,crypto",
         "-i",
         str(stream_url or "").strip(),
         "-vn",
@@ -2862,7 +2938,8 @@ def play_radio_file(app):
 def add_radio_playlist_files(app):
     initial_dir = _radio_recordings_dir(app)
     paths = filedialog.askopenfilenames(
-        title=_tr(app, 
+        title=_tr(
+            app,
             "radio_playlist_add_files_dialog_title",
             "Dateien zur Playlist hinzufügen",
         ),
@@ -3123,10 +3200,14 @@ def _mpv_command(volume, url, ipc_path, eq_filter=""):
         f"--input-ipc-server={ipc_path}",
         "--quiet",
         f"--volume={max(0, min(100, int(volume)))}",
-        url,
     ]
     if str(eq_filter or "").strip():
-        command.insert(-1, f"--af={eq_filter}")
+        command.append(f"--af={eq_filter}")
+    # "--" beendet die Optionsliste: mpv wertet Optionen an jeder Position aus,
+    # ein Medienpfad wie "--script=payload.lua" (z.B. aus einer importierten
+    # M3U-Playlist) waere sonst eine Option statt eines Dateinamens.
+    command.append("--")
+    command.append(url)
     return command
 
 
@@ -3416,7 +3497,6 @@ def stop_radio_playback(app, *, async_mode=True, clear_current=False):
     return True
 
 
-
 def play_selected_station(app):
     return play_radio_station(app, _selected_station_id(app))
 
@@ -3622,10 +3702,6 @@ def commit_radio_volume_change(app, _event=None):
             station_id = getattr(app, "radio_current_station_id", "")
             if station_id:
                 play_radio_station(app, station_id)
-
-
-
-
 
 
 # Hidden radio database workflow overrides

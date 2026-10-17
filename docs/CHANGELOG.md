@@ -2,6 +2,28 @@
 
 Automatisch aus der Git-Historie des Repositories erzeugt.
 
+## 2026-09-19 - Version 1.1.21
+
+- Umfangreiche Tab-UI-Builder wurden in ihre jeweiligen Tab-Module ausgelagert. Die Oberflaeche bleibt funktional gleich, waehrend die Codebasis klarer strukturiert und besser wartbar wird.
+- Der Debian-Installer veraendert keine aktiven DNS-Profile mehr und stellt bei Upgrades noch vorhandene DNS-Altzustaende frueherer Pakete wieder her.
+- Der Firefox-Basisimport akzeptiert nur regulaere TAR-Dateien und Verzeichnisse und begrenzt Download-, Member- und Extraktionsgroesse.
+- Paket-, Doku- und Website-Build beziehen ihre Version aus einer kanonischen Quelle; ein Konsistenzcheck blockiert abweichende Release-Metadaten.
+- Produktive Release-Bundles erfordern Minisign-Schluesselmaterial und verifizieren die erzeugte Signatur noch im Build.
+- Der Minisign-Public-Key mit ID `54BF5F1867BDD004` ist in `SECURITY.md` und als kanonische Repository-Datei gepinnt; abweichende Build-Keys werden abgelehnt.
+
+## 2026-07-19 - Unreleased
+
+- UFW-Statusprüfung sprachunabhängig umgesetzt.
+- UMASK-027-Pruefung wertbasiert und mit nachvollziehbaren Quellen umgesetzt.
+- UFW-Regelerkennung korrigiert: nummerierte Firewall-Regeln werden nun sprachunabhängig erkannt und gezählt.
+- Home-Verzeichnisprüfung erweitert: Rechte, Eigentümer und optionale ACLs werden nun automatisch bewertet.
+- APT-Prüfung fachlich korrigiert: verfügbare Paketupdates werden nun von tatsächlichen Sicherheitslücken klar abgegrenzt.
+- Prüfung kritischer Systemdateirechte erweitert: Dateirechte, Eigentümer und Gruppen werden nun automatisch gegen sichere Standardwerte bewertet.
+- Secure-Boot-Prüfung erweitert: Secure-Boot-Status, UEFI-Plattformmodus und profilabhängige Bewertung werden nun getrennt dargestellt.
+- Lynis-/Haertungsdiagnose erweitert: NetMon erkennt UFW-sysctl-Konflikte in `/etc/ufw/sysctl.conf` fuer `log_martians` und `rp_filter` und nennt die UFW-Quelle in der Begruendung.
+- UFW-Haertung erweitert: `log_martians` kann dauerhaft in `/etc/ufw/sysctl.conf` auf den NetMon-Sollwert gesetzt werden; vorher wird ein datiertes Backup angelegt.
+- Backup-Tab bereinigt: Timeshift zeigt beim Pruefen sichtbare Rueckmeldung, doppelte Timeshift-Startbuttons und redundante Transferpaket-Aktionen wurden entfernt.
+
 ## 2026-07-18 - Version 1.1.19
 
 - DNS-Startup-Fallback und Startup-Reparatur fuer verwaiste Killswitch-Zustaende robuster gemacht.

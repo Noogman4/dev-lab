@@ -162,11 +162,11 @@ make site-print-minisign
 - Startseite laedt ohne fehlende Styles oder Bilder.
 - Sprachumschalter `DE / EN` funktioniert auf Start-, Download-, Doku-, Rundgang-, Legal-, Impressum- und Audit-Seite.
 - Navigation und Sprachumschalter funktionieren auch auf `Aktuelles` bzw. `Updates`.
-- Der veroeffentlichte Download-Link zeigt auf `dist/netmon_1.1.19_all.deb`; Paket-, Repository- und Dokumentationsstand sind damit angeglichen.
+- Der veroeffentlichte Download-Link zeigt auf `dist/netmon_1.1.21_all.deb`; Paket-, Repository- und Dokumentationsstand sind damit angeglichen.
 - `latest-version.json` liegt im Build und passt zum aktuellen Website-/Paketstand.
 - Doku-Links fuer PDF und HTML funktionieren.
 - Rundgang-Bilder oeffnen per Klick in der Lightbox.
-- Security-Audit ist als HTML und PDF erreichbar; der aktuelle Dokumentationsstand zeigt auf Runde 9 fuer `1.1.19`.
+- Security-Audit Runde 12 ist als HTML und PDF erreichbar; Runde 11 bleibt als Archivfassung erhalten.
 - `robots.txt` und `sitemap.xml` liegen im Build unter `public_html/`.
 - `download.php` und `download-stats.php` liegen im Build unter `public_html/`.
 - Seite bleibt auch bei schmalem Browserfenster lesbar.
@@ -180,9 +180,10 @@ make site-print-minisign
 - `site/aktuelles.html`: zentrale Status- und Hinweis-Seite fuer bekannte Probleme
 - `site/docs.html`: Doku, FAQ, AI- und Betriebsinfos
 - `site/tour.html`: Rundgang mit Screenshots und Lightbox
-- `site/security-audit.html`: aktuelle Audit-Webfassung fuer `1.1.19`
+- `site/security-audit.html`: aktuelle Audit-Webfassung Runde 12 fuer `1.1.21`
 - `site/security-audit-r6.html`: historischer Build-Zielalias fuer `1.1.16`
-- `site/netmon_security_audit_2026_r9.pdf`: aktuelle Audit-PDF-Fassung fuer `1.1.19`
+- `site/netmon_security_audit_2026_r12.pdf`: aktuelle Audit-PDF-Fassung fuer `1.1.21`
+- `site/netmon_security_audit_2026_r11.pdf`: archivierte Audit-PDF-Fassung der Vorrunde
 - `site/legal.html`: Drittlizenzen und Lizenzhinweise
 - `site/impressum.html`: Anbieterangaben
 - `site/en/`: englische Spiegel-Seiten inklusive `updates.html`

@@ -185,6 +185,31 @@ def _warn_non_ip_endpoint_once(app, profile_name: str, host: str) -> None:
     )
 
 
+def _show_killswitch_active_after_vpn_off_notice(app) -> bool:
+    try:
+        killswitch_active = bool(app.killswitch_is_on())
+    except Exception:
+        killswitch_active = False
+    if not killswitch_active:
+        return False
+
+    title = app.tr(
+        "vpn_off_killswitch_notice_title",
+        "Killswitch bleibt aktiv",
+    )
+    message = app.tr(
+        "vpn_off_killswitch_notice_message",
+        "VPN wurde deaktiviert, der Killswitch ist aber noch aktiv.\n\n"
+        "Bitte Killswitch deaktivieren, wenn du danach wieder normales Netz "
+        "verwenden möchtest.",
+    )
+    try:
+        messagebox.showwarning(title, message, parent=app)
+    except Exception:
+        pass
+    return True
+
+
 def collect_non_ip_endpoint_profiles(app, profiles):
     results = []
     seen = set()
@@ -402,10 +427,24 @@ def _legacy_internal_ipv4_profile_name(base_profile):
 def _compact_internal_ipv4_profile_name(base_profile):
     raw = str(base_profile or "").strip().lower()
     cleaned = re.sub(r"[^a-z0-9]+", "", raw) or "wg"
-    digest = hashlib.sha1(str(base_profile or "").encode("utf-8")).hexdigest()[:4]
+    digest = hashlib.sha1(
+        str(base_profile or "").encode("utf-8"), usedforsecurity=False
+    ).hexdigest()[:4]
     stem_max = max(1, 15 - len(INTERNAL_IPV4_PROFILE_PREFIX) - len(digest))
     stem = cleaned[:stem_max]
     return f"{INTERNAL_IPV4_PROFILE_PREFIX}{stem}{digest}"
+
+
+def _unique_profile_names(candidates):
+    unique = []
+    seen = set()
+    for candidate in candidates:
+        name = str(candidate or "").strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        unique.append(name)
+    return unique
 
 
 def _read_internal_ipv4_base_profile_marker(app, profile_name):
@@ -445,15 +484,7 @@ def internal_ipv4_profile_candidates(app, profile_name):
     candidates = [preferred_name]
     if legacy_name != preferred_name:
         candidates.append(legacy_name)
-    unique = []
-    seen = set()
-    for candidate in candidates:
-        candidate = str(candidate or "").strip()
-        if not candidate or candidate in seen:
-            continue
-        seen.add(candidate)
-        unique.append(candidate)
-    return unique
+    return _unique_profile_names(candidates)
 
 
 def internal_ipv4_profile_name(app, profile_name):
@@ -2869,6 +2900,7 @@ def vpn_off(app, ensure_sudo=True, refresh_ui=True):
         app.prepare_dns_for_vpn_profile_switch()
         app._schedule_dns_finalize_after_vpn_profile_switch(delay_ms=2500)
         if app.killswitch_is_on():
+            _show_killswitch_active_after_vpn_off_notice(app)
             _vpn_user_log(
                 app,
                 app.tr(
@@ -2996,6 +3028,7 @@ def _vpn_off_networkmanager(app, *, refresh_ui=True):
     app.prepare_dns_for_vpn_profile_switch()
     app._schedule_dns_finalize_after_vpn_profile_switch(delay_ms=2500)
     if app.killswitch_is_on():
+        _show_killswitch_active_after_vpn_off_notice(app)
         _vpn_user_log(
             app,
             app.tr(

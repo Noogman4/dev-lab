@@ -5,6 +5,9 @@ import threading
 import http.client
 import zipfile
 from types import SimpleNamespace
+
+import pytest
+
 from netmon.app import App
 from netmon import netmon_projectm_sidecar
 from netmon import netmon_radio_app
@@ -1519,6 +1522,8 @@ def test_radio_integration_hooks_are_present():
     assert '"pactl": has_cmd("pactl")' in preflight_source
     assert '"mpv (Radio)", "mpv"' in manual_summary_source
     assert '"projectM Visualizer", "projectm_visualizer"' in manual_summary_source
+    assert '"timeshift": has_cmd("timeshift")' in preflight_source
+    assert '("Timeshift", "timeshift")' in manual_summary_source
     assert "return radio_controller.download_radio_db(self)" in download_source
     assert (
         'self.set_feature_enabled("radio", checks.get("mpv", False))'
@@ -1795,6 +1800,3131 @@ def test_standalone_radio_app_ui_contains_player_and_projectm():
     )
 
 
+def test_standalone_radio_pane_drag_state_uses_initial_values():
+    state = netmon_radio_app._standalone_radio_pane_drag_state()
+    other_state = netmon_radio_app._standalone_radio_pane_drag_state()
+
+    assert state == {
+        "root_y": 0,
+        "sash_y": 0,
+        "update_pending": False,
+    }
+    assert other_state == state
+    assert other_state is not state
+
+
+def test_standalone_radio_pane_bind_marker_events_binds_all_with_add():
+    calls = []
+    first_callback = object()
+    second_callback = object()
+
+    class DummyWidget:
+        def bind(self, event_name, callback, add=None):
+            calls.append((event_name, callback, add))
+
+    netmon_radio_app._standalone_radio_pane_bind_marker_events(
+        DummyWidget(),
+        (
+            ("<Configure>", first_callback),
+            ("<B1-Motion>", second_callback),
+        ),
+    )
+
+    assert calls == [
+        ("<Configure>", first_callback, "+"),
+        ("<B1-Motion>", second_callback, "+"),
+    ]
+
+
+def test_standalone_radio_pane_bind_marker_events_stops_and_ignores_failures():
+    calls = []
+
+    class DummyWidget:
+        def bind(self, event_name, _callback, add=None):
+            calls.append((event_name, add))
+            raise RuntimeError("bind failed")
+
+    netmon_radio_app._standalone_radio_pane_bind_marker_events(
+        DummyWidget(),
+        (
+            ("<Configure>", object()),
+            ("<B1-Motion>", object()),
+        ),
+    )
+
+    assert calls == [("<Configure>", "+")]
+
+
+def test_standalone_radio_pane_update_binding_specs_use_update_events():
+    assert netmon_radio_app._standalone_radio_pane_update_binding_specs() == (
+        "<Configure>",
+        "<ButtonRelease-1>",
+        "<B1-Motion>",
+    )
+
+
+def test_standalone_radio_pane_update_bindings_use_update_callback_for_all_events():
+    update_marker = object()
+
+    assert netmon_radio_app._standalone_radio_pane_update_bindings(update_marker) == (
+        ("<Configure>", update_marker),
+        ("<ButtonRelease-1>", update_marker),
+        ("<B1-Motion>", update_marker),
+    )
+
+
+def test_standalone_radio_pane_update_bindings_use_custom_specs():
+    update_marker = object()
+
+    assert netmon_radio_app._standalone_radio_pane_update_bindings(
+        update_marker,
+        binding_specs_builder=lambda: ("event-1", "event-2", "event-3"),
+    ) == (
+        ("event-1", update_marker),
+        ("event-2", update_marker),
+        ("event-3", update_marker),
+    )
+
+
+def test_standalone_radio_pane_update_bindings_rejects_invalid_specs():
+    with pytest.raises(ValueError):
+        netmon_radio_app._standalone_radio_pane_update_bindings(
+            object(),
+            binding_specs_builder=lambda: ("event-1", "event-2"),
+        )
+
+
+def test_standalone_radio_pane_grip_binding_specs_use_drag_events():
+    assert netmon_radio_app._standalone_radio_pane_grip_binding_specs() == (
+        "<Button-1>",
+        "<B1-Motion>",
+        "<ButtonRelease-1>",
+    )
+
+
+def test_standalone_radio_pane_grip_bindings_use_drag_callbacks():
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+
+    assert netmon_radio_app._standalone_radio_pane_grip_bindings(
+        start_drag,
+        drag,
+        end_drag,
+    ) == (
+        ("<Button-1>", start_drag),
+        ("<B1-Motion>", drag),
+        ("<ButtonRelease-1>", end_drag),
+    )
+
+
+def test_standalone_radio_pane_grip_bindings_use_custom_specs():
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+
+    assert netmon_radio_app._standalone_radio_pane_grip_bindings(
+        start_drag,
+        drag,
+        end_drag,
+        binding_specs_builder=lambda: ("start", "drag", "end"),
+    ) == (
+        ("start", start_drag),
+        ("drag", drag),
+        ("end", end_drag),
+    )
+
+
+def test_standalone_radio_pane_grip_bindings_rejects_invalid_specs():
+    with pytest.raises(ValueError):
+        netmon_radio_app._standalone_radio_pane_grip_bindings(
+            object(),
+            object(),
+            object(),
+            binding_specs_builder=lambda: ("start", "drag"),
+        )
+
+
+def test_standalone_radio_pane_marker_update_binding_plan_maps_update_targets():
+    container = object()
+    pane = object()
+    update_bindings = object()
+
+    assert netmon_radio_app._standalone_radio_pane_marker_update_binding_plan(
+        container,
+        pane,
+        update_bindings,
+    ) == (
+        (container, update_bindings),
+        (pane, update_bindings),
+    )
+
+
+def test_standalone_radio_pane_marker_grip_binding_plan_maps_grip_target():
+    grip = object()
+    grip_bindings = object()
+
+    assert netmon_radio_app._standalone_radio_pane_marker_grip_binding_plan(
+        grip,
+        grip_bindings,
+    ) == ((grip, grip_bindings),)
+
+
+def test_standalone_radio_pane_marker_binding_plan_maps_widgets_to_bindings():
+    events = []
+    container = object()
+    pane = object()
+    grip = object()
+    update_bindings = object()
+    grip_bindings = object()
+    update_plan = ((object(), object()),)
+    grip_plan = ((object(), object()),)
+
+    assert (
+        netmon_radio_app._standalone_radio_pane_marker_binding_plan(
+            container,
+            pane,
+            grip,
+            update_bindings=update_bindings,
+            grip_bindings=grip_bindings,
+            update_plan_builder=lambda *args: events.append(("update_plan", args))
+            or update_plan,
+            grip_plan_builder=lambda *args: events.append(("grip_plan", args))
+            or grip_plan,
+        )
+        == update_plan + grip_plan
+    )
+
+    assert events == [
+        ("update_plan", (container, pane, update_bindings)),
+        ("grip_plan", (grip, grip_bindings)),
+    ]
+
+
+def test_standalone_radio_pane_marker_binding_plan_propagates_plan_failures():
+    def fail_update_plan(*_args):
+        raise RuntimeError("update binding plan failed")
+
+    with pytest.raises(RuntimeError, match="update binding plan failed"):
+        netmon_radio_app._standalone_radio_pane_marker_binding_plan(
+            object(),
+            object(),
+            object(),
+            update_bindings=object(),
+            grip_bindings=object(),
+            update_plan_builder=fail_update_plan,
+        )
+
+
+def test_standalone_radio_pane_bind_marker_callback_delegates_binding():
+    events = []
+    widget = object()
+    bindings = object()
+    binder = object()
+
+    netmon_radio_app._standalone_radio_pane_bind_marker_callback(
+        widget,
+        bindings,
+        lambda widget_arg, bindings_arg: events.append(
+            (widget_arg, bindings_arg, binder)
+        ),
+    )
+
+    assert events == [(widget, bindings, binder)]
+
+
+def test_standalone_radio_pane_bind_marker_callback_propagates_failures():
+    def fail_bind(_widget, _bindings):
+        raise RuntimeError("marker callback bind failed")
+
+    with pytest.raises(RuntimeError, match="marker callback bind failed"):
+        netmon_radio_app._standalone_radio_pane_bind_marker_callback(
+            object(),
+            object(),
+            fail_bind,
+        )
+
+
+def test_standalone_radio_pane_bind_marker_callbacks_binds_plan_in_order():
+    calls = []
+    first_widget = object()
+    first_bindings = object()
+    second_widget = object()
+    second_bindings = object()
+    bind_events = object()
+
+    netmon_radio_app._standalone_radio_pane_bind_marker_callbacks(
+        (
+            (first_widget, first_bindings),
+            (second_widget, second_bindings),
+        ),
+        bind_callback=lambda widget, bindings, binder: calls.append(
+            (widget, bindings, binder)
+        ),
+        bind_events=bind_events,
+    )
+
+    assert calls == [
+        (first_widget, first_bindings, bind_events),
+        (second_widget, second_bindings, bind_events),
+    ]
+
+
+def test_standalone_radio_pane_bind_marker_callbacks_propagates_binder_failure():
+    calls = []
+
+    def fail_bind(widget, bindings):
+        calls.append((widget, bindings))
+        raise RuntimeError("bind failed")
+
+    with pytest.raises(RuntimeError, match="bind failed"):
+        netmon_radio_app._standalone_radio_pane_bind_marker_callbacks(
+            (("widget", "bindings"),),
+            bind_events=fail_bind,
+        )
+
+    assert calls == [("widget", "bindings")]
+
+
+def test_standalone_radio_pane_initial_update_after_args_uses_after_zero():
+    callback = object()
+
+    assert netmon_radio_app._standalone_radio_pane_initial_update_after_args(
+        callback,
+    ) == (0, callback)
+
+
+def test_standalone_radio_pane_request_initial_marker_update_uses_after_args():
+    calls = []
+    callback = object()
+
+    class DummyContainer:
+        def after(self, delay, scheduled_callback):
+            calls.append((delay, scheduled_callback))
+
+    netmon_radio_app._standalone_radio_pane_request_initial_marker_update(
+        DummyContainer(),
+        callback,
+        after_args_builder=lambda update_arg: calls.append(("args", update_arg))
+        or (5, update_arg),
+    )
+
+    assert calls == [
+        ("args", callback),
+        (5, callback),
+    ]
+
+
+def test_standalone_radio_pane_request_initial_marker_update_ignores_after_failure():
+    calls = []
+
+    class DummyContainer:
+        def after(self, _delay, _scheduled_callback):
+            calls.append("after")
+            raise RuntimeError("after failed")
+
+    netmon_radio_app._standalone_radio_pane_request_initial_marker_update(
+        DummyContainer(),
+        object(),
+    )
+
+    assert calls == ["after"]
+
+
+def test_standalone_radio_pane_request_initial_marker_update_ignores_after_args_failure():
+    def fail_after_args(_update_marker):
+        raise RuntimeError("after args failed")
+
+    netmon_radio_app._standalone_radio_pane_request_initial_marker_update(
+        object(),
+        object(),
+        after_args_builder=fail_after_args,
+    )
+
+
+def test_standalone_radio_pane_initial_update_request_args_combines_arguments():
+    container = object()
+    callback = object()
+
+    assert netmon_radio_app._standalone_radio_pane_initial_update_request_args(
+        container,
+        callback,
+    ) == (container, callback)
+
+
+def test_standalone_radio_pane_schedule_initial_marker_update_delegates_request():
+    calls = []
+    container = object()
+    callback = object()
+
+    netmon_radio_app._standalone_radio_pane_schedule_initial_marker_update(
+        container,
+        callback,
+        request_args_builder=lambda *args: calls.append(("args", args))
+        or (container, callback),
+        request_update=lambda container_arg, callback_arg: calls.append(
+            (container_arg, callback_arg)
+        ),
+    )
+
+    assert calls == [
+        ("args", (container, callback)),
+        (container, callback),
+    ]
+
+
+def test_standalone_radio_pane_schedule_initial_marker_update_rejects_invalid_args():
+    with pytest.raises(ValueError):
+        netmon_radio_app._standalone_radio_pane_schedule_initial_marker_update(
+            object(),
+            object(),
+            request_args_builder=lambda *_args: (object(), object(), object()),
+        )
+
+
+def test_standalone_radio_pane_active_initial_update_args_combines_arguments():
+    container = object()
+    callback = object()
+    scheduler = object()
+
+    assert netmon_radio_app._standalone_radio_pane_active_initial_update_args(
+        container,
+        callback,
+        scheduler,
+    ) == (container, callback, scheduler)
+
+
+def test_standalone_radio_pane_schedule_active_marker_initial_update_forwards_dependencies():
+    calls = []
+    container = object()
+    callback = object()
+
+    def scheduler(container_arg, callback_arg):
+        calls.append((container_arg, callback_arg))
+
+    netmon_radio_app._standalone_radio_pane_schedule_active_marker_initial_update(
+        container,
+        callback,
+        scheduler,
+        active_update_args_builder=lambda *args: calls.append(("args", args))
+        or (container, callback, scheduler),
+    )
+
+    assert calls == [
+        ("args", (container, callback, scheduler)),
+        (container, callback),
+    ]
+
+
+def test_standalone_radio_pane_schedule_active_marker_initial_update_rejects_invalid_args():
+    with pytest.raises(ValueError):
+        netmon_radio_app._standalone_radio_pane_schedule_active_marker_initial_update(
+            object(),
+            object(),
+            lambda *_args: None,
+            active_update_args_builder=lambda *_args: (object(), object()),
+        )
+
+
+def test_standalone_radio_pane_bind_active_marker_callbacks_delegates_binder():
+    events = []
+    binding_plan = object()
+
+    netmon_radio_app._standalone_radio_pane_bind_active_marker_callbacks(
+        binding_plan,
+        lambda plan: events.append(plan),
+    )
+
+    assert events == [binding_plan]
+
+
+def test_standalone_radio_pane_bind_active_marker_callbacks_propagates_failures():
+    def fail_bind(_binding_plan):
+        raise RuntimeError("active bind failed")
+
+    with pytest.raises(RuntimeError, match="active bind failed"):
+        netmon_radio_app._standalone_radio_pane_bind_active_marker_callbacks(
+            object(),
+            fail_bind,
+        )
+
+
+def test_standalone_radio_pane_activate_marker_callbacks_binds_then_schedules():
+    events = []
+    container = object()
+    binding_plan = object()
+    update_marker = object()
+    callback_binder = object()
+    initial_update_scheduler = object()
+
+    netmon_radio_app._standalone_radio_pane_activate_marker_callbacks(
+        container,
+        binding_plan,
+        update_marker,
+        callback_binder=callback_binder,
+        active_callback_binder=lambda plan, binder: events.append(
+            ("bind", plan, binder)
+        ),
+        active_initial_update_scheduler=lambda *args: events.append(
+            ("schedule_active", args)
+        ),
+        initial_update_scheduler=initial_update_scheduler,
+    )
+
+    assert events == [
+        ("bind", binding_plan, callback_binder),
+        (
+            "schedule_active",
+            (container, update_marker, initial_update_scheduler),
+        ),
+    ]
+
+
+def test_standalone_radio_pane_activate_marker_callbacks_propagates_binding_failure():
+    def fail_bind(_binding_plan):
+        raise RuntimeError("bind failed")
+
+    with pytest.raises(RuntimeError, match="bind failed"):
+        netmon_radio_app._standalone_radio_pane_activate_marker_callbacks(
+            object(),
+            object(),
+            object(),
+            callback_binder=fail_bind,
+            initial_update_scheduler=lambda *_args: None,
+        )
+
+
+def test_standalone_radio_pane_activate_marker_callbacks_propagates_active_binding_failure():
+    def fail_active_bind(*_args):
+        raise RuntimeError("active bind failed")
+
+    with pytest.raises(RuntimeError, match="active bind failed"):
+        netmon_radio_app._standalone_radio_pane_activate_marker_callbacks(
+            object(),
+            object(),
+            object(),
+            active_callback_binder=fail_active_bind,
+            initial_update_scheduler=lambda *_args: None,
+        )
+
+
+def test_standalone_radio_pane_activate_marker_callbacks_propagates_active_schedule_failure():
+    def fail_active_schedule(*_args):
+        raise RuntimeError("active schedule failed")
+
+    with pytest.raises(RuntimeError, match="active schedule failed"):
+        netmon_radio_app._standalone_radio_pane_activate_marker_callbacks(
+            object(),
+            object(),
+            object(),
+            active_callback_binder=lambda *_args: None,
+            active_initial_update_scheduler=fail_active_schedule,
+        )
+
+
+def test_standalone_radio_pane_marker_binding_sets_builds_update_then_grip():
+    events = []
+    update_marker = object()
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+    update_bindings = object()
+    grip_bindings = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_binding_sets(
+        update_marker,
+        start_drag,
+        drag,
+        end_drag,
+        update_bindings_builder=lambda update_arg: events.append(
+            ("update_bindings", update_arg)
+        )
+        or update_bindings,
+        grip_bindings_builder=lambda *args: events.append(("grip_bindings", args))
+        or grip_bindings,
+    )
+
+    assert result == (update_bindings, grip_bindings)
+    assert events == [
+        ("update_bindings", update_marker),
+        ("grip_bindings", (start_drag, drag, end_drag)),
+    ]
+
+
+def test_standalone_radio_pane_marker_binding_sets_propagates_builder_failures():
+    def fail_update_bindings(_update_marker):
+        raise RuntimeError("update bindings failed")
+
+    with pytest.raises(RuntimeError, match="update bindings failed"):
+        netmon_radio_app._standalone_radio_pane_marker_binding_sets(
+            object(),
+            object(),
+            object(),
+            object(),
+            update_bindings_builder=fail_update_bindings,
+        )
+
+
+def test_standalone_radio_pane_marker_binding_plan_from_sets_builds_plan():
+    events = []
+    container = object()
+    pane = object()
+    grip = object()
+    update_bindings = object()
+    grip_bindings = object()
+    binding_plan = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_binding_plan_from_sets(
+        container,
+        pane,
+        grip,
+        (update_bindings, grip_bindings),
+        binding_plan_builder=lambda *args, **kwargs: events.append((args, kwargs))
+        or binding_plan,
+    )
+
+    assert result is binding_plan
+    assert events == [
+        (
+            (container, pane, grip),
+            {"update_bindings": update_bindings, "grip_bindings": grip_bindings},
+        ),
+    ]
+
+
+def test_standalone_radio_pane_marker_binding_plan_from_sets_rejects_invalid_sets():
+    with pytest.raises(ValueError):
+        netmon_radio_app._standalone_radio_pane_marker_binding_plan_from_sets(
+            object(),
+            object(),
+            object(),
+            (object(), object(), object()),
+        )
+
+
+def test_standalone_radio_pane_activate_marker_binding_plan_delegates_activation():
+    events = []
+    container = object()
+    binding_plan = object()
+    update_marker = object()
+
+    netmon_radio_app._standalone_radio_pane_activate_marker_binding_plan(
+        container,
+        binding_plan,
+        update_marker,
+        activate_marker_callbacks=lambda *args: events.append(args),
+    )
+
+    assert events == [(container, binding_plan, update_marker)]
+
+
+def test_standalone_radio_pane_activate_marker_binding_plan_propagates_failures():
+    def fail_activate(*_args):
+        raise RuntimeError("activate marker binding plan failed")
+
+    with pytest.raises(RuntimeError, match="activate marker binding plan failed"):
+        netmon_radio_app._standalone_radio_pane_activate_marker_binding_plan(
+            object(),
+            object(),
+            object(),
+            activate_marker_callbacks=fail_activate,
+        )
+
+
+def test_standalone_radio_pane_activate_marker_bindings_builds_and_activates():
+    events = []
+    container = object()
+    pane = object()
+    grip = object()
+    update_marker = object()
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+    update_bindings = object()
+    grip_bindings = object()
+    binding_sets = (update_bindings, grip_bindings)
+    binding_plan = object()
+
+    netmon_radio_app._standalone_radio_pane_activate_marker_bindings(
+        container,
+        pane,
+        grip,
+        update_marker,
+        start_drag,
+        drag,
+        end_drag,
+        binding_sets_builder=lambda *args: events.append(("binding_sets", args))
+        or binding_sets,
+        binding_plan_builder=lambda *args: events.append(("binding_plan", args))
+        or binding_plan,
+        binding_plan_activator=lambda *args: events.append(("activate", args)),
+    )
+
+    assert events == [
+        ("binding_sets", (update_marker, start_drag, drag, end_drag)),
+        (
+            "binding_plan",
+            (container, pane, grip, binding_sets),
+        ),
+        ("activate", (container, binding_plan, update_marker)),
+    ]
+
+
+def test_standalone_radio_pane_activate_marker_bindings_propagates_activation_failure():
+    def fail_activate(_container, _binding_plan, _update_marker):
+        raise RuntimeError("activate failed")
+
+    with pytest.raises(RuntimeError, match="activate failed"):
+        netmon_radio_app._standalone_radio_pane_activate_marker_bindings(
+            object(),
+            object(),
+            object(),
+            object(),
+            object(),
+            object(),
+            object(),
+            binding_sets_builder=lambda *_args: (object(), object()),
+            binding_plan_builder=lambda *_args: object(),
+            binding_plan_activator=fail_activate,
+        )
+
+
+def test_standalone_radio_pane_activate_marker_bindings_propagates_binding_set_failure():
+    def fail_binding_sets(*_args):
+        raise RuntimeError("binding sets failed")
+
+    with pytest.raises(RuntimeError, match="binding sets failed"):
+        netmon_radio_app._standalone_radio_pane_activate_marker_bindings(
+            object(),
+            object(),
+            object(),
+            object(),
+            object(),
+            object(),
+            object(),
+            binding_sets_builder=fail_binding_sets,
+        )
+
+
+def test_standalone_radio_pane_activate_marker_bindings_propagates_plan_failure():
+    def fail_binding_plan(*_args):
+        raise RuntimeError("binding plan failed")
+
+    with pytest.raises(RuntimeError, match="binding plan failed"):
+        netmon_radio_app._standalone_radio_pane_activate_marker_bindings(
+            object(),
+            object(),
+            object(),
+            object(),
+            object(),
+            object(),
+            object(),
+            binding_sets_builder=lambda *_args: (object(), object()),
+            binding_plan_builder=fail_binding_plan,
+        )
+
+
+def test_standalone_radio_pane_marker_geometry_centers_and_offsets_marker():
+    assert netmon_radio_app._standalone_radio_pane_marker_geometry(
+        120,
+        80,
+        y_offset=12,
+    ) == {"x": 27, "y": 87, "width": 66, "height": 12}
+    assert netmon_radio_app._standalone_radio_pane_marker_geometry(
+        20,
+        1,
+    ) == {"x": 8, "y": 2, "width": 42, "height": 12}
+
+
+def test_standalone_radio_pane_place_marker_places_and_lifts():
+    calls = []
+    geometry = {"x": 27, "y": 87, "width": 66, "height": 12}
+
+    class DummyMarker:
+        def place(self, **kwargs):
+            calls.append(("place", kwargs))
+
+        def lift(self):
+            calls.append("lift")
+
+    netmon_radio_app._standalone_radio_pane_place_marker(DummyMarker(), geometry)
+
+    assert calls == [
+        ("place", geometry),
+        "lift",
+    ]
+
+
+def test_standalone_radio_pane_forget_marker_forgets_place():
+    calls = []
+
+    class DummyMarker:
+        def place_forget(self):
+            calls.append("place_forget")
+
+    netmon_radio_app._standalone_radio_pane_forget_marker(DummyMarker())
+
+    assert calls == ["place_forget"]
+
+
+def test_standalone_radio_pane_set_sash_pos_prefers_sashpos():
+    calls = []
+
+    class DummyPane:
+        def sashpos(self, index, value):
+            calls.append(("sashpos", index, value))
+
+        def sash_place(self, index, x, y):
+            calls.append(("sash_place", index, x, y))
+
+    netmon_radio_app._standalone_radio_pane_set_sash_pos(DummyPane(), "120")
+
+    assert calls == [("sashpos", 0, 120)]
+
+
+def test_standalone_radio_pane_set_sash_pos_falls_back_to_sash_place():
+    calls = []
+
+    class DummyPane:
+        def sashpos(self, index, value):
+            calls.append(("sashpos", index, value))
+            raise RuntimeError("unsupported")
+
+        def sash_place(self, index, x, y):
+            calls.append(("sash_place", index, x, y))
+
+    netmon_radio_app._standalone_radio_pane_set_sash_pos(DummyPane(), "120")
+
+    assert calls == [
+        ("sashpos", 0, 120),
+        ("sash_place", 0, 0, 120),
+    ]
+
+
+def test_standalone_radio_pane_sash_callback_binds_pane():
+    calls = []
+    pane = object()
+
+    callback = netmon_radio_app._standalone_radio_pane_sash_callback(
+        pane,
+        set_sash_pos=lambda pane_arg, new_y: calls.append((pane_arg, new_y)),
+    )
+
+    callback("240")
+
+    assert calls == [(pane, "240")]
+
+
+def test_standalone_radio_pane_sash_callback_propagates_set_failures():
+    def fail_set(_pane, _new_y):
+        raise RuntimeError("set failed")
+
+    callback = netmon_radio_app._standalone_radio_pane_sash_callback(
+        object(),
+        set_sash_pos=fail_set,
+    )
+
+    with pytest.raises(RuntimeError, match="set failed"):
+        callback(240)
+
+
+def test_standalone_radio_pane_place_marker_for_sash_builds_geometry_then_places():
+    events = []
+    marker = object()
+    geometry = object()
+
+    class DummyContainer:
+        def winfo_width(self):
+            events.append("width")
+            return 120
+
+    netmon_radio_app._standalone_radio_pane_place_marker_for_sash(
+        DummyContainer(),
+        marker,
+        80,
+        12,
+        geometry_builder=lambda width, sash_y, y_offset: events.append(
+            ("geometry", width, sash_y, y_offset)
+        )
+        or geometry,
+        marker_placer=lambda marker_arg, geometry_arg: events.append(
+            ("place", marker_arg, geometry_arg)
+        ),
+    )
+
+    assert events == [
+        "width",
+        ("geometry", 120, 80, 12),
+        ("place", marker, geometry),
+    ]
+
+
+def test_standalone_radio_pane_place_marker_for_sash_safe_places_marker():
+    events = []
+    container = object()
+    marker = object()
+
+    netmon_radio_app._standalone_radio_pane_place_marker_for_sash_safe(
+        container,
+        marker,
+        80,
+        12,
+        place_marker_for_sash=lambda *args: events.append(("place", args)),
+        forget_marker=lambda marker_arg: events.append(("forget", marker_arg)),
+    )
+
+    assert events == [
+        ("place", (container, marker, 80, 12)),
+    ]
+
+
+def test_standalone_radio_pane_place_marker_for_sash_safe_forgets_on_place_failure():
+    events = []
+    marker = object()
+
+    def fail_place(*_args):
+        events.append("place")
+        raise RuntimeError("place failed")
+
+    netmon_radio_app._standalone_radio_pane_place_marker_for_sash_safe(
+        object(),
+        marker,
+        80,
+        place_marker_for_sash=fail_place,
+        forget_marker=lambda marker_arg: events.append(("forget", marker_arg)),
+    )
+
+    assert events == [
+        "place",
+        ("forget", marker),
+    ]
+
+
+def test_standalone_radio_pane_place_marker_for_sash_safe_ignores_forget_failure():
+    events = []
+
+    def fail_place(*_args):
+        events.append("place")
+        raise RuntimeError("place failed")
+
+    def fail_forget(_marker):
+        events.append("forget")
+        raise RuntimeError("forget failed")
+
+    netmon_radio_app._standalone_radio_pane_place_marker_for_sash_safe(
+        object(),
+        object(),
+        80,
+        place_marker_for_sash=fail_place,
+        forget_marker=fail_forget,
+    )
+
+    assert events == ["place", "forget"]
+
+
+def test_standalone_radio_pane_place_callback_binds_marker_context():
+    calls = []
+    container = object()
+    marker = object()
+
+    callback = netmon_radio_app._standalone_radio_pane_place_callback(
+        container,
+        marker,
+        7,
+        place_marker_for_sash_safe=lambda *args: calls.append(args),
+    )
+
+    callback("240")
+
+    assert calls == [(container, marker, "240", 7)]
+
+
+def test_standalone_radio_pane_place_callback_propagates_place_failures():
+    def fail_place(_container, _marker, _sash_y, _y_offset):
+        raise RuntimeError("place failed")
+
+    callback = netmon_radio_app._standalone_radio_pane_place_callback(
+        object(),
+        object(),
+        7,
+        place_marker_for_sash_safe=fail_place,
+    )
+
+    with pytest.raises(RuntimeError, match="place failed"):
+        callback(240)
+
+
+def test_standalone_radio_pane_update_marker_places_current_sash():
+    events = []
+
+    class DummyPane:
+        def sashpos(self, index):
+            events.append(("sashpos", index))
+            return "80"
+
+    netmon_radio_app._standalone_radio_pane_update_marker(
+        DummyPane(),
+        lambda sash_y: events.append(("place", sash_y)),
+    )
+
+    assert events == [
+        ("sashpos", 0),
+        ("place", 80),
+    ]
+
+
+def test_standalone_radio_pane_update_marker_safe_updates_marker():
+    events = []
+    pane = object()
+    marker = object()
+    place_marker = object()
+
+    netmon_radio_app._standalone_radio_pane_update_marker_safe(
+        pane,
+        place_marker,
+        marker,
+        update_marker=lambda pane_arg, place_arg: events.append(
+            ("update", pane_arg, place_arg)
+        ),
+        forget_marker=lambda marker_arg: events.append(("forget", marker_arg)),
+    )
+
+    assert events == [
+        ("update", pane, place_marker),
+    ]
+
+
+def test_standalone_radio_pane_update_marker_safe_forgets_on_update_failure():
+    events = []
+    marker = object()
+
+    def fail_update(*_args):
+        events.append("update")
+        raise RuntimeError("update failed")
+
+    netmon_radio_app._standalone_radio_pane_update_marker_safe(
+        object(),
+        object(),
+        marker,
+        update_marker=fail_update,
+        forget_marker=lambda marker_arg: events.append(("forget", marker_arg)),
+    )
+
+    assert events == [
+        "update",
+        ("forget", marker),
+    ]
+
+
+def test_standalone_radio_pane_update_marker_safe_ignores_forget_failure():
+    events = []
+
+    def fail_update(*_args):
+        events.append("update")
+        raise RuntimeError("update failed")
+
+    def fail_forget(_marker):
+        events.append("forget")
+        raise RuntimeError("forget failed")
+
+    netmon_radio_app._standalone_radio_pane_update_marker_safe(
+        object(),
+        object(),
+        object(),
+        update_marker=fail_update,
+        forget_marker=fail_forget,
+    )
+
+    assert events == ["update", "forget"]
+
+
+def test_standalone_radio_pane_update_callback_binds_marker_context_and_event():
+    calls = []
+    pane = object()
+    place_marker = object()
+    marker = object()
+
+    callback = netmon_radio_app._standalone_radio_pane_update_callback(
+        pane,
+        place_marker,
+        marker,
+        update_marker_safe=lambda *args: calls.append(args),
+    )
+
+    callback(object())
+
+    assert calls == [(pane, place_marker, marker)]
+
+
+def test_standalone_radio_pane_update_callback_propagates_update_failures():
+    def fail_update(_pane, _place_marker, _marker):
+        raise RuntimeError("update failed")
+
+    callback = netmon_radio_app._standalone_radio_pane_update_callback(
+        object(),
+        object(),
+        object(),
+        update_marker_safe=fail_update,
+    )
+
+    with pytest.raises(RuntimeError, match="update failed"):
+        callback()
+
+
+def test_standalone_radio_pane_schedule_marker_update_skips_pending_state():
+    calls = []
+
+    class DummyContainer:
+        def after_idle(self, callback):
+            calls.append(("after_idle", callback))
+
+    state = {"update_pending": True}
+
+    netmon_radio_app._standalone_radio_pane_schedule_marker_update(
+        DummyContainer(),
+        state,
+        lambda: calls.append("update"),
+    )
+
+    assert state["update_pending"] is True
+    assert calls == []
+
+
+def test_standalone_radio_pane_schedule_marker_update_uses_after_idle_runner():
+    calls = []
+    runners = []
+
+    class DummyContainer:
+        def after_idle(self, callback):
+            calls.append("after_idle")
+            runners.append(callback)
+
+    state = {"update_pending": False}
+
+    netmon_radio_app._standalone_radio_pane_schedule_marker_update(
+        DummyContainer(),
+        state,
+        lambda: calls.append("update"),
+    )
+
+    assert state["update_pending"] is True
+    assert calls == ["after_idle"]
+
+    runners[0]()
+
+    assert state["update_pending"] is False
+    assert calls == ["after_idle", "update"]
+
+
+def test_standalone_radio_pane_schedule_marker_update_runs_on_after_idle_failure():
+    calls = []
+
+    class DummyContainer:
+        def after_idle(self, callback):
+            calls.append(("after_idle", callback))
+            raise RuntimeError("after idle failed")
+
+    state = {"update_pending": False}
+
+    netmon_radio_app._standalone_radio_pane_schedule_marker_update(
+        DummyContainer(),
+        state,
+        lambda: calls.append("update"),
+    )
+
+    assert state["update_pending"] is False
+    assert calls[0][0] == "after_idle"
+    assert calls[1:] == ["update"]
+
+
+def test_standalone_radio_pane_schedule_callback_binds_update_context():
+    calls = []
+    container = object()
+    state = {"update_pending": False}
+    update_marker = object()
+
+    callback = netmon_radio_app._standalone_radio_pane_schedule_callback(
+        container,
+        state,
+        update_marker,
+        schedule_marker_update=lambda *args: calls.append(args),
+    )
+
+    callback()
+
+    assert calls == [(container, state, update_marker)]
+
+
+def test_standalone_radio_pane_schedule_callback_propagates_schedule_failures():
+    def fail_schedule(_container, _state, _update_marker):
+        raise RuntimeError("schedule failed")
+
+    callback = netmon_radio_app._standalone_radio_pane_schedule_callback(
+        object(),
+        {"update_pending": False},
+        object(),
+        schedule_marker_update=fail_schedule,
+    )
+
+    with pytest.raises(RuntimeError, match="schedule failed"):
+        callback()
+
+
+def test_standalone_radio_pane_start_drag_records_event_and_sash():
+    state = {}
+
+    class DummyEvent:
+        y_root = "310"
+
+    class DummyPane:
+        def sashpos(self, index):
+            assert index == 0
+            return "240"
+
+    netmon_radio_app._standalone_radio_pane_start_drag(
+        state,
+        DummyEvent(),
+        DummyPane(),
+    )
+
+    assert state == {"root_y": 310, "sash_y": 240}
+
+
+def test_standalone_radio_pane_start_drag_uses_zeroes_on_failure():
+    state = {"root_y": 5, "sash_y": 6}
+
+    class DummyEvent:
+        y_root = "bad"
+
+    class DummyPane:
+        def sashpos(self, index):
+            return "240"
+
+    netmon_radio_app._standalone_radio_pane_start_drag(
+        state,
+        DummyEvent(),
+        DummyPane(),
+    )
+
+    assert state == {"root_y": 0, "sash_y": 0}
+
+
+def test_standalone_radio_pane_start_drag_event_records_state_and_breaks():
+    state = {}
+
+    class DummyEvent:
+        y_root = "310"
+
+    class DummyPane:
+        def sashpos(self, index):
+            assert index == 0
+            return "240"
+
+    result = netmon_radio_app._standalone_radio_pane_start_drag_event(
+        state,
+        DummyEvent(),
+        DummyPane(),
+    )
+
+    assert result == "break"
+    assert state == {"root_y": 310, "sash_y": 240}
+
+
+def test_standalone_radio_pane_start_drag_event_propagates_start_failures():
+    calls = []
+
+    def fail_start(*_args):
+        calls.append("start")
+        raise RuntimeError("start failed")
+
+    with pytest.raises(RuntimeError, match="start failed"):
+        netmon_radio_app._standalone_radio_pane_start_drag_event(
+            object(),
+            object(),
+            object(),
+            start_drag=fail_start,
+        )
+
+    assert calls == ["start"]
+
+
+def test_standalone_radio_pane_start_callback_binds_drag_context():
+    calls = []
+    state = {}
+    pane = object()
+    event = object()
+
+    callback = netmon_radio_app._standalone_radio_pane_start_callback(
+        state,
+        pane,
+        start_drag_event=lambda *args: calls.append(args) or "break",
+    )
+
+    assert callback(event) == "break"
+    assert calls == [(state, event, pane)]
+
+
+def test_standalone_radio_pane_start_callback_propagates_start_failures():
+    def fail_start_event(_state, _event, _pane):
+        raise RuntimeError("start failed")
+
+    callback = netmon_radio_app._standalone_radio_pane_start_callback(
+        {},
+        object(),
+        start_drag_event=fail_start_event,
+    )
+
+    with pytest.raises(RuntimeError, match="start failed"):
+        callback(object())
+
+
+def test_standalone_radio_pane_drag_motion_moves_places_and_schedules():
+    calls = []
+    state = {"root_y": "310", "sash_y": "240"}
+
+    class DummyEvent:
+        y_root = "330"
+
+    netmon_radio_app._standalone_radio_pane_drag_motion(
+        state,
+        DummyEvent(),
+        lambda sash_y: calls.append(("set_sash", sash_y)),
+        lambda sash_y: calls.append(("place", sash_y)),
+        lambda: calls.append("schedule"),
+    )
+
+    assert calls == [
+        ("set_sash", 260),
+        ("place", 260),
+        "schedule",
+    ]
+
+
+def test_standalone_radio_pane_drag_event_handles_motion_and_breaks():
+    calls = []
+    state = {"root_y": "310", "sash_y": "240"}
+
+    class DummyEvent:
+        y_root = "330"
+
+    result = netmon_radio_app._standalone_radio_pane_drag_event(
+        state,
+        DummyEvent(),
+        lambda sash_y: calls.append(("set_sash", sash_y)),
+        lambda sash_y: calls.append(("place", sash_y)),
+        lambda: calls.append("schedule"),
+    )
+
+    assert result == "break"
+    assert calls == [
+        ("set_sash", 260),
+        ("place", 260),
+        "schedule",
+    ]
+
+
+def test_standalone_radio_pane_drag_event_breaks_after_ignored_motion_failure():
+    calls = []
+
+    def fail_motion(*_args):
+        calls.append("motion")
+        raise RuntimeError("motion failed")
+
+    result = netmon_radio_app._standalone_radio_pane_drag_event(
+        object(),
+        object(),
+        lambda sash_y: calls.append(("set_sash", sash_y)),
+        lambda sash_y: calls.append(("place", sash_y)),
+        lambda: calls.append("schedule"),
+        drag_motion=fail_motion,
+    )
+
+    assert result == "break"
+    assert calls == ["motion"]
+
+
+def test_standalone_radio_pane_drag_callback_binds_drag_context():
+    calls = []
+    state = {}
+    event = object()
+    set_sash = object()
+    place_marker = object()
+    schedule_marker = object()
+
+    callback = netmon_radio_app._standalone_radio_pane_drag_callback(
+        state,
+        set_sash,
+        place_marker,
+        schedule_marker,
+        drag_event=lambda *args: calls.append(args) or "break",
+    )
+
+    assert callback(event) == "break"
+    assert calls == [(state, event, set_sash, place_marker, schedule_marker)]
+
+
+def test_standalone_radio_pane_drag_callback_propagates_drag_failures():
+    def fail_drag_event(_state, _event, _set_sash, _place_marker, _schedule):
+        raise RuntimeError("drag failed")
+
+    callback = netmon_radio_app._standalone_radio_pane_drag_callback(
+        {},
+        object(),
+        object(),
+        object(),
+        drag_event=fail_drag_event,
+    )
+
+    with pytest.raises(RuntimeError, match="drag failed"):
+        callback(object())
+
+
+def test_standalone_radio_pane_end_drag_updates_marker_and_breaks():
+    calls = []
+
+    result = netmon_radio_app._standalone_radio_pane_end_drag(
+        lambda: calls.append("update")
+    )
+
+    assert result == "break"
+    assert calls == ["update"]
+
+
+def test_standalone_radio_pane_end_drag_propagates_update_failures():
+    def fail_update():
+        raise RuntimeError("update failed")
+
+    with pytest.raises(RuntimeError, match="update failed"):
+        netmon_radio_app._standalone_radio_pane_end_drag(fail_update)
+
+
+def test_standalone_radio_pane_end_callback_binds_update_and_event():
+    calls = []
+    update_marker = object()
+
+    callback = netmon_radio_app._standalone_radio_pane_end_callback(
+        update_marker,
+        end_drag=lambda marker_arg: calls.append(marker_arg) or "break",
+    )
+
+    assert callback(object()) == "break"
+    assert calls == [update_marker]
+
+
+def test_standalone_radio_pane_end_callback_propagates_end_failures():
+    def fail_end(_update_marker):
+        raise RuntimeError("end failed")
+
+    callback = netmon_radio_app._standalone_radio_pane_end_callback(
+        object(),
+        end_drag=fail_end,
+    )
+
+    with pytest.raises(RuntimeError, match="end failed"):
+        callback()
+
+
+def test_standalone_radio_pane_marker_frame_options_use_marker_style():
+    assert netmon_radio_app._standalone_radio_pane_marker_frame_options("#123456") == {
+        "bg": "#123456",
+        "bd": 1,
+        "relief": "solid",
+    }
+
+
+def test_standalone_radio_pane_marker_grip_options_use_marker_style():
+    assert netmon_radio_app._standalone_radio_pane_marker_grip_options("#123456") == {
+        "text": "≡",
+        "bg": "#123456",
+        "fg": "#ffffff",
+        "font": ("TkDefaultFont", 9, "bold"),
+        "cursor": "sb_v_double_arrow",
+        "padx": 0,
+        "pady": 0,
+        "anchor": "center",
+    }
+
+
+def test_standalone_radio_pane_configure_marker_widgets_applies_layout():
+    calls = []
+
+    class DummyMarker:
+        def columnconfigure(self, column, weight):
+            calls.append(("columnconfigure", column, weight))
+
+    class DummyGrip:
+        def grid(self, **kwargs):
+            calls.append(("grid", kwargs))
+
+    netmon_radio_app._standalone_radio_pane_configure_marker_widgets(
+        DummyMarker(),
+        DummyGrip(),
+    )
+
+    assert calls == [
+        ("columnconfigure", 0, 1),
+        ("grid", {"row": 0, "column": 0, "sticky": "ew"}),
+    ]
+
+
+def test_standalone_radio_pane_configure_marker_widgets_propagates_layout_failures():
+    class FailingMarker:
+        def columnconfigure(self, _column, weight):
+            raise RuntimeError("column failed")
+
+    with pytest.raises(RuntimeError, match="column failed"):
+        netmon_radio_app._standalone_radio_pane_configure_marker_widgets(
+            FailingMarker(),
+            object(),
+        )
+
+
+def test_standalone_radio_pane_marker_frame_builds_with_options():
+    calls = []
+    container = object()
+    marker = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_frame(
+        container,
+        "#123456",
+        frame_builder=lambda *args, **kwargs: calls.append(("frame", args, kwargs))
+        or marker,
+        frame_options_builder=lambda color: calls.append(("frame_options", color))
+        or {"bg": color, "bd": 1, "relief": "solid"},
+    )
+
+    assert result is marker
+    assert calls == [
+        ("frame_options", "#123456"),
+        (
+            "frame",
+            (container,),
+            {"bg": "#123456", "bd": 1, "relief": "solid"},
+        ),
+    ]
+
+
+def test_standalone_radio_pane_marker_frame_propagates_builder_failures():
+    def fail_frame(*_args, **_kwargs):
+        raise RuntimeError("frame failed")
+
+    with pytest.raises(RuntimeError, match="frame failed"):
+        netmon_radio_app._standalone_radio_pane_marker_frame(
+            object(),
+            "#123456",
+            frame_builder=fail_frame,
+        )
+
+
+def test_standalone_radio_pane_marker_grip_builds_with_options():
+    calls = []
+    marker = object()
+    grip = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_grip(
+        marker,
+        "#123456",
+        label_builder=lambda *args, **kwargs: calls.append(("label", args, kwargs))
+        or grip,
+        grip_options_builder=lambda color: calls.append(("grip_options", color))
+        or {
+            "text": "≡",
+            "bg": color,
+            "fg": "#ffffff",
+            "font": ("TkDefaultFont", 9, "bold"),
+            "cursor": "sb_v_double_arrow",
+            "padx": 0,
+            "pady": 0,
+            "anchor": "center",
+        },
+    )
+
+    assert result is grip
+    assert calls == [
+        ("grip_options", "#123456"),
+        (
+            "label",
+            (marker,),
+            {
+                "text": "≡",
+                "bg": "#123456",
+                "fg": "#ffffff",
+                "font": ("TkDefaultFont", 9, "bold"),
+                "cursor": "sb_v_double_arrow",
+                "padx": 0,
+                "pady": 0,
+                "anchor": "center",
+            },
+        ),
+    ]
+
+
+def test_standalone_radio_pane_marker_grip_propagates_builder_failures():
+    def fail_label(*_args, **_kwargs):
+        raise RuntimeError("label failed")
+
+    with pytest.raises(RuntimeError, match="label failed"):
+        netmon_radio_app._standalone_radio_pane_marker_grip(
+            object(),
+            "#123456",
+            label_builder=fail_label,
+        )
+
+
+def test_standalone_radio_pane_marker_widget_pair_builds_frame_then_grip():
+    calls = []
+    container = object()
+
+    marker = object()
+    grip = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_widget_pair(
+        container,
+        "#123456",
+        marker_frame_builder=lambda *args: calls.append(("frame", args)) or marker,
+        marker_grip_builder=lambda *args: calls.append(("grip", args)) or grip,
+    )
+
+    assert result == (marker, grip)
+    assert calls == [
+        ("frame", (container, "#123456")),
+        ("grip", (marker, "#123456")),
+    ]
+
+
+def test_standalone_radio_pane_marker_widget_pair_propagates_grip_failures():
+    marker = object()
+
+    def fail_grip(*_args):
+        raise RuntimeError("grip failed")
+
+    with pytest.raises(RuntimeError, match="grip failed"):
+        netmon_radio_app._standalone_radio_pane_marker_widget_pair(
+            object(),
+            "#123456",
+            marker_frame_builder=lambda *_args: marker,
+            marker_grip_builder=fail_grip,
+        )
+
+
+def test_standalone_radio_pane_marker_widgets_builds_pair_and_configures_layout():
+    calls = []
+    container = object()
+
+    marker = object()
+    grip = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_widgets(
+        container,
+        "#123456",
+        marker_pair_builder=lambda *args: calls.append(("pair", args))
+        or (marker, grip),
+        configure_widgets=lambda marker_arg, grip_arg: calls.append(
+            ("configure", marker_arg, grip_arg)
+        ),
+    )
+
+    assert result == (marker, grip)
+    assert calls == [
+        ("pair", (container, "#123456")),
+        ("configure", marker, grip),
+    ]
+
+
+def test_standalone_radio_pane_marker_widgets_propagates_frame_failures():
+    def fail_pair(*_args):
+        raise RuntimeError("pair failed")
+
+    with pytest.raises(RuntimeError, match="pair failed"):
+        netmon_radio_app._standalone_radio_pane_marker_widgets(
+            object(),
+            "#123456",
+            marker_pair_builder=fail_pair,
+        )
+
+
+def test_standalone_radio_pane_marker_start_callback_builds_start_callback():
+    events = []
+    pane = object()
+    drag_state = {"update_pending": False}
+    start_drag = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_start_callback(
+        drag_state,
+        pane,
+        start_callback_builder=lambda *args: events.append(("start", args))
+        or start_drag,
+    )
+
+    assert result is start_drag
+    assert events == [
+        ("start", (drag_state, pane)),
+    ]
+
+
+def test_standalone_radio_pane_marker_start_callback_propagates_builder_failures():
+    def fail_start(*_args):
+        raise RuntimeError("start failed")
+
+    with pytest.raises(RuntimeError, match="start failed"):
+        netmon_radio_app._standalone_radio_pane_marker_start_callback(
+            {},
+            object(),
+            start_callback_builder=fail_start,
+        )
+
+
+def test_standalone_radio_pane_marker_drag_callback_builds_drag_callback():
+    events = []
+    drag_state = {"update_pending": False}
+    set_sash = object()
+    place_marker = object()
+    schedule_marker = object()
+    drag = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_drag_callback(
+        drag_state,
+        set_sash,
+        place_marker,
+        schedule_marker,
+        drag_callback_builder=lambda *args: events.append(("drag", args)) or drag,
+    )
+
+    assert result is drag
+    assert events == [
+        ("drag", (drag_state, set_sash, place_marker, schedule_marker)),
+    ]
+
+
+def test_standalone_radio_pane_marker_drag_callback_propagates_builder_failures():
+    def fail_drag(*_args):
+        raise RuntimeError("drag failed")
+
+    with pytest.raises(RuntimeError, match="drag failed"):
+        netmon_radio_app._standalone_radio_pane_marker_drag_callback(
+            {},
+            object(),
+            object(),
+            object(),
+            drag_callback_builder=fail_drag,
+        )
+
+
+def test_standalone_radio_pane_marker_drag_pair_builds_start_then_drag():
+    events = []
+    pane = object()
+    drag_state = {"update_pending": False}
+    set_sash = object()
+    place_marker = object()
+    schedule_marker = object()
+    start_drag = object()
+    drag = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_drag_pair(
+        drag_state,
+        pane,
+        set_sash,
+        place_marker,
+        schedule_marker,
+        start_callback_builder=lambda *args: events.append(("start", args))
+        or start_drag,
+        drag_callback_builder=lambda *args: events.append(("drag", args)) or drag,
+    )
+
+    assert result == (start_drag, drag)
+    assert events == [
+        ("start", (drag_state, pane)),
+        ("drag", (drag_state, set_sash, place_marker, schedule_marker)),
+    ]
+
+
+def test_standalone_radio_pane_marker_drag_pair_propagates_builder_failures():
+    def fail_drag(*_args):
+        raise RuntimeError("drag failed")
+
+    with pytest.raises(RuntimeError, match="drag failed"):
+        netmon_radio_app._standalone_radio_pane_marker_drag_pair(
+            {},
+            object(),
+            object(),
+            object(),
+            object(),
+            start_callback_builder=lambda *_args: object(),
+            drag_callback_builder=fail_drag,
+        )
+
+
+def test_standalone_radio_pane_marker_end_callback_builds_end_callback():
+    events = []
+    update_marker = object()
+    end_drag = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_end_callback(
+        update_marker,
+        end_callback_builder=lambda update_arg: events.append(("end", update_arg))
+        or end_drag,
+    )
+
+    assert result is end_drag
+    assert events == [
+        ("end", update_marker),
+    ]
+
+
+def test_standalone_radio_pane_marker_end_callback_propagates_builder_failures():
+    def fail_end(_update_marker):
+        raise RuntimeError("end failed")
+
+    with pytest.raises(RuntimeError, match="end failed"):
+        netmon_radio_app._standalone_radio_pane_marker_end_callback(
+            object(),
+            end_callback_builder=fail_end,
+        )
+
+
+def test_standalone_radio_pane_marker_drag_callbacks_builds_pair_then_end():
+    events = []
+    pane = object()
+    drag_state = {"update_pending": False}
+    set_sash = object()
+    place_marker = object()
+    update_marker = object()
+    schedule_marker = object()
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_drag_callbacks(
+        drag_state,
+        pane,
+        set_sash,
+        place_marker,
+        schedule_marker,
+        update_marker,
+        drag_pair_builder=lambda *args: events.append(("drag_pair", args))
+        or (start_drag, drag),
+        end_callback_builder=lambda update_arg: events.append(("end", update_arg))
+        or end_drag,
+    )
+
+    assert result == (start_drag, drag, end_drag)
+    assert events == [
+        ("drag_pair", (drag_state, pane, set_sash, place_marker, schedule_marker)),
+        ("end", update_marker),
+    ]
+
+
+def test_standalone_radio_pane_marker_drag_callbacks_propagates_builder_failures():
+    def fail_end(_update_marker):
+        raise RuntimeError("end failed")
+
+    with pytest.raises(RuntimeError, match="end failed"):
+        netmon_radio_app._standalone_radio_pane_marker_drag_callbacks(
+            {},
+            object(),
+            object(),
+            object(),
+            object(),
+            object(),
+            drag_pair_builder=lambda *_args: (object(), object()),
+            end_callback_builder=fail_end,
+        )
+
+
+def test_standalone_radio_pane_marker_drag_setup_builds_state_and_sash_callback():
+    events = []
+    pane = object()
+    drag_state = {"update_pending": False}
+    set_sash = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_drag_setup(
+        pane,
+        drag_state_builder=lambda: events.append("drag_state") or drag_state,
+        sash_callback_builder=lambda pane_arg: events.append(("sash", pane_arg))
+        or set_sash,
+    )
+
+    assert result == (drag_state, set_sash)
+    assert events == [
+        "drag_state",
+        ("sash", pane),
+    ]
+
+
+def test_standalone_radio_pane_marker_drag_setup_propagates_builder_failures():
+    def fail_sash(_pane):
+        raise RuntimeError("sash failed")
+
+    with pytest.raises(RuntimeError, match="sash failed"):
+        netmon_radio_app._standalone_radio_pane_marker_drag_setup(
+            object(),
+            drag_state_builder=lambda: {},
+            sash_callback_builder=fail_sash,
+        )
+
+
+def test_standalone_radio_pane_marker_update_pair_builds_place_then_update():
+    events = []
+    container = object()
+    pane = object()
+    marker = object()
+    place_marker = object()
+    update_marker = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_update_pair(
+        container,
+        pane,
+        marker,
+        12,
+        place_callback_builder=lambda *args: events.append(("place", args))
+        or place_marker,
+        update_callback_builder=lambda *args: events.append(("update", args))
+        or update_marker,
+    )
+
+    assert result == (place_marker, update_marker)
+    assert events == [
+        ("place", (container, marker, 12)),
+        ("update", (pane, place_marker, marker)),
+    ]
+
+
+def test_standalone_radio_pane_marker_update_pair_propagates_builder_failures():
+    def fail_update(*_args):
+        raise RuntimeError("update failed")
+
+    with pytest.raises(RuntimeError, match="update failed"):
+        netmon_radio_app._standalone_radio_pane_marker_update_pair(
+            object(),
+            object(),
+            object(),
+            place_callback_builder=lambda *_args: object(),
+            update_callback_builder=fail_update,
+        )
+
+
+def test_standalone_radio_pane_marker_schedule_callback_builds_schedule():
+    events = []
+    container = object()
+    drag_state = {"update_pending": False}
+    update_marker = object()
+    schedule_marker = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_schedule_callback(
+        container,
+        drag_state,
+        update_marker,
+        schedule_callback_builder=lambda *args: events.append(("schedule", args))
+        or schedule_marker,
+    )
+
+    assert result is schedule_marker
+    assert events == [
+        ("schedule", (container, drag_state, update_marker)),
+    ]
+
+
+def test_standalone_radio_pane_marker_schedule_callback_propagates_builder_failures():
+    def fail_schedule(*_args):
+        raise RuntimeError("schedule failed")
+
+    with pytest.raises(RuntimeError, match="schedule failed"):
+        netmon_radio_app._standalone_radio_pane_marker_schedule_callback(
+            object(),
+            {},
+            object(),
+            schedule_callback_builder=fail_schedule,
+        )
+
+
+def test_standalone_radio_pane_marker_update_callbacks_builds_pair_then_schedule():
+    events = []
+    container = object()
+    pane = object()
+    marker = object()
+    drag_state = {"update_pending": False}
+    place_marker = object()
+    update_marker = object()
+    schedule_marker = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_update_callbacks(
+        container,
+        pane,
+        marker,
+        drag_state,
+        12,
+        update_pair_builder=lambda *args: events.append(("update_pair", args))
+        or (place_marker, update_marker),
+        schedule_callback_builder=lambda *args: events.append(("schedule", args))
+        or schedule_marker,
+    )
+
+    assert result == (place_marker, update_marker, schedule_marker)
+    assert events == [
+        ("update_pair", (container, pane, marker, 12)),
+        ("schedule", (container, drag_state, update_marker)),
+    ]
+
+
+def test_standalone_radio_pane_marker_update_callbacks_propagates_builder_failures():
+    def fail_schedule(*_args):
+        raise RuntimeError("schedule failed")
+
+    with pytest.raises(RuntimeError, match="schedule failed"):
+        netmon_radio_app._standalone_radio_pane_marker_update_callbacks(
+            object(),
+            object(),
+            object(),
+            {},
+            update_pair_builder=lambda *_args: (object(), object()),
+            schedule_callback_builder=fail_schedule,
+        )
+
+
+def test_standalone_radio_pane_marker_base_callbacks_builds_callbacks_in_order():
+    events = []
+    container = object()
+    pane = object()
+    marker = object()
+    drag_state = {"update_pending": False}
+    set_sash = object()
+    place_marker = object()
+    update_marker = object()
+    schedule_marker = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_base_callbacks(
+        container,
+        pane,
+        marker,
+        12,
+        drag_setup_builder=lambda pane_arg: events.append(("drag_setup", pane_arg))
+        or (drag_state, set_sash),
+        update_callbacks_builder=lambda *args: events.append(("update_callbacks", args))
+        or (place_marker, update_marker, schedule_marker),
+    )
+
+    assert result == (
+        drag_state,
+        set_sash,
+        place_marker,
+        update_marker,
+        schedule_marker,
+    )
+    assert events == [
+        ("drag_setup", pane),
+        ("update_callbacks", (container, pane, marker, drag_state, 12)),
+    ]
+
+
+def test_standalone_radio_pane_marker_base_callbacks_propagates_builder_failures():
+    def fail_update_callbacks(*_args):
+        raise RuntimeError("update callbacks failed")
+
+    with pytest.raises(RuntimeError, match="update callbacks failed"):
+        netmon_radio_app._standalone_radio_pane_marker_base_callbacks(
+            object(),
+            object(),
+            object(),
+            drag_setup_builder=lambda _pane: ({}, object()),
+            update_callbacks_builder=fail_update_callbacks,
+        )
+
+
+def test_standalone_radio_pane_marker_callback_tuple_combines_callbacks():
+    update_marker = object()
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_callback_tuple(
+        update_marker,
+        (start_drag, drag, end_drag),
+    )
+
+    assert result == (update_marker, start_drag, drag, end_drag)
+
+
+def test_standalone_radio_pane_marker_callback_tuple_rejects_invalid_callbacks():
+    with pytest.raises(ValueError):
+        netmon_radio_app._standalone_radio_pane_marker_callback_tuple(
+            object(),
+            (object(), object()),
+        )
+
+
+def test_standalone_radio_pane_marker_callbacks_builds_callbacks_in_order():
+    events = []
+    container = object()
+    pane = object()
+    marker = object()
+    drag_state = {"update_pending": False}
+    set_sash = object()
+    place_marker = object()
+    update_marker = object()
+    schedule_marker = object()
+    start_drag = object()
+    drag = object()
+    end_drag = object()
+    callback_tuple = object()
+
+    result = netmon_radio_app._standalone_radio_pane_marker_callbacks(
+        container,
+        pane,
+        marker,
+        12,
+        base_callbacks_builder=lambda *args: events.append(("base", args))
+        or (drag_state, set_sash, place_marker, update_marker, schedule_marker),
+        drag_callbacks_builder=lambda *args: events.append(("drag_callbacks", args))
+        or (start_drag, drag, end_drag),
+        callback_tuple_builder=lambda *args: events.append(("tuple", args))
+        or callback_tuple,
+    )
+
+    assert result is callback_tuple
+    assert events == [
+        ("base", (container, pane, marker, 12)),
+        (
+            "drag_callbacks",
+            (drag_state, pane, set_sash, place_marker, schedule_marker, update_marker),
+        ),
+        ("tuple", (update_marker, (start_drag, drag, end_drag))),
+    ]
+
+
+def test_standalone_radio_pane_marker_callbacks_propagates_builder_failures():
+    def fail_callback_tuple(*_args):
+        raise RuntimeError("callback tuple failed")
+
+    with pytest.raises(RuntimeError, match="callback tuple failed"):
+        netmon_radio_app._standalone_radio_pane_marker_callbacks(
+            object(),
+            object(),
+            object(),
+            base_callbacks_builder=lambda *_args: (
+                {},
+                object(),
+                object(),
+                object(),
+                object(),
+            ),
+            drag_callbacks_builder=lambda *_args: (object(), object(), object()),
+            callback_tuple_builder=fail_callback_tuple,
+        )
+
+
+def test_standalone_radio_pane_marker_activation_args_combines_arguments():
+    container = object()
+    pane = object()
+    grip = object()
+    callbacks = (object(), object(), object(), object())
+
+    result = netmon_radio_app._standalone_radio_pane_marker_activation_args(
+        container,
+        pane,
+        grip,
+        callbacks,
+    )
+
+    assert result == (container, pane, grip, *callbacks)
+
+
+def test_standalone_radio_pane_marker_activation_args_rejects_invalid_callbacks():
+    with pytest.raises(ValueError):
+        netmon_radio_app._standalone_radio_pane_marker_activation_args(
+            object(),
+            object(),
+            object(),
+            (object(), object(), object()),
+        )
+
+
+def test_standalone_radio_pane_activate_marker_parts_activates_bindings():
+    events = []
+    container = object()
+    pane = object()
+    grip = object()
+    callbacks = (object(), object(), object(), object())
+    activation_args = (object(), object(), object(), object())
+
+    netmon_radio_app._standalone_radio_pane_activate_marker_parts(
+        container,
+        pane,
+        grip,
+        callbacks,
+        activation_args_builder=lambda *args: events.append(("args", args))
+        or activation_args,
+        bindings_activator=lambda *args: events.append(("activate", args)),
+    )
+
+    assert events == [
+        ("args", (container, pane, grip, callbacks)),
+        ("activate", activation_args),
+    ]
+
+
+def test_standalone_radio_pane_activate_marker_parts_propagates_activation_failure():
+    def fail_activate(*_args):
+        raise RuntimeError("activate failed")
+
+    with pytest.raises(RuntimeError, match="activate failed"):
+        netmon_radio_app._standalone_radio_pane_activate_marker_parts(
+            object(),
+            object(),
+            object(),
+            (object(), object(), object(), object()),
+            bindings_activator=fail_activate,
+        )
+
+
+def test_standalone_radio_pane_activate_marker_parts_propagates_args_failure():
+    def fail_activation_args(*_args):
+        raise RuntimeError("activation args failed")
+
+    with pytest.raises(RuntimeError, match="activation args failed"):
+        netmon_radio_app._standalone_radio_pane_activate_marker_parts(
+            object(),
+            object(),
+            object(),
+            (object(), object(), object(), object()),
+            activation_args_builder=fail_activation_args,
+        )
+
+
+def test_standalone_radio_pane_install_marker_parts_builds_callbacks_and_activates():
+    events = []
+    container = object()
+    pane = object()
+    marker = object()
+    grip = object()
+    callbacks = (object(), object(), object(), object())
+
+    result = netmon_radio_app._standalone_radio_pane_install_marker_parts(
+        container,
+        pane,
+        marker,
+        grip,
+        12,
+        callbacks_builder=lambda *args: events.append(("callbacks", args)) or callbacks,
+        marker_parts_activator=lambda *args: events.append(("activate_parts", args)),
+    )
+
+    assert result is marker
+    assert events == [
+        ("callbacks", (container, pane, marker, 12)),
+        ("activate_parts", (container, pane, grip, callbacks)),
+    ]
+
+
+def test_standalone_radio_pane_install_marker_parts_propagates_activation_failure():
+    def fail_activate_parts(*_args):
+        raise RuntimeError("activate parts failed")
+
+    with pytest.raises(RuntimeError, match="activate parts failed"):
+        netmon_radio_app._standalone_radio_pane_install_marker_parts(
+            object(),
+            object(),
+            object(),
+            object(),
+            callbacks_builder=lambda *_args: (
+                object(),
+                object(),
+                object(),
+                object(),
+            ),
+            marker_parts_activator=fail_activate_parts,
+        )
+
+
+def test_standalone_radio_pane_install_marker_parts_args_combines_arguments():
+    container = object()
+    pane = object()
+    marker = object()
+    grip = object()
+
+    result = netmon_radio_app._standalone_radio_pane_install_marker_parts_args(
+        container,
+        pane,
+        (marker, grip),
+        12,
+    )
+
+    assert result == (container, pane, marker, grip, 12)
+
+
+def test_standalone_radio_pane_install_marker_parts_args_rejects_invalid_widgets():
+    with pytest.raises(ValueError):
+        netmon_radio_app._standalone_radio_pane_install_marker_parts_args(
+            object(),
+            object(),
+            (object(), object(), object()),
+        )
+
+
+def test_standalone_radio_pane_install_marker_builds_widgets_and_installs_parts():
+    events = []
+    container = object()
+    pane = object()
+    marker = object()
+    grip = object()
+    install_parts_args = (object(), object(), object(), object(), object())
+    installed_marker = object()
+
+    result = netmon_radio_app._standalone_radio_pane_install_marker(
+        container,
+        pane,
+        color="#123456",
+        y_offset=12,
+        widgets_builder=lambda *args: events.append(("widgets", args))
+        or (marker, grip),
+        install_parts_args_builder=lambda *args: events.append(("install_args", args))
+        or install_parts_args,
+        install_parts=lambda *args: events.append(("install", args))
+        or installed_marker,
+    )
+
+    assert result is installed_marker
+    assert events == [
+        ("widgets", (container, "#123456")),
+        ("install_args", (container, pane, (marker, grip), 12)),
+        ("install", install_parts_args),
+    ]
+
+
+def test_standalone_radio_pane_install_marker_propagates_widget_failures():
+    def fail_widgets(*_args):
+        raise RuntimeError("widgets failed")
+
+    with pytest.raises(RuntimeError, match="widgets failed"):
+        netmon_radio_app._standalone_radio_pane_install_marker(
+            object(),
+            object(),
+            widgets_builder=fail_widgets,
+        )
+
+
+def test_standalone_radio_pane_install_marker_propagates_args_failures():
+    def fail_install_parts_args(*_args):
+        raise RuntimeError("install parts args failed")
+
+    with pytest.raises(RuntimeError, match="install parts args failed"):
+        netmon_radio_app._standalone_radio_pane_install_marker(
+            object(),
+            object(),
+            widgets_builder=lambda *_args: (object(), object()),
+            install_parts_args_builder=fail_install_parts_args,
+        )
+
+
+def test_install_pane_drag_marker_delegates_to_installer():
+    events = []
+    container = object()
+    pane = object()
+    marker = object()
+
+    result = netmon_radio_app._install_pane_drag_marker(
+        container,
+        pane,
+        color="#123456",
+        y_offset=12,
+        install_marker=lambda *args, **kwargs: events.append((args, kwargs)) or marker,
+    )
+
+    assert result is marker
+    assert events == [
+        (
+            (container, pane),
+            {"color": "#123456", "y_offset": 12},
+        ),
+    ]
+
+
+def test_install_pane_drag_marker_propagates_installer_failures():
+    def fail_install_marker(*_args, **_kwargs):
+        raise RuntimeError("install marker failed")
+
+    with pytest.raises(RuntimeError, match="install marker failed"):
+        netmon_radio_app._install_pane_drag_marker(
+            object(),
+            object(),
+            install_marker=fail_install_marker,
+        )
+
+
+def test_init_radio_runtime_widget_refs_initializes_widget_state():
+    app = SimpleNamespace()
+
+    netmon_radio_app._init_radio_runtime_widget_refs(app)
+
+    assert app.feature_buttons == {}
+    assert app.radio_station_table is None
+    assert app.radio_station_menu is None
+    assert app.radio_page_prev_button is None
+    assert app.radio_page_next_button is None
+    assert app.radio_reachability_button is None
+    assert app.radio_miniplayer_button is None
+    assert app.radio_database_button is None
+    assert app.radio_database_count_label is None
+    assert app.radio_database_sources_window is None
+    assert app.radio_database_source_vars == {}
+    assert app.radio_database_source_status_labels == {}
+    assert app.radio_database_source_status_by_id == {}
+    assert app.radio_database_source_check_running is False
+    assert app.radio_database_exclusive_mode_var is None
+    assert app.radio_database_select_all_var is None
+    assert app.radio_database_refresh_button is None
+    assert app.radio_database_progressbar is None
+    assert app.radio_database_refresh_running is False
+    assert app.radio_mini_player_window is None
+    assert app.radio_mini_logo_label is None
+    assert app.radio_mini_drag_origin is None
+    assert app.radio_mini_resize_origin is None
+    assert app.radio_standalone_resize_origin is None
+
+
+def test_init_radio_runtime_paths_initializes_radio_paths():
+    app = SimpleNamespace()
+    paths = SimpleNamespace(
+        config_dir="/tmp/netmon-config",
+        state_dir="/tmp/netmon-state",
+        default_stations_path="/tmp/default.json",
+        radio_db_path="/tmp/radio.db",
+        radio_db_meta_path="/tmp/radio.meta.json",
+        radio_stations_path="/tmp/stations.json",
+        radio_favorites_path="/tmp/favorites.json",
+        radio_settings_path="/tmp/settings.json",
+    )
+
+    netmon_radio_app._init_radio_runtime_paths(
+        app,
+        paths_builder=lambda: paths,
+    )
+
+    assert app.netmon_config_dir == "/tmp/netmon-config"
+    assert app.netmon_state_dir == "/tmp/netmon-state"
+    assert app.radio_default_stations_path == "/tmp/default.json"
+    assert app.radio_db_path == "/tmp/radio.db"
+    assert app.radio_db_meta_path == "/tmp/radio.meta.json"
+    assert app.radio_stations_path == "/tmp/stations.json"
+    assert app.radio_favorites_path == "/tmp/favorites.json"
+    assert app.radio_settings_path == "/tmp/settings.json"
+    assert app.radio_log_path == "/tmp/netmon-state/logs/netmon_radio_app.log"
+    assert app.radio_logo_cache_dir == "/tmp/netmon-state/radio_station_logos"
+
+
+def test_init_radio_runtime_data_state_initializes_radio_data():
+    app = SimpleNamespace()
+    settings = {"volume": 77}
+
+    netmon_radio_app._init_radio_runtime_data_state(
+        app,
+        settings_builder=lambda: settings,
+    )
+
+    assert app.radio_proc is None
+    assert app.radio_stop_requested is False
+    assert app.radio_ipc_path == ""
+    assert app.radio_db == []
+    assert app.radio_favorites == []
+    assert app.radio_search_results == []
+    assert app.radio_settings is settings
+
+
+def test_init_radio_runtime_selection_state_initializes_selection_data():
+    app = SimpleNamespace()
+
+    netmon_radio_app._init_radio_runtime_selection_state(app)
+
+    assert app._app_theme is None
+    assert app.radio_current_station_id == ""
+    assert app.radio_current_station is None
+    assert app.radio_search_page == 0
+    assert app.radio_filtered_station_ids == []
+    assert app.radio_live_status_by_station_id == {}
+    assert app.radio_reachability_check_running is False
+
+
+def test_init_radio_runtime_host_state_applies_host_theme():
+    host = SimpleNamespace(_app_theme={"name": " Dark "})
+    app = SimpleNamespace(radio_settings={})
+
+    netmon_radio_app._init_radio_runtime_host_state(
+        app,
+        embedded_mode=True,
+        host_app=host,
+    )
+
+    assert app.radio_embedded_mode is True
+    assert app.radio_detach_callback is None
+    assert app.radio_host_app is host
+    assert app._start_theme_name == "dark"
+    assert app.radio_settings["theme"] == "dark"
+
+
+def test_init_radio_runtime_host_state_ignores_theme_failures():
+    class FailingHost:
+        @property
+        def _app_theme(self):
+            raise RuntimeError("theme failed")
+
+    app = SimpleNamespace(radio_settings={})
+    host = FailingHost()
+
+    netmon_radio_app._init_radio_runtime_host_state(
+        app,
+        embedded_mode=False,
+        host_app=host,
+    )
+
+    assert app.radio_embedded_mode is False
+    assert app.radio_detach_callback is None
+    assert app.radio_host_app is host
+    assert app._start_theme_name == ""
+    assert app.radio_settings == {}
+
+
+def test_radio_ui_volume_value_uses_setting_and_default():
+    assert netmon_radio_app._radio_ui_volume_value({"volume": "67"}) == 67
+    assert netmon_radio_app._radio_ui_volume_value({}) == 50
+    assert netmon_radio_app._radio_ui_volume_value({"volume": 0}) == 50
+
+
+def test_radio_ui_eq_values_use_settings_and_defaults():
+    assert netmon_radio_app._radio_ui_eq_values(
+        {"eq_bass": "3", "eq_mid": "-2", "eq_treble": "4"}
+    ) == (3, -2, 4)
+    assert netmon_radio_app._radio_ui_eq_values({}) == (0, 0, 0)
+
+
+def test_radio_ui_value_helpers_propagate_invalid_numbers():
+    with pytest.raises(ValueError):
+        netmon_radio_app._radio_ui_volume_value({"volume": "loud"})
+
+    with pytest.raises(ValueError):
+        netmon_radio_app._radio_ui_eq_values({"eq_bass": "deep"})
+
+
+def test_radio_ui_search_value_uses_setting_and_default():
+    assert netmon_radio_app._radio_ui_search_value({"last_search": "ambient"}) == (
+        "ambient"
+    )
+    assert netmon_radio_app._radio_ui_search_value({"last_search": None}) == ""
+    assert netmon_radio_app._radio_ui_search_value({}) == ""
+
+
+def test_radio_ui_database_count_handles_missing_and_empty_db():
+    assert (
+        netmon_radio_app._radio_ui_database_count(
+            SimpleNamespace(radio_db=[object(), object(), object()])
+        )
+        == 3
+    )
+    assert (
+        netmon_radio_app._radio_ui_database_count(SimpleNamespace(radio_db=None)) == 0
+    )
+    assert netmon_radio_app._radio_ui_database_count(SimpleNamespace()) == 0
+
+
+def test_init_radio_ui_projectm_runtime_state_initializes_fresh_state():
+    app = SimpleNamespace()
+    other = SimpleNamespace()
+
+    netmon_radio_app._init_radio_ui_projectm_runtime_state(app)
+    netmon_radio_app._init_radio_ui_projectm_runtime_state(other)
+
+    assert app.radio_projectm_proc is None
+    assert app.radio_projectm_command == []
+    assert app.radio_projectm_known_pids == set()
+    assert app.radio_projectm_log_handle is None
+    assert app.radio_projectm_log_path == ""
+    assert app.radio_projectm_package_probe == {}
+    assert app.radio_projectm_command is not other.radio_projectm_command
+    assert app.radio_projectm_known_pids is not other.radio_projectm_known_pids
+    assert app.radio_projectm_package_probe is not other.radio_projectm_package_probe
+
+
+def test_radio_ui_recordings_dir_uses_stripped_setting_and_default():
+    assert (
+        netmon_radio_app._radio_ui_recordings_dir({"recordings_dir": " /tmp/records "})
+        == "/tmp/records"
+    )
+    assert netmon_radio_app._radio_ui_recordings_dir({"recordings_dir": None}) == ""
+    assert netmon_radio_app._radio_ui_recordings_dir({}) == ""
+
+
+def test_init_radio_ui_recording_runtime_state_initializes_recording_state():
+    app = SimpleNamespace(radio_settings={"recordings_dir": " /tmp/records "})
+
+    netmon_radio_app._init_radio_ui_recording_runtime_state(app)
+
+    assert app.radio_record_proc is None
+    assert app.radio_recordings_dir == "/tmp/records"
+    assert app.radio_last_record_path == ""
+    assert app.radio_record_transport_button is None
+    assert app.radio_record_panel_button is None
+    assert app.radio_record_settings_button is None
+    assert app.radio_record_settings_window is None
+    assert app.radio_record_start_button is None
+    assert app.radio_record_stop_button is None
+    assert app.radio_record_folder_button is None
+    assert app.radio_record_open_folder_button is None
+    assert app.radio_record_open_last_button is None
+    assert app.radio_record_play_last_button is None
+    assert app.radio_record_blink_after_id is None
+    assert app.radio_record_blink_on is False
+
+
+def test_radio_ui_playlist_values_prefer_existing_state_then_settings():
+    app = SimpleNamespace(
+        radio_settings={
+            "playlist_entries": ["settings-a"],
+            "playlist_path": " /settings/list.m3u ",
+            "playlists_dir": " /settings/lists ",
+        },
+        radio_playlist_entries=["existing-a"],
+        radio_playlist_path=" /existing/list.m3u ",
+        radio_playlists_dir=" /existing/lists ",
+    )
+
+    assert netmon_radio_app._radio_ui_playlist_entries(app) == ["existing-a"]
+    assert netmon_radio_app._radio_ui_playlist_path(app) == "/existing/list.m3u"
+    assert netmon_radio_app._radio_ui_playlists_dir(app) == "/existing/lists"
+
+    app.radio_playlist_entries = []
+    app.radio_playlist_path = ""
+    app.radio_playlists_dir = ""
+
+    assert netmon_radio_app._radio_ui_playlist_entries(app) == ["settings-a"]
+    assert netmon_radio_app._radio_ui_playlist_path(app) == "/settings/list.m3u"
+    assert netmon_radio_app._radio_ui_playlists_dir(app) == "/settings/lists"
+
+
+def test_init_radio_ui_playlist_runtime_state_initializes_fresh_state():
+    app = SimpleNamespace(
+        radio_settings={
+            "playlist_entries": ["one.mp3"],
+            "playlist_path": " /tmp/list.m3u ",
+            "playlists_dir": " /tmp/lists ",
+        }
+    )
+    other = SimpleNamespace(radio_settings={})
+
+    netmon_radio_app._init_radio_ui_playlist_runtime_state(app)
+    netmon_radio_app._init_radio_ui_playlist_runtime_state(other)
+
+    assert app.radio_playlist_entries == ["one.mp3"]
+    assert app.radio_playlist_path == "/tmp/list.m3u"
+    assert app.radio_playlists_dir == "/tmp/lists"
+    assert app.radio_playlist_listbox is None
+    assert app.radio_playlist_add_button is None
+    assert app.radio_playlist_play_file_button is None
+    assert app.radio_playlist_play_selected_button is None
+    assert app.radio_playlist_remove_button is None
+    assert app.radio_playlist_clear_button is None
+    assert app.radio_playlist_save_button is None
+    assert app.radio_playlist_load_button is None
+    assert app.radio_playlist_folder_button is None
+    assert app.radio_system_folder_button is None
+    assert app.radio_playlist_files_entries == []
+    assert app.radio_system_folder_entries == []
+    assert app.radio_system_folder_path == ""
+    assert app.radio_folder_browser_mode == "recordings"
+    assert app.radio_folder_browser_current_path == ""
+    assert app.radio_folder_browser_back_history == []
+    assert app.radio_folder_browser_forward_history == []
+    assert app.radio_playlist_entries is not other.radio_playlist_entries
+    assert app.radio_playlist_files_entries is not other.radio_playlist_files_entries
+    assert app.radio_folder_browser_back_history is not (
+        other.radio_folder_browser_back_history
+    )
+
+
+def test_init_radio_ui_folder_browser_runtime_state_initializes_state():
+    app = SimpleNamespace(
+        radio_playback_mode=" file ",
+        radio_local_media_path=" /tmp/song.mp3 ",
+        radio_playlist_index=0,
+    )
+
+    netmon_radio_app._init_radio_ui_folder_browser_runtime_state(app)
+
+    assert app.radio_folder_browser_context_index == -1
+    assert app.radio_folder_browser_menu is None
+    assert app.radio_folder_browser_back_button is None
+    assert app.radio_folder_browser_forward_button is None
+    assert app.radio_folder_browser_up_button is None
+    assert app.radio_folder_browser_open_path_button is None
+    assert app.radio_folder_browser_drag_source_index == -1
+    assert app.radio_folder_browser_drag_source_path == ""
+    assert app.radio_recordings_entries == []
+    assert app.radio_recordings_listbox is None
+    assert app.radio_playback_mode == "file"
+    assert app.radio_local_media_path == "/tmp/song.mp3"
+    assert app.radio_playlist_index == -1
+
+
+def test_init_radio_ui_logo_runtime_state_initializes_fresh_state():
+    app = SimpleNamespace()
+    other = SimpleNamespace()
+
+    netmon_radio_app._init_radio_ui_logo_runtime_state(app)
+    netmon_radio_app._init_radio_ui_logo_runtime_state(other)
+
+    assert app.radio_projectm_last_started_at == ""
+    assert app.radio_projectm_last_stopped_at == ""
+    assert app.radio_logo_label is None
+    assert app.radio_mini_play_button is None
+    assert app.radio_mini_stop_button is None
+    assert app._radio_logo_photo is None
+    assert app._radio_mini_logo_photo is None
+    assert app._radio_logo_request_key == ""
+    assert app._radio_logo_loaded_key == ""
+    assert app._radio_miniplayer_var_traces == []
+    assert app._active_context_menu is None
+    assert app._radio_miniplayer_var_traces is not other._radio_miniplayer_var_traces
+
+
+def test_init_radio_ui_control_refs_initializes_fresh_state():
+    app = SimpleNamespace()
+    other = SimpleNamespace()
+
+    netmon_radio_app._init_radio_ui_control_refs(app)
+    netmon_radio_app._init_radio_ui_control_refs(other)
+
+    assert app.radio_light_state == "gray"
+    assert app.radio_context_station_id == ""
+    assert app.radio_station_column_vars == {}
+    assert app.radio_custom_edit_station_id == ""
+    assert app.radio_custom_editor_window is None
+    assert app.radio_custom_editor_delete_button is None
+    assert app.radio_projectm_install_button is None
+    assert app.radio_projectm_preset_open_button is None
+    assert app.radio_projectm_preset_import_button is None
+    assert app.radio_projectm_preset_manager_window is None
+    assert app.radio_station_column_vars is not other.radio_station_column_vars
+
+
+def test_init_radio_ui_header_vars_initializes_translated_values():
+    calls = []
+    app = SimpleNamespace(
+        tr=lambda key, default: {
+            "radio_header_off": "Radio aus",
+            "radio_header_title_idle": "Titel: -",
+            "radio_stream_url_default": "Stream: -",
+            "radio_bitrate_label": "Bitrate: -",
+            "radio_status_ready": "Bereit.",
+            "radio_station_count": "Sender: {count}",
+        }.get(key, default)
+    )
+
+    def build_var(*, value):
+        calls.append(value)
+        return DummyVar(value)
+
+    netmon_radio_app._init_radio_ui_header_vars(
+        app,
+        string_var_builder=build_var,
+    )
+
+    assert app.radio_now_playing_var.get() == "Radio aus"
+    assert app.radio_status_var.get() == "Radio aus"
+    assert app.radio_title_var.get() == "Titel: -"
+    assert app.radio_header_status_var.get() == "Titel: -"
+    assert app.radio_handover_title == ""
+    assert app.radio_stream_url_var.get() == "Stream: -"
+    assert app.radio_bitrate_var.get() == "Bitrate: -"
+    assert app.radio_dependency_var.get() == "Bereit."
+    assert app.radio_list_status_var.get() == "Sender: 0"
+    assert calls == [
+        "Radio aus",
+        "Radio aus",
+        "Titel: -",
+        "Titel: -",
+        "Stream: -",
+        "Bitrate: -",
+        "Bereit.",
+        "Sender: 0",
+    ]
+
+
+def test_init_radio_ui_volume_eq_search_vars_initializes_values():
+    int_calls = []
+    string_calls = []
+    app = SimpleNamespace(
+        tr=lambda key, default: {
+            "radio_volume_short_label": "Lautst.: {value}%",
+        }.get(key, default)
+    )
+
+    def build_int_var(*, value):
+        int_calls.append(value)
+        return DummyVar(value)
+
+    def build_string_var(*, value):
+        string_calls.append(value)
+        return DummyVar(value)
+
+    netmon_radio_app._init_radio_ui_volume_eq_search_vars(
+        app,
+        volume_value=72,
+        eq_bass_value=-2,
+        eq_mid_value=3,
+        eq_treble_value=5,
+        search_value="jazz",
+        int_var_builder=build_int_var,
+        string_var_builder=build_string_var,
+    )
+
+    assert app.radio_volume_var.get() == 72
+    assert app.radio_volume_text_var.get() == "Lautst.: 72%"
+    assert app.radio_volume_label_var.get() == "72%"
+    assert app.radio_eq_bass_var.get() == -2
+    assert app.radio_eq_mid_var.get() == 3
+    assert app.radio_eq_treble_var.get() == 5
+    assert app.radio_eq_bass_label_var.get() == "-2"
+    assert app.radio_eq_mid_label_var.get() == "3"
+    assert app.radio_eq_treble_label_var.get() == "5"
+    assert app.radio_search_var.get() == "jazz"
+    assert int_calls == [72, -2, 3, 5]
+    assert string_calls == ["Lautst.: 72%", "72%", "-2", "3", "5", "jazz"]
+
+
+def test_init_radio_ui_database_custom_vars_initializes_values():
+    boolean_calls = []
+    double_calls = []
+    string_calls = []
+    app = SimpleNamespace(
+        tr=lambda key, default: {
+            "radio_show_favorites": "Favoriten zeigen",
+            "radio_database_count": "DB: {count} Sender",
+            "radio_custom_add_button": "Sender hinzufuegen",
+        }.get(key, default)
+    )
+
+    def build_boolean_var(*, value):
+        boolean_calls.append(value)
+        return DummyVar(value)
+
+    def build_double_var(*, value):
+        double_calls.append(value)
+        return DummyVar(value)
+
+    def build_string_var(*, value):
+        string_calls.append(value)
+        return DummyVar(value)
+
+    netmon_radio_app._init_radio_ui_database_custom_vars(
+        app,
+        database_count=42,
+        boolean_var_builder=build_boolean_var,
+        double_var_builder=build_double_var,
+        string_var_builder=build_string_var,
+    )
+
+    assert app.radio_show_favorites_var.get() is False
+    assert app.radio_toggle_favorites_text_var.get() == "Favoriten zeigen"
+    assert app.radio_page_indicator_var.get() == "1/1"
+    assert app.radio_database_count_var.get() == "DB: 42 Sender"
+    assert app.radio_database_progress_var.get() == 0.0
+    assert app.radio_database_progress_status_var.get() == ""
+    assert app.radio_database_exclusive_mode_var.get() is True
+    assert app.radio_database_select_all_var.get() is False
+    assert app.radio_station_columns_status_var.get() == ""
+    assert app.radio_custom_name_var.get() == ""
+    assert app.radio_custom_url_var.get() == ""
+    assert app.radio_custom_homepage_var.get() == ""
+    assert app.radio_custom_category_var.get() == ""
+    assert app.radio_custom_submit_text_var.get() == "Sender hinzufuegen"
+    assert app.radio_custom_form_status_var.get() == ""
+    assert boolean_calls == [False, True, False]
+    assert double_calls == [0.0]
+    assert string_calls == [
+        "Favoriten zeigen",
+        "1/1",
+        "DB: 42 Sender",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "Sender hinzufuegen",
+        "",
+    ]
+
+
+def test_init_radio_ui_projectm_vars_initializes_translated_values():
+    calls = []
+    app = SimpleNamespace(
+        tr=lambda key, default: {
+            "radio_projectm_status_not_installed": "projectM fehlt",
+            "radio_projectm_meta_default": "PID: - | Log: -",
+            "radio_projectm_history_default": "Start: - | Stopp: -",
+            "radio_projectm_install_status_checking": "Paketstatus pruefen.",
+            "radio_projectm_presets_preparing": "Preset-Ordner wird vorbereitet",
+            "radio_projectm_preset_access_checking": "Preset-Zugriff pruefen",
+        }.get(key, default)
+    )
+
+    def build_var(*, value):
+        calls.append(value)
+        return DummyVar(value)
+
+    netmon_radio_app._init_radio_ui_projectm_vars(
+        app,
+        string_var_builder=build_var,
+    )
+
+    assert app.radio_projectm_status_var.get() == "projectM fehlt"
+    assert app.radio_projectm_meta_var.get() == "PID: - | Log: -"
+    assert app.radio_projectm_history_var.get() == "Start: - | Stopp: -"
+    assert app.radio_projectm_install_var.get() == "Paketstatus pruefen."
+    assert app.radio_projectm_preset_var.get() == "Preset-Ordner wird vorbereitet"
+    assert app.radio_projectm_preset_hint_var.get() == "Preset-Zugriff pruefen"
+    assert app.radio_attach_status_var.get() == ""
+    assert calls == [
+        "projectM fehlt",
+        "PID: - | Log: -",
+        "Start: - | Stopp: -",
+        "Paketstatus pruefen.",
+        "Preset-Ordner wird vorbereitet",
+        "Preset-Zugriff pruefen",
+        "",
+    ]
+
+
+def test_init_radio_ui_recording_vars_initializes_translated_values():
+    calls = []
+    app = SimpleNamespace(
+        tr=lambda key, default: {
+            "radio_record_status_off": "Aufnahme aus.",
+            "radio_record_dir_default": "Ordner: -",
+            "radio_record_file_default": "Datei: -",
+        }.get(key, default)
+    )
+
+    def build_var(*, value):
+        calls.append(value)
+        return DummyVar(value)
+
+    netmon_radio_app._init_radio_ui_recording_vars(
+        app,
+        string_var_builder=build_var,
+    )
+
+    assert app.radio_record_status_var.get() == "Aufnahme aus."
+    assert app.radio_record_dir_var.get() == "Ordner: -"
+    assert app.radio_record_file_var.get() == "Datei: -"
+    assert calls == ["Aufnahme aus.", "Ordner: -", "Datei: -"]
+
+
+def test_init_radio_ui_playlist_folder_vars_initializes_translated_values():
+    calls = []
+    app = SimpleNamespace(
+        tr=lambda key, default: {
+            "radio_playlist_status_default": "Playlist: 0 Titel",
+            "radio_folder_browser_title": "Ordner",
+        }.get(key, default)
+    )
+
+    def build_var(*, value):
+        calls.append(value)
+        return DummyVar(value)
+
+    netmon_radio_app._init_radio_ui_playlist_folder_vars(
+        app,
+        string_var_builder=build_var,
+    )
+
+    assert app.radio_playlist_status_var.get() == "Playlist: 0 Titel"
+    assert app.radio_folder_browser_title_var.get() == "Ordner"
+    assert app.radio_folder_browser_path_var.get() == ""
+    assert calls == ["Playlist: 0 Titel", "Ordner", ""]
+
+
+def test_init_radio_ui_recordings_source_mini_vars_initializes_values():
+    calls = []
+    app = SimpleNamespace(
+        tr=lambda key, default: {
+            "radio_recordings_status_default": "Aufnahmen: 0 Dateien",
+            "radio_source_default": "Quelle: Live | -",
+            "radio_miniplayer_source_live": "Direkt",
+            "radio_miniplayer_nothing_playing": "Nichts laeuft",
+            "radio_miniplayer_status_ready": "Bereit",
+        }.get(key, default)
+    )
+
+    def build_var(*, value):
+        calls.append(value)
+        return DummyVar(value)
+
+    netmon_radio_app._init_radio_ui_recordings_source_mini_vars(
+        app,
+        string_var_builder=build_var,
+    )
+
+    assert app.radio_recordings_status_var.get() == "Aufnahmen: 0 Dateien"
+    assert app.radio_source_var.get() == "Quelle: Live | -"
+    assert app.radio_mini_source_var.get() == "Direkt"
+    assert app.radio_mini_title_var.get() == "Nichts laeuft"
+    assert app.radio_mini_status_var.get() == "Bereit"
+    assert app.radio_mini_detail_stream_var.get() == "Direkt"
+    assert app.radio_mini_detail_format_var.get() == "-"
+    assert app.radio_mini_detail_status_var.get() == "Bereit"
+    assert app.radio_mini_detail_genre_var.get() == "-"
+    assert app.radio_mini_detail_bitrate_var.get() == "-"
+    assert app.radio_mini_detail_time_var.get() == "--:--:--"
+    assert app.radio_mini_volume_var.get() == "50%"
+    assert app.radio_mini_eq_var.get() == "EQ Flat"
+    assert calls == [
+        "Aufnahmen: 0 Dateien",
+        "Quelle: Live | -",
+        "Direkt",
+        "Nichts laeuft",
+        "Bereit",
+        "Direkt",
+        "-",
+        "Bereit",
+        "-",
+        "-",
+        "--:--:--",
+        "50%",
+        "EQ Flat",
+    ]
+
+
+def test_init_radio_ui_status_indicator_images_initializes_color_images():
+    calls = []
+    app = SimpleNamespace()
+
+    def build_indicator(color):
+        calls.append(color)
+        return f"image:{color}"
+
+    netmon_radio_app._init_radio_ui_status_indicator_images(
+        app,
+        indicator_builder=build_indicator,
+    )
+
+    assert app.radio_status_indicator_images == {
+        "unknown": "image:#8a8f98",
+        "online": "image:#2fb344",
+        "offline": "image:#d9485f",
+    }
+    assert calls == ["#8a8f98", "#2fb344", "#d9485f"]
+
+
+def test_init_radio_ui_theme_vars_initializes_empty_theme_name():
+    calls = []
+    app = SimpleNamespace()
+
+    def build_var(*, value):
+        calls.append(value)
+        return DummyVar(value)
+
+    netmon_radio_app._init_radio_ui_theme_vars(
+        app,
+        string_var_builder=build_var,
+    )
+
+    assert app.radio_theme_name_var.get() == ""
+    assert calls == [""]
+
+
+def test_compact_standalone_window_geometry_centers_requested_window():
+    assert netmon_radio_app._compact_standalone_window_geometry(
+        req_width=900,
+        req_height=500,
+        screen_width=1366,
+        screen_height=900,
+    ) == (980, 774, 774, 193, 63)
+
+
+def test_compact_standalone_window_geometry_clamps_to_screen():
+    assert netmon_radio_app._compact_standalone_window_geometry(
+        req_width=2200,
+        req_height=1200,
+        screen_width=1280,
+        screen_height=900,
+    ) == (1160, 820, 820, 60, 40)
+
+
+def test_radio_window_integration_context_formats_values():
+    app = SimpleNamespace(
+        _window_icon_path=" /tmp/netmon-radio.png ",
+        _window_icon_applied=True,
+        _started_from=" desktop ",
+    )
+
+    assert netmon_radio_app._radio_window_integration_context(app) == {
+        "window_class": "NetMonRadio",
+        "startup_wm_class": "NetMonRadio",
+        "icon_path": "/tmp/netmon-radio.png",
+        "icon_applied": "yes",
+        "started_from": "desktop",
+    }
+
+
+def test_radio_window_integration_context_uses_defaults():
+    assert netmon_radio_app._radio_window_integration_context(SimpleNamespace()) == {
+        "window_class": "NetMonRadio",
+        "startup_wm_class": "NetMonRadio",
+        "icon_path": "",
+        "icon_applied": "no",
+        "started_from": "",
+    }
+
+
+def test_radio_detach_ready_ack_payload_defaults_to_ready_action():
+    assert netmon_radio_app._radio_detach_ready_ack_payload() == {
+        "action": "detach_ready"
+    }
+
+
+def test_radio_detach_ready_ack_payload_marks_timeout():
+    assert netmon_radio_app._radio_detach_ready_ack_payload(timed_out=True) == {
+        "action": "detach_ready",
+        "timed_out": True,
+    }
+
+
+def test_radio_detach_ack_step_is_ready_when_process_exists():
+    app = SimpleNamespace(radio_proc=object())
+
+    assert netmon_radio_app._radio_detach_ack_step(app, attempts_left=0) == "ready"
+
+
+def test_radio_detach_ack_step_times_out_without_attempts():
+    app = SimpleNamespace(radio_proc=None)
+
+    assert netmon_radio_app._radio_detach_ack_step(app, attempts_left=0) == "timeout"
+
+
+def test_radio_detach_ack_step_waits_with_attempts_left():
+    app = SimpleNamespace(radio_proc=None)
+
+    assert netmon_radio_app._radio_detach_ack_step(app, attempts_left=3) == "wait"
+
+
+def test_radio_language_code_from_config_payload_accepts_supported_codes():
+    assert (
+        netmon_radio_app._radio_language_code_from_config_payload({"language": " EN "})
+        == "en"
+    )
+    assert (
+        netmon_radio_app._radio_language_code_from_config_payload({"language": "de"})
+        == "de"
+    )
+
+
+def test_radio_language_code_from_config_payload_falls_back_to_german():
+    assert (
+        netmon_radio_app._radio_language_code_from_config_payload({"language": "fr"})
+        == "de"
+    )
+    assert netmon_radio_app._radio_language_code_from_config_payload({}) == "de"
+    assert netmon_radio_app._radio_language_code_from_config_payload(None) == "de"
+
+
 def test_station_online_indicator_uses_lastcheckok():
     app = SimpleNamespace(radio_live_status_by_station_id={"on": True, "off": False})
     assert radio_controller._station_online_indicator(app, {"id": "on"}) == "online"
@@ -1828,9 +4958,7 @@ def test_station_logo_url_allows_only_web_schemes():
         "example.com/logo.png",
     ):
         assert (
-            netmon_radio_app.NetMonRadioApp._station_logo_url(
-                app, {"favicon": blocked}
-            )
+            netmon_radio_app.NetMonRadioApp._station_logo_url(app, {"favicon": blocked})
             == ""
         )
 
@@ -2078,8 +5206,7 @@ def test_probe_radio_database_source_reachability_accepts_403(monkeypatch):
 
 
 def test_parse_icecast_entries_from_xml_maps_station_fields():
-    rows = radio_controller._parse_icecast_entries_from_xml(
-        """
+    rows = radio_controller._parse_icecast_entries_from_xml("""
         <directory>
           <entry>
             <server_name>Ice Station</server_name>
@@ -2092,8 +5219,7 @@ def test_parse_icecast_entries_from_xml_maps_station_fields():
             <language>de</language>
           </entry>
         </directory>
-        """
-    )
+        """)
 
     assert len(rows) == 1
     assert rows[0]["name"] == "Ice Station"
@@ -2515,6 +5641,13 @@ def test_radio_core_launch_radio_app_sets_desktop_file_hints(tmp_path, monkeypat
         "netmon.netmon_radio_core.ensure_radio_runtime_desktop_entry",
         lambda theme_name=None, started_from=None: "/tmp/netmon-radio-runtime.desktop",
     )
+    # Auf Hosts mit installiertem NetMon existiert die installierte
+    # netmon-radio.desktop und wird bevorzugt. Fuer den Test auf einen nicht
+    # vorhandenen Pfad zeigen, damit zuverlaessig der Runtime-Desktop-Zweig greift.
+    monkeypatch.setattr(
+        "netmon.netmon_radio_core.radio_desktop_entry_path",
+        lambda: str(tmp_path / "applications" / "netmon-radio.desktop"),
+    )
     monkeypatch.setattr(
         "netmon.netmon_radio_core.get_netmon_config_dir",
         lambda: str(tmp_path / "config"),
@@ -2564,6 +5697,13 @@ def test_radio_core_launch_radio_app_uses_runtime_desktop_id_for_gtk_launch(
     monkeypatch.setattr(
         "netmon.netmon_radio_core.ensure_radio_runtime_desktop_entry",
         lambda theme_name=None, started_from=None: "/tmp/netmon-radio-runtime.desktop",
+    )
+    # Auf Hosts mit installiertem NetMon existiert die installierte
+    # netmon-radio.desktop und wird bevorzugt. Fuer den Test auf einen nicht
+    # vorhandenen Pfad zeigen, damit zuverlaessig der Runtime-Desktop-Zweig greift.
+    monkeypatch.setattr(
+        "netmon.netmon_radio_core.radio_desktop_entry_path",
+        lambda: str(tmp_path / "applications" / "netmon-radio.desktop"),
     )
     monkeypatch.setattr(
         "netmon.netmon_radio_core.get_netmon_config_dir",
@@ -3093,16 +6233,14 @@ def test_projectm_sidecar_prefers_pulseaudio_command_variants(monkeypatch):
 
 
 def test_projectm_sidecar_parses_optional_apt_candidates():
-    result = netmon_projectm_sidecar._parse_apt_policy_output(
-        """
+    result = netmon_projectm_sidecar._parse_apt_policy_output("""
 projectm-pulseaudio:
   Installed: (none)
   Candidate: 3.1.12-3
   Version table:
      3.1.12-3 500
         500 http://deb.debian.org/debian bookworm/main amd64 Packages
-"""
-    )
+""")
 
     assert result["installable"] is True
     assert result["available_packages"] == ["projectm-pulseaudio"]
@@ -4250,3 +7388,181 @@ def test_drag_and_drop_does_not_overwrite_existing_target(tmp_path):
     assert result is None
     assert audio_path.exists()
     assert app.radio_record_status_var.get() == "Zieldatei existiert bereits."
+
+
+# ── Runde-11-Haertungen (Radio) ──────────────────────────────────────────────
+
+
+def test_mpv_command_terminates_option_list_before_media_argument():
+    command = radio_controller._mpv_command(50, "--script=payload.lua", "/run/x.sock")
+
+    assert command[-2:] == ["--", "--script=payload.lua"]
+    assert command.count("--") == 1
+
+
+def test_mpv_command_keeps_eq_filter_before_option_terminator():
+    command = radio_controller._mpv_command(
+        50, "http://example.invalid/s", "/run/x.sock", eq_filter="equalizer=f=100"
+    )
+
+    terminator = command.index("--")
+    assert command.index("--af=equalizer=f=100") < terminator
+    assert command[terminator + 1] == "http://example.invalid/s"
+    assert command[-1] == "http://example.invalid/s"
+
+
+def test_recording_command_whitelists_network_protocols_without_file():
+    command = radio_controller._recording_command(
+        "http://example.invalid/stream", "/tmp/out.mp3"
+    )
+
+    assert "-protocol_whitelist" in command
+    whitelist = command[command.index("-protocol_whitelist") + 1]
+    assert "file" not in whitelist.split(",")
+    assert set(whitelist.split(",")) == {"http", "https", "tcp", "tls", "crypto"}
+    assert command[command.index("-protocol_whitelist") + 2] == "-i"
+
+
+def test_radio_ipc_dir_prefers_private_runtime_dir(monkeypatch, tmp_path):
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(runtime_dir))
+    app = SimpleNamespace(netmon_state_dir=str(tmp_path / "state"))
+
+    target = radio_controller._radio_ipc_dir(app)
+
+    assert target == str(runtime_dir / "netmon-radio")
+    assert oct(os.stat(target).st_mode & 0o777) == "0o700"
+
+
+def test_radio_ipc_dir_falls_back_to_private_subdir_of_state(monkeypatch, tmp_path):
+    monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    app = SimpleNamespace(netmon_state_dir=str(state_dir))
+
+    target = radio_controller._radio_ipc_dir(app)
+
+    assert target == str(state_dir / "netmon-radio")
+    assert oct(os.stat(target).st_mode & 0o777) == "0o700"
+
+
+def test_radio_ipc_dir_uses_private_tempdir_when_state_subdir_fails(
+    monkeypatch, tmp_path
+):
+    monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    app = SimpleNamespace(netmon_state_dir=str(state_dir))
+    original_makedirs = radio_controller.os.makedirs
+
+    def fail_for_radio_dir(path, *args, **kwargs):
+        if str(path).endswith("netmon-radio"):
+            raise OSError("blocked")
+        return original_makedirs(path, *args, **kwargs)
+
+    monkeypatch.setattr(radio_controller.os, "makedirs", fail_for_radio_dir)
+    monkeypatch.setattr(radio_controller.tempfile, "tempdir", str(tmp_path))
+
+    target = radio_controller._radio_ipc_dir(app)
+
+    assert os.path.dirname(target) == str(tmp_path)
+    assert os.path.basename(target).startswith("netmon-radio-")
+    assert oct(os.stat(target).st_mode & 0o777) == "0o700"
+
+
+def test_radio_ipc_socket_lives_in_private_dir(monkeypatch, tmp_path):
+    monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    app = SimpleNamespace(netmon_state_dir=str(state_dir), radio_ipc_path="")
+
+    path = radio_controller._radio_ipc_path(app)
+
+    assert os.path.dirname(path) == str(state_dir / "netmon-radio")
+    assert os.path.basename(path).startswith("netmon-radio-")
+    assert path.endswith(".sock")
+
+
+def test_handover_payload_station_is_normalized(monkeypatch):
+    """Der Handover-Payload umging frueher die Stream-URL-Allowlist."""
+    target = type("DummyTarget", (), {})()
+    target.radio_settings = radio_controller.default_radio_settings()
+    target._app_theme = {"name": "light"}
+    target.radio_current_station_id = ""
+    target.radio_current_station = None
+    target.radio_search_var = DummyVar("")
+    target.radio_volume_var = DummyVar(0)
+    target.radio_eq_bass_var = DummyVar(0)
+    target.radio_eq_mid_var = DummyVar(0)
+    target.radio_eq_treble_var = DummyVar(0)
+    target.radio_title_var = DummyVar("")
+    target.radio_header_status_var = DummyVar("")
+    target.radio_handover_title = ""
+    target.apply_theme_palette = lambda _theme_name, _palette: None
+    target.log = lambda _message: None
+    target.tr = lambda _key, default=None: default
+
+    monkeypatch.setattr(radio_controller, "save_radio_settings", lambda _app: True)
+    monkeypatch.setattr(radio_controller, "refresh_radio_ui", lambda _app: None)
+    monkeypatch.setattr(radio_controller, "on_radio_eq_preview", lambda _app: None)
+    monkeypatch.setattr(
+        radio_controller, "play_radio_station", lambda _app, station_id="": True
+    )
+    monkeypatch.setattr(radio_controller, "_resolve_station_by_id", lambda _a, _i: None)
+
+    radio_controller.apply_radio_handover_payload(
+        target,
+        {
+            "current_station_id": "evil",
+            "current_station": {
+                "id": "evil",
+                "name": "Evil",
+                "url": "file:///etc/passwd",
+            },
+        },
+        auto_play=False,
+    )
+
+    assert target.radio_current_station is None
+
+
+def test_handover_payload_keeps_valid_station(monkeypatch):
+    target = type("DummyTarget", (), {})()
+    target.radio_settings = radio_controller.default_radio_settings()
+    target._app_theme = {"name": "light"}
+    target.radio_current_station_id = ""
+    target.radio_current_station = None
+    target.radio_search_var = DummyVar("")
+    target.radio_volume_var = DummyVar(0)
+    target.radio_eq_bass_var = DummyVar(0)
+    target.radio_eq_mid_var = DummyVar(0)
+    target.radio_eq_treble_var = DummyVar(0)
+    target.radio_title_var = DummyVar("")
+    target.radio_header_status_var = DummyVar("")
+    target.radio_handover_title = ""
+    target.apply_theme_palette = lambda _theme_name, _palette: None
+    target.log = lambda _message: None
+    target.tr = lambda _key, default=None: default
+
+    monkeypatch.setattr(radio_controller, "save_radio_settings", lambda _app: True)
+    monkeypatch.setattr(radio_controller, "refresh_radio_ui", lambda _app: None)
+    monkeypatch.setattr(radio_controller, "on_radio_eq_preview", lambda _app: None)
+    monkeypatch.setattr(
+        radio_controller, "play_radio_station", lambda _app, station_id="": True
+    )
+
+    radio_controller.apply_radio_handover_payload(
+        target,
+        {
+            "current_station_id": "good",
+            "current_station": {
+                "id": "good",
+                "name": "Good",
+                "url": "https://example.invalid/stream",
+            },
+        },
+        auto_play=False,
+    )
+
+    assert target.radio_current_station["url"] == "https://example.invalid/stream"

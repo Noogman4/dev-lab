@@ -27,6 +27,7 @@
   <meta name="twitter:description" content="Dokumentationsseite fuer NetMon mit HTML-/PDF-Handbuch, FAQ, Projektstand und Hinweisen fuer lokale Tests.">
   <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
   <link rel="stylesheet" href="./styles.css">
+  <link id="theme-style" rel="stylesheet" href="./theme-bright.css">
 </head>
 <body>
   <div class="page-shell docs-page">
@@ -61,6 +62,10 @@
         <a class="active" href="./docs.html" lang="de">DE</a>
         <a href="./en/docs.html" lang="en">EN</a>
       </div>
+      <div class="theme-switch" aria-label="Darstellung">
+        <button type="button" data-theme-option="bright">Bright</button>
+        <button type="button" data-theme-option="dark">Dark</button>
+      </div>
     </header>
 
     <main>
@@ -75,23 +80,23 @@
         <div class="download-layout">
           <article class="download-card featured">
             <p class="download-label">HTML</p>
-            <h3>NetMon Dokumentation 1.1.19</h3>
+            <h3>NetMon Dokumentation 1.1.21</h3>
             <p>Direkt lesbar im Browser, inklusive Architektur-, User-Guide- und Security-Abschnitten.</p>
-            <a class="button button-primary" href="/dist/docs/netmon_dokumentation_1.1.19.html">HTML oeffnen</a>
+            <a class="button button-primary" href="/dist/docs/netmon_dokumentation_1.1.21.html">HTML oeffnen</a>
           </article>
           <article class="download-card">
             <p class="download-label">PDF</p>
-            <h3>PDF Export 1.1.19</h3>
+            <h3>PDF Export 1.1.21</h3>
             <p>Geeignet fuer Offline-Ablage oder Versand als Dokumentationsstand.</p>
-            <a class="button button-secondary" href="/dist/docs/netmon_dokumentation_1.1.19.pdf">PDF laden</a>
+            <a class="button button-secondary" href="/dist/docs/netmon_dokumentation_1.1.21.pdf">PDF laden</a>
           </article>
           <article class="download-card">
             <p class="download-label">Security Audit</p>
             <h3>Sicherheits-Audit 2026</h3>
-            <p>Aktueller Auditbericht: Runde 9 fuer den finalen Release-Stand NetMon v1.1.19. Zwei mittlere Findings (Update-URL-Allowlist, Killswitch-Fail-Open) wurden umgesetzt und verifiziert; die Release-Signatur per SHA256SUMS und minisign wurde erfolgreich geprueft.</p>
+            <p>Aktueller Auditbericht: Runde 12 fuer NetMon v1.1.21 mit einem mittleren Designrisiko und drei niedrigen Haertungs- und Release-Risiken.</p>
             <div class="inline-actions">
               <a class="button button-primary" href="./security-audit.html">HTML oeffnen</a>
-              <a class="button button-secondary" href="./netmon_security_audit_2026_r9.pdf">PDF laden</a>
+              <a class="button button-secondary" href="./netmon_security_audit_2026_r12.pdf">PDF Runde 12</a>
             </div>
           </article>
         </div>
@@ -129,7 +134,7 @@
       <section class="section">
         <div class="section-heading">
           <p class="eyebrow">Sicherheitsaudit</p>
-          <h2>Ein aktueller Audit-Bericht liegt als HTML und PDF vor.</h2>
+          <h2>Der aktuelle Audit-Bericht ist als HTML verfuegbar.</h2>
         </div>
         <div class="download-layout">
           <article class="download-card featured">
@@ -138,7 +143,7 @@
             <p>Die aktuelle statische Analyse des NetMon-Quellcodes ist direkt im Webbereich hinterlegt und ohne Zusatztool lesbar.</p>
             <div class="inline-actions">
               <a class="button button-primary" href="./security-audit.html">HTML-Bericht</a>
-              <a class="button button-secondary" href="./netmon_security_audit_2026_r9.pdf">PDF-Bericht</a>
+              <a class="button button-secondary" href="./netmon_security_audit_2026_r12.pdf">PDF Runde 12</a>
             </div>
           </article>
         </div>
@@ -211,12 +216,12 @@
           <h2>Download- und Dokumentationsstand sauber getrennt</h2>
         </div>
         <div class="version-note">
-          <p><strong>Debian-Paket:</strong> Aktuell als <code>1.1.19</code> vorgesehen.</p>
-          <p><strong>Gebautes Handbuch:</strong> Fuer den Release-Stand als <code>1.1.19</code> vorgesehen.</p>
-          <p><strong>Changelog:</strong> Enthaltene Eintraege dokumentieren Stand <code>2026-07-18</code> fuer Version <code>1.1.19</code>.</p>
+          <p><strong>Debian-Paket:</strong> Aktuell als <code>1.1.21</code> vorgesehen.</p>
+          <p><strong>Gebautes Handbuch:</strong> Fuer den Release-Stand als <code>1.1.21</code> vorgesehen.</p>
+          <p><strong>Changelog:</strong> Enthaltene Eintraege dokumentieren Stand <code>2026-09-19</code> fuer Version <code>1.1.21</code>.</p>
         </div>
         <div class="inline-actions">
-          <a class="button button-primary" href="/dist/netmon_1.1.19_all.deb">1.1.19 .deb</a>
+          <a class="button button-primary" href="/dist/netmon_1.1.21_all.deb">1.1.21 .deb</a>
           <a class="button button-secondary" href="/docs/CHANGELOG.md">Changelog im Repo</a>
         </div>
       </section>

@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NetMonRoots | Changelog since version 1.1.15</title>
+  <title>NetMonRoots | Changelog through version 1.1.21</title>
   <meta
     name="description"
-    content="Highlights and release changes in NetMon since the last actually published website version 1.1.15."
+    content="Highlights and release changes in NetMon through the current local version 1.1.21."
   >
   <link rel="icon" type="image/png" href="../favicon.png">
   <link rel="apple-touch-icon" href="../favicon.png">
@@ -14,8 +14,8 @@
   <link rel="alternate" hreflang="de" href="https://netmonroots.com/changelog.html">
   <link rel="alternate" hreflang="en" href="https://netmonroots.com/en/changelog.html">
   <link rel="alternate" hreflang="x-default" href="https://netmonroots.com/changelog.html">
-  <meta property="og:title" content="NetMonRoots | Changelog since version 1.1.15">
-  <meta property="og:description" content="Highlights and release changes in NetMon since the last actually published website version 1.1.15.">
+  <meta property="og:title" content="NetMonRoots | Changelog through version 1.1.21">
+  <meta property="og:description" content="Highlights and release changes in NetMon through the current local version 1.1.21.">
   <meta property="og:url" content="https://netmonroots.com/en/changelog.html">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="NetMon Roots">
@@ -23,10 +23,11 @@
   <meta property="og:locale:alternate" content="de_DE">
   <meta property="og:image" content="https://netmonroots.com/favicon.png">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="NetMonRoots | Changelog since version 1.1.15">
-  <meta name="twitter:description" content="Highlights and release changes in NetMon since the last actually published website version 1.1.15.">
+  <meta name="twitter:title" content="NetMonRoots | Changelog through version 1.1.21">
+  <meta name="twitter:description" content="Highlights and release changes in NetMon through the current local version 1.1.21.">
   <meta name="twitter:image" content="https://netmonroots.com/favicon.png">
   <link rel="stylesheet" href="../styles.css">
+  <link id="theme-style" rel="stylesheet" href="../theme-bright.css">
 </head>
 <body class="downloads-page updates-page">
   <div class="page-shell docs-page downloads-page-shell">
@@ -58,6 +59,10 @@
         <a href="../changelog.html" lang="de">DE</a>
         <a class="active" href="./changelog.html" lang="en">EN</a>
       </div>
+      <div class="theme-switch" aria-label="Theme">
+        <button type="button" data-theme-option="bright">Bright</button>
+        <button type="button" data-theme-option="dark">Dark</button>
+      </div>
     </header>
 
     <main>
@@ -68,8 +73,8 @@
         <div class="download-layout">
           <article class="download-card featured">
             <p class="download-label">Baseline</p>
-            <h3>This page summarizes the highlights since NetMon 1.1.15.</h3>
-            <p>The last actually published website version was 1.1.15. This page lists the most important changes and additions up to the current local state, grouped by release.</p>
+            <h3>This page summarizes the highlights through NetMon 1.1.21.</h3>
+            <p>This page lists the most important changes and additions up to the current local state, grouped by release.</p>
             <div class="inline-actions">
               <a class="button button-primary" href="./downloads.html">Go to download page</a>
               <a class="button button-secondary" href="./updates.html">Open updates page</a>
@@ -77,8 +82,8 @@
           </article>
           <article class="download-card">
             <p class="download-label">Focus</p>
-            <h3>Main work happened in Secure Browser, VPN, security evaluation, and ClamAV.</h3>
-            <p>Between 1.1.15 and the current local state, the biggest changes landed in Secure Browser, slot handling, the security area, packaging, and ClamAV usability.</p>
+            <h3>Focus on a more maintainable interface structure.</h3>
+            <p>Version 1.1.21 moves large tab builders into their respective feature modules. This makes NetMon easier to maintain and extend without changing familiar workflows.</p>
           </article>
         </div>
       </section>
@@ -115,6 +120,30 @@
           <article class="faq-card">
             <h3>Linux help with PDF library</h3>
             <p>Entries can be copied as regular prompts or PDF prompts. Externally generated PDFs can be imported, opened, and deleted again from the lower library context menu.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Version 1.1.21</p>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card">
+            <h3>Tab interfaces organized more clearly</h3>
+            <p>Large UI builders now live with their respective tab modules. This clarifies the application structure and makes future changes easier to manage.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Familiar NetMon workflow</h3>
+            <p>The reorganization affects the internal structure. Features, workflows, and the existing interface remain familiar to users.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Safer installation and imports</h3>
+            <p>Package installation no longer changes active DNS profiles. Firefox base imports reject links and special files and enforce download and extraction limits.</p>
+          </article>
+          <article class="faq-card">
+            <h3>Verified release process</h3>
+            <p>Builds use one canonical version source, validate public release metadata, and require Minisign for production bundles.</p>
           </article>
         </div>
       </section>
@@ -201,9 +230,9 @@
 
       <section class="section">
         <div class="version-note">
-          <p><strong>Baseline:</strong> <code>1.1.15</code></p>
-          <p><strong>Covered releases:</strong> <code>1.1.16</code>, <code>1.1.17</code>, <code>1.1.18</code>, <code>1.1.19</code></p>
-          <p><strong>Page date:</strong> <code>2026-07-18</code></p>
+          <p><strong>Current local release:</strong> <code>1.1.21</code></p>
+          <p><strong>Covered releases:</strong> <code>1.1.16</code>, <code>1.1.17</code>, <code>1.1.18</code>, <code>1.1.19</code>, <code>1.1.21</code></p>
+          <p><strong>Page date:</strong> <code>2026-09-19</code></p>
         </div>
       </section>
     </main>

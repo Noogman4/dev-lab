@@ -7,8 +7,11 @@ import os
 import tempfile
 from datetime import datetime
 
+_RATE_UNITS = ["B/s", "KiB/s", "MiB/s", "GiB/s"]
+_SIZE_UNITS = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"]
 
-def safe_write_json(path, payload, *, indent=2, ensure_ascii=False):
+
+def safe_write_json(path, payload, *, indent=2, ensure_ascii=False) -> tuple[bool, str]:
     """Atomically write JSON data to disk."""
     tmp_path = ""
     try:
@@ -40,7 +43,7 @@ def safe_write_json(path, payload, *, indent=2, ensure_ascii=False):
         return False, str(exc)
 
 
-def format_table(headers, rows):
+def format_table(headers, rows) -> str:
     headers = [str(h) for h in (headers or [])]
     rows = [list(r) for r in (rows or [])]
     if not headers:
@@ -71,15 +74,11 @@ def format_table(headers, rows):
     return "\n".join(lines)
 
 
-def ts():
+def ts() -> str:
     return datetime.now().strftime("%H:%M:%S")
 
 
-def human_rate(bytes_per_sec: float) -> str:
-    if bytes_per_sec < 0:
-        bytes_per_sec = 0
-    units = ["B/s", "KiB/s", "MiB/s", "GiB/s"]
-    value = float(bytes_per_sec)
+def _format_scaled_value(value: float, units: list[str]) -> str:
     idx = 0
     while value >= 1024 and idx < len(units) - 1:
         value /= 1024.0
@@ -89,7 +88,14 @@ def human_rate(bytes_per_sec: float) -> str:
     return f"{value:.1f} {units[idx]}"
 
 
-def human_size(num_bytes):
+def human_rate(bytes_per_sec: float) -> str:
+    if bytes_per_sec < 0:
+        bytes_per_sec = 0
+    value = float(bytes_per_sec)
+    return _format_scaled_value(value, _RATE_UNITS)
+
+
+def human_size(num_bytes) -> str:
     if num_bytes is None:
         return "–"
     try:
@@ -98,14 +104,7 @@ def human_size(num_bytes):
         return "–"
     if value < 0:
         value = 0
-    units = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"]
-    idx = 0
-    while value >= 1024 and idx < len(units) - 1:
-        value /= 1024.0
-        idx += 1
-    if idx == 0:
-        return f"{int(value)} {units[idx]}"
-    return f"{value:.1f} {units[idx]}"
+    return _format_scaled_value(value, _SIZE_UNITS)
 
 
 def call_in_ui_thread(app, fn) -> None:

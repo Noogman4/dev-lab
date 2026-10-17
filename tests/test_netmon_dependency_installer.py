@@ -1,4 +1,8 @@
+import io
 import inspect
+import tarfile
+
+import pytest
 
 from netmon.app import (
     App,
@@ -6,6 +10,8 @@ from netmon.app import (
     CODE_THE_CLASSICS_ZIP_SYSTEM,
     DEPENDENCIES,
     SETUP_REMOVABLES,
+    _download_url_to_file_limited,
+    _extract_regular_tar_archive,
     find_code_the_classics_zip,
 )
 from netmon.ui.tabs.log_tab import build_log_tab
@@ -22,6 +28,99 @@ class DummyVar:
         self.value = value
 
 
+def _write_test_tar(path, members):
+    with tarfile.open(path, "w") as archive:
+        for member, payload in members:
+            archive.addfile(
+                member, io.BytesIO(payload) if payload is not None else None
+            )
+
+
+def test_extract_regular_tar_archive_accepts_files_and_directories(tmp_path):
+    archive_path = tmp_path / "firefox.tar"
+    directory = tarfile.TarInfo("firefox")
+    directory.type = tarfile.DIRTYPE
+    directory.mode = 0o755
+    binary = tarfile.TarInfo("firefox/firefox")
+    binary.size = 6
+    binary.mode = 0o755
+    _write_test_tar(archive_path, [(directory, None), (binary, b"binary")])
+
+    target = tmp_path / "extract"
+    with tarfile.open(archive_path, "r") as archive:
+        _extract_regular_tar_archive(archive, target)
+
+    assert (target / "firefox" / "firefox").read_bytes() == b"binary"
+    assert (target / "firefox" / "firefox").stat().st_mode & 0o777 == 0o755
+
+
+@pytest.mark.parametrize("member_type", [tarfile.SYMTYPE, tarfile.LNKTYPE])
+def test_extract_regular_tar_archive_rejects_links(tmp_path, member_type):
+    archive_path = tmp_path / "firefox.tar"
+    link = tarfile.TarInfo("firefox/firefox")
+    link.type = member_type
+    link.linkname = "/bin/sh"
+    _write_test_tar(archive_path, [(link, None)])
+
+    with tarfile.open(archive_path, "r") as archive:
+        with pytest.raises(ValueError, match="Links oder Sonderdateien"):
+            _extract_regular_tar_archive(archive, tmp_path / "extract")
+
+
+def test_extract_regular_tar_archive_rejects_path_traversal(tmp_path):
+    archive_path = tmp_path / "firefox.tar"
+    escaped = tarfile.TarInfo("../firefox")
+    escaped.size = 4
+    _write_test_tar(archive_path, [(escaped, b"nope")])
+
+    with tarfile.open(archive_path, "r") as archive:
+        with pytest.raises(ValueError, match="Unsicherer TAR-Pfad"):
+            _extract_regular_tar_archive(archive, tmp_path / "extract")
+
+
+def test_extract_regular_tar_archive_limits_total_size(tmp_path):
+    archive_path = tmp_path / "firefox.tar"
+    binary = tarfile.TarInfo("firefox/firefox")
+    binary.size = 6
+    _write_test_tar(archive_path, [(binary, b"binary")])
+
+    with tarfile.open(archive_path, "r") as archive:
+        with pytest.raises(ValueError, match="zu gross"):
+            _extract_regular_tar_archive(
+                archive,
+                tmp_path / "extract",
+                max_total_size=5,
+            )
+
+
+def test_download_url_to_file_limited_rejects_oversized_stream(tmp_path, monkeypatch):
+    class Response:
+        headers = {}
+
+        def __init__(self):
+            self.chunks = iter((b"abc", b"def", b""))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self, _size):
+            return next(self.chunks)
+
+    monkeypatch.setattr(
+        "netmon.app.urllib_request.urlopen", lambda *_a, **_kw: Response()
+    )
+
+    with pytest.raises(ValueError, match="zu gross"):
+        _download_url_to_file_limited(
+            "https://download.mozilla.org/firefox.tar.xz",
+            tmp_path / "firefox.tar.xz",
+            5,
+        )
+
+
 def test_dependency_registry_contains_selected_tools():
     assert DEPENDENCIES["nmap"]["apt_packages"] == ["nmap"]
     assert DEPENDENCIES["systemd_resolved"]["apt_packages"] == ["systemd-resolved"]
@@ -34,22 +133,30 @@ def test_dependency_registry_contains_selected_tools():
         DEPENDENCIES["secure_browser_firefox_source"]["install_method"]
         == "url_tar_import"
     )
-    assert "download.mozilla.org" in DEPENDENCIES["secure_browser_firefox_source"][
-        "install_url"
-    ]
+    assert (
+        "download.mozilla.org"
+        in DEPENDENCIES["secure_browser_firefox_source"]["install_url"]
+    )
     assert DEPENDENCIES["projectm_visualizer"]["apt_packages"] == [
         "projectm",
         "projectm-pulseaudio",
     ]
     assert DEPENDENCIES["projectm_visualizer"]["type"] == "optional_backend"
+    assert DEPENDENCIES["timeshift"]["apt_packages"] == ["timeshift"]
+    assert DEPENDENCIES["timeshift"]["type"] == "optional_backend"
+    assert DEPENDENCIES["mintbackup"]["apt_packages"] == ["mintbackup"]
+    assert DEPENDENCIES["mintbackup"]["type"] == "optional_backend"
+    assert DEPENDENCIES["deja_dup"]["apt_packages"] == ["deja-dup"]
+    assert DEPENDENCIES["deja_dup"]["type"] == "optional_backend"
     assert DEPENDENCIES["projectm_presets_cream_crop"]["type"] == "file_feature"
     assert (
         DEPENDENCIES["projectm_presets_cream_crop"]["install_method"]
         == "url_zip_import"
     )
-    assert "presets-cream-of-the-crop" in DEPENDENCIES["projectm_presets_cream_crop"][
-        "install_url"
-    ]
+    assert (
+        "presets-cream-of-the-crop"
+        in DEPENDENCIES["projectm_presets_cream_crop"]["install_url"]
+    )
     assert DEPENDENCIES["clamav"]["apt_packages"] == ["clamav", "clamav-freshclam"]
     assert DEPENDENCIES["pgzero_module"]["apt_packages"] == [
         "python3",
@@ -107,6 +214,12 @@ def test_collect_missing_installable_dependencies_uses_registry():
         "projectm_presets_cream_crop": False,
         "clamav": False,
         "freshclam": True,
+        "timeshift": False,
+        "timeshift_installable": True,
+        "mintbackup": False,
+        "mintbackup_installable": False,
+        "deja_dup": False,
+        "deja_dup_installable": True,
     }
 
     missing = app._collect_missing_installable_dependencies(checks)
@@ -125,6 +238,9 @@ def test_collect_missing_installable_dependencies_uses_registry():
     assert "projectm_visualizer" not in missing
     assert "projectm_visualizer" in missing_with_optional
     assert "projectm_presets_cream_crop" in missing_with_optional
+    assert "timeshift" in missing_with_optional
+    assert "deja_dup" in missing_with_optional
+    assert "mintbackup" not in missing_with_optional
     assert "mpv" not in missing
 
 
@@ -144,9 +260,7 @@ def test_build_packet_capture_permission_repair_script_contains_required_steps()
 
     script = app._build_packet_capture_permission_repair_script("happy")
 
-    assert (
-        "wireshark-common wireshark-common/install-setuid boolean true" in script
-    )
+    assert "wireshark-common wireshark-common/install-setuid boolean true" in script
     assert "groupadd --system wireshark" in script
     assert 'chown root:wireshark "$DUMPCAP_PATH"' in script
     assert 'chmod 0750 "$DUMPCAP_PATH"' in script
@@ -233,7 +347,7 @@ def test_collect_setup_removable_components_uses_wireshark_package_marker():
             "wireshark_installed": True,
             "tshark": False,
             "dumpcap": False,
-        }
+        },
     )
 
     assert "wireshark_suite" in removable
@@ -296,8 +410,14 @@ def test_dependency_installer_integration_hooks_are_present():
         App._install_selected_file_features
     )
     assert "self.preflight_dependencies(manual_trigger=False)" in open_source
-    assert 'body.add(install_tab, text=self.tr("setup_assistant_tab_install", "Install"))' in open_source
-    assert 'body.add(remove_tab, text=self.tr("setup_assistant_tab_remove", "Remove"))' in open_source
+    assert (
+        'body.add(install_tab, text=self.tr("setup_assistant_tab_install", "Install"))'
+        in open_source
+    )
+    assert (
+        'body.add(remove_tab, text=self.tr("setup_assistant_tab_remove", "Remove"))'
+        in open_source
+    )
     assert "install_canvas = tk.Canvas(" in open_source
     assert "remove_canvas = tk.Canvas(" in open_source
     assert (
@@ -323,22 +443,31 @@ def test_dependency_installer_integration_hooks_are_present():
     assert '"setup_assistant_btn_select_only_projectm_presets"' in inspect.getsource(
         App._populate_dependency_installer_optional_hint
     )
+    assert '"setup_assistant_optional_timeshift"' in inspect.getsource(
+        App._populate_dependency_installer_optional_hint
+    )
+    assert '"setup_assistant_btn_select_only_timeshift"' in inspect.getsource(
+        App._populate_dependency_installer_optional_hint
+    )
+    assert '"setup_assistant_optional_desktop_backup"' in inspect.getsource(
+        App._populate_dependency_installer_optional_hint
+    )
+    assert '"setup_assistant_btn_select_only_desktop_backup"' in inspect.getsource(
+        App._populate_dependency_installer_optional_hint
+    )
     assert (
         '"code_the_classics_files": self._count_code_the_classics_files() > 0'
         in preflight_source
     )
-    assert (
-        '"projectm_presets_cream_crop"'
-        in preflight_source
-    )
-    assert (
-        '"projectm_preset_pack_available"'
-        in preflight_source
-    )
+    assert '"projectm_presets_cream_crop"' in preflight_source
+    assert '"projectm_preset_pack_available"' in preflight_source
     assert "sudo apt remove -y" in inspect.getsource(
         App._build_setup_removal_terminal_command
     )
-    assert '"dep_installer_status_remove_cancelled"' in remove_source or "Warning:" in remove_source
+    assert (
+        '"dep_installer_status_remove_cancelled"' in remove_source
+        or "Warning:" in remove_source
+    )
     assert "self._is_safe_netmon_managed_path(path)" in remove_helper_source
     assert "Code the Classics games: MISSING" in inspect.getsource(
         App._log_preflight_manual_summary
@@ -352,6 +481,11 @@ def test_dependency_installer_integration_hooks_are_present():
         in preflight_source
     )
     assert '"projectm_visualizer_installable"' in preflight_source
+    assert '"timeshift_installable"' in preflight_source
+    assert '"mintbackup": has_cmd("mintbackup")' in preflight_source
+    assert '"deja_dup": has_cmd("deja-dup")' in preflight_source
+    assert '"mintbackup_installable"' in preflight_source
+    assert '"deja_dup_installable"' in preflight_source
     assert (
         'checks["flatpak"] = bool(projectm_probe.get("flatpak_available", False))'
         in preflight_source
@@ -364,7 +498,10 @@ def test_dependency_installer_integration_hooks_are_present():
     )
     assert 'self._venv_python_modules_available("PyPDF2")' in preflight_source
     assert 'self._venv_python_modules_available("docx")' in preflight_source
-    assert "Preflight: {count} components missing. Please open the setup assistant." in helper_source
+    assert (
+        "Preflight: {count} components missing. Please open the setup assistant."
+        in helper_source
+    )
     assert "python3-pgzero" in hint_source
     assert "pip install" not in hint_source
     assert "python3 -m venv" in inspect.getsource(
@@ -403,6 +540,9 @@ def test_preflight_logged_tools_are_covered_by_dependency_registry():
         "capinfos",
         "lynis",
         "rkhunter",
+        "timeshift",
+        "mintbackup",
+        "deja_dup",
         "whois",
         "mpv",
         "secure_browser_firefox_source",

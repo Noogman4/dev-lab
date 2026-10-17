@@ -1,3 +1,45 @@
+const themeStyle = document.querySelector("#theme-style");
+const themeButtons = document.querySelectorAll("[data-theme-option]");
+const themeStorageKey = "netmonroots-theme";
+
+const getThemePath = (theme) => {
+  if (!themeStyle) {
+    return "";
+  }
+
+  const currentHref = themeStyle.getAttribute("href") || "./theme-bright.css";
+  const prefix = currentHref.includes("../") ? "../" : "./";
+  return `${prefix}theme-${theme}.css`;
+};
+
+const setTheme = (theme) => {
+  if (!themeStyle) {
+    return;
+  }
+
+  const nextTheme = theme === "dark" ? "dark" : "bright";
+  themeStyle.setAttribute("href", getThemePath(nextTheme));
+  document.documentElement.dataset.theme = nextTheme;
+  localStorage.setItem(themeStorageKey, nextTheme);
+
+  themeButtons.forEach((button) => {
+    const isActive = button.dataset.themeOption === nextTheme;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+};
+
+if (themeStyle) {
+  const savedTheme = localStorage.getItem(themeStorageKey);
+  setTheme(savedTheme || "bright");
+}
+
+themeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    setTheme(button.dataset.themeOption);
+  });
+});
+
 const footerMeta = document.querySelector("#footer-meta");
 
 if (footerMeta) {
@@ -65,9 +107,11 @@ if (galleryImages.length > 0) {
   });
 }
 
-const gatedDownloadLinks = document.querySelectorAll(
-  '.downloads-page a.button[href*="/download.php"]'
-);
+const donationGateDisabled =
+  document.body?.dataset?.disableDonationGate === "true";
+const gatedDownloadLinks = donationGateDisabled
+  ? []
+  : document.querySelectorAll('.downloads-page a.button[href*="/download.php"]');
 
 if (gatedDownloadLinks.length > 0) {
   const isEnglish = document.documentElement.lang === "en";
@@ -91,9 +135,9 @@ if (gatedDownloadLinks.length > 0) {
           : "NetMon wird kostenlos bereitgestellt, aber Entwicklung, Pflege, Tests und Infrastruktur kosten Zeit. Eine freiwillige Spende hilft, das Projekt langfristig weiterzufuehren."
       }</p>
       <div class="donation-modal-actions">
-        <button class="button button-secondary donation-placeholder" type="button" disabled>
-          PayPal (${isEnglish ? "inactive placeholder" : "Platzhalter, nicht aktiv"})
-        </button>
+        <a class="button button-secondary donation-paypal" href="https://paypal.me/NetMonRoots" target="_blank" rel="noopener">
+          PayPal
+        </a>
         <button class="button button-primary donation-continue" type="button">
           ${isEnglish ? "Continue to download" : "Weiter zum Download"}
         </button>

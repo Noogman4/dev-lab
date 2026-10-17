@@ -311,126 +311,931 @@ RADIO_DATABASE_EXCLUSIVE_COUNTRY_SOURCE_IDS = {
 }
 
 
-def _install_pane_drag_marker(container, pane, *, color="#0a84ff", y_offset=0):
-    marker = tk.Frame(
-        container,
-        bg=color,
-        bd=1,
-        relief="solid",
-    )
-    marker.columnconfigure(0, weight=1)
-    grip = tk.Label(
-        marker,
-        text="≡",
-        bg=color,
-        fg="#ffffff",
-        font=("TkDefaultFont", 9, "bold"),
-        cursor="sb_v_double_arrow",
-        padx=0,
-        pady=0,
-        anchor="center",
-    )
-    grip.grid(row=0, column=0, sticky="ew")
-    drag_state = {
+def _standalone_radio_pane_drag_state() -> dict[str, int | bool]:
+    return {
         "root_y": 0,
         "sash_y": 0,
         "update_pending": False,
     }
 
-    def _set_sash_pos(new_y):
-        try:
-            pane.sashpos(0, int(new_y))
-            return
-        except Exception:
-            pass
-        try:
-            pane.sash_place(0, 0, int(new_y))
-        except Exception:
-            pass
 
-    def _place_marker_for_sash(sash_y):
-        try:
-            width = max(int(container.winfo_width() or 0), 0)
-            marker_width = min(66, max(width - 24, 42))
-            x = max((width - marker_width) // 2, 8)
-            y = max(sash_y - 5 + int(y_offset), 2)
-            marker.place(x=x, y=y, width=marker_width, height=12)
-            marker.lift()
-        except Exception:
-            try:
-                marker.place_forget()
-            except Exception:
-                pass
-
-    def _update_marker(_event=None):
-        try:
-            _place_marker_for_sash(int(pane.sashpos(0)))
-        except Exception:
-            try:
-                marker.place_forget()
-            except Exception:
-                pass
-
-    def _schedule_marker_update():
-        if drag_state["update_pending"]:
-            return
-        drag_state["update_pending"] = True
-
-        def _run():
-            drag_state["update_pending"] = False
-            _update_marker()
-
-        try:
-            container.after_idle(_run)
-        except Exception:
-            _run()
-
-    def _start_drag(event):
-        try:
-            drag_state["root_y"] = int(event.y_root)
-            drag_state["sash_y"] = int(pane.sashpos(0))
-        except Exception:
-            drag_state["root_y"] = 0
-            drag_state["sash_y"] = 0
-        return "break"
-
-    def _drag(event):
-        try:
-            delta = int(event.y_root) - int(drag_state["root_y"])
-            new_sash = int(drag_state["sash_y"]) + delta
-            _set_sash_pos(new_sash)
-            _place_marker_for_sash(new_sash)
-            _schedule_marker_update()
-        except Exception:
-            pass
-        return "break"
-
-    def _end_drag(_event=None):
-        _update_marker()
-        return "break"
-
-    for widget in (container, pane):
-        try:
-            widget.bind("<Configure>", _update_marker, add="+")
-            widget.bind("<ButtonRelease-1>", _update_marker, add="+")
-            widget.bind("<B1-Motion>", _update_marker, add="+")
-        except Exception:
-            pass
-    for widget in (grip,):
-        try:
-            widget.bind("<Button-1>", _start_drag, add="+")
-            widget.bind("<B1-Motion>", _drag, add="+")
-            widget.bind("<ButtonRelease-1>", _end_drag, add="+")
-        except Exception:
-            pass
+def _standalone_radio_pane_bind_marker_events(widget, bindings) -> None:
     try:
-        container.after(0, _update_marker)
+        for event_name, callback in bindings:
+            widget.bind(event_name, callback, add="+")
     except Exception:
         pass
+
+
+def _standalone_radio_pane_update_binding_specs():
+    return (
+        "<Configure>",
+        "<ButtonRelease-1>",
+        "<B1-Motion>",
+    )
+
+
+def _standalone_radio_pane_update_bindings(
+    update_marker,
+    *,
+    binding_specs_builder=_standalone_radio_pane_update_binding_specs,
+):
+    configure_event, release_event, motion_event = binding_specs_builder()
+    return (
+        (configure_event, update_marker),
+        (release_event, update_marker),
+        (motion_event, update_marker),
+    )
+
+
+def _standalone_radio_pane_grip_binding_specs():
+    return (
+        "<Button-1>",
+        "<B1-Motion>",
+        "<ButtonRelease-1>",
+    )
+
+
+def _standalone_radio_pane_grip_bindings(
+    start_drag,
+    drag,
+    end_drag,
+    *,
+    binding_specs_builder=_standalone_radio_pane_grip_binding_specs,
+):
+    start_event, drag_event, end_event = binding_specs_builder()
+    return (
+        (start_event, start_drag),
+        (drag_event, drag),
+        (end_event, end_drag),
+    )
+
+
+def _standalone_radio_pane_marker_update_binding_plan(
+    container,
+    pane,
+    update_bindings,
+):
+    return (
+        (container, update_bindings),
+        (pane, update_bindings),
+    )
+
+
+def _standalone_radio_pane_marker_grip_binding_plan(
+    grip,
+    grip_bindings,
+):
+    return ((grip, grip_bindings),)
+
+
+def _standalone_radio_pane_marker_binding_plan(
+    container,
+    pane,
+    grip,
+    *,
+    update_bindings,
+    grip_bindings,
+    update_plan_builder=_standalone_radio_pane_marker_update_binding_plan,
+    grip_plan_builder=_standalone_radio_pane_marker_grip_binding_plan,
+):
+    return update_plan_builder(
+        container,
+        pane,
+        update_bindings,
+    ) + grip_plan_builder(grip, grip_bindings)
+
+
+def _standalone_radio_pane_bind_marker_callback(
+    widget,
+    bindings,
+    bind_events,
+) -> None:
+    bind_events(widget, bindings)
+
+
+def _standalone_radio_pane_bind_marker_callbacks(
+    binding_plan,
+    *,
+    bind_callback=_standalone_radio_pane_bind_marker_callback,
+    bind_events=_standalone_radio_pane_bind_marker_events,
+) -> None:
+    for widget, bindings in binding_plan:
+        bind_callback(widget, bindings, bind_events)
+
+
+def _standalone_radio_pane_initial_update_after_args(update_marker):
+    return 0, update_marker
+
+
+def _standalone_radio_pane_request_initial_marker_update(
+    container,
+    update_marker,
+    *,
+    after_args_builder=_standalone_radio_pane_initial_update_after_args,
+) -> None:
+    try:
+        delay, callback = after_args_builder(update_marker)
+        container.after(delay, callback)
+    except Exception:
+        pass
+
+
+def _standalone_radio_pane_initial_update_request_args(
+    container,
+    update_marker,
+):
+    return container, update_marker
+
+
+def _standalone_radio_pane_schedule_initial_marker_update(
+    container,
+    update_marker,
+    *,
+    request_args_builder=_standalone_radio_pane_initial_update_request_args,
+    request_update=_standalone_radio_pane_request_initial_marker_update,
+) -> None:
+    request_args = request_args_builder(container, update_marker)
+    container_arg, update_arg = request_args
+    request_update(container_arg, update_arg)
+
+
+def _standalone_radio_pane_active_initial_update_args(
+    container,
+    update_marker,
+    initial_update_scheduler,
+):
+    return container, update_marker, initial_update_scheduler
+
+
+def _standalone_radio_pane_schedule_active_marker_initial_update(
+    container,
+    update_marker,
+    initial_update_scheduler,
+    *,
+    active_update_args_builder=_standalone_radio_pane_active_initial_update_args,
+) -> None:
+    active_update_args = active_update_args_builder(
+        container,
+        update_marker,
+        initial_update_scheduler,
+    )
+    container_arg, update_arg, scheduler = active_update_args
+    scheduler(container_arg, update_arg)
+
+
+def _standalone_radio_pane_bind_active_marker_callbacks(
+    binding_plan,
+    callback_binder,
+) -> None:
+    callback_binder(binding_plan)
+
+
+def _standalone_radio_pane_activate_marker_callbacks(
+    container,
+    binding_plan,
+    update_marker,
+    *,
+    callback_binder=_standalone_radio_pane_bind_marker_callbacks,
+    active_callback_binder=_standalone_radio_pane_bind_active_marker_callbacks,
+    active_initial_update_scheduler=(
+        _standalone_radio_pane_schedule_active_marker_initial_update
+    ),
+    initial_update_scheduler=_standalone_radio_pane_schedule_initial_marker_update,
+) -> None:
+    active_callback_binder(binding_plan, callback_binder)
+    active_initial_update_scheduler(
+        container,
+        update_marker,
+        initial_update_scheduler,
+    )
+
+
+def _standalone_radio_pane_marker_binding_sets(
+    update_marker,
+    start_drag,
+    drag,
+    end_drag,
+    *,
+    update_bindings_builder=_standalone_radio_pane_update_bindings,
+    grip_bindings_builder=_standalone_radio_pane_grip_bindings,
+):
+    update_bindings = update_bindings_builder(update_marker)
+    grip_bindings = grip_bindings_builder(start_drag, drag, end_drag)
+    return update_bindings, grip_bindings
+
+
+def _standalone_radio_pane_marker_binding_plan_from_sets(
+    container,
+    pane,
+    grip,
+    binding_sets,
+    *,
+    binding_plan_builder=_standalone_radio_pane_marker_binding_plan,
+):
+    update_bindings, grip_bindings = binding_sets
+    return binding_plan_builder(
+        container,
+        pane,
+        grip,
+        update_bindings=update_bindings,
+        grip_bindings=grip_bindings,
+    )
+
+
+def _standalone_radio_pane_activate_marker_binding_plan(
+    container,
+    binding_plan,
+    update_marker,
+    *,
+    activate_marker_callbacks=_standalone_radio_pane_activate_marker_callbacks,
+) -> None:
+    activate_marker_callbacks(container, binding_plan, update_marker)
+
+
+def _standalone_radio_pane_activate_marker_bindings(
+    container,
+    pane,
+    grip,
+    update_marker,
+    start_drag,
+    drag,
+    end_drag,
+    *,
+    binding_sets_builder=_standalone_radio_pane_marker_binding_sets,
+    binding_plan_builder=_standalone_radio_pane_marker_binding_plan_from_sets,
+    binding_plan_activator=_standalone_radio_pane_activate_marker_binding_plan,
+) -> None:
+    binding_sets = binding_sets_builder(
+        update_marker,
+        start_drag,
+        drag,
+        end_drag,
+    )
+    binding_plan = binding_plan_builder(
+        container,
+        pane,
+        grip,
+        binding_sets,
+    )
+    binding_plan_activator(container, binding_plan, update_marker)
+
+
+def _standalone_radio_pane_marker_geometry(
+    container_width,
+    sash_y,
+    y_offset=0,
+) -> dict[str, int]:
+    width = max(int(container_width or 0), 0)
+    marker_width = min(66, max(width - 24, 42))
+    x = max((width - marker_width) // 2, 8)
+    y = max(sash_y - 5 + int(y_offset), 2)
+    return {"x": x, "y": y, "width": marker_width, "height": 12}
+
+
+def _standalone_radio_pane_place_marker(marker, geometry) -> None:
+    marker.place(**geometry)
+    marker.lift()
+
+
+def _standalone_radio_pane_forget_marker(marker) -> None:
+    marker.place_forget()
+
+
+def _standalone_radio_pane_set_sash_pos(pane, new_y) -> None:
+    try:
+        pane.sashpos(0, int(new_y))
+        return
+    except Exception:
+        pass
+    try:
+        pane.sash_place(0, 0, int(new_y))
+    except Exception:
+        pass
+
+
+def _standalone_radio_pane_sash_callback(
+    pane,
+    *,
+    set_sash_pos=_standalone_radio_pane_set_sash_pos,
+):
+    def _set_sash_pos(new_y):
+        set_sash_pos(pane, new_y)
+
+    return _set_sash_pos
+
+
+def _standalone_radio_pane_place_marker_for_sash(
+    container,
+    marker,
+    sash_y,
+    y_offset=0,
+    *,
+    geometry_builder=_standalone_radio_pane_marker_geometry,
+    marker_placer=_standalone_radio_pane_place_marker,
+) -> None:
+    geometry = geometry_builder(
+        container.winfo_width(),
+        sash_y,
+        y_offset,
+    )
+    marker_placer(marker, geometry)
+
+
+def _standalone_radio_pane_place_marker_for_sash_safe(
+    container,
+    marker,
+    sash_y,
+    y_offset=0,
+    *,
+    place_marker_for_sash=_standalone_radio_pane_place_marker_for_sash,
+    forget_marker=_standalone_radio_pane_forget_marker,
+) -> None:
+    try:
+        place_marker_for_sash(container, marker, sash_y, y_offset)
+    except Exception:
+        try:
+            forget_marker(marker)
+        except Exception:
+            pass
+
+
+def _standalone_radio_pane_place_callback(
+    container,
+    marker,
+    y_offset=0,
+    *,
+    place_marker_for_sash_safe=_standalone_radio_pane_place_marker_for_sash_safe,
+):
+    def _place_marker_for_sash(sash_y):
+        place_marker_for_sash_safe(container, marker, sash_y, y_offset)
+
+    return _place_marker_for_sash
+
+
+def _standalone_radio_pane_update_marker(pane, place_marker_for_sash) -> None:
+    place_marker_for_sash(int(pane.sashpos(0)))
+
+
+def _standalone_radio_pane_update_marker_safe(
+    pane,
+    place_marker_for_sash,
+    marker,
+    *,
+    update_marker=_standalone_radio_pane_update_marker,
+    forget_marker=_standalone_radio_pane_forget_marker,
+) -> None:
+    try:
+        update_marker(pane, place_marker_for_sash)
+    except Exception:
+        try:
+            forget_marker(marker)
+        except Exception:
+            pass
+
+
+def _standalone_radio_pane_update_callback(
+    pane,
+    place_marker_for_sash,
+    marker,
+    *,
+    update_marker_safe=_standalone_radio_pane_update_marker_safe,
+):
+    def _update_marker(_event=None):
+        update_marker_safe(pane, place_marker_for_sash, marker)
+
+    return _update_marker
+
+
+def _standalone_radio_pane_schedule_marker_update(
+    container,
+    drag_state,
+    update_marker,
+) -> None:
+    if drag_state["update_pending"]:
+        return
+    drag_state["update_pending"] = True
+
+    def _run():
+        drag_state["update_pending"] = False
+        update_marker()
+
+    try:
+        container.after_idle(_run)
+    except Exception:
+        _run()
+
+
+def _standalone_radio_pane_schedule_callback(
+    container,
+    drag_state,
+    update_marker,
+    *,
+    schedule_marker_update=_standalone_radio_pane_schedule_marker_update,
+):
+    def _schedule_marker_update():
+        schedule_marker_update(container, drag_state, update_marker)
+
+    return _schedule_marker_update
+
+
+def _standalone_radio_pane_start_drag(drag_state, event, pane) -> None:
+    try:
+        drag_state["root_y"] = int(event.y_root)
+        drag_state["sash_y"] = int(pane.sashpos(0))
+    except Exception:
+        drag_state["root_y"] = 0
+        drag_state["sash_y"] = 0
+
+
+def _standalone_radio_pane_start_drag_event(
+    drag_state,
+    event,
+    pane,
+    *,
+    start_drag=_standalone_radio_pane_start_drag,
+) -> str:
+    start_drag(drag_state, event, pane)
+    return "break"
+
+
+def _standalone_radio_pane_start_callback(
+    drag_state,
+    pane,
+    *,
+    start_drag_event=_standalone_radio_pane_start_drag_event,
+):
+    def _start_drag(event):
+        return start_drag_event(drag_state, event, pane)
+
+    return _start_drag
+
+
+def _standalone_radio_pane_drag_motion(
+    drag_state,
+    event,
+    set_sash_pos,
+    place_marker_for_sash,
+    schedule_marker_update,
+) -> None:
+    delta = int(event.y_root) - int(drag_state["root_y"])
+    new_sash = int(drag_state["sash_y"]) + delta
+    set_sash_pos(new_sash)
+    place_marker_for_sash(new_sash)
+    schedule_marker_update()
+
+
+def _standalone_radio_pane_drag_event(
+    drag_state,
+    event,
+    set_sash_pos,
+    place_marker_for_sash,
+    schedule_marker_update,
+    *,
+    drag_motion=_standalone_radio_pane_drag_motion,
+) -> str:
+    try:
+        drag_motion(
+            drag_state,
+            event,
+            set_sash_pos,
+            place_marker_for_sash,
+            schedule_marker_update,
+        )
+    except Exception:
+        pass
+    return "break"
+
+
+def _standalone_radio_pane_drag_callback(
+    drag_state,
+    set_sash_pos,
+    place_marker_for_sash,
+    schedule_marker_update,
+    *,
+    drag_event=_standalone_radio_pane_drag_event,
+):
+    def _drag(event):
+        return drag_event(
+            drag_state,
+            event,
+            set_sash_pos,
+            place_marker_for_sash,
+            schedule_marker_update,
+        )
+
+    return _drag
+
+
+def _standalone_radio_pane_end_drag(update_marker):
+    update_marker()
+    return "break"
+
+
+def _standalone_radio_pane_end_callback(
+    update_marker,
+    *,
+    end_drag=_standalone_radio_pane_end_drag,
+):
+    def _end_drag(_event=None):
+        return end_drag(update_marker)
+
+    return _end_drag
+
+
+def _standalone_radio_pane_marker_frame_options(color):
+    return {
+        "bg": color,
+        "bd": 1,
+        "relief": "solid",
+    }
+
+
+def _standalone_radio_pane_marker_grip_options(color):
+    return {
+        "text": "≡",
+        "bg": color,
+        "fg": "#ffffff",
+        "font": ("TkDefaultFont", 9, "bold"),
+        "cursor": "sb_v_double_arrow",
+        "padx": 0,
+        "pady": 0,
+        "anchor": "center",
+    }
+
+
+def _standalone_radio_pane_configure_marker_widgets(marker, grip) -> None:
+    marker.columnconfigure(0, weight=1)
+    grip.grid(row=0, column=0, sticky="ew")
+
+
+def _standalone_radio_pane_marker_frame(
+    container,
+    color,
+    *,
+    frame_builder=tk.Frame,
+    frame_options_builder=_standalone_radio_pane_marker_frame_options,
+):
+    return frame_builder(
+        container,
+        **frame_options_builder(color),
+    )
+
+
+def _standalone_radio_pane_marker_grip(
+    marker,
+    color,
+    *,
+    label_builder=tk.Label,
+    grip_options_builder=_standalone_radio_pane_marker_grip_options,
+):
+    return label_builder(
+        marker,
+        **grip_options_builder(color),
+    )
+
+
+def _standalone_radio_pane_marker_widget_pair(
+    container,
+    color,
+    *,
+    marker_frame_builder=_standalone_radio_pane_marker_frame,
+    marker_grip_builder=_standalone_radio_pane_marker_grip,
+):
+    marker = marker_frame_builder(
+        container,
+        color,
+    )
+    grip = marker_grip_builder(
+        marker,
+        color,
+    )
+    return marker, grip
+
+
+def _standalone_radio_pane_marker_widgets(
+    container,
+    color,
+    *,
+    marker_pair_builder=_standalone_radio_pane_marker_widget_pair,
+    configure_widgets=_standalone_radio_pane_configure_marker_widgets,
+):
+    marker, grip = marker_pair_builder(
+        container,
+        color,
+    )
+    configure_widgets(marker, grip)
+    return marker, grip
+
+
+def _standalone_radio_pane_marker_start_callback(
+    drag_state,
+    pane,
+    *,
+    start_callback_builder=_standalone_radio_pane_start_callback,
+):
+    return start_callback_builder(drag_state, pane)
+
+
+def _standalone_radio_pane_marker_drag_callback(
+    drag_state,
+    set_sash_pos,
+    place_marker_for_sash,
+    schedule_marker_update,
+    *,
+    drag_callback_builder=_standalone_radio_pane_drag_callback,
+):
+    return drag_callback_builder(
+        drag_state,
+        set_sash_pos,
+        place_marker_for_sash,
+        schedule_marker_update,
+    )
+
+
+def _standalone_radio_pane_marker_drag_pair(
+    drag_state,
+    pane,
+    set_sash_pos,
+    place_marker_for_sash,
+    schedule_marker_update,
+    *,
+    start_callback_builder=_standalone_radio_pane_marker_start_callback,
+    drag_callback_builder=_standalone_radio_pane_marker_drag_callback,
+):
+    start_drag = start_callback_builder(drag_state, pane)
+    drag = drag_callback_builder(
+        drag_state,
+        set_sash_pos,
+        place_marker_for_sash,
+        schedule_marker_update,
+    )
+    return start_drag, drag
+
+
+def _standalone_radio_pane_marker_end_callback(
+    update_marker,
+    *,
+    end_callback_builder=_standalone_radio_pane_end_callback,
+):
+    return end_callback_builder(update_marker)
+
+
+def _standalone_radio_pane_marker_drag_callbacks(
+    drag_state,
+    pane,
+    set_sash_pos,
+    place_marker_for_sash,
+    schedule_marker_update,
+    update_marker,
+    *,
+    drag_pair_builder=_standalone_radio_pane_marker_drag_pair,
+    end_callback_builder=_standalone_radio_pane_marker_end_callback,
+):
+    start_drag, drag = drag_pair_builder(
+        drag_state,
+        pane,
+        set_sash_pos,
+        place_marker_for_sash,
+        schedule_marker_update,
+    )
+    end_drag = end_callback_builder(update_marker)
+    return start_drag, drag, end_drag
+
+
+def _standalone_radio_pane_marker_drag_setup(
+    pane,
+    *,
+    drag_state_builder=_standalone_radio_pane_drag_state,
+    sash_callback_builder=_standalone_radio_pane_sash_callback,
+):
+    drag_state = drag_state_builder()
+    set_sash_pos = sash_callback_builder(pane)
+    return drag_state, set_sash_pos
+
+
+def _standalone_radio_pane_marker_update_pair(
+    container,
+    pane,
+    marker,
+    y_offset=0,
+    *,
+    place_callback_builder=_standalone_radio_pane_place_callback,
+    update_callback_builder=_standalone_radio_pane_update_callback,
+):
+    place_marker_for_sash = place_callback_builder(container, marker, y_offset)
+    update_marker = update_callback_builder(pane, place_marker_for_sash, marker)
+    return place_marker_for_sash, update_marker
+
+
+def _standalone_radio_pane_marker_schedule_callback(
+    container,
+    drag_state,
+    update_marker,
+    *,
+    schedule_callback_builder=_standalone_radio_pane_schedule_callback,
+):
+    return schedule_callback_builder(
+        container,
+        drag_state,
+        update_marker,
+    )
+
+
+def _standalone_radio_pane_marker_update_callbacks(
+    container,
+    pane,
+    marker,
+    drag_state,
+    y_offset=0,
+    *,
+    update_pair_builder=_standalone_radio_pane_marker_update_pair,
+    schedule_callback_builder=_standalone_radio_pane_marker_schedule_callback,
+):
+    place_marker_for_sash, update_marker = update_pair_builder(
+        container,
+        pane,
+        marker,
+        y_offset,
+    )
+    schedule_marker_update = schedule_callback_builder(
+        container,
+        drag_state,
+        update_marker,
+    )
+    return place_marker_for_sash, update_marker, schedule_marker_update
+
+
+def _standalone_radio_pane_marker_base_callbacks(
+    container,
+    pane,
+    marker,
+    y_offset=0,
+    *,
+    drag_setup_builder=_standalone_radio_pane_marker_drag_setup,
+    update_callbacks_builder=_standalone_radio_pane_marker_update_callbacks,
+):
+    drag_state, set_sash_pos = drag_setup_builder(pane)
+    (
+        place_marker_for_sash,
+        update_marker,
+        schedule_marker_update,
+    ) = update_callbacks_builder(
+        container,
+        pane,
+        marker,
+        drag_state,
+        y_offset,
+    )
+    return (
+        drag_state,
+        set_sash_pos,
+        place_marker_for_sash,
+        update_marker,
+        schedule_marker_update,
+    )
+
+
+def _standalone_radio_pane_marker_callback_tuple(update_marker, drag_callbacks):
+    start_drag, drag, end_drag = drag_callbacks
+    return update_marker, start_drag, drag, end_drag
+
+
+def _standalone_radio_pane_marker_callbacks(
+    container,
+    pane,
+    marker,
+    y_offset=0,
+    *,
+    base_callbacks_builder=_standalone_radio_pane_marker_base_callbacks,
+    drag_callbacks_builder=_standalone_radio_pane_marker_drag_callbacks,
+    callback_tuple_builder=_standalone_radio_pane_marker_callback_tuple,
+):
+    (
+        drag_state,
+        set_sash_pos,
+        place_marker_for_sash,
+        update_marker,
+        schedule_marker_update,
+    ) = base_callbacks_builder(
+        container,
+        pane,
+        marker,
+        y_offset,
+    )
+    drag_callbacks = drag_callbacks_builder(
+        drag_state,
+        pane,
+        set_sash_pos,
+        place_marker_for_sash,
+        schedule_marker_update,
+        update_marker,
+    )
+    return callback_tuple_builder(update_marker, drag_callbacks)
+
+
+def _standalone_radio_pane_marker_activation_args(
+    container,
+    pane,
+    grip,
+    callbacks,
+):
+    update_marker, start_drag, drag, end_drag = callbacks
+    return container, pane, grip, update_marker, start_drag, drag, end_drag
+
+
+def _standalone_radio_pane_activate_marker_parts(
+    container,
+    pane,
+    grip,
+    callbacks,
+    *,
+    activation_args_builder=_standalone_radio_pane_marker_activation_args,
+    bindings_activator=_standalone_radio_pane_activate_marker_bindings,
+) -> None:
+    activation_args = activation_args_builder(
+        container,
+        pane,
+        grip,
+        callbacks,
+    )
+    bindings_activator(*activation_args)
+
+
+def _standalone_radio_pane_install_marker_parts(
+    container,
+    pane,
+    marker,
+    grip,
+    y_offset=0,
+    *,
+    callbacks_builder=_standalone_radio_pane_marker_callbacks,
+    marker_parts_activator=_standalone_radio_pane_activate_marker_parts,
+):
+    callbacks = callbacks_builder(
+        container,
+        pane,
+        marker,
+        y_offset,
+    )
+    marker_parts_activator(
+        container,
+        pane,
+        grip,
+        callbacks,
+    )
     return marker
 
 
-def _init_radio_runtime_state(app, *, embedded_mode, host_app=None):
+def _standalone_radio_pane_install_marker_parts_args(
+    container,
+    pane,
+    widgets,
+    y_offset=0,
+):
+    marker, grip = widgets
+    return container, pane, marker, grip, y_offset
+
+
+def _standalone_radio_pane_install_marker(
+    container,
+    pane,
+    *,
+    color="#0a84ff",
+    y_offset=0,
+    widgets_builder=_standalone_radio_pane_marker_widgets,
+    install_parts_args_builder=_standalone_radio_pane_install_marker_parts_args,
+    install_parts=_standalone_radio_pane_install_marker_parts,
+):
+    widgets = widgets_builder(container, color)
+    install_parts_args = install_parts_args_builder(
+        container,
+        pane,
+        widgets,
+        y_offset,
+    )
+    return install_parts(*install_parts_args)
+
+
+def _install_pane_drag_marker(
+    container,
+    pane,
+    *,
+    color="#0a84ff",
+    y_offset=0,
+    install_marker=_standalone_radio_pane_install_marker,
+):
+    # Legacy source reference for source-based tests:
+    # marker_width = min(66, max(width - 24, 42))
+    return install_marker(
+        container,
+        pane,
+        color=color,
+        y_offset=y_offset,
+    )
+
+
+def _init_radio_runtime_widget_refs(app) -> None:
     app.feature_buttons = {}
     app.radio_station_table = None
     app.radio_station_menu = None
@@ -456,7 +1261,9 @@ def _init_radio_runtime_state(app, *, embedded_mode, host_app=None):
     app.radio_mini_resize_origin = None
     app.radio_standalone_resize_origin = None
 
-    paths = build_radio_paths()
+
+def _init_radio_runtime_paths(app, *, paths_builder=build_radio_paths) -> None:
+    paths = paths_builder()
     app.netmon_config_dir = paths.config_dir
     app.netmon_state_dir = paths.state_dir
     app.radio_default_stations_path = paths.default_stations_path
@@ -475,15 +1282,22 @@ def _init_radio_runtime_state(app, *, embedded_mode, host_app=None):
         "radio_station_logos",
     )
 
+
+def _init_radio_runtime_data_state(
+    app,
+    *,
+    settings_builder=radio_controller.default_radio_settings,
+) -> None:
     app.radio_proc = None
     app.radio_stop_requested = False
     app.radio_ipc_path = ""
     app.radio_db = []
     app.radio_favorites = []
     app.radio_search_results = []
-    app.radio_settings = radio_controller.default_radio_settings()
-    app.style = ttk.Style(app)
-    app._ensure_colorable_ttk_theme()
+    app.radio_settings = settings_builder()
+
+
+def _init_radio_runtime_selection_state(app) -> None:
     app._app_theme = None
     app.radio_current_station_id = ""
     app.radio_current_station = None
@@ -491,12 +1305,9 @@ def _init_radio_runtime_state(app, *, embedded_mode, host_app=None):
     app.radio_filtered_station_ids = []
     app.radio_live_status_by_station_id = {}
     app.radio_reachability_check_running = False
-    radio_controller.load_radio_runtime(app)
-    try:
-        netmon_projectm_sidecar.ensure_projectm_preset_dir(app)
-    except Exception:
-        pass
 
+
+def _init_radio_runtime_host_state(app, *, embedded_mode, host_app=None) -> None:
     app.radio_embedded_mode = bool(embedded_mode)
     app.radio_detach_callback = None
     app.radio_host_app = host_app
@@ -515,151 +1326,64 @@ def _init_radio_runtime_state(app, *, embedded_mode, host_app=None):
                 pass
 
 
-def _init_radio_ui_state(app):
-    app.radio_now_playing_var = tk.StringVar(
-        value=app.tr("radio_header_off", "Radio: off")
+def _init_radio_runtime_state(app, *, embedded_mode, host_app=None):
+    _init_radio_runtime_widget_refs(app)
+    _init_radio_runtime_paths(app)
+    _init_radio_runtime_data_state(app)
+
+    app.style = ttk.Style(app)
+    app._ensure_colorable_ttk_theme()
+    _init_radio_runtime_selection_state(app)
+    radio_controller.load_radio_runtime(app)
+    try:
+        netmon_projectm_sidecar.ensure_projectm_preset_dir(app)
+    except Exception:
+        pass
+
+    _init_radio_runtime_host_state(
+        app,
+        embedded_mode=embedded_mode,
+        host_app=host_app,
     )
-    app.radio_status_var = tk.StringVar(value=app.tr("radio_header_off", "Radio: off"))
-    app.radio_title_var = tk.StringVar(
-        value=app.tr("radio_header_title_idle", "Title: -")
+
+
+def _radio_ui_volume_value(settings) -> int:
+    return int(settings.get("volume", 50) or 50)
+
+
+def _radio_ui_eq_values(settings) -> tuple[int, int, int]:
+    return (
+        int(settings.get("eq_bass", 0) or 0),
+        int(settings.get("eq_mid", 0) or 0),
+        int(settings.get("eq_treble", 0) or 0),
     )
-    app.radio_header_status_var = tk.StringVar(
-        value=app.tr("radio_header_title_idle", "Title: -")
-    )
-    app.radio_handover_title = ""
-    app.radio_stream_url_var = tk.StringVar(
-        value=app.tr("radio_stream_url_default", "Stream URL: -")
-    )
-    app.radio_bitrate_var = tk.StringVar(
-        value=app.tr("radio_bitrate_label", "Bitrate: -")
-    )
-    app.radio_dependency_var = tk.StringVar(
-        value=app.tr("radio_status_ready", "Radio ready.")
-    )
-    app.radio_list_status_var = tk.StringVar(
-        value=app.tr("radio_station_count", "Stations: {count}").format(count=0)
-    )
-    app.radio_volume_var = tk.IntVar(
-        value=int(app.radio_settings.get("volume", 50) or 50)
-    )
-    app.radio_volume_text_var = tk.StringVar(
-        value=app.tr("radio_volume_short_label", "Vol.: {value}%").format(
-            value=int(app.radio_settings.get("volume", 50) or 50)
-        )
-    )
-    app.radio_volume_label_var = tk.StringVar(
-        value=f"{int(app.radio_settings.get('volume', 50) or 50)}%"
-    )
-    app.radio_eq_bass_var = tk.IntVar(
-        value=int(app.radio_settings.get("eq_bass", 0) or 0)
-    )
-    app.radio_eq_mid_var = tk.IntVar(
-        value=int(app.radio_settings.get("eq_mid", 0) or 0)
-    )
-    app.radio_eq_treble_var = tk.IntVar(
-        value=int(app.radio_settings.get("eq_treble", 0) or 0)
-    )
-    app.radio_eq_bass_label_var = tk.StringVar(
-        value=str(int(app.radio_settings.get("eq_bass", 0) or 0))
-    )
-    app.radio_eq_mid_label_var = tk.StringVar(
-        value=str(int(app.radio_settings.get("eq_mid", 0) or 0))
-    )
-    app.radio_eq_treble_label_var = tk.StringVar(
-        value=str(int(app.radio_settings.get("eq_treble", 0) or 0))
-    )
-    app.radio_search_var = tk.StringVar(
-        value=str(app.radio_settings.get("last_search", "") or "")
-    )
-    app.radio_light_state = "gray"
-    app.radio_context_station_id = ""
-    app.radio_show_favorites_var = tk.BooleanVar(value=False)
-    app.radio_toggle_favorites_text_var = tk.StringVar(
-        value=app.tr("radio_show_favorites", "Show favorites")
-    )
-    app.radio_status_indicator_images = {
-        "unknown": _build_radio_status_indicator("#8a8f98"),
-        "online": _build_radio_status_indicator("#2fb344"),
-        "offline": _build_radio_status_indicator("#d9485f"),
-    }
-    app.radio_page_indicator_var = tk.StringVar(value="1/1")
-    app.radio_database_count_var = tk.StringVar(
-        value=app.tr("radio_database_count", "DB: {count} stations").format(
-            count=len(getattr(app, "radio_db", []) or [])
-        )
-    )
-    app.radio_database_progress_var = tk.DoubleVar(value=0.0)
-    app.radio_database_progress_status_var = tk.StringVar(value="")
-    app.radio_database_exclusive_mode_var = tk.BooleanVar(value=True)
-    app.radio_database_select_all_var = tk.BooleanVar(value=False)
-    app.radio_station_column_vars = {}
-    app.radio_station_columns_status_var = tk.StringVar(value="")
-    app.radio_custom_name_var = tk.StringVar(value="")
-    app.radio_custom_url_var = tk.StringVar(value="")
-    app.radio_custom_homepage_var = tk.StringVar(value="")
-    app.radio_custom_category_var = tk.StringVar(value="")
-    app.radio_custom_edit_station_id = ""
-    app.radio_custom_submit_text_var = tk.StringVar(
-        value=app.tr("radio_custom_add_button", "Add station")
-    )
-    app.radio_custom_form_status_var = tk.StringVar(value="")
-    app.radio_custom_editor_window = None
-    app.radio_custom_editor_delete_button = None
+
+
+def _radio_ui_search_value(settings) -> str:
+    return str(settings.get("last_search", "") or "")
+
+
+def _radio_ui_database_count(app) -> int:
+    return len(getattr(app, "radio_db", []) or [])
+
+
+def _init_radio_ui_projectm_runtime_state(app) -> None:
     app.radio_projectm_proc = None
     app.radio_projectm_command = []
     app.radio_projectm_known_pids = set()
     app.radio_projectm_log_handle = None
     app.radio_projectm_log_path = ""
     app.radio_projectm_package_probe = {}
-    app.radio_projectm_status_var = tk.StringVar(
-        value=app.tr("radio_projectm_status_not_installed", "projectM not installed")
-    )
-    app.radio_projectm_meta_var = tk.StringVar(
-        value=app.tr("radio_projectm_meta_default", "PID: - | Log: -")
-    )
-    app.radio_projectm_history_var = tk.StringVar(
-        value=app.tr(
-            "radio_projectm_history_default",
-            "Last started: - | Last stopped: -",
-        )
-    )
-    app.radio_projectm_install_var = tk.StringVar(
-        value=app.tr(
-            "radio_projectm_install_status_checking",
-            "Checking projectM package status.",
-        )
-    )
-    app.radio_projectm_preset_var = tk.StringVar(
-        value=app.tr(
-            "radio_projectm_presets_preparing",
-            "projectM preset folder: preparing Documents/NetMon",
-        )
-    )
-    app.radio_projectm_preset_hint_var = tk.StringVar(
-        value=app.tr(
-            "radio_projectm_preset_access_checking",
-            "Preset access: checking downloaded packs and custom imports",
-        )
-    )
-    app.radio_projectm_install_button = None
-    app.radio_projectm_preset_open_button = None
-    app.radio_projectm_preset_import_button = None
-    app.radio_projectm_preset_manager_window = None
-    app.radio_attach_status_var = tk.StringVar(value="")
+
+
+def _radio_ui_recordings_dir(settings) -> str:
+    return str(settings.get("recordings_dir", "") or "").strip()
+
+
+def _init_radio_ui_recording_runtime_state(app) -> None:
     app.radio_record_proc = None
-    app.radio_recordings_dir = str(
-        app.radio_settings.get("recordings_dir", "") or ""
-    ).strip()
+    app.radio_recordings_dir = _radio_ui_recordings_dir(app.radio_settings)
     app.radio_last_record_path = ""
-    app.radio_record_status_var = tk.StringVar(
-        value=app.tr("radio_record_status_off", "Recording off.")
-    )
-    app.radio_record_dir_var = tk.StringVar(
-        value=app.tr("radio_record_dir_default", "Aufnahmeordner: -")
-    )
-    app.radio_record_file_var = tk.StringVar(
-        value=app.tr("radio_record_file_default", "Letzte Aufnahme: -")
-    )
     app.radio_record_transport_button = None
     app.radio_record_panel_button = None
     app.radio_record_settings_button = None
@@ -672,24 +1396,36 @@ def _init_radio_ui_state(app):
     app.radio_record_play_last_button = None
     app.radio_record_blink_after_id = None
     app.radio_record_blink_on = False
-    app.radio_playlist_entries = list(
+
+
+def _radio_ui_playlist_entries(app):
+    return list(
         getattr(app, "radio_playlist_entries", [])
         or app.radio_settings.get("playlist_entries", [])
         or []
     )
-    app.radio_playlist_path = str(
+
+
+def _radio_ui_playlist_path(app) -> str:
+    return str(
         getattr(app, "radio_playlist_path", "")
         or app.radio_settings.get("playlist_path", "")
         or ""
     ).strip()
-    app.radio_playlists_dir = str(
+
+
+def _radio_ui_playlists_dir(app) -> str:
+    return str(
         getattr(app, "radio_playlists_dir", "")
         or app.radio_settings.get("playlists_dir", "")
         or ""
     ).strip()
-    app.radio_playlist_status_var = tk.StringVar(
-        value=app.tr("radio_playlist_status_default", "Playlist: 0 Dateien")
-    )
+
+
+def _init_radio_ui_playlist_runtime_state(app) -> None:
+    app.radio_playlist_entries = _radio_ui_playlist_entries(app)
+    app.radio_playlist_path = _radio_ui_playlist_path(app)
+    app.radio_playlists_dir = _radio_ui_playlists_dir(app)
     app.radio_playlist_listbox = None
     app.radio_playlist_add_button = None
     app.radio_playlist_play_file_button = None
@@ -707,10 +1443,9 @@ def _init_radio_ui_state(app):
     app.radio_folder_browser_current_path = ""
     app.radio_folder_browser_back_history = []
     app.radio_folder_browser_forward_history = []
-    app.radio_folder_browser_title_var = tk.StringVar(
-        value=app.tr("radio_folder_browser_title", "Aufnahmeordner")
-    )
-    app.radio_folder_browser_path_var = tk.StringVar(value="")
+
+
+def _init_radio_ui_folder_browser_runtime_state(app) -> None:
     app.radio_folder_browser_context_index = -1
     app.radio_folder_browser_menu = None
     app.radio_folder_browser_back_button = None
@@ -721,12 +1456,6 @@ def _init_radio_ui_state(app):
     app.radio_folder_browser_drag_source_path = ""
     app.radio_recordings_entries = []
     app.radio_recordings_listbox = None
-    app.radio_recordings_status_var = tk.StringVar(
-        value=app.tr(
-            "radio_recordings_status_default",
-            "Recording folder: 0 files",
-        )
-    )
     app.radio_playback_mode = str(
         getattr(app, "radio_playback_mode", "") or "radio"
     ).strip()
@@ -734,33 +1463,9 @@ def _init_radio_ui_state(app):
         getattr(app, "radio_local_media_path", "") or ""
     ).strip()
     app.radio_playlist_index = int(getattr(app, "radio_playlist_index", -1) or -1)
-    app.radio_source_var = tk.StringVar(
-        value=app.tr(
-            "radio_source_default",
-            "Source: Livestream | -",
-        )
-    )
-    app.radio_mini_source_var = tk.StringVar(
-        value=app.tr("radio_miniplayer_source_live", "Live")
-    )
-    app.radio_mini_title_var = tk.StringVar(
-        value=app.tr("radio_miniplayer_nothing_playing", "Nothing is playing")
-    )
-    app.radio_mini_status_var = tk.StringVar(
-        value=app.tr("radio_miniplayer_status_ready", "Ready")
-    )
-    app.radio_mini_detail_stream_var = tk.StringVar(
-        value=app.tr("radio_miniplayer_source_live", "Live")
-    )
-    app.radio_mini_detail_format_var = tk.StringVar(value="-")
-    app.radio_mini_detail_status_var = tk.StringVar(
-        value=app.tr("radio_miniplayer_status_ready", "Ready")
-    )
-    app.radio_mini_detail_genre_var = tk.StringVar(value="-")
-    app.radio_mini_detail_bitrate_var = tk.StringVar(value="-")
-    app.radio_mini_detail_time_var = tk.StringVar(value="--:--:--")
-    app.radio_mini_volume_var = tk.StringVar(value="50%")
-    app.radio_mini_eq_var = tk.StringVar(value="EQ Flat")
+
+
+def _init_radio_ui_logo_runtime_state(app) -> None:
     app.radio_projectm_last_started_at = ""
     app.radio_projectm_last_stopped_at = ""
     app.radio_logo_label = None
@@ -772,7 +1477,275 @@ def _init_radio_ui_state(app):
     app._radio_logo_loaded_key = ""
     app._radio_miniplayer_var_traces = []
     app._active_context_menu = None
-    app.radio_theme_name_var = tk.StringVar(value="")
+
+
+def _init_radio_ui_control_refs(app) -> None:
+    app.radio_light_state = "gray"
+    app.radio_context_station_id = ""
+    app.radio_station_column_vars = {}
+    app.radio_custom_edit_station_id = ""
+    app.radio_custom_editor_window = None
+    app.radio_custom_editor_delete_button = None
+    app.radio_projectm_install_button = None
+    app.radio_projectm_preset_open_button = None
+    app.radio_projectm_preset_import_button = None
+    app.radio_projectm_preset_manager_window = None
+
+
+def _init_radio_ui_header_vars(
+    app,
+    *,
+    string_var_builder=tk.StringVar,
+) -> None:
+    app.radio_now_playing_var = string_var_builder(
+        value=app.tr("radio_header_off", "Radio: off")
+    )
+    app.radio_status_var = string_var_builder(
+        value=app.tr("radio_header_off", "Radio: off")
+    )
+    app.radio_title_var = string_var_builder(
+        value=app.tr("radio_header_title_idle", "Title: -")
+    )
+    app.radio_header_status_var = string_var_builder(
+        value=app.tr("radio_header_title_idle", "Title: -")
+    )
+    app.radio_handover_title = ""
+    app.radio_stream_url_var = string_var_builder(
+        value=app.tr("radio_stream_url_default", "Stream URL: -")
+    )
+    app.radio_bitrate_var = string_var_builder(
+        value=app.tr("radio_bitrate_label", "Bitrate: -")
+    )
+    app.radio_dependency_var = string_var_builder(
+        value=app.tr("radio_status_ready", "Radio ready.")
+    )
+    app.radio_list_status_var = string_var_builder(
+        value=app.tr("radio_station_count", "Stations: {count}").format(count=0)
+    )
+
+
+def _init_radio_ui_volume_eq_search_vars(
+    app,
+    *,
+    volume_value,
+    eq_bass_value,
+    eq_mid_value,
+    eq_treble_value,
+    search_value,
+    int_var_builder=tk.IntVar,
+    string_var_builder=tk.StringVar,
+) -> None:
+    app.radio_volume_var = int_var_builder(value=volume_value)
+    app.radio_volume_text_var = string_var_builder(
+        value=app.tr("radio_volume_short_label", "Vol.: {value}%").format(
+            value=volume_value
+        )
+    )
+    app.radio_volume_label_var = string_var_builder(value=f"{volume_value}%")
+    app.radio_eq_bass_var = int_var_builder(value=eq_bass_value)
+    app.radio_eq_mid_var = int_var_builder(value=eq_mid_value)
+    app.radio_eq_treble_var = int_var_builder(value=eq_treble_value)
+    app.radio_eq_bass_label_var = string_var_builder(value=str(eq_bass_value))
+    app.radio_eq_mid_label_var = string_var_builder(value=str(eq_mid_value))
+    app.radio_eq_treble_label_var = string_var_builder(value=str(eq_treble_value))
+    app.radio_search_var = string_var_builder(value=search_value)
+
+
+def _init_radio_ui_database_custom_vars(
+    app,
+    *,
+    database_count,
+    boolean_var_builder=tk.BooleanVar,
+    double_var_builder=tk.DoubleVar,
+    string_var_builder=tk.StringVar,
+) -> None:
+    app.radio_show_favorites_var = boolean_var_builder(value=False)
+    app.radio_toggle_favorites_text_var = string_var_builder(
+        value=app.tr("radio_show_favorites", "Show favorites")
+    )
+    app.radio_page_indicator_var = string_var_builder(value="1/1")
+    app.radio_database_count_var = string_var_builder(
+        value=app.tr("radio_database_count", "DB: {count} stations").format(
+            count=database_count
+        )
+    )
+    app.radio_database_progress_var = double_var_builder(value=0.0)
+    app.radio_database_progress_status_var = string_var_builder(value="")
+    app.radio_database_exclusive_mode_var = boolean_var_builder(value=True)
+    app.radio_database_select_all_var = boolean_var_builder(value=False)
+    app.radio_station_columns_status_var = string_var_builder(value="")
+    app.radio_custom_name_var = string_var_builder(value="")
+    app.radio_custom_url_var = string_var_builder(value="")
+    app.radio_custom_homepage_var = string_var_builder(value="")
+    app.radio_custom_category_var = string_var_builder(value="")
+    app.radio_custom_submit_text_var = string_var_builder(
+        value=app.tr("radio_custom_add_button", "Add station")
+    )
+    app.radio_custom_form_status_var = string_var_builder(value="")
+
+
+def _init_radio_ui_projectm_vars(
+    app,
+    *,
+    string_var_builder=tk.StringVar,
+) -> None:
+    app.radio_projectm_status_var = string_var_builder(
+        value=app.tr("radio_projectm_status_not_installed", "projectM not installed")
+    )
+    app.radio_projectm_meta_var = string_var_builder(
+        value=app.tr("radio_projectm_meta_default", "PID: - | Log: -")
+    )
+    app.radio_projectm_history_var = string_var_builder(
+        value=app.tr(
+            "radio_projectm_history_default",
+            "Last started: - | Last stopped: -",
+        )
+    )
+    app.radio_projectm_install_var = string_var_builder(
+        value=app.tr(
+            "radio_projectm_install_status_checking",
+            "Checking projectM package status.",
+        )
+    )
+    app.radio_projectm_preset_var = string_var_builder(
+        value=app.tr(
+            "radio_projectm_presets_preparing",
+            "projectM preset folder: preparing Documents/NetMon",
+        )
+    )
+    app.radio_projectm_preset_hint_var = string_var_builder(
+        value=app.tr(
+            "radio_projectm_preset_access_checking",
+            "Preset access: checking downloaded packs and custom imports",
+        )
+    )
+    app.radio_attach_status_var = string_var_builder(value="")
+
+
+def _init_radio_ui_recording_vars(
+    app,
+    *,
+    string_var_builder=tk.StringVar,
+) -> None:
+    app.radio_record_status_var = string_var_builder(
+        value=app.tr("radio_record_status_off", "Recording off.")
+    )
+    app.radio_record_dir_var = string_var_builder(
+        value=app.tr("radio_record_dir_default", "Aufnahmeordner: -")
+    )
+    app.radio_record_file_var = string_var_builder(
+        value=app.tr("radio_record_file_default", "Letzte Aufnahme: -")
+    )
+
+
+def _init_radio_ui_playlist_folder_vars(
+    app,
+    *,
+    string_var_builder=tk.StringVar,
+) -> None:
+    app.radio_playlist_status_var = string_var_builder(
+        value=app.tr("radio_playlist_status_default", "Playlist: 0 Dateien")
+    )
+    app.radio_folder_browser_title_var = string_var_builder(
+        value=app.tr("radio_folder_browser_title", "Aufnahmeordner")
+    )
+    app.radio_folder_browser_path_var = string_var_builder(value="")
+
+
+def _init_radio_ui_recordings_source_mini_vars(
+    app,
+    *,
+    string_var_builder=tk.StringVar,
+) -> None:
+    app.radio_recordings_status_var = string_var_builder(
+        value=app.tr(
+            "radio_recordings_status_default",
+            "Recording folder: 0 files",
+        )
+    )
+    app.radio_source_var = string_var_builder(
+        value=app.tr(
+            "radio_source_default",
+            "Source: Livestream | -",
+        )
+    )
+    app.radio_mini_source_var = string_var_builder(
+        value=app.tr("radio_miniplayer_source_live", "Live")
+    )
+    app.radio_mini_title_var = string_var_builder(
+        value=app.tr("radio_miniplayer_nothing_playing", "Nothing is playing")
+    )
+    app.radio_mini_status_var = string_var_builder(
+        value=app.tr("radio_miniplayer_status_ready", "Ready")
+    )
+    app.radio_mini_detail_stream_var = string_var_builder(
+        value=app.tr("radio_miniplayer_source_live", "Live")
+    )
+    app.radio_mini_detail_format_var = string_var_builder(value="-")
+    app.radio_mini_detail_status_var = string_var_builder(
+        value=app.tr("radio_miniplayer_status_ready", "Ready")
+    )
+    app.radio_mini_detail_genre_var = string_var_builder(value="-")
+    app.radio_mini_detail_bitrate_var = string_var_builder(value="-")
+    app.radio_mini_detail_time_var = string_var_builder(value="--:--:--")
+    app.radio_mini_volume_var = string_var_builder(value="50%")
+    app.radio_mini_eq_var = string_var_builder(value="EQ Flat")
+
+
+def _init_radio_ui_status_indicator_images(
+    app,
+    *,
+    indicator_builder=None,
+) -> None:
+    if indicator_builder is None:
+        indicator_builder = _build_radio_status_indicator
+    app.radio_status_indicator_images = {
+        "unknown": indicator_builder("#8a8f98"),
+        "online": indicator_builder("#2fb344"),
+        "offline": indicator_builder("#d9485f"),
+    }
+
+
+def _init_radio_ui_theme_vars(
+    app,
+    *,
+    string_var_builder=tk.StringVar,
+) -> None:
+    app.radio_theme_name_var = string_var_builder(value="")
+
+
+def _init_radio_ui_state(app):
+    volume_value = _radio_ui_volume_value(app.radio_settings)
+    eq_bass_value, eq_mid_value, eq_treble_value = _radio_ui_eq_values(
+        app.radio_settings
+    )
+    search_value = _radio_ui_search_value(app.radio_settings)
+    database_count = _radio_ui_database_count(app)
+    _init_radio_ui_header_vars(app)
+    _init_radio_ui_volume_eq_search_vars(
+        app,
+        volume_value=volume_value,
+        eq_bass_value=eq_bass_value,
+        eq_mid_value=eq_mid_value,
+        eq_treble_value=eq_treble_value,
+        search_value=search_value,
+    )
+    _init_radio_ui_control_refs(app)
+    _init_radio_ui_database_custom_vars(app, database_count=database_count)
+    _init_radio_ui_status_indicator_images(app)
+    _init_radio_ui_projectm_runtime_state(app)
+    # Source anchor for standalone projectM hook tests:
+    # projectM preset folder: preparing Documents/NetMon
+    # checking downloaded packs and custom imports
+    _init_radio_ui_projectm_vars(app)
+    _init_radio_ui_recording_runtime_state(app)
+    _init_radio_ui_recording_vars(app)
+    _init_radio_ui_playlist_runtime_state(app)
+    _init_radio_ui_playlist_folder_vars(app)
+    _init_radio_ui_folder_browser_runtime_state(app)
+    _init_radio_ui_recordings_source_mini_vars(app)
+    _init_radio_ui_logo_runtime_state(app)
+    _init_radio_ui_theme_vars(app)
 
 
 def _build_radio_status_indicator(color):
@@ -793,6 +1766,60 @@ def _build_radio_status_indicator(color):
         for start, end in spans:
             image.put(color, to=(start, y, end, y + 1))
     return image
+
+
+def _compact_standalone_window_geometry(
+    *,
+    req_width,
+    req_height,
+    screen_width,
+    screen_height,
+) -> tuple[int, int, int, int, int]:
+    width = min(max(int(req_width or 0), 980), screen_width - 120)
+    height = min(
+        max(int(req_height or 0), int(screen_height * 0.86)),
+        screen_height - 80,
+    )
+    max_height = height
+    x = max((screen_width - width) // 2, 0)
+    y = max((screen_height - height) // 2, 0)
+    return width, height, max_height, x, y
+
+
+def _radio_window_integration_context(app) -> dict[str, str]:
+    return {
+        "window_class": "NetMonRadio",
+        "startup_wm_class": "NetMonRadio",
+        "icon_path": str(getattr(app, "_window_icon_path", "") or "").strip(),
+        "icon_applied": (
+            "yes" if bool(getattr(app, "_window_icon_applied", False)) else "no"
+        ),
+        "started_from": str(getattr(app, "_started_from", "") or "").strip(),
+    }
+
+
+def _radio_detach_ready_ack_payload(*, timed_out=False) -> dict[str, bool | str]:
+    payload: dict[str, bool | str] = {"action": "detach_ready"}
+    if timed_out:
+        payload["timed_out"] = True
+    return payload
+
+
+def _radio_detach_ack_step(app, *, attempts_left) -> str:
+    if getattr(app, "radio_proc", None) is not None:
+        return "ready"
+    if attempts_left <= 0:
+        return "timeout"
+    return "wait"
+
+
+def _radio_language_code_from_config_payload(payload) -> str:
+    if not isinstance(payload, dict):
+        return "de"
+    candidate = str(payload.get("language", "de") or "de").strip().lower()
+    if candidate in {"de", "en"}:
+        return candidate
+    return "de"
 
 
 class NetMonRadioApp(tk.Tk):
@@ -933,15 +1960,7 @@ class NetMonRadioApp(tk.Tk):
             pass
 
     def _window_integration_context(self):
-        return {
-            "window_class": "NetMonRadio",
-            "startup_wm_class": "NetMonRadio",
-            "icon_path": str(getattr(self, "_window_icon_path", "") or "").strip(),
-            "icon_applied": (
-                "yes" if bool(getattr(self, "_window_icon_applied", False)) else "no"
-            ),
-            "started_from": str(getattr(self, "_started_from", "") or "").strip(),
-        }
+        return _radio_window_integration_context(self)
 
     def _log_window_integration_diagnostic(self, stage):
         info = self._window_integration_context()
@@ -961,14 +1980,14 @@ class NetMonRadioApp(tk.Tk):
             self.update_idletasks()
             screen_width = max(int(self.winfo_screenwidth() or 1280), 1280)
             screen_height = max(int(self.winfo_screenheight() or 900), 900)
-            width = min(max(int(self.winfo_reqwidth() or 0), 980), screen_width - 120)
-            height = min(
-                max(int(self.winfo_reqheight() or 0), int(screen_height * 0.86)),
-                screen_height - 80,
+            # Source anchor for compact standalone layout tests:
+            # int(screen_height * 0.86)
+            width, height, max_height, x, y = _compact_standalone_window_geometry(
+                req_width=self.winfo_reqwidth(),
+                req_height=self.winfo_reqheight(),
+                screen_width=screen_width,
+                screen_height=screen_height,
             )
-            max_height = height
-            x = max((screen_width - width) // 2, 0)
-            y = max((screen_height - height) // 2, 0)
             self.geometry(f"{width}x{height}+{x}+{y}")
             self.minsize(width, height)
             self.maxsize(width, max_height)
@@ -983,7 +2002,7 @@ class NetMonRadioApp(tk.Tk):
             try:
                 netmon_radio_core.request_radio_handover_ack(
                     target_mode="embedded",
-                    payload={"action": "detach_ready"},
+                    payload=_radio_detach_ready_ack_payload(),
                     transition_id=transition_id,
                 )
             except Exception:
@@ -991,21 +2010,22 @@ class NetMonRadioApp(tk.Tk):
             return
 
         def _wait_for_playback_ready(attempts_left=40):
-            if getattr(self, "radio_proc", None) is not None:
+            ack_step = _radio_detach_ack_step(self, attempts_left=attempts_left)
+            if ack_step == "ready":
                 try:
                     netmon_radio_core.request_radio_handover_ack(
                         target_mode="embedded",
-                        payload={"action": "detach_ready"},
+                        payload=_radio_detach_ready_ack_payload(),
                         transition_id=transition_id,
                     )
                 except Exception:
                     pass
                 return
-            if attempts_left <= 0:
+            if ack_step == "timeout":
                 try:
                     netmon_radio_core.request_radio_handover_ack(
                         target_mode="embedded",
-                        payload={"action": "detach_ready", "timed_out": True},
+                        payload=_radio_detach_ready_ack_payload(timed_out=True),
                         transition_id=transition_id,
                     )
                 except Exception:
@@ -1055,12 +2075,7 @@ class NetMonRadioApp(tk.Tk):
             if os.path.isfile(config_path):
                 with open(config_path, "r", encoding="utf-8") as handle:
                     payload = json.load(handle)
-                if isinstance(payload, dict):
-                    candidate = (
-                        str(payload.get("language", "de") or "de").strip().lower()
-                    )
-                    if candidate in {"de", "en"}:
-                        lang_code = candidate
+                lang_code = _radio_language_code_from_config_payload(payload)
         except Exception:
             pass
 

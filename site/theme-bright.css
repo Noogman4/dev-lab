@@ -1,0 +1,33 @@
+:root {
+  --bg: #d3e3d7;
+  --bg-soft: #c5d9cb;
+  --surface: rgba(245, 250, 246, 0.88);
+  --line: rgba(26, 71, 54, 0.22);
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(45, 129, 87, 0.2), transparent 28%),
+    radial-gradient(circle at 90% 20%, rgba(148, 93, 50, 0.12), transparent 22%),
+    linear-gradient(180deg, #d7e5dc 0%, #c7d9cc 48%, #b7ccbd 100%);
+}
+
+.topbar {
+  border-color: rgba(71, 143, 106, 0.28);
+  background:
+    linear-gradient(135deg, rgba(225, 244, 234, 0.94), rgba(199, 228, 212, 0.9)),
+    rgba(213, 236, 224, 0.92);
+  box-shadow: 0 18px 42px rgba(29, 67, 53, 0.16);
+}
+
+.nav,
+.lang-switch,
+.theme-switch {
+  color: #3f6258;
+}
+
+.lang-switch,
+.theme-switch {
+  border-color: rgba(71, 143, 106, 0.22);
+  background: rgba(231, 247, 238, 0.72);
+}

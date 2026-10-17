@@ -28,6 +28,7 @@ try:
         format_netmon_instance_lock_info,
         release_netmon_instance_lock,
     )
+    from netmon.core.performance_monitor import measure
     from netmon.core.state import get_netmon_documents_dir
     from netmon.core.support_bundle import create_support_package
 except ModuleNotFoundError:
@@ -42,6 +43,7 @@ except ModuleNotFoundError:
         format_netmon_instance_lock_info,
         release_netmon_instance_lock,
     )
+    from core.performance_monitor import measure
     from core.state import get_netmon_documents_dir
     from core.support_bundle import create_support_package
 
@@ -597,27 +599,34 @@ def _temporary_app_smoke_patches(app_cls):
 def run_headless_smoke(app_cls, *, theme_name=None):
     app = None
     with _temporary_app_smoke_patches(app_cls):
-        try:
-            app = app_cls(start_theme=theme_name)
-            app.update_idletasks()
-            app.update()
-            print("NetMon GUI smoke test ok")
-            return 0
-        finally:
-            if app is not None:
-                _cancel_pending_after_callbacks(app)
-                try:
-                    app.quit()
-                except Exception:
-                    pass
-                try:
-                    app.destroy()
-                except Exception:
-                    pass
-                try:
-                    app.update()
-                except Exception:
-                    pass
+        with measure(
+            area="startup",
+            operation="headless_gui_smoke_startup",
+            metadata={"theme": theme_name or ""},
+            mode="basic",
+        ) as measurement:
+            try:
+                app = app_cls(start_theme=theme_name)
+                app.update_idletasks()
+                app.update()
+                measurement.set_status(return_code=0)
+                print("NetMon GUI smoke test ok")
+                return 0
+            finally:
+                if app is not None:
+                    _cancel_pending_after_callbacks(app)
+                    try:
+                        app.quit()
+                    except Exception:
+                        pass
+                    try:
+                        app.destroy()
+                    except Exception:
+                        pass
+                    try:
+                        app.update()
+                    except Exception:
+                        pass
 
 
 def main(argv=None):

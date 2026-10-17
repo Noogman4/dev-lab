@@ -6,6 +6,7 @@ import pytest
 
 from netmon.app import App
 from netmon.features import chad_controller
+from netmon.ui.tabs.chad_tab import build_chad_analysis_header_and_composer
 from netmon.ui.tabs.security_tabs import build_roots_baseline_guard_tab
 
 
@@ -23,7 +24,10 @@ class _DummyVar:
 def test_roots_guard_ui_source_is_present():
     source = inspect.getsource(build_roots_baseline_guard_tab)
 
-    assert 'text=app.tr("security_tab_roots_baseline_guard", "Roots Baseline Guard")' in source
+    assert (
+        'text=app.tr("security_tab_roots_baseline_guard", "Roots Baseline Guard")'
+        in source
+    )
     assert 'text="System Integrity Status"' in source
     assert 'text="Überwachte Bereiche"' in source
     assert 'text="Baseline Verwaltung"' in source
@@ -33,7 +37,7 @@ def test_roots_guard_ui_source_is_present():
     assert 'text="Verlauf / History"' in source
     assert 'text="Vertrauenswürdige Änderungen"' in source
     assert "app.roots_baseline_guard_whitelist_list = tk.Listbox(" in source
-    assert 'app.open_selected_roots_baseline_guard_whitelist_entry' in source
+    assert "app.open_selected_roots_baseline_guard_whitelist_entry" in source
     assert "app.roots_root_mode_status_label = tk.Label(" in source
     assert "app.roots_baseline_guard_pane = ttk.Panedwindow(" in source
     assert "app.roots_baseline_guard_results_table = ttk.Treeview(" in source
@@ -67,8 +71,8 @@ def test_roots_guard_copy_prefers_treeview_selection_text():
     dummy.chad_analysis_status_var = _DummyVar("")
     dummy.get_treeview_selection_text = lambda _table: "row1\trow2"
     dummy.get_roots_baseline_guard_analysis_text = lambda: "analysis fallback"
-    dummy.get_roots_baseline_guard_selection_text = lambda: App.get_roots_baseline_guard_selection_text(
-        dummy
+    dummy.get_roots_baseline_guard_selection_text = (
+        lambda: App.get_roots_baseline_guard_selection_text(dummy)
     )
     dummy.clipboard_clear = lambda: clipboard.__setitem__("text", "")
     dummy.clipboard_append = lambda text: clipboard.__setitem__("text", text)
@@ -95,8 +99,8 @@ def test_roots_guard_chad_analysis_falls_back_to_treeview_selection():
     dummy.prepare_chad_analysis = lambda title, text: prepared.update(
         {"title": title, "text": text}
     )
-    dummy.get_roots_baseline_guard_selection_text = lambda: App.get_roots_baseline_guard_selection_text(
-        dummy
+    dummy.get_roots_baseline_guard_selection_text = (
+        lambda: App.get_roots_baseline_guard_selection_text(dummy)
     )
 
     App.analyze_roots_baseline_guard_tree_selection_with_chad(dummy)
@@ -110,8 +114,8 @@ def test_roots_guard_chad_analysis_falls_back_to_treeview_selection():
 def test_roots_guard_button_analysis_uses_same_chad_flow_as_context_menu():
     calls = {"count": 0}
     dummy = SimpleNamespace()
-    dummy.analyze_roots_baseline_guard_tree_selection_with_chad = lambda: calls.__setitem__(
-        "count", calls["count"] + 1
+    dummy.analyze_roots_baseline_guard_tree_selection_with_chad = (
+        lambda: calls.__setitem__("count", calls["count"] + 1)
     )
 
     App.analyze_roots_baseline_guard_with_chad(dummy)
@@ -120,11 +124,11 @@ def test_roots_guard_button_analysis_uses_same_chad_flow_as_context_menu():
 
 
 def test_chad_chat_input_uses_copy_paste_context_menu():
-    app_source = inspect.getsource(App)
+    chad_source = inspect.getsource(build_chad_analysis_header_and_composer)
 
-    assert "self.chad_chat_input = tk.Text(" in app_source
-    assert 'height=6,' in app_source
-    assert "self.attach_copy_paste_context_menu(self.chad_chat_input)" in app_source
+    assert "app.chad_chat_input = tk.Text(" in chad_source
+    assert "height=6," in chad_source
+    assert "app.attach_copy_paste_context_menu(app.chad_chat_input)" in chad_source
 
 
 def test_chad_output_layout_is_refreshed_after_view_update():
@@ -155,9 +159,7 @@ def test_roots_guard_builder_smoke_when_display_is_available():
         dummy.attach_selection_copy_shortcuts = lambda *_args, **_kwargs: None
         dummy.attach_text_context_menu = lambda *_args, **_kwargs: None
         dummy.on_roots_baseline_guard_result_select = lambda *_args, **_kwargs: None
-        dummy.on_roots_baseline_guard_whitelist_select = (
-            lambda *_args, **_kwargs: None
-        )
+        dummy.on_roots_baseline_guard_whitelist_select = lambda *_args, **_kwargs: None
         dummy.open_selected_roots_baseline_guard_whitelist_entry = (
             lambda *_args, **_kwargs: None
         )
@@ -170,6 +172,10 @@ def test_roots_guard_builder_smoke_when_display_is_available():
         dummy.roots_baseline_guard_update_baseline = lambda: None
         dummy.roots_baseline_guard_show_last_comparison = lambda: None
         dummy.load_roots_baseline_guard_demo_cases = lambda: None
+        dummy.clear_roots_baseline_guard_view = lambda: None
+        dummy.attach_roots_baseline_guard_tree_context_menu = lambda: None
+        dummy.attach_chad_context_menu = lambda *_args, **_kwargs: None
+        dummy.attach_chad_listbox_context_menu = lambda *_args, **_kwargs: None
         dummy.analyze_roots_baseline_guard_with_chad = lambda: None
         dummy.explain_selected_roots_baseline_guard_change = lambda: None
         dummy.add_selected_roots_baseline_guard_change_to_whitelist = lambda: None
