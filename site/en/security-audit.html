@@ -210,7 +210,9 @@
           validates every target path, and enforces download and extraction limits.</p>
           <p><strong>NM-R12-03 — Remediated:</strong> release builds now
           require Minisign keys and verify the generated signature. The verifier
-          supports an independently obtained key pin. Key ID
+          now always enforces its built-in NetMon key (H-01 follow-up, 17 October
+          2026); environment variables cannot override or disable the pin. Obtain
+          the script from an independently reviewed repository checkout. Key ID
           <code>54BF5F1867BDD004</code> is pinned in <code>SECURITY.md</code> and
           the canonical repository key file; builds reject mismatched keys.</p>
           <p><strong>NM-R12-04 — Remediated:</strong> package, site, and docs builds

@@ -235,7 +235,7 @@
           <article class="trust-card trust-card-primary">
             <p class="download-label">Vertrauensmodell</p>
             <h3>Drei Ebenen</h3>
-            <p>Download, Hash-Pruefung und optional Signatur-Pruefung bauen bewusst aufeinander auf.</p>
+            <p>Der Standard ist: Download, verbindliche Signaturpruefung, dann Hash-Pruefung. Nur nach erfolgreicher Signatur- und Hash-Pruefung installieren.</p>
           </article>
           <article class="trust-card">
             <span class="trust-dot"></span>
@@ -244,13 +244,13 @@
           </article>
           <article class="trust-card">
             <span class="trust-dot"></span>
-            <h3>2. Hash pruefen</h3>
-            <p><code>sha256sum -c</code> gegen die mitgelieferten Summen ausfuehren.</p>
+            <h3>2. Signatur pruefen</h3>
+            <p>Den Verifier aus einem unabhaengig bezogenen, geprueften <a href="https://github.com/Noogman4/dev-lab">Repository-Checkout</a> mit H-01-Fix verwenden. Er erzwingt den festen NetMon-Key automatisch. Ein Skript vom Downloadserver ist kein unabhaengiger Vertrauensanker.</p>
           </article>
           <article class="trust-card">
             <span class="trust-dot"></span>
-            <h3>3. Signatur pruefen</h3>
-            <p>Falls vorhanden, `SHA256SUMS.minisig` mit dem Public Key verifizieren.</p>
+            <h3>3. Hashes pruefen</h3>
+            <p>Nur nach erfolgreicher Signaturpruefung <code>sha256sum -c SHA256SUMS</code> ausfuehren. Die gesamte Pruefung arbeitet lokal ohne Netzwerkverbindung.</p>
           </article>
         </div>
         <div class="faq-grid">
@@ -264,21 +264,21 @@
           </article>
           <article class="faq-card">
             <h3>Minisign-Unterstuetzung?</h3>
-            <p>Ja. Signierte Releases koennen zusaetzlich ueber <code>SHA256SUMS.minisig</code> und den Public Key geprueft werden.</p>
+            <p>Releases enthalten <code>SHA256SUMS.minisig</code> und den Public Key. Der vertrauenswuerdige Verifier prueft den eingebauten Pin ohne Umgebungsvariable und bricht bei abweichenden oder ungueltigen Schluesseln ab.</p>
           </article>
           <article class="faq-card">
             <h3>Standardkommando?</h3>
-            <p><code>sha256sum -c SHA256SUMS</code></p>
-            <pre><code>cd /tmp/netmon-download
-sha256sum -c SHA256SUMS</code></pre>
+            <p>Die <a href="./downloads.html#verify">empfohlene Vollpruefung</a> verifiziert zuerst die Signatur und danach die Hashes.</p>
           </article>
           <article class="faq-card">
             <h3>Signierte Releases?</h3>
-            <p>Optional ueber <code>SHA256SUMS.minisig</code> plus Minisign-Public-Key.</p>
-            <pre><code>bash verify_netmon_signature.sh \
+            <p>Im Downloadverzeichnis ausfuehren; den absoluten Pfad zum vertrauenswuerdigen Checkout anpassen.</p>
+            <pre><code>NETMON_REPO=/absoluter/pfad/zum/vertrauten/dev-lab
+bash "$NETMON_REPO/scripts/verify_netmon_signature.sh" \
   netmonroots.minisign.pub \
   SHA256SUMS.minisig \
-  SHA256SUMS</code></pre>
+  SHA256SUMS &amp;&amp;
+sha256sum -c SHA256SUMS</code></pre>
           </article>
         </div>
       </section>

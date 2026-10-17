@@ -120,8 +120,8 @@ Dieses Bundle enthaelt nur:
 - `public_html/dist/docs/netmon_dokumentation_<version>.pdf`
 - `public_html/dist/docs/netmon_dokumentation_<version>.html`
 - `public_html/verify/verify_netmon_download.sh`
-- optional `public_html/dist/SHA256SUMS.minisig`
-- optional `public_html/verify/netmonroots.minisign.pub`
+- `public_html/dist/SHA256SUMS.minisig`
+- `public_html/verify/netmonroots.minisign.pub`
 - `public_html/verify/verify_netmon_signature.sh`
 
 Das ist fuer neue `.deb`-Builds und Signaturen deutlich leichter als ein kompletter
@@ -135,21 +135,23 @@ Wichtig:
 
 ## Download verifizieren
 
-Hash:
+Den Verifier aus einem unabhaengig bezogenen, geprueften Repository-Checkout
+mit H-01-Fix verwenden. Der Verifier erzwingt den eingebauten NetMon-Key ohne
+Umgebungsvariable. Ein gemeinsam mit den Artefakten vom Downloadserver bezogenes
+Skript ist kein unabhaengiger Vertrauensanker. Den absoluten Pfad anpassen:
 
 ```bash
 cd /tmp/netmon-download
+NETMON_REPO=/absoluter/pfad/zum/vertrauten/dev-lab
+bash "$NETMON_REPO/scripts/verify_netmon_signature.sh" \
+  netmonroots.minisign.pub \
+  SHA256SUMS.minisig \
+  SHA256SUMS &&
 sha256sum -c SHA256SUMS
 ```
 
-Signatur, falls vorhanden:
-
-```bash
-bash verify_netmon_signature.sh \
-  netmonroots.minisign.pub \
-  SHA256SUMS.minisig \
-  SHA256SUMS
-```
+Nur nach erfolgreicher Signatur- und Hash-Pruefung installieren. Nach dem
+Herunterladen der Dateien ist keine Netzwerkverbindung zur Pruefung erforderlich.
 
 Maintainer-Ablauf fuer signierte Releases:
 

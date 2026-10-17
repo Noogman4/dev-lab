@@ -2,19 +2,19 @@
 
 ## Zweck
 
-NetMon kann Release-Dateien nicht nur per `SHA256SUMS`, sondern zusaetzlich mit `minisign` absichern.
+NetMon sichert Release-Dateien mit signierten `SHA256SUMS` und `minisign` ab.
 
 Das Ziel:
 
-- Nutzer pruefen zuerst die Hashes
-- danach koennen sie die Hash-Datei selbst kryptografisch verifizieren
+- Nutzer verifizieren zuerst die Signatur von `SHA256SUMS` mit dem fest gepinnten NetMon-Key
+- nur bei erfolgreicher Signaturpruefung pruefen sie die Hashes der Release-Dateien
 - dadurch ist nicht nur die Datei-Integritaet, sondern auch die Herkunft der Hash-Datei abgesichert
 
 ## Voraussetzungen
 
 - `minisign` ist lokal installiert
 - der geheime Signaturschluessel liegt ausserhalb des Repos
-- der passende oeffentliche Schluessel liegt ausserhalb des Repos bereit
+- der kanonische oeffentliche Schluessel liegt unter `docs/security/netmonroots.minisign.pub`
 - die Public-Key-Zeile ist unabhaengig von `netmonroots.com` in `SECURITY.md`
   und unter `docs/security/netmonroots.minisign.pub` gepinnt
 
@@ -23,20 +23,19 @@ Aktueller Release-Key:
 - Key-ID: `54BF5F1867BDD004`
 - Public Key: `RWQE0L1nGF+/VDIfeLCEp4x2UutfhhdCmPKSMTZY05kXJprqXyXfzo9R`
 
-## Schluessel erzeugen
+Der Verifier enthaelt diesen Key als feste Konstante. Er prueft die komplette
+Public-Key-Datei vor dem Start von Minisign und uebergibt Minisign ausschliesslich
+die Konstante. Fehlende, nicht lesbare, beschaedigte oder abweichende
+Schluesseldateien fuehren zum Abbruch. `NETMON_EXPECTED_MINISIGN_PUBKEY` ist
+wirkungslos; auch andere Umgebungsvariablen koennen den Pin nicht aendern oder
+deaktivieren. Es gibt keinen alternativen Schluessel und keinen Testmodus im
+produktiven Verifier.
 
-```bash
-mkdir -p ~/.config/netmonroots/minisign
-minisign -G \
-  -p ~/.config/netmonroots/minisign/netmonroots.minisign.pub \
-  -s ~/.config/netmonroots/minisign/netmonroots.minisign.key
-```
+## Bestehenden Release-Schluessel verwenden
 
-Hinweise:
-
-- den Secret Key niemals ins Repository legen
-- den Public Key mit der Website ausliefern und zusaetzlich unabhaengig pinnen
-- beim Generieren vergibt `minisign` eine Passphrase fuer den Secret Key
+Fuer Releases wird ausschliesslich der vorhandene Release-Schluessel verwendet.
+Den Secret Key ausserhalb des Repositorys aufbewahren und niemals einchecken.
+Diese Haertung erzeugt keinen neuen Release-Schluessel und rotiert keinen Key.
 
 ## Signierten Website-Build erzeugen
 
@@ -92,35 +91,30 @@ Bei signierten Releases muessen diese Dateien mit hochgeladen werden:
 
 ## Verifikation fuer Nutzer
 
-Hash pruefen:
+Den Verifier aus einem unabhaengig bezogenen, geprueften Checkout des
+[Projekt-Repositorys](https://github.com/Noogman4/dev-lab) mit H-01-Fix verwenden.
+Den absoluten Pfad unten anpassen. Der Checkout einschliesslich Verifier und
+eingebautem Pin muss vertrauenswuerdig sein. Ein Skript, das gemeinsam mit
+Schluessel, Signatur und Artefakten vom moeglicherweise kompromittierten
+Downloadserver kommt, kann diesen Vertrauensanker nicht ersetzen.
+
+Im Downloadverzeichnis mit `SHA256SUMS`, `SHA256SUMS.minisig`, der gelieferten
+`netmonroots.minisign.pub` und allen in `SHA256SUMS` aufgefuehrten Dateien:
 
 ```bash
+NETMON_REPO=/absoluter/pfad/zum/vertrauten/dev-lab
+bash "$NETMON_REPO/scripts/verify_netmon_signature.sh" \
+  netmonroots.minisign.pub \
+  SHA256SUMS.minisig \
+  SHA256SUMS &&
 sha256sum -c SHA256SUMS
 ```
 
-Signatur pruefen:
-
-```bash
-bash verify_netmon_signature.sh \
-  netmonroots.minisign.pub \
-  SHA256SUMS.minisig \
-  SHA256SUMS
-```
-
-Der Public Key muss vor dieser Pruefung mit der unabhaengig veroeffentlichten
-Public-Key-Zeile verglichen werden. Der Verifier kann diesen Pin zusaetzlich
-erzwingen:
-
-```bash
-NETMON_EXPECTED_MINISIGN_PUBKEY='RWQE0L1nGF+/VDIfeLCEp4x2UutfhhdCmPKSMTZY05kXJprqXyXfzo9R' \
-bash verify_netmon_signature.sh \
-  netmonroots.minisign.pub \
-  SHA256SUMS.minisig \
-  SHA256SUMS
-```
-
-Die Key-Zeile stammt aus dem bereits kontrolliert erzeugten Release-Key und
-wird nicht automatisch aus der Download-Origin uebernommen.
+Der feste Pin wird immer automatisch geprueft; eine Umgebungsvariable ist nicht
+erforderlich. Bei einem Fehler abbrechen und nicht installieren. Erst wenn
+Signatur und alle Dateihashes gueltig sind, ist die Pruefung erfolgreich.
+Der gesamte Pruefschritt funktioniert ohne Netzwerkverbindung. Ein alleiniger
+SHA-256-Vergleich belegt keine Herkunft.
 
 ## Aktueller Repo-Status
 
@@ -129,3 +123,7 @@ wird nicht automatisch aus der Download-Origin uebernommen.
 - unsignierte lokale Test-Builds benoetigen `NETMON_ALLOW_UNSIGNED_BUILD=1`
 - der echte Public Key ist in `SECURITY.md` und als kanonische Datei im
   Repository gepinnt
+- der ausgelieferte Verifier erzwingt denselben Key ohne Opt-in und ohne Override
+- lokale Regressionstests verwenden eine bereits signierte NetMon-1.1.21-Fixture
+  sowie temporaere Angreifer-Keys und fuehren den produktiven Verifier ohne
+  Testmodus oder Austausch des eingebauten Pins aus

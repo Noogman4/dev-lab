@@ -235,7 +235,7 @@
           <article class="trust-card trust-card-primary">
             <p class="download-label">Trust model</p>
             <h3>Three layers</h3>
-            <p>Download, hash verification, and optional signature validation are intentionally stacked in that order.</p>
+            <p>The default is: download, mandatory signature verification, then hash verification. Install only after both checks succeed.</p>
           </article>
           <article class="trust-card">
             <span class="trust-dot"></span>
@@ -244,18 +244,18 @@
           </article>
           <article class="trust-card">
             <span class="trust-dot"></span>
-            <h3>2. Verify the hash</h3>
-            <p>Run <code>sha256sum -c</code> against the shipped checksums.</p>
+            <h3>2. Verify the signature</h3>
+            <p>Use the verifier from an independently obtained, reviewed <a href="https://github.com/Noogman4/dev-lab">repository checkout</a> containing the H-01 fix. It automatically enforces the built-in NetMon key. A script from the download server cannot establish independent trust.</p>
           </article>
           <article class="trust-card">
             <span class="trust-dot"></span>
-            <h3>3. Verify the signature</h3>
-            <p>If available, validate <code>SHA256SUMS.minisig</code> with the public key.</p>
+            <h3>3. Verify the hashes</h3>
+            <p>Run <code>sha256sum -c SHA256SUMS</code> only after signature verification succeeds. The complete verification step works locally without a network connection.</p>
           </article>
           <article class="trust-card">
             <span class="trust-dot"></span>
             <h3>4. Minisign support</h3>
-            <p>Signed releases can also be verified with <code>verify_netmon_signature.sh</code>, the Minisign public key, and <code>SHA256SUMS.minisig</code>.</p>
+            <p>The trusted verifier rejects missing, malformed, and different keys before running Minisign. No environment setting is required. Follow the <a href="./downloads.html#verify">recommended signature and hash check</a>.</p>
           </article>
         </div>
       </section>

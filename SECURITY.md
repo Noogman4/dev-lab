@@ -23,8 +23,23 @@ the download server.
 - Canonical key file: [`docs/security/netmonroots.minisign.pub`](docs/security/netmonroots.minisign.pub)
 - Public key: `RWQE0L1nGF+/VDIfeLCEp4x2UutfhhdCmPKSMTZY05kXJprqXyXfzo9R`
 
-The copy downloaded from `netmonroots.com` must match this exact public key.
-`SHA256SUMS` alone provides an integrity check and is not proof of origin.
+`scripts/verify_netmon_signature.sh` embeds this exact key as a mandatory trust
+anchor. It rejects missing, unreadable, malformed, and different key files before
+running Minisign, then verifies the signature with the embedded key. Environment
+variables, including the obsolete `NETMON_EXPECTED_MINISIGN_PUBKEY`, cannot
+override or disable this check. There is no alternate-key or test-mode bypass.
+
+Use the verifier from an independently obtained, reviewed checkout of this
+repository containing the H-01 fix. A verifier downloaded together with the
+release from `netmonroots.com` cannot establish trust if that server is
+compromised: an attacker could replace the script as well as the key and files.
+The downloaded key must match the script's built-in pin automatically.
+
+Verify `SHA256SUMS.minisig` first, then run `sha256sum -c SHA256SUMS` only if
+signature verification succeeds. Install only after both checks pass. Verification
+is local and needs no network connection once the inputs and trusted verifier
+are available. `SHA256SUMS` alone is not proof of origin. See the
+[verification instructions](docs/MINISIGN_RELEASES.md#verifikation-fuer-nutzer).
 
 ## Reporting a Vulnerability
 

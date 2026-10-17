@@ -156,33 +156,6 @@ def test_current_release_metadata_is_consistent():
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_signature_verifier_rejects_mismatched_pinned_key(tmp_path):
-    public_key = tmp_path / "netmonroots.minisign.pub"
-    signature = tmp_path / "SHA256SUMS.minisig"
-    sums = tmp_path / "SHA256SUMS"
-    public_key.write_text("untrusted comment: test\nRWACTUAL\n", encoding="utf-8")
-    signature.write_text("test", encoding="utf-8")
-    sums.write_text("test", encoding="utf-8")
-
-    result = subprocess.run(
-        [
-            "bash",
-            "scripts/verify_netmon_signature.sh",
-            str(public_key),
-            str(signature),
-            str(sums),
-        ],
-        cwd=PROJECT_ROOT,
-        capture_output=True,
-        text=True,
-        env={"PATH": "/usr/bin:/bin", "NETMON_EXPECTED_MINISIGN_PUBKEY": "RWEXPECTED"},
-        check=False,
-    )
-
-    assert result.returncode == 1
-    assert "stimmt nicht" in result.stderr
-
-
 def test_release_public_key_is_pinned_in_repository_and_policy():
     key_file = PROJECT_ROOT / "docs" / "security" / "netmonroots.minisign.pub"
     key_lines = [
@@ -198,3 +171,7 @@ def test_release_public_key_is_pinned_in_repository_and_policy():
     ]
     assert key_lines[0].rsplit(" ", 1)[-1] in policy
     assert key_lines[1] in policy
+    verifier = (PROJECT_ROOT / "scripts" / "verify_netmon_signature.sh").read_text(
+        encoding="utf-8"
+    )
+    assert key_lines[1] in verifier

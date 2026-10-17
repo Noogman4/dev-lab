@@ -384,8 +384,10 @@
           <div class="finding-detail">
             Release-Builds brechen nun ohne Minisign, Secret Key oder passenden
             Public Key ab und verifizieren ihre neu erzeugte Signatur sofort.
-            Der Verifier kann mit <code>NETMON_EXPECTED_MINISIGN_PUBKEY</code>
-            einen unabh&auml;ngig bezogenen Key erzwingen. Der echte Public Key mit
+            Nachtrag H-01 (17.10.2026): Der Verifier erzwingt den eingebauten
+            NetMon-Key jetzt immer; Umgebungsvariablen k&ouml;nnen ihn nicht
+            &auml;ndern oder deaktivieren. Das Skript muss aus einem unabh&auml;ngig
+            bezogenen, gepr&uuml;ften Repository-Stand stammen. Der echte Public Key mit
             ID <code>54BF5F1867BDD004</code> ist in <code>SECURITY.md</code> und
             <code>docs/security/netmonroots.minisign.pub</code> gepinnt.
             Abweichende Public Keys werden vom Release-Build abgelehnt.

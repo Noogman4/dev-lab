@@ -152,6 +152,13 @@ in `SECURITY.md` und `docs/security/netmonroots.minisign.pub` veroeffentlicht.
 Release-Builds verwenden diesen Pin standardmaessig und lehnen abweichende
 explizite Public Keys ab.
 
+**Nachtrag H-01 (17.10.2026, Codex Security Cloud, Basis `c6a6c5bf`):** Der
+Nutzer-Verifier erzwingt den kanonischen Key jetzt ebenfalls verbindlich als
+eingebaute Konstante. Die bisherige Umgebungsvariable ist wirkungslos. Die
+aktuellen Anleitungen verlangen einen unabhaengig bezogenen, geprueften
+Repository-Verifier, pruefen zuerst die Signatur und danach die Hashes.
+Details und Testergebnisse: [H-01-Abschlussbericht](security/H-01.md).
+
 ### NM-R12-04 - Release-Versionen sind nicht aus einer Quelle abgeleitet
 
 **Schweregrad:** Niedrig  

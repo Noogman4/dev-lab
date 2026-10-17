@@ -48,9 +48,9 @@ Kopiert werden. Dort sollten mindestens diese Dateien liegen:
 - `docs/CHANGELOG.md`
 - `verify/verify_netmon_download.sh`
 - `data/download-stats.json`
-- optional `dist/SHA256SUMS.minisig`
-- optional `verify/netmonroots.minisign.pub`
-- optional `verify/verify_netmon_signature.sh`
+- `dist/SHA256SUMS.minisig`
+- `verify/netmonroots.minisign.pub`
+- `verify/verify_netmon_signature.sh`
 
 Die HTML-Dateien verwenden jetzt Root-Pfade wie `/dist/...` und `/tools/...`. Das passt fuer cPanel gut, solange `dist/`, `tools/` und optional `docs/` direkt unter `public_html/` liegen.
 

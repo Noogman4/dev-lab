@@ -132,7 +132,7 @@
           </article>
           <article class="faq-card">
             <h3>Schnellpruefung Paket</h3>
-            <p>Prueft nur die heruntergeladene <code>.deb</code>. Gut fuer den schnellen Alltagscheck.</p>
+            <p>Prueft nur die Datei-Integritaet, nicht die Herkunft. Vor der Installation die Signaturpruefung unten verwenden.</p>
             <pre><code>mkdir -p /tmp/netmon-check
 cd /tmp/netmon-check
 wget https://netmonroots.com/dist/netmon_1.1.21_all.deb
@@ -144,9 +144,10 @@ grep 'netmon_1.1.21_all.deb' SHA256SUMS | sha256sum -c</code></pre>
             <p>Wenn ein Release signiert ausgeliefert wird, liegen zusaetzlich <code>SHA256SUMS.minisig</code>, der Public Key <code>netmonroots.minisign.pub</code> und das Verifier-Skript im Release-Bereich.</p>
           </article>
           <article class="faq-card">
-            <h3>Vollpruefung inkl. Signatur</h3>
-            <p>Prueft Paket, Doku und danach die Herkunft der Hash-Datei per Minisign.</p>
-            <pre><code>mkdir -p /tmp/netmon-check/docs
+            <h3>Empfohlen: Signatur und Hashes</h3>
+            <p>Empfohlen: zuerst die Signatur, dann Paket und Doku pruefen. Den Verifier aus einem unabhaengig bezogenen, geprueften <a href="https://github.com/Noogman4/dev-lab">Repository-Checkout</a> mit H-01-Fix verwenden und unten dessen absoluten Pfad eintragen. Er erzwingt den NetMon-Key automatisch. Ein Skript vom Downloadserver ist kein unabhaengiger Vertrauensanker. Nur installieren, wenn beide Pruefungen erfolgreich sind. Die Pruefung selbst funktioniert offline.</p>
+            <pre><code>NETMON_REPO=/absoluter/pfad/zum/vertrauten/dev-lab
+mkdir -p /tmp/netmon-check/docs
 cd /tmp/netmon-check
 wget https://netmonroots.com/dist/netmon_1.1.21_all.deb
 wget https://netmonroots.com/dist/SHA256SUMS
@@ -154,13 +155,11 @@ wget https://netmonroots.com/dist/SHA256SUMS.minisig
 wget https://netmonroots.com/dist/docs/netmon_dokumentation_1.1.21.pdf -O docs/netmon_dokumentation_1.1.21.pdf
 wget https://netmonroots.com/dist/docs/netmon_dokumentation_1.1.21.html -O docs/netmon_dokumentation_1.1.21.html
 wget https://netmonroots.com/verify/netmonroots.minisign.pub
-wget https://netmonroots.com/verify/verify_netmon_signature.sh
-chmod +x verify_netmon_signature.sh
-sha256sum -c SHA256SUMS
-bash verify_netmon_signature.sh \
+bash "$NETMON_REPO/scripts/verify_netmon_signature.sh" \
   netmonroots.minisign.pub \
   SHA256SUMS.minisig \
-  SHA256SUMS</code></pre>
+  SHA256SUMS &amp;&amp;
+sha256sum -c SHA256SUMS</code></pre>
           </article>
         </div>
       </section>
