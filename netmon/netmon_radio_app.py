@@ -12,13 +12,14 @@ import os
 import shlex
 import shutil
 import subprocess
-import tempfile
 import threading
 import tkinter as tk
 import types
 from tkinter import filedialog, messagebox, simpledialog, ttk
 from urllib import request as urllib_request
 from urllib.parse import urlparse
+
+from netmon.core import projectm_archive
 
 try:
     from netmon.features import radio_controller
@@ -3539,21 +3540,14 @@ class NetMonRadioApp(tk.Tk):
             )
         )
         self.update_idletasks()
-        temp_path = ""
         try:
-            with urllib_request.urlopen(url, timeout=30) as response:
-                payload = response.read()
-            suffix = ".zip"
-            fd, temp_path = tempfile.mkstemp(
-                prefix="netmon-projectm-pack-",
-                suffix=suffix,
-            )
-            with os.fdopen(fd, "wb") as handle:
-                handle.write(payload)
-            return self._import_projectm_preset_archive_path(
-                temp_path,
-                pack_name=os.path.splitext(os.path.basename(url.split("?", 1)[0]))[0],
-            )
+            with projectm_archive.download_preset_archive(url) as temp_path:
+                return self._import_projectm_preset_archive_path(
+                    temp_path,
+                    pack_name=os.path.splitext(os.path.basename(url.split("?", 1)[0]))[
+                        0
+                    ],
+                )
         except Exception as exc:
             self.radio_projectm_preset_hint_var.set(
                 self.tr(
@@ -3562,12 +3556,6 @@ class NetMonRadioApp(tk.Tk):
                 ).format(error=exc)
             )
             return False
-        finally:
-            if temp_path:
-                try:
-                    os.unlink(temp_path)
-                except Exception:
-                    pass
 
     def open_projectm_preset_manager(self):
         existing = getattr(self, "radio_projectm_preset_manager_window", None)

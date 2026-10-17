@@ -11,6 +11,8 @@ import hashlib
 import zipfile
 from dataclasses import dataclass
 
+from netmon.core import projectm_archive
+from netmon.core.archive_limits import ByteBudget
 from netmon.core.state import get_netmon_documents_dir, get_netmon_documents_subdir
 
 PROJECTM_COMMAND_CANDIDATES = (
@@ -235,89 +237,96 @@ def _projectm_downloaded_packs_dir(preset_dir: str) -> str:
 def _unique_projectm_pack_dir(root_dir: str, pack_name: str) -> str:
     safe_name = _sanitize_projectm_pack_name(pack_name)
     target_dir = os.path.join(root_dir, safe_name)
-    if not os.path.exists(target_dir):
+    if not os.path.lexists(target_dir):
         return target_dir
     counter = 2
     while True:
         candidate = os.path.join(root_dir, f"{safe_name}_{counter}")
-        if not os.path.exists(candidate):
+        if not os.path.lexists(candidate):
             return candidate
         counter += 1
 
 
 def install_projectm_preset_archive(app, archive_path: str, pack_name: str = ""):
-    preset_dir = ensure_projectm_preset_dir(app)
+    preset_dir = get_projectm_preset_dir(app)
     if not preset_dir:
         raise RuntimeError("Preset directory could not be prepared.")
     archive_path = os.path.abspath(str(archive_path or "").strip())
     if not archive_path or not os.path.isfile(archive_path):
         raise FileNotFoundError("Preset archive not found.")
-    if not zipfile.is_zipfile(archive_path):
-        raise ValueError("Only ZIP preset packs are supported.")
-
-    packs_root = _projectm_downloaded_packs_dir(preset_dir)
-    os.makedirs(packs_root, exist_ok=True)
-    target_root = _unique_projectm_pack_dir(
-        packs_root,
-        pack_name or os.path.splitext(os.path.basename(archive_path))[0],
-    )
-    os.makedirs(target_root, exist_ok=True)
-
     allowed_exts = PROJECTM_PRESET_EXTENSIONS | PROJECTM_PRESET_ASSET_EXTENSIONS
     imported_presets = 0
     imported_assets = 0
     imported_files = 0
-    top_level_dirs = set()
+    target_root = ""
+    try:
+        with open(archive_path, "rb") as handle:
+            size, count = projectm_archive.check_zip_envelope(handle)
+            with zipfile.ZipFile(handle, "r") as archive:
+                parsed_members = projectm_archive.validate_members(archive, size, count)
+                if not any(
+                    os.path.splitext(parts[-1])[1].lower() in PROJECTM_PRESET_EXTENSIONS
+                    for _, parts in parsed_members
+                ):
+                    raise ValueError(
+                        "The selected ZIP file does not contain any .milk or .prjm presets."
+                    )
+                packs_root = _projectm_downloaded_packs_dir(preset_dir)
+                if os.path.islink(preset_dir):
+                    raise ValueError("Preset directories must not be symlinks.")
+                os.makedirs(packs_root, exist_ok=True)
+                if os.path.islink(packs_root):
+                    raise ValueError("Preset directories must not be symlinks.")
+                # Exclusive creation: never reuse an existing pack, even after a race.
+                while True:
+                    candidate = _unique_projectm_pack_dir(
+                        packs_root,
+                        pack_name
+                        or os.path.splitext(os.path.basename(archive_path))[0],
+                    )
+                    try:
+                        os.mkdir(candidate, mode=0o700)
+                    except FileExistsError:
+                        continue
+                    target_root = candidate
+                    break
+                top_level_dirs = {
+                    parts[0] for _, parts in parsed_members if len(parts) > 1
+                }
+                strip_first_dir = len(top_level_dirs) == 1
+                budget = ByteBudget(projectm_archive.MAX_TOTAL_BYTES)
+                for member, parts in parsed_members:
+                    rel_parts = (
+                        parts[1:] if strip_first_dir and len(parts) > 1 else parts
+                    )
+                    rel_path = os.path.join(*rel_parts)
+                    ext = os.path.splitext(rel_path)[1].lower()
+                    if ext not in allowed_exts:
+                        continue
+                    target_path = os.path.abspath(os.path.join(target_root, rel_path))
+                    if os.path.commonpath([target_root, target_path]) != target_root:
+                        raise ValueError("Unsafe ZIP target path.")
+                    os.makedirs(os.path.dirname(target_path), mode=0o700, exist_ok=True)
+                    base, extension = os.path.splitext(target_path)
+                    counter = 2
+                    while os.path.lexists(target_path):
+                        target_path = f"{base}_{counter}{extension}"
+                        counter += 1
+                    with open(target_path, "xb") as dest:
+                        projectm_archive.copy_member(archive, member, dest, budget)
+                    imported_files += 1
+                    if ext in PROJECTM_PRESET_EXTENSIONS:
+                        imported_presets += 1
+                    else:
+                        imported_assets += 1
+        _migrate_legacy_projectm_presets(app, preset_dir)
+        _sync_projectm_flat_scan_dir(app, preset_dir)
+        _sync_projectm_flatpak_playlist_file(app, preset_dir)
+    except BaseException:
+        if target_root:
+            shutil.rmtree(target_root)
+        raise
 
-    with zipfile.ZipFile(archive_path, "r") as archive:
-        members = [item for item in archive.infolist() if not item.is_dir()]
-        parsed_members = []
-        top_level_dirs = set()
-        for member in members:
-            raw_name = str(member.filename or "").replace("\\", "/").strip("/")
-            if not raw_name:
-                continue
-            parts = [
-                part for part in raw_name.split("/") if part not in {"", ".", ".."}
-            ]
-            if not parts:
-                continue
-            parsed_members.append((member, parts))
-            if len(parts) > 1:
-                top_level_dirs.add(parts[0])
-        strip_first_dir = len(top_level_dirs) == 1
-        for member, parts in parsed_members:
-            rel_parts = parts[1:] if strip_first_dir and len(parts) > 1 else parts
-            rel_path = os.path.join(*rel_parts)
-            ext = os.path.splitext(rel_path)[1].lower()
-            if ext not in allowed_exts:
-                continue
-            target_path = os.path.abspath(os.path.join(target_root, rel_path))
-            if not target_path.startswith(target_root + os.sep):
-                continue
-            os.makedirs(os.path.dirname(target_path), exist_ok=True)
-            if os.path.exists(target_path):
-                base, ext = os.path.splitext(target_path)
-                counter = 2
-                while os.path.exists(target_path):
-                    target_path = f"{base}_{counter}{ext}"
-                    counter += 1
-            with archive.open(member, "r") as source, open(target_path, "wb") as dest:
-                shutil.copyfileobj(source, dest)
-            imported_files += 1
-            if ext in PROJECTM_PRESET_EXTENSIONS:
-                imported_presets += 1
-            else:
-                imported_assets += 1
-
-    if not imported_presets:
-        shutil.rmtree(target_root, ignore_errors=True)
-        raise ValueError(
-            "The selected ZIP file does not contain any .milk or .prjm presets."
-        )
-
-    _sync_projectm_flat_scan_dir(app, preset_dir)
-    _sync_projectm_flatpak_playlist_file(app, preset_dir)
     return {
         "target_dir": target_root,
         "imported_files": imported_files,

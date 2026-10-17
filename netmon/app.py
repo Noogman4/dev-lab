@@ -37,6 +37,12 @@ NETMON_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 if NETMON_REPO_ROOT not in sys.path:
     sys.path.insert(0, NETMON_REPO_ROOT)
 
+from netmon.core.archive_limits import (  # noqa: E402 - needs the repo path above
+    copy_limited,
+    copy_response_limited,
+)
+from netmon.core import projectm_archive  # noqa: E402 - needs the repo path above
+
 try:
     from netmon import netmon_projectm_sidecar
 except ModuleNotFoundError:
@@ -73,25 +79,10 @@ def _download_url_to_file_limited(url, destination, max_bytes):
         raise ValueError("Firefox-Download erfordert HTTPS")
 
     with urllib_request.urlopen(parsed_url.geturl(), timeout=90) as response:
-        content_length = response.headers.get("Content-Length")
-        if content_length:
-            try:
-                declared_size = int(content_length)
-            except (TypeError, ValueError) as exc:
-                raise ValueError("Ungueltige Downloadgroesse") from exc
-            if declared_size < 0 or declared_size > max_bytes:
-                raise ValueError("Firefox-Archiv ist zu gross")
-
-        written = 0
         with open(destination, "wb") as handle:
-            while True:
-                chunk = response.read(1024 * 1024)
-                if not chunk:
-                    break
-                written += len(chunk)
-                if written > max_bytes:
-                    raise ValueError("Firefox-Archiv ist zu gross")
-                handle.write(chunk)
+            copy_response_limited(
+                response, handle, max_bytes, limit_error="Firefox-Archiv ist zu gross"
+            )
 
 
 def _extract_regular_tar_archive(
@@ -149,18 +140,14 @@ def _extract_regular_tar_archive(
         source = archive.extractfile(member)
         if source is None:
             raise ValueError("Firefox-Archivdatei konnte nicht gelesen werden")
-        copied = 0
         with source, open(member_target, "wb") as destination:
-            while True:
-                chunk = source.read(1024 * 1024)
-                if not chunk:
-                    break
-                copied += len(chunk)
-                if copied > member.size:
-                    raise ValueError("Firefox-Archivdatei ueberschreitet ihre Groesse")
-                destination.write(chunk)
-        if copied != member.size:
-            raise ValueError("Firefox-Archivdatei ist unvollstaendig")
+            copy_limited(
+                source,
+                destination,
+                member.size,
+                expected_size=member.size,
+                limit_error="Firefox-Archivdatei ueberschreitet ihre Groesse",
+            )
         os.chmod(member_target, member.mode & 0o777)
 
     for directory, mode in reversed(directory_modes):
@@ -32522,27 +32509,12 @@ class App(TkBase):
                     pass
 
     def _import_projectm_preset_pack_from_url(self, url, pack_name):
-        temp_path = ""
-        try:
-            with urllib_request.urlopen(str(url or "").strip(), timeout=45) as response:
-                payload = response.read()
-            fd, temp_path = tempfile.mkstemp(
-                prefix="netmon-projectm-pack-",
-                suffix=".zip",
-            )
-            with os.fdopen(fd, "wb") as handle:
-                handle.write(payload)
+        with projectm_archive.download_preset_archive(url, timeout=45) as temp_path:
             result = netmon_projectm_sidecar.install_projectm_preset_archive(
                 self,
                 temp_path,
                 pack_name=pack_name,
             )
-        finally:
-            if temp_path:
-                try:
-                    os.unlink(temp_path)
-                except Exception:
-                    pass
         return int(result.get("imported_presets", 0) or 0)
 
     def _install_selected_file_features(self, dependency_keys):
