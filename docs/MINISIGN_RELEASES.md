@@ -55,13 +55,35 @@ Wenn alles vorhanden ist, erzeugt der Build zusaetzlich:
 - `dist/site-build/public_html/verify/verify_netmon_signature.sh`
 - `dist/site-build/public_html/latest-version.json` bleibt Teil des Upload-Bundles und sollte zum veroeffentlichten Paketstand passen
 
-Ohne `minisign`, Secret Key oder Public Key bricht ein Release-Build ab. Fuer
-einen bewusst unsignierten lokalen Test-Build ist ein explizites Opt-out
-erforderlich:
+Ohne `minisign`, lesbaren Secret Key oder passenden Public Key bricht jeder
+Produktions-Build ab. `NETMON_ALLOW_UNSIGNED_BUILD` wird nicht mehr ausgewertet;
+auch `=1` kann Signierung und Verifikation nicht umgehen.
+
+Beide Builds arbeiten zunaechst privat unter `dist/.release-work/`. Erst nach
+Signaturpruefung, ZIP-Freigabepruefung und erneuter Hash-/Signaturpruefung des
+Upload-Ordners erscheint das Ergebnis am Produktionspfad. Ein vorhandener
+Ausgabeordner wird zu Beginn unter `dist/.release-history/` aufbewahrt und ist
+kein Ergebnis des neuen Laufs. Bei Fehlern wird der private Arbeitsordner entfernt;
+es gibt keinen neuen Produktionsordner und keine neue Upload-ZIP. Parallele Builds
+desselben Typs werden ueber `flock` ausgeschlossen. Alte Artefakte in der Historie
+nicht als aktuelle Ausgabe hochladen. Nur bei Exit-Code 0 und neuer erfolgreicher
+Freigabepruefung fortfahren.
+
+## Separater unsignierter lokaler Test
 
 ```bash
-NETMON_ALLOW_UNSIGNED_BUILD=1 make site-build
+make unsigned-test-bundle
 ```
+
+Dieser Einstieg verpackt die lokal vorhandenen Paket-/Dokudateien ausschliesslich
+fuer Tests unter `unsigned-test-builds/test-*/netmon-UNSIGNED-TEST-ONLY.zip`.
+Er ruft keines der Produktionsskripte auf, hat keine Signieroption und schreibt
+weder `dist/site-build/` noch `dist/site-release-update/`. Im ZIP liegen eine
+`UNSIGNED-TEST-ONLY/`-Wurzel, ein dauerhafter Marker, eine Testidentitaet mit
+`production_release: false` und umbenannte Testdateien. Es gibt keine
+`public_html`-Uploadstruktur, `latest-version.json`, Produktions-Summendatei oder
+Release-Signatur. **Nicht veroeffentlichen und nicht als Release installieren.**
+Fuer eine lokale Website-Vorschau weiterhin `make site-serve` verwenden.
 
 ## Signiertes Release-Update ohne kompletten Website-Build
 
@@ -80,14 +102,45 @@ Dabei entsteht ein kleines Upload-Bundle unter:
 Das Update-Bundle enthaelt nur die Release-relevanten Dateien und ist fuer Routine-
 Updates des Downloadbereichs gedacht.
 
-## Upload
+## Upload und lokale Freigabepruefung
 
-Bei signierten Releases muessen diese Dateien mit hochgeladen werden:
+Im Repository existiert kein automatisierter CI-, GitHub-Release-, SCP-/Rsync-
+oder cPanel-Publikationsjob. Die Auslieferung erfolgt manuell. Die folgende
+Pruefung ist eine lokale Schranke, keine behauptete serverseitige CI-Garantie.
 
-- `public_html/dist/SHA256SUMS.minisig`
+Unmittelbar vor einem Upload aus einem unabhaengig geprueften Checkout ausfuehren:
+
+```bash
+python3 scripts/verify_netmon_release_bundle.py \
+  dist/site-build/netmonroots_public_html.zip --kind site
+# oder fuer das kleine Update-Bundle:
+python3 scripts/verify_netmon_release_bundle.py \
+  dist/site-release-update/netmonroots_release_update.zip --kind update
+```
+
+Nur die erfolgreich gepruefte ZIP hochladen und deren ausgegebenen SHA-256-Wert
+beibehalten. Nach Aenderungen erneut pruefen. Die Pruefung verwendet ausschliesslich
+den Repository-Verifier mit dessen festem H-01-Pin, niemals das Skript aus der ZIP.
+Auch die mitgelieferten Verifikationsskripte muessen bytegleich mit diesem
+Checkout sein; ein altes oder manipuliertes Verifikationsskript wird abgelehnt.
+Sie prueft Signatur und exakte Payload-Hashes, Produktionsnamen, Version, benoetigte
+Dateien/Struktur und das Fehlen von `UNSIGNED-TEST-ONLY` in Pfaden und Dateiinhalten.
+Ein umbenanntes oder in den Produktionsbereich kopiertes Test-ZIP wird abgelehnt.
+Symlinks, Sonderdateien, doppelte/unsichere Pfade und widerspruechliche ZIP-Metadaten
+sind ebenfalls unzulaessig. Die Pruefung benoetigt keine Netzwerkverbindung.
+
+Mit hochgeladen werden muessen insbesondere:
+
+- `public_html/dist/SHA256SUMS` und `SHA256SUMS.minisig`
+- alle drei in den signierten Summen aufgefuehrten Paket-/Dokudateien
 - `public_html/verify/netmonroots.minisign.pub`
 - `public_html/verify/verify_netmon_signature.sh`
 - `public_html/latest-version.json`
+
+Die Minisign-Signatur authentifiziert die drei Payload-Hashes, nicht jede
+Website-Datei und nicht den ZIP-Container als Ganzes. Die ZIP-Pruefung liefert
+zusaetzliche Struktur-/Integritaetskontrollen. Details, Ressourcenlimits und
+Betriebsannahmen: [M-04](security/M-04.md).
 
 ## Verifikation fuer Nutzer
 
@@ -120,7 +173,8 @@ SHA-256-Vergleich belegt keine Herkunft.
 
 - Website- und Release-Update-Build erzwingen signierte Releases
 - Signatur und bereitgestellter Public Key werden im Build direkt verifiziert
-- unsignierte lokale Test-Builds benoetigen `NETMON_ALLOW_UNSIGNED_BUILD=1`
+- unsignierte Testpakete entstehen ausschliesslich ueber `make unsigned-test-bundle`
+- `NETMON_ALLOW_UNSIGNED_BUILD` hat keinerlei Freigabewirkung
 - der echte Public Key ist in `SECURITY.md` und als kanonische Datei im
   Repository gepinnt
 - der ausgelieferte Verifier erzwingt denselben Key ohne Opt-in und ohne Override

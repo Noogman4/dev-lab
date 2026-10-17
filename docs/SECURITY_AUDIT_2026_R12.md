@@ -159,6 +159,12 @@ aktuellen Anleitungen verlangen einen unabhaengig bezogenen, geprueften
 Repository-Verifier, pruefen zuerst die Signatur und danach die Hashes.
 Details und Testergebnisse: [H-01-Abschlussbericht](security/H-01.md).
 
+**Nachtrag M-04 (18.10.2026):** Das damalige unsignierte Opt-out in beiden
+Produktions-Bundle-Skripten ist entfernt. Lokale Testpakete verwenden einen
+separaten Einstieg ohne Uploadstruktur; die Produktions-ZIPs erhalten eine
+zusaetzliche lokale Freigabepruefung. Es existiert kein automatisierter
+Publikationsjob im Repository. Details: [M-04](security/M-04.md).
+
 ### NM-R12-04 - Release-Versionen sind nicht aus einer Quelle abgeleitet
 
 **Schweregrad:** Niedrig  

@@ -136,11 +136,12 @@ def test_release_builders_derive_version_and_require_signatures():
         "build_netmon_release_update_bundle.sh",
     ):
         source = (PROJECT_ROOT / "scripts" / script_name).read_text(encoding="utf-8")
-        assert "NETMON_ALLOW_UNSIGNED_BUILD" in source
-        assert "Release-Abbruch: minisign ist nicht installiert." in source
+        assert "NETMON_ALLOW_UNSIGNED_BUILD" not in source
+        assert "require_release_signing" in source
+        assert "begin_release_build" in source
+        assert "finish_release_build" in source
         assert 'python3 "$ROOT_DIR/scripts/check_release_consistency.py"' in source
         assert '"$MINISIGN_VERIFY_SCRIPT"' in source
-        assert 'cmp -s "$RELEASE_MINISIGN_PUBKEY" "$PINNED_MINISIGN_PUBKEY"' in source
         assert "maybe_sign_release" not in source
 
 
@@ -175,3 +176,16 @@ def test_release_public_key_is_pinned_in_repository_and_policy():
         encoding="utf-8"
     )
     assert key_lines[1] in verifier
+
+
+def test_production_lifecycle_always_verifies_before_promotion():
+    source = (PROJECT_ROOT / "scripts/netmon_release_common.sh").read_text(
+        encoding="utf-8"
+    )
+    assert "NETMON_ALLOW_UNSIGNED_BUILD" not in source
+    assert "Release-Abbruch: minisign ist nicht installiert." in source
+    assert 'cmp -s "$RELEASE_MINISIGN_PUBKEY" "$PINNED_MINISIGN_PUBKEY"' in source
+    assert 'bash "$ROOT_DIR/scripts/verify_netmon_signature.sh"' in source
+    assert source.index(
+        'python3 "$ROOT_DIR/scripts/verify_netmon_release_bundle.py"'
+    ) < source.index('    "$BUILD_DIR" "$OUTPUT_DIR"')

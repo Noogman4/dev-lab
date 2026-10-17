@@ -2,11 +2,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/netmon_release_common.sh
+source "$ROOT_DIR/scripts/netmon_release_common.sh"
+begin_release_build site-build
+
 PKG_VERSION="$(python3 "$ROOT_DIR/scripts/read_netmon_version.py")"
 DOCS_VERSION="$PKG_VERSION"
 CURRENT_AUDIT_HTML="security-audit.html"
 CURRENT_AUDIT_VERSIONED_HTML="security-audit-r12.html"
-BUILD_DIR="$ROOT_DIR/dist/site-build"
 PUBLIC_DIR="$BUILD_DIR/public_html"
 DIST_DOCS_DIR="$PUBLIC_DIR/dist/docs"
 TOOLS_DIR="$PUBLIC_DIR/tools"
@@ -21,47 +24,7 @@ MINISIGN_VERIFY_SCRIPT="$VERIFY_DIR/verify_netmon_signature.sh"
 PINNED_MINISIGN_PUBKEY="$ROOT_DIR/docs/security/netmonroots.minisign.pub"
 RELEASE_MINISIGN_PUBKEY="${NETMON_MINISIGN_PUBKEY:-$PINNED_MINISIGN_PUBKEY}"
 
-sign_release() {
-  if [[ "${NETMON_ALLOW_UNSIGNED_BUILD:-0}" == "1" ]]; then
-    cp "$PINNED_MINISIGN_PUBKEY" "$MINISIGN_PUBKEY_TARGET"
-    echo "WARNUNG: Explizit angeforderter unsignierter Test-Build." >&2
-    return 0
-  fi
-
-  if ! command -v minisign >/dev/null 2>&1; then
-    echo "Release-Abbruch: minisign ist nicht installiert." >&2
-    exit 1
-  fi
-
-  if [[ -z "${NETMON_MINISIGN_SECRET_KEY:-}" ]]; then
-    echo "Release-Abbruch: NETMON_MINISIGN_SECRET_KEY ist nicht gesetzt." >&2
-    exit 1
-  fi
-
-  if [[ ! -f "$NETMON_MINISIGN_SECRET_KEY" ]]; then
-    echo "Release-Abbruch: Minisign-Secret-Key nicht gefunden: $NETMON_MINISIGN_SECRET_KEY" >&2
-    exit 1
-  fi
-
-  if [[ ! -f "$RELEASE_MINISIGN_PUBKEY" ]]; then
-    echo "Release-Abbruch: Minisign-Public-Key fehlt: $RELEASE_MINISIGN_PUBKEY" >&2
-    exit 1
-  fi
-
-  if ! cmp -s "$RELEASE_MINISIGN_PUBKEY" "$PINNED_MINISIGN_PUBKEY"; then
-    echo "Release-Abbruch: Der Public Key stimmt nicht mit dem Repository-Pin ueberein." >&2
-    exit 1
-  fi
-
-  minisign -S -s "$NETMON_MINISIGN_SECRET_KEY" -m "$SUMS_FILE" -x "$PUBLIC_DIR/dist/SHA256SUMS.minisig"
-  cp "$RELEASE_MINISIGN_PUBKEY" "$MINISIGN_PUBKEY_TARGET"
-  "$MINISIGN_VERIFY_SCRIPT" \
-    "$MINISIGN_PUBKEY_TARGET" \
-    "$PUBLIC_DIR/dist/SHA256SUMS.minisig" \
-    "$SUMS_FILE"
-
-  echo "Signatur erzeugt: $PUBLIC_DIR/dist/SHA256SUMS.minisig"
-}
+require_release_signing
 
 require_file() {
   local path="$1"
@@ -163,7 +126,6 @@ require_file "$ROOT_DIR/scripts/verify_netmon_download.sh"
 ensure_no_embedded_stats_token
 python3 "$ROOT_DIR/scripts/check_release_consistency.py"
 
-rm -rf "$BUILD_DIR"
 mkdir -p "$DIST_DOCS_DIR" "$TOOLS_DIR" "$DOCS_DIR" "$VERIFY_DIR" "$EN_DIR" "$SCREENSHOTS_DIR" "$DATA_DIR"
 
 cp "$ROOT_DIR/site/index.html" "$PUBLIC_DIR/index.html"
@@ -270,11 +232,8 @@ find "$PUBLIC_DIR" -type d -exec chmod 755 {} +
 find "$PUBLIC_DIR" -type f -exec chmod 644 {} +
 chmod 755 "$VERIFY_DIR/verify_netmon_download.sh" "$MINISIGN_VERIFY_SCRIPT"
 
-(
-  cd "$BUILD_DIR"
-  zip -rq netmonroots_public_html.zip public_html
-)
+finish_release_build site netmonroots_public_html.zip
 
 echo "Fertig:"
-echo "  Ordner: $PUBLIC_DIR"
-echo "  ZIP:    $BUILD_DIR/netmonroots_public_html.zip"
+echo "  Ordner: $OUTPUT_DIR/public_html"
+echo "  ZIP:    $OUTPUT_DIR/netmonroots_public_html.zip"

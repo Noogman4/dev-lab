@@ -25,6 +25,7 @@ backups/
 # build artifacts
 dist/
 site-build/
+unsigned-test-builds/
 *.deb
 netmon/features/Code-the-Classics.zip
 site/screenshots/Bildschirmfoto vom *.png

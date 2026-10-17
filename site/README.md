@@ -55,7 +55,7 @@ make site-print-htaccess
 Fuer eine `public_html`-fertige Struktur:
 
 ```bash
-make site-build
+NETMON_MINISIGN_SECRET_KEY=/pfad/zum/bestehenden/release.key make site-build
 ```
 
 Danach liegen bereit:
@@ -89,12 +89,24 @@ Zusaetzlich enthalten:
 - `dist/site-build/public_html/dist/SHA256SUMS`
 - `dist/site-build/public_html/verify/verify_netmon_download.sh`
 
-Optional bei signierten Releases:
+Verpflichtend bei jedem Produktions-Build:
 
 - `dist/site-build/public_html/dist/SHA256SUMS.minisig`
 - `dist/site-build/public_html/verify/netmonroots.minisign.pub`
 - `dist/site-build/public_html/verify/verify_netmon_signature.sh`
 - Maintainer-Doku: `docs/MINISIGN_RELEASES.md`
+
+Vor dem manuellen Upload muss die fertige ZIP aus einem geprueften Checkout
+mit `python3 scripts/verify_netmon_release_bundle.py <ZIP> --kind site`
+beziehungsweise `--kind update` geprueft werden. Bei einem Build-/Prueffehler
+nicht hochladen. Alte Ausgaben liegen nach einem neuen Versuch nur noch in
+`dist/.release-history/` und sind kein neuer Build-Erfolg. Im Repository gibt es
+keinen automatisierten Publikationsjob.
+
+Unsignierte Tests ausschliesslich mit `make unsigned-test-bundle`: Ausgabe unter
+`unsigned-test-builds/`, andere Dateinamen, dauerhafter `UNSIGNED-TEST-ONLY`-Marker,
+keine `public_html`-Struktur. Nicht veroeffentlichen. Die alte Variable
+`NETMON_ALLOW_UNSIGNED_BUILD` ist wirkungslos. Details: [Release-Ablauf](../docs/MINISIGN_RELEASES.md).
 
 ## Nur Release-Dateien aktualisieren
 
@@ -102,7 +114,7 @@ Wenn sich nur Paket, Doku, `SHA256SUMS`, `latest-version.json` oder die
 Download-/Doku-Seiten geaendert haben, reicht ein kleines Release-Update-Bundle:
 
 ```bash
-make site-release-update
+NETMON_MINISIGN_SECRET_KEY=/pfad/zum/bestehenden/release.key make site-release-update
 ```
 
 Danach liegen bereit:

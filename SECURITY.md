@@ -19,6 +19,21 @@ The build fails when either key material or `minisign` is missing. The public
 key is pinned in this repository so users can compare it independently from
 the download server.
 
+Both production bundle scripts always sign and verify before success.
+`NETMON_ALLOW_UNSIGNED_BUILD` cannot bypass either check. Builds use private
+staging; older outputs are retained outside the current output path in
+`dist/.release-history/`, and failed staging is removed. The final ZIP is checked
+by `scripts/verify_netmon_release_bundle.py` with the repository verifier.
+Unsigned local payload tests use only `make unsigned-test-bundle`, with separate
+`unsigned-test-builds/` output, different names, an `UNSIGNED-TEST-ONLY` marker
+and no production upload structure. Never publish these test artifacts.
+
+There is no automated publication job in this repository. Before manual upload,
+run the [local publication gate](docs/MINISIGN_RELEASES.md#upload-und-lokale-freigabepruefung)
+on the exact ZIP to upload. It rejects unsigned, invalid and relabelled test
+bundles, checks the pinned signature and payload hashes, and validates the
+production structure. This is not a server-side enforcement guarantee.
+
 - Minisign key ID: `54BF5F1867BDD004`
 - Canonical key file: [`docs/security/netmonroots.minisign.pub`](docs/security/netmonroots.minisign.pub)
 - Public key: `RWQE0L1nGF+/VDIfeLCEp4x2UutfhhdCmPKSMTZY05kXJprqXyXfzo9R`

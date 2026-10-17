@@ -1,4 +1,4 @@
-.PHONY: setup format format-check lint test check run clean roots-guard-smoke roots-guard-checks security-audit-pdf site-serve site-open site-stop site-print-caddy site-print-htaccess site-print-minisign site-build site-release-update print-netmon-sha256
+.PHONY: setup format format-check lint test check run clean roots-guard-smoke roots-guard-checks security-audit-pdf site-serve site-open site-stop site-print-caddy site-print-htaccess site-print-minisign site-build site-release-update unsigned-test-bundle print-netmon-sha256
 
 VENV=.venv
 PYTHON=$(VENV)/bin/python
@@ -62,6 +62,9 @@ site-build:
 
 site-release-update:
 	bash scripts/build_netmon_release_update_bundle.sh
+
+unsigned-test-bundle:
+	python3 scripts/build_netmon_unsigned_test_bundle.py
 
 print-netmon-sha256:
 	sha256sum dist/netmon_1.1.21_all.deb

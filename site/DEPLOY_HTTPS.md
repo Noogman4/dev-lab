@@ -150,7 +150,7 @@ Vor produktivem Start:
 Beispielhaft:
 
 ```bash
-make site-build
+NETMON_MINISIGN_SECRET_KEY=/pfad/zum/bestehenden/release.key make site-build
 ```
 
 Danach kannst du entweder:
@@ -158,13 +158,22 @@ Danach kannst du entweder:
 - `dist/site-build/public_html/` direkt hochladen
 - oder `dist/site-build/netmonroots_public_html.zip` in cPanel entpacken
 
-Fuer signierte Releases:
+Fuer alle Produktions-Releases:
 
 - `NETMON_MINISIGN_SECRET_KEY=/pfad/zum/seckey.txt make site-build`
 - der Build verwendet den in `docs/security/netmonroots.minisign.pub` gepinnten Public Key
 - ein optional gesetzter `NETMON_MINISIGN_PUBKEY` muss exakt mit dem Repository-Pin uebereinstimmen
 - ohne Secret Key oder ohne `minisign` bricht der Release-Build ab
-- nur lokale Test-Builds duerfen explizit `NETMON_ALLOW_UNSIGNED_BUILD=1` setzen
+- `NETMON_ALLOW_UNSIGNED_BUILD` kann keine Signierung oder Verifikation umgehen
+- unsignierte Testpakete ausschliesslich ueber `make unsigned-test-bundle`; sie
+  liegen unter `unsigned-test-builds/`, haben keine Uploadstruktur und duerfen
+  niemals veroeffentlicht werden
+- vor jedem manuellen Upload die exakte ZIP mit
+  `python3 scripts/verify_netmon_release_bundle.py <ZIP> --kind site` beziehungsweise
+  `--kind update` pruefen; bei Fehlern abbrechen
+- es gibt keinen automatisierten Publikationsjob im Repository; die lokale
+  Freigabepruefung ersetzt keine serverseitige CI-Schranke
+- alte Ausgaben unter `dist/.release-history/` sind kein neuer Build-Erfolg
 - kompletter Ablauf in `docs/MINISIGN_RELEASES.md`
 
 ## Wichtiger Hinweis zu Zertifikaten
