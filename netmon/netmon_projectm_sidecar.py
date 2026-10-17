@@ -12,7 +12,8 @@ import zipfile
 from dataclasses import dataclass
 
 from netmon.core import projectm_archive
-from netmon.core.archive_limits import ByteBudget
+from netmon.core.projectm_import_plan import ImportPlan, path_key, sync_import_flat_scan
+from netmon.core.archive_limits import ByteBudget, copy_limited
 from netmon.core.state import get_netmon_documents_dir, get_netmon_documents_subdir
 
 PROJECTM_COMMAND_CANDIDATES = (
@@ -130,15 +131,34 @@ def _projectm_flat_scan_name(root_dir: str, source_path: str) -> str:
     digest = hashlib.sha1(
         rel_path.encode("utf-8", errors="replace"), usedforsecurity=False
     ).hexdigest()[:10]
-    cleaned_stem = stem[:180].rstrip(" ._-") or "preset"
+    cleaned_stem = (
+        stem.encode("utf-8")[:180].decode("utf-8", errors="ignore").rstrip(" ._-")
+        or "preset"
+    )
     return f"{cleaned_stem}__{digest}{ext.lower()}"
 
 
-def _sync_projectm_flat_scan_dir(app, preset_dir: str) -> str:
+def _sync_projectm_flat_scan_dir(
+    app, preset_dir: str, import_plan=None, target_root=""
+) -> str:
     root_dir = os.path.abspath(str(preset_dir or "").strip())
     if not root_dir:
         return ""
     flat_dir = _projectm_flat_scan_dir(root_dir)
+    if import_plan is not None:
+        new_files = {
+            os.path.join(target_root, *item.parts): path_key(item.parts)
+            for item in import_plan.files
+            if item.preset
+        }
+        return sync_import_flat_scan(
+            root_dir,
+            flat_dir,
+            _iter_projectm_preset_files(root_dir) or (),
+            _projectm_flat_scan_name,
+            import_plan.budget,
+            new_files,
+        )
     try:
         os.makedirs(flat_dir, exist_ok=True)
     except Exception:
@@ -197,7 +217,7 @@ def _legacy_projectm_preset_dir(app=None):
     )
 
 
-def _migrate_legacy_projectm_presets(app, target_dir):
+def _migrate_legacy_projectm_presets(app, target_dir, import_budget=None):
     legacy_dir = _legacy_projectm_preset_dir(app)
     if not legacy_dir or os.path.abspath(legacy_dir) == os.path.abspath(target_dir):
         return
@@ -207,10 +227,24 @@ def _migrate_legacy_projectm_presets(app, target_dir):
         entries = os.listdir(legacy_dir)
     except Exception:
         return
+    copy_budget = ByteBudget(projectm_archive.MAX_TOTAL_BYTES)
     for name in entries:
         source = os.path.join(legacy_dir, name)
         target = os.path.join(target_dir, name)
         if not os.path.isfile(source) or os.path.exists(target):
+            continue
+        if import_budget is not None:
+            import_budget.plan("legacy", target)
+            import_budget.create("legacy", target)
+            with open(target, "xb") as destination:
+                import_budget.auxiliary_files.append(target)
+                with open(source, "rb") as handle:
+                    copy_limited(
+                        handle,
+                        destination,
+                        projectm_archive.MAX_FILE_BYTES,
+                        budget=copy_budget,
+                    )
             continue
         try:
             shutil.copy2(source, target)
@@ -232,19 +266,6 @@ def _projectm_downloaded_packs_dir(preset_dir: str) -> str:
         os.path.abspath(str(preset_dir or "").strip()),
         PROJECTM_DOWNLOADED_PACKS_DIRNAME,
     )
-
-
-def _unique_projectm_pack_dir(root_dir: str, pack_name: str) -> str:
-    safe_name = _sanitize_projectm_pack_name(pack_name)
-    target_dir = os.path.join(root_dir, safe_name)
-    if not os.path.lexists(target_dir):
-        return target_dir
-    counter = 2
-    while True:
-        candidate = os.path.join(root_dir, f"{safe_name}_{counter}")
-        if not os.path.lexists(candidate):
-            return candidate
-        counter += 1
 
 
 def install_projectm_preset_archive(app, archive_path: str, pack_name: str = ""):
@@ -271,60 +292,65 @@ def install_projectm_preset_archive(app, archive_path: str, pack_name: str = "")
                     raise ValueError(
                         "The selected ZIP file does not contain any .milk or .prjm presets."
                     )
+                plan = ImportPlan(
+                    parsed_members, PROJECTM_PRESET_EXTENSIONS, allowed_exts
+                )
                 packs_root = _projectm_downloaded_packs_dir(preset_dir)
                 if os.path.islink(preset_dir):
                     raise ValueError("Preset directories must not be symlinks.")
+                plan.budget.create("directory", "packs-root")
                 os.makedirs(packs_root, exist_ok=True)
                 if os.path.islink(packs_root):
                     raise ValueError("Preset directories must not be symlinks.")
                 # Exclusive creation: never reuse an existing pack, even after a race.
+                safe_pack = _sanitize_projectm_pack_name(
+                    pack_name or os.path.splitext(os.path.basename(archive_path))[0]
+                )
+                suffix = 1
                 while True:
-                    candidate = _unique_projectm_pack_dir(
+                    candidate = os.path.join(
                         packs_root,
-                        pack_name
-                        or os.path.splitext(os.path.basename(archive_path))[0],
+                        safe_pack if suffix == 1 else f"{safe_pack}_{suffix}",
                     )
                     try:
                         os.mkdir(candidate, mode=0o700)
                     except FileExistsError:
+                        suffix += 1
                         continue
                     target_root = candidate
+                    plan.budget.create("directory", "pack-root")
                     break
-                top_level_dirs = {
-                    parts[0] for _, parts in parsed_members if len(parts) > 1
-                }
-                strip_first_dir = len(top_level_dirs) == 1
+                for key, parts in plan.directories.items():
+                    plan.budget.create("directory", key)
+                    os.mkdir(os.path.join(target_root, *parts), mode=0o700)
                 budget = ByteBudget(projectm_archive.MAX_TOTAL_BYTES)
-                for member, parts in parsed_members:
-                    rel_parts = (
-                        parts[1:] if strip_first_dir and len(parts) > 1 else parts
+                for item in plan.files:
+                    target_path = os.path.abspath(
+                        os.path.join(target_root, *item.parts)
                     )
-                    rel_path = os.path.join(*rel_parts)
-                    ext = os.path.splitext(rel_path)[1].lower()
-                    if ext not in allowed_exts:
-                        continue
-                    target_path = os.path.abspath(os.path.join(target_root, rel_path))
                     if os.path.commonpath([target_root, target_path]) != target_root:
                         raise ValueError("Unsafe ZIP target path.")
-                    os.makedirs(os.path.dirname(target_path), mode=0o700, exist_ok=True)
-                    base, extension = os.path.splitext(target_path)
-                    counter = 2
-                    while os.path.lexists(target_path):
-                        target_path = f"{base}_{counter}{extension}"
-                        counter += 1
+                    plan.budget.create("file", path_key(item.parts))
                     with open(target_path, "xb") as dest:
-                        projectm_archive.copy_member(archive, member, dest, budget)
+                        projectm_archive.copy_member(archive, item.member, dest, budget)
                     imported_files += 1
-                    if ext in PROJECTM_PRESET_EXTENSIONS:
+                    if item.preset:
                         imported_presets += 1
                     else:
                         imported_assets += 1
-        _migrate_legacy_projectm_presets(app, preset_dir)
-        _sync_projectm_flat_scan_dir(app, preset_dir)
+        _migrate_legacy_projectm_presets(app, preset_dir, import_budget=plan.budget)
+        plan.budget.create("directory", "flat-root")
+        _sync_projectm_flat_scan_dir(
+            app, preset_dir, import_plan=plan, target_root=target_root
+        )
         _sync_projectm_flatpak_playlist_file(app, preset_dir)
     except BaseException:
-        if target_root:
-            shutil.rmtree(target_root)
+        try:
+            if target_root:
+                plan.budget.rollback_auxiliary()
+        finally:
+            if target_root:
+                shutil.rmtree(target_root)
         raise
 
     return {
@@ -348,7 +374,11 @@ def _sync_projectm_flatpak_playlist_file(app, preset_dir):
     backend_label = str(getattr(status, "backend_label", "") or "").strip()
     if backend_label != "Flatpak":
         return
-    playlist_dir = _sync_projectm_flat_scan_dir(app, preset_dir) or preset_dir
+    # Both callers have already synchronized the scan. Do not repeat an
+    # unbudgeted rebuild after the archive import's budgeted synchronization.
+    playlist_dir = _projectm_flat_scan_dir(preset_dir)
+    if not os.path.isdir(playlist_dir):
+        playlist_dir = _sync_projectm_flat_scan_dir(app, preset_dir) or preset_dir
     for config_path in _projectm_flatpak_config_files():
         try:
             os.makedirs(os.path.dirname(config_path), exist_ok=True)

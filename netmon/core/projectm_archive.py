@@ -6,9 +6,8 @@ import struct
 import tempfile
 import zipfile
 from contextlib import contextmanager
-from urllib import request as urllib_request
-from urllib.parse import urlparse
 
+from netmon.core import projectm_transport
 from netmon.core.archive_limits import ByteBudget, copy_limited, copy_response_limited
 
 MAX_DOWNLOAD_BYTES = 256 * 1024 * 1024
@@ -22,13 +21,12 @@ MAX_DIRECTORY_BYTES = 16 * 1024 * 1024
 @contextmanager
 def download_preset_archive(url, *, timeout=30):
     """Both projectM URL entry points use the same budgets and private cleanup."""
-    url = str(url or "").strip()
-    if urlparse(url).scheme.lower() not in {"http", "https"}:
-        raise ValueError("Preset downloads require HTTP or HTTPS.")
     with tempfile.TemporaryDirectory(prefix="netmon-projectm-pack-") as temp_dir:
         path = os.path.join(temp_dir, "pack.zip")
         with open(path, "xb") as destination:
-            with urllib_request.urlopen(url, timeout=timeout) as response:
+            with projectm_transport.open_preset_response(
+                url, timeout=timeout
+            ) as response:
                 copy_response_limited(
                     response, destination, MAX_DOWNLOAD_BYTES, require_complete=True
                 )

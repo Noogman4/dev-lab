@@ -14,6 +14,7 @@ from netmon import netmon_projectm_sidecar as sidecar
 from netmon import netmon_radio_app as radio
 from netmon.app import App
 from netmon.core import projectm_archive as limits
+from netmon.core import projectm_transport
 from netmon.core.archive_limits import (
     ByteBudget,
     COPY_CHUNK_BYTES,
@@ -56,6 +57,8 @@ def assert_preserved(app):
 
 
 class Response(io.BytesIO):
+    status = 200
+
     def __init__(self, data, content_length=None):
         super().__init__(data)
         self.headers = (
@@ -67,6 +70,15 @@ class Response(io.BytesIO):
         assert 0 < size <= COPY_CHUNK_BYTES
         self.requests.append(size)
         return super().read(size)
+
+    def read1(self, size=-1):
+        return self.read(size)
+
+
+def fake_transport(monkeypatch, open_response):
+    monkeypatch.setattr(
+        projectm_transport, "_build_opener", lambda: SimpleNamespace(open=open_response)
+    )
 
 
 @pytest.mark.parametrize("header", [None, "1", "6"])
@@ -357,14 +369,14 @@ def test_io_failure_removes_new_pack_and_preserves_existing(
             raising=False,
         )
     elif failure == "mkdir":
-        original = os.makedirs
+        original = os.mkdir
 
         def fail(path, *args, **kwargs):
             if "Pack_2" in str(path):
                 raise OSError("simulated mkdir failure")
             return original(path, *args, **kwargs)
 
-        monkeypatch.setattr(sidecar.os, "makedirs", fail)
+        monkeypatch.setattr(sidecar.os, "mkdir", fail)
     else:
         monkeypatch.setattr(
             zipfile.ZipFile,
@@ -520,7 +532,7 @@ def test_ui_download_streams_imports_and_always_removes_tempfile(
             raise OSError("simulated download failure")
         return response
 
-    monkeypatch.setattr(radio.urllib_request, "urlopen", urlopen)
+    fake_transport(monkeypatch, urlopen)
     app.tr = lambda _key, default: default
     app.update_idletasks = lambda: None
     app.radio_projectm_preset_hint_var = SimpleNamespace(set=lambda _: None)
@@ -588,7 +600,7 @@ def test_components_installer_enforces_real_download_limit(
     response = Response(b"123456789", content_length)
     monkeypatch.setattr(limits, "MAX_DOWNLOAD_BYTES", 8)
     monkeypatch.setattr(limits.tempfile, "tempdir", str(tmp_path))
-    monkeypatch.setattr(radio.urllib_request, "urlopen", lambda *_a, **_k: response)
+    fake_transport(monkeypatch, lambda *_a, **_k: response)
     app._import_projectm_preset_pack_from_url = lambda url, name: (
         App._import_projectm_preset_pack_from_url(app, url, name)
     )
@@ -621,7 +633,7 @@ def test_components_installer_handles_short_reads_and_valid_archive(
     header = str(len(payload)) if content_length == "correct" else content_length
     response = ShortResponse(payload, header)
     monkeypatch.setattr(limits.tempfile, "tempdir", str(tmp_path))
-    monkeypatch.setattr(limits.urllib_request, "urlopen", lambda *_a, **_k: response)
+    fake_transport(monkeypatch, lambda *_a, **_k: response)
     assert run_components_import(app) == [("projectm_presets_cream_crop", 1)]
     assert len(response.requests) > 10
     assert not list(tmp_path.glob("netmon-projectm-pack-*"))
@@ -665,7 +677,7 @@ def test_components_download_errors_clean_up_and_preserve_presets(
 
         monkeypatch.setattr(limits, "copy_response_limited", fail_write)
     monkeypatch.setattr(limits.tempfile, "tempdir", str(tmp_path))
-    monkeypatch.setattr(limits.urllib_request, "urlopen", urlopen)
+    fake_transport(monkeypatch, urlopen)
     with pytest.raises((ValueError, OSError, zipfile.BadZipFile)):
         run_components_import(app)
     assert not list(tmp_path.glob("netmon-projectm-pack-*"))
