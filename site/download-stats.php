@@ -22,7 +22,8 @@ $statsPath = (string) ($config["stats_path"] ?? "");
 $storageState = "OK";
 if ($statsPath === "" || !file_exists($statsPath)) {
     $storageState = "Noch keine Datei angelegt";
-} elseif (!is_writable($statsPath)) {
+} elseif (!is_writable(dirname($statsPath)) || !is_readable($statsPath)
+    || is_link($statsPath) || is_link($statsPath . ".lock")) {
     $storageState = "Nicht schreibbar";
 }
 

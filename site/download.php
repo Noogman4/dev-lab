@@ -7,8 +7,9 @@ require __DIR__ . "/download-lib.php";
 $config = netmon_download_config();
 $downloads = (array) ($config["downloads"] ?? []);
 
-$downloadId = trim((string) ($_GET["id"] ?? ""));
-$source = trim((string) ($_GET["src"] ?? ""));
+$rawId = $_GET["id"] ?? "";
+$downloadId = is_string($rawId) && strlen($rawId) <= 128 ? trim($rawId) : "";
+$source = netmon_telemetry_text($_GET["src"] ?? "", 256);
 
 if ($downloadId === "" || !isset($downloads[$downloadId]) || !is_array($downloads[$downloadId])) {
     http_response_code(404);

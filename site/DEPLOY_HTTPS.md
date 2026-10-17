@@ -105,11 +105,28 @@ Fuer den Downloadzaehler wichtig:
 
 - `public_html/download.php` zaehlt und leitet danach auf die echte Datei weiter.
 - `public_html/download-stats.php` zeigt die Statistikseite.
-- `public_html/data/download-stats.json` muss fuer PHP schreibbar sein.
+- `public_html/data/` muss dem PHP-Benutzer gehoeren und fuer ihn schreibbar sein
+  (empfohlen 0700, keine Gruppen-/Weltschreibrechte). Die atomare Speicherung
+  benoetigt Schreibrechte im Verzeichnis, nicht nur auf der JSON-Datei.
+- JSON-Datei und stabile `download-stats.json.lock` erhalten hoechstens 0600.
+  Symlinks in Speicherpfaden sowie Hardlinks auf JSON-/Lock-Dateien werden abgelehnt.
+- Beim Update vorhandene `data/download-stats.json` und ihre Lock-Datei erhalten;
+  die produktiven Zaehler nicht durch die leere Datei aus einem Website-Bundle ersetzen.
+- `download.php`, `download-lib.php` und `download-stats.php` zusammen ausrollen.
+  Alte laufende PHP-Requests vorher auslaufen lassen, da sie noch auf der JSON-Datei
+  statt auf der neuen separaten Lock-Datei sperren. Die Lock-Datei waehrend des
+  Betriebs niemals loeschen oder austauschen.
 - Bevorzugt den Token serverseitig als Umgebungsvariable `NETMON_STATS_TOKEN` setzen.
 - Beispiel per `.htaccess` auf dem Server: `SetEnv NETMON_STATS_TOKEN dein_langer_token`
 - Keine echten Tokens in `download-config.php`, Repo-`.htaccess`, Commits oder Upload-Zips speichern.
 - Aufruf danach: `https://netmonroots.com/download-stats.php?token=DEIN_TOKEN`
+
+Die Statistik serialisiert vor jeder Ersetzung den vollstaendigen JSON-Zustand,
+schreibt ihn in eine private temporaere Datei im selben Verzeichnis und verwendet
+anschliessend ein atomares Rename. Eingabe-, Serialisierungs- und I/O-Fehler
+erhalten den bisherigen Zustand; der Download-Redirect bleibt verfuegbar.
+Ein bereits beschaedigter oder leerer vorhandener Speicher wird nicht automatisch
+ueberschrieben und muss aus einer geprueften Sicherung wiederhergestellt werden.
 
 Sie macht:
 

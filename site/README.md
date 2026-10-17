@@ -24,6 +24,9 @@ Manuell im Browser:
 Hinweis:
 
 - Die Download-Statistik (`download.php`, `download-stats.php`) benoetigt PHP.
+- Die JSON-Persistenz benoetigt PHP ab 7.3; geprueft mit PHP CLI 8.3.6. Es sind
+  keine weiteren PHP-Erweiterungen erforderlich. Ab PHP 8.1 wird zusaetzlich
+  `fsync()` vor dem Rename geprueft, wenn verfuegbar.
 - Beim lokalen simplen HTTP-Test laufen die PHP-Seiten nicht automatisch mit.
 - Die Statistikseite ist per Token geschuetzt. Bevorzugt den Token serverseitig als Umgebungsvariable `NETMON_STATS_TOKEN` setzen.
 - Keine echten Tokens in `site/download-config.php`, `.htaccess`, Commits oder Upload-Zips ablegen. Das Repo und die Build-Artefakte muessen secret-frei bleiben.
@@ -173,6 +176,32 @@ make site-print-minisign
 - `download.php` und `download-stats.php` liegen im Build unter `public_html/`.
 - Seite bleibt auch bei schmalem Browserfenster lesbar.
 - Statistikaufruf nach Deploy: `https://netmonroots.com/download-stats.php?token=DEIN_TOKEN`
+
+Die Statistik wird unter einer stabilen separaten Lock-Datei aktualisiert.
+Schreib- und Serialisierungsfehler erhalten die bisherige Datei; parallele PHP-
+Prozesse lesen und schreiben unter demselben Lock. Das JSON-Schema, konfigurierte
+Download-IDs, Redirects und Statistik-Token bleiben unveraendert.
+
+Telemetrie wird auf gueltiges UTF-8 normalisiert und nach Bytes begrenzt:
+`src` 256, Referer 2048, Sprache 8, Accept-Language 256 und IP-Eingabe vor dem
+Hashen 128. Die Download-ID ist auf 128 Bytes begrenzt; ueberlange oder als
+Array uebergebene IDs erhalten weiterhin 404. Nichtskalare Telemetrie wird nicht
+uebernommen. Defekte UTF-8-Sequenzen werden durch U+FFFD ersetzt; mehrbyteige
+Zeichen werden an der Laengengrenze nicht halb gespeichert.
+
+Zum Deploy siehe [Dateirechte und Rollout](DEPLOY_HTTPS.md#htaccess). Vorhandene
+produktive JSON-/Lock-Dateien beibehalten und die drei PHP-Endpunkt-/Bibliotheks-
+Dateien gemeinsam aktualisieren. Regressionstests verwenden nur temporaere
+Dateien und lokale Testserver:
+
+```bash
+python3 -m pytest -q tests/test_download_statistics.py
+```
+
+Falls PHP CLI nicht im PATH liegt, kann der Testlauf explizit
+`NETMON_TEST_PHP=/absoluter/pfad/zum/php` verwenden. Ohne PHP CLI werden diese
+Tests kenntlich uebersprungen; fuer die vollstaendige Sicherheitspruefung muss
+PHP vorhanden sein. HTTP-Integrationstests benoetigen lokale Sockets auf 127.0.0.1.
 
 ## Struktur
 
