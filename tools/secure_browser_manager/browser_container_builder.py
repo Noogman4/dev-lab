@@ -20,8 +20,13 @@ from datetime import datetime
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin, urlparse
-from urllib.request import Request, urlopen
+from urllib.parse import quote, urljoin, urlparse
+
+# Support the standalone CLI and the installed /usr/lib/netmon/tools layout.
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from netmon.core import icon_http
+from netmon.core.icon_payload import sanitize_icon
 
 
 def get_default_base_dir() -> Path:
@@ -273,13 +278,15 @@ class IconLinkParser(HTMLParser):
         attrs_dict = {key.lower(): value or "" for key, value in attrs}
         rel = attrs_dict.get("rel", "").lower()
         href = attrs_dict.get("href", "")
-        if not href:
+        if not href or len(href) > 4096:
             return
         rel_tokens = {token for token in rel.split() if token}
         if "icon" in rel_tokens or "apple-touch-icon" in rel_tokens:
-            self.links.append((rel, href))
+            if len(self.links) < icon_http.MAX_METADATA_LINKS:
+                self.links.append((rel, href))
         elif "manifest" in rel_tokens:
-            self.manifests.append(href)
+            if len(self.manifests) < icon_http.MAX_METADATA_LINKS:
+                self.manifests.append(href)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -1232,21 +1239,39 @@ def extract_png_from_ico(payload: bytes) -> bytes | None:
     return None
 
 
-def fetch_url(url: str) -> tuple[bytes, str | None]:
-    # Restrict network fetches to real web schemes. urlopen's default opener
-    # also handles file:// (local file read) and other non-web schemes, so an
-    # icon/homepage URL pointing at e.g. file:///etc/passwd must be rejected
-    # before it ever reaches the opener.
-    scheme = urlparse(url).scheme.lower()
-    if scheme not in {"http", "https"}:
-        raise ValueError(f"Nur http/https-URLs erlaubt, nicht: {scheme or '(leer)'}")
-    request = Request(
+def fetch_url(
+    url: str, *, kind="icon", budget=None, origin=None, origins=None
+) -> tuple[bytes, str | None]:
+    limit = {
+        "html": icon_http.HTML_BYTES,
+        "manifest": icon_http.MANIFEST_BYTES,
+        "icon": icon_http.ICON_BYTES,
+    }[kind]
+    response = icon_http.fetch(
         url,
+        limit=limit,
+        budget=budget,
+        origin=origin,
+        origins=origins,
+        timeout=FAVICON_TIMEOUT_SECONDS,
         headers=FAVICON_REQUEST_HEADERS,
     )
-    with urlopen(request, timeout=FAVICON_TIMEOUT_SECONDS) as response:
-        content = response.read()
-        return content, response.headers.get_content_type()
+    if budget is not None:
+        budget.last_url = response.url
+    return response.data, response.content_type
+
+
+def same_origin_links(urls, base_url):
+    base = icon_http.parse_url(base_url)
+    result = []
+    for value in urls[: icon_http.MAX_METADATA_LINKS]:
+        try:
+            target = icon_http.parse_url(value)
+            if target.origin == base.origin and target.url not in result:
+                result.append(target.url)
+        except (ValueError, UnicodeError):
+            continue
+    return result[: icon_http.MAX_CANDIDATES]
 
 
 def extract_icon_links(html: str, base_url: str) -> list[str]:
@@ -1266,25 +1291,32 @@ def extract_icon_links(html: str, base_url: str) -> list[str]:
         elif "apple-touch-icon" in rel_tokens:
             score = 3
         prioritized.append((score, urljoin(base_url, href)))
-    return [url for _, url in sorted(prioritized, key=lambda item: (item[0], item[1]))]
+    return same_origin_links(
+        [url for _, url in sorted(prioritized, key=lambda item: (item[0], item[1]))],
+        base_url,
+    )
 
 
 def extract_manifest_links(html: str, base_url: str) -> list[str]:
     parser = IconLinkParser()
     parser.feed(html)
-    return [urljoin(base_url, href) for href in parser.manifests]
+    return same_origin_links(
+        [urljoin(base_url, href) for href in parser.manifests], base_url
+    )[: icon_http.MAX_MANIFESTS]
 
 
 def extract_manifest_icon_links(manifest_text: str, base_url: str) -> list[str]:
     try:
         payload = json.loads(manifest_text)
-    except json.JSONDecodeError:
+    except (ValueError, RecursionError):
+        return []
+    if not isinstance(payload, dict):
         return []
     icons = payload.get("icons")
     if not isinstance(icons, list):
         return []
     prioritized: list[tuple[int, int, str]] = []
-    for item in icons:
+    for item in icons[: icon_http.MAX_METADATA_LINKS]:
         if not isinstance(item, dict):
             continue
         src = str(item.get("src") or "").strip()
@@ -1294,7 +1326,7 @@ def extract_manifest_icon_links(manifest_text: str, base_url: str) -> list[str]:
         lower_url = icon_url.lower()
         sizes_text = str(item.get("sizes") or "").strip().lower()
         best_size = 0
-        for token in sizes_text.split():
+        for token in sizes_text.split()[:8]:
             if "x" not in token:
                 continue
             width_text, _sep, height_text = token.partition("x")
@@ -1312,108 +1344,88 @@ def extract_manifest_icon_links(manifest_text: str, base_url: str) -> list[str]:
             score = 2
         prioritized.append((score, -best_size, icon_url))
     prioritized.sort(key=lambda item: (item[0], item[1], item[2]))
-    return [url for _score, _neg_size, url in prioritized]
+    return same_origin_links([url for _score, _neg_size, url in prioritized], base_url)
 
 
 def get_public_favicon_fallback_urls(source_domain: str) -> list[str]:
+    encoded = quote(source_domain, safe="")
     return [
-        f"https://www.google.com/s2/favicons?domain={source_domain}&sz=64",
+        f"https://www.google.com/s2/favicons?domain={encoded}&sz=64",
     ]
 
 
 def resolve_favicon_download(
     spec: ContainerSpec,
 ) -> tuple[str | None, bytes | None, str | None]:
-    icon_plan = build_icon_plan(spec)
-    if icon_plan.source_domain is None:
-        return None, None, None
-    direct_url = f"https://{icon_plan.source_domain}/favicon.ico"
-    public_fallback_urls = get_public_favicon_fallback_urls(icon_plan.source_domain)
-    homepage_url = get_homepage_url(spec)
-    html_icon_urls: list[str] = []
-    manifest_icon_urls: list[str] = []
+    budget = icon_http.DownloadBudget(seconds=20, max_requests=12)
     try:
-        html_bytes, html_type = fetch_url(homepage_url)
-        if html_type == "text/html":
-            html_text = html_bytes.decode("utf-8", errors="ignore")
-            html_icon_urls = extract_icon_links(
-                html_text,
-                homepage_url,
-            )
-            manifest_urls = extract_manifest_links(html_text, homepage_url)
-            for manifest_url in manifest_urls:
+        homepage_url = get_homepage_url(spec)
+        icon_http.parse_url(homepage_url)
+    except (ValueError, UnicodeError):
+        return None, None, None
+    metadata_urls = []
+    try:
+        budget.last_url = homepage_url
+        html, content_type = fetch_url(homepage_url, kind="html", budget=budget)
+        homepage_url = budget.last_url
+        if content_type == "text/html":
+            text = html.decode("utf-8", errors="replace")
+            metadata_urls.extend(extract_icon_links(text, homepage_url))
+            for manifest_url in extract_manifest_links(text, homepage_url):
                 try:
-                    manifest_bytes, manifest_type = fetch_url(manifest_url)
+                    budget.last_url = manifest_url
+                    manifest, _ = fetch_url(
+                        manifest_url,
+                        kind="manifest",
+                        budget=budget,
+                        origin=icon_http.parse_url(homepage_url).origin,
+                    )
+                    metadata_urls.extend(
+                        extract_manifest_icon_links(
+                            manifest.decode("utf-8", errors="replace"), budget.last_url
+                        )
+                    )
                 except Exception:
                     continue
-                if manifest_type not in {
-                    "application/manifest+json",
-                    "application/json",
-                    "text/plain",
-                }:
-                    # Some sites still serve manifests with uncommon content types;
-                    # if the payload parses as JSON we still accept it below.
-                    pass
-                manifest_icon_urls.extend(
-                    extract_manifest_icon_links(
-                        manifest_bytes.decode("utf-8", errors="ignore"),
-                        manifest_url,
-                    )
-                )
     except Exception:
-        html_icon_urls = []
-        manifest_icon_urls = []
-
-    svg_candidate: tuple[str, bytes, str | None] | None = None
-    tried_direct = False
-    seen_urls: set[str] = set()
-    for url in [
-        *html_icon_urls,
-        *manifest_icon_urls,
-        direct_url,
-        *public_fallback_urls,
-    ]:
-        if url in seen_urls:
+        pass
+    origin = icon_http.parse_url(homepage_url).origin
+    direct = urljoin(homepage_url, "/favicon.ico")
+    fallback = get_public_favicon_fallback_urls(icon_http.parse_url(homepage_url).host)[
+        0
+    ]
+    service_origins = frozenset(
+        [
+            ("https", "www.google.com", 443),
+            *[("https", f"t{i}.gstatic.com", 443) for i in range(4)],
+        ]
+    )
+    candidates = list(dict.fromkeys(metadata_urls))[: icon_http.MAX_CANDIDATES - 2] + [
+        direct,
+        fallback,
+    ]
+    svg = None
+    seen = set()
+    for url in candidates:
+        if url in seen:
             continue
-        seen_urls.add(url)
-        if url == direct_url:
-            tried_direct = True
+        seen.add(url)
         try:
-            payload, content_type = fetch_url(url)
-            suffix = detect_icon_payload_suffix(payload, content_type, url)
-            if suffix is None:
-                continue
+            payload, content_type = fetch_url(
+                url,
+                kind="icon",
+                budget=budget,
+                origin=None if url == fallback else origin,
+                origins=service_origins if url == fallback else None,
+            )
+            suffix, payload = sanitize_icon(payload)
             if suffix == ".svg":
-                if svg_candidate is None:
-                    svg_candidate = (url, payload, content_type)
-                continue
-            return url, payload, content_type
+                svg = svg or (url, payload, "image/svg+xml")
+            else:
+                return url, payload, "image/png" if suffix == ".png" else content_type
         except Exception:
             continue
-    if not tried_direct:
-        try:
-            payload, content_type = fetch_url(direct_url)
-            suffix = detect_icon_payload_suffix(payload, content_type, direct_url)
-            if suffix is None:
-                return (
-                    svg_candidate if svg_candidate is not None else (None, None, None)
-                )
-            if suffix == ".svg":
-                return (
-                    svg_candidate
-                    if svg_candidate is not None
-                    else (
-                        direct_url,
-                        payload,
-                        content_type,
-                    )
-                )
-            return direct_url, payload, content_type
-        except Exception:
-            return svg_candidate if svg_candidate is not None else (None, None, None)
-    if svg_candidate is not None:
-        return svg_candidate
-    return None, None, None
+    return svg or (None, None, None)
 
 
 def prepare_container_icon(spec: ContainerSpec) -> tuple[str, str | None]:
@@ -1454,6 +1466,13 @@ def prepare_container_icon(spec: ContainerSpec) -> tuple[str, str | None]:
                     str(existing_raster),
                     "SVG favicon skipped because an existing raster icon is available.",
                 )
+        try:
+            suffix, payload = sanitize_icon(payload)
+        except Exception:
+            return (
+                get_fallback_icon_reference(spec),
+                "Favicon payload ungueltig, fallback icon used.",
+            )
         target_path = get_icon_storage_path(spec, suffix)
         target_path.parent.mkdir(parents=True, exist_ok=True)
         backup_existing_icons(spec)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 from datetime import datetime
 import hashlib
 import io
@@ -12,14 +13,17 @@ import os
 import shlex
 import shutil
 import subprocess
+import stat
+import tempfile
 import threading
 import tkinter as tk
 import types
 from tkinter import filedialog, messagebox, simpledialog, ttk
-from urllib import request as urllib_request
-from urllib.parse import urlparse
 
-from netmon.core import projectm_archive
+from netmon.core import icon_http, projectm_archive
+from netmon.core.icon_payload import check_dimensions, sanitize_icon
+
+_LOGO_WORKERS = threading.BoundedSemaphore(2)
 
 try:
     from netmon.features import radio_controller
@@ -3160,12 +3164,10 @@ class NetMonRadioApp(tk.Tk):
         if not isinstance(station, dict):
             return ""
         url = str(station.get("favicon", "") or "").strip()
-        # Logo-URLs stammen aus der radio-browser.info-API (Fremddaten).
-        # urlopen wuerde auch file:// und andere Nicht-Web-Schemata bedienen,
-        # daher wie in fetch_url() im Container-Builder auf http/https begrenzen.
-        if urlparse(url).scheme.lower() not in ("http", "https"):
+        try:
+            return icon_http.parse_url(url).url
+        except (ValueError, UnicodeError):
             return ""
-        return url
 
     def _station_logo_cache_path(self, logo_url):
         url = str(logo_url or "").strip()
@@ -3178,8 +3180,19 @@ class NetMonRadioApp(tk.Tk):
         if request_key != getattr(self, "_radio_logo_request_key", ""):
             return
         try:
+            descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(descriptor, "rb") as handle:
+                info = os.fstat(handle.fileno())
+                if (
+                    not stat.S_ISREG(info.st_mode)
+                    or info.st_size > icon_http.ICON_BYTES
+                ):
+                    raise ValueError("invalid logo cache entry")
+                payload = handle.read(icon_http.ICON_BYTES + 1)
+            suffix, payload = sanitize_icon(payload, allow_svg=False)
             if Image is not None and ImageTk is not None:
-                with Image.open(path) as src:
+                with Image.open(io.BytesIO(payload)) as src:
+                    check_dimensions(*src.size)
                     source = src.convert("RGBA")
                     rendered = {}
                     for variant in ("main", "mini"):
@@ -3187,7 +3200,9 @@ class NetMonRadioApp(tk.Tk):
                         image.thumbnail(self._radio_logo_size(variant))
                         rendered[variant] = ImageTk.PhotoImage(image)
             else:
-                base_image = tk.PhotoImage(file=path)
+                if suffix != ".png":
+                    raise ValueError("PNG required without Pillow")
+                base_image = tk.PhotoImage(data=base64.b64encode(payload))
                 rendered = {
                     "main": self._fit_tk_photoimage(
                         base_image,
@@ -3217,24 +3232,50 @@ class NetMonRadioApp(tk.Tk):
                 pass
 
     def _download_station_logo(self, logo_url, cache_path, request_key):
+        temporary = None
         try:
-            with urllib_request.urlopen(logo_url, timeout=8) as response:
-                payload = response.read()
-            if not payload:
-                raise ValueError("empty logo payload")
-            os.makedirs(self.radio_logo_cache_dir, exist_ok=True)
+            result = icon_http.fetch(
+                logo_url,
+                limit=icon_http.ICON_BYTES,
+                timeout=8,
+                budget=icon_http.DownloadBudget(seconds=8),
+            )
+            suffix, payload = sanitize_icon(result.data, allow_svg=False)
             if Image is not None:
                 with Image.open(io.BytesIO(payload)) as src:
-                    src.convert("RGBA").save(cache_path, format="PNG")
-            else:
-                with open(cache_path, "wb") as handle:
-                    handle.write(payload)
+                    check_dimensions(*src.size)
+                    output = io.BytesIO()
+                    src.convert("RGBA").save(output, format="PNG")
+                    _, payload = sanitize_icon(output.getvalue(), allow_svg=False)
+            elif suffix != ".png":
+                raise ValueError("PNG required without Pillow")
+            os.makedirs(self.radio_logo_cache_dir, exist_ok=True)
+            with tempfile.NamedTemporaryFile(
+                mode="wb", dir=self.radio_logo_cache_dir, prefix=".logo-", delete=False
+            ) as handle:
+                temporary = handle.name
+                if handle.write(payload) != len(payload):
+                    raise OSError("Incomplete logo cache write")
+                handle.flush()
+            os.replace(temporary, cache_path)
+            temporary = None
         except Exception:
+
+            def placeholder():
+                if request_key == getattr(self, "_radio_logo_request_key", ""):
+                    self._set_radio_logo_placeholder()
+
             try:
-                self.after(0, self._set_radio_logo_placeholder)
+                self.after(0, placeholder)
             except Exception:
                 pass
             return
+        finally:
+            if temporary is not None:
+                try:
+                    os.unlink(temporary)
+                except OSError:
+                    pass
 
         def render():
             self._render_station_logo_file(cache_path, request_key)
@@ -3259,12 +3300,21 @@ class NetMonRadioApp(tk.Tk):
             self._render_station_logo_file(cache_path, request_key)
             return
         self._set_radio_logo_placeholder("Lade Logo...")
-        worker = threading.Thread(
-            target=self._download_station_logo,
-            args=(logo_url, cache_path, request_key),
-            daemon=True,
-        )
-        worker.start()
+        if not _LOGO_WORKERS.acquire(blocking=False):
+            self._set_radio_logo_placeholder()
+            return
+
+        def download():
+            try:
+                self._download_station_logo(logo_url, cache_path, request_key)
+            finally:
+                _LOGO_WORKERS.release()
+
+        try:
+            threading.Thread(target=download, daemon=True).start()
+        except Exception:
+            _LOGO_WORKERS.release()
+            self._set_radio_logo_placeholder()
 
     def _refresh_projectm_status(self):
         state = netmon_projectm_sidecar.describe_projectm_sidecar_runtime(self)

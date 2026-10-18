@@ -8,21 +8,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import browser_container_builder as builder
 
-
-PNG_BYTES = (
-    b"\x89PNG\r\n\x1a\n"
-    b"\x00\x00\x00\rIHDR"
-    b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00"
-    b"\x1f\x15\xc4\x89"
-    b"\x00\x00\x00\x0cIDATx\x9cc`\x00\x00\x00\x02\x00\x01"
-    b"\xe2!\xbc3"
-    b"\x00\x00\x00\x00IEND\xaeB`\x82"
-)
+PNG_BYTES = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc```\xf8\x0f\x00\x01\x04\x01\x00_\xe5\xc3K\x00\x00\x00\x00IEND\xaeB`\x82"
 
 ICO_BYTES = b"\x00\x00\x01\x00\x01\x00\x10\x10\x00\x00\x00\x00\x20\x00"
 ICO_WITH_PNG_BYTES = (
-    b"\x00\x00\x01\x00\x01\x00\x10\x10\x00\x00\x00\x00\x20\x00"
-    b"\x43\x00\x00\x00\x16\x00\x00\x00" + PNG_BYTES
+    b"\x00\x00\x01\x00\x01\x00\x01\x01\x00\x00\x00\x00\x20\x00"
+    + len(PNG_BYTES).to_bytes(4, "little")
+    + (22).to_bytes(4, "little")
+    + PNG_BYTES
 )
 
 
@@ -120,43 +113,20 @@ def test_validate_config_payload_uses_base_dir_default() -> None:
 def test_fetch_url_uses_browser_like_headers(monkeypatch) -> None:
     captured = {}
 
-    class FakeHeaders:
-        @staticmethod
-        def get_content_type() -> str:
-            return "image/png"
+    def fake_fetch(url, **kwargs):
+        captured.update(kwargs)
+        captured["url"] = url
+        return builder.icon_http.Download(PNG_BYTES, "image/png", url)
 
-    class FakeResponse:
-        headers = FakeHeaders()
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-        @staticmethod
-        def read() -> bytes:
-            return PNG_BYTES
-
-    def fake_urlopen(request, timeout):
-        captured["url"] = request.full_url
-        captured["timeout"] = timeout
-        captured["user_agent"] = request.get_header("User-agent")
-        captured["accept"] = request.get_header("Accept")
-        captured["accept_language"] = request.get_header("Accept-language")
-        return FakeResponse()
-
-    monkeypatch.setattr(builder, "urlopen", fake_urlopen)
-
+    monkeypatch.setattr(builder.icon_http, "fetch", fake_fetch)
     payload, content_type = builder.fetch_url("https://chatgpt.com/favicon.ico")
-
     assert payload == PNG_BYTES
     assert content_type == "image/png"
-    assert captured["url"] == "https://chatgpt.com/favicon.ico"
     assert captured["timeout"] == builder.FAVICON_TIMEOUT_SECONDS
-    assert "Mozilla/5.0" in (captured["user_agent"] or "")
-    assert "image/svg+xml" in (captured["accept"] or "")
-    assert "de-DE" in (captured["accept_language"] or "")
+    assert captured["limit"] == builder.icon_http.ICON_BYTES
+    assert "Mozilla/5.0" in captured["headers"]["User-Agent"]
+    assert "image/svg+xml" in captured["headers"]["Accept"]
+    assert "de-DE" in captured["headers"]["Accept-Language"]
 
 
 def test_validate_config_payload_reads_homepage_and_new_tab() -> None:
@@ -225,7 +195,7 @@ def test_fetch_url_rejects_non_http_schemes() -> None:
         "gopher://example.com/",
         "/etc/passwd",
     ):
-        with pytest.raises(ValueError, match="http/https"):
+        with pytest.raises(ValueError, match="HTTP"):
             builder.fetch_url(bad_url)
 
 
@@ -655,7 +625,7 @@ def test_dry_run_does_not_download_favicon(tmp_path: Path, monkeypatch) -> None:
     )
     called = {"count": 0}
 
-    def fake_fetch_url(url: str) -> tuple[bytes, str | None]:
+    def fake_fetch_url(url: str, **_kwargs) -> tuple[bytes, str | None]:
         called["count"] += 1
         return b"", None
 
@@ -680,7 +650,7 @@ def test_apply_downloads_and_stores_favicon(monkeypatch, tmp_path: Path) -> None
         menu_name="NetMon Secure Browser – GitHub",
     )
 
-    def fake_fetch_url(url: str) -> tuple[bytes, str | None]:
+    def fake_fetch_url(url: str, **_kwargs) -> tuple[bytes, str | None]:
         if url == "https://github.com":
             return (
                 b'<html><head><link rel="icon" href="/favicon.png"></head></html>',
@@ -735,7 +705,9 @@ def test_create_container_installs_optional_child_lock(tmp_path: Path) -> None:
     ).read_text(encoding="utf-8")
 
 
-def test_existing_container_refresh_start_script_supports_child_lock(tmp_path: Path) -> None:
+def test_existing_container_refresh_start_script_supports_child_lock(
+    tmp_path: Path,
+) -> None:
     root_dir = make_existing_container(tmp_path, "firefox-Kinder")
     container = builder.discover_container(root_dir / "firefox" / "firefox")
 
@@ -795,7 +767,7 @@ def test_favicon_fallback_uses_default_icon(monkeypatch, tmp_path: Path) -> None
         menu_name="NetMon Secure Browser – GitHub",
     )
 
-    def fake_fetch_url(url: str) -> tuple[bytes, str | None]:
+    def fake_fetch_url(url: str, **_kwargs) -> tuple[bytes, str | None]:
         raise RuntimeError(url)
 
     monkeypatch.setattr(builder, "fetch_url", fake_fetch_url)
@@ -822,7 +794,7 @@ def test_invalid_png_payload_falls_back_to_default_icon(
         menu_name="Sparkasse",
     )
 
-    def fake_fetch_url(url: str) -> tuple[bytes, str | None]:
+    def fake_fetch_url(url: str, **_kwargs) -> tuple[bytes, str | None]:
         if url == "https://www.sparkasse-ulm.de":
             return (
                 b'<html><head><link rel="icon" href="/favicon.png"></head></html>',
@@ -856,7 +828,7 @@ def test_invalid_first_icon_tries_next_candidate(
         menu_name="Sparkasse",
     )
 
-    def fake_fetch_url(url: str) -> tuple[bytes, str | None]:
+    def fake_fetch_url(url: str, **_kwargs) -> tuple[bytes, str | None]:
         if url == "https://www.sparkasse-ulm.de":
             return (
                 (
@@ -899,7 +871,7 @@ def test_svg_icon_falls_through_to_direct_raster_icon(
         menu_name="OpenAI",
     )
 
-    def fake_fetch_url(url: str) -> tuple[bytes, str | None]:
+    def fake_fetch_url(url: str, **_kwargs) -> tuple[bytes, str | None]:
         if url == "https://chatgpt.com":
             return (
                 b'<html><head><link rel="icon" href="/icon.svg"></head></html>',
@@ -937,7 +909,7 @@ def test_manifest_icon_is_used_when_html_has_no_direct_icon(
         menu_name="Claude",
     )
 
-    def fake_fetch_url(url: str) -> tuple[bytes, str | None]:
+    def fake_fetch_url(url: str, **_kwargs) -> tuple[bytes, str | None]:
         if url == "https://claude.ai":
             return (
                 b'<html><head><link rel="manifest" href="/manifest.webmanifest"></head></html>',
@@ -989,7 +961,7 @@ def test_public_favicon_service_is_used_when_site_blocks_icon_fetch(
         menu_name="ChatGPT",
     )
 
-    def fake_fetch_url(url: str) -> tuple[bytes, str | None]:
+    def fake_fetch_url(url: str, **_kwargs) -> tuple[bytes, str | None]:
         if url in {
             "https://chatgpt.com",
             "https://chatgpt.com/favicon.ico",
@@ -1026,7 +998,7 @@ def test_existing_icon_is_backed_up_before_replace(monkeypatch, tmp_path: Path) 
     existing_icon = icon_dir / "favicon.png"
     existing_icon.write_bytes(b"oldpng")
 
-    def fake_fetch_url(url: str) -> tuple[bytes, str | None]:
+    def fake_fetch_url(url: str, **_kwargs) -> tuple[bytes, str | None]:
         if url == "https://github.com":
             return (
                 b'<html><head><link rel="icon" href="/favicon.ico"></head></html>',
@@ -1118,7 +1090,7 @@ def test_ico_with_embedded_png_is_saved_as_png(monkeypatch, tmp_path: Path) -> N
         menu_name="Sparkasse",
     )
 
-    def fake_fetch_url(url: str) -> tuple[bytes, str | None]:
+    def fake_fetch_url(url: str, **_kwargs) -> tuple[bytes, str | None]:
         if url == "https://www.sparkasse-ulm.de":
             return (b"<html><head></head></html>", "text/html")
         if url == "https://www.sparkasse-ulm.de/favicon.ico":
@@ -1592,7 +1564,7 @@ def test_refresh_existing_apply_overwrites_launcher_and_menu(
     menu_entry_path = applications_dir / "netmon-secure-browser-sparkasse.desktop"
     menu_entry_path.write_text("old menu", encoding="utf-8")
 
-    def fake_fetch_url(url: str) -> tuple[bytes, str | None]:
+    def fake_fetch_url(url: str, **_kwargs) -> tuple[bytes, str | None]:
         if url == "https://www.sparkasse-ulm.de":
             return (b"<html><head></head></html>", "text/html")
         if url == "https://www.sparkasse-ulm.de/favicon.ico":
