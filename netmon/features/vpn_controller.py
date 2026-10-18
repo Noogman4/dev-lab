@@ -8,6 +8,7 @@ import json
 import os
 import re
 import socket
+import stat
 import tempfile
 import threading
 import time
@@ -30,9 +31,11 @@ except ModuleNotFoundError:
     )
 
 try:
-    from netmon.core.command import run_cmd
+    from netmon.core.command import run_cmd, run_cmd_with_input
+    from netmon.core import nm_ownership
 except ModuleNotFoundError:
-    from core.command import run_cmd
+    from core.command import run_cmd, run_cmd_with_input
+    from core import nm_ownership
 
 try:
     from netmon.core.tooling import has_cmd
@@ -335,11 +338,20 @@ def _normalized_nm_last_import_state(state):
         imported_at = int(imported_at or 0)
     except (TypeError, ValueError):
         imported_at = 0
-    return {
+    result = {
         "connections": connections,
         "source_files": source_files,
         "imported_at": imported_at,
     }
+    # Session references only. The root helper independently verifies every
+    # receipt, UUID and keyfile; this user-controlled state grants no ownership.
+    if isinstance(raw_state.get("owned_connections"), list):
+        result["owned_connections"] = [
+            item
+            for item in raw_state["owned_connections"][:512]
+            if isinstance(item, dict)
+        ]
+    return result
 
 
 def load_primary_vpn_slots_config(app):
@@ -3524,247 +3536,189 @@ def import_referenced_wg_profiles_to_networkmanager(app):
     threading.Thread(target=job, daemon=True).start()
 
 
+def _owned_nm_command(operation, *, payload=None, identity=None):
+    """Invoke only the fixed, protected installed helper; user state is a hint."""
+    if not nm_ownership.trusted_helper_available():
+        raise nm_ownership.OwnershipError("Geschützter NetMon-Eigentumshelfer fehlt")
+    command = ["sudo", "-n", "/usr/bin/python3", "-I", nm_ownership.HELPER, operation]
+    if identity is not None:
+        command.extend(identity)
+    rc, output = run_cmd_with_input(
+        command,
+        input_text=json.dumps(payload) if payload is not None else "",
+        timeout=180,
+    )
+    if rc != 0:
+        raise nm_ownership.OwnershipError(
+            "Eigentumsprüfung fehlgeschlagen; Verbindung bleibt erhalten"
+        )
+    return json.loads(output) if operation in {"import", "inspect"} else None
+
+
+def _nm_import_source(path):
+    # Snapshot as the caller, never ask root to follow a user-controlled path.
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as handle:
+        info = os.fstat(handle.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_size > nm_ownership.MAX_CONFIG:
+            raise ValueError("Ungültige oder zu große WireGuard-Quelldatei")
+        content = handle.read(nm_ownership.MAX_CONFIG + 1)
+    if len(content) > nm_ownership.MAX_CONFIG:
+        raise ValueError("WireGuard-Quelldatei zu groß")
+    return content.decode("utf-8")
+
+
 def import_wireguard_paths_to_networkmanager(
     app,
     selected_files,
     *,
     operation_name="NetworkManager-WireGuard-Import",
 ):
-    def _delete_nm_connection(name):
-        rc, out = run_cmd(
-            ["sudo", "-n", "nmcli", "connection", "delete", name],
-            timeout=15,
-        )
-        if rc != 0:
-            raise RuntimeError((out or "").strip() or f"delete rc={rc}")
-
-    def process():
-        previous_state = get_nm_last_import_state(app)
-        tx_factory = getattr(app, "_new_rollback_transaction", None)
-        tx = tx_factory(operation_name) if callable(tx_factory) else None
-
-        imported_connections = []
-        imported_files = []
-        skipped = 0
-        failed = 0
-        rollback_triggered = False
-
-        for src in selected_files:
-            base = os.path.basename(src)
-            profile_name = base[:-5] if base.endswith(".conf") else base
-            if not os.path.isfile(src):
-                skipped += 1
+    state = get_nm_last_import_state(app)
+    imported, sources, owned = [], [], []
+    skipped = failed = 0
+    protected = nm_ownership.trusted_helper_available()
+    for src in selected_files:
+        name = os.path.basename(src)
+        name = name[:-5] if name.endswith(".conf") else name
+        if not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", name) or name in {".", ".."}:
+            skipped += 1
+            continue
+        if name in set(get_nm_wireguard_profiles(app)):
+            skipped += 1
+            continue
+        try:
+            if protected:
+                candidate = _owned_nm_command(
+                    "import", payload={"name": name, "content": _nm_import_source(src)}
+                )
+                owned.append(candidate)
+                imported.append(candidate["name"])
                 app.after(
                     0,
-                    lambda n=profile_name, path=src: app.log(
-                        f"NM-Import übersprungen: Dateiprofil fehlt: {n} ({path})"
+                    lambda item=candidate: app.log(
+                        f"NM-Import erstellt: {item['name']} [UUID {item['uuid']}]"
                     ),
                 )
-                continue
-            if not re.match(r"^[A-Za-z0-9_.-]+$", profile_name):
-                skipped += 1
+            else:
+                # Compatibility for older/unpackaged installations: no claim,
+                # no automatic rollback or privileged uninstall deletion.
+                rc, _out = run_cmd(
+                    [
+                        "sudo",
+                        "-n",
+                        "nmcli",
+                        "connection",
+                        "import",
+                        "type",
+                        "wireguard",
+                        "file",
+                        src,
+                    ],
+                    timeout=25,
+                )
+                if rc != 0:
+                    raise RuntimeError("NetworkManager-Import fehlgeschlagen")
+                imported.append(name)
                 app.after(
                     0,
-                    lambda n=profile_name: app.log(
-                        f"NM-Import übersprungen (ungültiger Profilname): {n}"
+                    lambda n=name: app.log(
+                        f"NM-Import {n}: ohne geschützten Eigentumsnachweis; nur manuell bereinigen."
                     ),
                 )
-                continue
-
-            existing_connections = set(get_nm_wireguard_profiles(app))
-            if profile_name in existing_connections:
-                skipped += 1
-                app.after(
-                    0,
-                    lambda n=profile_name: app.log(
-                        f"NM-Import übersprungen: Connection bereits vorhanden: {n}"
-                    ),
-                )
-                continue
-
-            cmd = [
-                "sudo",
-                "-n",
-                "nmcli",
-                "connection",
-                "import",
-                "type",
-                "wireguard",
-                "file",
-                src,
-            ]
-            rc, out = run_cmd(cmd, timeout=25)
-            app.log_debug_safe(f"NM-IMPORT CMD -> {' '.join(cmd)}")
-            app.log_debug_safe(f"NM-IMPORT RC -> {rc}")
-            app.log_debug_safe(f"NM-IMPORT OUT -> {(out or '').strip() or '-'}")
-            if rc != 0:
-                failed += 1
-                rollback_triggered = True
-                app.after(
-                    0,
-                    lambda n=profile_name, details=out, code=rc: app.log(
-                        f"NM-Import fehlgeschlagen ({n}): rc={code}, {(details or '').strip() or 'unbekannter Fehler'}"
-                    ),
-                )
-                break
-
-            current_connections = set(get_nm_wireguard_profiles(app))
-            added_connections = sorted(current_connections - existing_connections)
-            if not added_connections and profile_name in current_connections:
-                added_connections = [profile_name]
-            if not added_connections:
-                failed += 1
-                rollback_triggered = True
-                app.after(
-                    0,
-                    lambda n=profile_name: app.log(
-                        f"NM-Import fehlgeschlagen ({n}): keine neue WireGuard-Connection in NetworkManager erkannt."
-                    ),
-                )
-                break
-
-            imported_files.append(src)
-            for connection_name in added_connections:
-                if connection_name not in imported_connections:
-                    imported_connections.append(connection_name)
-                if tx is not None:
-                    tx.add_rollback(
-                        f"nmcli delete {connection_name}",
-                        lambda name=connection_name: _delete_nm_connection(name),
-                    )
+            sources.append(src)
+        except Exception:
+            failed += 1
             app.after(
                 0,
-                lambda names=", ".join(added_connections), n=profile_name: app.log(
-                    f"NM-Import erfolgreich: {n} -> {names}"
+                lambda n=name: app.log(
+                    f"NM-Import fehlgeschlagen ({n}). Bereits angelegte Verbindungen bleiben erhalten; Bereinigung separat bestätigen."
                 ),
             )
-
-        if rollback_triggered:
-            rollback_ok = True
-            if tx is not None:
-                rollback_ok = tx.rollback()
-            set_nm_last_import_state(app, previous_state)
-
-            def finish_rollback():
-                if imported_connections:
-                    app.log(
-                        "NM-Import wurde zurückgerollt: "
-                        + ", ".join(imported_connections)
-                    )
-                if not rollback_ok:
-                    app.log(
-                        "NM-Import-Rollback war nicht vollständig. Bitte NetworkManager-Connections prüfen."
-                    )
-
-            call_in_ui_thread(app, finish_rollback)
-            return
-
-        if imported_connections:
-            set_nm_last_import_state(
-                app,
-                {
-                    "connections": imported_connections,
-                    "source_files": imported_files,
-                    "imported_at": int(time.time()),
-                },
-            )
-        nm_rows = get_nm_connection_rows(app)
-
-        def finish():
-            summary = ", ".join(
-                [f"{name} [{conn_type}]" for name, conn_type in nm_rows]
-            )
-            if summary:
-                app.log(f"NetworkManager Connections: {summary}")
-            else:
-                app.log("NetworkManager Connections: keine gefunden")
-            app.log(
-                "NM-Import beendet: "
-                f"{len(imported_connections)} importiert, {skipped} übersprungen, {failed} fehlgeschlagen."
-            )
-
-        call_in_ui_thread(app, finish)
-
-    process()
-
-
-def rollback_last_nm_wireguard_import(app):
-    if not has_cmd("nmcli"):
-        app.log("NM-Import-Rollback nicht verfügbar: nmcli fehlt.")
-        return
-
-    state = get_nm_last_import_state(app)
-    connections = state.get("connections", [])
-    if not connections:
-        app.log("Kein gespeicherter NM-Import zum Rollback vorhanden.")
-        return
-
-    if not app.ensure_sudo_session("NetworkManager-WireGuard-Import zurückrollen"):
-        return
-
-    def job():
-        removed = []
-        missing = []
-        failed = []
-
-        for connection_name in connections:
-            existing_connections = set(get_nm_wireguard_profiles(app))
-            if connection_name not in existing_connections:
-                missing.append(connection_name)
-                continue
-
-            cmd = ["sudo", "-n", "nmcli", "connection", "delete", connection_name]
-            rc, out = run_cmd(cmd, timeout=15)
-            app.log_debug_safe(f"NM-ROLLBACK CMD -> {' '.join(cmd)}")
-            app.log_debug_safe(f"NM-ROLLBACK RC -> {rc}")
-            app.log_debug_safe(f"NM-ROLLBACK OUT -> {(out or '').strip() or '-'}")
-            if rc == 0:
-                removed.append(connection_name)
-            else:
-                failed.append(
-                    (
-                        connection_name,
-                        (out or "").strip() or f"delete rc={rc}",
-                    )
-                )
-
-        remaining_connections = []
-        current_connections = set(get_nm_wireguard_profiles(app))
-        for connection_name in connections:
-            if connection_name in current_connections:
-                remaining_connections.append(connection_name)
-
+            break
+    if imported:
+        # Retain prior references as well after a partial batch; none is authority.
         set_nm_last_import_state(
             app,
             {
-                "connections": remaining_connections,
-                "source_files": (
-                    state.get("source_files", []) if remaining_connections else []
-                ),
-                "imported_at": (
-                    state.get("imported_at", 0) if remaining_connections else 0
-                ),
+                "connections": list(dict.fromkeys(state["connections"] + imported)),
+                "source_files": list(dict.fromkeys(state["source_files"] + sources)),
+                "owned_connections": state.get("owned_connections", []) + owned,
+                "imported_at": int(time.time()),
             },
         )
-        nm_rows = get_nm_connection_rows(app)
+    call_in_ui_thread(
+        app,
+        lambda: app.log(
+            f"{operation_name} beendet: {len(imported)} importiert, {skipped} übersprungen, {failed} fehlgeschlagen."
+        ),
+    )
 
-        def finish():
-            if removed:
-                app.log("NM-Import-Rollback entfernt: " + ", ".join(removed))
-            if missing:
-                app.log("NM-Import-Rollback bereits weg: " + ", ".join(missing))
-            for connection_name, reason in failed:
-                app.log(
-                    f"NM-Import-Rollback fehlgeschlagen ({connection_name}): {reason}"
-                )
-            summary = ", ".join(
-                [f"{name} [{conn_type}]" for name, conn_type in nm_rows]
+
+def rollback_last_nm_wireguard_import(app):
+    state = get_nm_last_import_state(app)
+    references = state.get("owned_connections", [])
+    if not references or not nm_ownership.trusted_helper_available():
+        app.log(
+            "Kein geschützter Erstellungsnachweis: Altbestände und fremde Verbindungen bleiben erhalten."
+        )
+        return
+    if not app.ensure_sudo_session("NetworkManager-WireGuard-Import zurückrollen"):
+        return
+    candidates = []
+    for reference in references:
+        try:
+            candidate = _owned_nm_command(
+                "inspect", identity=[reference["uuid"], reference["receipt_id"]]
             )
-            if summary:
-                app.log(f"NetworkManager Connections: {summary}")
-            else:
-                app.log("NetworkManager Connections: keine gefunden")
+            candidates.append(candidate)
+        except Exception:
+            app.log(
+                "NM-Bereinigung: fehlender oder veränderter Nachweis; Verbindung bleibt erhalten."
+            )
+    if not candidates:
+        return
+    preview = "\n".join(
+        json.dumps({"name": item["name"], "uuid": item["uuid"]}, ensure_ascii=True)
+        for item in candidates
+    )
+    if not messagebox.askyesno(
+        "NetworkManager-Import zurückrollen",
+        "Nur diese geprüften Verbindungen löschen?\n\n" + preview,
+    ):
+        app.log("NM-Bereinigung abgebrochen.")
+        return
 
-        call_in_ui_thread(app, finish)
+    def job():
+        removed = set()
+        for item in candidates:
+            try:
+                # The helper revalidates the entire plan immediately before
+                # deletion, including edits since the confirmation dialog.
+                _owned_nm_command("delete", payload=item)
+                removed.add(item["uuid"])
+                app.after(
+                    0,
+                    lambda c=item: app.log(
+                        f"NM-Bereinigung entfernt: {c['name']} [UUID {c['uuid']}]"
+                    ),
+                )
+            except Exception:
+                app.after(
+                    0,
+                    lambda c=item: app.log(
+                        f"NM-Bereinigung: UUID {c['uuid']} bleibt erhalten (Prüfung/Operation fehlgeschlagen)."
+                    ),
+                )
+        # Keep ambiguous name references. UUID receipts alone control deletion.
+        set_nm_last_import_state(
+            app,
+            {
+                **state,
+                "owned_connections": [
+                    item for item in references if item.get("uuid") not in removed
+                ],
+            },
+        )
 
     threading.Thread(target=job, daemon=True).start()

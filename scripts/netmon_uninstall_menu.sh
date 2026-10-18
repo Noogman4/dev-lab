@@ -139,12 +139,12 @@ tr_msg() {
     de:prompt_remove_user_files|*:prompt_remove_user_files) printf '%s' "NetMon Benutzerdaten, Caches, Logs und Dokumente entfernen?" ;;
     en:prompt_remove_secure_browsers) printf '%s' "Also uninstall installed Secure Browsers?" ;;
     de:prompt_remove_secure_browsers|*:prompt_remove_secure_browsers) printf '%s' "Installierte Secure Browser ebenfalls deinstallieren?" ;;
-    en:prompt_remove_wireguard_artifacts) printf '%s' "Clean up NetMon WireGuard profiles, VPN slot JSON files and import folders?" ;;
-    de:prompt_remove_wireguard_artifacts|*:prompt_remove_wireguard_artifacts) printf '%s' "NetMon WireGuard-Profile, VPN-Slot-JSONs und Importordner bereinigen?" ;;
+    en:prompt_remove_wireguard_artifacts) printf '%s' "Clean up user VPN slot JSON files and import folders (system profiles retained)?" ;;
+    de:prompt_remove_wireguard_artifacts|*:prompt_remove_wireguard_artifacts) printf '%s' "Benutzer-VPN-Slot-JSONs und Importordner bereinigen (Systemprofile bleiben erhalten)?" ;;
     en:prompt_remove_all_wireguard_confs) printf '%s' "Delete all WireGuard profiles under /etc/wireguard? (test systems only)" ;;
     de:prompt_remove_all_wireguard_confs|*:prompt_remove_all_wireguard_confs) printf '%s' "Alle WireGuard-Profile unter /etc/wireguard löschen? (nur Testsystem)" ;;
-    en:prompt_remove_nm_connections) printf '%s' "Remove NetMon NetworkManager VPN/WireGuard connections?" ;;
-    de:prompt_remove_nm_connections|*:prompt_remove_nm_connections) printf '%s' "NetMon-NetworkManager-VPN/WireGuard-Connections entfernen?" ;;
+    en:prompt_remove_nm_connections) printf '%s' "Review verified NetMon-created WireGuard UUIDs for removal?" ;;
+    de:prompt_remove_nm_connections|*:prompt_remove_nm_connections) printf '%s' "Nachgewiesene NetMon-WireGuard-UUIDs zur Entfernung prüfen?" ;;
     en:prompt_reset_dns_nm) printf '%s' "Reset NetMon DNS/DoT changes and NetworkManager DNS overrides?" ;;
     de:prompt_reset_dns_nm|*:prompt_reset_dns_nm) printf '%s' "NetMon DNS-/DoT-Änderungen und NetworkManager-DNS-Overrides zurücksetzen?" ;;
     en:prompt_reset_firewall) printf '%s' "Reset UFW completely?" ;;
@@ -496,109 +496,35 @@ collect_netmon_vpn_json_paths() {
   printf '%s\n' "${paths[@]}"
 }
 
-collect_netmon_wireguard_profile_names() {
-  local user_home
-  user_home="$(target_home)"
-  USER_HOME_FOR_NETMON_UNINSTALL="$user_home" \
-  python3 - <<'PY'
-import json
-import os
-
-user_home = os.environ.get("USER_HOME_FOR_NETMON_UNINSTALL", "")
-vpn_slot_file = "netmon_vpn_slots.json"
-primary_vpn_slot_file = "netmon_primary_vpn_slots.json"
-privacy_config_file = "netmon_privacy.json"
-
-paths = [
-    os.path.join(user_home, ".config", "netmon", vpn_slot_file),
-    os.path.join(user_home, ".config", "netmon", primary_vpn_slot_file),
-    os.path.join(user_home, ".config", "netmon", privacy_config_file),
-]
-
-for doc_root in filter(None, [
-    os.environ.get("XDG_DOCUMENTS_DIR", "").replace("~", user_home),
-    os.path.join(user_home, "Documents"),
-    os.path.join(user_home, "Dokumente"),
-]):
-    paths.extend(
-        [
-            os.path.join(doc_root, "NetMon", "Config", vpn_slot_file),
-            os.path.join(doc_root, "NetMon", "Config", primary_vpn_slot_file),
-            os.path.join(doc_root, "NetMon", "Config", privacy_config_file),
-        ]
-    )
-
-seen = set()
-names = set()
-for path in paths:
-    path = os.path.abspath(os.path.expanduser(path))
-    if path in seen or not os.path.isfile(path):
-        continue
-    seen.add(path)
-    try:
-        with open(path, "r", encoding="utf-8") as handle:
-            payload = json.load(handle)
-    except Exception:
-        continue
-    if isinstance(payload, list):
-        for item in payload:
-            if not isinstance(item, dict):
-                continue
-            profile = str(item.get("profile") or "").strip()
-            if not profile:
-                continue
-            profile = os.path.basename(profile)
-            if not profile:
-                continue
-            if profile.endswith(".conf"):
-                profile = profile[:-5]
-            if not profile:
-                continue
-            names.add(profile)
-            names.add(f"{profile}__ipv4")
-        continue
-    if isinstance(payload, dict):
-        import_state = payload.get("nm_last_import") or {}
-        if isinstance(import_state, dict):
-            for profile in import_state.get("connections") or []:
-                profile = str(profile or "").strip()
-                if profile:
-                    names.add(profile)
-
-for name in sorted(names):
-    print(name)
-PY
-}
-
 remove_netmon_nm_connections() {
-  if ! command -v nmcli >/dev/null 2>&1; then
-    say "$(tr_msg nmcli_missing_vpn_cleanup)"
-    return 0
+  # Validate installed code BEFORE executing it as root. No configurable helper
+  # path and no import from a user-writable checkout / PYTHONPATH.
+  if /usr/bin/python3 -I -c '
+import os
+from pathlib import Path
+import stat
+import sys
+
+helper = Path("/usr/lib/netmon/netmon/core/nm_ownership.py")
+try:
+    for path in [*reversed(helper.parents), helper]:
+        info = path.lstat()
+        if info.st_uid != 0 or info.st_mode & 0o022:
+            raise ValueError("unprotected helper")
+        if path == helper:
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                raise ValueError("unsafe helper file")
+        elif not stat.S_ISDIR(info.st_mode):
+            raise ValueError("unsafe helper directory")
+except (OSError, ValueError):
+    print("No protected ownership helper; legacy/unproven connections retained.")
+    sys.exit(0)
+os.execv("/usr/bin/python3", ["/usr/bin/python3", "-I", str(helper), "cleanup"])
+'; then
+    :
+  else
+    warn "Ownership verification failed; unproven connections retained."
   fi
-
-  local connection_names=()
-  local profile=""
-  while IFS= read -r profile; do
-    [[ -n "$profile" ]] || continue
-    connection_names+=("$profile")
-  done < <(collect_netmon_wireguard_profile_names)
-
-  if [[ "${#connection_names[@]}" -eq 0 ]]; then
-    say "$(tr_msg no_referenced_nm_connections)"
-    return 0
-  fi
-
-  local seen=""
-  local connection_name=""
-  for connection_name in "${connection_names[@]}"; do
-    [[ " $seen " == *" $connection_name "* ]] && continue
-    seen+=" $connection_name"
-    if nmcli -t -f NAME,TYPE connection show 2>/dev/null | grep -Fqx "$connection_name:wireguard"; then
-      nmcli connection delete "$connection_name" >/dev/null 2>&1 \
-        && say "$(format_msg "$(tr_msg nm_connection_removed)" "$connection_name")" \
-        || say "$(format_msg "$(tr_msg nm_connection_remove_failed)" "$connection_name")"
-    fi
-  done
 }
 
 remove_netmon_wireguard_artifacts() {
@@ -608,15 +534,9 @@ remove_netmon_wireguard_artifacts() {
     remove_path_if_exists "$target"
   done < <(collect_netmon_vpn_json_paths)
 
-  local profile=""
-  while IFS= read -r profile; do
-    [[ -n "$profile" ]] || continue
-    local safe_name
-    safe_name="$(printf '%s' "$profile" | tr -cd 'A-Za-z0-9_.-')"
-    [[ -n "$safe_name" && "$safe_name" == "$profile" ]] || continue
-    local wg_path="$NETMON_WIREGUARD_ROOT/$safe_name.conf"
-    remove_path_if_exists "$wg_path"
-  done < <(collect_netmon_wireguard_profile_names)
+  # User labels cannot prove ownership of /etc/wireguard/*.conf. Keep all
+  # system configurations here; the separately confirmed bulk test-system
+  # cleanup is a different, explicitly destructive operation.
 }
 
 remove_all_wireguard_conf_files() {

@@ -8,6 +8,17 @@ netmon-uninstall \- guided removal utility for NetMon
 opens an interactive terminal workflow for removing the NetMon package and,
 only after explicit confirmation, optional NetMon configuration or runtime
 data. User data is not removed by the Debian package's normal removal scripts.
+.SH WIREGUARD OWNERSHIP
+Automatic NetworkManager cleanup requires a protected NetMon creation receipt,
+an unchanged root-owned keyfile, and a matching WireGuard UUID. The current
+names and exact UUIDs are displayed for separate confirmation. User profile
+JSON, connection names and user-supplied ownership markers grant no authority.
+Connections from older installations or changed profiles are retained. There
+is no automatic adoption or force-cleanup option; an administrator must review
+and separately approve any manual deletion by exact UUID.
+User VPN-file cleanup retains system WireGuard configurations. The separate
+test-system option to delete all WireGuard configurations is intentionally
+destructive and must not be used as a NetMon ownership check.
 .SH WARNING
 Review every prompt before confirming optional cleanup. WireGuard, DNS,
 NetworkManager, and user-data cleanup choices can affect system configuration.
