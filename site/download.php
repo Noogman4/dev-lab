@@ -9,7 +9,7 @@ $downloads = (array) ($config["downloads"] ?? []);
 
 $rawId = $_GET["id"] ?? "";
 $downloadId = is_string($rawId) && strlen($rawId) <= 128 ? trim($rawId) : "";
-$source = netmon_telemetry_text($_GET["src"] ?? "", 256);
+$source = netmon_telemetry_text($_GET["src"] ?? "", NETMON_STATS_SOURCE_BYTES);
 
 if ($downloadId === "" || !isset($downloads[$downloadId]) || !is_array($downloads[$downloadId])) {
     http_response_code(404);

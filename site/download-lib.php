@@ -2,6 +2,20 @@
 
 declare(strict_types=1);
 
+// Hard ceilings, not request/config overrides. The source limits include one
+// reserved overflow bucket; ordinary labels retain the M-01 UTF-8 byte limit.
+const NETMON_STATS_SOURCE_BYTES = 256;
+const NETMON_STATS_GLOBAL_SOURCES = 128;
+const NETMON_STATS_FILE_SOURCES = 64;
+const NETMON_STATS_OVERFLOW_SOURCE = "__other__";
+const NETMON_STATS_MAX_FILES = 64;
+const NETMON_STATS_MAX_DAYS = 3660;
+const NETMON_STATS_MAX_EVENTS = 200;
+const NETMON_JSON_MAX_BYTES = 4 * 1024 * 1024;
+const NETMON_JSON_MAX_TOKENS = 65536;
+const NETMON_JSON_MAX_DEPTH = 16;
+const NETMON_JSON_LOCK_WAIT_MS = 1000;
+
 function netmon_download_config(): array
 {
     static $config = null;
@@ -75,6 +89,58 @@ function netmon_json_same_file(array $left, array $right): bool
         && ($right["mode"] & 0170000) === 0100000 && $right["nlink"] === 1;
 }
 
+function netmon_json_check_budget(string $raw): void
+{
+    $length = strlen($raw);
+    if ($length > NETMON_JSON_MAX_BYTES) {
+        throw new \RuntimeException("JSON storage byte budget exceeded.");
+    }
+    // Count structural punctuation before json_decode can allocate PHP arrays.
+    // Quoted strings/escapes are skipped, so commas inside telemetry do not
+    // consume the entry budget. json_decode remains the syntax validator.
+    $offset = 0;
+    $tokens = 0;
+    $depth = 0;
+    while ($offset < $length) {
+        $offset += strcspn($raw, '"{}[],:', $offset);
+        if ($offset >= $length) {
+            break;
+        }
+        $character = $raw[$offset++];
+        if ($character === '"') {
+            while ($offset < $length) {
+                $offset += strcspn($raw, "\"\\", $offset);
+                if ($offset >= $length || $raw[$offset++] === '"') {
+                    break;
+                }
+                $offset++; // Skip the one escaped character, including escaped quotes.
+            }
+            continue;
+        }
+        $tokens++;
+        if ($character === "{" || $character === "[") {
+            $depth++;
+        } elseif ($character === "}" || $character === "]") {
+            $depth--;
+        }
+        if ($tokens > NETMON_JSON_MAX_TOKENS || $depth > NETMON_JSON_MAX_DEPTH) {
+            throw new \RuntimeException("JSON storage structure budget exceeded.");
+        }
+    }
+}
+
+function netmon_json_acquire_lock($handle, int $operation): bool
+{
+    $deadline = hrtime(true) + NETMON_JSON_LOCK_WAIT_MS * 1000000;
+    do {
+        if (@flock($handle, $operation | LOCK_NB)) {
+            return true;
+        }
+        usleep(5000);
+    } while (hrtime(true) < $deadline);
+    return false;
+}
+
 function netmon_json_storage_path(string $path): string
 {
     // Only local absolute paths; refuse symlinks in every directory component.
@@ -144,7 +210,7 @@ function netmon_json_with_lock(string $path, int $operation, callable $action)
             $lock = @fopen($lockPath, "r+b");
         }
         if (!is_resource($lock) || !netmon_json_same_file($info, fstat($lock))
-            || !@flock($lock, $operation)) {
+            || !netmon_json_acquire_lock($lock, $operation)) {
             return false;
         }
         $locked = true;
@@ -174,22 +240,27 @@ function netmon_json_read(string $path, array $default): array
     if ($info === null) {
         return $default;
     }
+    if ($info["size"] > NETMON_JSON_MAX_BYTES) {
+        throw new \RuntimeException("JSON storage byte budget exceeded.");
+    }
     $handle = @fopen($path, "rb");
     if ($handle === false) {
         throw new \RuntimeException("Cannot read JSON storage.");
     }
     try {
-        if (!netmon_json_same_file($info, fstat($handle))) {
+        $opened = fstat($handle);
+        if (!netmon_json_same_file($info, $opened) || $opened["size"] > NETMON_JSON_MAX_BYTES) {
             throw new \RuntimeException("JSON storage changed while opening.");
         }
-        $raw = stream_get_contents($handle);
+        $raw = stream_get_contents($handle, NETMON_JSON_MAX_BYTES + 1);
         if ($raw === false) {
             throw new \RuntimeException("Cannot read JSON storage.");
         }
     } finally {
         fclose($handle);
     }
-    $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+    netmon_json_check_budget($raw);
+    $decoded = json_decode($raw, true, NETMON_JSON_MAX_DEPTH, JSON_THROW_ON_ERROR);
     if (!is_array($decoded)) {
         throw new \RuntimeException("JSON storage must contain an object or array.");
     }
@@ -273,6 +344,7 @@ function netmon_json_update(string $path, callable $update, array $default = [])
             $next,
             JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE
         );
+        netmon_json_check_budget($encoded);
         return netmon_json_replace($safePath, $encoded);
     }) === true;
 }
@@ -289,13 +361,120 @@ function netmon_default_stats(): array
     ];
 }
 
-function netmon_load_stats(array $config): array
+function netmon_stats_count($value): int
+{
+    if (!is_int($value) || $value < 0) {
+        throw new \RuntimeException("Invalid statistics counter.");
+    }
+    return $value;
+}
+
+function netmon_stats_add(int $left, int $right): int
+{
+    // Saturation avoids float conversion / JSON overflow at PHP_INT_MAX.
+    return $right > PHP_INT_MAX - $left ? PHP_INT_MAX : $left + $right;
+}
+
+function netmon_stats_add_source(array &$counts, string $source, int $amount, int $limit): void
+{
+    $ordinary = count($counts) - (array_key_exists(NETMON_STATS_OVERFLOW_SOURCE, $counts) ? 1 : 0);
+    if ($source === "" || (!array_key_exists($source, $counts) && $ordinary >= $limit - 1)) {
+        $source = NETMON_STATS_OVERFLOW_SOURCE;
+    }
+    $counts[$source] = netmon_stats_add($counts[$source] ?? 0, $amount);
+}
+
+function netmon_stats_sources(array $stored, int $limit): array
+{
+    $bounded = [];
+    foreach ($stored as $source => $count) {
+        $source = netmon_telemetry_text((string) $source, NETMON_STATS_SOURCE_BYTES);
+        netmon_stats_add_source($bounded, $source, netmon_stats_count($count), $limit);
+    }
+    return $bounded;
+}
+
+function netmon_stats_days(array $days): array
+{
+    if (count($days) > NETMON_STATS_MAX_DAYS) {
+        throw new \RuntimeException("Statistics day budget exceeded.");
+    }
+    foreach ($days as $day => $count) {
+        if (!is_string($day) || preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/D', $day) !== 1) {
+            throw new \RuntimeException("Invalid statistics day.");
+        }
+        netmon_stats_count($count);
+    }
+    return $days;
+}
+
+function netmon_stats_add_day(array &$days, string $day): void
+{
+    if (!array_key_exists($day, $days) && count($days) >= NETMON_STATS_MAX_DAYS) {
+        throw new \RuntimeException("Statistics day budget exceeded.");
+    }
+    $days[$day] = netmon_stats_add($days[$day] ?? 0, 1);
+}
+
+function netmon_prepare_stats(array $stored): array
+{
+    $stats = array_merge(netmon_default_stats(), $stored);
+    foreach (["files", "sources", "days", "recent_events"] as $field) {
+        if (!is_array($stats[$field])) {
+            throw new \RuntimeException("Invalid statistics collection.");
+        }
+    }
+    if (count($stats["files"]) > NETMON_STATS_MAX_FILES) {
+        throw new \RuntimeException("Statistics file budget exceeded.");
+    }
+    $stats["total_downloads"] = netmon_stats_count($stats["total_downloads"]);
+    $stats["updated_at"] = netmon_telemetry_text($stats["updated_at"], 64);
+    $stats["sources"] = netmon_stats_sources($stats["sources"], NETMON_STATS_GLOBAL_SOURCES);
+    $stats["days"] = netmon_stats_days($stats["days"]);
+    foreach ($stats["files"] as $id => &$entry) {
+        if (strlen((string) $id) > 128 || !is_array($entry)) {
+            throw new \RuntimeException("Invalid statistics file entry.");
+        }
+        foreach (["sources", "days"] as $key) {
+            if (array_key_exists($key, $entry) && !is_array($entry[$key])) {
+                throw new \RuntimeException("Invalid statistics file collection.");
+            }
+        }
+        $entry["count"] = netmon_stats_count(array_key_exists("count", $entry) ? $entry["count"] : 0);
+        $entry["sources"] = netmon_stats_sources($entry["sources"] ?? [], NETMON_STATS_FILE_SOURCES);
+        $entry["days"] = netmon_stats_days($entry["days"] ?? []);
+        foreach (["label" => 256, "target" => 2048, "last_download_at" => 64] as $key => $limit) {
+            if (array_key_exists($key, $entry)) {
+                $entry[$key] = netmon_telemetry_text($entry[$key], $limit);
+            }
+        }
+    }
+    unset($entry);
+    $stats["recent_events"] = array_slice($stats["recent_events"], 0, NETMON_STATS_MAX_EVENTS);
+    foreach ($stats["recent_events"] as &$event) {
+        if (!is_array($event)) {
+            throw new \RuntimeException("Invalid statistics event.");
+        }
+        foreach (["timestamp" => 64, "day" => 10, "id" => 128, "label" => 256,
+            "target" => 2048, "source" => NETMON_STATS_SOURCE_BYTES, "lang" => 8,
+            "referrer" => 2048, "ip_hash" => 16] as $key => $limit) {
+            if (array_key_exists($key, $event)) {
+                $event[$key] = netmon_telemetry_text($event[$key], $limit);
+            }
+        }
+    }
+    unset($event);
+    return $stats;
+}
+
+function netmon_load_stats(array $config, ?bool &$available = null): array
 {
     $path = (string) ($config["stats_path"] ?? "");
     $stats = netmon_json_with_lock($path, LOCK_SH, static function (string $safePath): array {
-        return array_merge(netmon_default_stats(), netmon_json_read($safePath, []));
+        return netmon_prepare_stats(netmon_json_read($safePath, []));
     });
-    return is_array($stats) ? $stats : netmon_default_stats();
+    $available = is_array($stats);
+    return $available ? $stats : netmon_default_stats();
 }
 
 function netmon_record_download(
@@ -310,9 +489,14 @@ function netmon_record_download(
         return false;
     }
 
-    $source = netmon_telemetry_text($source, 256);
+    if ($downloadId === "" || strlen($downloadId) > 128) {
+        return false;
+    }
+    $source = netmon_telemetry_text($source, NETMON_STATS_SOURCE_BYTES);
+    $label = netmon_telemetry_text($label, 256);
+    $target = netmon_telemetry_text($target, 2048);
     return netmon_json_update($path, static function (array $stored) use ($config, $downloadId, $label, $target, $source): array {
-        $stats = array_merge(netmon_default_stats(), $stored);
+        $stats = netmon_prepare_stats($stored);
         $now = gmdate("c");
         $day = gmdate("Y-m-d");
         $lang = netmon_guess_language();
@@ -330,13 +514,16 @@ function netmon_record_download(
         ];
 
         $stats["updated_at"] = $now;
-        $stats["total_downloads"] = (int) ($stats["total_downloads"] ?? 0) + 1;
-        $stats["days"][$day] = (int) ($stats["days"][$day] ?? 0) + 1;
+        $stats["total_downloads"] = netmon_stats_add($stats["total_downloads"], 1);
+        netmon_stats_add_day($stats["days"], $day);
         if ($source !== "") {
-            $stats["sources"][$source] = (int) ($stats["sources"][$source] ?? 0) + 1;
+            netmon_stats_add_source($stats["sources"], $source, 1, NETMON_STATS_GLOBAL_SOURCES);
         }
 
         if (!isset($stats["files"][$downloadId]) || !is_array($stats["files"][$downloadId])) {
+            if (count($stats["files"]) >= NETMON_STATS_MAX_FILES) {
+                throw new \RuntimeException("Statistics file budget exceeded.");
+            }
             $stats["files"][$downloadId] = [
                 "label" => $label,
                 "target" => $target,
@@ -349,11 +536,11 @@ function netmon_record_download(
 
         $stats["files"][$downloadId]["label"] = $label;
         $stats["files"][$downloadId]["target"] = $target;
-        $stats["files"][$downloadId]["count"] = (int) ($stats["files"][$downloadId]["count"] ?? 0) + 1;
+        $stats["files"][$downloadId]["count"] = netmon_stats_add($stats["files"][$downloadId]["count"], 1);
         $stats["files"][$downloadId]["last_download_at"] = $now;
-        $stats["files"][$downloadId]["days"][$day] = (int) ($stats["files"][$downloadId]["days"][$day] ?? 0) + 1;
+        netmon_stats_add_day($stats["files"][$downloadId]["days"], $day);
         if ($source !== "") {
-            $stats["files"][$downloadId]["sources"][$source] = (int) ($stats["files"][$downloadId]["sources"][$source] ?? 0) + 1;
+            netmon_stats_add_source($stats["files"][$downloadId]["sources"], $source, 1, NETMON_STATS_FILE_SOURCES);
         }
 
         $recentEvents = $stats["recent_events"];
@@ -361,7 +548,7 @@ function netmon_record_download(
             $recentEvents = [];
         }
         array_unshift($recentEvents, $event);
-        $maxEvents = max(20, (int) ($config["max_recent_events"] ?? 200));
+        $maxEvents = min(NETMON_STATS_MAX_EVENTS, max(20, (int) ($config["max_recent_events"] ?? 200)));
         $stats["recent_events"] = array_slice($recentEvents, 0, $maxEvents);
 
         return $stats;
