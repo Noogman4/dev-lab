@@ -450,7 +450,7 @@ def test_set_nm_last_import_state_keeps_session_separate_without_saving():
         },
     )
 
-    assert app.__dict__["_nm_last_import_state"] == state
+    assert vpn_controller.get_nm_last_import_state(app) == state
     assert app.privacy_config == {"unrelated": "keep"}
     assert state == {
         "connections": ["wg-a"],

@@ -1055,3 +1055,549 @@ def test_session_stale_reference_does_not_authorize_reused_uuid(
     assert store.nm.deleted == [identity]
     assert store.nm.rows == {identity: "new-session"}
     assert store.candidates() == [current]
+
+
+def test_r1_overlapping_import_results_are_both_retained(
+    real_privacy_app, tmp_path, monkeypatch
+):
+    app = real_privacy_app
+    original = vpn._owned_nm_command
+    nested = False
+
+    def overlap(operation, **kwargs):
+        nonlocal nested
+        result = original(operation, **kwargs)
+        if operation == "import" and not nested:
+            nested = True
+            import_for_session(app, tmp_path, "newer")
+        return result
+
+    monkeypatch.setattr(vpn, "_owned_nm_command", overlap)
+    import_for_session(app, tmp_path, "older")
+    app.save_privacy_config()
+    assert set(vpn.get_nm_last_import_state(app)["connections"]) == {"older", "newer"}
+    assert len(vpn.get_nm_last_import_state(app)["owned_connections"]) == 2
+
+
+def test_r1_delayed_rollback_keeps_newer_import_reference(
+    real_privacy_app, store, tmp_path, monkeypatch
+):
+    app = real_privacy_app
+    import_for_session(app, tmp_path, "older")
+    old = store.candidates()[0]
+    queued = []
+
+    class QueuedThread:
+        def __init__(self, target, **kwargs):
+            self.target = target
+
+        def start(self):
+            queued.append(self.target)
+
+    monkeypatch.setattr(vpn.threading, "Thread", QueuedThread)
+    vpn.rollback_last_nm_wireguard_import(app)
+    import_for_session(app, tmp_path, "newer")
+    newer = next(item for item in store.candidates() if item["uuid"] != old["uuid"])
+    queued.pop()()
+    app.save_privacy_config()
+    assert vpn.get_nm_last_import_state(app)["owned_connections"] == [newer]
+    assert store.nm.deleted == [old["uuid"]]
+
+
+def test_r2_after_failure_retains_successful_import_reference(
+    real_privacy_app, store, tmp_path
+):
+    app = real_privacy_app
+    app.after = lambda *args: (_ for _ in ()).throw(RuntimeError("GUI closed"))
+    try:
+        import_for_session(app, tmp_path)
+    except RuntimeError:
+        pass
+    assert (
+        vpn.get_nm_last_import_state(app).get("owned_connections", [])
+        == store.candidates()
+    )
+    assert len(store.candidates()) == 1
+
+
+def test_r1_repeated_rollback_worker_cannot_touch_newer_import(
+    real_privacy_app, store, tmp_path, monkeypatch
+):
+    app = real_privacy_app
+    import_for_session(app, tmp_path, "old")
+    old = store.candidates()[0]
+    queued = []
+
+    class Queued:
+        def __init__(self, target, **kwargs):
+            self.target = target
+
+        def start(self):
+            queued.append(self.target)
+
+    monkeypatch.setattr(vpn.threading, "Thread", Queued)
+    vpn.rollback_last_nm_wireguard_import(app)
+    vpn.rollback_last_nm_wireguard_import(app)
+    import_for_session(app, tmp_path, "new")
+    new = next(item for item in store.candidates() if item["uuid"] != old["uuid"])
+    queued[1]()
+    queued[0]()
+    queued[1]()
+    assert store.nm.deleted == [old["uuid"]]
+    assert vpn.get_nm_last_import_state(app)["owned_connections"] == [new]
+    assert app.test_operations.count("delete") == 1
+
+
+def test_r1_import_during_delete_is_not_lost(
+    real_privacy_app, store, tmp_path, monkeypatch
+):
+    app = real_privacy_app
+    import_for_session(app, tmp_path, "old")
+    original = vpn._owned_nm_command
+
+    def overlap(operation, **kwargs):
+        result = original(operation, **kwargs)
+        if operation == "delete":
+            import_for_session(app, tmp_path, "new-during-delete")
+        return result
+
+    monkeypatch.setattr(vpn, "_owned_nm_command", overlap)
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert vpn.get_nm_last_import_state(app)["owned_connections"] == store.candidates()
+    assert vpn.get_nm_last_import_state(app)["connections"] == ["new-during-delete"]
+
+
+def test_r1_running_job_rejects_bulk_snapshot_replacement(
+    real_privacy_app, tmp_path, monkeypatch
+):
+    app = real_privacy_app
+    original = vpn._owned_nm_command
+
+    def inspect_update(operation, **kwargs):
+        if operation == "import":
+            with pytest.raises(RuntimeError, match="snapshot replacement forbidden"):
+                vpn.set_nm_last_import_state(app, {"owned_connections": []})
+        return original(operation, **kwargs)
+
+    monkeypatch.setattr(vpn, "_owned_nm_command", inspect_update)
+    import_for_session(app, tmp_path)
+    assert len(vpn.get_nm_last_import_state(app)["owned_connections"]) == 1
+
+
+def test_r1_duplicate_import_worker_executes_once(
+    real_privacy_app, tmp_path, monkeypatch
+):
+    app = real_privacy_app
+    source = tmp_path / "once.conf"
+    source.write_text("[Interface]\n")
+    queued = []
+
+    class Queued:
+        def __init__(self, target, **kwargs):
+            self.target = target
+
+        def start(self):
+            queued.append(self.target)
+
+    monkeypatch.setattr(vpn.threading, "Thread", Queued)
+    vpn._start_nm_import_job(app, [str(source)], "once")
+    queued[0]()
+    operations = list(app.test_operations)
+    queued[0]()
+    assert app.test_operations == operations == ["import"]
+    assert not vpn._nm_session(app).active
+
+
+def test_r1_job_cannot_cross_application_sessions(real_privacy_app, tmp_path):
+    from netmon.core.nm_import_session import ImportSession
+
+    other = ImportSession({"connections": [], "source_files": [], "imported_at": 0})
+    job = other.new_job("import")
+    vpn.import_wireguard_paths_to_networkmanager(
+        real_privacy_app, [str(tmp_path / "unused")], _job=job
+    )
+    assert real_privacy_app.test_operations == []
+    assert job.phase == "queued"
+
+
+def test_r1_snapshots_do_not_alias_owned_records(real_privacy_app, store, tmp_path):
+    app = real_privacy_app
+    import_for_session(app, tmp_path)
+    snapshot = vpn.get_nm_last_import_state(app)
+    snapshot["owned_connections"][0]["uuid"] = str(uuid.uuid4())
+    snapshot["connections"].clear()
+    assert vpn.get_nm_last_import_state(app)["owned_connections"] == store.candidates()
+    assert vpn.get_nm_last_import_state(app)["connections"] == ["session-vpn"]
+
+
+@pytest.mark.parametrize(
+    "failure", ["entry_transition", "job_transition", "compatibility_setter"]
+)
+def test_r2_state_update_failure_keeps_raw_import_result(
+    real_privacy_app, store, tmp_path, monkeypatch, caplog, failure
+):
+    app = real_privacy_app
+    session = vpn._nm_session(app)
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("synthetic state update failure")
+
+    target, method = {
+        "entry_transition": (session, "finish_import"),
+        "job_transition": (session, "finish"),
+        "compatibility_setter": (vpn, "set_nm_last_import_state"),
+    }[failure]
+    monkeypatch.setattr(target, method, fail)
+    import_for_session(app, tmp_path)
+    app.save_privacy_config()
+    assert vpn.get_nm_last_import_state(app)["owned_connections"] == store.candidates()
+    assert len(store.candidates()) == 1
+    if failure != "compatibility_setter":
+        assert "gesichert" in caplog.text
+        assert not any("beendet:" in message for message in app.test_logs)
+    assert not session.active
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert len(store.nm.deleted) == 1
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ["closed_before_delivery", "log_failure", "enqueue_then_raise", "event_failure"],
+)
+def test_r2_callback_errors_never_change_import_results(
+    real_privacy_app, store, tmp_path, monkeypatch, caplog, failure
+):
+    app = real_privacy_app
+    callbacks = []
+
+    def schedule(delay, callback):
+        callbacks.append(callback)
+        if failure == "enqueue_then_raise":
+            raise RuntimeError("after enqueued then failed")
+
+    app.after = schedule
+    session = vpn._nm_session(app)
+    if failure == "event_failure":
+        monkeypatch.setattr(
+            session,
+            "notification",
+            lambda *args: (_ for _ in ()).throw(RuntimeError("event failed")),
+        )
+    import_for_session(app, tmp_path)
+    before = vpn.get_nm_last_import_state(app)
+    assert before["owned_connections"] == store.candidates()
+    app.save_privacy_config()
+    if failure == "closed_before_delivery":
+        app.winfo_exists = lambda: False
+    elif failure == "log_failure":
+        app.log = lambda message: (_ for _ in ()).throw(RuntimeError("widget gone"))
+    for callback in callbacks:
+        callback()
+        callback()
+    assert vpn.get_nm_last_import_state(app) == before
+    assert not store.nm.deleted
+    assert not app.test_logs
+    assert "gesichert" in caplog.text
+
+
+def test_r2_delayed_and_duplicate_callbacks_are_read_only(
+    real_privacy_app, store, tmp_path
+):
+    app = real_privacy_app
+    callbacks = []
+    app.after = lambda delay, callback: callbacks.append(callback)
+    import_for_session(app, tmp_path, "first")
+    first = vpn._nm_session(app).jobs[-1]
+    import_for_session(app, tmp_path, "second")
+    second = vpn._nm_session(app).jobs[-1]
+    before = vpn.get_nm_last_import_state(app)
+    operations = list(app.test_operations)
+    callbacks[1]()
+    callbacks[0]()
+    callbacks[1]()
+    assert len(app.test_logs) == 1
+    assert f"Job {second.token}" in app.test_logs[0]
+    assert f"Job {first.token}" not in app.test_logs[0]
+    assert vpn.get_nm_last_import_state(app) == before
+    assert app.test_operations == operations
+    assert not store.nm.deleted
+
+
+def test_r2_old_import_callback_after_rollback_cannot_report_success(
+    real_privacy_app, store, tmp_path
+):
+    app = real_privacy_app
+    callbacks = []
+    app.after = lambda delay, callback: callbacks.append(callback)
+    import_for_session(app, tmp_path)
+    old = callbacks[0]
+    vpn.rollback_last_nm_wireguard_import(app)
+    old()
+    callbacks[-1]()
+    assert len(store.nm.deleted) == 1
+    assert len(app.test_logs) == 1
+    assert "entfernt" in app.test_logs[0]
+    assert vpn.get_nm_last_import_state(app)["owned_connections"] == []
+
+
+@pytest.mark.parametrize("delete_failure", [False, True])
+def test_r2_rollback_callback_failure_preserves_actual_result(
+    real_privacy_app, store, tmp_path, caplog, delete_failure
+):
+    app = real_privacy_app
+    import_for_session(app, tmp_path)
+    original = store.candidates()[0]
+    app.after = lambda *args: (_ for _ in ()).throw(RuntimeError("closed"))
+    if delete_failure:
+        store.nm.fail = "delete"
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert store.nm.deleted == ([] if delete_failure else [original["uuid"]])
+    assert vpn.get_nm_last_import_state(app)["owned_connections"] == (
+        [original] if delete_failure else []
+    )
+    assert "GUI-Callback" in caplog.text
+    assert not vpn._nm_session(app).active
+
+
+def test_r2_delete_transition_error_keeps_actual_deletion_recorded(
+    real_privacy_app, store, tmp_path, monkeypatch, caplog
+):
+    app = real_privacy_app
+    import_for_session(app, tmp_path)
+    session = vpn._nm_session(app)
+    monkeypatch.setattr(
+        session,
+        "finish_delete",
+        lambda *args: (_ for _ in ()).throw(RuntimeError("state error")),
+    )
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert len(store.nm.deleted) == 1
+    assert vpn.get_nm_last_import_state(app)["owned_connections"] == []
+    assert "tatsächliches Ergebnis" in caplog.text
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert len(store.nm.deleted) == 1
+
+
+@pytest.mark.parametrize("started", [False, True])
+def test_r2_worker_start_error_does_not_lose_completed_result(
+    real_privacy_app, store, tmp_path, monkeypatch, started
+):
+    app = real_privacy_app
+
+    class BadStart:
+        def __init__(self, target, **kwargs):
+            self.target = target
+
+        def start(self):
+            if started:
+                self.target()
+            raise RuntimeError("start failed")
+
+    monkeypatch.setattr(vpn.threading, "Thread", BadStart)
+    source = tmp_path / "start.conf"
+    source.write_text("[Interface]\n")
+    vpn._start_nm_import_job(app, [str(source)], "start")
+    assert (
+        vpn.get_nm_last_import_state(app).get("owned_connections", [])
+        == store.candidates()
+    )
+    assert len(store.candidates()) == int(started)
+    assert not vpn._nm_session(app).active
+
+
+def test_r2_reference_capacity_is_checked_before_creation(
+    real_privacy_app, store, tmp_path, monkeypatch
+):
+    from netmon.core import nm_import_session
+
+    app = real_privacy_app
+    monkeypatch.setattr(nm_import_session, "MAX_REFERENCES", 1)
+    import_for_session(app, tmp_path, "first")
+    first = store.candidates()[0]
+    import_for_session(app, tmp_path, "second")
+    assert app.test_operations == ["import"]
+    assert vpn.get_nm_last_import_state(app)["owned_connections"] == [first]
+
+
+def test_r1_real_threads_with_controlled_completion_order(
+    real_privacy_app, store, tmp_path, monkeypatch
+):
+    import threading
+    from _thread import start_new_thread
+
+    # The fixture replaces Thread for deterministic UI workers. Use the low-
+    # level thread API here to exercise the real session locks without Tk/NM.
+    app = real_privacy_app
+    waiting, release, finished = threading.Event(), threading.Event(), threading.Event()
+    original = vpn._owned_nm_command
+    errors = []
+
+    def overlap(operation, **kwargs):
+        result = original(operation, **kwargs)
+        if operation == "import" and kwargs["payload"]["name"] == "older-thread":
+            waiting.set()
+            assert release.wait(5), "test release timeout"
+        return result
+
+    monkeypatch.setattr(vpn, "_owned_nm_command", overlap)
+
+    def older():
+        try:
+            import_for_session(app, tmp_path, "older-thread")
+        except BaseException as error:
+            errors.append(error)
+        finally:
+            finished.set()
+
+    start_new_thread(older, ())
+    try:
+        assert waiting.wait(5), "older import did not reach controlled wait"
+        import_for_session(app, tmp_path, "newer-thread")
+        app.save_privacy_config()
+    finally:
+        release.set()
+        assert finished.wait(5), "older import did not finish"
+    assert not errors
+    assert len(vpn.get_nm_last_import_state(app)["owned_connections"]) == 2
+    assert set(vpn.get_nm_last_import_state(app)["connections"]) == {
+        "older-thread",
+        "newer-thread",
+    }
+    assert len(store.candidates()) == 2
+
+
+def test_r1_wrong_job_kind_cannot_start_an_import(real_privacy_app, tmp_path):
+    app = real_privacy_app
+    session = vpn._nm_session(app)
+    job = session.new_job("rollback")
+    vpn.import_wireguard_paths_to_networkmanager(
+        app, [str(tmp_path / "unused")], _job=job
+    )
+    assert app.test_operations == []
+    assert job.phase == "queued"
+    session.finish(job, "canceled")
+
+
+@pytest.mark.parametrize("started", [False, True])
+def test_r2_rollback_start_error_preserves_real_outcome(
+    real_privacy_app, store, tmp_path, monkeypatch, started
+):
+    app = real_privacy_app
+    import_for_session(app, tmp_path)
+    candidate = store.candidates()[0]
+
+    class BadStart:
+        def __init__(self, target, **kwargs):
+            self.target = target
+
+        def start(self):
+            if started:
+                self.target()
+            raise RuntimeError("start outcome error")
+
+    monkeypatch.setattr(vpn.threading, "Thread", BadStart)
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert store.nm.deleted == ([candidate["uuid"]] if started else [])
+    assert vpn.get_nm_last_import_state(app)["owned_connections"] == (
+        [] if started else [candidate]
+    )
+    assert not vpn._nm_session(app).active
+
+
+def test_r2_notification_generation_belongs_to_completed_job(
+    real_privacy_app, tmp_path, monkeypatch
+):
+    app = real_privacy_app
+    callbacks = []
+    app.after = lambda delay, callback: callbacks.append(callback)
+    notify = vpn._nm_notify
+    nested = False
+
+    def delayed_notification(app, session, job, message):
+        nonlocal nested
+        if not nested:
+            nested = True
+            import_for_session(app, tmp_path, "newer-before-old-notification")
+        notify(app, session, job, message)
+
+    monkeypatch.setattr(vpn, "_nm_notify", delayed_notification)
+    import_for_session(app, tmp_path, "old-notification")
+    jobs = list(vpn._nm_session(app).jobs)
+    assert len(jobs) == 2
+    for callback in reversed(callbacks):
+        callback()
+        callback()
+    assert len(app.test_logs) == 1
+    assert f"Job {jobs[1].token}" in app.test_logs[0]
+    assert len(vpn.get_nm_last_import_state(app)["owned_connections"]) == 2
+
+
+def test_r2_failed_claim_releases_only_its_own_reservation(
+    real_privacy_app, store, tmp_path, monkeypatch
+):
+    app = real_privacy_app
+    import_for_session(app, tmp_path)
+    session = vpn._nm_session(app)
+    claim = session.claim_delete
+
+    def broken_claim(*args):
+        assert claim(*args) is not None
+        raise RuntimeError("after reservation")
+
+    monkeypatch.setattr(session, "claim_delete", broken_claim)
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert not store.nm.deleted
+    assert len(session.references()) == 1
+    assert not session.active
+    monkeypatch.setattr(session, "claim_delete", claim)
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert len(store.nm.deleted) == 1
+
+
+def test_r1_failed_transition_cannot_clear_another_jobs_reservation(
+    real_privacy_app, store, tmp_path, monkeypatch
+):
+    app = real_privacy_app
+    import_for_session(app, tmp_path)
+    session = vpn._nm_session(app)
+    finish_delete = session.finish_delete
+    other = []
+
+    def broken_transition(entry, job):
+        finish_delete(entry, job)  # First job's failed delete releases its lease.
+        second = session.new_job("rollback")
+        assert session.start(second, "rollback")
+        assert session.claim_delete(entry.token, entry.result, second) is entry
+        other.append(second)
+        raise RuntimeError("after another job acquired reservation")
+
+    monkeypatch.setattr(session, "finish_delete", broken_transition)
+    store.nm.fail = "delete"
+    vpn.rollback_last_nm_wireguard_import(app)
+    entry = next(iter(session.entries.values()))
+    assert entry.deleting_job == other[0].token
+    assert session.active == {other[0].token}
+    assert not store.nm.deleted
+    session.finish(other[0], "canceled")
+    assert len(session.references()) == 1
+
+
+def test_r2_recorded_deletion_releases_capacity_after_transition_error(
+    real_privacy_app, store, tmp_path, monkeypatch
+):
+    from netmon.core import nm_import_session
+
+    app = real_privacy_app
+    monkeypatch.setattr(nm_import_session, "MAX_REFERENCES", 1)
+    import_for_session(app, tmp_path, "old-capacity")
+    session = vpn._nm_session(app)
+    monkeypatch.setattr(
+        session,
+        "finish_delete",
+        lambda *args: (_ for _ in ()).throw(RuntimeError("after actual delete")),
+    )
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert len(store.nm.deleted) == 1
+    import_for_session(app, tmp_path, "new-capacity")
+    assert vpn.get_nm_last_import_state(app)["owned_connections"] == store.candidates()
+    assert vpn.get_nm_last_import_state(app)["connections"] == ["new-capacity"]

@@ -5,6 +5,7 @@ from __future__ import annotations
 import ipaddress
 import hashlib
 import json
+import logging
 import os
 import re
 import socket
@@ -33,9 +34,11 @@ except ModuleNotFoundError:
 try:
     from netmon.core.command import run_cmd, run_cmd_with_input
     from netmon.core import nm_ownership
+    from netmon.core.nm_import_session import ImportSession
 except ModuleNotFoundError:
     from core.command import run_cmd, run_cmd_with_input
     from core import nm_ownership
+    from core.nm_import_session import ImportSession
 
 try:
     from netmon.core.tooling import has_cmd
@@ -2269,21 +2272,32 @@ def get_active_nm_wireguard_connections(app):
     ]
 
 
+_NM_SESSION_INIT_LOCK = threading.Lock()
+
+
+def _nm_session(app):
+    with _NM_SESSION_INIT_LOCK:
+        value = app.__dict__.get("_nm_last_import_state")
+        if not isinstance(value, ImportSession):
+            value = ImportSession(_normalized_nm_last_import_state(value))
+            app.__dict__["_nm_last_import_state"] = value
+        return value
+
+
 def get_nm_last_import_state(app):
     # Session references are deliberately separate from persisted settings.
     # Neither loaded user JSON nor a config save can restore/drop this state.
-    return _normalized_nm_last_import_state(app.__dict__.get("_nm_last_import_state"))
+    return _nm_session(app).snapshot()
 
 
 def set_nm_last_import_state(app, state):
-    current_state = get_nm_last_import_state(app)
-    next_state = dict(current_state)
-    if isinstance(state, dict):
-        next_state.update(state)
-    next_state = _normalized_nm_last_import_state(next_state)
-
-    app.__dict__["_nm_last_import_state"] = next_state
-    return next_state
+    session = _nm_session(app)
+    with session.lock:
+        next_state = session.snapshot()
+        if isinstance(state, dict):
+            next_state.update(state)
+        session.replace_when_idle(_normalized_nm_last_import_state(next_state))
+        return session.snapshot()
 
 
 def collect_referenced_wg_profile_import_paths(app):
@@ -3485,17 +3499,11 @@ def import_wg_profiles_to_networkmanager(app):
     if not app.ensure_sudo_session("WireGuard nach NetworkManager importieren"):
         return
 
-    def job():
-        selected_files = sorted(
-            [str(path).strip() for path in files if str(path).strip()]
-        )
-        import_wireguard_paths_to_networkmanager(
-            app,
-            selected_files,
-            operation_name="NetworkManager-WireGuard-Import",
-        )
-
-    threading.Thread(target=job, daemon=True).start()
+    _start_nm_import_job(
+        app,
+        sorted(str(path).strip() for path in files if str(path).strip()),
+        "NetworkManager-WireGuard-Import",
+    )
 
 
 def import_referenced_wg_profiles_to_networkmanager(app):
@@ -3520,15 +3528,11 @@ def import_referenced_wg_profiles_to_networkmanager(app):
         [path for _profile, path in referenced_paths],
     )
 
-    def job():
-        selected_files = [path for _profile, path in referenced_paths]
-        import_wireguard_paths_to_networkmanager(
-            app,
-            selected_files,
-            operation_name="NetworkManager-WireGuard-Import (referenzierte Profile)",
-        )
-
-    threading.Thread(target=job, daemon=True).start()
+    _start_nm_import_job(
+        app,
+        [path for _profile, path in referenced_paths],
+        "NetworkManager-WireGuard-Import (referenzierte Profile)",
+    )
 
 
 def _owned_nm_command(operation, *, payload=None, identity=None):
@@ -3563,157 +3567,321 @@ def _nm_import_source(path):
     return content.decode("utf-8")
 
 
+def _nm_job_error(session, job, message):
+    try:
+        session.error(job, message)
+    except Exception:
+        pass
+    try:
+        logging.getLogger(__name__).warning("NM-Job %s: %s", job.token, message)
+    except Exception:
+        pass
+
+
+def _nm_finish_job(session, job, phase):
+    try:
+        session.finish(job, phase)
+    except Exception:
+        # The journal, including raw RPC results, remains authoritative even
+        # when a secondary state transition fails. Never undo a newer job.
+        with session.lock:
+            job.phase = "state_error"
+            for entry in session.entries.values():
+                if entry.deleting_job == job.token and not entry.deleted:
+                    entry.deleting_job = None
+                    entry.phase = "recovery"
+            session.active.discard(job.token)
+            session.revision += 1
+            job.revision = session.revision
+        _nm_job_error(
+            session,
+            job,
+            "Sitzungsabschluss fehlgeschlagen; Ergebnisse bleiben gesichert.",
+        )
+
+
+def _nm_notify(app, session, job, message):
+    try:
+        event = session.notification(job)
+    except Exception:
+        _nm_job_error(
+            session,
+            job,
+            "GUI-Ereignis konnte nicht angelegt werden; Ergebnisse bleiben gesichert.",
+        )
+        return
+
+    def deliver():
+        try:
+            if not session.consume_notification(event):
+                return
+            alive = app.__dict__.get("winfo_exists")
+            if alive is None and app.__dict__.get("tk") is not None:
+                alive = app.winfo_exists
+            if callable(alive) and not alive():
+                raise RuntimeError("GUI closed")
+            app.log(message)
+        except Exception:
+            _nm_job_error(
+                session,
+                job,
+                "GUI-Benachrichtigung fehlgeschlagen; Ergebnisse bleiben gesichert.",
+            )
+
+    try:
+        app.after(0, deliver)
+    except Exception:
+        # A scheduler can raise after enqueueing. Invalidate that callback too.
+        with session.lock:
+            event["consumed"] = True
+        _nm_job_error(
+            session,
+            job,
+            "GUI-Callback konnte nicht geplant werden; Ergebnisse bleiben gesichert.",
+        )
+
+
+def _start_nm_import_job(app, paths, operation_name):
+    session = _nm_session(app)
+    job = session.new_job("import")
+    try:
+        threading.Thread(
+            target=lambda: import_wireguard_paths_to_networkmanager(
+                app, paths, operation_name=operation_name, _job=job
+            ),
+            daemon=True,
+        ).start()
+    except Exception:
+        _nm_worker_start_error(session, job)
+
+
+def _nm_worker_start_error(session, job):
+    with session.lock:
+        if job.phase == "queued":
+            _nm_finish_job(session, job, "failed")
+    _nm_job_error(
+        session,
+        job,
+        "Worker-Startmeldung fehlgeschlagen; gesicherte Jobergebnisse beachten.",
+    )
+
+
 def import_wireguard_paths_to_networkmanager(
     app,
     selected_files,
     *,
     operation_name="NetworkManager-WireGuard-Import",
+    _job=None,
 ):
-    state = get_nm_last_import_state(app)
-    imported, sources, owned = [], [], []
-    skipped = failed = 0
-    protected = nm_ownership.trusted_helper_available()
-    for src in selected_files:
-        name = os.path.basename(src)
-        name = name[:-5] if name.endswith(".conf") else name
-        if not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", name) or name in {".", ".."}:
-            skipped += 1
-            continue
-        if name in set(get_nm_wireguard_profiles(app)):
-            skipped += 1
-            continue
-        try:
-            if protected:
-                candidate = _owned_nm_command(
-                    "import", payload={"name": name, "content": _nm_import_source(src)}
-                )
-                owned.append(candidate)
-                imported.append(candidate["name"])
-                app.after(
-                    0,
-                    lambda item=candidate: app.log(
-                        f"NM-Import erstellt: {item['name']} [UUID {item['uuid']}]"
-                    ),
-                )
-            else:
-                # Compatibility for older/unpackaged installations: no claim,
-                # no automatic rollback or privileged uninstall deletion.
-                rc, _out = run_cmd(
-                    [
-                        "sudo",
-                        "-n",
-                        "nmcli",
-                        "connection",
+    session = _nm_session(app)
+    job = _job if _job is not None else session.new_job("import")
+    if not session.start(job, "import"):
+        return
+    imported = skipped = failed = state_errors = 0
+    try:
+        protected = nm_ownership.trusted_helper_available()
+        for src in selected_files:
+            name = os.path.basename(src)
+            name = name[:-5] if name.endswith(".conf") else name
+            if not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", name) or name in {".", ".."}:
+                skipped += 1
+                continue
+            if name in set(get_nm_wireguard_profiles(app)):
+                skipped += 1
+                continue
+            entry = session.reserve(job, str(src))
+            try:
+                if protected:
+                    candidate = _owned_nm_command(
                         "import",
-                        "type",
-                        "wireguard",
-                        "file",
-                        src,
-                    ],
-                    timeout=25,
+                        payload={"name": name, "content": _nm_import_source(src)},
+                    )
+                    # FIRST retain the successful privileged result in a slot
+                    # reserved before creation. No callbacks or fallible cache
+                    # updates may intervene; recovery snapshots read this slot.
+                    with session.lock:
+                        entry.result = candidate
+                        session.include_owned = True
+                        session.revision += 1
+                else:
+                    rc, _out = run_cmd(
+                        [
+                            "sudo",
+                            "-n",
+                            "nmcli",
+                            "connection",
+                            "import",
+                            "type",
+                            "wireguard",
+                            "file",
+                            src,
+                        ],
+                        timeout=25,
+                    )
+                    if rc != 0:
+                        raise RuntimeError("NetworkManager import failed")
+                    with session.lock:
+                        entry.unowned_name = name
+                        session.revision += 1
+            except Exception:
+                session.failed_import(entry)
+                failed += 1
+                _nm_job_error(
+                    session,
+                    job,
+                    "Import fehlgeschlagen; bereits angelegte Verbindungen separat prüfen/bereinigen.",
                 )
-                if rc != 0:
-                    raise RuntimeError("NetworkManager-Import fehlgeschlagen")
-                imported.append(name)
-                app.after(
-                    0,
-                    lambda n=name: app.log(
-                        f"NM-Import {n}: ohne geschützten Eigentumsnachweis; nur manuell bereinigen."
-                    ),
+                break
+            imported += 1
+            try:
+                session.finish_import(entry)
+            except Exception:
+                state_errors += 1
+                with session.lock:
+                    entry.phase = "recovery"
+                _nm_job_error(
+                    session,
+                    job,
+                    "Sitzungsaktualisierung fehlgeschlagen; Importreferenz gesichert, Bereinigung separat bestätigen.",
                 )
-            sources.append(src)
-        except Exception:
-            failed += 1
-            app.after(
-                0,
-                lambda n=name: app.log(
-                    f"NM-Import fehlgeschlagen ({n}). Bereits angelegte Verbindungen bleiben erhalten; Bereinigung separat bestätigen."
-                ),
-            )
-            break
-    if imported:
-        # Retain prior references as well after a partial batch; none is authority.
-        set_nm_last_import_state(
-            app,
-            {
-                "connections": list(dict.fromkeys(state["connections"] + imported)),
-                "source_files": list(dict.fromkeys(state["source_files"] + sources)),
-                "owned_connections": state.get("owned_connections", []) + owned,
-                "imported_at": int(time.time()),
-            },
+    except Exception:
+        failed += 1
+        _nm_job_error(
+            session,
+            job,
+            "Import-Job abgebrochen; gesicherte Ergebnisse bleiben erhalten, Bereinigung separat bestätigen.",
         )
-    call_in_ui_thread(
-        app,
-        lambda: app.log(
-            f"{operation_name} beendet: {len(imported)} importiert, {skipped} übersprungen, {failed} fehlgeschlagen."
-        ),
+    phase = (
+        "state_error"
+        if state_errors
+        else ("partial" if failed and imported else "failed" if failed else "completed")
     )
+    _nm_finish_job(session, job, phase)
+    if job.errors:
+        message = f"{operation_name} (Job {job.token}): {imported} erstellt, {failed} fehlgeschlagen; Fehler siehe Diagnose, Ergebnisse gesichert. Bereinigung separat bestätigen."
+    else:
+        message = f"{operation_name} (Job {job.token}) beendet: {imported} importiert, {skipped} übersprungen, {failed} fehlgeschlagen."
+    if imported and not protected:
+        message += " Ohne geschützten Eigentumsnachweis; nur manuell bereinigen."
+    _nm_notify(app, session, job, message)
 
 
 def rollback_last_nm_wireguard_import(app):
-    state = get_nm_last_import_state(app)
-    references = state.get("owned_connections", [])
+    session = _nm_session(app)
+    references = session.references()
+    job = session.new_job("rollback")
     if not references or not nm_ownership.trusted_helper_available():
-        app.log(
-            "Kein geschützter Erstellungsnachweis: Altbestände und fremde Verbindungen bleiben erhalten."
-        )
-        return
-    if not app.ensure_sudo_session("NetworkManager-WireGuard-Import zurückrollen"):
-        return
-    candidates = []
-    for reference in references:
-        try:
-            candidate = _owned_nm_command(
-                "inspect", identity=[reference["uuid"], reference["receipt_id"]]
-            )
-            candidates.append(candidate)
-        except Exception:
-            app.log(
-                "NM-Bereinigung: fehlender oder veränderter Nachweis; Verbindung bleibt erhalten."
-            )
-    if not candidates:
-        return
-    preview = "\n".join(
-        json.dumps({"name": item["name"], "uuid": item["uuid"]}, ensure_ascii=True)
-        for item in candidates
-    )
-    if not messagebox.askyesno(
-        "NetworkManager-Import zurückrollen",
-        "Nur diese geprüften Verbindungen löschen?\n\n" + preview,
-    ):
-        app.log("NM-Bereinigung abgebrochen.")
-        return
-
-    def job():
-        removed = set()
-        for item in candidates:
-            try:
-                # The helper revalidates the entire plan immediately before
-                # deletion, including edits since the confirmation dialog.
-                _owned_nm_command("delete", payload=item)
-                removed.add(item["uuid"])
-                app.after(
-                    0,
-                    lambda c=item: app.log(
-                        f"NM-Bereinigung entfernt: {c['name']} [UUID {c['uuid']}]"
-                    ),
-                )
-            except Exception:
-                app.after(
-                    0,
-                    lambda c=item: app.log(
-                        f"NM-Bereinigung: UUID {c['uuid']} bleibt erhalten (Prüfung/Operation fehlgeschlagen)."
-                    ),
-                )
-        # Keep ambiguous name references. UUID receipts alone control deletion.
-        set_nm_last_import_state(
+        _nm_finish_job(session, job, "canceled")
+        _nm_notify(
             app,
-            {
-                **state,
-                "owned_connections": [
-                    item for item in references if item.get("uuid") not in removed
-                ],
-            },
+            session,
+            job,
+            "Kein geschützter Erstellungsnachweis: Altbestände und fremde Verbindungen bleiben erhalten.",
+        )
+        return
+    try:
+        if not app.ensure_sudo_session("NetworkManager-WireGuard-Import zurückrollen"):
+            _nm_finish_job(session, job, "canceled")
+            return
+        candidates = []
+        for token, reference in references:
+            try:
+                candidate = _owned_nm_command(
+                    "inspect", identity=[reference["uuid"], reference["receipt_id"]]
+                )
+                candidates.append((token, candidate))
+            except Exception:
+                _nm_job_error(
+                    session,
+                    job,
+                    "Fehlender oder veränderter Nachweis; Verbindung bleibt erhalten.",
+                )
+        if not candidates:
+            _nm_finish_job(session, job, "failed")
+            _nm_notify(
+                app,
+                session,
+                job,
+                "NM-Bereinigung: fehlender oder veränderter Nachweis; Verbindung bleibt erhalten.",
+            )
+            return
+        preview = "\n".join(
+            json.dumps({"name": item["name"], "uuid": item["uuid"]}, ensure_ascii=True)
+            for _token, item in candidates
+        )
+        if not messagebox.askyesno(
+            "NetworkManager-Import zurückrollen",
+            "Nur diese geprüften Verbindungen löschen?\n\n" + preview,
+        ):
+            _nm_finish_job(session, job, "canceled")
+            _nm_notify(app, session, job, "NM-Bereinigung abgebrochen.")
+            return
+    except Exception:
+        _nm_finish_job(session, job, "failed")
+        _nm_job_error(
+            session,
+            job,
+            "Rollback-Vorschau/Bestätigung fehlgeschlagen; keine Löschung.",
+        )
+        return
+
+    def worker():
+        if not session.start(job, "rollback"):
+            return
+        removed = failed = state_errors = 0
+        try:
+            for token, item in candidates:
+                entry = session.claim_delete(token, item, job)
+                if entry is None:
+                    continue
+                try:
+                    # L-01 revalidates this exact immutable confirmation plan.
+                    _owned_nm_command("delete", payload=item)
+                    with session.lock:
+                        entry.deleted = True
+                        session.revision += 1
+                    removed += 1
+                except Exception:
+                    failed += 1
+                    _nm_job_error(
+                        session,
+                        job,
+                        "UUID-Löschung/Prüfung fehlgeschlagen; Referenz bleibt zur erneuten Prüfung erhalten.",
+                    )
+                try:
+                    session.finish_delete(entry, job)
+                except Exception:
+                    state_errors += 1
+                    with session.lock:
+                        if entry.deleting_job == job.token:
+                            entry.deleting_job = None
+                            entry.phase = "recovery"
+                    _nm_job_error(
+                        session,
+                        job,
+                        "Rollback-Sitzungsaktualisierung fehlgeschlagen; tatsächliches Ergebnis ist gesichert.",
+                    )
+        except Exception:
+            failed += 1
+            _nm_job_error(
+                session,
+                job,
+                "Rollback-Job fehlgeschlagen; unverarbeitete Referenzen bleiben erhalten.",
+            )
+        _nm_finish_job(
+            session,
+            job,
+            "state_error" if state_errors else "partial" if failed else "completed",
+        )
+        _nm_notify(
+            app,
+            session,
+            job,
+            f"NM-Bereinigung (Job {job.token}): {removed} entfernt, {failed} fehlgeschlagen."
+            + (" Sitzungs-/Diagnosefehler beachten." if job.errors else ""),
         )
 
-    threading.Thread(target=job, daemon=True).start()
+    try:
+        threading.Thread(target=worker, daemon=True).start()
+    except Exception:
+        _nm_worker_start_error(session, job)
