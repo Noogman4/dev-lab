@@ -598,6 +598,43 @@ function netmon_stats_authorization(): ?string
     return $match[1];
 }
 
+function netmon_stats_query_allowed(): bool
+{
+    if (!is_array($_GET) || array_key_exists("token", $_GET)) {
+        return false;
+    }
+    $uri = $_SERVER["REQUEST_URI"] ?? null;
+    $validUri = is_string($uri) && strlen($uri) >= 1 && strlen($uri) <= 2048
+        && $uri[0] === "/" && strcspn($uri, "\r\n\0#") === strlen($uri);
+    // PHP can omit QUERY_STRING on a genuinely query-free request. Accept that
+    // only with a bounded, unambiguous origin-form REQUEST_URI and empty $_GET.
+    if (!array_key_exists("QUERY_STRING", $_SERVER)) {
+        return $validUri && strpos($uri, "?") === false && $_GET === [];
+    }
+    $query = $_SERVER["QUERY_STRING"];
+    // Only the existing auto-refresh timestamp is needed. No decoding, split,
+    // parse_str(), or processing of a query PHP may have silently truncated.
+    if (!is_string($query) || strlen($query) > 32) {
+        return false;
+    }
+    if (array_key_exists("REQUEST_URI", $_SERVER)) {
+        if (!$validUri) {
+            return false;
+        }
+        $separator = strpos($uri, "?");
+        if (($separator === false && $query !== "")
+            || ($separator !== false && substr($uri, $separator + 1) !== $query)) {
+            return false;
+        }
+    }
+    if ($query === "") {
+        return $_GET === [];
+    }
+    return preg_match('/\At=([0-9]{1,20})\z/D', $query, $match) === 1
+        && count($_GET) === 1 && isset($_GET["t"]) && is_string($_GET["t"])
+        && $_GET["t"] === $match[1];
+}
+
 function netmon_require_stats_token(array $config): void
 {
     // Also protect rejection responses; authenticate before any storage access.
@@ -615,7 +652,7 @@ function netmon_require_stats_token(array $config): void
     }
     $provided = netmon_stats_authorization();
     // URL tokens are intentionally unsupported, including arrays/conflicts.
-    if (array_key_exists("token", $_GET) || $provided === null || !hash_equals($token, $provided)) {
+    if (!netmon_stats_query_allowed() || $provided === null || !hash_equals($token, $provided)) {
         http_response_code(403);
         header("Content-Type: text/plain; charset=utf-8");
         echo "Forbidden\n";

@@ -24,7 +24,7 @@ class ReadinessError(RuntimeError):
 
 
 @contextmanager
-def local_php_server(php, directory, token):
+def local_php_server(php, directory, token, *, max_input_vars=1000, arg_separator="&"):
     # Never inherit a real deployment credential or CGI Authorization variable.
     env = {"PATH": os.defpath}
     if token is not None:
@@ -40,6 +40,10 @@ def local_php_server(php, directory, token):
             "display_errors=0",
             "-d",
             "log_errors=0",
+            "-d",
+            f"max_input_vars={int(max_input_vars)}",
+            "-d",
+            f"arg_separator.input={arg_separator}",
             "-S",
             f"127.0.0.1:{port}",
             "-t",
@@ -150,6 +154,26 @@ def check_local_readiness(php, site_root=ROOT / "site"):
                 request(port, headers={"Authorization": "Bearer " + credential}),
                 200,
                 authorized=True,
+            )
+            check_response(
+                request(
+                    port,
+                    "/download-stats.php?t=1720000000000",
+                    {"Authorization": "Bearer " + credential},
+                ),
+                200,
+                authorized=True,
+            )
+            truncated = (
+                "&".join(f"p{i}=x" for i in range(1000)) + "&token=synthetic-url-token"
+            )
+            check_response(
+                request(
+                    port,
+                    "/download-stats.php?" + truncated,
+                    {"Authorization": "Bearer " + credential},
+                ),
+                403,
             )
         if path.read_bytes() != original:
             raise ReadinessError("Readiness unexpectedly changed synthetic statistics.")

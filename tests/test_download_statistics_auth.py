@@ -171,6 +171,11 @@ function getallheaders() { return $GLOBALS["fixture"]["headers"] ?? []; }
 require __DIR__ . "/sapi-lib.php";
 $fixture = json_decode(file_get_contents("php://input"), true, 16, JSON_THROW_ON_ERROR);
 $_SERVER = $fixture["server"] ?? [];
+// Explicit raw-query metadata for normal simulated SAPI requests. Tests can
+// suppress this default to exercise a missing QUERY_STRING representation.
+if (!($fixture["missing_query_metadata"] ?? false)) {
+    $_SERVER += ["QUERY_STRING" => ""];
+}
 $_GET = $fixture["query"] ?? [];
 netmon_require_stats_token($fixture["config"]);
 echo "authorized";
@@ -340,3 +345,199 @@ def test_readiness_detects_broken_deployment_contract(php, tmp_path, fault):
         path.write_text(source)
     with pytest.raises(ReadinessError):
         check_local_readiness(php, tmp_path)
+
+
+def test_r1_exact_max_input_vars_boundary_rejects_truncated_url_token(php, auth_site):
+    directory, path = auth_site
+    token = secrets.token_urlsafe(32)
+    # The 1001st key must not need to survive PHP's automatic input parsing.
+    query = "&".join(f"p{i}=x" for i in range(1000)) + "&token=synthetic-url-token"
+    (directory / "input-probe.php").write_text("""<?php
+header("Content-Type: application/json");
+echo json_encode(["limit" => (int) ini_get("max_input_vars"),
+    "count" => count($_GET), "parsed_token" => array_key_exists("token", $_GET),
+    "raw_token" => strpos($_SERVER["QUERY_STRING"], "token=") !== false]);
+""")
+    before = path.read_bytes()
+    with local_php_server(php, directory, token, max_input_vars=1000) as port:
+        proof = json.loads(request(port, "/input-probe.php?" + query)[2])
+        assert proof == {
+            "limit": 1000,
+            "count": 1000,
+            "parsed_token": False,
+            "raw_token": True,
+        }
+        assert_denied(
+            request(
+                port,
+                "/download-stats.php?" + query,
+                {"Authorization": "Bearer " + token},
+            ),
+            403,
+            directory,
+        )
+    assert path.read_bytes() == before
+    assert not path.with_suffix(".json.lock").exists()
+
+
+@pytest.mark.parametrize("limit", [1, 10, 1000])
+@pytest.mark.parametrize("position", ["first", "middle", "last"])
+def test_r1_token_positions_cannot_hide_behind_input_limit(
+    php, auth_site, limit, position
+):
+    directory, _ = auth_site
+    token = secrets.token_urlsafe(32)
+    pairs = [f"p{i}=x" for i in range(limit)]
+    pairs.insert(
+        {"first": 0, "middle": limit // 2, "last": limit}[position],
+        "token=synthetic-url-token",
+    )
+    with local_php_server(php, directory, token, max_input_vars=limit) as port:
+        assert_denied(
+            request(
+                port,
+                "/download-stats.php?" + "&".join(pairs),
+                {"Authorization": "Bearer " + token},
+            ),
+            403,
+            directory,
+        )
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "token=first&token=second",
+        "%74oken=x",
+        "to%6ben=x",
+        "%2574oken=x",
+        "token%5B%5D=x",
+        "token%00=x",
+        "token%20=x",
+        "token[]=x",
+        "t=1;token=x",
+        "t=1%3Btoken=x",
+        "t=1%26token=x",
+        "t=1&&token=x",
+        "t=1&%74oken=x",
+        "TOKEN=x",
+        "t=1&t=2",
+        "t%3D1",
+        "t=%31",
+        "t=+1",
+        "t=1&",
+        "t=1;",
+        "t=",
+        "t[]=1",
+        "t=1%00",
+        "%",
+        "t=1%0A",
+        "t=" + "1" * 21,
+        "x=" + "a" * 6000,
+    ],
+)
+@pytest.mark.parametrize("separator", ["&", "&;"])
+def test_r1_encoded_ambiguous_and_long_queries_fail_closed(
+    php, auth_site, query, separator
+):
+    directory, _ = auth_site
+    token = secrets.token_urlsafe(32)
+    with local_php_server(php, directory, token, arg_separator=separator) as port:
+        assert_denied(
+            request(
+                port,
+                "/download-stats.php?" + query,
+                {"Authorization": "Bearer " + token},
+            ),
+            403,
+            directory,
+        )
+
+
+@pytest.mark.parametrize("limit", [1, 10, 1000])
+@pytest.mark.parametrize("query", ["", "t=1", "t=1720000000000", "t=" + "9" * 20])
+def test_r1_supported_queries_retain_bearer_requirement(php, auth_site, limit, query):
+    directory, path = auth_site
+    token = secrets.token_urlsafe(32)
+    before = path.read_bytes()
+    url = "/download-stats.php" + ("?" + query if query else "")
+    with local_php_server(php, directory, token, max_input_vars=limit) as port:
+        assert_denied(request(port, url), 403, directory)
+        assert_denied(
+            request(
+                port, url, {"Authorization": "Bearer " + secrets.token_urlsafe(32)}
+            ),
+            403,
+            directory,
+        )
+        status, headers, body = request(port, url, {"Authorization": "Bearer " + token})
+        assert status == 200
+        assert MARKER.encode() in body and IP_MARKER.encode() in body
+        assert "no-store" in headers["cache-control"]
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "raw", [None, False, [], {}, 123, "t=1&token=x", "t=" + "1" * 100000]
+)
+def test_r1_invalid_raw_query_metadata_is_denied(sapi_server, raw):
+    token = secrets.token_urlsafe(32)
+    payload = {
+        "config": {"stats_token": token},
+        "server": {"HTTP_AUTHORIZATION": "Bearer " + token, "QUERY_STRING": raw},
+    }
+    assert_denied(sapi_request(sapi_server, payload), 403, sapi_server[1])
+
+
+@pytest.mark.parametrize(
+    "uri", [None, False, "", "/sapi.php?token=x", "/sapi.php?", "/" + "x" * 2048]
+)
+def test_r1_missing_raw_query_requires_unambiguous_request_uri(sapi_server, uri):
+    token = secrets.token_urlsafe(32)
+    payload = {
+        "config": {"stats_token": token},
+        "missing_query_metadata": True,
+        "server": {"HTTP_AUTHORIZATION": "Bearer " + token, "REQUEST_URI": uri},
+    }
+    assert_denied(sapi_request(sapi_server, payload), 403, sapi_server[1])
+
+
+@pytest.mark.parametrize(
+    "raw,uri,query",
+    [
+        ("", "/sapi.php?token=x", {}),
+        ("t=1", "/sapi.php?t=1&token=x", {"t": "1"}),
+        ("t=1", "/sapi.php", {"t": "1"}),
+        ("", "/sapi.php#token=x", {}),
+        ("", [], {}),
+        ("", "/sapi.php\x00", {}),
+    ],
+)
+def test_r1_conflicting_request_metadata_is_denied(sapi_server, raw, uri, query):
+    token = secrets.token_urlsafe(32)
+    payload = {
+        "config": {"stats_token": token},
+        "query": query,
+        "server": {
+            "HTTP_AUTHORIZATION": "Bearer " + token,
+            "QUERY_STRING": raw,
+            "REQUEST_URI": uri,
+        },
+    }
+    assert_denied(sapi_request(sapi_server, payload), 403, sapi_server[1])
+
+
+@pytest.mark.parametrize("with_query", [False, True])
+def test_r1_consistent_request_metadata_is_accepted(sapi_server, with_query):
+    token = secrets.token_urlsafe(32)
+    payload = {
+        "config": {"stats_token": token},
+        "query": {"t": "1"} if with_query else {},
+        "server": {
+            "HTTP_AUTHORIZATION": "Bearer " + token,
+            "QUERY_STRING": "t=1" if with_query else "",
+            "REQUEST_URI": "/sapi.php?t=1" if with_query else "/sapi.php",
+        },
+    }
+    status, _, body = sapi_request(sapi_server, payload)
+    assert status == 200 and body == b"authorized"
