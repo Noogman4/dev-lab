@@ -15,6 +15,9 @@ dependencies = [
 where = ["."]
 include = ["netmon*", "agent*", "tools*"]
 
+[tool.setuptools.package-data]
+"netmon.core" = ["mozilla-release.gpg"]
+
 [tool.black]
 line-length = 88
 target-version = ["py311"]

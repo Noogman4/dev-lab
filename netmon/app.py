@@ -20,7 +20,6 @@ import tempfile
 import traceback
 import warnings
 import hashlib
-import tarfile
 import zipfile
 import unicodedata
 import queue
@@ -39,7 +38,6 @@ if NETMON_REPO_ROOT not in sys.path:
 
 from netmon.core.archive_limits import (  # noqa: E402 - needs the repo path above
     copy_limited,
-    copy_response_limited,
 )
 from netmon.core import projectm_archive  # noqa: E402 - needs the repo path above
 
@@ -74,15 +72,9 @@ NVIDIA_UTILS_PACKAGE_RE = re.compile(r"^nvidia-utils-(\d+)$")
 
 
 def _download_url_to_file_limited(url, destination, max_bytes):
-    parsed_url = urlparse(str(url or "").strip())
-    if parsed_url.scheme != "https":
-        raise ValueError("Firefox-Download erfordert HTTPS")
+    from netmon.core.firefox_runtime import download
 
-    with urllib_request.urlopen(parsed_url.geturl(), timeout=90) as response:
-        with open(destination, "wb") as handle:
-            copy_response_limited(
-                response, handle, max_bytes, limit_error="Firefox-Archiv ist zu gross"
-            )
+    return download(url, destination, max_bytes)
 
 
 def _extract_regular_tar_archive(
@@ -32442,71 +32434,11 @@ class App(TkBase):
         return ""
 
     def _import_secure_browser_firefox_archive_from_url(self, url):
-        target_root = self._secure_browser_firefox_target_dir()
-        parent_root = os.path.dirname(target_root)
-        os.makedirs(parent_root, exist_ok=True)
+        from netmon.core.firefox_runtime import install
 
-        temp_archive = ""
-        temp_extract_dir = ""
-        try:
-            fd, temp_archive = tempfile.mkstemp(
-                prefix="netmon-firefox-source-",
-                suffix=".tar.xz",
-            )
-            os.close(fd)
-            _download_url_to_file_limited(
-                url,
-                temp_archive,
-                FIREFOX_ARCHIVE_MAX_DOWNLOAD_BYTES,
-            )
-
-            temp_extract_dir = tempfile.mkdtemp(prefix="netmon-firefox-extract-")
-            with tarfile.open(temp_archive, "r:*") as archive:
-                _extract_regular_tar_archive(archive, temp_extract_dir)
-
-            extracted_firefox_dir = ""
-            for candidate in (
-                os.path.join(temp_extract_dir, "firefox"),
-                os.path.join(temp_extract_dir, "firefox", "firefox"),
-            ):
-                if os.path.isdir(candidate) and os.path.isfile(
-                    os.path.join(candidate, "firefox")
-                ):
-                    extracted_firefox_dir = candidate
-                    break
-            if not extracted_firefox_dir:
-                for entry in os.listdir(temp_extract_dir):
-                    candidate = os.path.join(temp_extract_dir, entry, "firefox")
-                    if os.path.isdir(candidate) and os.path.isfile(
-                        os.path.join(candidate, "firefox")
-                    ):
-                        extracted_firefox_dir = candidate
-                        break
-
-            if not extracted_firefox_dir:
-                raise ValueError("Firefox-Basis im Archiv nicht gefunden")
-
-            if os.path.isdir(target_root):
-                shutil.rmtree(target_root)
-            shutil.copytree(extracted_firefox_dir, target_root, symlinks=False)
-
-            firefox_binary = os.path.join(target_root, "firefox")
-            if os.path.isfile(firefox_binary):
-                current_mode = os.stat(firefox_binary).st_mode
-                os.chmod(firefox_binary, current_mode | 0o755)
-
-            return target_root
-        finally:
-            if temp_archive:
-                try:
-                    os.unlink(temp_archive)
-                except Exception:
-                    pass
-            if temp_extract_dir:
-                try:
-                    shutil.rmtree(temp_extract_dir)
-                except Exception:
-                    pass
+        return install(
+            url, self._secure_browser_firefox_target_dir(), _extract_regular_tar_archive
+        )
 
     def _import_projectm_preset_pack_from_url(self, url, pack_name):
         with projectm_archive.download_preset_archive(url, timeout=45) as temp_path:

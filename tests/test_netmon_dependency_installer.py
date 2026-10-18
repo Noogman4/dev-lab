@@ -94,24 +94,9 @@ def test_extract_regular_tar_archive_limits_total_size(tmp_path):
 
 
 def test_download_url_to_file_limited_rejects_oversized_stream(tmp_path, monkeypatch):
-    class Response:
-        headers = {}
+    from test_firefox_runtime_security import Response, wire
 
-        def __init__(self):
-            self.chunks = iter((b"abc", b"def", b""))
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *_args):
-            return False
-
-        def read(self, _size):
-            return next(self.chunks)
-
-    monkeypatch.setattr(
-        "netmon.app.urllib_request.urlopen", lambda *_a, **_kw: Response()
-    )
+    wire(monkeypatch, [Response(b"abcdef")])
 
     with pytest.raises(ValueError, match="zu gross"):
         _download_url_to_file_limited(
