@@ -606,10 +606,14 @@ function netmon_stats_query_allowed(): bool
     $uri = $_SERVER["REQUEST_URI"] ?? null;
     $validUri = is_string($uri) && strlen($uri) >= 1 && strlen($uri) <= 2048
         && $uri[0] === "/" && strcspn($uri, "\r\n\0#") === strlen($uri);
-    // PHP can omit QUERY_STRING on a genuinely query-free request. Accept that
-    // only with a bounded, unambiguous origin-form REQUEST_URI and empty $_GET.
+    // PHP can omit QUERY_STRING for both absent and empty query parts. Accept
+    // only a bounded URI with no query or exactly one final '?' and empty $_GET.
     if (!array_key_exists("QUERY_STRING", $_SERVER)) {
-        return $validUri && strpos($uri, "?") === false && $_GET === [];
+        if (!$validUri || $_GET !== []) {
+            return false;
+        }
+        $separator = strpos($uri, "?");
+        return $separator === false || $separator === strlen($uri) - 1;
     }
     $query = $_SERVER["QUERY_STRING"];
     // Only the existing auto-refresh timestamp is needed. No decoding, split,

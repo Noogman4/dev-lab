@@ -158,6 +158,15 @@ def check_local_readiness(php, site_root=ROOT / "site"):
             check_response(
                 request(
                     port,
+                    "/download-stats.php?",
+                    {"Authorization": "Bearer " + credential},
+                ),
+                200,
+                authorized=True,
+            )
+            check_response(
+                request(
+                    port,
                     "/download-stats.php?t=1720000000000",
                     {"Authorization": "Bearer " + credential},
                 ),

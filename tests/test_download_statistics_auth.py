@@ -490,7 +490,7 @@ def test_r1_invalid_raw_query_metadata_is_denied(sapi_server, raw):
 
 
 @pytest.mark.parametrize(
-    "uri", [None, False, "", "/sapi.php?token=x", "/sapi.php?", "/" + "x" * 2048]
+    "uri", [None, False, "", "/sapi.php?token=x", "/sapi.php??", "/" + "x" * 2048]
 )
 def test_r1_missing_raw_query_requires_unambiguous_request_uri(sapi_server, uri):
     token = secrets.token_urlsafe(32)
@@ -541,3 +541,128 @@ def test_r1_consistent_request_metadata_is_accepted(sapi_server, with_query):
     }
     status, _, body = sapi_request(sapi_server, payload)
     assert status == 200 and body == b"authorized"
+
+
+@pytest.mark.parametrize(
+    "url", ["/download-stats.php", "/download-stats.php?", "/download-stats.php?t=123"]
+)
+@pytest.mark.parametrize(
+    "credentials", ["valid", "missing-client", "wrong-client", "missing-server"]
+)
+def test_f1_actual_http_empty_query_and_bearer_contract(
+    php, auth_site, url, credentials
+):
+    directory, path = auth_site
+    page = directory / "download-stats.php"
+    # Observe the real request in the copied page, before its original guard.
+    # No Authorization/environment values are captured or returned.
+    probe = """file_put_contents(__DIR__ . "/request-metadata.json", json_encode([
+        "query_present" => array_key_exists("QUERY_STRING", $_SERVER),
+        "query" => $_SERVER["QUERY_STRING"] ?? null,
+        "uri" => $_SERVER["REQUEST_URI"], "get" => $_GET]));"""
+    page.write_text(
+        page.read_text().replace(
+            "declare(strict_types=1);", "declare(strict_types=1);\n" + probe, 1
+        )
+    )
+    token = secrets.token_urlsafe(32)
+    headers = (
+        {}
+        if credentials == "missing-client"
+        else {
+            "Authorization": "Bearer "
+            + (secrets.token_urlsafe(32) if credentials == "wrong-client" else token)
+        }
+    )
+    before = path.read_bytes()
+    with local_php_server(
+        php, directory, None if credentials == "missing-server" else token
+    ) as port:
+        response = request(port, url, headers)
+    metadata = json.loads((directory / "request-metadata.json").read_text())
+    assert metadata == {
+        "query_present": url.endswith("t=123"),
+        "query": "t=123" if url.endswith("t=123") else None,
+        "uri": url,
+        "get": {"t": "123"} if url.endswith("t=123") else [],
+    }
+    if credentials == "valid":
+        status, response_headers, body = response
+        assert status == 200
+        assert MARKER.encode() in body and IP_MARKER.encode() in body
+        assert "no-store" in response_headers["cache-control"]
+    else:
+        assert_denied(
+            response, 503 if credentials == "missing-server" else 403, directory
+        )
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        "?token=abc",
+        "??token=abc",
+        "??",
+        "???",
+        "?t=123?",
+        "?t=123?token=abc",
+        "?%3F",
+        "?&",
+        "?=",
+        "?%00",
+    ],
+)
+def test_f1_actual_http_nonempty_or_multiple_query_markers_are_denied(
+    php, auth_site, suffix
+):
+    directory, _ = auth_site
+    token = secrets.token_urlsafe(32)
+    with local_php_server(php, directory, token) as port:
+        assert_denied(
+            request(
+                port,
+                "/download-stats.php" + suffix,
+                {"Authorization": "Bearer " + token},
+            ),
+            403,
+            directory,
+        )
+
+
+@pytest.mark.parametrize("query_present", [False, True])
+@pytest.mark.parametrize("uri", ["/sapi.php", "/sapi.php?"])
+def test_f1_empty_query_sapi_representations(sapi_server, query_present, uri):
+    token = secrets.token_urlsafe(32)
+    server = {"HTTP_AUTHORIZATION": "Bearer " + token, "REQUEST_URI": uri}
+    if query_present:
+        server["QUERY_STRING"] = ""
+    payload = {
+        "config": {"stats_token": token},
+        "missing_query_metadata": True,
+        "server": server,
+    }
+    status, _, body = sapi_request(sapi_server, payload)
+    assert status == 200 and body == b"authorized"
+
+
+@pytest.mark.parametrize(
+    "uri,parsed",
+    [
+        ("/sapi.php?t=123", {}),
+        ("/sapi.php??", {}),
+        ("/sapi.php??token=abc", {}),
+        ("/sapi.php?token=abc", {}),
+        ("/sapi.php?", {"t": "123"}),
+        ("/" + "x" * 2047 + "?", {}),
+    ],
+)
+def test_f1_missing_query_does_not_override_content_or_budget(sapi_server, uri, parsed):
+    token = secrets.token_urlsafe(32)
+    payload = {
+        "config": {"stats_token": token},
+        "query": parsed,
+        "missing_query_metadata": True,
+        "server": {"HTTP_AUTHORIZATION": "Bearer " + token, "REQUEST_URI": uri},
+    }
+    assert_denied(sapi_request(sapi_server, payload), 403, sapi_server[1])
