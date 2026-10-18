@@ -1,10 +1,23 @@
 import inspect
 import json
+import os
 import threading
+
+import pytest
 
 from netmon.config.constants import VPN_SLOT_COUNT
 from netmon.features import vpn_controller
 from tools import netmon
+
+
+@pytest.fixture(autouse=True)
+def private_profile_creation():
+    # Synthetic secret-bearing profiles should have deployment-safe permissions.
+    previous = os.umask(0o077)
+    try:
+        yield
+    finally:
+        os.umask(previous)
 
 
 class DummyWidget:
@@ -1117,7 +1130,10 @@ def test_refresh_vpn_slots_table_shows_ipv4_ipv6_free_and_unknown():
 
 def test_import_wg_profiles_from_folder_uses_initialdir_and_remembers_last_directory(
     monkeypatch,
+    tmp_path,
 ):
+    source = tmp_path / "wg-demo.conf"
+    source.write_text("[Interface]\nAddress=10.0.0.1/32\n")
     app = netmon.App.__new__(netmon.App)
     app.wg_profiles = []
     app.vpn_profile_combo = DummyCombo()
@@ -1143,7 +1159,7 @@ def test_import_wg_profiles_from_folder_uses_initialdir_and_remembers_last_direc
 
     def fake_askopenfilenames(**kwargs):
         dialog_kwargs.update(kwargs)
-        return ("/profiles/work/wg-demo.conf",)
+        return (str(source),)
 
     def fake_run_cmd(args, timeout=0, text=True):
         return 0, "ok"
@@ -1154,10 +1170,12 @@ def test_import_wg_profiles_from_folder_uses_initialdir_and_remembers_last_direc
     monkeypatch.setattr(netmon.vpn_controller, "run_cmd", fake_run_cmd)
     monkeypatch.setattr(netmon.vpn_controller, "run_cmd", fake_run_cmd)
 
+    monkeypatch.setattr(vpn_controller.messagebox, "askyesno", lambda *a, **k: True)
+    monkeypatch.setattr(vpn_controller, "_owned_nm_command", lambda *a, **k: None)
     app.import_wg_profiles_from_folder()
 
     assert dialog_kwargs["initialdir"] == "/start/here"
-    assert calls == [("dir", "/profiles/work"), "sync", "buttons", "table"]
+    assert calls == [("dir", str(tmp_path)), "sync", "buttons", "table"]
     assert (
         "WireGuard-Import beendet: 1 importiert, 0 übersprungen, 0 fehlgeschlagen."
         in logs
@@ -1256,6 +1274,8 @@ def test_import_wg_profiles_from_folder_warns_about_hook_directives(
     monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
     monkeypatch.setattr(netmon.vpn_controller, "run_cmd", fake_run_cmd)
 
+    monkeypatch.setattr(vpn_controller.messagebox, "askyesno", lambda *a, **k: True)
+    monkeypatch.setattr(vpn_controller, "_owned_nm_command", lambda *a, **k: None)
     app.import_wg_profiles_from_folder()
 
     assert warnings

@@ -12,6 +12,16 @@ from netmon.core import nm_ownership as own
 from netmon.features import vpn_controller as vpn
 
 
+@pytest.fixture(autouse=True)
+def private_profile_creation():
+    # Synthetic secret-bearing profiles should have deployment-safe permissions.
+    previous = os.umask(0o077)
+    try:
+        yield
+    finally:
+        os.umask(previous)
+
+
 class FakeNM:
     def __init__(self, directory):
         self.directory = directory
@@ -405,6 +415,7 @@ def fake_app(monkeypatch, state=None):
     monkeypatch.setattr(
         vpn, "run_cmd", lambda *a, **k: pytest.fail("unexpected real command")
     )
+    monkeypatch.setattr(vpn.messagebox, "askyesno", lambda *a, **k: True)
     return app, logs
 
 
@@ -421,11 +432,13 @@ def test_gui_owned_import_passes_bytes_not_user_path(store, tmp_path, monkeypatc
 
     monkeypatch.setattr(vpn, "_owned_nm_command", command)
     vpn.import_wireguard_paths_to_networkmanager(app, [str(source)])
-    assert calls == [("import", {"name": "gui", "content": source.read_text()})]
+    assert calls == [
+        ("import", vpn.wireguard_import.ProfileSnapshot.read(source).payload())
+    ]
     assert len(vpn.get_nm_last_import_state(app)["owned_connections"]) == 1
 
 
-def test_gui_missing_helper_import_remains_unowned(monkeypatch, tmp_path):
+def test_gui_missing_helper_import_fails_closed(monkeypatch, tmp_path):
     app, logs = fake_app(monkeypatch)
     monkeypatch.setattr(own, "trusted_helper_available", lambda: False)
     calls = []
@@ -435,10 +448,10 @@ def test_gui_missing_helper_import_remains_unowned(monkeypatch, tmp_path):
     source = tmp_path / "legacy.conf"
     source.write_text("[Interface]\n")
     vpn.import_wireguard_paths_to_networkmanager(app, [str(source)])
-    assert vpn.get_nm_last_import_state(app)["owned_connections"] == []
+    assert vpn.get_nm_last_import_state(app).get("owned_connections", []) == []
     vpn.rollback_last_nm_wireguard_import(app)
-    assert len(calls) == 1 and "import" in calls[0]
-    assert any("manuell" in entry for entry in logs)
+    assert calls == []
+    assert any("fehlgeschlagen" in entry for entry in logs)
 
 
 @pytest.mark.parametrize(
@@ -591,7 +604,14 @@ def test_ui_cannot_override_fixed_privileged_paths(monkeypatch):
     )
     vpn._owned_nm_command("import", payload={"name": "vpn", "content": "SECRET"})
     args, kwargs = calls[0]
-    assert args == ["sudo", "-n", "/usr/bin/python3", "-I", own.HELPER, "import"]
+    assert args == [
+        "sudo",
+        "-n",
+        "/usr/bin/python3",
+        "-I",
+        own.HELPER,
+        "import-checked",
+    ]
     assert "SECRET" not in " ".join(args)
     assert json.loads(kwargs["input_text"])["content"] == "SECRET"
 
@@ -747,7 +767,13 @@ def real_privacy_app(store, tmp_path, monkeypatch):
 
     monkeypatch.setattr(vpn, "_owned_nm_command", helper)
     monkeypatch.setattr(
-        vpn.messagebox, "askyesno", lambda title, text: (previews.append(text) or True)
+        vpn.messagebox,
+        "askyesno",
+        lambda title, text, **kwargs: (
+            True
+            if title == "WireGuard-Import bestaetigen"
+            else (previews.append(text) or True)
+        ),
     )
 
     class ImmediateThread:

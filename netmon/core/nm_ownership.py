@@ -24,10 +24,87 @@ import uuid as uuid_module
 HELPER = "/usr/lib/netmon/netmon/core/nm_ownership.py"
 REGISTRY = "/var/lib/netmon/nm-wireguard-ownership"
 NM_DIRECTORY = "/etc/NetworkManager/system-connections"
+PROFILE_DIRECTORY = "/etc/wireguard"
 OWNER = "netmon-wireguard-created-v1"
 MAX_CONFIG = 1024 * 1024
 MAX_RECORD = 16384
 MAX_ENTRIES = 512
+
+
+def wireguard_hooks(data):
+    found = []
+    for line in data.decode("utf-8", errors="strict").splitlines():
+        key = line.split("#", 1)[0].split(";", 1)[0].split("=", 1)
+        if len(key) != 2:
+            continue
+        canonical = {
+            "preup": "PreUp",
+            "postup": "PostUp",
+            "predown": "PreDown",
+            "postdown": "PostDown",
+        }.get(key[0].strip().lower())
+        if canonical and canonical not in found:
+            found.append(canonical)
+    return tuple(found)
+
+
+def checked_import_payload(payload):
+    if not isinstance(payload, dict) or set(payload) != {
+        "name",
+        "content",
+        "sha256",
+        "hooks",
+    }:
+        raise OwnershipError("Reviewed import proof required")
+    name, content, digest = payload["name"], payload["content"], payload["sha256"]
+    if (
+        not isinstance(name, str)
+        or name in {".", ".."}
+        or not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", name)
+    ):
+        raise OwnershipError("Invalid import name")
+    if (
+        not isinstance(content, str)
+        or not 0 < len(content.encode()) <= MAX_CONFIG
+        or "\0" in content
+    ):
+        raise OwnershipError("Invalid import content")
+    data = content.encode("utf-8")
+    if (
+        not isinstance(digest, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", digest)
+        or hashlib.sha256(data).hexdigest() != digest
+        or not isinstance(payload["hooks"], list)
+        or payload["hooks"] != list(wireguard_hooks(data))
+    ):
+        raise OwnershipError("Reviewed import bytes changed")
+    return name, content
+
+
+@contextmanager
+def _import_snapshot(parent, name, data, *, owner):
+    # parent has already been opened/validated as root-controlled by the caller.
+    with tempfile.TemporaryDirectory(prefix=".import-", dir=parent) as staging:
+        source = Path(staging) / (name + ".conf")
+        with source.open("xb") as handle:
+            os.fchmod(handle.fileno(), 0o600)
+            view = memoryview(data)
+            while view:
+                written = handle.write(view)
+                if not written or written < 0 or written > len(view):
+                    raise OwnershipError("Incomplete import snapshot")
+                view = view[written:]
+            handle.flush()
+            os.fsync(handle.fileno())
+        directory = os.open(staging, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            _check(os.fstat(directory), owner, directory=True, private=True)
+            actual, _info = _read(directory, source.name, owner, MAX_CONFIG)
+            if actual != data:
+                raise OwnershipError("Privileged import snapshot changed")
+            yield source
+        finally:
+            os.close(directory)
 
 
 class OwnershipError(RuntimeError):
@@ -382,16 +459,9 @@ class OwnershipStore:
             )
             # Source bytes cross sudo via stdin, not a root-opened user path or
             # a private key in process arguments. nmcli sees a root-only snapshot.
-            with tempfile.TemporaryDirectory(
-                prefix=".import-", dir=self.registry
-            ) as staging:
-                source = Path(staging) / (name + ".conf")
-                with source.open("xb") as handle:
-                    os.chmod(source, 0o600)
-                    if handle.write(content.encode()) != len(content.encode()):
-                        raise OwnershipError("Incomplete import snapshot")
-                    handle.flush()
-                    os.fsync(handle.fileno())
+            with _import_snapshot(
+                self.registry, name, content.encode(), owner=self.owner
+            ) as source:
                 uuid = self.nm.create(source)
             if uuid in before:
                 raise OwnershipError("Existing UUID cannot be registered")
@@ -440,6 +510,60 @@ class OwnershipStore:
                 raise OwnershipError("Imported connection changed")
             return verified
 
+    def snapshot_profile(self, name):
+        if (
+            not isinstance(name, str)
+            or name in {".", ".."}
+            or not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", name)
+        ):
+            raise OwnershipError("Invalid profile name")
+        directory = _directory(PROFILE_DIRECTORY, owner=self.owner, anchor=self.anchor)
+        try:
+            data, _info = _read(directory, name + ".conf", self.owner, MAX_CONFIG)
+            content = data.decode("utf-8", errors="strict")
+            result = {
+                "name": name,
+                "content": content,
+                "sha256": hashlib.sha256(data).hexdigest(),
+                "hooks": list(wireguard_hooks(data)),
+            }
+            checked_import_payload(result)
+            return result
+        finally:
+            os.close(directory)
+
+    def install_profile(self, payload):
+        name, content = checked_import_payload(payload)
+        with self.locked(create=True):
+            directory = _directory(
+                PROFILE_DIRECTORY,
+                owner=self.owner,
+                anchor=self.anchor,
+                create=True,
+            )
+            try:
+                try:
+                    _data, previous = _read(
+                        directory, name + ".conf", self.owner, MAX_CONFIG
+                    )
+                except FileNotFoundError:
+                    previous = None
+                with _import_snapshot(
+                    PROFILE_DIRECTORY, name, content.encode(), owner=self.owner
+                ) as source:
+                    try:
+                        _data, current = _read(
+                            directory, name + ".conf", self.owner, MAX_CONFIG
+                        )
+                    except FileNotFoundError:
+                        current = None
+                    if current != previous:
+                        raise OwnershipError("Destination changed during import")
+                    os.replace(source, name + ".conf", dst_dir_fd=directory)
+                    os.fsync(directory)
+            finally:
+                os.close(directory)
+
 
 def trusted_helper_available():
     try:
@@ -472,12 +596,26 @@ def main(arguments=None):
         return 1
     try:
         store = OwnershipStore()
-        if arguments == ["import"]:
-            raw = sys.stdin.buffer.read(2 * MAX_CONFIG + 1)
-            if len(raw) > 2 * MAX_CONFIG:
+        if arguments in (
+            ["import"],
+            ["import-checked"],
+            ["install-profile"],
+            ["snapshot-profile"],
+        ):
+            raw = sys.stdin.buffer.read(6 * MAX_CONFIG + 4097)
+            if len(raw) > 6 * MAX_CONFIG + 4096:
                 raise OwnershipError("Import request too large")
             payload = json.loads(raw)
-            print(json.dumps(store.create(payload["name"], payload["content"])))
+            if arguments == ["snapshot-profile"]:
+                if not isinstance(payload, dict) or set(payload) != {"name"}:
+                    raise OwnershipError("Invalid profile snapshot request")
+                print(json.dumps(store.snapshot_profile(payload["name"])))
+            else:
+                name, content = checked_import_payload(payload)
+                if arguments in (["import"], ["import-checked"]):
+                    print(json.dumps(store.create(name, content)))
+                else:
+                    store.install_profile(payload)
         elif len(arguments) == 3 and arguments[0] == "inspect":
             print(json.dumps(store.inspect(arguments[1], arguments[2])))
         elif arguments == ["delete"]:

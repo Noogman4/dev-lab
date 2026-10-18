@@ -9,8 +9,6 @@ import logging
 import os
 import re
 import socket
-import stat
-import tempfile
 import threading
 import time
 import traceback
@@ -33,11 +31,11 @@ except ModuleNotFoundError:
 
 try:
     from netmon.core.command import run_cmd, run_cmd_with_input
-    from netmon.core import nm_ownership
+    from netmon.core import nm_ownership, wireguard_import
     from netmon.core.nm_import_session import ImportSession
 except ModuleNotFoundError:
     from core.command import run_cmd, run_cmd_with_input
-    from core import nm_ownership
+    from core import nm_ownership, wireguard_import
     from core.nm_import_session import ImportSession
 
 try:
@@ -119,37 +117,20 @@ WIREGUARD_HOOK_DIRECTIVES = {"preup", "postup", "predown", "postdown"}
 
 
 def _wireguard_profile_hook_directives(path: str) -> list[str]:
-    try:
-        with open(path, "r", encoding="utf-8", errors="replace") as handle:
-            content = handle.read()
-    except Exception:
-        return []
-
-    found = []
-    seen = set()
-    for raw_line in str(content or "").splitlines():
-        line = raw_line.split("#", 1)[0].split(";", 1)[0].strip()
-        if not line or "=" not in line:
-            continue
-        key, _value = [part.strip() for part in line.split("=", 1)]
-        normalized = key.lower()
-        if normalized not in WIREGUARD_HOOK_DIRECTIVES:
-            continue
-        canonical = key.strip() or normalized
-        lower_canonical = canonical.lower()
-        if lower_canonical in seen:
-            continue
-        seen.add(lower_canonical)
-        found.append(canonical)
-    return found
+    return list(wireguard_import.ProfileSnapshot.read(path).hooks)
 
 
 def _warn_wireguard_import_hooks(app, selected_files) -> bool:
     findings = []
     for src in list(selected_files or []):
-        directives = _wireguard_profile_hook_directives(src)
+        snapshot = (
+            src
+            if isinstance(src, wireguard_import.ProfileSnapshot)
+            else wireguard_import.ProfileSnapshot.read(src)
+        )
+        directives = snapshot.hooks
         if directives:
-            findings.append((os.path.basename(str(src or "").strip()), directives))
+            findings.append((snapshot.name, directives))
     if not findings:
         return False
 
@@ -173,6 +154,73 @@ def _warn_wireguard_import_hooks(app, selected_files) -> bool:
         pass
     _vpn_user_log(app, _single_line(text))
     return True
+
+
+def _prepare_wireguard_imports(app, paths):
+    """Read and confirm one exact immutable batch on the caller/UI thread."""
+    snapshots = []
+    total = 0
+    if len(paths) > wireguard_import.MAX_PROFILES:
+        raise ValueError("Zu viele WireGuard-Profile ausgewaehlt")
+    for path in paths:
+        if isinstance(path, wireguard_import.ProfileSnapshot):
+            raise ValueError("Unbestaetigte Snapshot-Uebergabe")
+        name = wireguard_import.profile_name(path)
+        if str(path) == os.path.join(nm_ownership.PROFILE_DIRECTORY, name + ".conf"):
+            payload = _owned_nm_command("snapshot-profile", payload={"name": name})
+            nm_ownership.checked_import_payload(payload)
+            snapshot = wireguard_import.ProfileSnapshot.from_bytes(
+                path, name, payload["content"].encode(), protected=True
+            )
+        else:
+            snapshot = wireguard_import.ProfileSnapshot.read(path)
+        total += len(snapshot.data)
+        if total > wireguard_import.MAX_BATCH_BYTES:
+            raise ValueError("WireGuard-Import-Batch ist zu gross")
+        snapshots.append(snapshot)
+    if not snapshots:
+        return None
+    _warn_wireguard_import_hooks(app, snapshots)
+    details = "\n".join(
+        f"{s.name}: {', '.join(s.hooks) or '-'}\nSHA-256: {s.sha256}" for s in snapshots
+    )
+    # Digest is of the reviewed bytes, not a mutable pathname. Never display keys
+    # or hook command values; an unavailable/closed GUI cannot approve the batch.
+    text = (
+        "Gepruefte WireGuard-Profile importieren? / Import reviewed WireGuard profiles?\n\n"
+        + details
+    )
+    if not messagebox.askyesno("WireGuard-Import bestaetigen", text, parent=app):
+        return None
+    return tuple(snapshots)
+
+
+def _verify_import_snapshot(snapshot):
+    snapshot.verify_source()
+    payload = snapshot.payload()
+    nm_ownership.checked_import_payload(payload)
+    if snapshot.protected:
+        latest = _owned_nm_command("snapshot-profile", payload={"name": snapshot.name})
+        nm_ownership.checked_import_payload(latest)
+        if latest != payload:
+            raise ValueError(
+                "Geschuetztes WireGuard-Profil wurde nach Bestaetigung veraendert"
+            )
+    return payload
+
+
+def _install_wireguard_snapshot(app, snapshot):
+    target = app._wg_profile_path(snapshot.name)
+    if target != os.path.join(nm_ownership.PROFILE_DIRECTORY, snapshot.name + ".conf"):
+        raise ValueError("Unsicherer WireGuard-Zielpfad")
+    _owned_nm_command("install-profile", payload=_verify_import_snapshot(snapshot))
+
+
+def _write_generated_wireguard_profile(app, name, content):
+    snapshot = wireguard_import.ProfileSnapshot.from_bytes(
+        "generated", name, content.encode("utf-8")
+    )
+    _install_wireguard_snapshot(app, snapshot)
 
 
 def _warn_non_ip_endpoint_once(app, profile_name: str, host: str) -> None:
@@ -1712,35 +1760,11 @@ def build_manual_wireguard_config_text(_app, payload):
 
 
 def write_manual_wg_profile(app, profile_name, config_text):
-    tmp_path = ""
     try:
-        with tempfile.NamedTemporaryFile(
-            mode="w", encoding="utf-8", delete=False
-        ) as temp_file:
-            temp_file.write(config_text)
-            tmp_path = temp_file.name
-
-        try:
-            os.chmod(tmp_path, 0o600)
-        except Exception:
-            pass
-
-        target = app._wg_profile_path(profile_name)
-        if not target:
-            return False, "Ungültiger WireGuard-Profilpfad."
-        rc, out = run_cmd(
-            ["sudo", "-n", "install", "-m", "600", tmp_path, target],
-            timeout=12,
-        )
-        if rc != 0:
-            return False, (out or "").strip() or "unbekannter Fehler"
+        _write_generated_wireguard_profile(app, profile_name, config_text)
         return True, ""
-    finally:
-        if tmp_path:
-            try:
-                os.remove(tmp_path)
-            except Exception:
-                pass
+    except Exception:
+        return False, "WireGuard-Profil konnte nicht sicher installiert werden."
 
 
 def assign_manual_profile_to_slot(app, profile_name, slot_no):
@@ -3346,38 +3370,13 @@ def ensure_internal_ipv4_profile(app, profile_name, log_failures=True):
         + "\n"
     )
 
-    tmp_path = ""
     try:
-        with tempfile.NamedTemporaryFile(
-            mode="w", encoding="utf-8", delete=False
-        ) as temp_file:
-            temp_file.write(content)
-            tmp_path = temp_file.name
-        target = app._wg_profile_path(ipv4_profile)
-        if not target:
-            if log_failures:
-                app.log_safe(
-                    f"Interne IPv4-Kopie hat einen ungültigen Zielpfad: {ipv4_profile}"
-                )
-            return False
-        rc, out = run_cmd(
-            ["sudo", "-n", "install", "-m", "600", tmp_path, target],
-            timeout=12,
-        )
-        if rc != 0:
-            if log_failures:
-                app.log_safe(
-                    (out or "").strip()
-                    or f"Interne IPv4-Kopie konnte nicht erstellt werden: {ipv4_profile}"
-                )
-            return False
+        _write_generated_wireguard_profile(app, ipv4_profile, content)
         return True
-    finally:
-        if tmp_path:
-            try:
-                os.remove(tmp_path)
-            except Exception:
-                pass
+    except Exception:
+        if log_failures:
+            app.log_safe("Interne IPv4-Kopie konnte nicht sicher installiert werden.")
+        return False
 
 
 def import_wg_profiles_from_folder(app):
@@ -3395,40 +3394,40 @@ def import_wg_profiles_from_folder(app):
     if first_dir:
         app.set_wg_import_dir(first_dir)
 
-    _warn_wireguard_import_hooks(app, files)
+    try:
+        # Filter invalid names before reading; no path-based privileged fallback.
+        valid = []
+        for path in files:
+            try:
+                wireguard_import.profile_name(path)
+                valid.append(path)
+            except ValueError:
+                app.log(
+                    f"Übersprungen (ungültiger Profilname): {_single_line(os.path.basename(path).removesuffix('.conf'))}"
+                )
+        snapshots = _prepare_wireguard_imports(app, valid) if valid else ()
+        if snapshots is None:
+            app.log("WireGuard-Import abgebrochen.")
+            return
+    except Exception:
+        app.log("WireGuard-Import abgebrochen: Quelldatei oder Bestaetigung ungueltig.")
+        return
 
     def job():
-        selected_files = sorted([str(p).strip() for p in files if str(p).strip()])
+        selected_files = sorted(snapshots, key=lambda snapshot: snapshot.source)
 
         imported = 0
-        skipped = 0
+        skipped = len(files) - len(selected_files)
         failed = 0
         imported_profiles = []
 
-        for src in selected_files:
-            base = os.path.basename(src)
-            name = base[:-5] if base.endswith(".conf") else base
-            if not re.match(r"^[A-Za-z0-9_.-]+$", name):
-                skipped += 1
-                app.after(
-                    0,
-                    lambda n=name: app.log(
-                        f"Übersprungen (ungültiger Profilname): {n}"
-                    ),
-                )
-                continue
-
-            target = app._wg_profile_path(name)
-            if not target:
-                skipped += 1
-                app.after(
-                    0,
-                    lambda n=name: app.log(f"Übersprungen (unsicherer Zielpfad): {n}"),
-                )
-                continue
-            rc_cp, out_cp = run_cmd(
-                ["sudo", "-n", "install", "-m", "600", src, target], timeout=10
-            )
+        for snapshot in selected_files:
+            name = snapshot.name
+            try:
+                _install_wireguard_snapshot(app, snapshot)
+                rc_cp, out_cp = 0, ""
+            except Exception:
+                rc_cp, out_cp = 1, "Gepruefter WireGuard-Import fehlgeschlagen."
             if rc_cp == 0:
                 imported += 1
                 imported_profiles.append(name)
@@ -3494,8 +3493,6 @@ def import_wg_profiles_to_networkmanager(app):
     if first_dir:
         app.set_wg_import_dir(first_dir)
 
-    _warn_wireguard_import_hooks(app, files)
-
     if not app.ensure_sudo_session("WireGuard nach NetworkManager importieren"):
         return
 
@@ -3523,11 +3520,6 @@ def import_referenced_wg_profiles_to_networkmanager(app):
     if not referenced_paths:
         app.log("Kein referenziertes WireGuard-Profil zum NM-Import gefunden.")
         return
-    _warn_wireguard_import_hooks(
-        app,
-        [path for _profile, path in referenced_paths],
-    )
-
     _start_nm_import_job(
         app,
         [path for _profile, path in referenced_paths],
@@ -3539,7 +3531,14 @@ def _owned_nm_command(operation, *, payload=None, identity=None):
     """Invoke only the fixed, protected installed helper; user state is a hint."""
     if not nm_ownership.trusted_helper_available():
         raise nm_ownership.OwnershipError("Geschützter NetMon-Eigentumshelfer fehlt")
-    command = ["sudo", "-n", "/usr/bin/python3", "-I", nm_ownership.HELPER, operation]
+    command = [
+        "sudo",
+        "-n",
+        "/usr/bin/python3",
+        "-I",
+        nm_ownership.HELPER,
+        "import-checked" if operation == "import" else operation,
+    ]
     if identity is not None:
         command.extend(identity)
     rc, output = run_cmd_with_input(
@@ -3551,20 +3550,15 @@ def _owned_nm_command(operation, *, payload=None, identity=None):
         raise nm_ownership.OwnershipError(
             "Eigentumsprüfung fehlgeschlagen; Verbindung bleibt erhalten"
         )
-    return json.loads(output) if operation in {"import", "inspect"} else None
+    return (
+        json.loads(output)
+        if operation in {"import", "inspect", "snapshot-profile"}
+        else None
+    )
 
 
 def _nm_import_source(path):
-    # Snapshot as the caller, never ask root to follow a user-controlled path.
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-    with os.fdopen(fd, "rb") as handle:
-        info = os.fstat(handle.fileno())
-        if not stat.S_ISREG(info.st_mode) or info.st_size > nm_ownership.MAX_CONFIG:
-            raise ValueError("Ungültige oder zu große WireGuard-Quelldatei")
-        content = handle.read(nm_ownership.MAX_CONFIG + 1)
-    if len(content) > nm_ownership.MAX_CONFIG:
-        raise ValueError("WireGuard-Quelldatei zu groß")
-    return content.decode("utf-8")
+    return wireguard_import.ProfileSnapshot.read(path).data.decode("utf-8")
 
 
 def _nm_job_error(session, job, message):
@@ -3642,12 +3636,25 @@ def _nm_notify(app, session, job, message):
 
 
 def _start_nm_import_job(app, paths, operation_name):
+    try:
+        snapshots = _prepare_wireguard_imports(app, paths)
+        if snapshots is None:
+            return
+    except Exception:
+        app.log(
+            "NetworkManager-Import abgebrochen: Quelldatei oder Bestaetigung ungueltig."
+        )
+        return
     session = _nm_session(app)
     job = session.new_job("import")
     try:
         threading.Thread(
             target=lambda: import_wireguard_paths_to_networkmanager(
-                app, paths, operation_name=operation_name, _job=job
+                app,
+                paths,
+                operation_name=operation_name,
+                _job=job,
+                _snapshots=snapshots,
             ),
             daemon=True,
         ).start()
@@ -3672,57 +3679,44 @@ def import_wireguard_paths_to_networkmanager(
     *,
     operation_name="NetworkManager-WireGuard-Import",
     _job=None,
+    _snapshots=None,
 ):
     session = _nm_session(app)
     job = _job if _job is not None else session.new_job("import")
     if not session.start(job, "import"):
         return
     imported = skipped = failed = state_errors = 0
+    protected = False
     try:
         protected = nm_ownership.trusted_helper_available()
-        for src in selected_files:
-            name = os.path.basename(src)
-            name = name[:-5] if name.endswith(".conf") else name
-            if not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", name) or name in {".", ".."}:
-                skipped += 1
-                continue
+        if not protected:
+            raise nm_ownership.OwnershipError(
+                "Geschuetzter Importhelfer fehlt; kein unsicherer Fallback"
+            )
+        snapshots = (
+            _snapshots
+            if _snapshots is not None
+            else _prepare_wireguard_imports(app, selected_files)
+        )
+        if snapshots is None:
+            _nm_finish_job(session, job, "canceled")
+            return
+        for snapshot in snapshots:
+            name = snapshot.name
             if name in set(get_nm_wireguard_profiles(app)):
                 skipped += 1
                 continue
-            entry = session.reserve(job, str(src))
+            entry = session.reserve(job, snapshot.source)
             try:
-                if protected:
-                    candidate = _owned_nm_command(
-                        "import",
-                        payload={"name": name, "content": _nm_import_source(src)},
-                    )
-                    # FIRST retain the successful privileged result in a slot
-                    # reserved before creation. No callbacks or fallible cache
-                    # updates may intervene; recovery snapshots read this slot.
-                    with session.lock:
-                        entry.result = candidate
-                        session.include_owned = True
-                        session.revision += 1
-                else:
-                    rc, _out = run_cmd(
-                        [
-                            "sudo",
-                            "-n",
-                            "nmcli",
-                            "connection",
-                            "import",
-                            "type",
-                            "wireguard",
-                            "file",
-                            src,
-                        ],
-                        timeout=25,
-                    )
-                    if rc != 0:
-                        raise RuntimeError("NetworkManager import failed")
-                    with session.lock:
-                        entry.unowned_name = name
-                        session.revision += 1
+                candidate = _owned_nm_command(
+                    "import", payload=_verify_import_snapshot(snapshot)
+                )
+                # FIRST retain the successful privileged result. L-01/F-01
+                # receipts, job association and rollback state stay authoritative.
+                with session.lock:
+                    entry.result = candidate
+                    session.include_owned = True
+                    session.revision += 1
             except Exception:
                 session.failed_import(entry)
                 failed += 1
