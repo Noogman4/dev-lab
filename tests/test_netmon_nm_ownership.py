@@ -1,4 +1,4 @@
-"""L-01: synthetic NetworkManager only; no root commands or system profiles."""
+"""L-01/F-01: synthetic NM and real local persistence, no system profiles."""
 
 from io import StringIO
 import json
@@ -393,13 +393,14 @@ def test_cli_refuses_checkout_and_register_existing(monkeypatch, capsys):
 def fake_app(monkeypatch, state=None):
     logs = []
     app = SimpleNamespace(
-        privacy_config={"nm_last_import": state or {}},
+        privacy_config={},
         log=logs.append,
         after=lambda delay, fn: fn(),
         ensure_sudo_session=lambda text: True,
     )
     monkeypatch.setattr(vpn, "call_in_ui_thread", lambda app, fn: fn())
-    monkeypatch.setattr(vpn, "_save_privacy_config_safe", lambda *a: True)
+    if state is not None:
+        vpn.set_nm_last_import_state(app, state)
     monkeypatch.setattr(vpn, "get_nm_wireguard_profiles", lambda app: [])
     monkeypatch.setattr(
         vpn, "run_cmd", lambda *a, **k: pytest.fail("unexpected real command")
@@ -451,7 +452,8 @@ def test_gui_missing_helper_import_remains_unowned(monkeypatch, tmp_path):
     ],
 )
 def test_gui_user_json_never_authorizes_deletion(monkeypatch, forgery):
-    app, _logs = fake_app(monkeypatch, forgery)
+    app, _logs = fake_app(monkeypatch)
+    app.privacy_config["nm_last_import"] = forgery
     monkeypatch.setattr(own, "trusted_helper_available", lambda: True)
 
     def reject(*a, **kw):
@@ -698,3 +700,358 @@ def test_nm_adapter_rejects_ambiguous_storage_table(monkeypatch, kind):
     monkeypatch.setattr(adapter, "command", lambda *args: text)
     with pytest.raises(own.OwnershipError):
         adapter.profiles()
+
+
+@pytest.fixture
+def real_privacy_app(store, tmp_path, monkeypatch):
+    """Real App persistence and real receipt validation, synthetic NM only."""
+    from netmon.app import App
+
+    app = App.__new__(App)
+    logs, operations, previews = [], [], []
+    app.privacy_config_path = str(tmp_path / "config" / "privacy.json")
+    app.netmon_config_dir = str(tmp_path / "config")
+    app.netmon_config_path = str(tmp_path / "config" / "settings.json")
+    app.settings = {"language": "de", "unrelated_setting": "keep"}
+    app.privacy_config = {
+        "wg_import_dir": str(tmp_path),
+        "unrelated_privacy": {"keep": [1, 2]},
+    }
+    app.log = logs.append
+    app.log_debug_safe = logs.append
+    app.after = lambda delay, fn: fn()
+    app.ensure_sudo_session = lambda text: True
+    app.test_logs = logs
+    app.test_operations = operations
+    app.test_previews = previews
+    monkeypatch.setattr(vpn, "call_in_ui_thread", lambda app, fn: fn())
+    monkeypatch.setattr(own, "trusted_helper_available", lambda: True)
+    monkeypatch.setattr(
+        vpn, "get_nm_wireguard_profiles", lambda app: list(store.nm.rows.values())
+    )
+    monkeypatch.setattr(
+        vpn, "run_cmd", lambda *a, **kw: pytest.fail("real command forbidden")
+    )
+    monkeypatch.setattr(
+        vpn, "run_cmd_with_input", lambda *a, **kw: pytest.fail("real helper forbidden")
+    )
+
+    def helper(operation, *, payload=None, identity=None):
+        operations.append(operation)
+        if operation == "import":
+            return store.create(payload["name"], payload["content"])
+        if operation == "inspect":
+            return store.inspect(*identity)
+        assert operation == "delete"
+        return store.delete(payload)
+
+    monkeypatch.setattr(vpn, "_owned_nm_command", helper)
+    monkeypatch.setattr(
+        vpn.messagebox, "askyesno", lambda title, text: (previews.append(text) or True)
+    )
+
+    class ImmediateThread:
+        def __init__(self, target, **kwargs):
+            self.target = target
+
+        def start(self):
+            self.target()
+
+    monkeypatch.setattr(vpn.threading, "Thread", ImmediateThread)
+    return app
+
+
+def import_for_session(app, tmp_path, name="session-vpn"):
+    source = tmp_path / (name + ".conf")
+    source.write_text("[Interface]\nAddress=10.2.0.1/32\n")
+    vpn.import_wireguard_paths_to_networkmanager(app, [str(source)])
+
+
+def test_session_import_survives_real_privacy_save(real_privacy_app, store, tmp_path):
+    app = real_privacy_app
+    import_for_session(app, tmp_path)
+    candidate = store.candidates()[0]
+    app.save_privacy_config()
+    state = vpn.get_nm_last_import_state(app)
+    assert state.get("owned_connections", []) == [candidate]
+    assert state["connections"] == [candidate["name"]]
+    saved = json.loads((tmp_path / "config" / "privacy.json").read_text())
+    assert "nm_last_import" not in saved
+    assert saved["unrelated_privacy"] == {"keep": [1, 2]}
+    settings = json.loads((tmp_path / "config" / "settings.json").read_text())
+    assert settings["unrelated_setting"] == "keep"
+    serialized = json.dumps([saved, settings])
+    assert candidate["uuid"] not in serialized
+    assert candidate["receipt_id"] not in serialized
+    assert "owned_connections" not in serialized
+    assert "_nm_last_import_state" not in serialized
+
+
+def test_session_rollback_after_real_privacy_save(real_privacy_app, store, tmp_path):
+    app = real_privacy_app
+    import_for_session(app, tmp_path)
+    candidate = store.candidates()[0]
+    app.save_privacy_config()
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert store.nm.deleted == [candidate["uuid"]]
+    assert candidate["uuid"] in app.test_previews[0]
+
+
+@pytest.mark.parametrize("previous_import", [False, True])
+def test_session_failed_import_preserves_previous_state(
+    real_privacy_app, store, tmp_path, previous_import
+):
+    app = real_privacy_app
+    if previous_import:
+        import_for_session(app, tmp_path, "first")
+    before = vpn.get_nm_last_import_state(app)
+    store.nm.fail = "create"
+    import_for_session(app, tmp_path, "broken")
+    app.save_privacy_config()
+    assert vpn.get_nm_last_import_state(app) == before
+    assert not store.nm.deleted
+    assert any("fehlgeschlagen" in text for text in app.test_logs)
+
+
+def test_session_second_import_preserves_both_verified_references(
+    real_privacy_app, store, tmp_path
+):
+    app = real_privacy_app
+    import_for_session(app, tmp_path, "first")
+    app.save_privacy_config()
+    first = vpn.get_nm_last_import_state(app)["owned_connections"][0]
+    import_for_session(app, tmp_path, "second")
+    app.save_privacy_config()
+    state = vpn.get_nm_last_import_state(app)
+    assert state["connections"] == ["first", "second"]
+    assert len(state["owned_connections"]) == 2
+    assert state["owned_connections"][0] == first
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert set(store.nm.deleted) == {
+        item["uuid"] for item in state["owned_connections"]
+    }
+    assert all(
+        item["uuid"] in app.test_previews[0] for item in state["owned_connections"]
+    )
+
+
+def test_session_cancel_and_repeated_rollback(
+    real_privacy_app, store, tmp_path, monkeypatch
+):
+    app = real_privacy_app
+    import_for_session(app, tmp_path)
+    app.save_privacy_config()
+    state = vpn.get_nm_last_import_state(app)
+    monkeypatch.setattr(vpn.messagebox, "askyesno", lambda *args: False)
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert vpn.get_nm_last_import_state(app) == state
+    assert not store.nm.deleted
+    app.save_privacy_config()
+    monkeypatch.setattr(vpn.messagebox, "askyesno", lambda *args: True)
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert len(store.nm.deleted) == 1
+    assert vpn.get_nm_last_import_state(app)["owned_connections"] == []
+    app.save_privacy_config()
+    operations = list(app.test_operations)
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert app.test_operations == operations
+    assert len(store.nm.deleted) == 1
+
+
+def test_session_rollback_preserves_foreign_duplicate_name(
+    real_privacy_app, store, tmp_path
+):
+    app = real_privacy_app
+    import_for_session(app, tmp_path)
+    candidate = store.candidates()[0]
+    foreign = str(uuid.uuid4())
+    store.nm.rows[foreign] = candidate["name"]
+    store.nm.keyfile(foreign, candidate["name"])
+    app.save_privacy_config()
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert store.nm.deleted == [candidate["uuid"]]
+    assert store.nm.rows == {foreign: candidate["name"]}
+
+
+@pytest.mark.parametrize("damage", ["missing", "invalid", "permissions", "recreated"])
+def test_session_reference_cannot_replace_valid_ownership_proof(
+    real_privacy_app, store, tmp_path, damage
+):
+    app = real_privacy_app
+    import_for_session(app, tmp_path)
+    candidate = store.candidates()[0]
+    app.save_privacy_config()
+    state = vpn.get_nm_last_import_state(app)
+    if damage == "missing":
+        receipt_path(store, candidate).unlink()
+    elif damage == "invalid":
+        rewrite_receipt(
+            store, candidate, lambda record: record.update({"owner": "forged"})
+        )
+    elif damage == "permissions":
+        receipt_path(store, candidate).chmod(0o666)
+    else:
+        store.nm.keyfile(candidate["uuid"], "replacement")
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert not store.nm.deleted
+    assert not app.test_previews
+    assert vpn.get_nm_last_import_state(app) == state
+
+
+def test_session_restart_does_not_restore_even_valid_receipt_references(
+    real_privacy_app, store, tmp_path
+):
+    from netmon.app import App
+
+    app = real_privacy_app
+    import_for_session(app, tmp_path)
+    state = vpn.get_nm_last_import_state(app)
+    app.save_privacy_config()
+    path = tmp_path / "config" / "privacy.json"
+    saved = json.loads(path.read_text())
+    saved["nm_last_import"] = state  # Inject a real UUID/nonce, not merely a bad token.
+    path.write_text(json.dumps(saved))
+    restarted = App.__new__(App)
+    restarted.settings = {}
+    restarted.privacy_config_path = str(path)
+    restarted.log = app.test_logs.append
+    restarted.privacy_config = restarted.load_privacy_config()
+    assert "nm_last_import" not in restarted.privacy_config
+    assert restarted.privacy_config["unrelated_privacy"] == {"keep": [1, 2]}
+    assert vpn.get_nm_last_import_state(restarted)["connections"] == []
+    operations = list(app.test_operations)
+    vpn.rollback_last_nm_wireguard_import(restarted)
+    assert app.test_operations == operations
+    assert not store.nm.deleted
+    assert store.candidates() == state["owned_connections"]
+
+
+def test_session_save_write_error_preserves_state_and_existing_config(
+    real_privacy_app, store, tmp_path, monkeypatch
+):
+    from netmon.core import utils
+
+    app = real_privacy_app
+    app.save_privacy_config()
+    path = tmp_path / "config" / "privacy.json"
+    before = path.read_bytes()
+    import_for_session(app, tmp_path)
+    state = vpn.get_nm_last_import_state(app)
+    replace = utils.os.replace
+
+    def fail_privacy_write(source, target):
+        if str(target) == str(path):
+            raise OSError("synthetic privacy write error")
+        return replace(source, target)
+
+    monkeypatch.setattr(utils.os, "replace", fail_privacy_write)
+    app.save_privacy_config()
+    assert path.read_bytes() == before
+    assert vpn.get_nm_last_import_state(app) == state
+    assert app.privacy_config["unrelated_privacy"] == {"keep": [1, 2]}
+    assert any("synthetic privacy write error" in text for text in app.test_logs)
+    assert not list(path.parent.glob(".netmon-tmp-*"))
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert len(store.nm.deleted) == 1
+
+
+def test_session_changed_after_confirmation_is_not_deleted(
+    real_privacy_app, store, tmp_path, monkeypatch
+):
+    app = real_privacy_app
+    import_for_session(app, tmp_path)
+    candidate = store.candidates()[0]
+    app.save_privacy_config()
+
+    def confirm_and_change(title, text):
+        assert candidate["uuid"] in text
+        store.nm.keyfile(candidate["uuid"], "changed-after-preview")
+        return True
+
+    monkeypatch.setattr(vpn.messagebox, "askyesno", confirm_and_change)
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert not store.nm.deleted
+    assert vpn.get_nm_last_import_state(app)["owned_connections"] == [candidate]
+
+
+@pytest.mark.parametrize("failure_stage", ["before_creation", "after_creation"])
+def test_session_partial_import_tracks_only_successful_receipts(
+    real_privacy_app, store, tmp_path, monkeypatch, failure_stage
+):
+    app = real_privacy_app
+    create_original, find_original = store.nm.create, store._find_created
+
+    def create_with_error(source):
+        if source.stem == "broken" and failure_stage == "before_creation":
+            raise own.OwnershipError("synthetic import error")
+        return create_original(source)
+
+    def find_with_error(identity):
+        if store.nm.rows[identity] == "broken" and failure_stage == "after_creation":
+            raise own.OwnershipError("synthetic receipt error")
+        return find_original(identity)
+
+    monkeypatch.setattr(store.nm, "create", create_with_error)
+    monkeypatch.setattr(store, "_find_created", find_with_error)
+    sources = []
+    for name in ["good", "broken"]:
+        source = tmp_path / (name + ".conf")
+        source.write_text("[Interface]\n")
+        sources.append(str(source))
+    vpn.import_wireguard_paths_to_networkmanager(app, sources)
+    app.save_privacy_config()
+    state = vpn.get_nm_last_import_state(app)
+    assert state["connections"] == ["good"]
+    assert len(state["owned_connections"]) == 1
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert store.nm.deleted == [state["owned_connections"][0]["uuid"]]
+    assert list(store.nm.rows.values()) == (
+        ["broken"] if failure_stage == "after_creation" else []
+    )
+
+
+@pytest.mark.parametrize("entry", ["file_dialog", "referenced_profiles"])
+def test_session_canceled_import_keeps_previous_references(
+    real_privacy_app, store, tmp_path, monkeypatch, entry
+):
+    app = real_privacy_app
+    import_for_session(app, tmp_path)
+    app.save_privacy_config()
+    state = vpn.get_nm_last_import_state(app)
+    operations = list(app.test_operations)
+    monkeypatch.setattr(vpn, "has_cmd", lambda name: True)
+    app.tr = lambda key, fallback: fallback
+    if entry == "file_dialog":
+        monkeypatch.setattr(vpn.filedialog, "askopenfilenames", lambda **kwargs: ())
+        vpn.import_wg_profiles_to_networkmanager(app)
+    else:
+        app.collect_referenced_wg_profile_import_paths = lambda: []
+        vpn.import_referenced_wg_profiles_to_networkmanager(app)
+    app.save_privacy_config()
+    assert vpn.get_nm_last_import_state(app) == state
+    assert app.test_operations == operations
+    assert not store.nm.deleted
+
+
+def test_session_stale_reference_does_not_authorize_reused_uuid(
+    real_privacy_app, store, tmp_path
+):
+    app = real_privacy_app
+    import_for_session(app, tmp_path)
+    old = vpn.get_nm_last_import_state(app)
+    identity = old["owned_connections"][0]["uuid"]
+    app.save_privacy_config()
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert store.nm.deleted == [identity]
+    store.nm.create_uuid = identity
+    import_for_session(app, tmp_path, "new-session")
+    current = store.candidates()[0]
+    assert current["receipt_id"] != old["owned_connections"][0]["receipt_id"]
+    # Even restoring old in-memory data conveys no authorization over the
+    # replacement. Only the independently checked fresh root receipt can do so.
+    vpn.set_nm_last_import_state(app, old)
+    app.save_privacy_config()
+    vpn.rollback_last_nm_wireguard_import(app)
+    assert store.nm.deleted == [identity]
+    assert store.nm.rows == {identity: "new-session"}
+    assert store.candidates() == [current]

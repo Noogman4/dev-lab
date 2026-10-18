@@ -2270,9 +2270,9 @@ def get_active_nm_wireguard_connections(app):
 
 
 def get_nm_last_import_state(app):
-    return _normalized_nm_last_import_state(
-        _privacy_config_dict(app).get("nm_last_import")
-    )
+    # Session references are deliberately separate from persisted settings.
+    # Neither loaded user JSON nor a config save can restore/drop this state.
+    return _normalized_nm_last_import_state(app.__dict__.get("_nm_last_import_state"))
 
 
 def set_nm_last_import_state(app, state):
@@ -2282,12 +2282,7 @@ def set_nm_last_import_state(app, state):
         next_state.update(state)
     next_state = _normalized_nm_last_import_state(next_state)
 
-    _privacy_config_dict(app)["nm_last_import"] = next_state
-
-    _save_privacy_config_safe(
-        app,
-        "NM-Importstatus konnte nicht persistiert werden",
-    )
+    app.__dict__["_nm_last_import_state"] = next_state
     return next_state
 
 

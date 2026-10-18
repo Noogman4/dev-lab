@@ -418,14 +418,12 @@ def test_refresh_wg_profiles_updates_privacy_vpn_combo_on_startup():
     assert app.isp_stealth_vpn_combo["values"] == ["wg-a", "wg-b"]
 
 
-def test_get_nm_last_import_state_normalizes_invalid_config_values():
+def test_get_nm_last_import_state_normalizes_invalid_session_values():
     app = netmon.App.__new__(netmon.App)
-    app.privacy_config = {
-        "nm_last_import": {
-            "connections": [" wg-a ", "", None, "wg-b"],
-            "source_files": [" /tmp/a.conf ", "", None],
-            "imported_at": "7",
-        }
+    app._nm_last_import_state = {
+        "connections": [" wg-a ", "", None, "wg-b"],
+        "source_files": [" /tmp/a.conf ", "", None],
+        "imported_at": "7",
     }
 
     state = vpn_controller.get_nm_last_import_state(app)
@@ -437,11 +435,11 @@ def test_get_nm_last_import_state_normalizes_invalid_config_values():
     }
 
 
-def test_set_nm_last_import_state_creates_privacy_config_and_logs_save_failures():
+def test_set_nm_last_import_state_keeps_session_separate_without_saving():
     app = netmon.App.__new__(netmon.App)
-    logs = []
-    app.log_debug_safe = logs.append
-    app.save_privacy_config = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+    app.privacy_config = {"unrelated": "keep"}
+    calls = []
+    app.save_privacy_config = lambda: calls.append("save")
 
     state = vpn_controller.set_nm_last_import_state(
         app,
@@ -452,15 +450,14 @@ def test_set_nm_last_import_state_creates_privacy_config_and_logs_save_failures(
         },
     )
 
-    assert app.__dict__["privacy_config"]["nm_last_import"] == state
+    assert app.__dict__["_nm_last_import_state"] == state
+    assert app.privacy_config == {"unrelated": "keep"}
     assert state == {
         "connections": ["wg-a"],
         "source_files": ["/tmp/a.conf"],
         "imported_at": 12,
     }
-    assert any(
-        "NM-Importstatus konnte nicht persistiert werden: boom" in msg for msg in logs
-    )
+    assert calls == []
 
 
 def test_set_vpn_backend_mode_creates_config_and_saves():
