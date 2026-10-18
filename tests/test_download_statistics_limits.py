@@ -13,6 +13,8 @@ import pytest
 from tests.test_download_statistics import (
     app as app,
     php as php,
+    stats_token as stats_token,
+    stats_authorization as stats_authorization,
     http_server as http_server,
     assert_no_temporary_files,
     b64,
@@ -379,20 +381,23 @@ def test_invalid_json_and_utf8_stay_unchanged(php, limited_app, raw):
         "source=ignored",
     ],
 )
-def test_unusual_http_sources_keep_download_and_stats_working(http_server, app, query):
+def test_unusual_http_sources_keep_download_and_stats_working(
+    http_server, app, query, stats_authorization
+):
     status, headers, _ = http_request(http_server, "/download.php?id=artifact&" + query)
     assert status == 302 and headers["Location"] == "/artifact.bin?dl=1"
     stats = json.loads(app[1].read_bytes())
     assert stats["total_downloads"] == 8
     assert_source_caps(stats)
     assert (
-        http_request(http_server, "/download-stats.php?token=isolated-test-token")[0]
-        == 200
+        http_request(http_server, "/download-stats.php", stats_authorization)[0] == 200
     )
 
 
 @pytest.mark.parametrize("kind", ["large", "malformed", "structure"])
-def test_bad_existing_storage_never_blocks_normal_http_download(http_server, app, kind):
+def test_bad_existing_storage_never_blocks_normal_http_download(
+    http_server, app, kind, stats_authorization
+):
     raw = {
         "large": b" " * (MAX_BYTES + 1),
         "malformed": b"{bad",
@@ -408,7 +413,7 @@ def test_bad_existing_storage_never_blocks_normal_http_download(http_server, app
     )
     assert app[1].read_bytes() == raw
     status, _, body = http_request(
-        http_server, "/download-stats.php?token=isolated-test-token"
+        http_server, "/download-stats.php", stats_authorization
     )
     assert status == 200 and b"Nicht lesbar oder Statistiklimit" in body
 
@@ -502,7 +507,7 @@ def test_repeated_source_keeps_its_original_label(php, limited_app):
     assert result["stats"]["files"]["artifact"]["sources"] == result["stats"]["sources"]
 
 
-def test_sources_remain_escaped_in_statistics_view(http_server):
+def test_sources_remain_escaped_in_statistics_view(http_server, stats_authorization):
     assert (
         http_request(
             http_server, "/download.php?id=artifact&src=%3Cscript%3Ebad%3C%2Fscript%3E"
@@ -510,7 +515,7 @@ def test_sources_remain_escaped_in_statistics_view(http_server):
         == 302
     )
     status, _, body = http_request(
-        http_server, "/download-stats.php?token=isolated-test-token"
+        http_server, "/download-stats.php", stats_authorization
     )
     assert status == 200
     assert (

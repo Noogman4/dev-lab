@@ -28,7 +28,11 @@ Hinweis:
   keine weiteren PHP-Erweiterungen erforderlich. Ab PHP 8.1 wird zusaetzlich
   `fsync()` vor dem Rename geprueft, wenn verfuegbar.
 - Beim lokalen simplen HTTP-Test laufen die PHP-Seiten nicht automatisch mit.
-- Die Statistikseite ist per Token geschuetzt. Bevorzugt den Token serverseitig als Umgebungsvariable `NETMON_STATS_TOKEN` setzen.
+- Die Statistikseite benoetigt zwingend einen serverseitig fuer PHP verfuegbaren
+  `NETMON_STATS_TOKEN`. Fehlende/ungueltige Konfiguration ergibt HTTP 503;
+  Zugriff nur per `Authorization: Bearer`, fehlende/falsche Berechtigung HTTP 403.
+  URL-Tokens werden nicht mehr akzeptiert. Hosting- und lokale Readiness-Pruefung:
+  [L-02](../docs/security/L-02.md).
 - Keine echten Tokens in `site/download-config.php`, `.htaccess`, Commits oder Upload-Zips ablegen. Das Repo und die Build-Artefakte muessen secret-frei bleiben.
 
 Server stoppen:
@@ -145,7 +149,9 @@ Website-Reupload.
 Wichtig:
 
 - Vor dem Upload pruefen, dass `public_html/download-config.php` keinen fest eingebauten Token enthaelt.
-- Zugriffstoken immer nur serverseitig setzen, zum Beispiel per cPanel-Umgebungsvariable oder Apache-`SetEnv`.
+- Zugriffstoken nur serverseitig ueber die vom Hoster vorgesehene Secret-Konfiguration
+  an die verwendete PHP-SAPI uebergeben. Eine Shell-/cPanel-Variable allein belegt
+  nicht, dass PHP-FPM sie sieht; Authorization-Weitergabe separat pruefen.
 - Die Build-Skripte brechen absichtlich ab, wenn in `site/download-config.php` noch ein harter `stats_token` gefunden wird.
 
 ## Download verifizieren
@@ -187,12 +193,14 @@ make site-print-minisign
 - `robots.txt` und `sitemap.xml` liegen im Build unter `public_html/`.
 - `download.php` und `download-stats.php` liegen im Build unter `public_html/`.
 - Seite bleibt auch bei schmalem Browserfenster lesbar.
-- Statistikaufruf nach Deploy: `https://netmonroots.com/download-stats.php?token=DEIN_TOKEN`
+- Statistikzugriff nach Deploy nur mit `Authorization: Bearer` ueber HTTPS direkt
+  auf den kanonischen Host; keine Token-URL, kein Credential-Redirect. Siehe L-02.
 
 Die Statistik wird unter einer stabilen separaten Lock-Datei aktualisiert.
 Schreib- und Serialisierungsfehler erhalten die bisherige Datei; parallele PHP-
 Prozesse lesen und schreiben unter demselben Lock. Das JSON-Schema, konfigurierte
-Download-IDs, Redirects und Statistik-Token bleiben unveraendert.
+Download-IDs und Redirects bleiben unveraendert. L-02 aendert ausschliesslich
+den Zugriff auf die Statistik von URL-Token auf verpflichtenden Bearer-Header.
 
 Telemetrie wird auf gueltiges UTF-8 normalisiert und nach Bytes begrenzt:
 `src` 256, Referer 2048, Sprache 8, Accept-Language 256 und IP-Eingabe vor dem

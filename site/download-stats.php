@@ -30,9 +30,6 @@ if ($statsPath === "" || !file_exists($statsPath)) {
     $storageState = "Nicht lesbar oder Statistiklimit ueberschritten";
 }
 
-header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
-header("Pragma: no-cache");
-header("Expires: 0");
 header("Content-Type: text/html; charset=utf-8");
 ?>
 <!DOCTYPE html>
@@ -204,9 +201,6 @@ header("Content-Type: text/html; charset=utf-8");
     <div class="section">
       <p class="muted"><code>__other__</code> fasst weitere Herkunftsbezeichnungen zusammen, wenn das Quellenlimit erreicht ist.</p>
       <p class="muted">Hinweis: Die Seite zaehlt nur Downloads, die ueber <code>download.php</code> laufen. Direkte Aufrufe auf <code>/dist/...</code> erscheinen hier nicht.</p>
-      <?php if (trim((string) ($config["stats_token"] ?? "")) === ""): ?>
-        <p class="warn">Warnung: Kein Zugriffstoken gesetzt. Wenn die Statistik nicht oeffentlich sein soll, bitte <code>NETMON_STATS_TOKEN</code> serverseitig setzen. Keine echten Tokens im Repo oder Upload-Bundle ablegen.</p>
-      <?php endif; ?>
     </div>
   </div>
   <script>

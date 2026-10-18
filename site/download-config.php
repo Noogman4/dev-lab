@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 // Der Statistik-Token darf nicht im Repo oder Build-Artefakten stehen.
-// Produktive Deployments muessen NETMON_STATS_TOKEN serverseitig setzen.
-$statsToken = trim((string) getenv("NETMON_STATS_TOKEN"));
+// Pflicht: serverseitig an PHP uebergeben, 1..512 RFC-6750-Tokenzeichen.
+// Fehlende/ungueltige Konfiguration sperrt die Statistik mit HTTP 503.
+// Client-Zugriff ausschliesslich per Authorization: Bearer (nie per URL).
+$statsToken = getenv("NETMON_STATS_TOKEN");
 
 return [
     "stats_token" => $statsToken,

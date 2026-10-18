@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import http.client
 import json
 import os
+import secrets
 from pathlib import Path
 import shutil
 import socket
@@ -30,6 +31,16 @@ def php():
         pytest.skip("PHP CLI required; optionally set NETMON_TEST_PHP")
     subprocess.run([executable, "-n", "-v"], capture_output=True, check=True)
     return executable
+
+
+@pytest.fixture
+def stats_token():
+    return secrets.token_urlsafe(32)
+
+
+@pytest.fixture
+def stats_authorization(stats_token):
+    return {"Authorization": "Bearer " + stats_token}
 
 
 @pytest.fixture
@@ -73,14 +84,14 @@ def app(tmp_path):
     config = {
         "stats_path": str(path),
         "max_recent_events": 200,
-        "stats_token": "isolated-test-token",
         "downloads": {
             "artifact": {"label": "Test artifact", "target": "/artifact.bin"},
             "missing": {"label": "Missing artifact", "target": "/missing.bin"},
         },
     }
     (app / "download-config.php").write_text(
-        f'<?php return json_decode(base64_decode("{b64(json.dumps(config))}"), true);'
+        f'<?php $config = json_decode(base64_decode("{b64(json.dumps(config))}"), true);'
+        '$config["stats_token"] = getenv("NETMON_STATS_TOKEN"); return $config;'
     )
     return app, path, seed
 
@@ -382,7 +393,7 @@ def test_new_store_is_initialized_privately_and_recent_event_limit_is_retained(
 
 
 @pytest.fixture
-def http_server(php, app):
+def http_server(php, app, stats_token):
     with socket.socket() as reservation:
         reservation.bind(("127.0.0.1", 0))
         port = reservation.getsockname()[1]
@@ -390,6 +401,7 @@ def http_server(php, app):
         [php, "-n", "-S", f"127.0.0.1:{port}", "-t", str(app[0])],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
+        env={"PATH": os.defpath, "NETMON_STATS_TOKEN": stats_token},
     )
     try:
         deadline = time.monotonic() + 5
@@ -419,7 +431,9 @@ def http_request(port, path, headers=None):
         connection.close()
 
 
-def test_actual_download_redirects_and_stats_page_still_work(http_server, app):
+def test_actual_download_redirects_and_stats_page_still_work(
+    http_server, app, stats_authorization
+):
     status, headers, _ = http_request(
         http_server,
         "/download.php?id=artifact&src=%FFdownload&lang=de",
@@ -437,7 +451,7 @@ def test_actual_download_redirects_and_stats_page_still_work(http_server, app):
     assert stats["recent_events"][0]["referrer"] == "https://example.test/\ufffd"
     assert http_request(http_server, "/download-stats.php")[0] == 403
     status, _, body = http_request(
-        http_server, "/download-stats.php?token=isolated-test-token"
+        http_server, "/download-stats.php", stats_authorization
     )
     assert status == 200
     assert b"Test artifact" in body

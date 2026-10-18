@@ -555,15 +555,67 @@ function netmon_record_download(
     }, netmon_default_stats());
 }
 
+function netmon_stats_token_valid($token): bool
+{
+    // RFC 6750 b64token, bounded before regex/comparison; no coercion or trim.
+    return is_string($token) && strlen($token) >= 1 && strlen($token) <= 512
+        && preg_match('/\A[A-Za-z0-9._~+\/-]+=*\z/D', $token) === 1;
+}
+
+function netmon_stats_authorization(): ?string
+{
+    $values = [];
+    foreach (["HTTP_AUTHORIZATION", "REDIRECT_HTTP_AUTHORIZATION"] as $key) {
+        if (array_key_exists($key, $_SERVER)) {
+            $values[] = $_SERVER[$key];
+        }
+    }
+    // Apache module and FPM may expose the header through different SAPI APIs.
+    if (function_exists("getallheaders")) {
+        $headers = getallheaders();
+        if (!is_array($headers)) {
+            return null;
+        }
+        foreach ($headers as $name => $value) {
+            if (is_string($name) && strcasecmp($name, "Authorization") === 0) {
+                $values[] = $value;
+            }
+        }
+    }
+    $authorization = null;
+    foreach ($values as $value) {
+        if (!is_string($value) || strlen($value) > 519
+            || ($authorization !== null && $authorization !== $value)) {
+            return null;
+        }
+        $authorization = $value;
+    }
+    if ($authorization === null
+        || preg_match('/\ABearer ([A-Za-z0-9._~+\/-]+=*)\z/iD', $authorization, $match) !== 1
+        || !netmon_stats_token_valid($match[1])) {
+        return null;
+    }
+    return $match[1];
+}
+
 function netmon_require_stats_token(array $config): void
 {
-    $token = trim((string) ($config["stats_token"] ?? ""));
-    if ($token === "") {
-        return;
+    // Also protect rejection responses; authenticate before any storage access.
+    header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+    header("Pragma: no-cache");
+    header("Expires: 0");
+    header("Referrer-Policy: no-referrer");
+    header("X-Content-Type-Options: nosniff");
+    $token = $config["stats_token"] ?? null;
+    if (!netmon_stats_token_valid($token)) {
+        http_response_code(503);
+        header("Content-Type: text/plain; charset=utf-8");
+        echo "Statistics unavailable\n";
+        exit;
     }
-
-    $provided = trim((string) ($_GET["token"] ?? ""));
-    if (!hash_equals($token, $provided)) {
+    $provided = netmon_stats_authorization();
+    // URL tokens are intentionally unsupported, including arrays/conflicts.
+    if (array_key_exists("token", $_GET) || $provided === null || !hash_equals($token, $provided)) {
         http_response_code(403);
         header("Content-Type: text/plain; charset=utf-8");
         echo "Forbidden\n";

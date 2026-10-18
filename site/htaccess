@@ -2,8 +2,8 @@ RewriteEngine On
 
 # Statistik-Zugriffstoken nur serverseitig im Hosting setzen.
 # Keine echten Tokens im Repo speichern.
-# Beispiel auf dem Server:
-# SetEnv NETMON_STATS_TOKEN dein_langer_token
+# PHP-SAPI und Authorization-Weitergabe separat pruefen: docs/security/L-02.md.
+# Keine Tokenwerte oder Token-URLs in Vorlagen einsetzen.
 
 # Redirect secondary domains to the canonical HTTPS domain.
 RewriteCond %{HTTP_HOST} ^www\.netmonroots\.com$ [NC,OR]

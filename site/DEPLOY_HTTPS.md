@@ -116,10 +116,18 @@ Fuer den Downloadzaehler wichtig:
   Alte laufende PHP-Requests vorher auslaufen lassen, da sie noch auf der JSON-Datei
   statt auf der neuen separaten Lock-Datei sperren. Die Lock-Datei waehrend des
   Betriebs niemals loeschen oder austauschen.
-- Bevorzugt den Token serverseitig als Umgebungsvariable `NETMON_STATS_TOKEN` setzen.
-- Beispiel per `.htaccess` auf dem Server: `SetEnv NETMON_STATS_TOKEN dein_langer_token`
+- Pflicht: `NETMON_STATS_TOKEN` ueber die vom Hoster vorgesehene Secret-Konfiguration
+  an die tatsaechlich verwendete PHP-SAPI uebergeben; leere/ungueltige Konfiguration
+  sperrt die Seite mit HTTP 503. Eine Shell-Variable allein ist kein Nachweis.
 - Keine echten Tokens in `download-config.php`, Repo-`.htaccess`, Commits oder Upload-Zips speichern.
-- Aufruf danach: `https://netmonroots.com/download-stats.php?token=DEIN_TOKEN`
+- Zugriff nur per `Authorization: Bearer` ueber HTTPS direkt auf den kanonischen
+  Host; URL-Tokens werden abgelehnt. Die CGI-/FPM-Headerweitergabe und die
+  Erreichbarkeit des Secrets fuer PHP muessen separat geprueft werden.
+- Lokale Pruefung: `python3 scripts/check_download_stats_readiness.py --php /pfad/zu/php`.
+  Sie arbeitet mit temporaeren Kopien, synthetischen Daten und einem fluechtigen
+  Testtoken. Ihr Erfolg bestaetigt **keine** produktive cPanel-/Apache-/FPM-Konfiguration.
+- Authentifizierungsvertrag, sichere Administration und Hosting-Checkliste:
+  [docs/security/L-02.md](../docs/security/L-02.md).
 
 Die Statistik serialisiert vor jeder Ersetzung den vollstaendigen JSON-Zustand,
 schreibt ihn in eine private temporaere Datei im selben Verzeichnis und verwendet
