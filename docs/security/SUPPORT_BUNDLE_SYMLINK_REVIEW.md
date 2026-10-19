@@ -132,7 +132,7 @@ unveraendertem Host-Access-Guard, ohne PHP-Installation oder neue Host-Mounts.
 | --- | --- | --- |
 | Erster Lauf des unveraenderten Patches | 1 fehlgeschlagener Test wegen unsicherem Fixture-Ausgabeordner; danach Abbruch | `netmon-isolation-84aby5pz` |
 | Sicherheitsregressionen nach Berechtigungsanpassung | 32 bestanden, 0 Fehler/Skips | `netmon-isolation-812na05k` |
-| Support-/Diagnosegruppe plus Guard und About | 109 bestanden, 0 Fehler/Skips | `netmon-isolation-atgtjum7` |
+| Lokaler Arbeitsstand: Support-/Diagnosegruppe plus Guard und unveroeffentlichte About-Tests | 109 bestanden, 0 Fehler/Skips | `netmon-isolation-atgtjum7` |
 
 Die 109 Faelle bestehen aus 32 Sicherheits-, 3 Support-Bundle-, 3
 Core-Diagnostik-, 41 NetMon-Diagnostik-, 21 Guard- und 9 About-Tests. Die 32
@@ -140,16 +140,43 @@ Sicherheitsfaelle sind Teil der 109, keine zusaetzlichen eindeutigen Faelle.
 JUnit bestaetigt die Aufteilung. Laufzeit der abschliessenden Auswahl:
 1,48 Sekunden. Die Verzeichnisse enthalten jeweils `junit.xml` und `xvfb.log`.
 
-Reproduzierbare abschliessende Auswahl, ausschliesslich im vorhandenen Starter:
+**Die 109 Tests sind kein allein aus dem gepushten Commit reproduzierbarer
+Nachweis.** Die neun Faelle aus `tests/test_netmon_about.py` gehoeren zu den
+separaten lokalen About-Arbeiten. Diese Testdatei und die zugehoerigen
+Produktionsaenderungen wurden bewusst nicht in den Support-Bundle-Commit
+aufgenommen. Die 100 veroeffentlichten Faelle bestehen aus 32 Sicherheits-,
+3 Support-Bundle-, 3 Core-Diagnostik-, 41 NetMon-Diagnostik- und 21 Guard-Tests.
+
+Aus dem Support-Bundle-Commit reproduzierbare Auswahl mit **100 Tests**,
+ausschliesslich im vorhandenen Starter und mit eingerichteter Testumgebung:
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B tests/run_isolated_suite.py --probe
 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B tests/run_isolated_suite.py \
   -q --tb=short tests/test_support_bundle_security.py \
   tests/test_support_bundle.py tests/test_core_diagnostics.py \
-  tests/test_netmon_diagnostics.py tests/test_host_access_guard.py \
-  tests/test_netmon_about.py
+  tests/test_netmon_diagnostics.py tests/test_host_access_guard.py
 ```
+
+### Nachpruefung des tatsaechlich veroeffentlichten Stands
+
+Nach Hinweis der unabhaengigen Cloud-Pruefung wurde am 2026-10-19 der gepushte
+Commit `a2de4d013adeed98d423999261d45fcf151dc932` per `git archive` in ein
+neues temporaeres Verzeichnis exportiert. Der Export enthielt ausschliesslich
+versionierte Dateien dieses Commits, insbesondere weder die lokalen
+About-Aenderungen noch `tests/test_netmon_about.py`. Die vorhandene virtuelle
+Testumgebung wurde lokal kopiert; keine Pakete wurden installiert. Der
+Teststarter und der Host-Access-Guard blieben unveraendert.
+
+Die Bubblewrap-Probe bestand (`netmon-isolation-u3k6dr72`). Anschliessend
+bestand die oben angegebene Auswahl auf diesem sauberen Export mit
+**100 bestandenen Tests, 0 Fehlern und 0 Skips in 1,01 Sekunden**.
+JUnit-Nachweis: `/tmp/user/1000/netmon-isolation-3fizs688/junit.xml`.
+Die temporaeren Artefakte sind lokale Nachweise und nicht Bestandteil des
+Repositorys. Fuer eine unabhaengige Wiederholung ist der oben angegebene
+100-Test-Befehl massgeblich. Die historischen 109 lokalen Tests werden damit
+ausdruecklich von den 100 im veroeffentlichten Stand nachgewiesenen Tests
+getrennt; die neun About-Tests wurden nicht nachtraeglich veroeffentlicht.
 
 Lokales Ruff 0.15.20 mit der Projektkonfiguration meldet fuer die fuenf
 betroffenen Python-Dateien keine Fehler. Die im Fremdbericht genannten
