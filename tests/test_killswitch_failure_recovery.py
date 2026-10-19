@@ -28,11 +28,11 @@ class Ufw:
     def __init__(self, fail_at=None, raises=False, active=True, service=False):
         self.defaults = {"incoming": "deny", "outgoing": "deny"}
         self.rules = {False: [], True: []}
-        # Rules owned by the user, including a cleanup candidate.
+        # A retained administrator management rule; conflicting egress is tested
+        # explicitly in the ownership suite, and now blocks preflight.
         for ipv6 in self.rules:
             self.rules[ipv6] = [
                 ("ALLOW", "IN", "22/tcp", "Anywhere"),
-                ("ALLOW", "OUT", "443/tcp", "Anywhere"),
             ]
         self.active = active
         self.fail_at = fail_at
@@ -197,7 +197,35 @@ def test_baseline_recovery_changes_deny_outgoing_to_allow():
     ],
 )
 def test_each_partial_activation_failure_fails_closed(stage, raises, active, service):
-    ufw = Ufw(fail_at=stage, raises=raises, active=active, service=service)
+    # Cleanup no longer performs two deletes. Preserve every parameterized
+    # case by covering the final inventory and verifier failures instead.
+    commands = 7 if active else 8
+    ufw = Ufw(
+        fail_at=stage if stage <= commands else None,
+        raises=raises,
+        active=active,
+        service=service,
+    )
+    if stage == commands + 1:
+        original_status = ufw.app._read_ufw_status
+        reads = 0
+
+        def status(verbose=False):
+            nonlocal reads
+            reads += 1
+            if reads == 2:
+                if raises:
+                    raise OSError("injected final inventory error")
+                return 1, "injected final inventory error"
+            return original_status(verbose=verbose)
+
+        ufw.app._read_ufw_status = status
+    elif stage == commands + 2 and raises:
+
+        def invalid_verification(*_args, **_kwargs):
+            raise OSError("injected verifier error")
+
+        ufw.app._verify_killswitch_rules = invalid_verification
     assert controller.killswitch_on_sync(ufw.app, refresh_ui=False) is False
     ufw.assert_closed()
     assert not ufw.app.ufw_lock.locked()

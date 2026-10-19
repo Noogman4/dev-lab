@@ -418,3 +418,187 @@ einem geprueften Release aktualisiert werden.
 M-05 bleibt formal offen. Keine Commits, Pushes, PRs, Merges oder
 Security-Cloud-Aktionen. Andere Worktrees und HDD-/About-/Secure-Browser-
 Arbeiten wurden nicht veraendert.
+
+## Nachbesserung der Cleanup-Eigentumsgrenzen am 2026-10-20
+
+Ausgangscommit: `f3333739841750b31f86709c1618022c65185d72`, Branch
+`security/wireguard-interface-m05-review`, Worktree
+`/tmp/netmon-wireguard-interface-m05-review`. Die vorstehenden Abschnitte
+beschreiben historische Pruefstaende. Dieser Abschnitt ersetzt insbesondere
+die dort dokumentierte Freigabe zum Loeschen breiter Regeln sowie die
+DNS-/Web-Cleanup-Ausnahme. Die aktuelle Nachbesserung bleibt uncommittet.
+
+### Ursachen und verpflichtende Reproduktion
+
+Der Ausgangscode hatte keinen belastbaren Herkunftsnachweis fuer UFW-Regeln.
+Auch eine verifizierte WireGuard-Identitaet beweist keine Regelherkunft.
+
+- `_remove_residual_killswitch_rules()` loeschte breite ALLOWs auf `lo`
+  und verifizierten WG-Interfaces anhand ihrer Form. Beim Wiederanlegen
+  einer gleichartigen Regel war die vorherige Loeschung weiterhin unbefugt.
+- Derselbe Pfad loeschte ziel-/portgleiche UDP-Endpoint-Regeln, auch mit
+  enger fremder Quelladresse, und globale DNS-/Web-Freigaben. Das Matching
+  eines bekannten Endpoints oder Ports ist kein Herkunftsnachweis.
+- `killswitch_off_sync()` erzeugte zusaetzlich spezifikationsbasierte
+  Loeschbefehle. `_known_killswitch_wg_ifaces()` bezog unter anderem
+  benutzerkontrollierte Slotnamen ein. Ein Slotprofil `eth0` genuegte zur
+  Loeschung einer fremden `allow out on eth0`-Regel.
+- Absteigende nummerierte Loeschung verhindert nur die selbst verursachte
+  Verschiebung. Ein externer UFW-Schreiber wird durch den App-Lock nicht
+  ausgeschlossen. Im Race-Test wird nach dem Snapshot vor `delete 1`
+  eine andere Administratorregel eingefuegt: Diese wird geloescht, waehrend
+  die urspruenglich ausgewaehlte Regel bestehen bleibt.
+- `dedupe_vpn_ufw_rules()` hatte denselben Eigentums- und Nummernfehler.
+  Gleichartige Duplikate koennen verschiedenen Administratoren gehoeren.
+
+Vor Aenderung des Produktionscodes wurden **48 fehlgeschlagene
+Eigentums-Solltests und 21 bestandene Guard-Selbsttests** reproduziert.
+JUnit: `/tmp/user/1000/netmon-isolation-y_e9rop_/junit.xml`.
+Die Tests betreffen beide Adressfamilien und den direkten Runner sowie
+Service-Adapter. Alle verändernden Befehle waren simuliert.
+13 dauerhafte positive Gegenkontrollen lesen den Originalcode direkt aus
+`git show f3333739:netmon/features/firewall_controller.py`; sie bestaetigen
+weiterhin die alten Loeschungen und den tatsaechlichen falschen Race-Treffer.
+Die korrigierten Erhaltstests laufen getrennt auf dem aktuellen Produktionscode.
+
+### Produktionskorrekturen und gepruefte Aufrufstellen
+
+Eine eigene persistente, privilegiert geschuetzte Regel-Eigentumsverwaltung
+wird nicht eingefuehrt. Kommentare, gespeicherte Listen, erfolgreiche
+Add-Aufrufe und unmittelbare erneute Inventuren waeren alleine kein
+atomarer Herkunftsnachweis. Unklare Regeln werden deshalb erhalten.
+
+| Pfad | Aktuelles Verhalten |
+| --- | --- |
+| `_remove_residual_killswitch_rules()` | Nur lesende nummerierte Inventur. Im strikten Aktivierungspfad bleiben Inventarfehler und Konflikte fatal. Kein Loeschbefehl, auch fuer exakte breite NetMon-Muster. |
+| Endpoint-/DNS-/Web-Cleanup | Musterbasierte Loeschung entfernt. Die bisherige DNS-/Web-Preflight-Ausnahme gilt nicht mehr, auch nicht mit dem kompatibel belassenen `allow_cleanup`-Argument. |
+| `killswitch_on_sync()` | Widersprechende Freigaben fuehren vor Mutation zum Abbruch. Spaete Konflikte loesen die bestehende restriktive Recovery aus. Unbedenkliche fremde Regeln bleiben erhalten. |
+| `killswitch_off_sync()` | Keine Slot-/Profil-/Endpoint-Liste und kein Loeschaufruf. Strikte Inventur, dann nur UFW-Enable falls erforderlich und Defaults deny/allow. Verifikation bleibt unter demselben Lock. Fehler loesen restriktive Recovery aus und liefern False. |
+| `dedupe_vpn_ufw_rules()` | Kompatibler Rueckgabewert 0 ohne Operation: keine automatische Duplikatloeschung. |
+| App `_remove_interface_rule()` / `_remove_udp_endpoint_rule()` | Kein Loeschaufruf, explizites `failed` mit Hinweis auf fehlende Herkunft und manuelle Administratorpruefung. Auch VPN-Slot-Reconcile kann keine alten Regeln mehr anhand von Namen entfernen. |
+| Killswitch-Recovery | Weiterhin nur fuehrende Notfall-DENYs, deny/deny-Defaults und Enable; keine Loeschung. Notfallregeln werden auch bei spaeterer Deaktivierung erhalten. |
+| App Spielmodus-UFW-Rollback | Eine lokale Added-Liste autorisiert keine Loeschung. Betroffene Regeln bleiben erhalten; Rueckgabe False mit konkreten manuellen Pruefhinweisen. Der Aufrufer meldet unvollstaendiges Rollback. |
+| Security-Baseline `_delete_ufw_profile_rule()` | Keine Loeschung durch Rollback. Expliziter Fehler bei erkanntem Regeltyp; die bestehende Transaktion meldet unvollstaendige Wiederherstellung. |
+| `remove_ssh_rule_async(auto=True)` | Automatischer Pfad vor Autorisierung unterbunden; manuelle Administratorentscheidung erforderlich. |
+| Manuelles SSH-Entfernen und `remove_selected_firewall_rule()` | Weiterhin ausdrueckliche Benutzerentscheidung mit Dialog und sudo-Autorisierung. Diese manuellen Verwaltungsfunktionen bleiben erhalten; ihr Nummern-TOCTOU ist keine atomare Garantie und wird hier nicht als behoben ausgewiesen. |
+
+Die zusaetzlichen VPN-/Spielmodus-/Baseline-Pfade wurden bei der Suche nach
+weiteren UFW-Loeschproduzenten gefunden und eng begrenzt abgesichert.
+Es werden keine Loeschfehler als Erfolg verschluckt: Wo ein angefordertes
+Rollback/Cleanup wegen fehlender Herkunft unterbleibt, bleibt das Ergebnis
+explizit unvollstaendig. Die vorhandenen Aufrufer koennen dies anzeigen.
+`_known_killswitch_wg_ifaces()` ist keine Loeschautorisierung mehr; der
+Killswitch-Deaktivierungspfad ruft die Funktion nicht mehr auf.
+
+Geaenderter Produktionscode:
+
+- `netmon/features/firewall_controller.py`
+- `netmon/app.py`: ausschliesslich die drei oben genannten UFW-Cleanup-Methoden
+- `netmon/features/security_audit_controller.py`: ausschliesslich der
+  UFW-Regel-Rollback `_delete_ufw_profile_rule()`
+
+Root-Helfer, andere Controller-Funktionen und der Hostzugriffs-Guard bleiben
+unveraendert. AST-Vergleiche belegen die Begrenzung der App-Aenderungen auf
+die drei UFW-Methoden, einschliesslich unveraenderter HDD-/About-Methoden.
+
+### Funktionsfaehigkeit und manuelle Administratorentscheidung
+
+Der Killswitch bleibt bei einem verstandenen, widerspruchsfreien Inventar
+aktivierbar. Die Tests pruefen Aktivierung, Deaktivierung und erneute
+Aktivierung mit erhaltenen Regeln. Verifizierte WG-/Loopback-ALLOWs und
+exakte erwartete Handshake-Ausnahmen duerfen bestehen bleiben; dies ist
+keine Erlaubnis zu ihrer Loeschung. Unbekannte Quell-/Ziel-/Interface-Freigaben
+werden weiter konservativ bewertet.
+
+Widersprechende globale DNS-/Web-ALLOWs werden nicht automatisch repariert.
+Die Aktivierung bricht ohne Erfolgsmeldung ab; ein Administrator muss
+entscheiden, ob diese Regeln entfernt oder geaendert werden duerfen.
+Entsteht der Konflikt erst spaeter, bleiben alle Regeln vorhanden und die
+Recovery stellt, soweit verifizierbar, fuehrende Sperren her.
+
+Deaktivierung bedeutet jetzt: UFW ist aktiv, Default-IN ist deny und
+Default-OUT ist allow. Bestehende ALLOW-/DENY-Regeln bleiben wirksam.
+Die Erfolgsmeldung bestaetigt ausschliesslich diese Defaults und nennt
+manuelle Routing-/Regelpruefung; sie verspricht kein uneingeschraenktes
+Routing und keine bereinigte oder wiederhergestellte Firewall. Insbesondere
+koennen erhaltene IN-ALLOWs weiterhin die eingehende Default-Policy ausnehmen.
+Globale Notfall-DENYs sperren die automatische Deaktivierung bereits vor
+Mutation und verlangen manuelle Wiederherstellung.
+
+Bei fehlgeschlagenem Spielmodus-/Baseline-Rollback koennen bewusst erhaltene
+Ausnahmen weiter aktiv sein. Das Rollback gilt dann ausdruecklich nicht als
+vollstaendig; eine manuelle Entscheidung ist erforderlich. Eine verbleibende
+widersprechende Ausnahme verhindert weiterhin einen bestaetigten Killswitch.
+
+### Regressionen und Abschlussvalidierung
+
+Neue Datei: `tests/test_killswitch_cleanup_ownership.py`, **152 Faelle**.
+Abgedeckt sind alle verpflichtenden Reproduktionen, breite und enge fremde
+Regeln, beide IP-Familien, Service-/Direktpfad, verschobene Nummern,
+automatische Deduplizierung, Slotnamen, Profile-Cleanup, zusaetzliche
+Rollback-Pfade, alle DNS-/Web-Ports in Preflight/Inventur/Abschlusspruefung,
+24 Fehlerfaelle der Deaktivierung, unbrauchbare Inventuren, Erhalt von
+Notfallregeln und ein kompletter AN/AUS/AN-Zyklus.
+
+Bestehende Tests wurden nicht geloescht. Erwartungen an automatische
+Loeschungen wurden durch Erhalt, Konfliktabbruch und explizite manuelle
+Fehlermeldung ersetzt. Der Zustands-Fake startet nun ohne die bislang
+automatisch entfernte 443-Freigabe; deren Konfliktwirkung wird separat
+geprueft. Alle 76 bisherigen parameterisierten Aktivierungs-Fehlerfaelle
+bleiben erhalten: die zwei entfallenen Loeschstufen werden durch Fehler
+bei Abschlussinventur und Verifikation ersetzt. Saemtliche bisherigen
+867 M-05-Faelle sind im Abschlusslauf enthalten.
+
+Ausfuehrung im geprueften Bubblewrap-Namespace: nicht-root, no-new-privileges,
+schreibgeschuetztes Repository und Git-Metadaten, privates Netzwerk ohne
+Routen, keine Host-Geraete, kein Host-Home und keine Dienst-Sockets.
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 /dev-lab/projects/dev-lab/.venv/bin/python -B \
+  /tmp/netmon-m05-run-isolated.py --probe
+PYTHONDONTWRITEBYTECODE=1 /dev-lab/projects/dev-lab/.venv/bin/python -B \
+  /tmp/netmon-m05-run-isolated.py -q -rs --tb=short --maxfail=0 \
+  tests/test_killswitch_cleanup_ownership.py \
+  tests/test_killswitch_inventory_security.py tests/test_m05_adversarial_review.py \
+  tests/test_killswitch_legacy_interface_rules.py \
+  tests/test_wireguard_interface_security.py tests/test_wireguard_import_security.py \
+  tests/test_netmon_nm_ownership.py tests/test_firewall_controller.py \
+  tests/test_netmon_vpn_slots.py tests/test_netmon_killswitch.py \
+  tests/test_killswitch_failure_recovery.py tests/test_host_access_guard.py \
+  tests/test_manual_wireguard_security.py tests/test_vpn_slots_tab.py \
+  tests/test_netmon_deb_packaging.py tests/test_netmon_lynis_output.py \
+  tests/test_roots_baseline_guard_controller.py tests/test_security_baseline_docs.py
+```
+
+**1.295 bestanden, 0 fehlgeschlagen, 0 uebersprungen:** 867 bisherige
+M-05-Faelle, 152 neue Eigentumsfaelle und 276 weitere Spielmodus-/Baseline-
+Regressionen. JUnit:
+`/tmp/user/1000/netmon-isolation-a4h_s4qa/junit.xml`.
+Keine Gesamtsuite und kein vollstaendiger Lauf aller Security-Modultests.
+Black, Ruff, Syntax- und Whitespace-Pruefung aller acht betroffenen
+Python-Dateien sowie `git diff --check` bestanden.
+
+### Verbleibende Grenzen und Status
+
+Das separate **TOCTOU zwischen Interface-Identitaetspruefung und
+privilegiertem UFW-Aufruf bleibt offen**. Auch Inventur, Add-Aufrufe und
+Default-Aenderungen sind keine atomare Kerneltransaktion. Externe
+Administratoren werden durch den App-Lock nicht ausgeschlossen. Das
+Nummern-Loeschrace ist in den automatischen Cleanup-Pfaden durch Verzicht
+auf Loeschung vermieden; die UFW-Schnittstelle selbst wurde nicht atomar
+gemacht. Die manuellen Loeschdialoge behalten ihr separates Nummernrisiko.
+
+Es gibt weiterhin keine Regel-Eigentumsverwaltung. Automatisch hinzugefuegte
+Regeln und alte Ausnahmen koennen erhalten bleiben und sich ansammeln;
+manuelle Migration/Bereinigung bleibt eine Administratorentscheidung.
+Recovery ist keine exakte Wiederherstellung und kann Managementverkehr
+blockieren. Vorherige Verbindungen, UFW-before-Regeln und externe
+Netfilter-Ketten sind nicht vollstaendig abgebildet. Kein Live-Test am Host.
+Die gemeinsame Aktualisierung von Root-Helfer und Controllern bleibt eine
+separate Deployment-Aufgabe.
+
+HEAD und Index bleiben unveraendert auf dem Ausgangsstand. Keine Commits,
+Pushes, PRs, Merges, Installationen oder Cloud-Scans. M-05 wird nicht formal
+geschlossen. Der urspruengliche HDD-/About-Worktree bleibt inklusive
+HEAD, Index und bestehenden Dateiinhalten unveraendert; `secure-browser/`
+wurde nicht gelesen oder veraendert.

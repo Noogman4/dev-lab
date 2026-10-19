@@ -1720,7 +1720,7 @@ def test_remove_firewall_rules_for_vpn_profile_skips_when_profile_is_still_used(
     )
 
 
-def test_remove_firewall_rules_for_vpn_profile_deletes_profile_specific_ufw_rules(
+def test_remove_firewall_rules_for_vpn_profile_requires_manual_ownership_review(
     monkeypatch,
     strict_subprocess_guard,
 ):
@@ -1768,37 +1768,11 @@ def test_remove_firewall_rules_for_vpn_profile_deletes_profile_specific_ufw_rule
 
     assert (
         app._remove_firewall_rules_for_vpn_profile("proton", removed_from_slot=1)
-        is True
+        is False
     )
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "on", "proton"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "in", "on", "proton"] in calls
-    assert [
-        "sudo",
-        "-n",
-        "ufw",
-        "delete",
-        "allow",
-        "out",
-        "on",
-        "proton__ipv4",
-    ] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "in", "on", "proton__ipv4"] in calls
-    assert [
-        "sudo",
-        "-n",
-        "ufw",
-        "delete",
-        "allow",
-        "out",
-        "to",
-        "1.1.1.1",
-        "port",
-        "51820",
-        "proto",
-        "udp",
-    ] in calls
-    assert any("Interface-Regeln entfernt" in entry for entry in logs)
-    assert any("UDP-Endpoint-Regeln entfernt" in entry for entry in logs)
+    assert not any("delete" in cmd for cmd in calls)
+    assert any("Herkunft nicht belegt" in entry for entry in logs)
+    assert not any("Regeln entfernt" in entry for entry in logs)
 
 
 def test_delete_selected_vpn_profile_logs_if_matching_runtime_interface_remains(

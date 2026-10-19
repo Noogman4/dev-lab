@@ -885,7 +885,6 @@ def _killswitch_interface_rule_issues(
             continue
         iface = rule["interface"]
         target = rule["to_field"]
-        source = rule["from_field"]
         if iface in allowed_ifaces:
             continue
         if rule["direction"] == "OUT":
@@ -896,19 +895,9 @@ def _killswitch_interface_rule_issues(
                 and target["proto"] == "udp"
                 and (str(network.network_address), target["port"]) in handshake_rules
             )
-            # Keep the existing explicit global web/DNS cleanup policy. This
-            # exception is unavailable in final verification and never for an
-            # interface-bound or source-restricted administrator rule.
-            cleanup = (
-                allow_cleanup
-                and not iface
-                and target["network"] is None
-                and source["anywhere"]
-                and not source["port"]
-                and (target["port"], target["proto"])
-                in {("53", "udp"), ("53", "tcp"), ("80", "tcp"), ("443", "tcp")}
-            )
-            conflict = not (endpoint or cleanup)
+            # A matching port/pattern proves no ownership. Even callers using
+            # the legacy allow_cleanup flag must reject foreign web/DNS egress.
+            conflict = not endpoint
         else:
             conflict = not target["port"]
         if conflict:
@@ -1008,20 +997,14 @@ def verify_killswitch_rules(
         outgoing="allow",
     ):
         issues.append("UFW Default-Policy ist nicht auf deny/allow zurueckgesetzt.")
-    if app._ufw_has_interface_rule(status_text, "lo", "in"):
-        issues.append("Loopback-IN-Regel ist noch vorhanden.")
-    if app._ufw_has_interface_rule(status_text, "lo", "out"):
-        issues.append("Loopback-OUT-Regel ist noch vorhanden.")
-    for wg_if in wg_ifaces:
-        if app._ufw_has_interface_rule(status_text, wg_if, "in"):
-            issues.append(f"WireGuard-IN-Regel fuer {wg_if} ist noch vorhanden.")
-        if app._ufw_has_interface_rule(status_text, wg_if, "out"):
-            issues.append(f"WireGuard-OUT-Regel fuer {wg_if} ist noch vorhanden.")
-    for endpoint_ip, endpoint_port in handshake_rules:
-        if app._ufw_has_endpoint_rule(status_text, endpoint_ip, endpoint_port):
-            issues.append(
-                f"Handshake-Regel fuer {endpoint_ip}:{endpoint_port}/udp ist noch vorhanden."
-            )
+    try:
+        _killswitch_status_rules(status_text, verbose=True)
+    except (TypeError, ValueError):
+        issues.append(
+            "UFW-Regeln nicht eindeutig lesbar; manuelle Pruefung erforderlich."
+        )
+    # Retained ALLOWs do not contradict restoring outgoing defaults. Their
+    # presence never proves ownership, and must not demand an unsafe cleanup.
     return not issues, issues
 
 
@@ -1212,92 +1195,24 @@ def _known_killswitch_wg_ifaces(app, referenced_profiles=None):
 
 
 def _remove_residual_killswitch_rules(app, wg_ifaces, handshake_rules, *, strict=False):
+    """Legacy entry point: inspect only, never infer ownership from a pattern.
+
+    No durable rule provenance exists. Numbered deletes also race external UFW
+    writers despite ufw_lock, so even exact NetMon-shaped rules are retained.
+    Conflicts remain fatal during activation, requiring administrator review.
+    """
     rc, out = _read_ufw_status_numbered(app)
     if rc != 0 or not (out or "").strip():
         if strict:
             raise RuntimeError("UFW-Regeln vor Killswitch-Aktivierung nicht lesbar")
         return 0
-
     if strict:
         issues = _killswitch_interface_rule_issues(
-            out, wg_ifaces, handshake_rules, allow_cleanup=True, numbered=True
+            out, wg_ifaces, handshake_rules, numbered=True
         )
         if issues:
             raise RuntimeError("; ".join(issues))
-
-    allowed_ifaces = {"lo", *{str(iface).strip() for iface in (wg_ifaces or [])}}
-    allowed_ifaces.discard("")
-    allowed_endpoints = {
-        (str(ip).strip(), str(port).strip())
-        for ip, port in (handshake_rules or [])
-        if str(ip).strip() and str(port).strip()
-    }
-    allowed_standard_ports = {
-        ("53", "udp"),
-        ("53", "tcp"),
-        ("443", "tcp"),
-        ("80", "tcp"),
-    }
-
-    delete_nums = []
-    numbered_rules = (
-        [
-            (row["number"], row["line"])
-            for row in _killswitch_status_rules(out, numbered=True)
-        ]
-        if strict
-        else parse_ufw_status_numbered(out)
-    )
-    for num, rest in numbered_rules:
-        parsed = parse_ufw_structured_rule(rest)
-        if not parsed:
-            continue
-        if (parsed.get("policy") or "").upper() != "ALLOW":
-            continue
-        category = parsed.get("category")
-        direction = (parsed.get("direction") or "").upper()
-        should_delete = False
-        if category == "interface":
-            iface = (parsed.get("interface") or "").strip()
-            # NetMon recreates only unrestricted interface ALLOWs below. A
-            # narrower rule is not redundant by specification and has no
-            # ownership proof: retain it, including its source and port limits.
-            should_delete = (
-                iface in allowed_ifaces
-                and direction in {"IN", "OUT"}
-                and parsed["to"] == "Anywhere"
-                and parsed["from"] == "Anywhere"
-            )
-        elif category == "vpn_endpoint":
-            endpoint = (
-                str(parsed.get("ip") or "").strip(),
-                str(parsed.get("port") or "").strip(),
-            )
-            proto = (parsed.get("proto") or "").strip().lower()
-            should_delete = (
-                direction == "OUT" and proto == "udp" and endpoint in allowed_endpoints
-            )
-        elif category == "standard_port":
-            port = str(parsed.get("port") or "").strip()
-            proto = (parsed.get("proto") or "").strip().lower()
-            should_delete = (
-                direction == "OUT" and (port, proto) in allowed_standard_ports
-            )
-        if should_delete:
-            delete_nums.append(num)
-
-    removed = 0
-    for num in sorted(set(delete_nums), reverse=True):
-        rc_del, _out_del = _run_cmd(
-            app,
-            ["sudo", "-n", "ufw", "--force", "delete", str(num)],
-            timeout=12,
-        )
-        if rc_del == 0:
-            removed += 1
-        elif strict:
-            raise RuntimeError("UFW-Regel konnte nicht entfernt werden")
-    return removed
+    return 0
 
 
 def killswitch_on_sync(app, refresh_ui=True):
@@ -1400,7 +1315,7 @@ def killswitch_on_sync(app, refresh_ui=True):
                 return False
             ufw_on = app._ufw_status_is_active(out_s)
             issues = _killswitch_interface_rule_issues(
-                out_s, wg_ifaces, handshake_rules, allow_cleanup=True, verbose=True
+                out_s, wg_ifaces, handshake_rules, verbose=True
             )
             if issues:
                 app.log_safe(
@@ -1622,197 +1537,84 @@ def killswitch_on(
 
 def killswitch_off_sync(app, refresh_ui=True):
     begin_op = _instance_override(app, "_try_begin_network_operation")
-    if callable(begin_op):
-        started = begin_op("Killswitch deaktivieren")
-    else:
-        started = True
+    started = begin_op("Killswitch deaktivieren") if callable(begin_op) else True
     if not started:
         if refresh_ui:
             app.refresh_safe()
         return False
     try:
         network_service = _network_service_for(app)
-        with app.ufw_lock:
-            rc_s, out_s = app._read_ufw_status()
-            ufw_on = (rc_s == 0) and app._ufw_status_is_active(out_s)
-            if not ufw_on:
-                if network_service is not None:
-                    rc_enable, out_enable = network_service.ufw_enable_force(timeout=20)
-                else:
-                    rc_enable, out_enable = _run_cmd(
-                        app,
-                        ["sudo", "-n", "ufw", "--force", "enable"],
-                        timeout=20,
-                    )
-                if rc_enable != 0:
-                    app.log_safe(
-                        app.tr(
-                            "killswitch_log_disable_failed_ufw",
-                            "Killswitch-Deaktivierung fehlgeschlagen: UFW konnte nicht aktiviert werden.",
-                        )
-                    )
-                    if out_enable:
-                        app.log_safe(out_enable)
-                    return False
+        with app.ufw_lock, _killswitch_apply_guard(app) as mutation:
+            rc_s, out_s = app._read_ufw_status(verbose=True)
+            try:
+                if rc_s != 0:
+                    raise ValueError("UFW-Status nicht lesbar")
+                rows = _killswitch_status_rules(out_s, verbose=True)
+            except (TypeError, ValueError):
+                app.log_safe(
+                    "Killswitch-Deaktivierung abgebrochen: UFW-Inventur nicht "
+                    "verifizierbar; manuelle Pruefung erforderlich."
+                )
+                return False
+            if any(
+                row["policy"] in {"DENY", "REJECT"}
+                and not row["interface"]
+                and row["to_field"]["anywhere"]
+                and row["from_field"]["anywhere"]
+                and not row["to_field"]["port"]
+                and not row["from_field"]["port"]
+                and not row["to_field"]["proto"]
+                and not row["from_field"]["proto"]
+                for row in rows
+            ):
+                app.log_safe(
+                    "Killswitch-Deaktivierung abgebrochen: Globale Sperrregel "
+                    "vorhanden; manuelle Firewall-Wiederherstellung erforderlich. "
+                    "Bestehende Regeln bleiben erhalten."
+                )
+                return False
 
-            collect_profiles = _instance_override(
-                app, "_collect_referenced_vpn_profiles"
+            # No slot/profile/interface/endpoint can authorize a deletion.
+            # Keep all rules, including emergency rules and NetMon-shaped ALLOWs.
+            mutation[0] = True
+            commands = []
+            if not app._ufw_status_is_active(out_s):
+                commands.append(["--force", "enable"])
+            commands.extend(
+                [["default", "allow", "outgoing"], ["default", "deny", "incoming"]]
             )
-            if callable(collect_profiles):
-                referenced_profiles = collect_profiles(include_active=True)
-            else:
-                list_profiles = _instance_override(app, "list_wg_profiles")
-                referenced_profiles = (
-                    list(list_profiles()) if callable(list_profiles) else []
-                )
-            collect_ifaces = _instance_override(
-                app, "_collect_interface_rules_for_profiles"
-            )
-            if callable(collect_ifaces):
-                configured_real_ifaces = set(collect_ifaces(referenced_profiles))
-            else:
-                configured_real_ifaces = set()
-            active_ifaces = {
-                str(iface).strip()
-                for iface in app.get_wg_interfaces()
-                if str(iface).strip()
-            }
-            wg_ifaces = sorted(configured_real_ifaces | active_ifaces)
-            wg_ifaces = sorted({w for w in wg_ifaces if w})
-            known_wg_ifaces = _known_killswitch_wg_ifaces(app, referenced_profiles)
-            endpoint_provider = _instance_override(app, "get_killswitch_vpn_endpoints")
-            if callable(endpoint_provider):
-                handshake_rules = sorted(set(endpoint_provider()))
-            else:
-                handshake_rules = sorted(set(get_killswitch_vpn_endpoints(app)))
-
-            _log_killswitch_numbered_debug(app, "vor Killswitch AUS")
-
-            cleanup_cmds = [
-                ["sudo", "-n", "ufw", "delete", "allow", "in", "on", "lo"],
-                ["sudo", "-n", "ufw", "delete", "allow", "out", "on", "lo"],
-                ["sudo", "-n", "ufw", "delete", "allow", "out", "53/udp"],
-                ["sudo", "-n", "ufw", "delete", "allow", "out", "53/tcp"],
-                ["sudo", "-n", "ufw", "delete", "allow", "out", "443/tcp"],
-                ["sudo", "-n", "ufw", "delete", "allow", "out", "80/tcp"],
-            ]
-            for wg_if in known_wg_ifaces:
-                cleanup_cmds.extend(
-                    [
-                        [
-                            "sudo",
-                            "-n",
-                            "ufw",
-                            "delete",
-                            "allow",
-                            "out",
-                            "on",
-                            wg_if,
-                        ],
-                        ["sudo", "-n", "ufw", "delete", "allow", "in", "on", wg_if],
-                    ]
-                )
-            for endpoint_ip, endpoint_port in handshake_rules:
-                cleanup_cmds.append(
-                    [
-                        "sudo",
-                        "-n",
-                        "ufw",
-                        "delete",
-                        "allow",
-                        "out",
-                        "to",
-                        endpoint_ip,
-                        "port",
-                        endpoint_port,
-                        "proto",
-                        "udp",
-                    ]
-                )
-
-            for cmd in cleanup_cmds:
+            for command in commands:
+                args = ["sudo", "-n", "ufw", *command]
                 if network_service is not None:
-                    network_service.run(cmd, timeout=20)
+                    rc_cmd, out_cmd = network_service.run(args, timeout=20)
                 else:
-                    _run_cmd(app, cmd, timeout=20)
-
-            _remove_residual_killswitch_rules(app, known_wg_ifaces, handshake_rules)
-
-            default_cmds = [
-                ["sudo", "-n", "ufw", "default", "allow", "outgoing"],
-                ["sudo", "-n", "ufw", "default", "deny", "incoming"],
-            ]
-            command_failures = []
-            for cmd in default_cmds:
-                if network_service is not None:
-                    rc_cmd, out_cmd = network_service.run(cmd, timeout=20)
-                else:
-                    rc_cmd, out_cmd = _run_cmd(app, cmd, timeout=20)
+                    rc_cmd, out_cmd = _run_cmd(app, args, timeout=20)
                 if rc_cmd != 0:
-                    command_failures.append((cmd, out_cmd))
-
+                    raise RuntimeError(
+                        "UFW-Befehl fehlgeschlagen: "
+                        + " ".join(command)
+                        + (": " + str(out_cmd) if out_cmd else "")
+                    )
             rc_v, out_v = app._read_ufw_status(verbose=True)
-
-        _log_killswitch_numbered_debug(app, "nach Killswitch AUS")
-
-        if command_failures:
-            failed_cmd = " ".join(command_failures[0][0][3:])
-            app.log_safe(
-                app.tr(
-                    "killswitch_log_disable_failed_command",
-                    "Killswitch-Deaktivierung fehlgeschlagen: UFW-Befehl fehlgeschlagen ({command}).",
-                ).format(command=failed_cmd)
-            )
-            failure_out = command_failures[0][1]
-            if failure_out:
-                app.log_safe(failure_out)
-            if refresh_ui:
-                app.refresh_safe()
-            return False
-
-        if rc_v != 0:
-            app.log_safe(
-                app.tr(
-                    "killswitch_log_disable_failed_verify",
-                    "Killswitch-Deaktivierung fehlgeschlagen: UFW-Status konnte nicht verifiziert werden.",
+            if rc_v != 0:
+                raise RuntimeError("UFW-Status konnte nicht verifiziert werden")
+            verified, issues = verify_killswitch_rules(app, out_v, enabled=False)
+            if not verified:
+                raise RuntimeError(
+                    "UFW-Endzustand nicht verifiziert: " + "; ".join(issues)
                 )
-            )
-            if out_v:
-                app.log_safe(out_v)
-            if refresh_ui:
-                app.refresh_safe()
-            return False
-
-        verified, issues = app._verify_killswitch_rules(
-            out_v,
-            enabled=False,
-            wg_ifaces=known_wg_ifaces,
-            handshake_rules=handshake_rules,
-        )
-        if not verified:
-            app.log_safe(
-                app.tr(
-                    "killswitch_log_disable_incomplete",
-                    "Killswitch-Deaktivierung unvollstaendig: UFW-Regeln entsprechen nicht dem erwarteten Endzustand.",
-                )
-            )
-            app.log_safe(
-                app.tr("label_details_prefix", "Details: ") + "; ".join(issues[:3])
-            )
-            if refresh_ui:
-                app.refresh_safe()
-            return False
-
         app.log_safe(
-            app.tr(
-                "killswitch_log_disabled",
-                "Killswitch AUS – UFW bleibt aktiv, normales Routing wieder erlaubt.",
-            )
+            "Killswitch AUS – UFW-Defaults deny/allow verifiziert. "
+            "Bestehende Regeln bleiben erhalten und wirksam; "
+            "Routing-Ausnahmen und Regelbereinigung erfordern manuelle Administratorpruefung."
         )
+        return True
+    except Exception as exc:  # noqa: BLE001 - report failure after recovery
+        app.log_safe(f"Killswitch-Deaktivierung unvollstaendig: {exc}")
+        return False
+    finally:
         if refresh_ui:
             app.refresh_safe()
-        return True
-    finally:
         end_op = _instance_override(app, "_end_network_operation")
         if callable(end_op):
             end_op()
@@ -2060,48 +1862,12 @@ def parse_ufw_status_numbered(status_numbered_text):
 
 
 def dedupe_vpn_ufw_rules():
-    rc, out = run_cmd(["sudo", "-n", "ufw", "status", "numbered"], timeout=12)
-    if rc != 0 or not (out or "").strip():
-        return 0
+    """Retain duplicates: neither equal syntax nor rule numbers prove ownership.
 
-    parsed_entries = []
-    for num, rest in parse_ufw_status_numbered(out):
-        parsed = parse_ufw_structured_rule(rest)
-        if not parsed:
-            continue
-        if (parsed.get("policy") or "").upper() != "ALLOW":
-            continue
-        category = parsed.get("category")
-        if category not in {"interface", "vpn_endpoint"}:
-            continue
-
-        key = ufw_rule_identity_key(parsed)
-        parsed_entries.append((num, key, parsed))
-
-    buckets = {}
-    for num, key, parsed in parsed_entries:
-        buckets.setdefault(key, []).append((num, parsed))
-
-    delete_nums = []
-    for items in buckets.values():
-        if len(items) <= 1:
-            continue
-        items_sorted = sorted(items, key=lambda x: x[0])
-        for num, _parsed in items_sorted[1:]:
-            delete_nums.append(num)
-
-    if not delete_nums:
-        return 0
-
-    removed = 0
-    for num in sorted(set(delete_nums), reverse=True):
-        rc_del, _out_del = run_cmd(
-            ["sudo", "-n", "ufw", "--force", "delete", str(num)],
-            timeout=12,
-        )
-        if rc_del == 0:
-            removed += 1
-    return removed
+    Kept for existing reconcile callers. Deduplication requires an explicit
+    administrator decision; automatic number-based removal is unsafe.
+    """
+    return 0
 
 
 def ufw_has_outgoing_port_rule(status_text, port, proto):
@@ -2436,6 +2202,12 @@ def allow_ssh_rule_async(app):
 
 
 def remove_ssh_rule_async(app, auto=False):
+    if auto:
+        app.log(
+            "Automatisches SSH/UFW-Cleanup unterlassen: Herkunft nicht belegt; "
+            "manuelle Administratorpruefung erforderlich."
+        )
+        return
     if not app.ensure_sudo_session("SSH UFW-Regeln entfernen"):
         return
     if not auto:

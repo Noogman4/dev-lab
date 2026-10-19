@@ -214,7 +214,7 @@ def test_late_source_specific_egress_recovers_and_preserves_foreign_rules(
 @pytest.mark.parametrize("interface", ["lo", "wg0"])
 @pytest.mark.parametrize("ipv6", [False, True])
 @pytest.mark.parametrize("kind", ["port", "source", "protocol"])
-def test_cleanup_only_removes_exact_unrestricted_interface_shape(
+def test_cleanup_preserves_both_narrow_and_unrestricted_interface_shapes(
     monkeypatch, interface, ipv6, kind
 ):
     model, app = setup_model(monkeypatch)
@@ -229,4 +229,5 @@ def test_cleanup_only_removes_exact_unrestricted_interface_shape(
     with app.ufw_lock:
         fw._remove_residual_killswitch_rules(app, ["wg0"], [], strict=True)
     assert narrow in model.rules[ipv6]
-    assert broad not in model.rules[ipv6]
+    assert broad in model.rules[ipv6]
+    assert not any("delete" in call for call in model.calls)

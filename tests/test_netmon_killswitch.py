@@ -240,7 +240,7 @@ def test_killswitch_on_allows_wireguard_handshake_without_active_tunnel(monkeypa
     assert refreshes == [True]
 
 
-def test_killswitch_on_removes_residual_global_web_and_dns_rules_before_verify(
+def test_killswitch_on_rejects_late_global_web_and_dns_without_deleting(
     monkeypatch,
 ):
     app = netmon.App.__new__(netmon.App)
@@ -277,11 +277,21 @@ def test_killswitch_on_removes_residual_global_web_and_dns_rules_before_verify(
 
     monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
 
-    assert app._killswitch_on_sync(refresh_ui=False) is True
-    assert ["sudo", "-n", "ufw", "--force", "delete", "4"] in calls
-    assert ["sudo", "-n", "ufw", "--force", "delete", "3"] in calls
-    assert ["sudo", "-n", "ufw", "--force", "delete", "2"] in calls
-    assert ["sudo", "-n", "ufw", "--force", "delete", "1"] in calls
+    assert app._killswitch_on_sync(refresh_ui=False) is False
+    assert not any("delete" in cmd for cmd in calls)
+    assert [
+        "sudo",
+        "-n",
+        "ufw",
+        "insert",
+        "1",
+        "deny",
+        "out",
+        "from",
+        "any",
+        "to",
+        "any",
+    ] in calls
 
 
 def test_killswitch_off_keeps_ufw_active_and_restores_default_routing(monkeypatch):
@@ -321,49 +331,10 @@ def test_killswitch_off_keeps_ufw_active_and_restores_default_routing(monkeypatc
     assert ["sudo", "-n", "ufw", "disable"] not in calls
     assert ["sudo", "-n", "ufw", "default", "allow", "outgoing"] in calls
     assert ["sudo", "-n", "ufw", "default", "deny", "incoming"] in calls
-    assert ["sudo", "-n", "ufw", "status", "numbered"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "in", "on", "lo"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "on", "lo"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "53/udp"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "53/tcp"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "443/tcp"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "80/tcp"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "on", "wg0"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "on", "wg-slot"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "in", "on", "wg0"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "in", "on", "wg-slot"] in calls
-    assert [
-        "sudo",
-        "-n",
-        "ufw",
-        "delete",
-        "allow",
-        "out",
-        "to",
-        "66.234.146.66",
-        "port",
-        "51820",
-        "proto",
-        "udp",
-    ] in calls
-    assert [
-        "sudo",
-        "-n",
-        "ufw",
-        "delete",
-        "allow",
-        "out",
-        "to",
-        "77.88.99.11",
-        "port",
-        "443",
-        "proto",
-        "udp",
-    ] in calls
-    assert any(
-        entry == "Killswitch AUS – UFW bleibt aktiv, normales Routing wieder erlaubt."
-        for entry in logs
-    )
+    assert ["sudo", "-n", "ufw", "status", "verbose"] in calls
+    assert not any("delete" in cmd for cmd in calls)
+    assert any("UFW-Defaults deny/allow verifiziert" in entry for entry in logs)
+    assert any("Regeln bleiben erhalten" in entry for entry in logs)
     assert refreshes == [True]
 
 
@@ -379,13 +350,20 @@ def test_killswitch_off_enables_ufw_if_needed(monkeypatch):
     app.parse_vpn_endpoint = lambda profile: (None, None)
 
     calls = []
+    verbose_reads = 0
 
     def fake_run_cmd(args, timeout=0, text=True):
+        nonlocal verbose_reads
         calls.append(args)
         if args == ["sudo", "-n", "ufw", "status"]:
             return 0, "Status: inactive"
         if args == ["sudo", "-n", "ufw", "status", "verbose"]:
-            return 0, _ufw_verbose_killswitch_off_status()
+            verbose_reads += 1
+            return (
+                (0, "Status: inactive")
+                if verbose_reads == 1
+                else (0, _ufw_verbose_killswitch_off_status())
+            )
         return 0, "ok"
 
     monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
@@ -398,7 +376,7 @@ def test_killswitch_off_enables_ufw_if_needed(monkeypatch):
     assert ["sudo", "-n", "ufw", "default", "deny", "incoming"] in calls
 
 
-def test_killswitch_off_cleans_up_all_known_vpn_interface_rules(monkeypatch):
+def test_killswitch_off_does_not_delete_from_known_profile_names(monkeypatch):
     app = netmon.App.__new__(netmon.App)
     app.ufw_lock = threading.Lock()
     app.log_safe = lambda message: None
@@ -439,20 +417,8 @@ def test_killswitch_off_cleans_up_all_known_vpn_interface_rules(monkeypatch):
     monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
 
     assert app._killswitch_off_sync(refresh_ui=False) is True
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "on", "USA__ipv4"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "in", "on", "USA__ipv4"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "on", "Irland"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "in", "on", "Irland"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "on", "NL"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "in", "on", "NL"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "on", "proton-de"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "in", "on", "proton-de"] in calls
-    numbered_deletes = [
-        cmd for cmd in calls if cmd[:5] == ["sudo", "-n", "ufw", "--force", "delete"]
-    ]
-    assert numbered_deletes
-    delete_numbers = [int(cmd[5]) for cmd in numbered_deletes]
-    assert delete_numbers == sorted(delete_numbers, reverse=True)
+    assert not any("delete" in cmd for cmd in calls)
+    assert ["sudo", "-n", "ufw", "default", "allow", "outgoing"] in calls
 
 
 def test_killswitch_on_allows_all_active_wireguard_interfaces(monkeypatch):

@@ -2826,37 +2826,13 @@ def _ensure_ufw_profile_rule(
 
 
 def _delete_ufw_profile_rule(rule: dict, *, run_cmd_fn=None):
-    runner = run_cmd_fn or run_cmd
-    key = _ufw_rule_key(rule)
-    if key is None:
-        return
-    if key[0] == "iface":
-        _tag, direction, iface = key
-        rc, out = runner(
-            ["sudo", "-n", "ufw", "delete", "allow", direction, "on", iface],
-            timeout=20,
+    # A successful add or a matching profile key cannot prove current ownership.
+    # Fail the rollback explicitly so its existing caller reports manual recovery.
+    if _ufw_rule_key(rule) is not None:
+        raise RuntimeError(
+            "UFW-Regel bleibt erhalten: Herkunft nicht belegt; "
+            "manuelle Administratorpruefung erforderlich."
         )
-    else:
-        _tag, ip_val, port = key
-        rc, out = runner(
-            [
-                "sudo",
-                "-n",
-                "ufw",
-                "delete",
-                "allow",
-                "out",
-                "to",
-                ip_val,
-                "port",
-                port,
-                "proto",
-                "udp",
-            ],
-            timeout=20,
-        )
-    if rc != 0:
-        raise RuntimeError(out or "UFW-Regel konnte nicht entfernt werden.")
 
 
 def _run_checked_command(args: list[str], *, run_cmd_fn=None, timeout: int = 20):

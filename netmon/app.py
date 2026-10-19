@@ -27231,14 +27231,12 @@ class App(TkBase):
                 or proto not in {"tcp", "udp"}
             ):
                 continue
-            rc_cmd, out_cmd = run_cmd(
-                ["sudo", "-n", "ufw", "delete", "allow", direction, f"{port}/{proto}"],
-                timeout=20,
+            # A session's added-rule list is not durable/current ownership:
+            # UFW may have skipped an existing rule or an administrator replaced it.
+            errors.append(
+                f"{direction} {port}/{proto} bleibt erhalten: Herkunft nicht belegt; "
+                "manuelle Administratorpruefung erforderlich."
             )
-            if rc_cmd != 0:
-                errors.append(
-                    str(out_cmd or "").strip() or f"{direction} {port}/{proto}"
-                )
         return not errors, errors
 
     def refresh_game_mode_preset_ui(self):
@@ -31214,72 +31212,19 @@ class App(TkBase):
         )
 
     def _remove_interface_rule(self, iface, direction):
-        direction = (direction or "").strip().lower()
-        iface = (iface or "").strip()
-        if direction not in {"in", "out"} or not iface:
-            return "failed", 0, "ungueltige Interface-Regelparameter"
-
-        cmd = [
-            "sudo",
-            "-n",
-            "ufw",
-            "delete",
-            "allow",
-            direction,
-            "on",
-            iface,
-        ]
-
-        removed_count = 0
-        last_out = ""
-        for _ in range(4):
-            rc, out = run_cmd(cmd, timeout=20)
-            last_out = out or ""
-            if rc == 0:
-                removed_count += 1
-                continue
-
-            text = (out or "").strip().lower()
-            if (
-                "could not delete non-existent rule" in text
-                or "could not delete non existent rule" in text
-                or "could not find rule" in text
-            ):
-                if removed_count > 0:
-                    return "removed", removed_count, out
-                return "missing", 0, out
-
-            return "failed", removed_count, out
-
-        return "removed", removed_count, last_out
+        # Slot/profile names and interface identity do not prove rule ownership.
+        return (
+            "failed",
+            0,
+            "UFW-Regel bleibt erhalten: Herkunft nicht belegt; manuelle Administratorpruefung erforderlich.",
+        )
 
     def _remove_udp_endpoint_rule(self, endpoint_ip, endpoint_port):
-        cmd = [
-            "sudo",
-            "-n",
-            "ufw",
-            "delete",
-            "allow",
-            "out",
-            "to",
-            endpoint_ip,
-            "port",
-            endpoint_port,
-            "proto",
-            "udp",
-        ]
-        rc, out = run_cmd(cmd, timeout=20)
-        if rc == 0:
-            return "removed", out
-
-        text = (out or "").strip().lower()
-        if (
-            "could not delete non-existent rule" in text
-            or "could not delete non existent rule" in text
-            or "could not find rule" in text
-        ):
-            return "missing", out
-        return "failed", out
+        # Endpoint identity is not provenance, including after a slot removal.
+        return (
+            "failed",
+            "UFW-Regel bleibt erhalten: Herkunft nicht belegt; manuelle Administratorpruefung erforderlich.",
+        )
 
     def _reconcile_vpn_firewall_rules(
         self,
