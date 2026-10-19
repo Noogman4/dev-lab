@@ -710,6 +710,217 @@ def get_killswitch_vpn_endpoints(app):
     return endpoints
 
 
+def _killswitch_rule_field(text):
+    """Parse only numeric UFW status fields; unknown formats cannot prove safety."""
+    marked_v6 = "(v6)" in text
+    if text.count("(v6)") > 1:
+        raise ValueError("Repeated address-family marker")
+    if marked_v6 and not re.search(r"(?<!\S)\(v6\)(?!\S)", text):
+        raise ValueError("Invalid address-family marker")
+    text = re.sub(r"\s+", " ", text.replace("(v6)", " ")).strip()
+    base, iface = split_ufw_interface_clause(text)
+    if re.search(r"\bon\b", base):
+        raise ValueError("Ambiguous interface clause")
+    tokens = base.split()
+    if not 1 <= len(tokens) <= 2:
+        raise ValueError("Incomplete or unknown UFW field")
+    network = None
+    port = ""
+    proto = ""
+    for index, token in enumerate(tokens):
+        try:
+            candidate = ipaddress.ip_network(token, strict=False)
+        except ValueError:
+            candidate = None
+        if candidate is not None and ("." in token or ":" in token):
+            if index or network is not None:
+                raise ValueError("Unexpected address")
+            network = candidate
+            continue
+        value, separator, protocol = token.partition("/")
+        if separator:
+            if protocol not in {"tcp", "udp", "icmp", "ipv6-icmp"}:
+                raise ValueError("Unknown protocol")
+            if proto and proto != protocol:
+                raise ValueError("Contradictory protocols")
+            proto = protocol
+        if value == "Anywhere" and index == 0:
+            continue
+        # Numeric ports, including the ranges/multiport lists printed by UFW.
+        for part in value.split(","):
+            limits = part.split(":")
+            if not 1 <= len(limits) <= 2 or any(
+                not n.isascii() or not n.isdecimal() or not 0 <= int(n) <= 65535
+                for n in limits
+            ):
+                raise ValueError("Unknown address or port")
+            if int(limits[0]) > int(limits[-1]):
+                raise ValueError("Reversed port range")
+        if port or (index == 1 and network is None and tokens[0] != "Anywhere"):
+            raise ValueError("Unexpected port")
+        port = value
+    version = network.version if network is not None else None
+    if marked_v6 and version == 4:
+        raise ValueError("Contradictory address family")
+    if port and proto in {"icmp", "ipv6-icmp"}:
+        raise ValueError("Port on a protocol without ports")
+    return {
+        "network": network,
+        "version": 6 if marked_v6 else version,
+        "port": port,
+        "proto": proto,
+        "interface": iface,
+        "anywhere": network is None or network.prefixlen == 0,
+    }
+
+
+def _killswitch_status_rules(status_text, *, verbose=False, numbered=False):
+    """Require a status envelope and fully understood IN/OUT user-rule rows.
+
+    An explicit status with zero rows is an inventory. Empty output is not.
+    FWD, application names and other unsupported formats fail closed here;
+    the permissive UI parser is deliberately not a security boundary.
+    """
+    if not isinstance(status_text, str) or not status_text.strip():
+        raise ValueError("Missing UFW inventory")
+    if any((ord(c) < 32 and c not in "\n\t") or ord(c) == 127 for c in status_text):
+        raise ValueError("Invalid UFW control character")
+    states = []
+    defaults = []
+    rows = []
+    for raw in status_text.splitlines():
+        line = raw.split(" #", 1)[0].strip()
+        if not line:
+            continue
+        if line in {"Status: active", "Status: inactive"}:
+            states.append(line)
+            continue
+        if line.startswith("Default:"):
+            if not re.fullmatch(
+                r"Default: (allow|deny|reject) \(incoming\), "
+                r"(allow|deny|reject) \(outgoing\), "
+                r"(disabled|allow|deny|reject) \(routed\)",
+                line,
+            ):
+                raise ValueError("Invalid UFW defaults")
+            defaults.append(line)
+            continue
+        if re.fullmatch(r"Logging: (off|on \((low|medium|high|full)\))", line):
+            continue
+        if re.fullmatch(r"New profiles: (skip|allow|deny|reject)", line):
+            continue
+        if re.fullmatch(r"To\s+Action\s+From", line) or re.fullmatch(r"[-\s]+", line):
+            continue
+        number_match = re.match(r"^\[\s*([1-9][0-9]*)\]\s*", line)
+        number = int(number_match[1]) if number_match else None
+        if number_match:
+            line = line[number_match.end() :]
+            if verbose:
+                raise ValueError("Unexpected rule numbering in verbose output")
+        if numbered and number != len(rows) + 1:
+            raise ValueError("Incomplete or ambiguous numbered inventory")
+        match = re.fullmatch(r"(.+?)\s+(ALLOW|DENY|REJECT)\s+(IN|OUT)\s+(.+)", line)
+        if not match:
+            raise ValueError("Incomplete or unsupported UFW rule")
+        target, policy, direction, source = match.groups()
+        # `status numbered` prints this redundant attribute for OUT rules.
+        if direction == "OUT" and source.endswith(" (out)"):
+            source = source[:-6]
+        to_field = _killswitch_rule_field(target)
+        from_field = _killswitch_rule_field(source)
+        versions = {f["version"] for f in (to_field, from_field) if f["version"]}
+        if len(versions) > 1:
+            raise ValueError("Mixed IPv4/IPv6 rule")
+        protocols = {f["proto"] for f in (to_field, from_field) if f["proto"]}
+        if len(protocols) > 1:
+            raise ValueError("Mixed rule protocols")
+        if ("ipv6-icmp" in protocols and versions != {6}) or (
+            "icmp" in protocols and versions == {6}
+        ):
+            raise ValueError("Protocol/address-family mismatch")
+        if to_field["interface"] and from_field["interface"]:
+            raise ValueError("Multiple interfaces")
+        # Non-route IN binds its interface under To, OUT under From (UFW).
+        if (direction == "OUT" and to_field["interface"]) or (
+            direction == "IN" and from_field["interface"]
+        ):
+            raise ValueError("Interface on unexpected side")
+        rows.append(
+            {
+                "number": number,
+                "policy": policy,
+                "direction": direction,
+                "interface": to_field["interface"] or from_field["interface"],
+                "to_field": to_field,
+                "from_field": from_field,
+                "is_ipv6": versions == {6},
+                "line": f"{target} {policy} {direction} {source}",
+            }
+        )
+    if len(states) != 1 or len(defaults) > 1:
+        raise ValueError("Missing or contradictory UFW status")
+    if verbose and states == ["Status: active"] and len(defaults) != 1:
+        raise ValueError("Incomplete verbose UFW inventory")
+    return rows
+
+
+def _killswitch_interface_rule_issues(
+    status_text,
+    wg_ifaces,
+    handshake_rules=(),
+    *,
+    allow_cleanup=False,
+    verbose=False,
+    numbered=False,
+):
+    """Conservative conflict check; addresses never establish rule ownership."""
+    allowed_ifaces = {"lo", *wg_ifaces}
+    issues = []
+    try:
+        rows = _killswitch_status_rules(status_text, verbose=verbose, numbered=numbered)
+    except (TypeError, ValueError):
+        return ["UFW-Regeln nicht eindeutig lesbar; manuelle Pruefung erforderlich."]
+    for rule in rows:
+        if rule["policy"] != "ALLOW":
+            continue
+        iface = rule["interface"]
+        target = rule["to_field"]
+        source = rule["from_field"]
+        if iface in allowed_ifaces:
+            continue
+        if rule["direction"] == "OUT":
+            network = target["network"]
+            endpoint = (
+                network is not None
+                and network.prefixlen == network.max_prefixlen
+                and target["proto"] == "udp"
+                and (str(network.network_address), target["port"]) in handshake_rules
+            )
+            # Keep the existing explicit global web/DNS cleanup policy. This
+            # exception is unavailable in final verification and never for an
+            # interface-bound or source-restricted administrator rule.
+            cleanup = (
+                allow_cleanup
+                and not iface
+                and target["network"] is None
+                and source["anywhere"]
+                and not source["port"]
+                and (target["port"], target["proto"])
+                in {("53", "udp"), ("53", "tcp"), ("80", "tcp"), ("443", "tcp")}
+            )
+            conflict = not (endpoint or cleanup)
+        else:
+            conflict = not target["port"]
+        if conflict:
+            family = "IPv6" if rule["is_ipv6"] else "IPv4"
+            issues.append(
+                f"Widersprechende UFW-Freigabe auf nicht verifiziertem Interface {iface or '*'} "
+                f"({family}, {rule['direction'] or 'Richtung unklar'}); "
+                "manuelle Pruefung erforderlich."
+            )
+    return issues
+
+
 def verify_killswitch_rules(
     app,
     status_text,
@@ -747,6 +958,11 @@ def verify_killswitch_rules(
             break
 
     if enabled:
+        issues.extend(
+            _killswitch_interface_rule_issues(
+                status_text, wg_ifaces, handshake_rules, verbose=True
+            )
+        )
         if not app._ufw_default_policy_matches(
             status_text,
             incoming="deny",
@@ -810,7 +1026,11 @@ def verify_killswitch_rules(
 
 
 def killswitch_is_on(app):
-    wg_ifaces = sorted(set(app.get_wg_interfaces()))
+    wg_ifaces = sorted(
+        iface
+        for iface in set(app.get_wg_interfaces())
+        if nm_ownership.verified_interface(iface)
+    )
     handshake_rules = get_killswitch_vpn_endpoints(app)
     with app.ufw_lock:
         rc, out = app._read_ufw_status(verbose=True)
@@ -998,6 +1218,13 @@ def _remove_residual_killswitch_rules(app, wg_ifaces, handshake_rules, *, strict
             raise RuntimeError("UFW-Regeln vor Killswitch-Aktivierung nicht lesbar")
         return 0
 
+    if strict:
+        issues = _killswitch_interface_rule_issues(
+            out, wg_ifaces, handshake_rules, allow_cleanup=True, numbered=True
+        )
+        if issues:
+            raise RuntimeError("; ".join(issues))
+
     allowed_ifaces = {"lo", *{str(iface).strip() for iface in (wg_ifaces or [])}}
     allowed_ifaces.discard("")
     allowed_endpoints = {
@@ -1013,7 +1240,15 @@ def _remove_residual_killswitch_rules(app, wg_ifaces, handshake_rules, *, strict
     }
 
     delete_nums = []
-    for num, rest in parse_ufw_status_numbered(out):
+    numbered_rules = (
+        [
+            (row["number"], row["line"])
+            for row in _killswitch_status_rules(out, numbered=True)
+        ]
+        if strict
+        else parse_ufw_status_numbered(out)
+    )
+    for num, rest in numbered_rules:
         parsed = parse_ufw_structured_rule(rest)
         if not parsed:
             continue
@@ -1024,7 +1259,15 @@ def _remove_residual_killswitch_rules(app, wg_ifaces, handshake_rules, *, strict
         should_delete = False
         if category == "interface":
             iface = (parsed.get("interface") or "").strip()
-            should_delete = iface in allowed_ifaces and direction in {"IN", "OUT"}
+            # NetMon recreates only unrestricted interface ALLOWs below. A
+            # narrower rule is not redundant by specification and has no
+            # ownership proof: retain it, including its source and port limits.
+            should_delete = (
+                iface in allowed_ifaces
+                and direction in {"IN", "OUT"}
+                and parsed["to"] == "Anywhere"
+                and parsed["from"] == "Anywhere"
+            )
         elif category == "vpn_endpoint":
             endpoint = (
                 str(parsed.get("ip") or "").strip(),
@@ -1149,13 +1392,24 @@ def killswitch_on_sync(app, refresh_ui=True):
 
         network_service = _network_service_for(app)
         with app.ufw_lock, _killswitch_apply_guard(app) as mutation:
-            rc_s, out_s = app._read_ufw_status()
+            rc_s, out_s = app._read_ufw_status(verbose=True)
             if rc_s != 0:
                 app.log_safe(
                     "Killswitch-Aktivierung abgebrochen: UFW-Status nicht lesbar."
                 )
                 return False
             ufw_on = app._ufw_status_is_active(out_s)
+            issues = _killswitch_interface_rule_issues(
+                out_s, wg_ifaces, handshake_rules, allow_cleanup=True, verbose=True
+            )
+            if issues:
+                app.log_safe(
+                    "Killswitch-Aktivierung abgebrochen: "
+                    + "; ".join(issues)
+                    + " Bestehende Regeln wurden nicht veraendert; "
+                    "Killswitch-Schutz ist nicht bestaetigt."
+                )
+                return False
             mutation[0] = True
             if not ufw_on:
                 if network_service is not None:

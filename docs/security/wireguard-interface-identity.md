@@ -265,3 +265,156 @@ Die Stichproben sind weiterhin keine atomare Kernel-/UFW-Transaktion.
 Privilegierte Namenswiederverwendung und spaetere Aenderungen bleiben wie
 oben beschrieben Restrisiken. M-05 wird hiermit **nicht formal geschlossen**;
 es erfolgten keine Security-Cloud-Aktion und kein neuer Scan.
+
+## Lokale Nachbesserung der UFW-Altregel-Pruefung am 2026-10-20
+
+Worktree: `/tmp/netmon-wireguard-interface-m05-review`, Branch:
+`security/wireguard-interface-m05-review`. HEAD bleibt unveraendert auf
+`0dac2a36c14ec8acb7ecaa2607ac6e3542c2fd09`; dessen Basis ist
+`2eb1ed8f4ba96b98c5db5c50964631bd29aa3c4f`. Der bereits angewendete
+Browser-Patch `M-05-UFW-Altregeln-VS.patch` wurde weder erneut angewendet
+noch zurueckgesetzt. Diese Nachbesserung ist uncommittet.
+
+### Ursachen und Regelbedeutung
+
+Die unabhaengigen Solltests wurden vor der Korrektur erneut reproduziert:
+**13 fehlgeschlagen, 31 bestanden**, einschliesslich 21 Guard-Selbsttests.
+
+- Vier Faelle: `Anywhere ALLOW OUT 192.0.2.10 on eth0` erlaubt Pakete mit
+  dieser Quelladresse ueber das Ausgangsinterface zu beliebigen Zielen.
+  Der damalige Check suchte dagegen ausschliesslich nach `Anywhere` in
+  beiden Adressfeldern. Ein unabhaengiges First-Match-Orakel bestaetigte
+  beliebigen TCP-Ausgang trotz Erfolgsmeldung von Aktivierung und Status.
+  Das galt fuer IPv4/IPv6 sowie direkten Runner und Service-Adapter.
+- Fuenf Faelle: Ein toleranter Anzeigeparser akzeptierte unvollstaendige
+  Felder oder unerkannte Richtungen als Rest eines Quellfeldes. Auch
+  Exitcode 0 mit leerem Preflight-Text wurde als ausreichende Inventur
+  behandelt. `FWD` ist ein echtes UFW-Format, aber kein unterstuetzter
+  IN-/OUT-Nachweis. Ein fehlendes `IN` ist bei einfachem `ufw status`
+  moeglich, im hier angeforderten `verbose`-/`numbered`-Format jedoch
+  unerwartet. Diese Ausgaben duerfen keinen Schutznachweis liefern.
+- Vier Faelle: Der vorhandene Cleanup loeschte jede ALLOW-Regel auf
+  `lo`/ausgewaehlten WG-Interfaces unabhaengig von Port-/Adressgrenzen.
+  Die unveraenderte Funktion aus dem Basiscommit reproduziert dies
+  weiterhin. Ihre Erwartung bleibt erhalten; der Vergleich mit der
+  korrigierten Funktion verlangt nun den Erhalt derselben engen Regel.
+  Die anderen adversarialen Erwartungen wurden nicht abgeschwaecht.
+
+Regelbedeutung und Ausgabeformat wurden anhand der installierten
+UFW-Implementierung nur lesend kontrolliert:
+`ufw/common.py::UFWRule.format_rule` und
+`ufw/backend_iptables.py::UFWBackendIptables.get_status`. Quelle und Ziel
+werden getrennt als `-s`/`-d` dargestellt, das Ausgangsinterface als `-o`.
+UFW druckt bei nicht gerouteten Regeln das IN-Interface unter `To`, das
+OUT-Interface unter `From`. Nummerierte OUT-Regeln koennen zusaetzlich
+`(out)` enthalten. Die [UFW-Manpage](https://manpages.debian.org/bookworm/ufw/ufw.8.en.html)
+beschreibt diese Feldbedeutung ebenfalls. Es wurde kein UFW-Befehl gestartet.
+
+### Produktionskorrekturen
+
+Die neuen Killswitch-spezifischen Parser `_killswitch_rule_field()` und
+`_killswitch_status_rules()` verlangen einen expliziten Status und vollstaendig
+verstandene IN-/OUT-Regeln. Sie pruefen numerische Adressen/Netze, Ports und
+Portbereiche, Protokolle, getrennte Interface-Felder und konsistente
+IPv4-/IPv6-Informationen. Unbekannte Richtungen, gemischte Adressfamilien,
+ungueltige Protokoll-/Familienkombinationen, widerspruechliche Statuszeilen
+und Defaults sowie Steuerzeichen fuehren zur Ablehnung. Nummerierte
+Inventuren muessen vollstaendig und eindeutig von 1 an nummeriert sein.
+Ein aktiver Verbose-Status braucht genau eine gueltige Default-Zeile.
+
+Ein explizites, korrektes Inventar mit null Regeln ist zulaessig. Ein leerer
+Text ist keine Inventur. Ein inaktiver Status kann verborgene Regeln nicht
+belegen; die erneute nummerierte Pruefung nach Enable bleibt erhalten.
+Der Anzeigeparser wird ausserhalb dieses Sicherheitsablaufs nicht geaendert.
+
+Die Konfliktpruefung erkennt nun auch quell-, ziel- und portbeschraenkte
+ausgehende ALLOWs ausserhalb verifizierter WG-/Loopback-Interfaces. Eine
+Beschraenkung auf die lokale Quelladresse ist keine Managementausnahme.
+Ausserhalb des Tunnels bleiben nur die explizit erwarteten Handshake-Ziele
+mit exakter Hostadresse, UDP und exaktem Zielport zulaessig. Eingehende
+portbegrenzte Managementregeln behalten ihre bisherige Ausnahme.
+
+Die bestehende globale DNS-/Web-Cleanup-Policy bleibt waehrend Preflight
+und Cleanup eng begrenzt beruecksichtigt; diese Ausnahme ist bei der
+Abschlusspruefung gesperrt und gilt nicht fuer interfacegebundene oder
+quellspezifische Administratorregeln. Spaete Konflikte und Inventarfehler
+nutzen weiter die bestehende restriktive Recovery unter demselben Lock.
+
+### Begrenzte Aenderung der Loeschlogik und Eigentuemerrisiko
+
+Es existiert kein belastbarer Eigentumsnachweis fuer alte UFW-Regeln.
+Interfaceidentitaet beweist keine Regelherkunft. Die gezielte Korrektur
+entfernt beim Aktivierungs-Cleanup Interface-ALLOWs nur noch in der exakt
+von NetMon neu erzeugten, unbeschraenkten `Anywhere`/`Anywhere`-Form.
+Enge Regeln mit Port-, Quell-, Ziel- oder Protokollgrenzen bleiben erhalten.
+Das ist durch historische Vergleichstests und zusaetzliche IPv4-/IPv6-
+Kontrollen abgesichert; es wurde keine pauschale Cleanup-Neufassung eingefuehrt.
+Kommentare und das nummerierte `(out)`-Attribut werden vor der Auswahl
+normalisiert. Die vorhandene Loeschreihenfolge bleibt absteigend.
+
+Auch die exakte breite Form ist KEIN Eigentumsnachweis: Eine identische
+Administratorregel kann weiterhin vom vorhandenen Cleanup erfasst werden.
+Die bestehenden Ziel-/Port-basierten Handshake- und globalen DNS-/Web-
+Cleanup-Kategorien sowie der Deaktivierungspfad wurden nicht neu entworfen.
+Eine allgemeine Garantie, alle fremden Regeln unveraendert zu lassen,
+wird deshalb ausdruecklich nicht behauptet. Eine Eigentums-/Migrationsloesung
+fuer diese Kategorien bleibt separate Arbeit.
+
+### Abschlussvalidierung
+
+Alle Laeufe nutzten den geprueften Bubblewrap-Namespace, den unveraenderten
+Hostzugriffs-Guard, synthetische UFW-Zustaende und simulierte privilegierte
+Operationen. Keine Installation, kein Live-Firewall-/WireGuard-Eingriff.
+Der vorhandene lokale Starter bindet die bestehende Python-Umgebung und
+die fuer historische Regressionen benoetigten Git-Metadaten nur lesend ein.
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 /dev-lab/projects/dev-lab/.venv/bin/python -B \
+  /tmp/netmon-m05-run-isolated.py -q -rs --tb=short --maxfail=0 \
+  tests/test_killswitch_inventory_security.py \
+  tests/test_m05_adversarial_review.py \
+  tests/test_killswitch_legacy_interface_rules.py \
+  tests/test_wireguard_interface_security.py \
+  tests/test_wireguard_import_security.py tests/test_netmon_nm_ownership.py \
+  tests/test_firewall_controller.py tests/test_netmon_vpn_slots.py \
+  tests/test_netmon_killswitch.py tests/test_killswitch_failure_recovery.py \
+  tests/test_host_access_guard.py tests/test_manual_wireguard_security.py \
+  tests/test_vpn_slots_tab.py tests/test_netmon_deb_packaging.py
+```
+
+**867 bestanden, 0 fehlgeschlagen, 0 uebersprungen:** die bisherigen 767
+Faelle einschliesslich der 30 Browser-Regressionen, alle 23 adversarialen
+Faelle und 77 neue Inventar-/Regelvarianten. Keine Gesamtsuite.
+JUnit: `/tmp/user/1000/netmon-isolation-95kg55xk/junit.xml`.
+Vorherige Fehlerreproduktion:
+`/tmp/user/1000/netmon-isolation-1qajlxpc/junit.xml`.
+
+Der Zustands-Fake wurde an die nachgelesene UFW-Ausgabe angepasst:
+IN-Interface unter `To`, IP-spezifische Handshake-Regeln nur in ihrer echten
+Adressfamilie. Ein alter nummerierter Status-Fake erhielt seinen fehlenden
+Statuskopf. Diese Aenderungen erhalten die bisherigen Befehlsassertions
+und Fehler-Injektionsstufen. Black, Ruff, Syntax- und Whitespace-Pruefungen
+fuer alle sechs betroffenen Python-Dateien bestanden.
+
+### Weiterhin offene Grenzen
+
+Das separate **TOCTOU zwischen Interface-Identitaetspruefung und privilegiertem
+UFW-Aufruf bleibt offen**. Auch Inventur, nummerierte Loeschung und
+UFW-Aenderungen bilden keine atomare Kerneltransaktion; der App-Lock sperrt
+keine externen Administratoren. Die Erkennung ist konservativ und keine
+vollstaendige Wirkungsanalyse aller geordneten Netfilter-Regeln. FWD-,
+Anwendungsprofil-, Logging- oder sonstige nicht sicher verstandene
+Regelformate koennen den Ablauf zur manuellen Pruefung sperren.
+
+Das First-Match-Testorakel prueft nur die verwendeten synthetischen
+User-Regelformen. Bestehende Verbindungen, UFW-before-Regeln und externe
+Regelketten sind damit nicht umfassend nachgewiesen. Fehlende Familien-
+Zeilen beweisen fuer sich allein keine systemweite IPv6-Deaktivierung.
+Es gab keinen Live-Kernel- oder vollstaendigen Desktop-Integrationstest.
+Restriktive Recovery ist kein exaktes Rollback und kann Managementverkehr
+blockieren. Root-Helfer und Controller muessen weiterhin gemeinsam aus
+einem geprueften Release aktualisiert werden.
+
+M-05 bleibt formal offen. Keine Commits, Pushes, PRs, Merges oder
+Security-Cloud-Aktionen. Andere Worktrees und HDD-/About-/Secure-Browser-
+Arbeiten wurden nicht veraendert.

@@ -1,6 +1,7 @@
 """Stateful failure injection; all privileged commands are simulated."""
 
 import ast
+import ipaddress
 import subprocess
 import threading
 from pathlib import Path
@@ -62,6 +63,17 @@ class Ufw:
                 ),
             )
 
+    @staticmethod
+    def format_rule(rule, ipv6):
+        policy, direction, target, source = rule
+        # Model storage keeps the interface alongside the source for the
+        # packet oracle; real UFW prints an IN interface in its To column.
+        if direction == "IN" and " on " in source:
+            source, _, iface = source.partition(" on ")
+            target += f" on {iface}"
+        suffix = " (v6)" if ipv6 else ""
+        return f"{target}{suffix}  {policy} {direction}  {source}{suffix}"
+
     def status(self, verbose=False):
         assert self.app.ufw_lock.locked(), "read escaped transaction lock"
         if self.bad_status:
@@ -77,11 +89,8 @@ class Ufw:
                 "--                         ------      ----",
             ]
             for ipv6, rules in self.rules.items():
-                for policy, direction, target, source in rules:
-                    suffix = " (v6)" if ipv6 else ""
-                    lines.append(
-                        f"{target}{suffix}  {policy} {direction}  {source}{suffix}"
-                    )
+                for rule in rules:
+                    lines.append(self.format_rule(rule, ipv6))
         return 0, "\n".join(lines)
 
     def run(self, args, timeout=0, text=True):
@@ -93,12 +102,9 @@ class Ufw:
             lines = ["Status: active"]
             n = 0
             for ipv6, rules in self.rules.items():
-                for policy, direction, target, source in rules:
+                for rule in rules:
                     n += 1
-                    suffix = " (v6)" if ipv6 else ""
-                    lines.append(
-                        f"[{n}] {target}{suffix}  {policy} {direction}  {source}{suffix}"
-                    )
+                    lines.append(f"[{n}] {self.format_rule(rule, ipv6)}")
             return 0, "\n".join(lines)
         self.count += 1
         if self.count == self.fail_at or (self.bad_recovery and cmd[0] == "insert"):
@@ -121,7 +127,12 @@ class Ufw:
                 rule = ("ALLOW", cmd[1].upper(), "Anywhere", f"Anywhere on {cmd[-1]}")
             else:
                 rule = ("ALLOW", "OUT", f"{cmd[3]} {cmd[5]}/udp", "Anywhere")
-            for rules in self.rules.values():
+            for ipv6, rules in self.rules.items():
+                if (
+                    "on" not in cmd
+                    and (ipaddress.ip_address(cmd[3]).version == 6) != ipv6
+                ):
+                    continue
                 rules.append(rule)
         elif cmd[:3] == ["insert", "1", "deny"]:
             for rules in self.rules.values():

@@ -30,12 +30,12 @@ def _ufw_verbose_killswitch_on_status(wg_ifaces=None, handshake_rules=None):
     lines = [
         "Status: active",
         "Default: deny (incoming), deny (outgoing), disabled (routed)",
-        "Anywhere ALLOW IN on lo Anywhere",
-        "Anywhere ALLOW OUT on lo Anywhere",
+        "Anywhere on lo ALLOW IN Anywhere",
+        "Anywhere ALLOW OUT Anywhere on lo",
     ]
     for iface in wg_ifaces or []:
-        lines.append(f"Anywhere ALLOW IN on {iface} Anywhere")
-        lines.append(f"Anywhere ALLOW OUT on {iface} Anywhere")
+        lines.append(f"Anywhere on {iface} ALLOW IN Anywhere")
+        lines.append(f"Anywhere ALLOW OUT Anywhere on {iface}")
     for endpoint_ip, endpoint_port in handshake_rules or []:
         lines.append(f"{endpoint_ip} {endpoint_port}/udp ALLOW OUT Anywhere")
     return "\n".join(lines)
@@ -187,6 +187,8 @@ def test_killswitch_on_allows_wireguard_handshake_without_active_tunnel(monkeypa
             return 0, _ufw_verbose_killswitch_on_status(
                 handshake_rules=[("66.234.146.66", "51820"), ("77.88.99.11", "443")]
             )
+        if args == ["sudo", "-n", "ufw", "status", "numbered"]:
+            return 0, "Status: active"
         return 0, "ok"
 
     monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
@@ -259,6 +261,7 @@ def test_killswitch_on_removes_residual_global_web_and_dns_rules_before_verify(
                 0,
                 "\n".join(
                     [
+                        "Status: active",
                         "[ 1] 53/udp ALLOW OUT Anywhere",
                         "[ 2] 53/tcp ALLOW OUT Anywhere",
                         "[ 3] 80/tcp ALLOW OUT Anywhere",
@@ -475,6 +478,8 @@ def test_killswitch_on_allows_all_active_wireguard_interfaces(monkeypatch):
                 wg_ifaces=["wg0", "Irland2_-IE-112"],
                 handshake_rules=[("66.234.146.66", "51820"), ("203.0.113.10", "51820")],
             )
+        if args == ["sudo", "-n", "ufw", "status", "numbered"]:
+            return 0, "Status: active"
         return 0, "ok"
 
     monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
@@ -858,6 +863,8 @@ def test_killswitch_on_logs_each_handshake_endpoint_only_once(monkeypatch):
             return 0, _ufw_verbose_killswitch_on_status(
                 handshake_rules=[("66.234.146.66", "51820"), ("77.88.99.11", "443")]
             )
+        if args == ["sudo", "-n", "ufw", "status", "numbered"]:
+            return 0, "Status: active"
         return 0, "ok"
 
     monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
@@ -2039,8 +2046,8 @@ def test_killswitch_is_on_rejects_global_web_or_dns_allow_rules(monkeypatch):
                 [
                     "Status: active",
                     "Default: deny (incoming), deny (outgoing), disabled (routed)",
-                    "Anywhere ALLOW IN on lo Anywhere",
-                    "Anywhere ALLOW OUT on lo Anywhere",
+                    "Anywhere on lo ALLOW IN Anywhere",
+                    "Anywhere ALLOW OUT Anywhere on lo",
                     "Anywhere ALLOW IN on wg0 Anywhere",
                     "Anywhere ALLOW OUT on wg0 Anywhere",
                     "66.234.146.66 51820/udp ALLOW OUT Anywhere",
@@ -2068,6 +2075,8 @@ def test_killswitch_on_sync_fails_when_postcondition_verification_fails(monkeypa
             return 0, "Status: active"
         if args == ["sudo", "-n", "ufw", "status", "verbose"]:
             return 0, _ufw_verbose_killswitch_on_status(wg_ifaces=["wg0"])
+        if args == ["sudo", "-n", "ufw", "status", "numbered"]:
+            return 0, "Status: active"
         return 0, "ok"
 
     monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
