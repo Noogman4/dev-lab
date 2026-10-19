@@ -291,16 +291,6 @@ seed_netmon_log_pics_for_home() {
 seed_netmon_log_pics_for_home "/etc/skel"
 restore_legacy_install_dns
 
-if [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER}" != "root" ]; then
-  USER_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
-  if [ -n "$USER_HOME" ] && [ -d "$USER_HOME" ]; then
-    USER_DOC_ROOT="$(documents_root_for_home "$USER_HOME")"
-    seed_log_pics_dir "$USER_DOC_ROOT/NetMon/Log-Pics"
-    chown "$SUDO_USER":"$SUDO_USER" "$USER_DOC_ROOT" "$USER_DOC_ROOT/NetMon" "$USER_DOC_ROOT/NetMon/Log-Pics" >/dev/null 2>&1 || true
-    chown "$SUDO_USER":"$SUDO_USER" "$USER_DOC_ROOT/NetMon/Log-Pics"/* >/dev/null 2>&1 || true
-  fi
-fi
-
 exit 0
 EOF
 chmod 755 "$PKG_DIR/DEBIAN/postinst"
