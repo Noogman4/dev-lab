@@ -33929,16 +33929,19 @@ class App(TkBase):
             return all(values)
         return False
 
-    def ipv6_runtime_available_on_iface(self, iface):
+    def ipv6_runtime_available_on_iface(self, iface) -> bool | None:
+        """Return address presence, or None when the runtime query is unavailable."""
         name = (iface or "").strip()
-        if not name or self.ipv6_is_disabled():
+        if self.ipv6_is_disabled():
             return False
+        if not name:
+            return None
         rc, out = run_cmd(
             ["ip", "-6", "-o", "addr", "show", "dev", name, "scope", "global"],
             timeout=4,
         )
         if rc != 0:
-            return False
+            return None
         for line in (out or "").splitlines():
             if " inet6 " in line:
                 return True
@@ -33983,21 +33986,20 @@ class App(TkBase):
         buttons_state = "normal"
         system_ipv6_enabled = not self.ipv6_is_disabled()
         active_iface = (self.get_wg_iface() or "").strip()
-        active_supports_ipv6 = bool(
-            active_profile and self.profile_supports_ipv6(active_profile)
-        )
-        active_runtime_ipv6 = bool(
-            active_iface and self.ipv6_runtime_available_on_iface(active_iface)
+        active_runtime_ipv6 = (
+            self.ipv6_runtime_available_on_iface(active_iface) if active_iface else None
         )
 
         if not active_profile:
             vpn_status = "kein aktives Profil"
+        elif not system_ipv6_enabled:
+            vpn_status = "IPv6 systemweit deaktiviert"
+        elif active_runtime_ipv6 is None:
+            vpn_status = "IPv6-Status unbekannt – Prüfung fehlgeschlagen"
         elif active_runtime_ipv6:
-            vpn_status = "nutzt IPv6"
-        elif active_supports_ipv6 and not system_ipv6_enabled:
-            vpn_status = "erwartet IPv6, System deaktiviert"
+            vpn_status = "IPv6-Adresse am VPN-Interface vorhanden"
         else:
-            vpn_status = "nutzt nur IPv4"
+            vpn_status = "Keine globale IPv6-Adresse am VPN-Interface"
 
         system_status = "aktiv" if system_ipv6_enabled else "deaktiviert"
         ipv6_hint_lines = [
@@ -34024,6 +34026,8 @@ class App(TkBase):
         if _widget_exists(ipv6_controls_hint):
             if not active_profile:
                 hint_color = "#666666"
+            elif system_ipv6_enabled and active_runtime_ipv6 is None:
+                hint_color = "#b26a00"
             elif active_runtime_ipv6:
                 hint_color = "#2e7d32"
             else:
@@ -34040,9 +34044,11 @@ class App(TkBase):
         if privacy_profile and not self.profile_supports_ipv6(privacy_profile):
             privacy_enabled = False
             if active_profile:
-                privacy_hint = "Aktives VPN-Profil nutzt nur IPv4"
+                privacy_hint = (
+                    "Aktives VPN-Profil: keine IPv6-Unterstützung konfiguriert"
+                )
             else:
-                privacy_hint = "Gewaehltes Privacy-VPN-Profil nutzt nur IPv4"
+                privacy_hint = "Gewaehltes Privacy-VPN-Profil: keine IPv6-Unterstützung konfiguriert"
 
         privacy_state = "normal" if privacy_enabled else "disabled"
         widget = self.__dict__.get("cb_privacy_ipv6")
@@ -41889,13 +41895,15 @@ class App(TkBase):
         self.update_game_mode_light()
         active_profile_for_ipv6 = (vpn_profile or "").strip()
         active_iface_for_ipv6 = (self.get_wg_iface() or "").strip()
+        runtime_ipv6 = None
         if not active_profile_for_ipv6:
             ipv6_light = "gray"
         else:
+            runtime_ipv6 = self.ipv6_runtime_available_on_iface(active_iface_for_ipv6)
             ipv6_light = (
-                "green"
-                if self.ipv6_runtime_available_on_iface(active_iface_for_ipv6)
-                else "red"
+                "yellow"
+                if runtime_ipv6 is None
+                else ("green" if runtime_ipv6 else "red")
             )
         self.set_light(self.l_ipv6, ipv6_light)
 
@@ -41918,17 +41926,20 @@ class App(TkBase):
         if not vpn_profile:
             v6txt = self.tr("header_ipv6_na", "IPv6: n/a")
         else:
-            wg_v6_runtime = self.ipv6_runtime_available_on_iface(wg_if)
-            if wg_v6_runtime:
-                v6txt = self.tr("header_ipv6_ok", "IPv6: OK")
-            elif self.profile_supports_ipv6(vpn_profile) and self.ipv6_is_disabled():
+            if self.ipv6_is_disabled():
                 v6txt = self.tr(
-                    "header_ipv6_profile_expected_off",
-                    "IPv6: profile expects IPv6 (OFF)",
+                    "header_ipv6_system_disabled", "IPv6: disabled system-wide"
+                )
+            elif runtime_ipv6 is None:
+                v6txt = self.tr("header_ipv6_unknown", "IPv6: unknown (query failed)")
+            elif runtime_ipv6:
+                v6txt = self.tr(
+                    "header_ipv6_address_present", "IPv6: VPN interface address present"
                 )
             else:
                 v6txt = self.tr(
-                    "header_ipv6_profile_ipv4_only", "IPv6: profile IPv4 only"
+                    "header_ipv6_no_global_address",
+                    "IPv6: no global VPN interface address",
                 )
 
         parts = [

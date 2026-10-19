@@ -2808,14 +2808,32 @@ def test_run_security_monitor_menu_action_refreshes_light():
     assert ("status", "green") in calls
 
 
-def test_refresh_updates_ufw_logging_light(passive_dns_status, passive_dns_service):
+@pytest.mark.parametrize(
+    "vpn_profile,runtime_ipv6,disabled,expected_header,expected_light",
+    [
+        (None, False, False, "IPv6: n/a", "gray"),
+        ("work", None, False, "IPv6: unknown (query failed)", "yellow"),
+        ("work", True, False, "IPv6: VPN interface address present", "green"),
+        ("work", False, False, "IPv6: no global VPN interface address", "red"),
+        ("work", False, True, "IPv6: disabled system-wide", "red"),
+    ],
+)
+def test_refresh_updates_ufw_logging_light_and_ipv6_status(
+    passive_dns_status,
+    passive_dns_service,
+    vpn_profile,
+    runtime_ipv6,
+    disabled,
+    expected_header,
+    expected_light,
+):
     app = netmon.App.__new__(netmon.App)
     passive_dns_service(app)
     colors = []
     calls = []
 
     app.check_internet = lambda: True
-    app.active_wg_profile = lambda: None
+    app.active_wg_profile = lambda: vpn_profile
     app.check_ufw_active = lambda: True
     app.check_ssh_rule_active = lambda: True
     app.killswitch_is_on = lambda: False
@@ -2842,11 +2860,17 @@ def test_refresh_updates_ufw_logging_light(passive_dns_status, passive_dns_servi
     app.refresh_vpn_slots_table = lambda: None
     app.ip_country_async = lambda force=False: None
     app.whoami_async = lambda force=False: None
-    app.get_wg_iface = lambda: ""
+    app.get_wg_iface = lambda: "wg0" if vpn_profile else ""
     app.get_default_iface = lambda: "enp4s0"
     app.profile_supports_ipv6 = lambda profile: False
-    app.ipv6_is_disabled = lambda: False
-    app.ipv6_runtime_available_on_iface = lambda iface: False
+    app.ipv6_is_disabled = lambda: disabled
+    ipv6_queries = []
+
+    def runtime_status(iface):
+        ipv6_queries.append(iface)
+        return runtime_ipv6
+
+    app.ipv6_runtime_available_on_iface = runtime_status
     app.info = DummyVar()
     app.wg_rx_rate = 0.0
     app.wg_tx_rate = 0.0
@@ -2869,6 +2893,9 @@ def test_refresh_updates_ufw_logging_light(passive_dns_status, passive_dns_servi
 
     assert calls == ["ufw-log"]
     assert passive_dns_status == [(["resolvectl", "status"], 6)]
+    assert (app.l_ipv6, expected_light) in colors
+    assert expected_header in app.status_text.values["text"]
+    assert ipv6_queries == (["wg0"] if vpn_profile else [])
 
 
 def test_refresh_sets_firewall_gray_when_ufw_status_is_not_readable_yet():

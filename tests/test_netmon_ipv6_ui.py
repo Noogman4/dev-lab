@@ -103,20 +103,30 @@ def test_update_ipv6_controls_state_keeps_left_buttons_enabled_for_active_ipv4_o
     assert app.cb_privacy_ipv6.state == "disabled"
     assert (
         app.ipv6_controls_hint.text
-        == "IPv6 Status:\nSystem:        aktiv\nVPN-Profil:    nutzt nur IPv4"
+        == "IPv6 Status:\nSystem:        aktiv\nVPN-Profil:    Keine globale IPv6-Adresse am VPN-Interface"
     )
-    assert app.privacy_ipv6_hint.text == "Aktives VPN-Profil nutzt nur IPv4"
+    assert (
+        app.privacy_ipv6_hint.text
+        == "Aktives VPN-Profil: keine IPv6-Unterstützung konfiguriert"
+    )
 
 
 @pytest.mark.parametrize(
     "supports_ipv6, query_rc, query_output, expected_status, expected_color",
     [
-        pytest.param(False, 0, "", "nutzt nur IPv4", "#c62828", id="ipv4-only"),
+        pytest.param(
+            False,
+            0,
+            "",
+            "Keine globale IPv6-Adresse am VPN-Interface",
+            "#c62828",
+            id="ipv4-only",
+        ),
         pytest.param(
             True,
             0,
             "7: wg0 inet6 2001:db8::2/64 scope global",
-            "nutzt IPv6",
+            "IPv6-Adresse am VPN-Interface vorhanden",
             "#2e7d32",
             id="active-ipv6",
         ),
@@ -124,7 +134,7 @@ def test_update_ipv6_controls_state_keeps_left_buttons_enabled_for_active_ipv4_o
             False,
             0,
             "7: wg0 inet6 2001:db8::2/64 scope global",
-            "nutzt IPv6",
+            "IPv6-Adresse am VPN-Interface vorhanden",
             "#2e7d32",
             id="runtime-evidence-independent-of-profile",
         ),
@@ -132,15 +142,31 @@ def test_update_ipv6_controls_state_keeps_left_buttons_enabled_for_active_ipv4_o
             True,
             1,
             "synthetic query failure",
-            "nutzt nur IPv4",
-            "#c62828",
+            "IPv6-Status unbekannt – Prüfung fehlgeschlagen",
+            "#b26a00",
             id="runtime-unavailable",
+        ),
+        pytest.param(
+            True,
+            124,
+            "Command timed out",
+            "IPv6-Status unbekannt – Prüfung fehlgeschlagen",
+            "#b26a00",
+            id="runtime-timeout",
+        ),
+        pytest.param(
+            False,
+            1,
+            "Command failed: executable missing",
+            "IPv6-Status unbekannt – Prüfung fehlgeschlagen",
+            "#b26a00",
+            id="query-failed-without-profile-ipv6-support",
         ),
         pytest.param(
             True,
             0,
             "",
-            "nutzt nur IPv4",
+            "Keine globale IPv6-Adresse am VPN-Interface",
             "#c62828",
             id="configured-ipv6-without-runtime-address",
         ),
@@ -192,7 +218,9 @@ def test_update_ipv6_controls_state_requires_positive_runtime_evidence(
     assert app.btn_ipv6_off.state == "normal"
     assert app.cb_privacy_ipv6.state == ("normal" if supports_ipv6 else "disabled")
     assert app.privacy_ipv6_hint.text == (
-        "" if supports_ipv6 else "Aktives VPN-Profil nutzt nur IPv4"
+        ""
+        if supports_ipv6
+        else "Aktives VPN-Profil: keine IPv6-Unterstützung konfiguriert"
     )
 
 
@@ -221,7 +249,32 @@ def test_update_ipv6_controls_state_keeps_left_buttons_enabled_without_active_vp
         app.ipv6_controls_hint.text
         == "IPv6 Status:\nSystem:        aktiv\nVPN-Profil:    kein aktives Profil"
     )
-    assert app.privacy_ipv6_hint.text == "Gewaehltes Privacy-VPN-Profil nutzt nur IPv4"
+    assert (
+        app.privacy_ipv6_hint.text
+        == "Gewaehltes Privacy-VPN-Profil: keine IPv6-Unterstützung konfiguriert"
+    )
+
+
+@pytest.mark.parametrize("disabled", [False, True])
+def test_missing_interface_is_unknown_unless_ipv6_is_disabled(monkeypatch, disabled):
+    app = netmon.App.__new__(netmon.App)
+    app.ipv6_is_disabled = lambda: disabled
+    app.active_wg_profile = lambda: "work"
+    app.get_wg_iface = lambda: ""
+    app.profile_supports_ipv6 = lambda profile: True
+    app.ipv6_controls_hint = DummyWidget()
+    monkeypatch.setattr(
+        netmon, "run_cmd", lambda *a, **k: pytest.fail("No interface to query")
+    )
+
+    assert app.ipv6_runtime_available_on_iface("") is (False if disabled else None)
+    app.update_ipv6_controls_state()
+    assert app.ipv6_controls_hint.text.endswith(
+        "IPv6 systemweit deaktiviert"
+        if disabled
+        else "IPv6-Status unbekannt – Prüfung fehlgeschlagen"
+    )
+    assert app.ipv6_controls_hint.foreground == ("#c62828" if disabled else "#b26a00")
 
 
 def test_update_ipv6_controls_state_ignores_destroyed_hint_widgets():
