@@ -1118,8 +1118,8 @@ def test_apply_manual_wireguard_profile_shows_compact_validation_error():
 
 def test_build_manual_wireguard_config_text_includes_address():
     payload = {
-        "private_key": "private",
-        "public_key": "public",
+        "private_key": "A" * 43 + "=",
+        "public_key": "A" * 43 + "=",
         "endpoint": "146.70.174.162:51820",
         "address": "10.2.0.2/32, 2a07:b944::2:2/128",
         "allowed_ips": "0.0.0.0/0, ::/0",

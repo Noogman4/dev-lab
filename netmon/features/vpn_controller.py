@@ -30,12 +30,12 @@ except ModuleNotFoundError:
     )
 
 try:
+    from netmon.core import manual_wireguard, nm_ownership, wireguard_import
     from netmon.core.command import run_cmd, run_cmd_with_input
-    from netmon.core import nm_ownership, wireguard_import
     from netmon.core.nm_import_session import ImportSession
 except ModuleNotFoundError:
+    from core import manual_wireguard, nm_ownership, wireguard_import
     from core.command import run_cmd, run_cmd_with_input
-    from core import nm_ownership, wireguard_import
     from core.nm_import_session import ImportSession
 
 try:
@@ -1604,28 +1604,11 @@ def manual_wireguard_error_widget_name(_app, error_text):
 
 
 def parse_manual_wireguard_endpoint(_app, endpoint):
-    raw = (endpoint or "").strip()
-    if not raw:
-        return None, None, "Endpoint fehlt (Format host:port)."
-
-    if raw.startswith("[") and "]:" in raw:
-        host, port = raw[1:].split("]:", 1)
-    else:
-        host, sep, port = raw.rpartition(":")
-        if not sep:
-            return None, None, "Endpoint ungültig (Format host:port)."
-
-    host = host.strip()
-    port = port.strip()
-    if not host:
-        return None, None, "Endpoint-Host fehlt."
-    if not port.isdigit():
-        return None, None, "Endpoint-Port muss numerisch sein."
-    port_no = int(port)
-    if not (1 <= port_no <= 65535):
-        return None, None, "Endpoint-Port muss zwischen 1 und 65535 liegen."
-
-    return host, str(port_no), ""
+    try:
+        host, port = manual_wireguard.parse_endpoint(endpoint)
+        return host, port, ""
+    except ValueError as exc:
+        return None, None, str(exc)
 
 
 def validate_manual_wireguard_form(app):
@@ -1635,7 +1618,7 @@ def validate_manual_wireguard_form(app):
     preshared_key_var = app.__dict__.get("manual_wg_preshared_key_var")
     preshared_key_raw = preshared_key_var.get() if preshared_key_var is not None else ""
     preshared_key_raw = preshared_key_raw or ""
-    endpoint = (app.manual_wg_endpoint_var.get() or "").strip()
+    endpoint = app.manual_wg_endpoint_var.get() or ""
     address_raw = (app.manual_wg_address_var.get() or "").strip()
     allowed_ips_raw = (app.manual_wg_allowed_ips_var.get() or "").strip()
     dns_raw = (app.manual_wg_dns_var.get() or "").strip()
@@ -1734,6 +1717,17 @@ def validate_manual_wireguard_form(app):
 
 
 def build_manual_wireguard_config_text(_app, payload):
+    for key in (
+        "private_key",
+        "public_key",
+        "address",
+        "allowed_ips",
+        "endpoint",
+        "dns",
+        "preshared_key",
+        "keepalive",
+    ):
+        manual_wireguard.validate_single_line(payload.get(key, ""))
     lines = [
         "[Interface]",
         f"PrivateKey = {payload['private_key']}",
@@ -1756,11 +1750,14 @@ def build_manual_wireguard_config_text(_app, payload):
     if payload.get("keepalive"):
         lines.append(f"PersistentKeepalive = {payload['keepalive']}")
 
-    return "\n".join(lines) + "\n"
+    text = "\n".join(lines) + "\n"
+    manual_wireguard.validate_config(text)
+    return text
 
 
 def write_manual_wg_profile(app, profile_name, config_text):
     try:
+        manual_wireguard.validate_config(config_text)
         _write_generated_wireguard_profile(app, profile_name, config_text)
         return True, ""
     except Exception:
@@ -1826,6 +1823,15 @@ def apply_manual_wireguard_profile(app):
             app.log("Manuelles WireGuard-Profil: Ungültiger VPN-Slot ausgewählt.")
             return
 
+    try:
+        config_text = app._build_manual_wireguard_config_text(payload)
+    except ValueError:
+        app._set_manual_wg_status(
+            "Manuelle WireGuard-Konfiguration ist ungueltig.", level="error"
+        )
+        app.log("Manuelles WireGuard-Profil: unsichere Konfiguration verworfen.")
+        return
+
     profile = payload["profile"]
     if not app.ensure_sudo_session(f"Manuelles WireGuard-Profil anwenden ({profile})"):
         app._set_manual_wg_status(
@@ -1841,7 +1847,6 @@ def apply_manual_wireguard_profile(app):
     app.log(f"Manuelle WireGuard-Konfiguration wird angewendet (Profil: {profile}).")
 
     def job():
-        config_text = app._build_manual_wireguard_config_text(payload)
         ok_write, write_err = app._write_manual_wg_profile(profile, config_text)
         if not ok_write:
             app.after(

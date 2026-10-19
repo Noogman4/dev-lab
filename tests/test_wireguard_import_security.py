@@ -466,8 +466,18 @@ def test_staging_and_import_failures_cleanup_and_keep_existing(
 
 
 def test_generated_profiles_also_use_privileged_byte_handoff(app):
-    assert vpn.write_manual_wg_profile(app, "manual", SAFE.decode()) == (True, "")
-    assert (app.directory / "manual.conf").read_bytes() == SAFE
+    content = vpn.build_manual_wireguard_config_text(
+        None,
+        {
+            "private_key": "A" * 43 + "=",
+            "public_key": "A" * 43 + "=",
+            "address": "10.0.0.2/32",
+            "allowed_ips": "0.0.0.0/0",
+            "endpoint": "198.51.100.1:51820",
+        },
+    )
+    assert vpn.write_manual_wg_profile(app, "manual", content) == (True, "")
+    assert (app.directory / "manual.conf").read_bytes() == content.encode()
     assert app.operations == ["install-profile"]
 
 
