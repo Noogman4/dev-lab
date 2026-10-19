@@ -32186,9 +32186,6 @@ class App(TkBase):
 
     def hdd_mount_async(self, idx, select_tab=True):
         hdd_controller.run_cmd = run_cmd
-        command_input_runner = globals().get("run_cmd_with_input")
-        if command_input_runner is not None:
-            hdd_controller.run_cmd_with_input = command_input_runner
         hdd_controller.has_cmd = has_cmd
         hdd_controller.threading = threading
         hdd_controller.os = os
