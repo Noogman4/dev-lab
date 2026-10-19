@@ -7,8 +7,8 @@ import ipaddress
 import re
 import threading
 import tkinter as tk
-from tkinter import messagebox
-from tkinter import ttk
+from contextlib import contextmanager
+from tkinter import messagebox, ttk
 
 try:
     from netmon.core.utils import call_in_ui_thread
@@ -728,6 +728,19 @@ def verify_killswitch_rules(
         issues.append("UFW ist nicht aktiv.")
         return False, issues
 
+    for line in status_text.splitlines():
+        rule = parse_ufw_structured_rule(line)
+        if rule and (
+            rule["policy"] in {"DENY", "REJECT"}
+            and not rule["interface"]
+            and rule["to"] == "Anywhere"
+            and rule["from"] == "Anywhere"
+        ):
+            issues.append(
+                "Globale Sperrregel vorhanden; manuelle UFW-Pruefung erforderlich."
+            )
+            break
+
     if enabled:
         if not app._ufw_default_policy_matches(
             status_text,
@@ -810,25 +823,103 @@ def killswitch_is_on(app):
     return verified
 
 
-def recover_firewall_after_killswitch_failure(app):
+def _killswitch_failure_is_closed(status_text):
+    """Require leading unrestricted deny rules for both UFW address families.
+
+    Defaults alone cannot override successful ALLOW rules from a partial apply.
+    This verifies UFW user rules, not existing conntrack sessions/before.rules.
+    """
+    if not re.search(r"^Status: active$", status_text, re.MULTILINE):
+        return False
+    first = {}
+    for line in status_text.splitlines():
+        rule = parse_ufw_structured_rule(line)
+        if rule is None:
+            if is_ufw_non_rule_line(line) or re.fullmatch(r"[-\s]+", line):
+                continue
+            return False  # Unknown policy (e.g. LIMIT) must not be skipped.
+        if rule["direction"] not in {"IN", "OUT"}:
+            return False  # An ambiguous rule must not be silently ignored.
+        key = (rule["is_ipv6"], rule["direction"])
+        first.setdefault(key, rule)
+    for ipv6 in (False, True):
+        for direction in ("IN", "OUT"):
+            rule = first.get((ipv6, direction))
+            if not rule or not (
+                rule["policy"] == "DENY"
+                and not rule["interface"]
+                and rule["to"] == "Anywhere"
+                and rule["from"] == "Anywhere"
+            ):
+                return False
+    return True
+
+
+def _recover_killswitch_failure_locked(app):
+    """Fail closed; caller holds ufw_lock through apply, verify and recovery.
+
+    Exact rollback is unavailable. Keep restrictive emergency rules and require
+    manual recovery instead of guessing the previous policy. Never delete rules
+    here: their ownership/pre-existence is unknown.
+    """
     network_service = _network_service_for(app)
-    cmds = [
-        ["sudo", "-n", "ufw", "default", "allow", "outgoing"],
-        ["sudo", "-n", "ufw", "default", "deny", "incoming"],
+    commands = [
+        ["insert", "1", "deny", "out", "from", "any", "to", "any"],
+        ["insert", "1", "deny", "in", "from", "any", "to", "any"],
+        ["default", "deny", "outgoing"],
+        ["default", "deny", "incoming"],
+        ["--force", "enable"],
     ]
+    failures = False
+    for command in commands:
+        try:
+            args = ["sudo", "-n", "ufw", *command]
+            if network_service is not None:
+                rc, _out = network_service.run(args, timeout=20)
+            else:
+                rc, _out = _run_cmd(app, args, timeout=20)
+            failures |= rc != 0
+        except Exception:  # noqa: BLE001 - recovery must continue after runner errors
+            # Try the remaining restrictions even if one runner call raises.
+            failures = True
+    try:
+        rc, status = app._read_ufw_status(verbose=True)
+        verified = rc == 0 and _killswitch_failure_is_closed(status)
+    except Exception:  # noqa: BLE001 - never report unverified recovery as success
+        verified = False
+    app.killswitch_recovery_required = True
+    app.log_safe(
+        "Killswitch-Fehler: keine exakte Wiederherstellung des vorherigen "
+        "UFW-Zustands. Manuelle Firewall-Wiederherstellung erforderlich. "
+        + (
+            "Restriktive UFW-Notfallregeln fuer IPv4/IPv6 wurden verifiziert; "
+            "bestehende Verbindungen und UFW-before-Regeln sind davon ausgenommen."
+            if verified and not failures
+            else "WARNUNG: UFW-Notfallsperre konnte nicht vollstaendig "
+            "verifiziert werden; Netzwerkschutz ist NICHT garantiert."
+        )
+    )
+    return verified and not failures
+
+
+@contextmanager
+def _killswitch_apply_guard(app):
+    mutation = [False]
+    try:
+        yield mutation
+    except Exception:
+        if mutation[0]:
+            _recover_killswitch_failure_locked(app)
+        raise
+
+
+def recover_firewall_after_killswitch_failure(app):
     lock = _instance_override(app, "ufw_lock")
     if lock is None:
         lock = threading.Lock()
-        try:
-            app.ufw_lock = lock
-        except Exception:
-            pass
+        app.ufw_lock = lock
     with lock:
-        for cmd in cmds:
-            if network_service is not None:
-                network_service.run(cmd, timeout=20)
-            else:
-                _run_cmd(app, cmd, timeout=20)
+        return _recover_killswitch_failure_locked(app)
 
 
 def _read_ufw_status_numbered(app):
@@ -895,9 +986,11 @@ def _known_killswitch_wg_ifaces(app, referenced_profiles=None):
     return sorted({iface for iface in known if iface})
 
 
-def _remove_residual_killswitch_rules(app, wg_ifaces, handshake_rules):
+def _remove_residual_killswitch_rules(app, wg_ifaces, handshake_rules, *, strict=False):
     rc, out = _read_ufw_status_numbered(app)
     if rc != 0 or not (out or "").strip():
+        if strict:
+            raise RuntimeError("UFW-Regeln vor Killswitch-Aktivierung nicht lesbar")
         return 0
 
     allowed_ifaces = {"lo", *{str(iface).strip() for iface in (wg_ifaces or [])}}
@@ -954,6 +1047,8 @@ def _remove_residual_killswitch_rules(app, wg_ifaces, handshake_rules):
         )
         if rc_del == 0:
             removed += 1
+        elif strict:
+            raise RuntimeError("UFW-Regel konnte nicht entfernt werden")
     return removed
 
 
@@ -967,6 +1062,7 @@ def killswitch_on_sync(app, refresh_ui=True):
         if refresh_ui:
             app.refresh_safe()
         return False
+    refresh_after_failure = False
     try:
         collect_profiles = _instance_override(app, "_collect_referenced_vpn_profiles")
         if callable(collect_profiles):
@@ -1043,9 +1139,15 @@ def killswitch_on_sync(app, refresh_ui=True):
             app.log_safe(warning_text)
 
         network_service = _network_service_for(app)
-        with app.ufw_lock:
+        with app.ufw_lock, _killswitch_apply_guard(app) as mutation:
             rc_s, out_s = app._read_ufw_status()
-            ufw_on = (rc_s == 0) and app._ufw_status_is_active(out_s)
+            if rc_s != 0:
+                app.log_safe(
+                    "Killswitch-Aktivierung abgebrochen: UFW-Status nicht lesbar."
+                )
+                return False
+            ufw_on = app._ufw_status_is_active(out_s)
+            mutation[0] = True
             if not ufw_on:
                 if network_service is not None:
                     rc_enable, out_enable = network_service.ufw_enable_force(timeout=20)
@@ -1064,9 +1166,12 @@ def killswitch_on_sync(app, refresh_ui=True):
                     )
                     if out_enable:
                         app.log_safe(out_enable)
+                    _recover_killswitch_failure_locked(app)
                     return False
 
-            _remove_residual_killswitch_rules(app, wg_ifaces, handshake_rules)
+            _remove_residual_killswitch_rules(
+                app, wg_ifaces, handshake_rules, strict=True
+            )
 
             cmds = [
                 ["sudo", "-n", "ufw", "default", "deny", "outgoing"],
@@ -1106,77 +1211,57 @@ def killswitch_on_sync(app, refresh_ui=True):
                     rc_cmd, out_cmd = _run_cmd(app, cmd, timeout=20)
                 if rc_cmd != 0:
                     command_failures.append((cmd, out_cmd))
+                    break
 
             rc_v, out_v = app._read_ufw_status(verbose=True)
 
-        if command_failures:
-            failed_cmd = " ".join(command_failures[0][0][3:])
-            app.log_safe(
-                app.tr(
-                    "killswitch_log_enable_failed_command",
-                    "Killswitch-Aktivierung fehlgeschlagen: UFW-Befehl fehlgeschlagen ({command}).",
-                ).format(command=failed_cmd)
-            )
-            failure_out = command_failures[0][1]
-            if failure_out:
-                app.log_safe(failure_out)
-            recover = _instance_override(
-                app, "_recover_firewall_after_killswitch_failure"
-            )
-            if callable(recover):
-                recover()
-            else:
-                recover_firewall_after_killswitch_failure(app)
-            if refresh_ui:
-                app.refresh_safe()
-            return False
-
-        if rc_v != 0:
-            app.log_safe(
-                app.tr(
-                    "killswitch_log_enable_failed_verify",
-                    "Killswitch-Aktivierung fehlgeschlagen: UFW-Status konnte nicht verifiziert werden.",
+            if command_failures:
+                failed_cmd = " ".join(command_failures[0][0][3:])
+                app.log_safe(
+                    app.tr(
+                        "killswitch_log_enable_failed_command",
+                        "Killswitch-Aktivierung fehlgeschlagen: UFW-Befehl fehlgeschlagen ({command}).",
+                    ).format(command=failed_cmd)
                 )
-            )
-            if out_v:
-                app.log_safe(out_v)
-            recover = _instance_override(
-                app, "_recover_firewall_after_killswitch_failure"
-            )
-            if callable(recover):
-                recover()
-            else:
-                recover_firewall_after_killswitch_failure(app)
-            if refresh_ui:
-                app.refresh_safe()
-            return False
+                failure_out = command_failures[0][1]
+                if failure_out:
+                    app.log_safe(failure_out)
+                _recover_killswitch_failure_locked(app)
+                refresh_after_failure = refresh_ui
+                return False
 
-        verified, issues = app._verify_killswitch_rules(
-            out_v,
-            enabled=True,
-            wg_ifaces=wg_ifaces,
-            handshake_rules=handshake_rules,
-        )
-        if not verified:
-            app.log_safe(
-                app.tr(
-                    "killswitch_log_enable_incomplete",
-                    "Killswitch-Aktivierung unvollstaendig: UFW-Regeln entsprechen nicht dem erwarteten Endzustand.",
+            if rc_v != 0:
+                app.log_safe(
+                    app.tr(
+                        "killswitch_log_enable_failed_verify",
+                        "Killswitch-Aktivierung fehlgeschlagen: UFW-Status konnte nicht verifiziert werden.",
+                    )
                 )
+                if out_v:
+                    app.log_safe(out_v)
+                _recover_killswitch_failure_locked(app)
+                refresh_after_failure = refresh_ui
+                return False
+
+            verified, issues = app._verify_killswitch_rules(
+                out_v,
+                enabled=True,
+                wg_ifaces=wg_ifaces,
+                handshake_rules=handshake_rules,
             )
-            app.log_safe(
-                app.tr("label_details_prefix", "Details: ") + "; ".join(issues[:3])
-            )
-            recover = _instance_override(
-                app, "_recover_firewall_after_killswitch_failure"
-            )
-            if callable(recover):
-                recover()
-            else:
-                recover_firewall_after_killswitch_failure(app)
-            if refresh_ui:
-                app.refresh_safe()
-            return False
+            if not verified:
+                app.log_safe(
+                    app.tr(
+                        "killswitch_log_enable_incomplete",
+                        "Killswitch-Aktivierung unvollstaendig: UFW-Regeln entsprechen nicht dem erwarteten Endzustand.",
+                    )
+                )
+                app.log_safe(
+                    app.tr("label_details_prefix", "Details: ") + "; ".join(issues[:3])
+                )
+                _recover_killswitch_failure_locked(app)
+                refresh_after_failure = refresh_ui
+                return False
 
         for endpoint_ip, endpoint_port in handshake_rules:
             app.log_safe(
@@ -1203,10 +1288,19 @@ def killswitch_on_sync(app, refresh_ui=True):
         if refresh_ui:
             app.refresh_safe()
         return True
+    except Exception as exc:  # noqa: BLE001 - expose activation failure after recovery
+        app.log_safe(f"Killswitch-Aktivierung fehlgeschlagen: {type(exc).__name__}")
+        if refresh_ui:
+            app.refresh_safe()
+        return False
     finally:
         end_op = _instance_override(app, "_end_network_operation")
         if callable(end_op):
             end_op()
+        if refresh_after_failure:
+            # refresh_safe can synchronously query killswitch_is_on and must
+            # therefore run after the non-reentrant ufw_lock was released.
+            app.refresh_safe()
 
 
 def killswitch_on(

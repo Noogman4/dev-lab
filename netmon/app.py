@@ -36889,14 +36889,14 @@ class App(TkBase):
         return result
 
     def _recover_firewall_after_killswitch_failure(self):
-        firewall_controller.recover_firewall_after_killswitch_failure(self)
+        return firewall_controller.recover_firewall_after_killswitch_failure(self)
 
     def _recover_firewall_preserving_killswitch(self):
         # Fehlgeschlagener VPN-Slot-Wechsel: den Killswitch NICHT still oeffnen.
         # War er bewusst aktiv, bleibt die deny-outgoing-Garantie erhalten
         # (fail-closed, per idempotentem Re-Sync), statt Klartext-Traffic
-        # entweichen zu lassen. Nur ohne aktiven Killswitch auf allow-outgoing
-        # zuruecksetzen, damit sich der Nutzer nicht selbst aussperrt.
+        # entweichen zu lassen. Ohne verifizierten Killswitch restriktive
+        # Notfallregeln setzen und manuelle Wiederherstellung anfordern.
         if self.killswitch_is_on():
             self._killswitch_on_sync(refresh_ui=False)
         else:
