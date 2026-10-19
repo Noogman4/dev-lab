@@ -704,11 +704,17 @@ def test_create_support_package_writes_zip_with_manifest_and_files(
     report_path.write_text('{"ok": true}', encoding="utf-8")
     crash_log = diagnostics_dir / "crash.log"
     crash_log.write_text("boom", encoding="utf-8")
+    diagnostics_dir.chmod(0o700)
+    report_path.chmod(0o600)
+    crash_log.chmod(0o600)
 
     monkeypatch.setattr(
         support_bundle,
         "get_netmon_documents_dir",
         lambda: str(docs_dir),
+    )
+    monkeypatch.setattr(
+        support_bundle, "diagnostic_reports_dir", lambda: str(diagnostics_dir)
     )
     monkeypatch.setattr(
         support_bundle,

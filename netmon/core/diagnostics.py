@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import platform
 import re
+import stat
 import sys
 import traceback
 from datetime import datetime, timezone
@@ -150,7 +151,11 @@ def _diagnostic_report_candidates(base_dir: str) -> list[str]:
         if not name.startswith("netmon-") or not name.endswith(".json"):
             continue
         path = os.path.join(base_dir, name)
-        if os.path.isfile(path):
+        try:
+            info = os.lstat(path)
+        except OSError:
+            continue
+        if stat.S_ISREG(info.st_mode):
             candidates.append(path)
     return candidates
 

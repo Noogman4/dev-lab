@@ -20,9 +20,9 @@ def test_support_bundle_inputs_filters_missing_and_duplicate_files(
     diagnostics_dir = tmp_path / "diagnostics"
     runtime_logs_dir = tmp_path / "runtime-logs"
     state_dir = tmp_path / "state"
-    diagnostics_dir.mkdir()
-    runtime_logs_dir.mkdir()
-    (state_dir / "logs").mkdir(parents=True)
+    diagnostics_dir.mkdir(mode=0o700)
+    runtime_logs_dir.mkdir(mode=0o700)
+    (state_dir / "logs").mkdir(mode=0o700, parents=True)
 
     report = diagnostics_dir / "netmon-report.json"
     report.write_text("{}", encoding="utf-8")
@@ -30,6 +30,8 @@ def test_support_bundle_inputs_filters_missing_and_duplicate_files(
     crash_log.write_text("boom", encoding="utf-8")
     runtime_log = runtime_logs_dir / "runtime.log"
     runtime_log.write_text("runtime", encoding="utf-8")
+    for path in (report, crash_log, runtime_log):
+        path.chmod(0o600)
 
     monkeypatch.setattr(
         support_bundle, "diagnostic_reports_dir", lambda: str(diagnostics_dir)
