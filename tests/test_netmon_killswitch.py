@@ -740,6 +740,8 @@ def test_vpn_off_shows_notice_when_killswitch_stays_active(monkeypatch):
     app = netmon.App.__new__(netmon.App)
     logs = []
     warnings = []
+    debug_calls = []
+    app.debug_nm_state = lambda context: debug_calls.append(context)
 
     app.wg_profiles = ["proton"]
     app.get_wg_interfaces = lambda: ["wg-live"]
@@ -767,11 +769,14 @@ def test_vpn_off_shows_notice_when_killswitch_stays_active(monkeypatch):
     assert "VPN wurde deaktiviert" in warnings[0][1]
     assert warnings[0][2] is app
     assert any("Killswitch ist AN" in entry for entry in logs)
+    assert debug_calls == ["vor VPN AUS", "nach VPN AUS"]
 
 
 def test_vpn_off_does_not_show_killswitch_notice_when_killswitch_is_off(monkeypatch):
     app = netmon.App.__new__(netmon.App)
     warnings = []
+    debug_calls = []
+    app.debug_nm_state = lambda context: debug_calls.append(context)
 
     app.wg_profiles = ["proton"]
     app.get_wg_interfaces = lambda: ["wg-live"]
@@ -795,6 +800,7 @@ def test_vpn_off_does_not_show_killswitch_notice_when_killswitch_is_off(monkeypa
 
     assert app.vpn_off(ensure_sudo=False, refresh_ui=True) is True
     assert warnings == []
+    assert debug_calls == ["vor VPN AUS", "nach VPN AUS"]
 
 
 def test_get_killswitch_vpn_endpoints_deduplicates_same_endpoint(monkeypatch):
@@ -875,6 +881,9 @@ def test_isp_stealth_on_skips_duplicate_killswitch_activation_when_already_activ
     monkeypatch,
 ):
     app = netmon.App.__new__(netmon.App)
+    app.ipv6_is_disabled = lambda: False
+    app.active_wg_profile = lambda: None
+    app.get_wg_iface = lambda: ""
     logs = []
     states = []
     refreshes = []
@@ -989,6 +998,7 @@ def test_wait_for_vpn_ready_requires_interface_and_internet(monkeypatch):
 
 def test_internet_on_sync_forces_reconnect_and_keeps_killswitch_active(monkeypatch):
     app = netmon.App.__new__(netmon.App)
+    app.debug_nm_state = lambda reason: None
     logs = []
     scheduled = []
     vpn_calls = []
@@ -1064,6 +1074,7 @@ def test_internet_on_sync_retries_network_ready_after_wg_and_killswitch_reset(
     monkeypatch,
 ):
     app = netmon.App.__new__(netmon.App)
+    app.debug_nm_state = lambda reason: None
     logs = []
     vpn_calls = []
     cleanup_calls = []
@@ -1133,6 +1144,7 @@ def test_internet_on_sync_uses_short_initial_wait_for_pending_vpn_restore(
     monkeypatch,
 ):
     app = netmon.App.__new__(netmon.App)
+    app.debug_nm_state = lambda reason: None
     logs = []
     wait_timeouts = []
 
@@ -1197,6 +1209,7 @@ def test_internet_toggle_state_logging_is_quiet_without_network_debug(monkeypatc
 
 def test_internet_on_sync_keeps_killswitch_active_when_vpn_not_ready(monkeypatch):
     app = netmon.App.__new__(netmon.App)
+    app.debug_nm_state = lambda reason: None
     logs = []
     killswitch_calls = []
 
@@ -2110,6 +2123,7 @@ def test_recover_preserving_killswitch_opens_when_killswitch_inactive():
 
 def test_vpn_switch_empty_target_preserves_active_killswitch(monkeypatch):
     app = netmon.App.__new__(netmon.App)
+    app.debug_nm_state = lambda reason: None
     events = []
     app.log_safe = lambda *args: None
     app.log_debug = lambda *args: None

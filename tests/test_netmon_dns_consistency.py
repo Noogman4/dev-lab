@@ -1,4 +1,8 @@
 import inspect
+import subprocess
+import sys
+
+import pytest
 
 from tools import netmon
 
@@ -61,6 +65,92 @@ class ImmediateThread:
     def start(self):
         if self.target is not None:
             self.target(*self.args, **self.kwargs)
+
+
+@pytest.fixture
+def passive_dns_status(monkeypatch, request):
+    """Opt-in status response; every other command retains its real guard."""
+    original_run_cmd = netmon.dns_controller.run_cmd
+    calls = []
+    status = getattr(request, "param", "Global\n    DNS Servers: 192.0.2.53\n")
+
+    def status_only(args, *positional, **kwargs):
+        if args == ["resolvectl", "status"]:
+            calls.append((list(args), kwargs.get("timeout")))
+            return 0, status
+        return original_run_cmd(args, *positional, **kwargs)
+
+    monkeypatch.setattr(netmon.dns_controller, "run_cmd", status_only)
+    return calls
+
+
+@pytest.fixture
+def passive_dns_service(monkeypatch, passive_dns_status):
+    """Bind the existing status dispatcher only to an explicit test instance."""
+
+    def bind(app):
+        service = app._dns_control_service()
+        # Preserve the same real fallback for commands other than exact status.
+        assert service.run_cmd is netmon.run_cmd
+        monkeypatch.setattr(service, "run_cmd", netmon.dns_controller.run_cmd)
+        monkeypatch.setattr(service, "get_wireguard_interfaces", lambda: set())
+        return service
+
+    return bind
+
+
+@pytest.mark.parametrize("route", ["controller", "service"])
+@pytest.mark.parametrize(
+    "command", [["sudo", "-n", "true"], ["resolvectl", "status", "--no-pager"]]
+)
+def test_passive_dns_status_preserves_unexpected_command_guard(
+    tmp_path, passive_dns_status, command, route
+):
+    assert netmon.dns_controller.run_cmd(["resolvectl", "status"], timeout=8) == (
+        0,
+        "Global\n    DNS Servers: 192.0.2.53\n",
+    )
+    assert passive_dns_status == [(["resolvectl", "status"], 8)]
+
+    # Keep the real guard and its failure accounting intact in a child session.
+    # Even a caller swallowing the exception must leave that session failing.
+    child_test = tmp_path / "test_expected_guard_block.py"
+    child_test.write_text(
+        "from tests.test_netmon_dns_consistency import passive_dns_status, passive_dns_service\n"
+        "from tools import netmon\n\n"
+        "def test_expected_guard_block(passive_dns_status, passive_dns_service):\n"
+        "    app = netmon.App.__new__(netmon.App)\n"
+        "    service = passive_dns_service(app)\n"
+        "    try:\n"
+        f"        {('service' if route == 'service' else 'netmon.dns_controller')}.run_cmd({command!r})\n"
+        "    except Exception:\n"
+        "        pass\n"
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-m",
+            "pytest",
+            "-p",
+            "no:cacheprovider",
+            "-p",
+            "tests.conftest",
+            "-q",
+            "--tb=short",
+            "--basetemp",
+            str(tmp_path / "child-tmp"),
+            str(child_test),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "Blocked host accesses:" in result.stdout
+    assert f"'command', '{command[0]}'" in result.stdout
+    assert passive_dns_status == [(["resolvectl", "status"], 8)]
 
 
 def test_dns_consistency_logs_killswitch_hint_and_http_blocked(monkeypatch):
@@ -375,6 +465,7 @@ def test_set_dot_state_marks_vpn_conflict():
 
 def test_show_dot_status_result_startup_stays_silent_for_dns_output_and_chad():
     app = netmon.App.__new__(netmon.App)
+    app.update_dns_controls_state_safe = lambda: None
     outputs = []
     chad = []
 
@@ -435,6 +526,8 @@ def test_analyze_dns_health_reports_dot_vpn_conflict(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(netmon, "DOT_DROPIN_PATH", str(dropin))
 
+    app._dns_control_service().get_wireguard_interfaces = lambda: set()
+
     result = app.analyze_dns_health_output("""
 Link 7 (proton0)
     Protocols: +DNSOverTLS
@@ -453,6 +546,7 @@ Link 7 (proton0)
 
 def test_enable_dot_blocks_when_vpn_dns_active(monkeypatch):
     app = netmon.App.__new__(netmon.App)
+    app.update_dns_controls_state_safe = lambda: None
     outputs = []
     chad = []
     logs = []
@@ -880,6 +974,8 @@ def test_is_physical_dns_candidate_filters_virtual_interfaces():
 
 def test_active_nm_dns_targets_only_returns_physical_connections():
     app = netmon.App.__new__(netmon.App)
+    app.get_default_iface = lambda: "enp4s0"
+    app.nm_active_conn_for_dev = lambda iface: "Kabelgebundene Verbindung 2"
     app.nm_active_connections_detailed = lambda: [
         ("Kabelgebundene Verbindung 2", "enp4s0", "ethernet"),
         ("Loopback", "lo", "loopback"),
@@ -905,6 +1001,8 @@ def test_evaluate_dns_policy_flags_global_dns_with_vpn(monkeypatch, tmp_path):
     monkeypatch.setattr(netmon, "DOT_DROPIN_PATH", str(dropin))
     monkeypatch.setattr(netmon, "DOT_DROPIN_DIR", str(tmp_path))
 
+    app._dns_control_service().get_wireguard_interfaces = lambda: set()
+
     evaluation = app.evaluate_dns_policy("""
 Link 2 (enp4s0)
     Current DNS Server: 1.1.1.1
@@ -924,6 +1022,7 @@ Link 7 (proton0)
 
 def test_detect_vpn_active_ignores_non_link_text():
     app = netmon.App.__new__(netmon.App)
+    app._dns_control_service().get_wireguard_interfaces = lambda: set()
 
     assert app.detect_vpn_active("""
 Global
@@ -1038,6 +1137,8 @@ def test_dns_leak_check_reports_low_risk_for_exclusive_vpn_dns(monkeypatch, tmp_
     dropin = tmp_path / "netmon-dot.conf"
     monkeypatch.setattr(netmon, "DOT_DROPIN_PATH", str(dropin))
     monkeypatch.setattr(netmon, "DOT_DROPIN_DIR", str(tmp_path))
+
+    app._dns_control_service().get_wireguard_interfaces = lambda: set()
 
     result = app.build_dns_leak_check_result(
         resolvectl_output="""
@@ -1381,6 +1482,7 @@ def test_show_dns_repair_message_no_longer_pushes_to_chad():
 
 def test_update_dns_controls_state_disables_manual_controls_with_vpn():
     app = netmon.App.__new__(netmon.App)
+    app.is_dot_active = lambda: False
     app.dns_combo = DummyWidget()
     app.btn_dns_apply = DummyWidget()
     app.btn_dot_on = DummyWidget()
@@ -1399,6 +1501,7 @@ def test_update_dns_controls_state_disables_manual_controls_with_vpn():
 
 def test_update_dns_controls_state_disables_manual_controls_during_transition():
     app = netmon.App.__new__(netmon.App)
+    app.is_dot_active = lambda: False
     app.dns_combo = DummyWidget()
     app.btn_dns_apply = DummyWidget()
     app.btn_dot_on = DummyWidget()
@@ -1421,6 +1524,7 @@ def test_apply_dns_blocks_when_vpn_active(monkeypatch):
     outputs = []
     logs = []
     warnings = []
+    status_refreshes = []
 
     app.is_vpn_active_for_dns_ui = lambda: True
     app.nb = type("DummyNotebook", (), {"select": lambda self, tab: None})()
@@ -1429,6 +1533,8 @@ def test_apply_dns_blocks_when_vpn_active(monkeypatch):
     app.log_safe = logs.append
     app.after = lambda delay, callback: callback()
     app.update_dns_controls_state = lambda: None
+    # This test checks the VPN lock, not the external DNS status collector.
+    app.refresh_dns_policy_status = lambda: status_refreshes.append(True)
 
     monkeypatch.setattr(
         netmon.messagebox,
@@ -1440,6 +1546,7 @@ def test_apply_dns_blocks_when_vpn_active(monkeypatch):
     assert warnings and warnings[0][0] == "DNS gesperrt"
     assert "Status: blockiert" in outputs[0]
     assert logs == ["DNS anwenden blockiert: VPN aktiv"]
+    assert status_refreshes == [True]
 
 
 def test_apply_dns_accepts_vpn_dns_silently_in_stealth_auto_mode(monkeypatch):
@@ -1494,7 +1601,9 @@ def test_enforce_dns_clean_skips_dnssec_confirmation_for_background_apply():
     ]
 
 
-def test_apply_dns_blocks_during_dns_runtime_transition(monkeypatch):
+def test_apply_dns_blocks_during_dns_runtime_transition(
+    monkeypatch, passive_dns_status, tmp_path
+):
     app = netmon.App.__new__(netmon.App)
     outputs = []
     logs = []
@@ -1507,6 +1616,12 @@ def test_apply_dns_blocks_during_dns_runtime_transition(monkeypatch):
     app.update_dns_output = lambda text, append=False: outputs.append(text)
     app.log_safe = logs.append
     app.update_dns_controls_state_safe = lambda: None
+    app.dns_resolver_status_var = DummyVar()
+    app.dns_conflict_status_var = DummyVar()
+    # The status parser receives an explicit synthetic inventory and drop-in.
+    service = app._dns_control_service()
+    service.get_wireguard_interfaces = lambda: set()
+    service.dot_dropin_path = str(tmp_path / "absent-netmon-dot.conf")
 
     monkeypatch.setattr(
         netmon.messagebox,
@@ -1518,10 +1633,14 @@ def test_apply_dns_blocks_during_dns_runtime_transition(monkeypatch):
     assert warnings and warnings[0][0] == "DNS gesperrt"
     assert "VPN-/DNS-Wechsel läuft" in outputs[0]
     assert logs == ["DNS anwenden blockiert: VPN-/DNS-Wechsel läuft"]
+    assert passive_dns_status == [(["resolvectl", "status"], 8)]
+    assert app.dns_resolver_status_var.get() == "Aktiver Resolver: System (192.0.2.53)"
+    assert app.dns_conflict_status_var.get() == "Konflikte: keine"
 
 
 def test_apply_dns_reports_control_layer_target_errors(monkeypatch):
     app = netmon.App.__new__(netmon.App)
+    app.is_dot_active = lambda: False
     outputs = []
     logs = []
 
@@ -1557,6 +1676,7 @@ def test_apply_dns_reports_control_layer_target_errors(monkeypatch):
 
 def test_apply_dns_refreshes_dns_guard_whitelist_and_check_on_success(monkeypatch):
     app = netmon.App.__new__(netmon.App)
+    app.is_dot_active = lambda: False
     logs = []
     events = []
 
@@ -1649,6 +1769,8 @@ def test_dns_consistency_result_with_hostname_does_not_switch_to_dns_tab(monkeyp
 
 def test_apply_dns_aborts_when_dnssec_strict_confirmation_is_declined():
     app = netmon.App.__new__(netmon.App)
+    app.is_dot_active = lambda: False
+    app.refresh_dns_policy_status = lambda: None
     outputs = []
     logs = []
 
@@ -1987,6 +2109,8 @@ def test_get_selected_dot_dns_includes_hostname_variants():
 
 def test_dns_guard_loop_enforces_when_dirty():
     app = netmon.App.__new__(netmon.App)
+    app.is_dot_active = lambda: False
+    app.is_vpn_active = lambda: False
     events = []
     scheduled = []
 
@@ -2684,8 +2808,9 @@ def test_run_security_monitor_menu_action_refreshes_light():
     assert ("status", "green") in calls
 
 
-def test_refresh_updates_ufw_logging_light():
+def test_refresh_updates_ufw_logging_light(passive_dns_status, passive_dns_service):
     app = netmon.App.__new__(netmon.App)
+    passive_dns_service(app)
     colors = []
     calls = []
 
@@ -2743,6 +2868,7 @@ def test_refresh_updates_ufw_logging_light():
     app.refresh()
 
     assert calls == ["ufw-log"]
+    assert passive_dns_status == [(["resolvectl", "status"], 6)]
 
 
 def test_refresh_sets_firewall_gray_when_ufw_status_is_not_readable_yet():
@@ -2810,8 +2936,12 @@ def test_refresh_sets_firewall_gray_when_ufw_status_is_not_readable_yet():
     assert ssh_colors == ["gray"]
 
 
-def test_refresh_no_longer_starts_dns_consistency_loop():
+def test_refresh_no_longer_starts_dns_consistency_loop(
+    passive_dns_status, passive_dns_service
+):
     app = netmon.App.__new__(netmon.App)
+    passive_dns_service(app)
+    app._security_query_log_level = lambda: "LOW"
     calls = []
 
     app.check_internet = lambda: True
@@ -2867,10 +2997,15 @@ def test_refresh_no_longer_starts_dns_consistency_loop():
     app.refresh()
 
     assert calls == []
+    assert passive_dns_status == [(["resolvectl", "status"], 6)]
 
 
-def test_refresh_sets_internet_warning_on_first_failure_and_red_after_second():
+def test_refresh_sets_internet_warning_on_first_failure_and_red_after_second(
+    passive_dns_status, passive_dns_service
+):
     app = netmon.App.__new__(netmon.App)
+    passive_dns_service(app)
+    app._security_query_log_level = lambda: "LOW"
     colors = []
 
     app.check_internet = lambda: False
@@ -2928,10 +3063,15 @@ def test_refresh_sets_internet_warning_on_first_failure_and_red_after_second():
     inet_colors = [color for light, color in colors if light is app.l_inet]
     assert inet_colors[0] == "yellow"
     assert inet_colors[1] == "red"
+    assert passive_dns_status == [(["resolvectl", "status"], 6)] * 2
 
 
-def test_refresh_sets_internet_transition_yellow_during_dns_transition():
+def test_refresh_sets_internet_transition_yellow_during_dns_transition(
+    passive_dns_status, passive_dns_service
+):
     app = netmon.App.__new__(netmon.App)
+    passive_dns_service(app)
+    app._security_query_log_level = lambda: "LOW"
     colors = []
 
     app.check_internet = lambda: False
@@ -2988,6 +3128,7 @@ def test_refresh_sets_internet_transition_yellow_during_dns_transition():
     inet_colors = [color for light, color in colors if light is app.l_inet]
     assert inet_colors == ["yellow"]
     assert "Internet TRANSITION" in app.status_text.values["text"]
+    assert passive_dns_status == [(["resolvectl", "status"], 6)]
 
 
 def test_refresh_keeps_internet_yellow_while_suspend_is_pending():

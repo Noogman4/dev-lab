@@ -1,10 +1,50 @@
 import pytest
 import inspect
+import subprocess
+import sys
 
 from netmon import app as netmon_app
+from netmon.core import command as command_module
 from netmon.features import security_audit_controller
 from netmon.ui.tabs import security_tabs
 from netmon.ui.tabs.settings_tab import build_settings_backup
+from tests.test_netmon_dns_consistency import (
+    passive_dns_service as passive_dns_service,
+    passive_dns_status as passive_dns_status,
+)
+
+GAME_MODE_DNS_CASES = [
+    pytest.param(
+        "Global\n    Protocols: -DNSOverTLS\n"
+        "Link 2 (enp1s0)\n    Current Scopes: DNS\n"
+        "    Current DNS Server: 192.0.2.53\n    DNS Servers: 192.0.2.53\n",
+        False,
+        ["192.0.2.53"],
+        "ok",
+        id="vpn-inactive-system-dns",
+    ),
+    pytest.param(
+        "Global\n    Protocols: -DNSOverTLS\n"
+        "Link 2 (enp1s0)\n    Current Scopes: none\n"
+        "Link 7 (wg0)\n    Current Scopes: DNS\n"
+        "    Current DNS Server: 10.8.0.1\n    DNS Servers: 10.8.0.1\n",
+        True,
+        ["10.8.0.1"],
+        "ok",
+        id="vpn-active-exclusive-dns",
+    ),
+    pytest.param(
+        "Global\n    Protocols: -DNSOverTLS\n"
+        "Link 2 (enp1s0)\n    Current Scopes: DNS\n"
+        "    Current DNS Server: 192.0.2.53\n    DNS Servers: 192.0.2.53\n"
+        "Link 7 (wg0)\n    Current Scopes: DNS\n"
+        "    Current DNS Server: 10.8.0.1\n    DNS Servers: 10.8.0.1\n",
+        True,
+        ["10.8.0.1"],
+        "problem",
+        id="vpn-active-extra-physical-dns",
+    ),
+]
 
 
 class DummyText:
@@ -76,6 +116,83 @@ class DummyTree:
 
     def tag_configure(self, tag_name, **kwargs):
         self.tags[tag_name] = kwargs
+
+
+@pytest.fixture
+def synthetic_sudo_probe(monkeypatch, request):
+    """Opt-in process response for the exact noninteractive sudo probe only."""
+    available = getattr(request, "param", False)
+    assert type(available) is bool
+    assert security_audit_controller.os.geteuid() != 0
+    original = command_module.subprocess
+    calls = []
+    probe_options = {
+        "stdout": original.PIPE,
+        "stderr": original.STDOUT,
+        "text": True,
+        "timeout": 3,
+        "check": False,
+    }
+
+    class ProbeOnly:
+        def __getattr__(self, name):
+            return getattr(original, name)
+
+        def run(self, args, *positional, **kwargs):
+            if (
+                args == ["sudo", "-n", "true"]
+                and not positional
+                and kwargs == probe_options
+            ):
+                calls.append(list(args))
+                return original.CompletedProcess(args, 0 if available else 1, stdout="")
+            return original.run(args, *positional, **kwargs)
+
+    # Only this module binding changes; stdlib subprocess and its guard remain real.
+    monkeypatch.setattr(command_module, "subprocess", ProbeOnly())
+    return {"available": available, "calls": calls}
+
+
+@pytest.mark.parametrize("available", [False, True])
+def test_security_baseline_sudo_probe_preserves_unmatched_command_guard(
+    tmp_path, available
+):
+    child = tmp_path / "test_expected_sudo_block.py"
+    child.write_text(
+        "import pytest\n"
+        "from tests.test_netmon_lynis_output import synthetic_sudo_probe\n"
+        "from netmon.core import command\n\n"
+        f"@pytest.mark.parametrize('synthetic_sudo_probe', [{available!r}], indirect=True)\n"
+        "def test_expected_sudo_block(synthetic_sudo_probe):\n"
+        "    try:\n"
+        "        command.run_cmd(['sudo', '-n', 'id'])\n"
+        "    except Exception:\n"
+        "        pass\n"
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-m",
+            "pytest",
+            "-p",
+            "no:cacheprovider",
+            "-p",
+            "tests.conftest",
+            "-q",
+            "--tb=short",
+            "--basetemp",
+            str(tmp_path / "child-tmp"),
+            str(child),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "Blocked host accesses:" in result.stdout
+    assert "'command', 'sudo'" in result.stdout
 
 
 def test_strip_ansi_codes_removes_escape_sequences():
@@ -719,8 +836,20 @@ def test_enable_game_mode_aborts_when_exception_dialog_is_cancelled(monkeypatch)
     assert "Spielmodus abgebrochen: UFW-Ausnahmendialog geschlossen." in logs
 
 
-def test_disable_game_mode_rolls_back_optional_ufw_exception_rules():
+@pytest.mark.parametrize(
+    "passive_dns_status, vpn_active, expected_dns, expected_guard_state",
+    GAME_MODE_DNS_CASES,
+    indirect=["passive_dns_status"],
+)
+def test_disable_game_mode_rolls_back_optional_ufw_exception_rules(
+    passive_dns_status,
+    passive_dns_service,
+    vpn_active,
+    expected_dns,
+    expected_guard_state,
+):
     app = netmon_app.App.__new__(netmon_app.App)
+    passive_dns_service(app)
     logs = []
     seen = {"sudo": 0, "killswitch_on": 0, "ufw_logging": [], "rollback_rules": None}
     app.settings = {"security_game_mode_preset": "steam_remote_play"}
@@ -730,6 +859,8 @@ def test_disable_game_mode_rolls_back_optional_ufw_exception_rules():
     app.security_game_mode_profile_hint_var = DummyVar("")
     app.security_game_mode_status_var = DummyVar("")
     app.dns_guard_enabled_var = DummyVar(False)
+    app.dns_guard_status_var = DummyVar()
+    app.dns_guard_last_action_var = DummyVar()
     app.btn_security_game_mode_on = DummyButton()
     app.btn_security_game_mode_off = DummyButton()
     app.ensure_sudo_session = (
@@ -748,7 +879,6 @@ def test_disable_game_mode_rolls_back_optional_ufw_exception_rules():
     ) or (True, [])
     app.refresh_dns_policy_status = lambda: None
     app.update_dns_controls_state_safe = lambda: None
-    app.run_dns_guard_check_once = lambda: None
     app.update_dns_guard_indicator = lambda: None
     app.game_mode_state = {
         "active": True,
@@ -780,10 +910,30 @@ def test_disable_game_mode_rolls_back_optional_ufw_exception_rules():
     ]
     assert app.game_mode_state == {}
     assert "Spielmodus deaktiviert und vorheriger Zustand wiederhergestellt." in logs
+    assert app.is_vpn_active() is vpn_active
+    assert app.dns_guard_enabled is True
+    assert app.dns_guard_enabled_var.get() is True
+    assert app.dns_guard_allowed_dns == expected_dns
+    assert app.dns_guard_state == expected_guard_state
+    assert app.dns_guard_check_running is False
+    assert passive_dns_status
+    assert all(command == ["resolvectl", "status"] for command, _ in passive_dns_status)
 
 
-def test_disable_game_mode_restores_previous_state():
+@pytest.mark.parametrize(
+    "passive_dns_status, vpn_active, expected_dns, expected_guard_state",
+    GAME_MODE_DNS_CASES,
+    indirect=["passive_dns_status"],
+)
+def test_disable_game_mode_restores_previous_state(
+    passive_dns_status,
+    passive_dns_service,
+    vpn_active,
+    expected_dns,
+    expected_guard_state,
+):
     app = netmon_app.App.__new__(netmon_app.App)
+    passive_dns_service(app)
     logs = []
     seen = {"sudo": 0, "killswitch_on": 0, "ufw_logging": []}
     app.settings = {"security_game_mode_preset": "online"}
@@ -793,6 +943,8 @@ def test_disable_game_mode_restores_previous_state():
     app.security_game_mode_profile_hint_var = DummyVar("")
     app.security_game_mode_status_var = DummyVar("")
     app.dns_guard_enabled_var = DummyVar(False)
+    app.dns_guard_status_var = DummyVar()
+    app.dns_guard_last_action_var = DummyVar()
     app.btn_security_game_mode_on = DummyButton()
     app.btn_security_game_mode_off = DummyButton()
     app.ensure_sudo_session = (
@@ -808,7 +960,6 @@ def test_disable_game_mode_restores_previous_state():
     )
     app.refresh_dns_policy_status = lambda: None
     app.update_dns_controls_state_safe = lambda: None
-    app.run_dns_guard_check_once = lambda: None
     app.update_dns_guard_indicator = lambda: None
     app.game_mode_state = {
         "active": True,
@@ -828,6 +979,13 @@ def test_disable_game_mode_restores_previous_state():
     assert app.dns_guard_enabled_var.get() is True
     assert app.game_mode_state == {}
     assert "Spielmodus deaktiviert und vorheriger Zustand wiederhergestellt." in logs
+    assert app.is_vpn_active() is vpn_active
+    assert app.dns_guard_enabled is True
+    assert app.dns_guard_allowed_dns == expected_dns
+    assert app.dns_guard_state == expected_guard_state
+    assert app.dns_guard_check_running is False
+    assert passive_dns_status
+    assert all(command == ["resolvectl", "status"] for command, _ in passive_dns_status)
 
 
 def test_ampel_source_contains_capture_light_and_navigation():
@@ -1187,7 +1345,10 @@ def test_finish_lynis_audit_stores_clean_output_and_updates_summary():
     assert logs[-1] == "Lynis Schnellaudit abgeschlossen."
 
 
-def test_run_security_baseline_checks_evaluates_special_cases(monkeypatch):
+@pytest.mark.parametrize("synthetic_sudo_probe", [False, True], indirect=True)
+def test_run_security_baseline_checks_evaluates_special_cases(
+    monkeypatch, synthetic_sudo_probe
+):
     app = netmon_app.App.__new__(netmon_app.App)
     app.security_baseline_profile_var = DummyVar()
     app.security_baseline_version_var = DummyVar()
@@ -1294,7 +1455,13 @@ def test_run_security_baseline_checks_evaluates_special_cases(monkeypatch):
         "sysctl -n net.ipv4.conf.default.rp_filter": (0, "1"),
     }
 
+    executed_commands = []
+
     def fake_run_cmd(cmd, timeout):
+        executed_commands.append(list(cmd))
+        if cmd[:2] == ["sudo", "-n"]:
+            assert synthetic_sudo_probe["available"] is True
+            cmd = cmd[2:]
         assert cmd[:2] == ["bash", "-lc"]
         return command_map[cmd[2]]
 
@@ -1320,10 +1487,37 @@ def test_run_security_baseline_checks_evaluates_special_cases(monkeypatch):
         "Lynis: Index 77 | Warnungen 0 | Tests 248"
     )
     assert saved["count"] == 1
-    assert app.logs[-1] == (
-        "Security Baseline im Lynis-Tab lesend aktualisiert."
-        " Privilegkontext: keine privilegierte Session."
+    if not synthetic_sudo_probe["available"]:
+        assert app.logs[-1] == (
+            "Security Baseline im Lynis-Tab lesend aktualisiert."
+            " Privilegkontext: keine privilegierte Session."
+        )
+    else:
+        assert app.logs[-1] == (
+            "Security Baseline im Lynis-Tab lesend aktualisiert."
+            " Privilegkontext: sudo -n true."
+        )
+    assert synthetic_sudo_probe["calls"] == [["sudo", "-n", "true"]]
+    assert (
+        any(cmd[:2] == ["sudo", "-n"] for cmd in executed_commands)
+        is synthetic_sudo_probe["available"]
     )
+    rows = {row["id"]: row for row in app.security_baseline_results}
+    for check_id in (
+        "auth.no_empty_password_accounts",
+        "auth.pam_password_strength",
+        "pkg.critical_file_permissions_checked",
+    ):
+        row = rows[check_id]
+        assert row["root_available"] is synthetic_sudo_probe["available"]
+        assert row["root_used"] == (
+            "Ja" if synthetic_sudo_probe["available"] else "Nein"
+        )
+        assert row["privilege_source"] == (
+            "sudo -n true"
+            if synthetic_sudo_probe["available"]
+            else "keine privilegierte Session"
+        )
 
 
 def test_security_baseline_ufw_status_parser_uses_english_status_lines_only():
@@ -1367,6 +1561,7 @@ def _evaluate_grub_password_output(rc, output):
     )
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_ufw_active_root_error_requires_root_status():
     result = _evaluate_ufw_active_output(1, "ERROR: You need to be root")
 
@@ -1376,6 +1571,7 @@ def test_ufw_active_root_error_requires_root_status():
     assert result["requires_root_read"] is True
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_grub_password_check_without_match_is_not_fulfilled():
     result = _evaluate_grub_password_output(0, "nein")
 
@@ -1383,6 +1579,7 @@ def test_grub_password_check_without_match_is_not_fulfilled():
     assert result["actual"] == "nein"
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_grub_password_missing_config_is_not_applicable():
     result = _evaluate_grub_password_output(
         1,
@@ -1409,6 +1606,7 @@ def _evaluate_ufw_rules_output(rc, output):
     )
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_ufw_rules_active_with_one_numbered_rule_is_fulfilled():
     result = _evaluate_ufw_rules_output(
         0,
@@ -1423,6 +1621,7 @@ def test_ufw_rules_active_with_one_numbered_rule_is_fulfilled():
     assert "Erkannte Regeln: 1" in result["detail_output"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_ufw_rules_active_with_multiple_rules_counts_all_numbered_lines():
     result = _evaluate_ufw_rules_output(
         0,
@@ -1440,6 +1639,7 @@ def test_ufw_rules_active_with_multiple_rules_counts_all_numbered_lines():
     assert result["rule_count"] == 3
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_ufw_rules_active_with_ipv4_only_rules_is_fulfilled():
     result = _evaluate_ufw_rules_output(
         0,
@@ -1450,6 +1650,7 @@ def test_ufw_rules_active_with_ipv4_only_rules_is_fulfilled():
     assert result["rule_count"] == 1
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_ufw_rules_active_with_ipv6_only_rules_is_fulfilled():
     result = _evaluate_ufw_rules_output(
         0,
@@ -1460,6 +1661,7 @@ def test_ufw_rules_active_with_ipv6_only_rules_is_fulfilled():
     assert result["rule_count"] == 1
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_ufw_rules_active_with_mixed_in_out_interface_rules_is_fulfilled():
     result = _evaluate_ufw_rules_output(
         0,
@@ -1476,6 +1678,7 @@ def test_ufw_rules_active_with_mixed_in_out_interface_rules_is_fulfilled():
     assert result["rule_count"] == 2
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_ufw_rules_active_without_numbered_rules_is_not_fulfilled():
     result = _evaluate_ufw_rules_output(
         0,
@@ -1488,6 +1691,7 @@ def test_ufw_rules_active_without_numbered_rules_is_not_fulfilled():
     assert result["rules_detected"] is False
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_ufw_rules_inactive_is_not_fulfilled():
     result = _evaluate_ufw_rules_output(0, "Status: inactive")
 
@@ -1501,6 +1705,7 @@ def test_ufw_rules_command_uses_c_locale_for_localized_systems():
     assert _ufw_rules_spec()["command"] == "LANG=C LC_ALL=C ufw status numbered"
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_ufw_rules_call_error_requires_root_status():
     result = _evaluate_ufw_rules_output(1, "ERROR: You need to be root")
 
@@ -1510,6 +1715,7 @@ def test_ufw_rules_call_error_requires_root_status():
     assert result["requires_root_read"] is True
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_ufw_rules_empty_or_unexpected_output_requires_manual_review():
     empty = _evaluate_ufw_rules_output(0, "")
     unexpected = _evaluate_ufw_rules_output(0, "garbage")
@@ -1536,6 +1742,7 @@ def _evaluate_umask_output(rc, output):
     )
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_umask_027_from_login_defs_is_fulfilled():
     result = _evaluate_umask_output(0, "/etc/login.defs:UMASK 027")
 
@@ -1545,6 +1752,7 @@ def test_umask_027_from_login_defs_is_fulfilled():
     assert result["config_source"] == "/etc/login.defs: 027"
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_umask_022_from_login_defs_is_not_fulfilled():
     result = _evaluate_umask_output(0, "/etc/login.defs:UMASK 022")
 
@@ -1553,6 +1761,7 @@ def test_umask_022_from_login_defs_is_not_fulfilled():
     assert "entspricht jedoch nicht" in result["reason"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_umask_lowercase_from_profile_is_fulfilled():
     result = _evaluate_umask_output(0, "/etc/profile:umask 027")
 
@@ -1561,6 +1770,7 @@ def test_umask_lowercase_from_profile_is_fulfilled():
     assert result["config_source"] == "/etc/profile: 027"
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_umask_commented_entry_is_treated_as_not_set():
     result = _evaluate_umask_output(1, "/etc/login.defs:# UMASK 027")
 
@@ -1568,6 +1778,7 @@ def test_umask_commented_entry_is_treated_as_not_set():
     assert result["actual"] == "Nicht gesetzt"
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_umask_missing_entry_is_treated_as_not_set():
     result = _evaluate_umask_output(1, "")
 
@@ -1576,6 +1787,7 @@ def test_umask_missing_entry_is_treated_as_not_set():
     assert "keine Standard-UMASK" in result["reason"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_umask_multiple_sources_with_same_027_are_fulfilled():
     result = _evaluate_umask_output(
         0,
@@ -1593,6 +1805,7 @@ def test_umask_multiple_sources_with_same_027_are_fulfilled():
     assert "/etc/profile.d/hardening.sh: 027" in result["config_source"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_umask_multiple_different_values_require_manual_review():
     result = _evaluate_umask_output(
         0,
@@ -1611,6 +1824,7 @@ def test_umask_multiple_different_values_require_manual_review():
     assert "/etc/profile: 027" in result["config_source"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_umask_parser_accepts_whitespace_tabs_and_case_variants():
     result = _evaluate_umask_output(
         0,
@@ -1626,6 +1840,7 @@ def test_umask_parser_accepts_whitespace_tabs_and_case_variants():
     assert result["actual"] == "027"
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_umask_unreadable_source_marks_manual_review_when_no_value_was_read():
     result = _evaluate_umask_output(
         2, "grep: /etc/profile.d/private.sh: Permission denied"
@@ -1651,6 +1866,7 @@ def _evaluate_home_permissions_output(rc, output):
     )
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_home_permissions_700_are_fulfilled():
     result = _evaluate_home_permissions_output(0, "700 happy happy /home/happy")
 
@@ -1659,6 +1875,7 @@ def test_home_permissions_700_are_fulfilled():
     assert result["config_source"] == "/home/happy"
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_home_permissions_750_are_fulfilled_for_current_system_shape():
     result = _evaluate_home_permissions_output(0, "750 happy happy /home/happy")
 
@@ -1669,6 +1886,7 @@ def test_home_permissions_750_are_fulfilled_for_current_system_shape():
     assert "keine Schreibrechte" in result["reason"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_home_permissions_755_require_manual_review():
     result = _evaluate_home_permissions_output(0, "755 happy happy /home/happy")
 
@@ -1677,6 +1895,7 @@ def test_home_permissions_755_require_manual_review():
     assert "Andere Benutzer" in result["reason"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_home_permissions_group_or_other_write_are_not_fulfilled():
     for mode in ("770", "775", "777", "720", "707"):
         result = _evaluate_home_permissions_output(0, f"{mode} happy happy /home/happy")
@@ -1686,6 +1905,7 @@ def test_home_permissions_group_or_other_write_are_not_fulfilled():
         assert "beschreibbar" in result["reason"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_home_permissions_multiple_home_dirs_build_overall_status():
     result = _evaluate_home_permissions_output(
         0,
@@ -1705,6 +1925,7 @@ def test_home_permissions_multiple_home_dirs_build_overall_status():
     assert "/home/shared: 775 - nicht erfuellt" in result["detail_output"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_home_permissions_owner_mismatch_requires_manual_review():
     result = _evaluate_home_permissions_output(0, "750 root root /home/happy")
 
@@ -1713,6 +1934,7 @@ def test_home_permissions_owner_mismatch_requires_manual_review():
     assert "Eigentuemer passt nicht" in result["reason"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_home_permissions_extra_acl_requires_manual_review():
     result = _evaluate_home_permissions_output(
         0, "750 happy happy /home/happy acl=extra"
@@ -1723,6 +1945,7 @@ def test_home_permissions_extra_acl_requires_manual_review():
     assert "ACLs" in result["reason"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_home_permissions_unreadable_directory_requires_manual_review():
     result = _evaluate_home_permissions_output(
         2, "ERROR /home/private Permission denied"
@@ -1733,6 +1956,7 @@ def test_home_permissions_unreadable_directory_requires_manual_review():
     assert result["check_error"] == "ERROR /home/private Permission denied"
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_home_permissions_unusual_path_or_symlink_requires_manual_review():
     unusual = _evaluate_home_permissions_output(0, "750 happy happy /srv/happy")
     symlink = _evaluate_home_permissions_output(
@@ -1745,6 +1969,7 @@ def test_home_permissions_unusual_path_or_symlink_requires_manual_review():
     assert "kein normales Verzeichnis" in symlink["reason"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_home_permissions_empty_home_requires_manual_review():
     result = _evaluate_home_permissions_output(0, "")
 
@@ -1767,6 +1992,7 @@ def _evaluate_apt_upgradable_output(rc, output):
     )
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_apt_upgradable_no_packages_is_fulfilled():
     result = _evaluate_apt_upgradable_output(0, "Listing...")
 
@@ -1777,6 +2003,7 @@ def test_apt_upgradable_no_packages_is_fulfilled():
     assert result["security_relevance_known"] is False
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_apt_upgradable_single_package_requires_manual_review():
     result = _evaluate_apt_upgradable_output(
         0,
@@ -1791,6 +2018,7 @@ def test_apt_upgradable_single_package_requires_manual_review():
     assert result["upgradable_packages"][0]["installed_version"] == "7.81.0-1ubuntu1.20"
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_apt_upgradable_multiple_packages_parse_details():
     result = _evaluate_apt_upgradable_output(
         0,
@@ -1813,6 +2041,7 @@ def test_apt_upgradable_multiple_packages_parse_details():
     assert "linux-firmware" in result["detail_output"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_apt_upgradable_package_name_with_architecture_suffix():
     result = _evaluate_apt_upgradable_output(
         0,
@@ -1824,6 +2053,7 @@ def test_apt_upgradable_package_name_with_architecture_suffix():
     assert result["upgradable_packages"][0]["architecture"] == "amd64"
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_apt_upgradable_third_party_repository_is_preserved():
     result = _evaluate_apt_upgradable_output(
         0,
@@ -1834,6 +2064,7 @@ def test_apt_upgradable_third_party_repository_is_preserved():
     assert result["upgradable_packages"][0]["package_name"] == "code"
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_apt_upgradable_held_packages_are_not_invented_as_findings():
     result = _evaluate_apt_upgradable_output(0, "Listing...")
 
@@ -1841,6 +2072,7 @@ def test_apt_upgradable_held_packages_are_not_invented_as_findings():
     assert result["upgradable_count"] == 0
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_apt_upgradable_ignores_warning_lines_on_stdout():
     result = _evaluate_apt_upgradable_output(
         0,
@@ -1856,6 +2088,7 @@ def test_apt_upgradable_ignores_warning_lines_on_stdout():
     assert result["actual"] == "0"
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_apt_upgradable_network_or_cache_errors_are_manual_review():
     for output in (
         "E: Failed to fetch http://example.invalid/InRelease",
@@ -1876,6 +2109,7 @@ def test_apt_upgradable_command_forces_c_locale_for_localized_systems():
     )
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_apt_upgradable_unexpected_output_requires_manual_review():
     result = _evaluate_apt_upgradable_output(0, "unerwartete Ausgabe")
 
@@ -1982,6 +2216,7 @@ def _standard_critical_file_output():
     )
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_critical_file_permissions_standard_debian_values_are_fulfilled():
     result = _evaluate_critical_file_output(0, _standard_critical_file_output())
 
@@ -1992,6 +2227,7 @@ def test_critical_file_permissions_standard_debian_values_are_fulfilled():
     assert "/etc/sudoers: 440 root:root OK" in result["detail_output"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_critical_file_passwd_group_writable_is_not_fulfilled():
     result = _evaluate_critical_file_output(
         0,
@@ -2009,6 +2245,7 @@ def test_critical_file_passwd_group_writable_is_not_fulfilled():
     assert "beschreibbar" in result["reason"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_critical_file_shadow_world_readable_is_not_fulfilled():
     result = _evaluate_critical_file_output(
         0,
@@ -2026,6 +2263,7 @@ def test_critical_file_shadow_world_readable_is_not_fulfilled():
     assert "Leserechte" in result["reason"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_critical_file_sudoers_644_is_not_fulfilled():
     result = _evaluate_critical_file_output(
         0,
@@ -2042,6 +2280,7 @@ def test_critical_file_sudoers_644_is_not_fulfilled():
     assert "/etc/sudoers" in result["actual"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_critical_file_wrong_owner_or_group_is_not_fulfilled():
     owner_result = _evaluate_critical_file_output(
         0,
@@ -2070,6 +2309,7 @@ def test_critical_file_wrong_owner_or_group_is_not_fulfilled():
     assert "Gruppe" in group_result["reason"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_critical_file_missing_file_requires_manual_review():
     result = _evaluate_critical_file_output(
         0,
@@ -2086,6 +2326,7 @@ def test_critical_file_missing_file_requires_manual_review():
     assert "Datei nicht gefunden: /etc/sudoers" in result["detail_output"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_critical_file_stat_error_requires_manual_review():
     result = _evaluate_critical_file_output(
         1,
@@ -2178,6 +2419,7 @@ def test_read_native_root_check_uses_python_for_unique_uid_gid_without_shell(
     assert method == "python:/etc/passwd,/etc/group"
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_critical_file_shadow_600_secure_special_case_is_fulfilled():
     result = _evaluate_critical_file_output(
         0,
@@ -2193,6 +2435,7 @@ def test_critical_file_shadow_600_secure_special_case_is_fulfilled():
     assert result["status"] == "Erfuellt"
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_critical_file_mixed_correct_and_wrong_files_is_not_fulfilled():
     result = _evaluate_critical_file_output(
         0,
@@ -2487,6 +2730,7 @@ def test_baseline_checks_include_profile_specific_advisories_for_desktop_safe():
     assert "Profil-Hinweis: Lynis: deleted_files_in_use" in titles
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_desktop_safe_profile_marks_selected_packages_as_recommendations():
     app = netmon_app.App.__new__(netmon_app.App)
     app.security_baseline_profile_id = "desktop_safe_v1"
@@ -2572,6 +2816,7 @@ def test_security_baseline_apply_plan_includes_optional_services_for_desktop_saf
     assert "systemd-bsod.service deaktivieren" in plan["preview_text"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_server_profile_evaluates_strict_rp_filter_mode():
     app = netmon_app.App.__new__(netmon_app.App)
     app.security_baseline_profile_id = "ubuntu_server_hardening"
@@ -2596,6 +2841,7 @@ def test_server_profile_evaluates_strict_rp_filter_mode():
     assert deviation["status"] == "Bewusste Abweichung"
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_rp_filter_mismatch_mentions_ufw_override(tmp_path, monkeypatch):
     monkeypatch.setattr(
         security_audit_controller,
@@ -2633,6 +2879,7 @@ def test_rp_filter_mismatch_mentions_ufw_override(tmp_path, monkeypatch):
     assert "ufw.service" in result["reason"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_sysctl_mismatch_mentions_configured_dropin(tmp_path, monkeypatch):
     monkeypatch.setattr(
         security_audit_controller,
@@ -2675,6 +2922,7 @@ def test_sysctl_mismatch_mentions_configured_dropin(tmp_path, monkeypatch):
     assert "spaetere Ueberschreibungen" in result["reason"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_sysctl_mismatch_mentions_ufw_override(tmp_path, monkeypatch):
     monkeypatch.setattr(
         security_audit_controller,
@@ -3709,6 +3957,7 @@ def _evaluate_secure_boot_output(rc, output, profile="Desktop / Development"):
     )
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_secure_boot_enabled_is_fulfilled():
     result = _evaluate_secure_boot_output(0, "SecureBoot enabled")
 
@@ -3719,6 +3968,7 @@ def test_secure_boot_enabled_is_fulfilled():
     assert result["check_success"] is True
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_secure_boot_disabled_desktop_profile_is_manual_hint():
     result = _evaluate_secure_boot_output(0, "SecureBoot disabled")
 
@@ -3728,6 +3978,7 @@ def test_secure_boot_disabled_desktop_profile_is_manual_hint():
     assert result["secure_boot_enabled"] is False
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_secure_boot_disabled_setup_mode_is_visible_in_actual_value():
     result = _evaluate_secure_boot_output(
         0,
@@ -3740,6 +3991,7 @@ def test_secure_boot_disabled_setup_mode_is_visible_in_actual_value():
     assert "Setup Mode" in result["reason"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_secure_boot_enabled_user_mode_is_visible_in_actual_value():
     result = _evaluate_secure_boot_output(
         0,
@@ -3751,6 +4003,7 @@ def test_secure_boot_enabled_user_mode_is_visible_in_actual_value():
     assert result["platform_mode"] == "user"
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_secure_boot_legacy_bios_or_no_efi_is_not_applicable():
     result = _evaluate_secure_boot_output(
         1,
@@ -3762,6 +4015,7 @@ def test_secure_boot_legacy_bios_or_no_efi_is_not_applicable():
     assert result["secure_boot_supported"] is False
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_secure_boot_mokutil_missing_requires_manual_review():
     result = _evaluate_secure_boot_output(127, "mokutil: not found")
 
@@ -3771,6 +4025,7 @@ def test_secure_boot_mokutil_missing_requires_manual_review():
     assert result["check_success"] is False
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_secure_boot_efi_access_error_requires_manual_review():
     result = _evaluate_secure_boot_output(1, "Failed to read SecureBoot")
 
@@ -3779,6 +4034,7 @@ def test_secure_boot_efi_access_error_requires_manual_review():
     assert result["check_error"] == "Failed to read SecureBoot"
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_secure_boot_unexpected_localized_output_requires_manual_review():
     result = _evaluate_secure_boot_output(0, "SecureBoot deaktiviert")
 
@@ -3787,6 +4043,7 @@ def test_secure_boot_unexpected_localized_output_requires_manual_review():
     assert result["check_success"] is False
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_secure_boot_disabled_server_profile_is_not_fulfilled():
     result = _evaluate_secure_boot_output(0, "SecureBoot disabled", "Server / Haertung")
 
@@ -3795,6 +4052,7 @@ def test_secure_boot_disabled_server_profile_is_not_fulfilled():
     assert "setzt aktivierten Secure Boot voraus" in result["reason"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_secure_boot_disabled_testlab_and_dual_boot_profiles_are_manual_hints():
     testlab = _evaluate_secure_boot_output(0, "SecureBoot disabled", "Testlabor")
     dual_boot = _evaluate_secure_boot_output(0, "SecureBoot disabled", "Dual-Boot")
@@ -4368,6 +4626,7 @@ def _rp_filter_spec():
     ][0]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_rp_filter_branch_reports_ufw_override_conflict(monkeypatch):
     files = {
         "/etc/sysctl.d/99-zz-netmon-hardening.conf": "net.ipv4.conf.all.rp_filter = 2\n",
@@ -4386,6 +4645,7 @@ def test_rp_filter_branch_reports_ufw_override_conflict(monkeypatch):
     assert "/etc/ufw/sysctl.conf setzt denselben Wert auf 1" in result["reason"]
 
 
+@pytest.mark.usefixtures("synthetic_sudo_probe")
 def test_rp_filter_branch_omits_hint_without_conflict(monkeypatch):
     files = {
         "/etc/sysctl.d/99-zz-netmon-hardening.conf": "net.ipv4.conf.all.rp_filter = 2\n",

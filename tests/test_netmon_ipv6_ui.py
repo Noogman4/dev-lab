@@ -1,5 +1,7 @@
 import threading
 
+import pytest
+
 from tools import netmon
 
 
@@ -7,12 +9,15 @@ class DummyWidget:
     def __init__(self):
         self.state = None
         self.text = ""
+        self.foreground = None
 
     def configure(self, **kwargs):
         if "state" in kwargs:
             self.state = kwargs["state"]
         if "text" in kwargs:
             self.text = kwargs["text"]
+        if "foreground" in kwargs:
+            self.foreground = kwargs["foreground"]
 
     config = configure
 
@@ -76,6 +81,9 @@ def test_profile_supports_ipv6_detects_address_dns_allowedips_and_endpoint(monke
 
 def test_update_ipv6_controls_state_keeps_left_buttons_enabled_for_active_ipv4_only_vpn():
     app = netmon.App.__new__(netmon.App)
+    app.ipv6_is_disabled = lambda: False
+    app.get_wg_iface = lambda: "wg0"
+    app.ipv6_runtime_available_on_iface = lambda iface: False
     app.ufw_lock = threading.Lock()
     app.btn_ipv6_on = DummyWidget()
     app.btn_ipv6_off = DummyWidget()
@@ -100,8 +108,98 @@ def test_update_ipv6_controls_state_keeps_left_buttons_enabled_for_active_ipv4_o
     assert app.privacy_ipv6_hint.text == "Aktives VPN-Profil nutzt nur IPv4"
 
 
+@pytest.mark.parametrize(
+    "supports_ipv6, query_rc, query_output, expected_status, expected_color",
+    [
+        pytest.param(False, 0, "", "nutzt nur IPv4", "#c62828", id="ipv4-only"),
+        pytest.param(
+            True,
+            0,
+            "7: wg0 inet6 2001:db8::2/64 scope global",
+            "nutzt IPv6",
+            "#2e7d32",
+            id="active-ipv6",
+        ),
+        pytest.param(
+            False,
+            0,
+            "7: wg0 inet6 2001:db8::2/64 scope global",
+            "nutzt IPv6",
+            "#2e7d32",
+            id="runtime-evidence-independent-of-profile",
+        ),
+        pytest.param(
+            True,
+            1,
+            "synthetic query failure",
+            "nutzt nur IPv4",
+            "#c62828",
+            id="runtime-unavailable",
+        ),
+        pytest.param(
+            True,
+            0,
+            "",
+            "nutzt nur IPv4",
+            "#c62828",
+            id="configured-ipv6-without-runtime-address",
+        ),
+    ],
+)
+def test_update_ipv6_controls_state_requires_positive_runtime_evidence(
+    monkeypatch, supports_ipv6, query_rc, query_output, expected_status, expected_color
+):
+    app = netmon.App.__new__(netmon.App)
+    app.ipv6_is_disabled = lambda: False
+    app.active_wg_profile = lambda: "wg0"
+    app.get_wg_iface = lambda: "wg0"
+    app.profile_supports_ipv6 = lambda profile: supports_ipv6
+    app.btn_ipv6_on = DummyWidget()
+    app.btn_ipv6_off = DummyWidget()
+    app.ipv6_controls_hint = DummyWidget()
+    app.cb_privacy_ipv6 = DummyWidget()
+    app.privacy_ipv6_hint = DummyWidget()
+    calls = []
+
+    def fake_run_cmd(args, timeout=0):
+        # Exercise the real runtime parser; no command reaches the host.
+        calls.append((args, timeout))
+        assert args == [
+            "ip",
+            "-6",
+            "-o",
+            "addr",
+            "show",
+            "dev",
+            "wg0",
+            "scope",
+            "global",
+        ]
+        return query_rc, query_output
+
+    monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
+
+    app.update_ipv6_controls_state()
+
+    assert calls == [
+        (["ip", "-6", "-o", "addr", "show", "dev", "wg0", "scope", "global"], 4)
+    ]
+    assert app.ipv6_controls_hint.text == (
+        "IPv6 Status:\nSystem:        aktiv\nVPN-Profil:    " + expected_status
+    )
+    assert app.ipv6_controls_hint.foreground == expected_color
+    assert app.btn_ipv6_on.state == "normal"
+    assert app.btn_ipv6_off.state == "normal"
+    assert app.cb_privacy_ipv6.state == ("normal" if supports_ipv6 else "disabled")
+    assert app.privacy_ipv6_hint.text == (
+        "" if supports_ipv6 else "Aktives VPN-Profil nutzt nur IPv4"
+    )
+
+
 def test_update_ipv6_controls_state_keeps_left_buttons_enabled_without_active_vpn():
     app = netmon.App.__new__(netmon.App)
+    app.ipv6_is_disabled = lambda: False
+    app.get_wg_iface = lambda: ""
     app.ufw_lock = threading.Lock()
     app.btn_ipv6_on = DummyWidget()
     app.btn_ipv6_off = DummyWidget()
@@ -128,6 +226,8 @@ def test_update_ipv6_controls_state_keeps_left_buttons_enabled_without_active_vp
 
 def test_update_ipv6_controls_state_ignores_destroyed_hint_widgets():
     app = netmon.App.__new__(netmon.App)
+    app.ipv6_is_disabled = lambda: False
+    app.get_wg_iface = lambda: ""
     app.ufw_lock = threading.Lock()
     app.btn_ipv6_on = DummyWidget()
     app.btn_ipv6_off = DummyWidget()

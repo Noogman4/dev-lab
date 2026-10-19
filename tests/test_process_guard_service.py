@@ -1,4 +1,27 @@
+import os
+from pathlib import Path
+
+import pytest
+
 from netmon.services.process_guard_service import ProcessGuardService
+
+
+@pytest.fixture
+def existing_executable(tmp_path):
+    """Create inert files only in the isolated home, never in a host home."""
+    assert os.environ.get("NETMON_TEST_ISOLATED") == "1"
+    home = Path.home()
+    assert home == Path("/work/home")
+    runtime_dir = home / "process-guard-fixtures" / tmp_path.name
+    runtime_dir.mkdir(mode=0o700, parents=True)
+
+    def create(name):
+        path = runtime_dir / name
+        path.touch(mode=0o600, exist_ok=False)
+        assert not path.stat().st_mode & 0o111
+        return str(path)
+
+    return create
 
 
 def test_process_guard_service_is_available_with_ps_fallback(monkeypatch):
@@ -84,15 +107,18 @@ def test_evaluate_process_flags_temp_shell_started_by_browser():
     assert any("Parent-Prozess ist firefox" in reason for reason in finding["reasons"])
 
 
-def test_evaluate_process_does_not_flag_temp_argument_as_temp_execution():
+def test_evaluate_process_does_not_flag_temp_argument_as_temp_execution(
+    existing_executable,
+):
     service = ProcessGuardService()
+    executable = existing_executable("crashhelper")
     proc = {
         "pid": 8422,
         "ppid": 1337,
         "name": "crashhelper",
-        "exe": "/home/happy/Dokumente/NetMon/Secure Browser/Chad/firefox/crashhelper",
+        "exe": executable,
         "cmdline": [
-            "/home/happy/Dokumente/NetMon/Secure Browser/Chad/firefox/crashhelper",
+            executable,
             "/tmp/firefox-crash",
         ],
         "cwd": "/tmp",
@@ -105,6 +131,33 @@ def test_evaluate_process_does_not_flag_temp_argument_as_temp_execution():
     finding = service.evaluate_process(proc, parent=parent)
 
     assert finding is None
+
+
+def test_evaluate_process_reports_missing_executable_with_temp_argument(
+    existing_executable,
+):
+    service = ProcessGuardService()
+    present = Path(existing_executable("crashhelper"))
+    missing = str(present.with_name("missing-crashhelper"))
+    assert not Path(missing).exists()
+    proc = {
+        "pid": 8422,
+        "ppid": 1337,
+        "name": "crashhelper",
+        "exe": missing,
+        "cmdline": [missing, "/tmp/firefox-crash"],
+        "cwd": "/tmp",
+        "username": "happy",
+        "create_time": 1.0,
+        "status": "sleeping",
+    }
+
+    finding = service.evaluate_process(proc, parent={"pid": 1337, "name": "firefox"})
+
+    assert finding is not None
+    assert finding["risk_score"] == 2
+    assert finding["risk_level"] == "low"
+    assert finding["reasons"] == ["Executable-Pfad ist nicht mehr vorhanden."]
 
 
 def test_evaluate_process_flags_run_user_executable_as_temp_execution():
@@ -128,15 +181,15 @@ def test_evaluate_process_flags_run_user_executable_as_temp_execution():
     assert "Ausführung aus temporärem Pfad: /run/user/1000/helper" in finding["reasons"]
 
 
-def test_evaluate_process_maps_downloads_only_to_medium_risk():
+def test_evaluate_process_maps_downloads_only_to_medium_risk(existing_executable):
     service = ProcessGuardService()
     proc = {
         "pid": 8424,
         "ppid": 1,
         "name": "python3",
-        "exe": "/usr/bin/python3",
+        "exe": existing_executable("python3"),
         "cmdline": ["python3"],
-        "cwd": "/home/happy/Downloads",
+        "cwd": str(Path.home() / "Downloads"),
         "username": "happy",
         "create_time": 1.0,
         "status": "running",
@@ -170,8 +223,10 @@ def test_evaluate_process_uses_kernel_thread_display_for_empty_paths():
     assert finding["exe"] == "Kernel-Thread"
 
 
-def test_run_check_summarizes_findings_from_snapshot(monkeypatch):
+def test_run_check_summarizes_findings_from_snapshot(monkeypatch, existing_executable):
     service = ProcessGuardService()
+    systemd = existing_executable("systemd")
+    python = existing_executable("python3")
     monkeypatch.setattr(service, "is_available", lambda: True)
     monkeypatch.setattr(
         service,
@@ -181,8 +236,8 @@ def test_run_check_summarizes_findings_from_snapshot(monkeypatch):
                 "pid": 1,
                 "ppid": 0,
                 "name": "systemd",
-                "exe": "/usr/lib/systemd/systemd",
-                "cmdline": ["/usr/lib/systemd/systemd"],
+                "exe": systemd,
+                "cmdline": [systemd],
                 "cwd": "/",
                 "username": "root",
                 "create_time": 1.0,
@@ -192,7 +247,7 @@ def test_run_check_summarizes_findings_from_snapshot(monkeypatch):
                 "pid": 2,
                 "ppid": 1,
                 "name": "python3",
-                "exe": "/usr/bin/python3",
+                "exe": python,
                 "cmdline": ["python3", "-c", "print(1)"],
                 "cwd": "/home/user/Downloads",
                 "username": "user",
@@ -236,13 +291,13 @@ def test_detect_new_findings_only_reports_unknown_signatures():
     assert known_again == known
 
 
-def test_run_check_skips_trusted_findings(monkeypatch):
+def test_run_check_skips_trusted_findings(monkeypatch, existing_executable):
     service = ProcessGuardService()
     process = {
         "pid": 2,
         "ppid": 1,
         "name": "python3",
-        "exe": "/usr/bin/python3",
+        "exe": existing_executable("python3"),
         "cmdline": ["python3", "-c", "print(1)"],
         "cwd": "/home/user/Downloads",
         "username": "user",
@@ -296,14 +351,15 @@ def test_match_suspicious_cmdline_still_detects_real_nc_usage():
     assert service._match_suspicious_cmdline("sh -c nc 1.2.3.4 4444") is True
 
 
-def test_evaluate_process_does_not_flag_networkmanager_name_only():
+def test_evaluate_process_does_not_flag_networkmanager_name_only(existing_executable):
     service = ProcessGuardService()
+    executable = existing_executable("NetworkManager")
     proc = {
         "pid": 929,
         "ppid": 1,
         "name": "NetworkManager",
-        "exe": "/usr/sbin/NetworkManager",
-        "cmdline": ["/usr/sbin/NetworkManager", "--no-daemon"],
+        "exe": executable,
+        "cmdline": [executable, "--no-daemon"],
         "cwd": "",
         "username": "root",
         "create_time": 1.0,

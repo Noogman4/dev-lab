@@ -33992,7 +33992,7 @@ class App(TkBase):
 
         if not active_profile:
             vpn_status = "kein aktives Profil"
-        elif active_runtime_ipv6 or (active_iface and system_ipv6_enabled):
+        elif active_runtime_ipv6:
             vpn_status = "nutzt IPv6"
         elif active_supports_ipv6 and not system_ipv6_enabled:
             vpn_status = "erwartet IPv6, System deaktiviert"

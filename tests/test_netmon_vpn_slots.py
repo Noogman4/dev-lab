@@ -1,6 +1,7 @@
 import inspect
 import json
 import os
+import subprocess
 import threading
 
 import pytest
@@ -8,6 +9,23 @@ import pytest
 from netmon.config.constants import VPN_SLOT_COUNT
 from netmon.features import vpn_controller
 from tools import netmon
+
+
+@pytest.fixture
+def strict_subprocess_guard(monkeypatch):
+    attempted = []
+
+    def forbidden(*args, **kwargs):
+        attempted.append((args, kwargs))
+        pytest.fail(f"Unexpected system command in isolated VPN-slot test: {args!r}")
+
+    for name in ("Popen", "run", "call", "check_call", "check_output"):
+        monkeypatch.setattr(subprocess, name, forbidden)
+    for name in ("system", "popen", "posix_spawn", "posix_spawnp"):
+        if hasattr(os, name):
+            monkeypatch.setattr(os, name, forbidden)
+    yield
+    assert not attempted, "A system-command attempt was swallowed by application code"
 
 
 @pytest.fixture(autouse=True)
@@ -329,7 +347,9 @@ def test_open_vpn_slot_skips_restart_for_already_active_profile():
     assert refreshes == [True]
 
 
-def test_open_vpn_slot_switches_directly_to_new_profile_without_vpn_off():
+def test_open_vpn_slot_switches_directly_to_new_profile_without_vpn_off(
+    strict_subprocess_guard,
+):
     app = netmon.App.__new__(netmon.App)
     logs = []
     calls = []
@@ -342,6 +362,7 @@ def test_open_vpn_slot_switches_directly_to_new_profile_without_vpn_off():
     app.ensure_sudo_session = lambda label: True
     app.active_wg_profile = lambda: "wg-old"
     app.run_async = lambda func: func()
+    app.update_dns_controls_state_safe = lambda: None
 
     def fake_vpn_switch(profile, ensure_sudo=True, refresh_ui=True):
         calls.append(("switch", profile, ensure_sudo, refresh_ui))
@@ -643,7 +664,9 @@ def test_vpn_off_returns_false_when_cleanup_does_not_clear_interfaces(monkeypatc
     assert not any("VPN deaktiviert." in entry for entry in logs)
 
 
-def test_save_primary_vpn_slot_writes_config_and_updates_button_text(tmp_path):
+def test_save_primary_vpn_slot_writes_config_and_updates_button_text(
+    tmp_path, strict_subprocess_guard
+):
     app = netmon.App.__new__(netmon.App)
     app.primary_vpn_config_path = str(tmp_path / "netmon_primary_vpn_slots.json")
     app.primary_vpn_slots = app._default_primary_vpn_slots()
@@ -655,6 +678,7 @@ def test_save_primary_vpn_slot_writes_config_and_updates_button_text(tmp_path):
     app.btn_primary_vpn_2 = DummyWidget()
     app.log = lambda message: None
     app.update_primary_vpn_buttons = lambda: None
+    app.run_async = lambda func: None
 
     app.save_primary_vpn_slot(1)
 
@@ -829,7 +853,7 @@ def test_scan_input_access_changes_skips_whitelisted_processes():
     assert len(events) == 0
 
 
-def test_open_vpn_slot_logs_missing_profile_and_opens_slot_tab():
+def test_open_vpn_slot_logs_missing_profile_and_opens_slot_tab(strict_subprocess_guard):
     app = netmon.App.__new__(netmon.App)
     logs = []
     tab_calls = []
@@ -837,6 +861,8 @@ def test_open_vpn_slot_logs_missing_profile_and_opens_slot_tab():
 
     app.vpn_slots = [{"slot": 1, "custom_name": "", "profile": "missing-profile"}]
     app.wg_profiles = ["proton"]
+    app._wg_profile_exists = lambda profile: profile == "proton"
+    app.list_wg_profiles = lambda: ["proton"]
     app.log = logs.append
     app.nb = type("Notebook", (), {"select": lambda self, tab: tab_calls.append(tab)})()
     app.tab_vpn_slots = "vpn-tab"
@@ -1385,7 +1411,9 @@ def test_security_baseline_persistence(tmp_path):
     assert loaded_app.device_baseline["/dev/input/event1"] == "input-event"
 
 
-def test_save_primary_vpn_slot_updates_privacy_combobox_and_selection():
+def test_save_primary_vpn_slot_updates_privacy_combobox_and_selection(
+    strict_subprocess_guard,
+):
     app = netmon.App.__new__(netmon.App)
     app.primary_vpn_slots = [
         {"slot": 1, "custom_name": "Proton CH", "profile": "proton"},
@@ -1407,6 +1435,7 @@ def test_save_primary_vpn_slot_updates_privacy_combobox_and_selection():
     app.save_primary_vpn_slots_config = lambda: None
     app.update_primary_vpn_buttons = lambda: None
     app.log = lambda _: None
+    app.run_async = lambda func: None
 
     app.save_primary_vpn_slot(1)
 
@@ -1507,7 +1536,7 @@ def test_list_wg_profiles_omits_missing_default_profiles():
         monkeypatch.undo()
 
 
-def test_assign_vpn_slot_rolls_back_when_save_fails():
+def test_assign_vpn_slot_rolls_back_when_save_fails(strict_subprocess_guard):
     app = netmon.App.__new__(netmon.App)
     calls = []
     logs = []
@@ -1515,6 +1544,7 @@ def test_assign_vpn_slot_rolls_back_when_save_fails():
     app.vpn_slot_choice = DummyVar("1")
     app.vpn_profile_var = DummyVar("proton")
     app.vpn_custom_name_var = DummyVar("Work")
+    app.list_wg_profiles = lambda: ["proton", "wg-b"]
     app.vpn_slots = [
         {"slot": 1, "custom_name": "", "profile": ""},
         {"slot": 2, "custom_name": "Other", "profile": "wg-b"},
@@ -1692,6 +1722,7 @@ def test_remove_firewall_rules_for_vpn_profile_skips_when_profile_is_still_used(
 
 def test_remove_firewall_rules_for_vpn_profile_deletes_profile_specific_ufw_rules(
     monkeypatch,
+    strict_subprocess_guard,
 ):
     app = netmon.App.__new__(netmon.App)
     logs = []
@@ -1712,6 +1743,13 @@ def test_remove_firewall_rules_for_vpn_profile_deletes_profile_specific_ufw_rule
         "wg-b": ("2.2.2.2", "443"),
     }
     app.parse_vpn_endpoint = lambda profile: endpoints.get(profile, (None, None))
+    app.resolve_profile_family_runtime = lambda profile, log_missing=True: {
+        "endpoint_profiles": [
+            candidate
+            for candidate in (profile, profile + "__ipv4")
+            if candidate in endpoints
+        ]
+    }
     app._collect_referenced_vpn_profiles = lambda include_active=True: ["wg-b"]
     app._collect_interface_rules_for_profiles = lambda profiles: (
         {"proton", "proton__ipv4"} if "proton" in profiles else {"wg-b", "wg-b__ipv4"}

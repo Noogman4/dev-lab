@@ -290,12 +290,17 @@ def test_build_firewall_transparency_report_includes_owner_note():
     assert "NetMon app scope (app-gnome-netmon-999.scope, PID -)" in report
 
 
-def test_collect_firewall_transparency_snapshot_uses_german_defaults_for_ratings():
+def test_collect_firewall_transparency_snapshot_uses_german_defaults_for_ratings(
+    monkeypatch,
+):
     app = netmon.App.__new__(netmon.App)
     app.lang = {}
     app._read_ufw_status = lambda verbose=True: (1, "")
     app._security_query_log_level = lambda: "LOW"
     app.__dict__["port_reality_last_scan"] = {}
+
+    # Authorization is outside this synthetic snapshot/translation test.
+    monkeypatch.setattr(netmon, "check_sudo_nopasswd", lambda: False)
 
     def fake_run_cmd(cmd, timeout=8):
         return (
@@ -314,7 +319,9 @@ def test_collect_firewall_transparency_snapshot_uses_german_defaults_for_ratings
     assert snapshot["listeners"][0]["rating"] == "nur lokal gebunden"
 
 
-def test_collect_firewall_transparency_snapshot_uses_english_translations_when_loaded():
+def test_collect_firewall_transparency_snapshot_uses_english_translations_when_loaded(
+    monkeypatch,
+):
     app = netmon.App.__new__(netmon.App)
     app.lang = {
         "firewall_listener_last_check_none": "No check yet",
@@ -323,6 +330,9 @@ def test_collect_firewall_transparency_snapshot_uses_english_translations_when_l
     app._read_ufw_status = lambda verbose=True: (1, "")
     app._security_query_log_level = lambda: "LOW"
     app.__dict__["port_reality_last_scan"] = {}
+
+    # Authorization is outside this synthetic snapshot/translation test.
+    monkeypatch.setattr(netmon, "check_sudo_nopasswd", lambda: False)
 
     def fake_run_cmd(cmd, timeout=8):
         return (

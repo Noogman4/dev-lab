@@ -1,6 +1,10 @@
 import inspect
 import json
 import os
+import subprocess
+import sys
+
+import pytest
 
 import netmon.app as app_module
 from netmon.app import App
@@ -25,6 +29,10 @@ from netmon.ui.tabs.theme_studio_tab import (
     build_theme_studio_style_actions,
 )
 from netmon.ui.tabs.vpn_slots_tab import build_vpn_slots_tab
+from tests.test_netmon_dns_consistency import (
+    passive_dns_service as passive_dns_service,
+    passive_dns_status as passive_dns_status,
+)
 
 
 class DummyVar:
@@ -36,6 +44,108 @@ class DummyVar:
 
     def set(self, value):
         self.value = value
+
+
+@pytest.fixture
+def reset_status_environment(monkeypatch, passive_dns_service, passive_dns_status):
+    """Opt-in status inputs; retain real workers, policy evaluation and guard."""
+    original_run_cmd = app_module.run_cmd
+    original_has_cmd = app_module.has_cmd
+    original_threading = app_module.threading
+    calls = []
+    workers = []
+
+    def status_only(args, *positional, **kwargs):
+        if args == ["resolvectl", "status"]:
+            return app_module.dns_controller.run_cmd(args, *positional, **kwargs)
+        if args == ["ip", "route", "show", "default"]:
+            calls.append(list(args))
+            return 0, "default via 192.0.2.1 dev eth0 proto dhcp\n"
+        if args == ["systemctl", "is-active", "systemd-resolved"]:
+            calls.append(list(args))
+            return 0, "active\n"
+        return original_run_cmd(args, *positional, **kwargs)
+
+    class TrackedThreads:
+        def __getattr__(self, name):
+            return getattr(original_threading, name)
+
+        def Thread(self, *args, **kwargs):
+            worker = original_threading.Thread(*args, **kwargs)
+            workers.append(worker)
+            return worker
+
+    def finish_workers():
+        for worker in workers:
+            worker.join(timeout=5)
+            assert not worker.is_alive(), "Status worker outlived its test"
+
+    def bind(app):
+        # Bind before replacing the app runner, as required by the DNS fixture.
+        service = passive_dns_service(app)
+        monkeypatch.setattr(app_module, "run_cmd", status_only)
+        monkeypatch.setattr(
+            app_module,
+            "has_cmd",
+            lambda name: name == "resolvectl" or original_has_cmd(name),
+        )
+        monkeypatch.setattr(app_module, "threading", TrackedThreads())
+        return service, calls, workers, finish_workers
+
+    try:
+        yield bind
+    finally:
+        # Also join if a reset assertion fails, before monkeypatch is undone.
+        finish_workers()
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        ["sudo", "-n", "true"],
+        ["resolvectl", "status", "--no-pager"],
+        ["systemctl", "is-active", "ssh"],
+        ["ip", "route", "get", "198.51.100.1"],
+    ],
+)
+def test_reset_status_environment_preserves_unexpected_command_guard(tmp_path, command):
+    child = tmp_path / "test_expected_reset_status_block.py"
+    child.write_text(
+        "from tests.test_netmon_settings_tab import (\n"
+        "    reset_status_environment, passive_dns_service, passive_dns_status,\n"
+        "    app_module, App,\n"
+        ")\n\n"
+        "def test_expected_block(reset_status_environment):\n"
+        "    reset_status_environment(App.__new__(App))\n"
+        "    try:\n"
+        f"        app_module.run_cmd({command!r})\n"
+        "    except Exception:\n"
+        "        pass\n"
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-m",
+            "pytest",
+            "-p",
+            "no:cacheprovider",
+            "-p",
+            "tests.conftest",
+            "-q",
+            "--tb=short",
+            "--basetemp",
+            str(tmp_path / "child-tmp"),
+            str(child),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "Blocked host accesses:" in result.stdout
+    assert f"'command', '{command[0]}'" in result.stdout
 
 
 def test_load_settings_updates_defaults_from_config(tmp_path):
@@ -676,8 +786,14 @@ def test_mark_chad_systemcheck_profile_custom_switches_profile_label():
     )
 
 
-def test_reset_settings_to_defaults_restores_defaults():
+def test_reset_settings_to_defaults_restores_defaults(
+    reset_status_environment, passive_dns_status
+):
     app = App.__new__(App)
+    service, status_calls, workers, finish_workers = reset_status_environment(app)
+    callbacks = []
+    app.after = lambda delay, callback: callbacks.append((delay, callback))
+    app.dns_text = None
     app.settings = {
         "language": "en",
         "startup_guard_autorun": False,
@@ -795,6 +911,12 @@ def test_reset_settings_to_defaults_restores_defaults():
     app.tr = lambda key, default=None: default or key
 
     app.reset_settings_to_defaults()
+    finish_workers()
+    assert len(workers) == 1
+    assert len(callbacks) == 1
+    delay, callback = callbacks.pop()
+    assert delay == 50
+    callback()
 
     assert app.settings == App._default_settings_payload(app)
     assert app.lang["loaded_language"] == "de"
@@ -850,6 +972,16 @@ def test_reset_settings_to_defaults_restores_defaults():
     assert app.chad_answer_linux_help_var.get() is True
     assert app.chad_answer_risk_var.get() is True
     assert app.chad_answer_recommendations_var.get() is True
+    assert app.is_vpn_active() is False
+    assert app.dns_guard_allowed_dns == ["192.0.2.53"]
+    assert app.dns_guard_state == "ok"
+    assert app.dns_guard_check_running is False
+    assert service is app._dns_control_service()
+    assert passive_dns_status
+    assert all(command == ["resolvectl", "status"] for command, _ in passive_dns_status)
+    assert status_calls.count(["ip", "route", "show", "default"]) == 1
+    assert status_calls.count(["systemctl", "is-active", "systemd-resolved"]) == 1
+    assert not callbacks
 
 
 def test_toggle_theme_cycles_through_all_four_modes():
