@@ -28,6 +28,7 @@ def profile(tmp_path, name="work", data=SAFE):
 
 @pytest.fixture
 def app(tmp_path, monkeypatch, store):
+    monkeypatch.setattr(own.socket, "if_nameindex", list)
     directory = tmp_path / "wireguard"
     directory.mkdir(mode=0o700)
     monkeypatch.setattr(own, "PROFILE_DIRECTORY", str(directory))

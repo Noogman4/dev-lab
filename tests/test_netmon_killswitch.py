@@ -1,6 +1,19 @@
 import threading
 
+import pytest
+
 from tools import netmon
+
+
+@pytest.fixture(autouse=True)
+def fake_verified_interfaces(monkeypatch):
+    # This suite models already authenticated synthetic WG links. The dedicated
+    # interface-security suite exercises the real verifier and closed gate.
+    monkeypatch.setattr(
+        netmon.firewall_controller.nm_ownership,
+        "verified_interface",
+        lambda name: {"name": name, "kind": "wireguard", "ifindex": 7},
+    )
 
 
 def _run_as_other_thread(target):

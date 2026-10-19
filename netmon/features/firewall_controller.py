@@ -11,6 +11,11 @@ from contextlib import contextmanager
 from tkinter import messagebox, ttk
 
 try:
+    from netmon.core import nm_ownership
+except ModuleNotFoundError:
+    from core import nm_ownership
+
+try:
     from netmon.core.utils import call_in_ui_thread
 except ModuleNotFoundError:
     from core.utils import call_in_ui_thread
@@ -1079,7 +1084,11 @@ def killswitch_on_sync(app, refresh_ui=True):
             wg_ifaces = sorted(set(collect_ifaces(referenced_profiles)))
         else:
             wg_ifaces = []
-        wg_ifaces = sorted(set(wg_ifaces) | set(app.get_wg_interfaces()))
+        wg_ifaces = sorted(
+            iface
+            for iface in set(wg_ifaces) | set(app.get_wg_interfaces())
+            if nm_ownership.verified_interface(iface)
+        )
         endpoint_provider = _instance_override(app, "get_killswitch_vpn_endpoints")
         if callable(endpoint_provider):
             handshake_rules = sorted(set(endpoint_provider()))
@@ -1205,6 +1214,17 @@ def killswitch_on_sync(app, refresh_ui=True):
 
             command_failures = []
             for cmd in cmds:
+                if (
+                    cmd[3:5] in (["allow", "in"], ["allow", "out"])
+                    and len(cmd) == 7
+                    and cmd[5] == "on"
+                    and cmd[6] != "lo"
+                    and not nm_ownership.verified_interface(cmd[6])
+                ):
+                    command_failures.append(
+                        (cmd, "WireGuard-Identitaet nicht bestaetigt")
+                    )
+                    break
                 if network_service is not None:
                     rc_cmd, out_cmd = network_service.run(cmd, timeout=20)
                 else:
@@ -1714,6 +1734,8 @@ def ensure_ufw_rule_exists(rule, *, network_service=None, known_keys=None):
         direction = str((rule or {}).get("direction") or "").strip().lower()
         if not iface or direction not in {"in", "out"}:
             return False, False, "ungültige Interface-Regel", known_keys
+        if not nm_ownership.verified_interface(iface):
+            return False, False, "WireGuard-Identitaet nicht bestaetigt", known_keys
         key = ("iface", direction, iface.lower())
         if key in known_keys:
             return True, False, "exists", known_keys

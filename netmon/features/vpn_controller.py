@@ -1929,9 +1929,9 @@ def collect_interface_rules_for_profiles(
         effective_ipv4 = (resolved.get("effective_ipv4_interface") or "").strip()
         effective_ipv6 = (resolved.get("effective_ipv6_interface") or "").strip()
 
-        if effective_ipv4:
+        if effective_ipv4 and nm_ownership.verified_interface(effective_ipv4):
             interfaces.add(effective_ipv4)
-        if effective_ipv6:
+        if effective_ipv6 and nm_ownership.verified_interface(effective_ipv6):
             interfaces.add(effective_ipv6)
 
         app.log_debug(

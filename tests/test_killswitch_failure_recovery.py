@@ -11,6 +11,16 @@ import pytest
 from netmon.features import firewall_controller as controller
 
 
+@pytest.fixture(autouse=True)
+def fake_verified_interfaces(monkeypatch):
+    # Keep the existing mutation-stage oracle on a verified synthetic link.
+    monkeypatch.setattr(
+        controller.nm_ownership,
+        "verified_interface",
+        lambda name: {"name": name, "kind": "wireguard", "ifindex": 7},
+    )
+
+
 class Ufw:
     """Minimal ordered dual-family UFW model, independent of status parsing."""
 
