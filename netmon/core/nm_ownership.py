@@ -5,21 +5,22 @@ never registers an existing connection. Injectable objects below are for local
 unit tests, not CLI flags or environment-controlled privilege bypasses.
 """
 
-from contextlib import contextmanager
 import configparser
 import fcntl
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import secrets
+import socket
 import stat
 import subprocess
 import sys
 import tempfile
 import time
 import uuid as uuid_module
+from contextlib import contextmanager
+from pathlib import Path
 
 HELPER = "/usr/lib/netmon/netmon/core/nm_ownership.py"
 REGISTRY = "/var/lib/netmon/nm-wireguard-ownership"
@@ -29,6 +30,104 @@ OWNER = "netmon-wireguard-created-v1"
 MAX_CONFIG = 1024 * 1024
 MAX_RECORD = 16384
 MAX_ENTRIES = 512
+
+
+def _interface_name(name):
+    if (
+        not isinstance(name, str)
+        or not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,14}", name)
+        or name in {".", ".."}
+    ):
+        raise OwnershipError("Invalid interface name")
+    return name
+
+
+def _profile_private_key(content):
+    # Peer sections may repeat; only one unambiguous Interface/PrivateKey may
+    # establish identity. Never execute wg-quick or any profile hooks here.
+    section = ""
+    interfaces = 0
+    keys = []
+    for raw in content.splitlines():
+        line = raw.split("#", 1)[0].split(";", 1)[0].strip()
+        if line.startswith("[") and line.endswith("]"):
+            section = line[1:-1].strip().lower()
+            interfaces += section == "interface"
+        elif section == "interface":
+            key, sep, value = line.partition("=")
+            if sep and key.strip().lower() == "privatekey":
+                keys.append(value.strip())
+    if (
+        interfaces != 1
+        or len(keys) != 1
+        or not re.fullmatch(r"[A-Za-z0-9+/]{43}=", keys[0])
+    ):
+        raise OwnershipError("Invalid interface key")
+    return keys[0]
+
+
+def _interface_command(argv, *, input_text=None):
+    result = subprocess.run(
+        argv,
+        input=input_text,
+        text=True,
+        capture_output=True,
+        timeout=5,
+        check=False,
+        env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C", "LC_ALL": "C"},
+    )
+    if result.returncode or len(result.stdout) > MAX_CONFIG:
+        raise OwnershipError("Interface identity unavailable")
+    return result.stdout.strip()
+
+
+def _wireguard_link(name):
+    rows = json.loads(
+        _interface_command(["/usr/sbin/ip", "-j", "-d", "link", "show", "dev", name])
+    )
+    if not isinstance(rows, list) or len(rows) != 1:
+        raise OwnershipError("Ambiguous interface identity")
+    row = rows[0]
+    if (
+        row.get("ifname") != name
+        or type(row.get("ifindex")) is not int
+        or row["ifindex"] <= 0
+        or "UP" not in row.get("flags", [])
+        or row.get("linkinfo", {}).get("info_kind") != "wireguard"
+    ):
+        raise OwnershipError("Expected live WireGuard interface")
+    return row["ifindex"]
+
+
+def verified_interface(name):
+    """Ask the protected helper; missing deployment/privilege is a closed gate."""
+    try:
+        _interface_name(name)
+        if not trusted_helper_available():
+            return None
+        result = subprocess.run(
+            ["sudo", "-n", "/usr/bin/python3", "-I", HELPER, "verify-interface"],
+            input=json.dumps({"name": name}),
+            text=True,
+            capture_output=True,
+            timeout=20,
+            check=False,
+            env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C", "LC_ALL": "C"},
+        )
+        if result.returncode or len(result.stdout) > MAX_RECORD:
+            return None
+        proof = json.loads(result.stdout)
+        if (
+            not isinstance(proof, dict)
+            or proof.get("name") != name
+            or type(proof.get("ifindex")) is not int
+            or proof["ifindex"] <= 0
+            or proof.get("kind") != "wireguard"
+        ):
+            return None
+        return proof
+    except (OSError, ValueError, TypeError, OwnershipError, subprocess.SubprocessError):
+        return None
 
 
 def wireguard_hooks(data):
@@ -534,6 +633,10 @@ class OwnershipStore:
 
     def install_profile(self, payload):
         name, content = checked_import_payload(payload)
+        # Even a same-named WireGuard link must be stopped before replacement.
+        # Recheck at the privileged installation boundary, not just in the UI.
+        if name in {iface for _index, iface in socket.if_nameindex()}:
+            raise OwnershipError("Profile name collides with a live interface")
         with self.locked(create=True):
             directory = _directory(
                 PROFILE_DIRECTORY,
@@ -559,10 +662,36 @@ class OwnershipStore:
                         current = None
                     if current != previous:
                         raise OwnershipError("Destination changed during import")
+                    if name in {iface for _index, iface in socket.if_nameindex()}:
+                        raise OwnershipError(
+                            "Profile name collides with a live interface"
+                        )
                     os.replace(source, name + ".conf", dst_dir_fd=directory)
                     os.fsync(directory)
             finally:
                 os.close(directory)
+
+    def verify_interface(self, name):
+        """Bind a live link to exact protected profile bytes, without hooks."""
+        _interface_name(name)
+        profile = self.snapshot_profile(name)
+        private = _profile_private_key(profile["content"])
+        index = _wireguard_link(name)
+        public = _interface_command(
+            ["/usr/bin/wg", "pubkey"], input_text=private + "\n"
+        )
+        live = _interface_command(["/usr/bin/wg", "show", name, "public-key"])
+        if not re.fullmatch(r"[A-Za-z0-9+/]{43}=", public) or public != live:
+            raise OwnershipError("Interface does not belong to profile")
+        if _wireguard_link(name) != index or self.snapshot_profile(name) != profile:
+            raise OwnershipError("Interface/profile changed during verification")
+        return {
+            "name": name,
+            "kind": "wireguard",
+            "ifindex": index,
+            "public_key": public,
+            "profile_sha256": profile["sha256"],
+        }
 
 
 def trusted_helper_available():
@@ -601,15 +730,21 @@ def main(arguments=None):
             ["import-checked"],
             ["install-profile"],
             ["snapshot-profile"],
+            ["verify-interface"],
         ):
             raw = sys.stdin.buffer.read(6 * MAX_CONFIG + 4097)
             if len(raw) > 6 * MAX_CONFIG + 4096:
                 raise OwnershipError("Import request too large")
             payload = json.loads(raw)
-            if arguments == ["snapshot-profile"]:
+            if arguments in (["snapshot-profile"], ["verify-interface"]):
                 if not isinstance(payload, dict) or set(payload) != {"name"}:
                     raise OwnershipError("Invalid profile snapshot request")
-                print(json.dumps(store.snapshot_profile(payload["name"])))
+                result = (
+                    store.snapshot_profile(payload["name"])
+                    if arguments == ["snapshot-profile"]
+                    else store.verify_interface(payload["name"])
+                )
+                print(json.dumps(result))
             else:
                 name, content = checked_import_payload(payload)
                 if arguments in (["import"], ["import-checked"]):
