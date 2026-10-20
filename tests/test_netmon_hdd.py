@@ -1,4 +1,5 @@
 import types
+import stat
 
 from netmon.features import hdd_controller
 from netmon.services import hdd_mount_service
@@ -595,7 +596,9 @@ def test_on_hdd_auto_mount_toggle_updates_selected_slot(monkeypatch):
 
     saved = []
     monkeypatch.setattr(
-        hdd_controller, "save_hdd_config", lambda current_app: saved.append(current_app)
+        hdd_controller,
+        "save_hdd_config",
+        lambda current_app: saved.append(current_app) or True,
     )
 
     hdd_controller.on_hdd_auto_mount_toggle(app)
@@ -641,7 +644,9 @@ def test_hdd_sync_auto_mount_ui_disables_luks_devices(monkeypatch):
 
     saved = []
     monkeypatch.setattr(
-        hdd_controller, "save_hdd_config", lambda current_app: saved.append(current_app)
+        hdd_controller,
+        "save_hdd_config",
+        lambda current_app: saved.append(current_app) or True,
     )
 
     hdd_controller.hdd_sync_auto_mount_ui(
@@ -689,6 +694,7 @@ def test_hdd_startup_auto_mount_schedules_only_non_luks_slots(monkeypatch):
         "hdd_collect_slot_state",
         lambda _app, idx: {"is_luks": idx == 1},
     )
+    app.hdd_slot_states = [{"is_luks": False}, {"is_luks": True}]
     monkeypatch.setattr(
         hdd_controller, "hdd_mount_async", lambda _app, idx: calls.append(idx)
     )
@@ -739,6 +745,16 @@ def test_hdd_unmount_async_uses_resolved_mount_source_and_actual_target(monkeypa
     # exercise the actual inventory and exact mount verification separately.
     monkeypatch.setattr(hdd_mount_service, "inspect_device", inspect)
     monkeypatch.setattr(hdd_mount_service, "verified_mount_target", verified_mount)
+    original_stat = hdd_controller.os.stat
+
+    def selected_node_stat(path, *args, **kwargs):
+        if str(path) == "/dev/sdb":
+            return types.SimpleNamespace(
+                st_mode=stat.S_IFBLK, st_rdev=1, st_dev=1, st_ino=2
+            )
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(hdd_controller.os, "stat", selected_node_stat)
 
     app.ensure_sudo_session = lambda _label: True
     monkeypatch.setattr(

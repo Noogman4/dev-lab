@@ -93,7 +93,9 @@ def kernel(monkeypatch, tmp_path):
             key = os.path.realpath(path)
         if key in state.stats:
             mode, number = state.stats[key]
-            return SimpleNamespace(st_mode=mode, st_rdev=number)
+            return SimpleNamespace(
+                st_mode=mode, st_rdev=number, st_dev=1, st_ino=number + 1
+            )
         return trusted_table_stat(original_stat(path, *args, **kwargs))
 
     def runner(args, timeout=0):

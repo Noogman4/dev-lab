@@ -485,6 +485,35 @@ def mount_device(identity, runner):
     )
 
 
+def confirm_mapper_closed(identity, runner):
+    """A successful close command alone is not evidence that plaintext is gone."""
+    if (
+        not identity.is_luks
+        or identity.source is None
+        or identity.source.kind != "crypt"
+    ):
+        raise MountPolicyError("No verified crypt mapper to confirm.")
+    for attempt in range(5):
+        current = inspect_device(identity.device.path, identity.device.uuid, runner)
+        if current.device != identity.device:
+            raise MountPolicyError("LUKS device changed while confirming close.")
+        nodes = _read_inventory(runner)
+        still_listed = any(
+            os.path.realpath(node["path"]) == identity.source.path
+            or node.get("maj:min")
+            == f"{os.major(identity.source.number)}:{os.minor(identity.source.number)}"
+            for node, _ in nodes
+        )
+        if current.source is None and not still_listed:
+            try:
+                os.stat(identity.source.path)
+            except FileNotFoundError:
+                return True
+        if attempt < 4:
+            time.sleep(0.1)
+    return False
+
+
 def verified_mount_target(identity, runner):
     """Bind one exact live mount to the selected slot's verified filesystem."""
     revalidate(identity, runner)

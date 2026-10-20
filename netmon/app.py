@@ -23,7 +23,6 @@ import hashlib
 import zipfile
 import unicodedata
 import queue
-from urllib import request as urllib_request
 from urllib.parse import urlparse
 
 try:
@@ -40,6 +39,9 @@ from netmon.core.archive_limits import (  # noqa: E402 - needs the repo path abo
     copy_limited,
 )
 from netmon.core import projectm_archive  # noqa: E402 - needs the repo path above
+from netmon.core.release_metadata import (  # noqa: E402
+    fetch_release_metadata,
+)
 
 try:
     from netmon import netmon_projectm_sidecar
@@ -1200,6 +1202,7 @@ try:
         LINK_SLOT_CONFIG_FILE,
         LINK_SLOT_COUNT,
         NETMON_APP_VERSION,
+        NETMON_SUPPORT_EMAIL,
         PORT_REALITY_DISPLAY_MAP,
         PRIMARY_VPN_SLOT_CONFIG_FILE,
         PRIVACY_CONFIG_FILE,
@@ -1226,6 +1229,7 @@ except (ImportError, ModuleNotFoundError):
         LINK_SLOT_CONFIG_FILE,
         LINK_SLOT_COUNT,
         NETMON_APP_VERSION,
+        NETMON_SUPPORT_EMAIL,
         PORT_REALITY_DISPLAY_MAP,
         PRIMARY_VPN_SLOT_CONFIG_FILE,
         PRIVACY_CONFIG_FILE,
@@ -6321,6 +6325,23 @@ class App(TkBase):
         target = str(getattr(self, "netmon_roots_donation_url", "") or "").strip()
         return self._open_url_with_xdg_open(target, label="NetMonRoots PayPal")
 
+    def open_netmon_support_email(self):
+        # Only this fixed local contact may use mailto; the generic URL opener
+        # retains its HTTP(S)-only policy for externally supplied URLs.
+        if not shutil.which("xdg-open"):
+            self.log_safe("Support-E-Mail öffnen nicht verfügbar: xdg-open fehlt.")
+            return False
+        try:
+            subprocess.Popen(
+                ["xdg-open", f"mailto:{NETMON_SUPPORT_EMAIL}"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return True
+        except Exception as exc:
+            self.log_safe(f"Support-E-Mail konnte nicht geöffnet werden: {exc}")
+            return False
+
     def _open_url_with_xdg_open(self, target, label="URL"):
         target = str(target or "").strip()
         if not target:
@@ -6371,11 +6392,7 @@ class App(TkBase):
         url = str(getattr(self, "netmon_roots_latest_version_url", "") or "").strip()
         if not url:
             raise ValueError("Keine Versionsquelle konfiguriert.")
-        with urllib_request.urlopen(url, timeout=8) as response:
-            payload = response.read().decode("utf-8", errors="replace")
-        data = json.loads(payload)
-        if not isinstance(data, dict):
-            raise ValueError("Versionsdatei ist kein JSON-Objekt.")
+        data = fetch_release_metadata(url)
         version = str(data.get("version", "") or "").strip()
         if not version:
             raise ValueError("Versionsdatei enthält keine Version.")
@@ -6416,6 +6433,12 @@ class App(TkBase):
         self.log_safe(str(text or "").strip())
 
     def check_about_latest_version(self, auto_open=True, manual=False):
+        pending = self.__dict__.get("_about_version_transport_pending")
+        if self.__dict__.get("_about_version_check_running", False) or (
+            pending is not None and not pending.is_set()
+        ):
+            return
+        self._about_version_check_running = True
         current_version = str(NETMON_APP_VERSION or "").strip()
         self._set_about_version_status(
             self.tr(
@@ -6464,6 +6487,9 @@ class App(TkBase):
 
                 self.after(0, lambda: self._set_about_version_status(status_text))
             except Exception as exc:
+                pending = getattr(exc, "transport_finished", None)
+                if pending is not None:
+                    self._about_version_transport_pending = pending
                 status_text = self.tr(
                     "about_update_status_unavailable",
                     "Versionsprüfung momentan nicht verfügbar.",
@@ -6471,8 +6497,20 @@ class App(TkBase):
                 self.after(0, lambda: self._set_about_version_status(status_text))
                 if manual:
                     self.log_safe(f"Versionsprüfung fehlgeschlagen: {exc}")
+            finally:
+                self._about_version_check_running = False
 
-        threading.Thread(target=worker, daemon=True).start()
+        try:
+            threading.Thread(target=worker, daemon=True).start()
+        except RuntimeError as exc:
+            self._about_version_check_running = False
+            self._set_about_version_status(
+                self.tr(
+                    "about_update_status_unavailable",
+                    "Versionsprüfung momentan nicht verfügbar.",
+                )
+            )
+            self.log_safe(f"Versionsprüfung konnte nicht gestartet werden: {exc}")
 
     def _open_diagnostics_folder(self):
         return self._open_path_with_xdg_open(
@@ -19383,13 +19421,18 @@ class App(TkBase):
         # Tipp: Supportpaket erzeugen, ZIP im Supportordner prüfen
         # self._support_form_placeholders()
         # get_netmon_documents_dir()
+        support_contact = self.tr("about_support_contact", "Support: {email}").format(
+            email=NETMON_SUPPORT_EMAIL
+        )
         if tk is None or ttk is None:
             messagebox.showinfo(
                 self.tr("about_title", "Über NetMon"),
                 self.tr(
                     "about_fallback_summary",
                     "NetMon\nVersion: {version}\n\nProgrammübersicht, Dokumentation und Support.",
-                ).format(version=NETMON_APP_VERSION),
+                ).format(version=NETMON_APP_VERSION)
+                + "\n\n"
+                + support_contact,
                 parent=self,
             )
             return
@@ -19424,7 +19467,7 @@ class App(TkBase):
         outer = ttk.Frame(win, padding=12)
         outer.pack(fill="both", expand=True)
         outer.columnconfigure(0, weight=1)
-        outer.rowconfigure(1, weight=1)
+        outer.rowconfigure(2, weight=1)
 
         ttk.Label(
             outer,
@@ -19436,9 +19479,15 @@ class App(TkBase):
             text=self.tr("about_donation_button", "NetMon Roots unterstützen"),
             command=self.open_netmon_roots_donation,
         ).grid(row=0, column=1, sticky="e", padx=(8, 0))
+        ttk.Button(
+            outer,
+            text=support_contact,
+            command=self.open_netmon_support_email,
+            cursor="hand2",
+        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
         content_wrap = ttk.Frame(outer)
-        content_wrap.grid(row=1, column=0, columnspan=2, sticky="nsew", pady=(8, 0))
+        content_wrap.grid(row=2, column=0, columnspan=2, sticky="nsew", pady=(8, 0))
         content_wrap.columnconfigure(0, weight=1)
         content_wrap.rowconfigure(0, weight=1)
 
@@ -19456,6 +19505,16 @@ class App(TkBase):
         content.columnconfigure(0, weight=1)
         content_window = canvas.create_window((0, 0), window=content, anchor="nw")
 
+        def _wrap_about_text(label):
+            # Pack receives the available width, then the text wraps inside it.
+            label.pack_configure(fill="x")
+            label.bind(
+                "<Configure>",
+                lambda event: label.configure(wraplength=max(1, event.width - 4)),
+                add="+",
+            )
+            return label
+
         content.bind(
             "<Configure>",
             lambda _event: canvas.configure(scrollregion=canvas.bbox("all")),
@@ -19471,12 +19530,14 @@ class App(TkBase):
             section = ttk.LabelFrame(content, text=title, padding=8)
             section.pack(fill="x", pady=(0, 8))
             for line in lines:
-                ttk.Label(
+                label = ttk.Label(
                     section,
                     text=line,
                     justify="left",
-                    wraplength=620,
-                ).pack(anchor="w", pady=(0, 2))
+                    wraplength=1,
+                )
+                label.pack(anchor="w", pady=(0, 2))
+                _wrap_about_text(label)
             return section
 
         netmon_section = _add_about_section(
@@ -19498,12 +19559,14 @@ class App(TkBase):
                 "Versionsprüfung noch nicht gestartet.",
             )
         )
-        ttk.Label(
+        version_label = ttk.Label(
             netmon_section,
             textvariable=self.about_version_status_var,
             justify="left",
-            wraplength=620,
-        ).pack(anchor="w", pady=(6, 2))
+            wraplength=1,
+        )
+        version_label.pack(anchor="w", pady=(6, 2))
+        _wrap_about_text(version_label)
         ttk.Button(
             netmon_section,
             text=self.tr("about_update_check_button", "Jetzt auf neue Version prüfen"),
@@ -19552,10 +19615,6 @@ class App(TkBase):
                 self.tr(
                     "about_docs_video",
                     "Erklaervideo: Optionaler Platzhalter fuer spaetere Video-Hilfe.",
-                ),
-                self.tr(
-                    "about_support_contact",
-                    "Support: support@netmonroots.com",
                 ),
             ],
         )
@@ -19626,15 +19685,17 @@ class App(TkBase):
                 "Bitte prüfen Sie bei auffälligen Logmeldungen, ob diese zeitlich oder funktional mit einer aktiven NetMon-Prüfung zusammenhängen.",
             ),
         ):
-            tk.Label(
+            label = tk.Label(
                 systemlog_box,
                 text=line,
                 bg="#6b4b00",
                 fg="#fff4d6",
                 justify="left",
-                wraplength=600,
+                wraplength=1,
                 anchor="w",
-            ).pack(anchor="w", pady=(6, 0))
+            )
+            label.pack(anchor="w", pady=(6, 0))
+            _wrap_about_text(label)
         license_section = _add_about_section(
             self.tr("about_section_license", "6. Lizenz"),
             [
@@ -19670,7 +19731,7 @@ class App(TkBase):
             command=self.open_program_third_party_notices,
         ).pack(anchor="w", pady=(6, 0))
         button_row = ttk.Frame(outer)
-        button_row.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        button_row.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(10, 0))
         ttk.Button(
             button_row,
             text=self.tr("btn_close", "Close"),
@@ -31509,10 +31570,10 @@ class App(TkBase):
         return hdd_controller.load_hdd_slots_config(self)
 
     def save_hdd_slots_config(self):
-        hdd_controller.save_hdd_slots_config(self)
+        return hdd_controller.save_hdd_slots_config(self)
 
     def save_hdd_config(self):
-        hdd_controller.save_hdd_config(self)
+        return hdd_controller.save_hdd_config(self)
 
     def load_privacy_config(self):
         config = {
