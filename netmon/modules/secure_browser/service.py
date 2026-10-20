@@ -16,7 +16,11 @@ from types import ModuleType
 
 from netmon.core.state import get_netmon_documents_subdir
 from tools.secure_browser_manager.browser_container_builder import (
+    backup_existing_file,
     iter_scan_entries,
+    maintenance_mkdir,
+    maintenance_unlink,
+    maintenance_write,
     read_text_if_small,
     search_files,
 )
@@ -620,10 +624,7 @@ class SecureBrowserService:
         helper_path = container.path / "browser_lock.py"
         if child_lock is None:
             for path in (lock_path, helper_path):
-                try:
-                    path.unlink()
-                except FileNotFoundError:
-                    pass
+                maintenance_unlink(path)
             return
 
         module = self._load_tool_module()
@@ -640,8 +641,7 @@ class SecureBrowserService:
             },
             self.get_default_base_dir(),
         )[0].child_lock
-        module.write_json(lock_path, validated)
-        lock_path.chmod(0o600)
+        module.write_json(lock_path, validated, mode=0o600)
         module.write_text(
             helper_path,
             module.build_browser_lock_helper(),
@@ -946,25 +946,25 @@ class SecureBrowserService:
         if not isinstance(payload, dict):
             raise ValueError("policies.json muss ein JSON-Objekt enthalten.")
         rendered = json.dumps(payload, indent=2, ensure_ascii=True) + "\n"
-        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         backup_dir = container.path / "backups" / self.POLICY_BACKUP_DIRNAME / stamp
-        backup_dir.mkdir(parents=True, exist_ok=True)
+        maintenance_mkdir(backup_dir)
 
         backup_paths: list[Path] = []
-        if source_path.exists():
+        if os.path.lexists(source_path):
             source_backup = backup_dir / "policies.json"
-            shutil.copy2(source_path, source_backup)
+            backup_existing_file(source_path, source_backup)
             backup_paths.append(source_backup)
-        if runtime_path.exists():
+        if os.path.lexists(runtime_path):
             runtime_backup_dir = backup_dir / "firefox-distribution"
-            runtime_backup_dir.mkdir(parents=True, exist_ok=True)
+            maintenance_mkdir(runtime_backup_dir)
             runtime_backup = runtime_backup_dir / "policies.json"
-            shutil.copy2(runtime_path, runtime_backup)
+            backup_existing_file(runtime_path, runtime_backup)
             backup_paths.append(runtime_backup)
 
-        source_path.write_text(rendered, encoding="utf-8")
-        runtime_path.parent.mkdir(parents=True, exist_ok=True)
-        runtime_path.write_text(rendered, encoding="utf-8")
+        maintenance_write(source_path, rendered.encode("utf-8"))
+        maintenance_mkdir(runtime_path.parent)
+        maintenance_write(runtime_path, rendered.encode("utf-8"))
         return {
             "source_path": str(source_path),
             "runtime_path": str(runtime_path),

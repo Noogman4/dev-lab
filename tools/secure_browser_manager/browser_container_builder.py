@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import io
 import json
 import os
 import re
+import secrets
 import shlex
 import shutil
 import sqlite3
@@ -1438,9 +1440,9 @@ def prepare_container_icon(spec: ContainerSpec) -> tuple[str, str | None]:
             target_path = get_icon_storage_path(
                 spec, spec.custom_icon_path.suffix or ".png"
             )
-            target_path.parent.mkdir(parents=True, exist_ok=True)
+            maintenance_mkdir(target_path.parent)
             backup_existing_icons(spec)
-            shutil.copy2(spec.custom_icon_path, target_path)
+            maintenance_write(target_path, maintenance_read(spec.custom_icon_path))
             return str(target_path), None
         return (
             get_fallback_icon_reference(spec),
@@ -1474,9 +1476,9 @@ def prepare_container_icon(spec: ContainerSpec) -> tuple[str, str | None]:
                 "Favicon payload ungueltig, fallback icon used.",
             )
         target_path = get_icon_storage_path(spec, suffix)
-        target_path.parent.mkdir(parents=True, exist_ok=True)
+        maintenance_mkdir(target_path.parent)
         backup_existing_icons(spec)
-        target_path.write_bytes(payload)
+        maintenance_write(target_path, payload)
         return str(target_path), None
     return (
         get_fallback_icon_reference(spec),
@@ -1641,7 +1643,10 @@ def build_repair_policy_spec(container: DiscoveredContainer) -> ContainerSpec:
 
 
 def parse_desktop_exec_target(path: Path) -> Path | None:
-    text = read_text_if_small(path)
+    return _parse_desktop_exec_text(read_text_if_small(path))
+
+
+def _parse_desktop_exec_text(text: str) -> Path | None:
     for line in text.splitlines():
         if not line.startswith("Exec="):
             continue
@@ -2764,52 +2769,215 @@ def create_builder_backup(
     specs: list[ContainerSpec],
     dry_run_lines: list[str],
 ) -> Path:
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_dir = base_dir / "browser-container-builder-backups" / stamp
-    backup_dir.mkdir(parents=True, exist_ok=False)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    backup_root = base_dir / "browser-container-builder-backups"
+    backup_dir = backup_root / stamp
     manifest = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "inventory_path": str(inventory_path),
         "targets": [str(spec.path) for spec in specs],
     }
-    (backup_dir / "plan.json").write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=True) + "\n",
-        encoding="utf-8",
-    )
-    (backup_dir / "dry_run.txt").write_text(
-        "\n".join(dry_run_lines) + "\n", encoding="utf-8"
-    )
-    if inventory_path.exists():
-        shutil.copy2(inventory_path, backup_dir / inventory_path.name)
-    tar_path = backup_dir / "pre_apply_snapshot.tar.gz"
-    with tarfile.open(tar_path, "w:gz") as tar:
-        for path in [backup_dir / "plan.json", backup_dir / "dry_run.txt"]:
-            tar.add(path, arcname=path.name)
-        if inventory_path.exists():
-            tar.add(backup_dir / inventory_path.name, arcname=inventory_path.name)
+    outputs = {
+        "plan.json": (
+            json.dumps(manifest, indent=2, ensure_ascii=True) + "\n"
+        ).encode(),
+        "dry_run.txt": ("\n".join(dry_run_lines) + "\n").encode(),
+    }
+    if os.path.lexists(inventory_path):
+        if inventory_path.name in {*outputs, "pre_apply_snapshot.tar.gz"}:
+            raise ValueError("Inventarname kollidiert mit Backup-Ausgaben.")
+        outputs[inventory_path.name] = maintenance_read(inventory_path)
+    # Archive the captured bytes, never reopen paths in the backup tree.
+    archive = io.BytesIO()
+    with tarfile.open(fileobj=archive, mode="w:gz") as tar:
+        for name, content in outputs.items():
+            entry = tarfile.TarInfo(name)
+            entry.size = len(content)
+            entry.mode = 0o600
+            tar.addfile(entry, io.BytesIO(content))
+    outputs["pre_apply_snapshot.tar.gz"] = archive.getvalue()
+    with maintenance_directory(backup_root, create=True) as parent:
+        os.mkdir(stamp, mode=0o700, dir_fd=parent)
+        directory = os.open(
+            stamp, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent
+        )
+        try:
+            for name, content in outputs.items():
+                _maintenance_write_at(directory, name, content)
+        finally:
+            os.close(directory)
     return backup_dir
 
 
-def write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.write_text(
-        json.dumps(payload, indent=2, ensure_ascii=True) + "\n",
-        encoding="utf-8",
+@contextmanager
+def maintenance_directory(path: Path, *, create: bool = False):
+    """Walk from / using directory descriptors; never resolve a symlink.
+
+    Keep the final directory open across each operation so a concurrent rename
+    or symlink substitution cannot redirect the operation to a linked directory.
+    """
+    if ".." in path.parts:
+        raise ValueError(f"Unsicherer Wartungspfad: {path}")
+    path = Path(os.path.abspath(path))
+    fd = os.open(path.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for part in path.parts[1:]:
+            if create:
+                try:
+                    os.mkdir(part, mode=0o700, dir_fd=fd)
+                except FileExistsError:
+                    pass
+            next_fd = os.open(
+                part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd
+            )
+            os.close(fd)
+            fd = next_fd
+        yield fd
+    finally:
+        os.close(fd)
+
+
+def maintenance_mkdir(path: Path) -> None:
+    with maintenance_directory(path, create=True):
+        pass
+
+
+def _maintenance_stat(fd: int, name: str):
+    try:
+        info = os.stat(name, dir_fd=fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return None
+    if (
+        not stat.S_ISREG(info.st_mode)
+        or info.st_nlink != 1
+        or info.st_uid != os.geteuid()
+    ):
+        raise ValueError(f"Unsicheres Wartungsziel: {name}")
+    return info
+
+
+def _maintenance_read_at(directory: int, name: str, *, limit: int | None = None):
+    expected = _maintenance_stat(directory, name)
+    if expected is None:
+        raise FileNotFoundError(name)
+    if limit is not None and expected.st_size > limit:
+        raise ValueError(f"Wartungsdatei zu gross: {name}")
+    fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+    with os.fdopen(fd, "rb") as source:
+        actual = os.fstat(source.fileno())
+        if (
+            actual.st_dev != expected.st_dev
+            or actual.st_ino != expected.st_ino
+            or not stat.S_ISREG(actual.st_mode)
+            or actual.st_nlink != 1
+            or actual.st_uid != os.geteuid()
+        ):
+            raise ValueError(f"Wartungsziel wurde ersetzt: {name}")
+        content = source.read() if limit is None else source.read(limit + 1)
+        if limit is not None and len(content) > limit:
+            raise ValueError(f"Wartungsdatei zu gross: {name}")
+        after = os.fstat(source.fileno())
+        if _maintenance_identity(actual) != _maintenance_identity(after):
+            raise ValueError(f"Wartungsziel wurde veraendert: {name}")
+        return content, after
+
+
+def _maintenance_identity(info):
+    return (
+        info.st_dev,
+        info.st_ino,
+        info.st_mode,
+        info.st_nlink,
+        info.st_uid,
+        info.st_size,
+        info.st_mtime_ns,
+        info.st_ctime_ns,
+    )
+
+
+def maintenance_read(path: Path) -> bytes:
+    with maintenance_directory(path.parent) as directory:
+        return _maintenance_read_at(directory, path.name)[0]
+
+
+def maintenance_write(
+    path: Path, content: bytes, *, mode: int | None = None, executable: bool = False
+) -> None:
+    with maintenance_directory(path.parent) as directory:
+        _maintenance_write_at(
+            directory, path.name, content, mode=mode, executable=executable
+        )
+
+
+def _maintenance_write_at(
+    directory: int,
+    name: str,
+    content: bytes,
+    *,
+    mode: int | None = None,
+    executable: bool = False,
+) -> None:
+    expected = _maintenance_stat(directory, name)
+    target_mode = (
+        mode
+        if mode is not None
+        else (stat.S_IMODE(expected.st_mode) & 0o777 if expected else 0o600)
+    )
+    if executable:
+        target_mode |= stat.S_IXUSR
+    temporary = f".netmon-{secrets.token_hex(16)}.tmp"
+    fd = os.open(
+        temporary,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+        0o600,
+        dir_fd=directory,
+    )
+    try:
+        with os.fdopen(fd, "wb") as target:
+            target.write(content)
+            target.flush()
+            os.fchmod(target.fileno(), target_mode)
+            os.fsync(target.fileno())
+        current = _maintenance_stat(directory, name)
+        if current != expected:
+            raise ValueError(f"Wartungsziel wurde ersetzt: {name}")
+        # replace never follows the destination, including a last-moment link.
+        os.replace(temporary, name, src_dir_fd=directory, dst_dir_fd=directory)
+    finally:
+        try:
+            os.unlink(temporary, dir_fd=directory)
+        except FileNotFoundError:
+            pass
+
+
+def maintenance_unlink(path: Path) -> None:
+    with maintenance_directory(path.parent) as directory:
+        if _maintenance_stat(directory, path.name) is not None:
+            # unlink is descriptor-relative and never follows its final component.
+            os.unlink(path.name, dir_fd=directory)
+
+
+def write_json(path: Path, payload: dict[str, Any], *, mode: int | None = None) -> None:
+    maintenance_write(
+        path,
+        (json.dumps(payload, indent=2, ensure_ascii=True) + "\n").encode("utf-8"),
+        mode=mode,
     )
 
 
 def write_text(path: Path, content: str, executable: bool = False) -> None:
-    path.write_text(content, encoding="utf-8")
-    if executable:
-        current_mode = path.stat().st_mode
-        path.chmod(current_mode | stat.S_IXUSR)
+    maintenance_write(path, content.encode("utf-8"), executable=executable)
 
 
-def backup_existing_file(path: Path) -> Path:
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_dir = path.parent / "browser-container-builder-backups" / stamp
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    backup_path = backup_dir / path.name
-    shutil.copy2(path, backup_path)
+def backup_existing_file(path: Path, backup_path: Path | None = None) -> Path:
+    content = maintenance_read(path)
+    if backup_path is None:
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        backup_path = (
+            path.parent / "browser-container-builder-backups" / stamp / path.name
+        )
+    maintenance_mkdir(backup_path.parent)
+    maintenance_write(backup_path, content)
     return backup_path
 
 
@@ -2826,19 +2994,30 @@ def remove_conflicting_menu_entries(
     applications_dir: Path,
     current_menu_entry_path: Path,
 ) -> None:
-    desired_name = get_menu_name(spec)
     desired_exec = spec.path / "start.sh"
-    for candidate in applications_dir.glob("*.desktop"):
-        if candidate == current_menu_entry_path or not candidate.is_file():
-            continue
-        candidate_name = read_desktop_entry_value(candidate, "Name")
-        candidate_exec = parse_desktop_exec_target(candidate)
-        same_exec = candidate_exec == desired_exec
-        same_root = candidate_exec is not None and candidate_exec.parent == spec.path
-        same_name_for_same_root = candidate_name == desired_name and same_root
-        if not (same_exec or same_root or same_name_for_same_root):
-            continue
-        candidate.unlink()
+    # Enumeration, reads, identity check and unlink share one directory handle.
+    with maintenance_directory(applications_dir) as directory:
+        for name in os.listdir(directory):
+            if not name.endswith(".desktop") or name == current_menu_entry_path.name:
+                continue
+            try:
+                content, receipt = _maintenance_read_at(
+                    directory, name, limit=MAX_SCAN_FILE_SIZE
+                )
+                candidate_exec = _parse_desktop_exec_text(content.decode("utf-8"))
+                if candidate_exec is None or not (
+                    candidate_exec == desired_exec or candidate_exec.parent == spec.path
+                ):
+                    continue
+                current = _maintenance_stat(directory, name)
+                if current is None or (
+                    _maintenance_identity(current) != _maintenance_identity(receipt)
+                ):
+                    continue
+            except (OSError, ValueError):
+                # Keep unreadable, linked, malformed or concurrently changed entries.
+                continue
+            os.unlink(name, dir_fd=directory)
 
 
 def install_menu_entry(
@@ -2846,7 +3025,7 @@ def install_menu_entry(
     applications_dir: Path,
     icon_path: Path | None = None,
 ) -> Path:
-    applications_dir.mkdir(parents=True, exist_ok=True)
+    maintenance_mkdir(applications_dir)
     menu_entry_path = get_menu_entry_path(spec, applications_dir)
     remove_conflicting_menu_entries(spec, applications_dir, menu_entry_path)
     write_text(
@@ -2867,7 +3046,7 @@ def install_existing_menu_entry(
     icon_path: Path | None = None,
 ) -> Path:
     spec = build_register_existing_spec(container)
-    applications_dir.mkdir(parents=True, exist_ok=True)
+    maintenance_mkdir(applications_dir)
     menu_entry_path = get_menu_entry_path(spec, applications_dir)
     remove_conflicting_menu_entries(spec, applications_dir, menu_entry_path)
     write_text(
@@ -2898,7 +3077,7 @@ def create_container(spec: ContainerSpec, applications_dir: Path) -> Path:
     policies_payload = build_policies_payload(spec)
     write_json(spec.path / "policies.json", policies_payload)
     distribution_dir = firefox_target / "distribution"
-    distribution_dir.mkdir(parents=True, exist_ok=True)
+    maintenance_mkdir(distribution_dir)
     write_json(distribution_dir / "policies.json", policies_payload)
     user_js_content = build_user_js_content(spec)
     write_text(spec.path / "user.js", user_js_content)
@@ -2906,8 +3085,7 @@ def create_container(spec: ContainerSpec, applications_dir: Path) -> Path:
     write_text(spec.path / "start.sh", build_start_script(spec), executable=True)
     if spec.child_lock:
         lock_path = spec.path / "child-lock.json"
-        write_json(lock_path, spec.child_lock)
-        lock_path.chmod(0o600)
+        write_json(lock_path, spec.child_lock, mode=0o600)
         write_text(
             spec.path / "browser_lock.py",
             build_browser_lock_helper(),
@@ -2966,7 +3144,7 @@ def refresh_existing_container(
     if effective_profile is None:
         raise RuntimeError(f"{container.name}: Kein Profilpfad erkannt.")
     start_path = container.root_dir / "start.sh"
-    if start_path.exists():
+    if os.path.lexists(start_path):
         backup_existing_file(start_path)
     write_text(
         start_path,
@@ -2978,7 +3156,7 @@ def refresh_existing_container(
     if warning:
         print(f"Warnung: {container.name}: {warning}")
     launcher_path = container.root_dir / "launcher.desktop"
-    if launcher_path.exists():
+    if os.path.lexists(launcher_path):
         backup_existing_file(launcher_path)
     write_text(
         launcher_path,
@@ -3003,11 +3181,11 @@ def repair_existing_policy_container(container: DiscoveredContainer) -> None:
     effective_profile = get_effective_profile_path(container)
 
     for path in [root_policy, root_user_js, distribution_policy]:
-        if path.exists():
+        if os.path.lexists(path):
             backup_existing_file(path)
 
     write_json(root_policy, policies_payload)
-    distribution_dir.mkdir(parents=True, exist_ok=True)
+    maintenance_mkdir(distribution_dir)
     write_json(distribution_policy, policies_payload)
     write_text(root_user_js, user_js_content)
 
@@ -3017,9 +3195,9 @@ def repair_existing_policy_container(container: DiscoveredContainer) -> None:
         except ValueError:
             return
         profile_user_js = effective_profile / "user.js"
-        if profile_user_js.exists():
+        if os.path.lexists(profile_user_js):
             backup_existing_file(profile_user_js)
-        effective_profile.mkdir(parents=True, exist_ok=True)
+        maintenance_mkdir(effective_profile)
         write_text(profile_user_js, user_js_content)
 
 
