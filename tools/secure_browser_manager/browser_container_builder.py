@@ -2020,19 +2020,77 @@ if __name__ == "__main__":
 
 
 def build_backup_script(spec: ContainerSpec) -> str:
-    return f"""#!/usr/bin/env bash
-set -euo pipefail
+    # Keep the generated helper standalone: installed containers need no NetMon imports.
+    helper = r"""import datetime
+import os
+import secrets
+import stat
+import subprocess
+import sys
 
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-STAMP="$(date +%Y%m%d_%H%M%S)"
-BACKUP_DIR="$SCRIPT_DIR/backups/$STAMP"
-
-mkdir -p "$BACKUP_DIR"
-tar -czf "$BACKUP_DIR/{spec.name}_profile_backup.tar.gz" -C "$SCRIPT_DIR" \\
-    profile user.js policies.json README.md launcher.desktop start.sh
-
-printf 'Backup erstellt: %s\\n' "$BACKUP_DIR/{spec.name}_profile_backup.tar.gz"
+os.umask(0o077)
+flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+root = os.open("/", flags)
+try:
+    for part in os.path.abspath(sys.argv[1]).split("/"):
+        if part:
+            child = os.open(part, flags, dir_fd=root)
+            os.close(root)
+            root = child
+    info = os.fstat(root)
+    if info.st_uid != os.getuid() or info.st_mode & 0o022:
+        raise ValueError("Unsicheres Containerverzeichnis")
+    try:
+        os.mkdir("backups", 0o700, dir_fd=root)
+    except FileExistsError:
+        pass
+    backups = os.open("backups", flags, dir_fd=root)
+    try:
+        info = os.fstat(backups)
+        if info.st_uid != os.getuid() or info.st_mode & 0o022:
+            raise ValueError("Unsicheres Backupverzeichnis")
+        os.fchmod(backups, 0o700)
+        stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        stamp += "_" + secrets.token_hex(16)
+        os.mkdir(stamp, 0o700, dir_fd=backups)
+        destination = os.open(stamp, flags, dir_fd=backups)
+        try:
+            os.fchmod(destination, 0o700)
+            temporary = ".profile-" + secrets.token_hex(16) + ".tmp"
+            fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL
+                         | os.O_NOFOLLOW, 0o600, dir_fd=destination)
+            try:
+                with os.fdopen(fd, "wb") as archive:
+                    os.fchmod(archive.fileno(), 0o600)
+                    os.fchdir(root)
+                    subprocess.run(
+                        ["tar", "-czf", "-", "--", "profile", "user.js",
+                         "policies.json", "README.md", "launcher.desktop", "start.sh"],
+                        stdout=archive, check=True,
+                    )
+                    archive.flush()
+                    os.fsync(archive.fileno())
+                name = sys.argv[2] + "_profile_backup.tar.gz"
+                # Atomic publication with no overwrite, even for a planted symlink.
+                os.link(temporary, name, src_dir_fd=destination,
+                        dst_dir_fd=destination, follow_symlinks=False)
+            finally:
+                os.unlink(temporary, dir_fd=destination)
+            print("Backup erstellt: " + os.path.join(sys.argv[1], "backups", stamp, name))
+        finally:
+            os.close(destination)
+    finally:
+        os.close(backups)
+finally:
+    os.close(root)
 """
+    return (
+        "#!/usr/bin/env bash\nset -euo pipefail\numask 077\n"
+        'SCRIPT_DIR="$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)"\n'
+        f"python3 - \"$SCRIPT_DIR\" {shlex.quote(spec.name)} <<'NETMON_BACKUP_PY'\n"
+        + helper
+        + "NETMON_BACKUP_PY\n"
+    )
 
 
 def build_container_readme(spec: ContainerSpec) -> str:
@@ -3070,10 +3128,12 @@ def remove_menu_entries(
 
 
 def create_container(spec: ContainerSpec, applications_dir: Path) -> Path:
-    spec.path.mkdir(parents=True, exist_ok=False)
+    # mkdir limits access at creation; the umask may only tighten these rights.
+    # Do not chmod the pathname afterwards: it can have been replaced by a link.
+    spec.path.mkdir(parents=True, exist_ok=False, mode=0o700)
     firefox_target = spec.path / "firefox"
     shutil.copytree(spec.source_firefox_dir, firefox_target, symlinks=True)
-    (spec.path / "profile").mkdir()
+    (spec.path / "profile").mkdir(mode=0o700)
     policies_payload = build_policies_payload(spec)
     write_json(spec.path / "policies.json", policies_payload)
     distribution_dir = firefox_target / "distribution"

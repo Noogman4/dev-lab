@@ -61,6 +61,9 @@ Im Code wurden folgende Arten von Netzwerkzugriffen gefunden:
 
 ### Secure Browser
 
+- Neu erzeugte `backup.sh`-Skripte benoetigen Python 3 und GNU tar. Sie sichern Profile mit privaten Verzeichnisrechten (0700) und Archivrechten (0600), unabhaengig von der aufrufenden Umask. Unsichere oder verlinkte Backupziele werden abgewiesen; fehlgeschlagene Archive werden nicht veroeffentlicht.
+- Bereits vorhandene Container behalten ihr bisheriges `backup.sh`; dieses muss vor weiteren Backups durch die neu erzeugte Version ersetzt werden. Alte Archive und bestehende Profile erhalten durch das Update nicht automatisch neue Rechte. Neue Container und Profilverzeichnisse werden direkt mit hoechstens 0700 angelegt, ohne nachtraegliches pfadbasiertes chmod. Eine strengere Umask wird respektiert; entzieht sie dem Eigentuemer erforderliche Rechte, kann die Erstellung sicher abbrechen.
+
 - Der Secure Browser trennt Webdienste in eigene Firefox-Profile. Cookies, Website-Speicher, Verlauf, Logins und Einstellungen werden dadurch nicht automatisch mit dem normalen Browser oder anderen Secure-Browser-Instanzen geteilt.
 - Das generierte Hardening reduziert unter anderem Telemetrie, Sync-, WebRTC-, Vorschlags-, Prefetch- und Drittanbieter-Cookie-Pfade. Das konkrete Verhalten haengt vom gewaehlten Sicherheitsprofil ab.
 - Der optionale Firefox-Website-Filter arbeitet nach dem Prinzip `blockieren, ausser explizit erlaubt`. Eine breite Whitelist oder deaktivierter Filter reduziert die Schutzwirkung.
