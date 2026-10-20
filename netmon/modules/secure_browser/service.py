@@ -362,9 +362,6 @@ class SecureBrowserService:
             handle.write("\n")
             return Path(handle.name)
 
-    def _get_runtime_inventory_path(self) -> Path:
-        return Path(tempfile.gettempdir()) / self.RUNTIME_INVENTORY_FILENAME
-
     def build_create_preview(
         self,
         name: str,
@@ -397,7 +394,7 @@ class SecureBrowserService:
         command = (
             f"python3 {self.tool_script} "
             f"--config <generierte-create-config> "
-            f"--inventory {self._get_runtime_inventory_path()} "
+            "--inventory <temporary-inventory> "
             f"--only {name}"
         )
         return {
@@ -465,7 +462,7 @@ class SecureBrowserService:
         command = (
             f"python3 {self.tool_script} "
             f"--config <generierte-create-config> "
-            f"--inventory {self._get_runtime_inventory_path()} "
+            "--inventory <temporary-inventory> "
             f"--only {name} --apply"
         )
         return {
@@ -525,17 +522,23 @@ class SecureBrowserService:
         final_command = list(command)
         if "--base-dir" not in final_command:
             final_command.extend(["--base-dir", str(self.get_default_base_dir())])
-        if "--inventory" not in final_command:
-            final_command.extend(
-                ["--inventory", str(self._get_runtime_inventory_path())]
+        # The builder reopens its output by name. Keep that name inside a
+        # private per-call directory until the child has finished, then clean up.
+        with tempfile.TemporaryDirectory(prefix="netmon-secure-browser-") as directory:
+            if "--inventory" not in final_command:
+                final_command.extend(
+                    [
+                        "--inventory",
+                        str(Path(directory) / self.RUNTIME_INVENTORY_FILENAME),
+                    ]
+                )
+            result = subprocess.run(
+                final_command,
+                check=False,
+                capture_output=True,
+                text=True,
+                cwd=str(self.tool_root),
             )
-        result = subprocess.run(
-            final_command,
-            check=False,
-            capture_output=True,
-            text=True,
-            cwd=str(self.tool_root),
-        )
         stdout = (result.stdout or "").strip()
         stderr = (result.stderr or "").strip()
         return {

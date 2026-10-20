@@ -2522,7 +2522,7 @@ def write_inventory(
                 "",
             ]
         )
-    inventory_path.write_text("\n".join(lines), encoding="utf-8")
+    maintenance_write(inventory_path, "\n".join(lines).encode("utf-8"))
 
 
 def build_register_existing_plan(
@@ -3290,7 +3290,8 @@ def uninstall_container(
 def main(argv: list[str] | None = None, applications_dir: Path | None = None) -> int:
     args = parse_args(argv)
     base_dir = ensure_path(args.base_dir)
-    inventory_path = ensure_path(args.inventory)
+    # Preserve link components so the descriptor-based writer can reject them.
+    inventory_path = Path(os.path.abspath(Path(args.inventory).expanduser()))
     effective_applications_dir = applications_dir or DEFAULT_APPLICATIONS_DIR
     mode_count = sum(
         [
