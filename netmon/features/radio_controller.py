@@ -47,6 +47,12 @@ except ModuleNotFoundError:
     from core.utils import safe_write_json, call_in_ui_thread
 
 
+try:
+    from netmon.core.radio_icy import fetch_icy_metadata
+except ModuleNotFoundError:
+    from core.radio_icy import fetch_icy_metadata
+
+
 def default_radio_settings():
     return {
         "theme": "light",
@@ -3260,58 +3266,34 @@ def _parse_icy_stream_title(metadata_text):
     return _normalize_title_candidate(match.group(1))
 
 
-def _fetch_icy_stream_title(stream_url, timeout=4):
-    url = str(stream_url or "").strip()
-    if not url:
-        return ""
-    request = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": "NetMon/1.1",
-            "Icy-MetaData": "1",
-        },
+def _fetch_icy_stream_title(stream_url, timeout=4, *, cancelled=lambda: False):
+    metadata = fetch_icy_metadata(
+        str(stream_url or "").strip(), timeout=timeout, cancelled=cancelled
     )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            metaint = response.headers.get("icy-metaint", "")
-            try:
-                interval = int(str(metaint or "").strip() or "0")
-            except Exception:
-                interval = 0
-            if interval <= 0:
-                return ""
-            skipped = 0
-            while skipped < interval:
-                chunk = response.read(min(4096, interval - skipped))
-                if not chunk:
-                    return ""
-                skipped += len(chunk)
-            length_byte = response.read(1)
-            if not length_byte:
-                return ""
-            metadata_length = length_byte[0] * 16
-            if metadata_length <= 0:
-                return ""
-            metadata_block = response.read(metadata_length)
-            if not metadata_block:
-                return ""
-            metadata_text = metadata_block.decode("utf-8", errors="ignore").strip(
-                "\x00"
-            )
-            return _parse_icy_stream_title(metadata_text)
-    except Exception:
-        return ""
+    return _parse_icy_stream_title(
+        metadata.decode("utf-8", errors="ignore").strip("\x00")
+    )
 
 
-def _read_radio_stream_title(app):
+def _read_radio_stream_title(app, proc=None):
     debug_payload = {}
 
+    def cancelled():
+        return proc is not None and (
+            getattr(app, "radio_proc", None) is not proc
+            or getattr(app, "radio_stop_requested", False)
+        )
+
+    if cancelled():
+        return "", debug_payload
     metadata = _query_mpv_property(app, "metadata")
     debug_payload["metadata"] = metadata
     title = _extract_stream_title(metadata)
     if title:
         return title, debug_payload
 
+    if cancelled():
+        return "", debug_payload
     filtered_metadata = _query_mpv_property(app, "filtered-metadata")
     debug_payload["filtered-metadata"] = filtered_metadata
     title = _extract_stream_title(filtered_metadata)
@@ -3326,6 +3308,8 @@ def _read_radio_stream_title(app):
         "metadata/by-key/icy-title",
         "metadata/by-key/title",
     ):
+        if cancelled():
+            return "", debug_payload
         value = _query_mpv_property(app, property_name)
         debug_payload[property_name] = value
         title = _normalize_title_candidate(value)
@@ -3341,7 +3325,10 @@ def _read_radio_stream_title(app):
         stream_url = str(
             station.get("url_resolved", "") or station.get("url", "") or ""
         ).strip()
-    icy_title = _fetch_icy_stream_title(stream_url)
+    if proc is None:
+        icy_title = _fetch_icy_stream_title(stream_url)
+    else:
+        icy_title = _fetch_icy_stream_title(stream_url, cancelled=cancelled)
     debug_payload["icy-fetch"] = icy_title
     if icy_title:
         return icy_title, debug_payload
@@ -3352,14 +3339,25 @@ def _poll_radio_metadata(app, proc):
     last_title = ""
     debug_counter = 0
     while getattr(app, "radio_proc", None) is proc:
-        title, debug_payload = _read_radio_stream_title(app)
+        title, debug_payload = _read_radio_stream_title(app, proc)
+        if getattr(app, "radio_proc", None) is not proc or getattr(
+            app, "radio_stop_requested", False
+        ):
+            return
         if title and title != last_title:
             last_title = title
             _schedule_ui(
                 app,
-                lambda text=title: _set_radio_title_text(
-                    app,
-                    _tr(app, "radio_header_title", "Titel: {title}").format(title=text),
+                lambda text=title: (
+                    _set_radio_title_text(
+                        app,
+                        _tr(app, "radio_header_title", "Titel: {title}").format(
+                            title=text
+                        ),
+                    )
+                    if getattr(app, "radio_proc", None) is proc
+                    and not getattr(app, "radio_stop_requested", False)
+                    else None
                 ),
             )
         elif not title:
@@ -3373,7 +3371,13 @@ def _poll_radio_metadata(app, proc):
                 except Exception:
                     debug_text = "payload-unavailable"
                 _radio_debug_log(app, f"title_poll no_title | {debug_text}")
-        time.sleep(5)
+        until = time.monotonic() + 5
+        while time.monotonic() < until:
+            if getattr(app, "radio_proc", None) is not proc or getattr(
+                app, "radio_stop_requested", False
+            ):
+                return
+            time.sleep(0.05)
 
 
 def _wait_for_radio_process(app, proc, station_name):
