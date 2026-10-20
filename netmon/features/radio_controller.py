@@ -21,7 +21,20 @@ import urllib.request
 import webbrowser
 from datetime import datetime, timezone
 from tkinter import filedialog, messagebox, simpledialog
-from xml.etree import ElementTree
+
+try:
+    from netmon.core.radio_directory import (
+        fetch_directory_text,
+        parse_directory_json,
+        parse_directory_xml,
+    )
+except ModuleNotFoundError:
+    from core.radio_directory import (
+        fetch_directory_text,
+        parse_directory_json,
+        parse_directory_xml,
+    )
+
 
 try:
     from netmon.core.tooling import has_cmd
@@ -3776,10 +3789,8 @@ def _download_radio_db_payload():
         },
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=30) as response:
-        charset = response.headers.get_content_charset("utf-8")
-        body = response.read().decode(charset, errors="replace")
-    raw_rows = json.loads(body)
+    body = fetch_directory_text(request)
+    raw_rows = parse_directory_json(body)
     return _filter_radio_db_rows(raw_rows)
 
 
@@ -3826,7 +3837,7 @@ def _xml_text(node, *names):
 
 
 def _parse_icecast_entries_from_xml(text):
-    root = ElementTree.fromstring(text)
+    root = parse_directory_xml(text)
     rows = []
     for node in root.findall(".//entry"):
         rows.append(
@@ -3871,10 +3882,8 @@ def _download_radio_source_payload(source_id):
                 endpoint,
                 headers={"User-Agent": "NetMon/1.1"},
             )
-        with urllib.request.urlopen(request, timeout=30) as response:
-            charset = response.headers.get_content_charset("utf-8")
-            body = response.read().decode(charset, errors="replace")
-        raw_rows = json.loads(body)
+        body = fetch_directory_text(request)
+        raw_rows = parse_directory_json(body)
         return _filter_radio_db_rows(raw_rows)
 
     endpoint = ICECAST_SOURCE_ENDPOINTS.get(source_key, "")
@@ -3883,9 +3892,7 @@ def _download_radio_source_payload(source_id):
             endpoint,
             headers={"User-Agent": "NetMon/1.1"},
         )
-        with urllib.request.urlopen(request, timeout=30) as response:
-            charset = response.headers.get_content_charset("utf-8")
-            body = response.read().decode(charset, errors="replace")
+        body = fetch_directory_text(request)
         return _parse_icecast_entries_from_xml(body)
 
     if not endpoint:
