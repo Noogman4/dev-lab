@@ -61,6 +61,12 @@ make site-stop
 
 ## HTTPS vorbereiten
 
+`site/Caddyfile` ist ausschliesslich ein statisches Beispiel, keine fertige
+Alternative fuer die Apache-/cPanel-PHP-Produktion. Es benoetigt einen separat
+exportierten oeffentlichen Dateibaum. PHP und Statistikdaten werden dort nie
+ausgeliefert; die exportierten Downloadseiten verwenden direkte Downloadziele
+ohne Zaehler. Ablauf und Grenzen: [Statisches Caddy-Beispiel](DEPLOY_HTTPS.md#statisches-caddy-beispiel).
+
 Fuer produktive HTTPS-Auslieferung mit `netmonroots.com` auf cPanel liegen bereit:
 
 - `site/.htaccess`

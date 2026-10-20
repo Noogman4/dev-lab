@@ -144,6 +144,86 @@ Sie macht:
 - Redirect von `netmon-roots.app`
 - grundlegende Security-Header
 
+## Statisches Caddy-Beispiel
+
+Die dokumentierte Produktionsumgebung bleibt Apache/cPanel mit PHP. Es erfolgt
+keine automatische Migration. `site/Caddyfile` ist nur fuer statische Auslieferung
+vorgesehen: kein PHP-FastCGI, kein Downloadzaehler, keine Statistikseite.
+Caddy wertet die Apache-`.htaccess`-Dateien nicht aus. Ein Repository-Checkout
+oder das PHP-`public_html` darf deshalb nicht als Caddy-Webroot dienen.
+
+Aus einem bereits signierten und separat geprueften vollstaendigen Website-Bundle
+laesst sich ohne Paketbau ein neuer statischer Dateibaum erzeugen:
+
+```bash
+python3 scripts/export_netmon_caddy_site.py \
+  /pfad/zum/geprueften/public_html /tmp/netmonroots-public-neu
+```
+
+Die Quelle bleibt unveraendert. Sie muss waehrend des Exports unveraenderlich
+sein; ein unvollstaendiges Release-Update-Bundle allein reicht nicht aus.
+Das Ziel muss neu sein. Der Export ueberschreibt keine vorhandene Ausgabe.
+Bei Fehlern kann eine unvollstaendige, ausschliesslich statische Ausgabe
+zurueckbleiben; sie ist kein erfolgreicher Export und darf nicht deployt werden.
+
+Der Export kopiert nur freigegebene Seiten, Styles, Skripte, Bilder, Dokumente,
+Release-Pakete, Pruefsummen, Signaturen und Verifikationsdateien. Er folgt keinen
+Symlinks in den durchlaufenen Bundle-Verzeichnissen und fuehrt PHP nicht aus.
+PHP-Quellen, `.htaccess`, Konfiguration und der gesamte `data/`-Baum bleiben
+ausserhalb der Ausgabe, auch wenn dort spaeter neue Dateien hinzukommen.
+Die literalen Download-ID-/Zielpaare aus `download-config.php` dienen allein
+zum Ersetzen der HTML-Zaehlerlinks durch dieselben oeffentlichen Ziele mit
+`?dl=1`. Unbekannte IDs, nichtoeffentliche Ziele oder fehlende Artefakte brechen
+ab. PHP-Ausdruecke statt der bisherigen literalen Konfiguration werden nicht
+interpretiert. Weder Konfiguration noch Tokens werden in die Ausgabe kopiert.
+
+Die statische Ausgabe hat beispielsweise diese Struktur:
+
+```text
+/srv/netmonroots/public/index.html
+/srv/netmonroots/public/en/index.html
+/srv/netmonroots/public/styles.css
+/srv/netmonroots/public/screenshots/...
+/srv/netmonroots/public/dist/netmon_<version>_all.deb
+/srv/netmonroots/public/dist/SHA256SUMS
+/srv/netmonroots/public/dist/SHA256SUMS.minisig
+/srv/netmonroots/public/dist/docs/...
+/srv/netmonroots/public/verify/...
+```
+
+Nur die erfolgreich exportierte Ausgabe manuell als `/srv/netmonroots/public`
+bereitstellen, mit fuer Caddy lesbaren Rechten. Der Caddy-Benutzer braucht weder
+Schreibrechte im Webroot noch Leserechte auf PHP-/Statistikdateien. Keine Links
+zu privaten Dateien im Webroot anlegen; Caddys Dateiserver ist keine Sandbox.
+Konfiguration und Statistik bleiben im getrennten Apache-/PHP-Betrieb bzw.
+ausserhalb dieses Dateibaums. Ein blindes `cp -r public_html` ist kein Export.
+
+Das Caddyfile erlaubt zusaetzlich nur explizite oeffentliche Pfade und GET/HEAD.
+PHP-/Datenpfade erhalten 404, auch unter `/site/`; weitere Methoden werden nicht
+an den Dateiserver weitergereicht. Es gibt keine Verzeichnislisten und keinen
+allgemeinen `try_files`-Fallback, der verweigerte Pfade auf die Startseite umbiegt.
+Startseite, `/en/` und die bisherigen `/site/...`-Aliase funktionieren.
+Domain-Redirects und HTTPS-Sicherheitsheader bleiben erhalten.
+
+Die exportierten Downloadbuttons funktionieren ohne PHP ueber die vorhandenen
+`/dist/...`-, Audit- und `/verify/...`-URLs. Direkte alte Aufrufe von
+`download.php` und `download-stats.php` funktionieren im statischen Modus
+absichtlich nicht; sie sind keine gezaehlten Downloads oder Statistik-API.
+Auf Apache bleiben Originalseiten, PHP-Code, Daten und Zaehler unveraendert.
+Wer unter Caddy PHP benoetigt, braucht eine separat gepruefte FastCGI-Konfiguration;
+ein pauschales Freigeben von PHP-Dateien ist kein Ersatz.
+
+Vor einer Verwendung mit vorhandenem Caddy separat pruefen:
+
+```bash
+caddy adapt --config site/Caddyfile --adapter caddyfile --validate
+python3 -m pytest -q tests/test_caddy_static_security.py
+```
+
+Die Tests kennzeichnen fehlendes Caddy/PHP als fehlende Laufzeitabnahme.
+Die statische Exportpruefung ersetzt weder Caddy-Konfigurationsvalidierung noch
+einen HTTPS-/Hostingtest. Es werden keine Serverdienste automatisch umgestellt.
+
 ## DNS
 
 Vor produktivem Start:

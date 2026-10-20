@@ -15,9 +15,28 @@ www.netmonroots.com {
 }
 
 netmonroots.com {
-	root * /srv/netmonroots
-	file_server
-	try_files {path} {path}/ /site/index.html
+	# Static-only example. Export a verified public_html bundle first; see DEPLOY_HTTPS.md.
+	# Never use a repository checkout or an Apache/PHP webroot here.
+	root * /srv/netmonroots/public
+
+	@private path_regexp private (?i)(^|/)([.]|data(/|$))|[.](php[0-9]*|phtml|phar)([./]|$)
+	@unsupported {
+		not method GET HEAD
+	}
+	@public path_regexp public ^/(?:(?:index|downloads|download1|docs|tour|legal|impressum|aktuelles|changelog)\.html|security-audit(?:-r[0-9]+)?\.html|en/(?:index|downloads|download1|docs|tour|legal|impressum|updates|changelog|security-audit)\.html|(?:styles|theme-bright|theme-dark)\.css|app\.js|(?:favicon|bannericon)\.png|(?:latest-version\.json|robots\.txt|sitemap\.xml|LICENSE\.txt|THIRD_PARTY_NOTICES\.md)|netmon_security_audit_[0-9]{4}(?:_r[0-9]+)?\.pdf|screenshots/[A-Za-z0-9_-]+\.(?:png|jpe?g|gif|svg|webp)|tools/(?:netmon|netmon-radio)\.png|docs/CHANGELOG\.md|dist/(?:netmon_[0-9][0-9A-Za-z.+~_-]*_all\.deb|SHA256SUMS(?:\.minisig)?)|dist/docs/netmon_dokumentation_[0-9][0-9A-Za-z.+~_-]*\.(?:html|pdf)|verify/(?:verify_netmon_download\.sh|verify_netmon_signature\.sh|netmonroots\.minisign\.pub))$
+
+	# Literal order: refuse private requests before alias/index rewrites.
+	route {
+		respond @private 404
+		respond @unsupported 405
+		redir /site /site/ 308
+		uri /site/* strip_prefix /site
+		rewrite / /index.html
+		redir /en /en/ 308
+		rewrite /en/ /en/index.html
+		file_server @public
+		respond 404
+	}
 
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
