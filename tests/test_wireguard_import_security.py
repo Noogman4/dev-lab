@@ -28,6 +28,7 @@ def profile(tmp_path, name="work", data=SAFE):
 
 @pytest.fixture
 def app(tmp_path, monkeypatch, store):
+    monkeypatch.setattr(vpn, "_network_links", dict)
     directory = tmp_path / "wireguard"
     directory.mkdir(mode=0o700)
     monkeypatch.setattr(own, "PROFILE_DIRECTORY", str(directory))
@@ -647,3 +648,14 @@ def test_root_owned_readable_parent_preserves_private_staging(app, store):
     assert (app.directory / "work.conf").stat().st_mode & 0o777 == 0o600
     assert store.snapshot_profile("work") == payload
     assert app.directory.stat().st_mode & 0o777 == 0o755
+
+
+@pytest.mark.parametrize("route", ["folder", "dialog", "referenced", "direct"])
+def test_import_rejects_physical_interface_name(app, tmp_path, monkeypatch, route):
+    source = profile(tmp_path, "eth0")
+    monkeypatch.setattr(vpn, "_network_links", lambda: {"eth0": (2, "ether")})
+    enter(app, source, route, monkeypatch)
+    assert not app.imported
+    assert "install-profile" not in app.operations
+    assert "import" not in app.operations
+    assert not (app.directory / "eth0.conf").exists()

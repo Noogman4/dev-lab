@@ -401,6 +401,7 @@ def test_cli_refuses_checkout_and_register_existing(monkeypatch, capsys):
 
 
 def fake_app(monkeypatch, state=None):
+    monkeypatch.setattr(vpn, "_network_links", dict)
     logs = []
     app = SimpleNamespace(
         privacy_config={},
@@ -725,6 +726,7 @@ def test_nm_adapter_rejects_ambiguous_storage_table(monkeypatch, kind):
 @pytest.fixture
 def real_privacy_app(store, tmp_path, monkeypatch):
     """Real App persistence and real receipt validation, synthetic NM only."""
+    monkeypatch.setattr(vpn, "_network_links", dict)
     from netmon.app import App
 
     app = App.__new__(App)

@@ -1,6 +1,18 @@
 import threading
 
+import pytest
+
 from tools import netmon
+
+
+def _fake_activation_links(monkeypatch, name):
+    # Collision check, pre-creation absence, then a live kernel WG identity.
+    observations = iter([{}, {}])
+    monkeypatch.setattr(
+        netmon.vpn_controller,
+        "_network_links",
+        lambda: next(observations, {name: (42, "wireguard")}),
+    )
 
 
 def _run_as_other_thread(target):
@@ -439,8 +451,15 @@ def test_killswitch_off_cleans_up_all_known_vpn_interface_rules(monkeypatch):
     assert delete_numbers == sorted(delete_numbers, reverse=True)
 
 
-def test_killswitch_on_allows_all_active_wireguard_interfaces(monkeypatch):
+@pytest.mark.parametrize("kind", ["wireguard", "ether"])
+def test_killswitch_on_allows_only_verified_active_interfaces(monkeypatch, kind):
     app = netmon.App.__new__(netmon.App)
+    app._wg_activation_links = {"wg0": 42, "Irland2_-IE-112": 43}
+    monkeypatch.setattr(
+        netmon.vpn_controller,
+        "_network_links",
+        lambda: {"wg0": (42, kind), "Irland2_-IE-112": (43, kind)},
+    )
     app.ufw_lock = threading.Lock()
     logs = []
     app.get_wg_interfaces = lambda: ["wg0", "Irland2_-IE-112"]
@@ -459,7 +478,7 @@ def test_killswitch_on_allows_all_active_wireguard_interfaces(monkeypatch):
             return 0, "Status: active"
         if args == ["sudo", "-n", "ufw", "status", "verbose"]:
             return 0, _ufw_verbose_killswitch_on_status(
-                wg_ifaces=["wg0", "Irland2_-IE-112"],
+                wg_ifaces=["wg0", "Irland2_-IE-112"] if kind == "wireguard" else [],
                 handshake_rules=[("66.234.146.66", "51820"), ("203.0.113.10", "51820")],
             )
         return 0, "ok"
@@ -467,14 +486,17 @@ def test_killswitch_on_allows_all_active_wireguard_interfaces(monkeypatch):
     monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
 
     assert app._killswitch_on_sync(refresh_ui=False) is True
-    assert ["sudo", "-n", "ufw", "allow", "out", "on", "wg0"] in calls
-    assert ["sudo", "-n", "ufw", "allow", "in", "on", "wg0"] in calls
-    assert ["sudo", "-n", "ufw", "allow", "out", "on", "Irland2_-IE-112"] in calls
-    assert ["sudo", "-n", "ufw", "allow", "in", "on", "Irland2_-IE-112"] in calls
-    assert any("wg0" in entry and "Irland2_-IE-112" in entry for entry in logs)
+    for iface in ("wg0", "Irland2_-IE-112"):
+        for direction in ("out", "in"):
+            assert (
+                ["sudo", "-n", "ufw", "allow", direction, "on", iface] in calls
+            ) == (kind == "wireguard")
+    if kind == "wireguard":
+        assert any("wg0" in entry and "Irland2_-IE-112" in entry for entry in logs)
 
 
 def test_vpn_switch_reapplies_killswitch_rules_after_successful_switch(monkeypatch):
+    _fake_activation_links(monkeypatch, "wg-slot")
     app = netmon.App.__new__(netmon.App)
     logs = []
     calls = []
@@ -544,6 +566,7 @@ def test_cleanup_old_vpn_dns_links_reverts_detected_vpn_interfaces(monkeypatch):
 
 
 def test_vpn_switch_prepares_and_schedules_dns_finalize(monkeypatch):
+    _fake_activation_links(monkeypatch, "wg-slot")
     app = netmon.App.__new__(netmon.App)
     logs = []
     calls = []
@@ -596,6 +619,7 @@ def test_vpn_switch_prepares_and_schedules_dns_finalize(monkeypatch):
 
 
 def test_vpn_switch_reconciles_non_killswitch_firewall_rules_after_success(monkeypatch):
+    _fake_activation_links(monkeypatch, "wg-slot")
     app = netmon.App.__new__(netmon.App)
     calls = []
     finalize_delays = []
@@ -647,6 +671,7 @@ def test_vpn_switch_reconciles_non_killswitch_firewall_rules_after_success(monke
 
 
 def test_vpn_switch_can_skip_cleanup_after_restore_cleanup(monkeypatch):
+    _fake_activation_links(monkeypatch, "wg-slot")
     app = netmon.App.__new__(netmon.App)
     calls = []
     cleanup_calls = []
@@ -937,6 +962,7 @@ def test_isp_stealth_on_skips_duplicate_killswitch_activation_when_already_activ
 
 
 def test_vpn_switch_force_reconnect_rebuilds_same_profile(monkeypatch):
+    _fake_activation_links(monkeypatch, "wg-slot")
     app = netmon.App.__new__(netmon.App)
     logs = []
     calls = []

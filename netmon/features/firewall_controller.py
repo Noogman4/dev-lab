@@ -10,6 +10,8 @@ import tkinter as tk
 from contextlib import contextmanager
 from tkinter import messagebox, ttk
 
+from . import vpn_controller
+
 try:
     from netmon.core.utils import call_in_ui_thread
 except ModuleNotFoundError:
@@ -1079,7 +1081,11 @@ def killswitch_on_sync(app, refresh_ui=True):
             wg_ifaces = sorted(set(collect_ifaces(referenced_profiles)))
         else:
             wg_ifaces = []
-        wg_ifaces = sorted(set(wg_ifaces) | set(app.get_wg_interfaces()))
+        wg_ifaces = sorted(
+            vpn_controller._verified_firewall_interfaces(
+                app, set(wg_ifaces) | set(app.get_wg_interfaces())
+            )
+        )
         endpoint_provider = _instance_override(app, "get_killswitch_vpn_endpoints")
         if callable(endpoint_provider):
             handshake_rules = sorted(set(endpoint_provider()))

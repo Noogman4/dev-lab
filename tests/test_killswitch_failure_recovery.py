@@ -11,6 +11,13 @@ import pytest
 from netmon.features import firewall_controller as controller
 
 
+@pytest.fixture(autouse=True)
+def synthetic_kernel_links(monkeypatch):
+    monkeypatch.setattr(
+        controller.vpn_controller, "_network_links", lambda: {"wg0": (42, "wireguard")}
+    )
+
+
 class Ufw:
     """Minimal ordered dual-family UFW model, independent of status parsing."""
 
@@ -32,6 +39,7 @@ class Ufw:
         self.bad_status = False
         self.bad_recovery = False
         self.app = SimpleNamespace(
+            _wg_activation_links={"wg0": 42},
             ufw_lock=threading.Lock(),
             get_wg_interfaces=lambda: ["wg0"],
             get_killswitch_vpn_profiles=list,

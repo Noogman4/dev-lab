@@ -210,10 +210,12 @@ def _verify_import_snapshot(snapshot):
 
 
 def _install_wireguard_snapshot(app, snapshot):
+    _check_profile_interface_collision(snapshot.name)
     target = app._wg_profile_path(snapshot.name)
     if target != os.path.join(nm_ownership.PROFILE_DIRECTORY, snapshot.name + ".conf"):
         raise ValueError("Unsicherer WireGuard-Zielpfad")
     _owned_nm_command("install-profile", payload=_verify_import_snapshot(snapshot))
+    app.__dict__.get("_wg_activation_links", {}).pop(snapshot.name, None)
 
 
 def _write_generated_wireguard_profile(app, name, content):
@@ -221,6 +223,56 @@ def _write_generated_wireguard_profile(app, name, content):
         "generated", name, content.encode("utf-8")
     )
     _install_wireguard_snapshot(app, snapshot)
+
+
+def _network_links():
+    """Read kernel link identities; unavailable or malformed evidence fails closed."""
+    rc, out = run_cmd(["ip", "-j", "-d", "link", "show"], timeout=5)
+    if rc != 0:
+        raise ValueError("Netzwerk-Interfaces konnten nicht verifiziert werden")
+    rows = json.loads(out)
+    if not isinstance(rows, list):
+        raise TypeError("Ungueltige Interface-Auskunft")
+    links = {}
+    for row in rows:
+        name = row["ifname"]
+        index = row["ifindex"]
+        if not isinstance(name, str) or type(index) is not int or index <= 0:
+            raise ValueError("Ungueltige Interface-Identitaet")
+        if name in links:
+            raise ValueError("Mehrdeutige Interface-Identitaet")
+        links[name] = (index, row.get("linkinfo", {}).get("info_kind", ""))
+    return links
+
+
+def _check_profile_interface_collision(name):
+    link = _network_links().get(name)
+    if link is not None and link[1] != "wireguard":
+        raise ValueError("Profilname kollidiert mit einem fremden Netzwerk-Interface")
+
+
+def _verified_firewall_interfaces(app, candidates):
+    """Only this session's successful activations may receive broad UFW rules.
+
+    Bind a runtime profile to its post-activation kernel ifindex and link kind.
+    A filename, a saved profile or `wg show` alone is not ownership evidence.
+    Receipts intentionally do not survive restart; reconnect to establish one.
+    """
+    receipts = app.__dict__.get("_wg_activation_links", {})
+    candidates = set(candidates) & receipts.keys()
+    if not candidates:
+        return set()
+    try:
+        links = _network_links()
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        return set()
+    verified = set()
+    for name in candidates:
+        if links.get(name) == (receipts[name], "wireguard"):
+            verified.add(name)
+        else:
+            receipts.pop(name, None)
+    return verified
 
 
 def _warn_non_ip_endpoint_once(app, profile_name: str, host: str) -> None:
@@ -1938,7 +1990,7 @@ def collect_interface_rules_for_profiles(
             f"[DEBUG] UFW-Regeln für {base_profile} basieren auf IPv4={effective_ipv4 or '-'}, IPv6={effective_ipv6 or 'None'}"
         )
 
-    return {iface for iface in interfaces if iface}
+    return _verified_firewall_interfaces(app, interfaces)
 
 
 def collect_interface_rules_for_profiles_safe(
@@ -1988,9 +2040,7 @@ def ensure_profile_family_ready_for_use(app, profile_name, log_failures=True):
 
 
 def apply_profile_ufw_rules_non_killswitch(app, interfaces, endpoints):
-    interfaces = sorted(
-        {str(i).strip() for i in (interfaces or set()) if str(i).strip()}
-    )
+    interfaces = sorted(_verified_firewall_interfaces(app, interfaces or set()))
     endpoints = sorted(
         {
             (str(ip).strip(), str(port).strip())
@@ -2576,6 +2626,7 @@ def get_wg_interfaces(app):
 
 
 def cleanup_wireguard_interfaces(app):
+    app.__dict__.pop("_wg_activation_links", None)
     network_service = app._network_service()
     app.log_safe("WG Cleanup gestartet")
 
@@ -2710,6 +2761,10 @@ def resolve_profile_family_runtime(app, profile_name, log_missing=True):
         if ipv4_profile not in runtime["endpoint_profiles"]:
             runtime["endpoint_profiles"].append(ipv4_profile)
 
+    candidate = runtime["effective_ipv4_interface"]
+    if candidate not in _verified_firewall_interfaces(app, {candidate}):
+        runtime["effective_ipv4_interface"] = ""
+
     app.log_debug(
         f"[DEBUG] Resolver {base_profile} -> IPv4={runtime['effective_ipv4_interface'] or '-'}, "
         f"IPv6={runtime['effective_ipv6_interface'] or 'None'}, supports_ipv6={runtime['supports_ipv6']}"
@@ -2791,10 +2846,23 @@ def vpn_switch(
                 app.refresh_safe()
             return False
 
+        try:
+            _check_profile_interface_collision(runtime_target)
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            app.log_safe("VPN Start abgebrochen: Interface-Identitaet nicht sicher.")
+            return False
+
         active_ifaces = app.get_wg_interfaces()
         reconnecting_same_profile = runtime_target in active_ifaces
         if reconnecting_same_profile:
             if not force_reconnect and len(active_ifaces) == 1:
+                if runtime_target not in _verified_firewall_interfaces(
+                    app, {runtime_target}
+                ):
+                    app.log_safe(
+                        "Aktives Interface ohne NetMon-Startnachweis: bitte neu verbinden."
+                    )
+                    return False
                 app.log_safe(
                     app.tr(
                         "vpn_log_profile_already_active",
@@ -2865,11 +2933,33 @@ def vpn_switch(
             return False
 
         up_cmd = ["sudo", "-n", "wg-quick", "up", runtime_target]
+        # Require absence immediately before creation; never adopt an existing
+        # same-named link, including a foreign WireGuard tunnel.
+        try:
+            if runtime_target in _network_links():
+                raise ValueError("Interface existiert bereits")
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            app.log_safe("VPN Start abgebrochen: Interface nicht sicher neu anlegbar.")
+            return False
+        app.__dict__.setdefault("_wg_activation_links", {}).pop(runtime_target, None)
         if network_service is not None:
             rc, out = network_service.wg_quick_up(runtime_target, timeout=20)
         else:
             rc, out = run_cmd(up_cmd, timeout=20)
         _log_command_result(app, "WG", up_cmd, rc, out)
+        if rc == 0:
+            try:
+                link = _network_links().get(runtime_target)
+                if link is None or link[1] != "wireguard":
+                    raise ValueError("Kein WireGuard-Interface nach Aktivierung")
+                app.__dict__.setdefault("_wg_activation_links", {})[runtime_target] = (
+                    link[0]
+                )
+            except (OSError, ValueError, TypeError, KeyError, AttributeError):
+                rc, out = (
+                    1,
+                    "VPN-Interface nach Start nicht verifiziert; keine UFW-Freigabe.",
+                )
         if rc == 0:
             if force_reconnect:
                 _vpn_user_log(
@@ -3713,6 +3803,7 @@ def import_wireguard_paths_to_networkmanager(
                 continue
             entry = session.reserve(job, snapshot.source)
             try:
+                _check_profile_interface_collision(name)
                 candidate = _owned_nm_command(
                     "import", payload=_verify_import_snapshot(snapshot)
                 )

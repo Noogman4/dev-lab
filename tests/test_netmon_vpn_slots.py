@@ -576,6 +576,12 @@ def test_cleanup_wireguard_interfaces_forces_delete_when_down_leaves_iface(monke
 
 
 def test_vpn_switch_runs_cleanup_before_starting_new_profile(monkeypatch):
+    observations = iter([{}, {}])
+    monkeypatch.setattr(
+        vpn_controller,
+        "_network_links",
+        lambda: next(observations, {"wg-new": (42, "wireguard")}),
+    )
     app = netmon.App.__new__(netmon.App)
     logs = []
     calls = []
@@ -998,8 +1004,14 @@ def test_vpn_table_context_menu_offers_profile_delete_and_uses_existing_logic(
     assert events[1:] == ["selected", "deleted"]
 
 
-def test_apply_profile_ufw_rules_non_killswitch_uses_dedupe_wrapper_without_tk_getattr():
+def test_apply_profile_ufw_rules_non_killswitch_uses_dedupe_wrapper_without_tk_getattr(
+    monkeypatch,
+):
     app = netmon.App.__new__(netmon.App)
+    app._wg_activation_links = {"wg-slot": 42}
+    monkeypatch.setattr(
+        vpn_controller, "_network_links", lambda: {"wg-slot": (42, "wireguard")}
+    )
     logs = []
     debug_logs = []
     ensure_calls = []
@@ -1158,6 +1170,7 @@ def test_import_wg_profiles_from_folder_uses_initialdir_and_remembers_last_direc
     monkeypatch,
     tmp_path,
 ):
+    monkeypatch.setattr(vpn_controller, "_network_links", dict)
     source = tmp_path / "wg-demo.conf"
     source.write_text("[Interface]\nAddress=10.0.0.1/32\n")
     app = netmon.App.__new__(netmon.App)
@@ -1252,6 +1265,7 @@ def test_warn_wireguard_import_hooks_shows_warning_and_logs(tmp_path, monkeypatc
 def test_import_wg_profiles_from_folder_warns_about_hook_directives(
     monkeypatch, tmp_path
 ):
+    monkeypatch.setattr(vpn_controller, "_network_links", dict)
     profile_path = tmp_path / "wg-hooks.conf"
     profile_path.write_text(
         "[Peer]\nPostDown = echo done\n",
