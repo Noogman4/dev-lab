@@ -16,6 +16,23 @@ make site-open
 
 Dadurch wird der lokale Server bei Bedarf gestartet und die Startseite geoeffnet.
 
+Alternativ startet `make site-serve` denselben gehaerteten HTTP-Handler im
+Vordergrund; Stoppen mit Strg+C. Beide Startwege binden ausschliesslich an
+`127.0.0.1`. Optional: `NETMON_SITE_PORT=8877 make site-serve` oder
+`NETMON_SITE_PORT=8877 make site-open`.
+
+Die Vorschau liefert nur statische Website-Dateien aus `site/` aus. Die Pfade
+`/index.html` und `/site/index.html` funktionieren beide. Repository-Dateien,
+PHP-Quellen, Serverkonfiguration, `site/data/`, versteckte Dateien,
+Verzeichnislisten und symbolische Links sind gesperrt (HTTP 404).
+Release-Dateien unter `/dist/` werden lokal nicht ausgeliefert; die Vorschau
+ersetzt keinen produktiven PHP-/Download-Server. Andere lokale Benutzer koennen
+die oeffentlichen Vorschau-Dateien weiterhin ueber Loopback abrufen.
+
+Vor dem Einspielen eines Updates am Vorschau-Server zuerst `make site-stop`
+ausfuehren und eine laufende `make site-serve`-Sitzung mit Strg+C beenden.
+Danach neu starten, damit kein alter Prozess mit der bisherigen Freigabe laeuft.
+
 Manuell im Browser:
 
 - `http://127.0.0.1:8765/site/index.html`
@@ -27,7 +44,8 @@ Hinweis:
 - Die JSON-Persistenz benoetigt PHP ab 7.3; geprueft mit PHP CLI 8.3.6. Es sind
   keine weiteren PHP-Erweiterungen erforderlich. Ab PHP 8.1 wird zusaetzlich
   `fsync()` vor dem Rename geprueft, wenn verfuegbar.
-- Beim lokalen simplen HTTP-Test laufen die PHP-Seiten nicht automatisch mit.
+- Die lokale statische Vorschau fuehrt kein PHP aus und liefert PHP-Dateien
+  auch nicht als Quelltext aus.
 - Die Statistikseite benoetigt zwingend einen serverseitig fuer PHP verfuegbaren
   `NETMON_STATS_TOKEN`. Fehlende/ungueltige Konfiguration ergibt HTTP 503;
   Zugriff nur per `Authorization: Bearer`, fehlende/falsche Berechtigung HTTP 403.

@@ -2,7 +2,6 @@
 
 import contextlib
 import fcntl
-import functools
 import hashlib
 import http.server
 import json
@@ -15,6 +14,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 DIR_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
@@ -237,11 +237,98 @@ def publish_state(directory, record):
         os.unlink(name, dir_fd=directory)
 
 
-def serve(port, ready):
-    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=ROOT)
-    with http.server.ThreadingHTTPServer(("127.0.0.1", port), handler) as server:
-        os.write(ready, b"OK")
-        os.close(ready)
+class PublicSiteHandler(http.server.SimpleHTTPRequestHandler):
+    """Static site preview only; never expose checkout files or PHP sources."""
+
+    def send_head(self):
+        try:
+            path = unquote(urlsplit(self.path).path, errors="strict")
+            parts = path.strip("/").split("/") if path.strip("/") else []
+            # Preserve existing /site/... bookmarks as well as root-relative links.
+            if parts[:1] == ["site"]:
+                parts.pop(0)
+            if (
+                any(
+                    not part or part.startswith(".") or "\\" in part or "\0" in part
+                    for part in parts
+                )
+                or "data" in parts
+            ):
+                raise ValueError("Private path")
+            if not parts or path.endswith("/"):
+                parts.append("index.html")
+            public_name = "/".join(parts)
+            if Path(parts[-1]).suffix.lower() not in {
+                ".html",
+                ".css",
+                ".js",
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".gif",
+                ".svg",
+                ".webp",
+                ".ico",
+                ".pdf",
+            } and public_name not in {
+                "latest-version.json",
+                "robots.txt",
+                "sitemap.xml",
+                "LICENSE.txt",
+                "THIRD_PARTY_NOTICES.md",
+            }:
+                raise ValueError("Not a public static asset")
+            # Open each component relative to its pinned parent. O_NOFOLLOW also
+            # prevents symlink swaps between validation and the actual file open.
+            directory = open_directory(ROOT / "site")
+            try:
+                for part in parts[:-1]:
+                    child = os.open(part, DIR_FLAGS, dir_fd=directory)
+                    os.close(directory)
+                    directory = child
+                fd = os.open(
+                    parts[-1],
+                    os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+                    dir_fd=directory,
+                )
+            finally:
+                os.close(directory)
+            source = os.fdopen(fd, "rb")
+            try:
+                info = os.fstat(source.fileno())
+                if not stat.S_ISREG(info.st_mode):
+                    raise ValueError("Not a regular static file")
+                self.send_response(200)
+                self.send_header("Content-type", self.guess_type(parts[-1]))
+                self.send_header("Content-Length", str(info.st_size))
+                self.send_header("Last-Modified", self.date_time_string(info.st_mtime))
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+                return source
+            except BaseException:
+                source.close()
+                raise
+        except (OSError, ValueError):
+            self.send_error(404, "Not found")
+            return None
+
+
+def site_port():
+    raw = os.environ.get("NETMON_SITE_PORT", "8765")
+    if not raw.isascii() or not raw.isdecimal() or not 1 <= int(raw) <= 65535:
+        raise ValueError("NETMON_SITE_PORT must be 1..65535")
+    return int(raw)
+
+
+def serve(port, ready=None):
+    with http.server.ThreadingHTTPServer(
+        ("127.0.0.1", port), PublicSiteHandler
+    ) as server:
+        if ready is not None:
+            os.write(ready, b"OK")
+            os.close(ready)
+        else:
+            print(f"http://127.0.0.1:{server.server_port}/site/index.html", flush=True)
         server.serve_forever()
 
 
@@ -327,14 +414,7 @@ def main(action):
                     else "Kein NetMon Website-Server registriert."
                 )
             else:
-                raw = os.environ.get("NETMON_SITE_PORT", "8765")
-                if (
-                    not raw.isascii()
-                    or not raw.isdecimal()
-                    or not 1 <= int(raw) <= 65535
-                ):
-                    raise ValueError("NETMON_SITE_PORT must be 1..65535")
-                port = int(raw)
+                port = site_port()
                 if handle is not None:
                     if record["port"] != port:
                         raise RuntimeError(
@@ -355,6 +435,8 @@ if __name__ == "__main__":
     try:
         if len(sys.argv) == 4 and sys.argv[1] == "_serve":
             serve(*map(int, sys.argv[2:]))
+        elif sys.argv[1:] == ["foreground"]:
+            serve(site_port())
         elif len(sys.argv) == 2:
             main(sys.argv[1])
         else:

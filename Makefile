@@ -40,7 +40,7 @@ security-audit-pdf:
 	$(PYTHON) scripts/build_security_audit_pdf_r12.py
 
 site-serve:
-	python3 -m http.server 8765
+	python3 -I scripts/netmon_site_server.py foreground
 
 site-open:
 	bash scripts/open_netmon_site.sh

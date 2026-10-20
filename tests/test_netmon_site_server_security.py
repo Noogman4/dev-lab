@@ -10,6 +10,7 @@ import socket
 import stat
 import subprocess
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -36,6 +37,7 @@ def website(tmp_path, monkeypatch):
     (root / "scripts").mkdir(parents=True)
     (root / "site").mkdir()
     (root / "site/index.html").write_text("SYNTHETIC-NETMON-WEBSITE")
+    shutil.copyfile(ROOT / "Makefile", root / "Makefile")
     for name in ("netmon_site_server.py", "open_netmon_site.sh", "stop_netmon_site.sh"):
         shutil.copyfile(ROOT / "scripts" / name, root / "scripts" / name)
     runtime = tmp_path / "runtime"
@@ -582,3 +584,157 @@ def test_pidfd_unavailable_fails_before_launch(website, monkeypatch):
         with pytest.raises(OSError, match="pidfd unavailable"):
             helper.main("start")
     assert not launched
+
+
+@pytest.fixture(params=["managed", "make"])
+def public_preview(website, request):
+    root, _, port = website
+    if request.param == "managed":
+        result = run(root, "start")
+        assert result.returncode == 0, result.stderr
+        yield root, port
+    else:
+        process = subprocess.Popen(
+            ["make", "--no-print-directory", "site-serve"],
+            cwd=root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        try:
+            output = b""
+            deadline = time.monotonic() + 5
+            while f"http://127.0.0.1:{port}/site/index.html".encode() not in output:
+                remaining = deadline - time.monotonic()
+                assert remaining > 0, output
+                assert helper.select.select([process.stdout], [], [], remaining)[0]
+                block = os.read(process.stdout.fileno(), 4096)
+                assert block, output
+                output += block
+            yield root, port
+        finally:
+            # Only our newly created isolated process group, never a stored PID.
+            os.killpg(process.pid, helper.signal.SIGTERM)
+            process.wait(timeout=5)
+            process.stdout.close()
+
+
+def http_request(port, path, method="GET"):
+    with socket.create_connection(("127.0.0.1", port), timeout=3) as client:
+        client.sendall(f"{method} {path} HTTP/1.0\r\nHost: localhost\r\n\r\n".encode())
+        response = b""
+        while block := client.recv(4096):
+            response += block
+    headers, body = response.split(b"\r\n\r\n", 1)
+    status = int(headers.split(b" ", 2)[1])
+    return status, body
+
+
+def test_public_preview_assets_and_loopback_binding(public_preview):
+    root, port = public_preview
+    assets = {
+        "index.html": "SYNTHETIC-NETMON-WEBSITE",
+        "styles.css": "body {}",
+        "app.js": "console.log('preview');",
+        "latest-version.json": '{"version":"test"}',
+        "robots.txt": "User-agent: *",
+        "sitemap.xml": "<urlset/>",
+        "LICENSE.txt": "PUBLIC-LICENSE",
+        "THIRD_PARTY_NOTICES.md": "PUBLIC-NOTICES",
+        "en/index.html": "ENGLISH-PREVIEW",
+        "screenshots/example.png": "SYNTHETIC-IMAGE",
+    }
+    for name, content in assets.items():
+        asset = root / "site" / name
+        asset.parent.mkdir(parents=True, exist_ok=True)
+        asset.write_text(content)
+        for prefix in ("/", "/site/"):
+            assert http_request(port, prefix + name + "?v=1") == (200, content.encode())
+    assert http_request(port, "/")[0] == 200
+    assert http_request(port, "/site/")[0] == 200
+    assert http_request(port, "/en/") == (200, b"ENGLISH-PREVIEW")
+    assert http_request(port, "/site/index.html", "HEAD") == (200, b"")
+    listeners = [
+        line.split()[1]
+        for line in Path("/proc/net/tcp").read_text().splitlines()[1:]
+        if line.split()[3] == "0A" and int(line.split()[1].split(":")[1], 16) == port
+    ]
+    assert listeners == [f"0100007F:{port:04X}"]
+
+
+def test_public_preview_denies_private_files_and_traversal(public_preview):
+    root, port = public_preview
+    secret = "PRIVATE-PREVIEW-CANARY"
+    private = [
+        ".git/config",
+        ".env",
+        "private.html",
+        "tests/private.html",
+        "dist/private.html",
+        "site/.env",
+        "site/.git/config",
+        "site/download-config.php",
+        "site/download.php",
+        "site/download-stats.php",
+        "site/download-lib.php",
+        "site/.htaccess",
+        "site/htaccess",
+        "site/Caddyfile",
+        "site/data/download-stats.json",
+        "site/data/private.html",
+        "site/config.json",
+        "site/README.md",
+    ]
+    for name in private:
+        target = root / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(secret)
+    for name in private:
+        for method in ("GET", "HEAD"):
+            assert http_request(port, "/" + name, method)[0] == 404, name
+            if name.startswith("site/"):
+                assert http_request(port, "/" + name[5:], method)[0] == 404, name
+    paths = [
+        "/scripts/",
+        "/tests/",
+        "/.git/",
+        "/Makefile",
+        "/site/screenshots/",
+        "/site/../private.html",
+        "/site/%2e%2e/private.html",
+        "/site/%2E%2E%2fprivate.html",
+        "/%2eenv",
+        "/site/%2egit/config",
+        "/site/..%5cprivate.html",
+        "/site/%00.html",
+        "/site/%ff.html",
+        "/site//index.html",
+        "/site/data/../index.html",
+    ]
+    (root / "site/screenshots").mkdir(exist_ok=True)
+    for path in paths:
+        status, body = http_request(port, path)
+        assert status == 404, path
+        assert secret.encode() not in body
+
+
+def test_public_preview_denies_symlinks_and_special_files(public_preview):
+    root, port = public_preview
+    (root / "private.html").write_text("PRIVATE-PREVIEW-CANARY")
+    (root / "site/linked.html").symlink_to(root / "private.html")
+    (root / "site/linked-dir").symlink_to(root)
+    (root / "site/internal.html").symlink_to(root / "site/index.html")
+    os.mkfifo(root / "site/pipe.html", 0o600)
+    (root / "site/directory.html").mkdir()
+    for path in (
+        "linked.html",
+        "linked-dir/private.html",
+        "internal.html",
+        "pipe.html",
+        "directory.html",
+    ):
+        assert http_request(port, "/site/" + path)[0] == 404, path
+    # A symlink replacing the document root is also rejected.
+    (root / "site").rename(root / "original-site")
+    (root / "site").symlink_to(root / "original-site")
+    assert http_request(port, "/site/index.html")[0] == 404
