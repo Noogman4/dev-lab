@@ -2442,7 +2442,7 @@
     "about_docs_detected": "Detected documentation: {value}",
     "about_docs_troubleshooting": "Troubleshooting: included in the bundled documentation and in the project's docs files.",
     "about_docs_video": "Explainer video: optional placeholder for later video help.",
-    "about_support_contact": "Support: support@netmonroots.com",
+    "about_support_contact": "Support: {email}",
     "support_privacy_box_title": "⚠ Privacy notice",
     "support_privacy_line_1": "The diagnostic package is used exclusively to analyse reported errors and to improve NetMon Roots.",
     "support_privacy_line_2": "The transmitted data is not shared with third parties and is not used for advertising purposes or user profiling.",

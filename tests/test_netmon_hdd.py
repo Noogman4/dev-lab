@@ -1,6 +1,8 @@
 import types
+import stat
 
 from netmon.features import hdd_controller
+from netmon.services import hdd_mount_service
 from tools import netmon
 
 
@@ -157,6 +159,9 @@ def test_assign_disk_to_hdd_slot_prefers_live_mountpoint_then_existing_then_defa
 def test_hdd_find_mount_source_prefers_filesystem_child(monkeypatch):
     app = netmon.App.__new__(netmon.App)
 
+    # App's compatibility wrapper assigns these module globals; restore them too.
+    monkeypatch.setattr(hdd_controller, "run_cmd", hdd_controller.run_cmd)
+    monkeypatch.setattr(hdd_controller, "has_cmd", hdd_controller.has_cmd)
     monkeypatch.setattr(netmon, "has_cmd", lambda name: name == "lsblk")
 
     def fake_run_cmd(args, timeout=8, text=True):
@@ -193,367 +198,6 @@ def test_hdd_find_mount_source_prefers_filesystem_child(monkeypatch):
     monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
 
     assert app._hdd_find_mount_source("/dev/sdb") == "/dev/sdb1"
-
-
-def test_hdd_mount_async_uses_resolved_mount_source(monkeypatch):
-    app = netmon.App.__new__(netmon.App)
-    app.hdd_slots = [
-        {
-            "slot": 1,
-            "custom_name": "Media",
-            "device": "/dev/sdb",
-            "device_uuid": "",
-            "mountpoint": "/mnt/media",
-        }
-    ]
-    logs = []
-    calls = []
-
-    app.ensure_sudo_session = lambda _label: True
-    app._slot_display_name = lambda idx: "Media"
-    app._hdd_resolve_slot_device = lambda slot: (
-        slot["device"],
-        {"device": slot["device"]},
-    )
-    app.hdd_slot_configured = lambda slot: True
-    app._hdd_luks_info_for_device = lambda device: {"is_luks": False}
-    app._hdd_find_mount_source = lambda device: "/dev/sdb1"
-    app._hdd_is_mounted = lambda device, mountpoint: (False, "")
-    app.hdd_refresh_async = lambda: logs.append("refresh")
-    app.hdd_info_async = lambda idx: logs.append(f"info:{idx}")
-    app.log = logs.append
-    app.after = lambda delay, func: func()
-
-    class ImmediateThread:
-        def __init__(self, target=None, daemon=None):
-            self.target = target
-
-        def start(self):
-            if self.target:
-                self.target()
-
-    monkeypatch.setattr(netmon.threading, "Thread", ImmediateThread)
-    monkeypatch.setattr(netmon.os.path, "exists", lambda path: True)
-    monkeypatch.setattr(netmon, "has_cmd", lambda name: False)
-
-    def fake_run_cmd(args, timeout=0, text=True):
-        calls.append(args)
-        return 0, "ok"
-
-    monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
-
-    app.hdd_mount_async(0)
-
-    assert [
-        ["sudo", "-n", "mkdir", "-p", "/mnt/media"],
-        ["sudo", "-n", "mount", "/dev/sdb1", "/mnt/media"],
-    ] == calls
-    assert any("/dev/sdb1 -> /mnt/media" in entry for entry in logs)
-
-
-def test_hdd_mount_async_prefers_udisksctl_for_desktop_visible_mounts(monkeypatch):
-    app = netmon.App.__new__(netmon.App)
-    app.hdd_slots = [
-        {
-            "slot": 1,
-            "custom_name": "Media",
-            "device": "/dev/sdb",
-            "device_uuid": "",
-            "mountpoint": "/mnt/media",
-        }
-    ]
-    logs = []
-    calls = []
-
-    app.ensure_sudo_session = lambda _label: True
-    app._slot_display_name = lambda idx: "Media"
-    app._hdd_resolve_slot_device = lambda slot: (
-        slot["device"],
-        {"device": slot["device"]},
-    )
-    app.hdd_slot_configured = lambda slot: True
-    app._hdd_luks_info_for_device = lambda device: {"is_luks": False}
-    app._hdd_find_mount_source = lambda device: "/dev/sdb1"
-    app._hdd_is_mounted = lambda device, mountpoint: (False, "")
-    app.hdd_refresh_async = lambda: logs.append("refresh")
-    app.hdd_info_async = lambda idx: logs.append(f"info:{idx}")
-    app.log = logs.append
-    app.after = lambda delay, func: func()
-
-    class ImmediateThread:
-        def __init__(self, target=None, daemon=None):
-            self.target = target
-
-        def start(self):
-            if self.target:
-                self.target()
-
-    monkeypatch.setattr(netmon.threading, "Thread", ImmediateThread)
-    monkeypatch.setattr(netmon.os.path, "exists", lambda path: True)
-    monkeypatch.setattr(netmon, "has_cmd", lambda name: name == "udisksctl")
-
-    def fake_run_cmd(args, timeout=0, text=True):
-        calls.append(args)
-        return 0, "Mounted /dev/sdb1 at /media/test/Media."
-
-    monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
-
-    app.hdd_mount_async(0)
-
-    assert [["udisksctl", "mount", "-b", "/dev/sdb1"]] == calls
-    assert any("desktop-integriert gemountet" in entry for entry in logs)
-
-
-def test_hdd_mount_async_luks_prefers_udisksctl_mount_after_unlock(monkeypatch):
-    app = netmon.App.__new__(netmon.App)
-    app.hdd_slots = [
-        {
-            "slot": 1,
-            "custom_name": "Vault",
-            "device": "/dev/sdb",
-            "device_uuid": "",
-            "mountpoint": "/mnt/vault",
-        }
-    ]
-    logs = []
-    open_calls = []
-    mount_calls = []
-    state = {"unlocked": False}
-    app.hdd_luks_mappers = {}
-
-    app.ensure_sudo_session = lambda _label: True
-    app._slot_display_name = lambda idx: "Vault"
-    app._hdd_resolve_slot_device = lambda slot: (
-        slot["device"],
-        {"device": slot["device"]},
-    )
-    app.hdd_slot_configured = lambda slot: True
-    app._hdd_luks_info_for_device = lambda device: {
-        "is_luks": True,
-        "unlocked": state["unlocked"],
-        "mapper_name": "netmon_sdb",
-        "mapper_path": "/dev/mapper/netmon_sdb" if state["unlocked"] else "",
-        "available_mappers": ["netmon_sdb"] if state["unlocked"] else [],
-    }
-    app._hdd_find_mount_source = lambda device: "/dev/mapper/netmon_sdb"
-    app._hdd_is_mounted = lambda device, mountpoint: (False, "")
-    app.hdd_refresh_async = lambda: logs.append("refresh")
-    app.hdd_info_async = lambda idx: logs.append(f"info:{idx}")
-    app.log = logs.append
-    app.after = lambda delay, func: func()
-
-    class ImmediateThread:
-        def __init__(self, target=None, daemon=None):
-            self.target = target
-
-        def start(self):
-            if self.target:
-                self.target()
-
-    monkeypatch.setattr(netmon.threading, "Thread", ImmediateThread)
-    monkeypatch.setattr(
-        netmon.simpledialog, "askstring", lambda *args, **kwargs: "secret"
-    )
-    monkeypatch.setattr(hdd_controller.time, "sleep", lambda _secs: None)
-    monkeypatch.setattr(
-        netmon.os.path,
-        "exists",
-        lambda path: path == "/dev/sdb"
-        or (state["unlocked"] and path == "/dev/mapper/netmon_sdb"),
-    )
-    monkeypatch.setattr(
-        netmon,
-        "has_cmd",
-        lambda name: name in {"cryptsetup", "udisksctl"},
-    )
-
-    def fake_run_cmd(args, timeout=0, text=True):
-        mount_calls.append(args)
-        return 0, "ok"
-
-    def fake_run_cmd_with_input(args, input_text="", timeout=0):
-        open_calls.append((args, input_text))
-        state["unlocked"] = True
-        return 0, "Unlocked"
-
-    monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
-    monkeypatch.setattr(hdd_controller, "run_cmd_with_input", fake_run_cmd_with_input)
-
-    app.hdd_mount_async(0)
-
-    assert open_calls == [
-        (
-            [
-                "sudo",
-                "-n",
-                "cryptsetup",
-                "luksOpen",
-                "/dev/sdb",
-                "netmon_sdb",
-                "--key-file",
-                "-",
-            ],
-            "secret\n",
-        )
-    ]
-    assert mount_calls == [["udisksctl", "mount", "-b", "/dev/mapper/netmon_sdb"]]
-    assert any(
-        "LUKS Mount-Quelle gewählt: /dev/mapper/netmon_sdb" in entry for entry in logs
-    )
-    assert any("desktop-integriert gemountet" in entry for entry in logs)
-
-
-def test_hdd_mount_async_luks_falls_back_to_root_mount_when_udisksctl_fails(
-    monkeypatch,
-):
-    app = netmon.App.__new__(netmon.App)
-    app.hdd_slots = [
-        {
-            "slot": 1,
-            "custom_name": "Vault",
-            "device": "/dev/sdb",
-            "device_uuid": "",
-            "mountpoint": "/mnt/vault",
-        }
-    ]
-    logs = []
-    open_calls = []
-    mount_calls = []
-    state = {"unlocked": False}
-    app.hdd_luks_mappers = {}
-
-    app.ensure_sudo_session = lambda _label: True
-    app._slot_display_name = lambda idx: "Vault"
-    app._hdd_resolve_slot_device = lambda slot: (
-        slot["device"],
-        {"device": slot["device"]},
-    )
-    app.hdd_slot_configured = lambda slot: True
-    app._hdd_luks_info_for_device = lambda device: {
-        "is_luks": True,
-        "unlocked": state["unlocked"],
-        "mapper_name": "netmon_sdb",
-        "mapper_path": "/dev/mapper/netmon_sdb" if state["unlocked"] else "",
-        "available_mappers": ["netmon_sdb"] if state["unlocked"] else [],
-    }
-    app._hdd_find_mount_source = lambda device: "/dev/mapper/netmon_sdb"
-    app._hdd_is_mounted = lambda device, mountpoint: (False, "")
-    app.hdd_refresh_async = lambda: logs.append("refresh")
-    app.hdd_info_async = lambda idx: logs.append(f"info:{idx}")
-    app.log = logs.append
-    app.after = lambda delay, func: func()
-
-    class ImmediateThread:
-        def __init__(self, target=None, daemon=None):
-            self.target = target
-
-        def start(self):
-            if self.target:
-                self.target()
-
-    monkeypatch.setattr(netmon.threading, "Thread", ImmediateThread)
-    monkeypatch.setattr(
-        netmon.simpledialog, "askstring", lambda *args, **kwargs: "secret"
-    )
-    monkeypatch.setattr(hdd_controller.time, "sleep", lambda _secs: None)
-    monkeypatch.setattr(
-        netmon.os.path,
-        "exists",
-        lambda path: path == "/dev/sdb"
-        or (state["unlocked"] and path == "/dev/mapper/netmon_sdb"),
-    )
-    monkeypatch.setattr(
-        netmon,
-        "has_cmd",
-        lambda name: name in {"cryptsetup", "udisksctl"},
-    )
-
-    def fake_run_cmd(args, timeout=0, text=True):
-        mount_calls.append(args)
-        if args[:3] == ["udisksctl", "mount", "-b"]:
-            return 1, "udisks failed"
-        return 0, "ok"
-
-    def fake_run_cmd_with_input(args, input_text="", timeout=0):
-        open_calls.append((args, input_text))
-        state["unlocked"] = True
-        return 0, "Unlocked"
-
-    monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
-    monkeypatch.setattr(hdd_controller, "run_cmd_with_input", fake_run_cmd_with_input)
-
-    app.hdd_mount_async(0)
-
-    assert open_calls == [
-        (
-            [
-                "sudo",
-                "-n",
-                "cryptsetup",
-                "luksOpen",
-                "/dev/sdb",
-                "netmon_sdb",
-                "--key-file",
-                "-",
-            ],
-            "secret\n",
-        )
-    ]
-    assert mount_calls == [
-        ["udisksctl", "mount", "-b", "/dev/mapper/netmon_sdb"],
-        ["sudo", "-n", "mkdir", "-p", "/mnt/vault"],
-        ["sudo", "-n", "mount", "/dev/mapper/netmon_sdb", "/mnt/vault"],
-    ]
-    assert any(
-        "udisksctl-Mount fehlgeschlagen, klassischer Mount auf den konfigurierten Pfad wird versucht."
-        in entry
-        for entry in logs
-    )
-    assert any(
-        "LUKS wird per Root-Mount auf den konfigurierten Pfad eingebunden." in entry
-        for entry in logs
-    )
-    assert any("/dev/mapper/netmon_sdb -> /mnt/vault" in entry for entry in logs)
-
-
-def test_hdd_mount_async_requests_system_auth_before_luks_passphrase(monkeypatch):
-    app = netmon.App.__new__(netmon.App)
-    app.hdd_slots = [
-        {
-            "slot": 1,
-            "custom_name": "Vault",
-            "device": "/dev/sdb",
-            "device_uuid": "",
-            "mountpoint": "/mnt/vault",
-        }
-    ]
-    order = []
-    logs = []
-
-    app.ensure_sudo_session = lambda _label: order.append("sudo") or True
-    app._slot_display_name = lambda idx: "Vault"
-    app._hdd_resolve_slot_device = lambda slot: (
-        slot["device"],
-        {"device": slot["device"]},
-    )
-    app.hdd_slot_configured = lambda slot: True
-    app._hdd_luks_info_for_device = lambda device: {
-        "is_luks": True,
-        "unlocked": False,
-    }
-    app.log = logs.append
-
-    monkeypatch.setattr(
-        netmon.simpledialog,
-        "askstring",
-        lambda *args, **kwargs: order.append("luks") or None,
-    )
-
-    app.hdd_mount_async(0)
-
-    assert order == ["sudo", "luks"]
-    assert any("LUKS Schritt 1/2: Systemrechte bestätigen." in entry for entry in logs)
-    assert any("LUKS Schritt 2/2: LUKS-Passphrase eingeben." in entry for entry in logs)
 
 
 def test_hdd_info_async_selects_hdd_tab_immediately(monkeypatch):
@@ -940,14 +584,22 @@ def test_on_hdd_auto_mount_toggle_updates_selected_slot(monkeypatch):
             "is_luks": False,
         }
     }
-    app.hdd_info_auto_mount_var = types.SimpleNamespace(get=lambda: True, set=lambda _v: None)
+    app.hdd_info_auto_mount_var = types.SimpleNamespace(
+        get=lambda: True, set=lambda _v: None
+    )
     app.hdd_info_auto_mount_hint_var = types.SimpleNamespace(set=lambda _v: None)
-    app.hdd_info_auto_mount_check = types.SimpleNamespace(configure=lambda **_kwargs: None)
+    app.hdd_info_auto_mount_check = types.SimpleNamespace(
+        configure=lambda **_kwargs: None
+    )
     app._hdd_auto_mount_programmatic_update = False
     app.log = lambda _message: None
 
     saved = []
-    monkeypatch.setattr(hdd_controller, "save_hdd_config", lambda current_app: saved.append(current_app))
+    monkeypatch.setattr(
+        hdd_controller,
+        "save_hdd_config",
+        lambda current_app: saved.append(current_app) or True,
+    )
 
     hdd_controller.on_hdd_auto_mount_toggle(app)
 
@@ -992,7 +644,9 @@ def test_hdd_sync_auto_mount_ui_disables_luks_devices(monkeypatch):
 
     saved = []
     monkeypatch.setattr(
-        hdd_controller, "save_hdd_config", lambda current_app: saved.append(current_app)
+        hdd_controller,
+        "save_hdd_config",
+        lambda current_app: saved.append(current_app) or True,
     )
 
     hdd_controller.hdd_sync_auto_mount_ui(
@@ -1040,6 +694,7 @@ def test_hdd_startup_auto_mount_schedules_only_non_luks_slots(monkeypatch):
         "hdd_collect_slot_state",
         lambda _app, idx: {"is_luks": idx == 1},
     )
+    app.hdd_slot_states = [{"is_luks": False}, {"is_luks": True}]
     monkeypatch.setattr(
         hdd_controller, "hdd_mount_async", lambda _app, idx: calls.append(idx)
     )
@@ -1058,14 +713,55 @@ def test_hdd_unmount_async_uses_resolved_mount_source_and_actual_target(monkeypa
             "slot": 1,
             "custom_name": "Media",
             "device": "/dev/sdb",
-            "device_uuid": "",
+            "device_uuid": "synthetic-disk-uuid",
             "mountpoint": "/mnt/media",
         }
     ]
     logs = []
     calls = []
+    disk = {"device": "/dev/sdb", "uuid": "synthetic-disk-uuid"}
+    app.detected_disks = [disk]
+    app.detected_disks_by_device = {"/dev/sdb": disk}
+    identity = hdd_mount_service.MountIdentity(
+        hdd_mount_service.DeviceIdentity(
+            "/dev/sdb", "synthetic-disk-uuid", 1, "disk", ""
+        ),
+        hdd_mount_service.DeviceIdentity(
+            "/dev/sdb1", "synthetic-fs-uuid", 2, "part", "ext4"
+        ),
+    )
+    checks = []
+
+    def inspect(device, uuid, runner):
+        assert (device, uuid) == ("/dev/sdb", "synthetic-disk-uuid")
+        return identity
+
+    def verified_mount(current, runner):
+        assert current == identity
+        checks.append(True)
+        return "/media/test/Media"
+
+    # This UI/fallback unit test simulates policy results; the security tests
+    # exercise the actual inventory and exact mount verification separately.
+    monkeypatch.setattr(hdd_mount_service, "inspect_device", inspect)
+    monkeypatch.setattr(hdd_mount_service, "verified_mount_target", verified_mount)
+    original_stat = hdd_controller.os.stat
+
+    def selected_node_stat(path, *args, **kwargs):
+        if str(path) == "/dev/sdb":
+            return types.SimpleNamespace(
+                st_mode=stat.S_IFBLK, st_rdev=1, st_dev=1, st_ino=2
+            )
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(hdd_controller.os, "stat", selected_node_stat)
 
     app.ensure_sudo_session = lambda _label: True
+    monkeypatch.setattr(
+        hdd_controller,
+        "_authorize_hdd_unmount",
+        lambda current_app, _runner: current_app.ensure_sudo_session("HDD Unmount"),
+    )
     app._slot_display_name = lambda idx: "Media"
     app._hdd_resolve_slot_device = lambda slot: (
         slot["device"],
@@ -1101,7 +797,7 @@ def test_hdd_unmount_async_uses_resolved_mount_source_and_actual_target(monkeypa
             return 1, "still busy"
         return 0, "ok"
 
-    monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
+    monkeypatch.setattr(hdd_mount_service, "run_hdd_command", fake_run_cmd)
 
     app.hdd_unmount_async(0)
 
@@ -1111,3 +807,4 @@ def test_hdd_unmount_async_uses_resolved_mount_source_and_actual_target(monkeypa
         ["umount", "/media/test/Media"],
         ["udisksctl", "unmount", "-b", "/dev/sdb1"],
     ]
+    assert len(checks) == 5  # initial binding plus each attempted unmount

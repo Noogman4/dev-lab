@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import os
 import re
+import stat
 import threading
-import tempfile
-import time
-from tkinter import messagebox, simpledialog
+from copy import deepcopy
+from dataclasses import dataclass
+from types import SimpleNamespace
+from tkinter import TclError, messagebox, simpledialog
 
 try:
     from netmon.config.constants import HDD_SLOT_COUNT
@@ -16,9 +18,9 @@ except ModuleNotFoundError:
     from config.constants import HDD_SLOT_COUNT
 
 try:
-    from netmon.core.utils import human_size, safe_write_json, call_in_ui_thread
+    from netmon.core.utils import call_in_ui_thread, human_size, safe_write_json
 except ModuleNotFoundError:
-    from core.utils import human_size, safe_write_json, call_in_ui_thread
+    from core.utils import call_in_ui_thread, human_size, safe_write_json
 
 try:
     from netmon.core.command import run_cmd
@@ -26,9 +28,9 @@ except ModuleNotFoundError:
     from core.command import run_cmd
 
 try:
-    from netmon.core.command import run_cmd_with_input
+    from netmon.services import hdd_mount_service
 except ModuleNotFoundError:
-    from core.command import run_cmd_with_input
+    from services import hdd_mount_service
 
 try:
     from netmon.core.tooling import has_cmd
@@ -91,7 +93,6 @@ def _hdd_slot_has_assignment(slot):
     )
 
 
-
 def _clear_hdd_slot_fields(slot):
     slot["device"] = ""
     slot["device_uuid"] = ""
@@ -122,9 +123,6 @@ def _assign_disk_to_hdd_slot(slot, device, disk, custom_name):
         or f"/mnt/{os.path.basename(device or '') or 'netmon_hdd'}"
     )
     slot["custom_name"] = str(custom_name or "").strip()
-
-
-
 
 
 _SAFE_MOUNT_BASES = ("/mnt/", "/media/", "/run/media/")
@@ -161,21 +159,40 @@ def load_hdd_slots_config(app):
         if os.path.isfile(app.hdd_config_path):
             with open(app.hdd_config_path, "r", encoding="utf-8") as f:
                 raw = json.load(f)
-            if isinstance(raw, list):
-                for item in raw:
+            if not isinstance(raw, list):
+                raise ValueError("Erwartet wird eine Liste von HDD-Slots.")
+            for index, item in enumerate(raw, start=1):
+                try:
                     if not isinstance(item, dict):
-                        continue
-                    slot_no = int(item.get("slot", 0))
-                    if 1 <= slot_no <= HDD_SLOT_COUNT:
-                        slots[slot_no - 1] = {
-                            "slot": slot_no,
-                            "custom_name": (item.get("custom_name") or "").strip(),
-                            "device": (item.get("device") or "").strip(),
-                            "device_uuid": (item.get("device_uuid") or "").strip(),
-                            "mountpoint": (item.get("mountpoint") or "").strip(),
-                            "auto_mount": bool(item.get("auto_mount", False)),
-                        }
-    except Exception as e:
+                        raise ValueError("Slot muss ein Objekt sein.")
+                    number = item.get("slot")
+                    if type(number) is int:
+                        slot_no = number
+                    elif (
+                        isinstance(number, str)
+                        and number.strip().isascii()
+                        and number.strip().isdecimal()
+                    ):
+                        slot_no = int(number.strip())
+                    else:
+                        raise ValueError("Ungültige Slotnummer.")
+                    if not 1 <= slot_no <= HDD_SLOT_COUNT:
+                        raise ValueError("Slotnummer außerhalb des gültigen Bereichs.")
+                    fields = {}
+                    for key in ("custom_name", "device", "device_uuid", "mountpoint"):
+                        value = item.get(key, "")
+                        if not isinstance(value, str):
+                            raise ValueError(f"{key} muss Text sein.")
+                        fields[key] = value.strip()
+                    auto_mount = item.get("auto_mount", False)
+                    if type(auto_mount) is not bool:
+                        raise ValueError("auto_mount muss true oder false sein.")
+                    slots[slot_no - 1] = dict(
+                        slot=slot_no, auto_mount=auto_mount, **fields
+                    )
+                except (TypeError, ValueError) as exc:
+                    app.log(f"HDD Slot-Konfig: Eintrag {index} übersprungen: {exc}")
+    except (OSError, ValueError, RecursionError) as e:
         app.log(f"HDD Slot-Konfig konnte nicht geladen werden: {e}")
     return slots
 
@@ -189,10 +206,12 @@ def save_hdd_slots_config(app):
     )
     if not ok:
         app.log(f"HDD Slot-Konfig konnte nicht gespeichert werden: {err}")
+    app.hdd_config_dirty = not ok
+    return ok
 
 
 def save_hdd_config(app):
-    save_hdd_slots_config(app)
+    return save_hdd_slots_config(app)
 
 
 def hdd_slot_configured(slot):
@@ -214,25 +233,27 @@ def hdd_find_device_by_uuid(app, device_uuid):
 
 
 def hdd_resolve_slot_device(app, slot):
+    """Resolve a display hint without silently changing a saved device identity."""
     configured_device = (slot.get("device") or "").strip()
     configured_uuid = (slot.get("device_uuid") or "").strip()
-    disks_by_device = _detected_disks_by_device(app)
-
-    disk = disks_by_device.get(configured_device) if configured_device else None
+    if configured_device and not configured_device.startswith("/dev/"):
+        return "", None
+    disk = _detected_disks_by_device(app).get(configured_device)
     if disk:
-        live_uuid = (disk.get("uuid") or "").strip()
-        if live_uuid and live_uuid != configured_uuid:
-            slot["device_uuid"] = live_uuid
+        if configured_uuid and (disk.get("uuid") or "").strip() != configured_uuid:
+            return "", None
         return configured_device, disk
-
-    disk = hdd_find_device_by_uuid(app, configured_uuid)
-    if disk:
-        live_device = (disk.get("device") or "").strip()
-        if live_device and live_device != configured_device:
-            slot["device"] = live_device
-        return live_device, disk
-
-    return configured_device, None
+    if configured_device and os.path.exists(configured_device):
+        return "", None
+    if configured_uuid:
+        matches = [
+            disk
+            for disk in _detected_disks(app)
+            if (disk.get("uuid") or "").strip() == configured_uuid
+        ]
+        if len(matches) == 1:
+            return (matches[0].get("device") or "").strip(), matches[0]
+    return "", None
 
 
 def slot_for_device(app, device):
@@ -337,7 +358,9 @@ def on_hdd_table_select(app, _event=None):
         app.hdd_selected_device = None
         return
     dev = sel[0]
-    current_info_device = str(app.__dict__.get("hdd_info_selected_device") or "").strip()
+    current_info_device = str(
+        app.__dict__.get("hdd_info_selected_device") or ""
+    ).strip()
     app.hdd_selected_device = dev
     disk = app.detected_disks_by_device.get(dev)
     if not disk:
@@ -373,7 +396,7 @@ def on_hdd_table_select(app, _event=None):
 def hdd_sync_auto_mount_ui(app, state=None):
     if state is None:
         device = str(getattr(app, "hdd_selected_device", "") or "").strip()
-        state = hdd_collect_device_state(app, device) if device else None
+        state = _detected_disks_by_device(app).get(device) if device else None
 
     available = False
     enabled = False
@@ -411,7 +434,7 @@ def hdd_sync_auto_mount_ui(app, state=None):
         try:
             if auto_mount_check is not None:
                 auto_mount_check.configure(
-                state=("normal" if available else "disabled")
+                    state=("normal" if available else "disabled")
                 )
         except Exception:
             pass
@@ -431,7 +454,7 @@ def on_hdd_auto_mount_toggle(app):
     if not device:
         hdd_sync_auto_mount_ui(app, None)
         return
-    state = hdd_collect_device_state(app, device)
+    state = _detected_disks_by_device(app).get(device) or {}
     slot_no = slot_for_device(app, device)
     if not slot_no:
         hdd_sync_auto_mount_ui(app, state)
@@ -456,8 +479,12 @@ def on_hdd_auto_mount_toggle(app):
 
     auto_mount_var = app.__dict__.get("hdd_info_auto_mount_var")
     enabled = bool(auto_mount_var.get()) if auto_mount_var is not None else False
+    previous = app.hdd_slots[slot_no - 1].get("auto_mount", False)
     app.hdd_slots[slot_no - 1]["auto_mount"] = enabled
-    save_hdd_config(app)
+    if not save_hdd_config(app):
+        app.hdd_slots[slot_no - 1]["auto_mount"] = previous
+        hdd_sync_auto_mount_ui(app, state)
+        return False
     hdd_sync_auto_mount_ui(app, state)
     app.log(
         app.tr(
@@ -555,6 +582,7 @@ def assign_selected_disk_to_slot(app):
         app.log("Ungültiger Slot ausgewählt.")
         return
 
+    previous_slots = deepcopy(app.hdd_slots)
     disk_uuid = (disk.get("uuid") or "").strip()
     _clear_device_slot_assignments(
         app,
@@ -571,8 +599,13 @@ def assign_selected_disk_to_slot(app):
         disk,
         (app.hdd_custom_name_var.get() or "").strip(),
     )
-    target["auto_mount"] = bool(target.get("auto_mount")) if previous_target_device == dev else False
-    save_hdd_config(app)
+    target["auto_mount"] = (
+        bool(target.get("auto_mount")) if previous_target_device == dev else False
+    )
+    if not save_hdd_config(app):
+        app.hdd_slots[:] = previous_slots
+        app.hdd_name_dirty = True
+        return False
     app.hdd_last_loaded_name = target["custom_name"]
     app.hdd_name_dirty = False
     refresh_hdd_table(app, keep_selection=True)
@@ -603,12 +636,15 @@ def clear_slot_assignment(app, confirm=False):
         if not ok:
             app.log(f"HDD Zuordnung aufheben abgebrochen: Slot {slot_no}.")
             return
+    previous_slots = deepcopy(app.hdd_slots)
     target["device"] = ""
     target["device_uuid"] = ""
     target["mountpoint"] = ""
     target["custom_name"] = ""
+    if not save_hdd_config(app):
+        app.hdd_slots[:] = previous_slots
+        return False
     app.hdd_selected_device = None
-    save_hdd_config(app)
     set_hdd_name_from_model(app, "")
     refresh_hdd_table(app, keep_selection=False)
     update_hdd_buttons(app)
@@ -929,32 +965,83 @@ def hdd_apply_slot_lights(app):
 def hdd_refresh_async(app):
     if app.hdd_refresh_running:
         return
+    # Display calculations get a private inventory; never replace the live UI
+    # cache temporarily while another action may be reading it.
+    snapshot = SimpleNamespace(**app.__dict__)
+    snapshot.hdd_slots = deepcopy(app.hdd_slots)
+    snapshot.hdd_luks_mappers = dict(_app_value(app, "hdd_luks_mappers", {}))
     app.hdd_refresh_running = True
 
+    def dispatch(callback):
+        try:
+            call_in_ui_thread(app, callback)
+        except (RuntimeError, TclError):
+            app.hdd_refresh_running = False
+            raise
+
+    def failed(error):
+        app.hdd_refresh_running = False
+        app.log(f"HDD-Aktualisierung fehlgeschlagen: {error}. Erneut versuchen.")
+
     def job():
-        disks = app.scan_hdds()
-        disks_by_device = {(d.get("device") or ""): d for d in disks if d.get("device")}
-        prev_detected = _detected_disks_by_device(app)
-        app.detected_disks_by_device = disks_by_device
-        states = [hdd_collect_slot_state(app, i) for i in range(len(app.hdd_slots))]
-        app.detected_disks_by_device = prev_detected
+        try:
+            disks = app.scan_hdds()
+            disks_by_device = {
+                (d.get("device") or ""): d for d in disks if d.get("device")
+            }
+            snapshot.detected_disks = disks
+            snapshot.detected_disks_by_device = disks_by_device
+            states = [
+                hdd_collect_slot_state(snapshot, i)
+                for i in range(len(snapshot.hdd_slots))
+            ]
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            RuntimeError,
+        ) as exc:
+            dispatch(lambda error=str(exc): failed(error))
+            return
+        except Exception as exc:
+            # Programming errors remain visible in the worker traceback too.
+            dispatch(lambda error=str(exc): failed(error))
+            raise
 
         def done():
-            app.detected_disks = disks
-            app.detected_disks_by_device = disks_by_device
-            refresh_hdd_table(app, keep_selection=True)
-            app.hdd_slot_states = states
-            hdd_apply_slot_lights(app)
-            app.hdd_refresh_running = False
+            previous_disks = _detected_disks(app)
+            previous_map = _detected_disks_by_device(app)
+            previous_states = _app_value(app, "hdd_slot_states", [])
+            try:
+                if app.hdd_slots != snapshot.hdd_slots:
+                    return
+                app.detected_disks = disks
+                app.detected_disks_by_device = disks_by_device
+                refresh_hdd_table(app, keep_selection=True)
+                app.hdd_slot_states = states
+                hdd_apply_slot_lights(app)
+            except (RuntimeError, TclError, ValueError, AttributeError) as exc:
+                app.detected_disks = previous_disks
+                app.detected_disks_by_device = previous_map
+                app.hdd_slot_states = previous_states
+                failed(str(exc))
+                return
+            finally:
+                app.hdd_refresh_running = False
             if getattr(app, "_hdd_startup_auto_mount_pending", False):
                 app._hdd_startup_auto_mount_pending = False
                 hdd_startup_auto_mount(app)
             else:
                 hdd_sync_auto_mount_ui(app)
 
-        call_in_ui_thread(app, done)
+        dispatch(done)
 
-    threading.Thread(target=job, daemon=True).start()
+    try:
+        threading.Thread(target=job, daemon=True).start()
+    except RuntimeError as exc:
+        failed(str(exc))
 
 
 def hdd_render_usage_bar(app, usage):
@@ -1023,19 +1110,13 @@ def hdd_render_info(app, state):
         ),
         app.tr("hdd_info_status", "Status: {value}").format(value=mounted_txt),
         app.tr("hdd_info_encryption", "Encryption: {value}").format(
-            value="LUKS"
-            if state.get("is_luks")
-            else app.tr("value_no", "NO")
+            value="LUKS" if state.get("is_luks") else app.tr("value_no", "NO")
         ),
         app.tr("hdd_info_luks_state", "LUKS state: {value}").format(
             value=(
                 app.tr("hdd_luks_locked", "locked")
                 if state.get("luks_locked")
-                else (
-                    app.tr("hdd_luks_open", "open")
-                    if state.get("is_luks")
-                    else "-"
-                )
+                else (app.tr("hdd_luks_open", "open") if state.get("is_luks") else "-")
             )
         ),
         app.tr("hdd_info_actual_target", "Current target: {value}").format(
@@ -1123,7 +1204,7 @@ def hdd_startup_auto_mount(app):
     def schedule(idx, delay_ms):
         def run_mount(current_idx=idx):
             try:
-                hdd_mount_async(app, current_idx, select_tab=False)
+                hdd_mount_async(app, current_idx, select_tab=False, allow_unlock=False)
             except TypeError:
                 hdd_mount_async(app, current_idx)
 
@@ -1134,7 +1215,9 @@ def hdd_startup_auto_mount(app):
 
     scheduled = 0
     for idx in enabled_slots:
-        state = hdd_collect_slot_state(app, idx)
+        states = _app_value(app, "hdd_slot_states", [])
+        _device, disk = hdd_resolve_slot_device(app, app.hdd_slots[idx])
+        state = (states[idx] if idx < len(states) else None) or disk or {}
         if state.get("is_luks"):
             app.hdd_slots[idx]["auto_mount"] = False
             app.log(
@@ -1147,365 +1230,155 @@ def hdd_startup_auto_mount(app):
     save_hdd_config(app)
 
 
-def hdd_mount_async(app, idx, select_tab=True):
+@dataclass(frozen=True)
+class _HddRequestDevice:
+    requested_path: str
+    path: str
+    uuid: str
+    number: int
+    node_device: int
+    inode: int
+
+
+def _hdd_block_node(path):
+    """Read only /dev node metadata; never open the device or run an inventory."""
+    info = os.stat(path)
+    fields = (info.st_rdev, info.st_dev, info.st_ino)
+    if (
+        not stat.S_ISBLK(info.st_mode)
+        or any(type(value) is not int or value < 0 for value in fields)
+        or info.st_rdev == 0
+        or info.st_ino == 0
+    ):
+        raise hdd_mount_service.MountPolicyError(
+            "Incomplete selected block device identity."
+        )
+    return fields
+
+
+def _capture_hdd_request_device(device, expected_uuid):
+    """Freeze the selected kernel device before the job enters the worker queue.
+
+    stat/realpath inspect local /dev metadata only. Filesystem/UUID/ancestry
+    inventory and all privileged operations remain in the command worker.
+    """
+    if (
+        not isinstance(device, str)
+        or not device.startswith("/dev/")
+        or not isinstance(expected_uuid, str)
+        or not expected_uuid.strip()
+    ):
+        raise hdd_mount_service.MountPolicyError(
+            "No complete selected device identity."
+        )
+    try:
+        path = os.path.realpath(device)
+        if not path.startswith("/dev/"):
+            raise hdd_mount_service.MountPolicyError(
+                "Selected device must remain below /dev."
+            )
+        node = _hdd_block_node(path)
+        if os.path.realpath(device) != path or _hdd_block_node(device) != node:
+            raise hdd_mount_service.MountPolicyError(
+                "Device changed while binding selection."
+            )
+        return _HddRequestDevice(device, path, expected_uuid.strip(), *node)
+    except (OSError, AttributeError, TypeError) as exc:
+        raise hdd_mount_service.MountPolicyError(
+            "Cannot bind selected block device."
+        ) from exc
+
+
+def _assert_hdd_request_device(request):
+    if _capture_hdd_request_device(request.requested_path, request.uuid) != request:
+        raise hdd_mount_service.MountPolicyError(
+            "Selected device changed; refresh and retry."
+        )
+
+
+def _inspect_hdd_request_device(request, runner):
+    _assert_hdd_request_device(request)
+    identity = hdd_mount_service.inspect_device(request.path, request.uuid, runner)
+    if (
+        not isinstance(identity, hdd_mount_service.MountIdentity)
+        or not isinstance(identity.device, hdd_mount_service.DeviceIdentity)
+        or (identity.device.path, identity.device.uuid, identity.device.number)
+        != (request.path, request.uuid, request.number)
+    ):
+        raise hdd_mount_service.MountPolicyError(
+            "Live device does not match the original selection."
+        )
+    _assert_hdd_request_device(request)
+    return identity
+
+
+def hdd_mount_async(app, idx, select_tab=True, *, allow_unlock=True):
+    runner = hdd_mount_service.run_hdd_command
     if idx < 0 or idx >= len(app.hdd_slots):
         return
-    slot = app.hdd_slots[idx]
+    # Freeze the selection before any dialogs or worker execution.
+    slot = dict(app.hdd_slots[idx])
+    device, disk = hdd_resolve_slot_device(app, slot)
     label = slot_display_name(app, idx)
-    resolve_slot_device = _app_callable(
-        app,
-        "_hdd_resolve_slot_device",
-        lambda current_slot: hdd_resolve_slot_device(app, current_slot),
-    )
-    device, _disk = resolve_slot_device(slot)
-    mountpoint = _slot_mountpoint(slot, device)
-    if not hdd_slot_configured(slot):
-        app.log(
-            app.tr(
-                "hdd_slot_not_configured",
-                "HDD slot not configured: {label}.",
-            ).format(label=label)
-        )
-        return
 
-    luks_info = _app_callable(
-        app,
-        "_hdd_luks_info_for_device",
-        lambda current_device: hdd_luks_info_for_device(app, current_device),
-    )
-    mount_source_for = _app_callable(
-        app, "_hdd_find_mount_source", hdd_find_mount_source
-    )
-    is_mounted = _app_callable(
-        app,
-        "_hdd_is_mounted",
-        lambda current_device, current_mountpoint: hdd_is_mounted(
-            app, current_device, current_mountpoint
-        ),
-    )
-    luks = luks_info(device)
-    luks_passphrase = None
-    if luks.get("is_luks") and not luks.get("unlocked"):
-        app.log(
-            app.tr(
-                "hdd_luks_step1",
-                "LUKS Schritt 1/2: Systemrechte bestätigen.",
-            )
-        )
-        if not app.ensure_sudo_session("LUKS Systemrechte für HDD Mount"):
-            return
-        if not has_cmd("udisksctl") and not has_cmd("cryptsetup"):
-            app.log(
-                app.tr(
-                    "hdd_luks_cryptsetup_missing",
-                    "LUKS erkannt, aber udisksctl/cryptsetup fehlt (sudo apt install -y udisks2 cryptsetup).",
-                )
-            )
-            return
-        app.log(
-            app.tr(
-                "hdd_luks_step2",
-                "LUKS Schritt 2/2: LUKS-Passphrase eingeben.",
-            )
-        )
-        luks_passphrase = simpledialog.askstring(
-            app.tr("hdd_luks_passphrase_title", "LUKS passphrase"),
-            app.tr(
-                "hdd_luks_passphrase_prompt",
-                "Please enter the LUKS passphrase for {device}:",
-            ).format(device=device),
-            show="*",
-            parent=app,
-        )
-        if luks_passphrase is None:
-            app.log(
-                app.tr(
-                    "hdd_luks_mount_cancelled",
-                    "LUKS mount cancelled: {label}.",
-                ).format(label=label)
-            )
-            return
-        if not luks_passphrase:
-            app.log(
-                app.tr(
-                    "hdd_luks_passphrase_empty",
-                    "LUKS passphrase empty, mount cancelled.",
-                )
-            )
-            return
-    elif not app.ensure_sudo_session("HDD Mount"):
+    def report_failure(error):
+        message = f"HDD mount rejected for {label}: {error}"
+        call_in_ui_thread(app, lambda: app.log(message))
+
+    if not device or not disk:
+        report_failure("Device is not detected or its UUID no longer matches.")
+        return
+    if not has_cmd("udisksctl") or not has_cmd("lsblk") or not has_cmd("findmnt"):
+        report_failure("udisks2, lsblk and findmnt are required for safe mounting.")
+        return
+    try:
+        request = _capture_hdd_request_device(device, slot.get("device_uuid"))
+    except hdd_mount_service.MountPolicyError as exc:
+        report_failure(exc)
         return
 
     def job():
-        if not os.path.exists(device):
-            app.after(
-                0,
-                lambda: app.log(
+        passphrase = None
+        try:
+            current = _inspect_hdd_request_device(request, runner)
+            if current.is_luks and not allow_unlock:
+                raise hdd_mount_service.MountPolicyError("LUKS automount is disabled.")
+            if current.is_luks and current.source is None:
+                passphrase = _ask_hdd_secret(
+                    app,
+                    app.tr("hdd_luks_passphrase_title", "LUKS passphrase"),
                     app.tr(
-                        "hdd_mount_failed_device_missing",
-                        "HDD mount failed for {label}: device does not exist ({device}).",
-                    ).format(label=label, device=device)
-                ),
-            )
-            return
-
-        current_luks = luks_info(device)
-        mount_source = mount_source_for(device)
-        if current_luks.get("is_luks"):
-            mapper_name = current_luks.get("mapper_name")
-            mapper_path = current_luks.get("mapper_path")
-            has_udisksctl = has_cmd("udisksctl")
-            has_cryptsetup = has_cmd("cryptsetup")
-            if not mapper_name:
-                mapper_name = hdd_sanitize_mapper_name(device)
-                mapper_path = f"/dev/mapper/{mapper_name}"
-
-            if not os.path.exists(mapper_path):
-                rc = 1
-                out = ""
-                keyfile_path = None
-                if has_cryptsetup:
-                    rc, out = run_cmd_with_input(
-                        [
-                            "sudo",
-                            "-n",
-                            "cryptsetup",
-                            "luksOpen",
-                            device,
-                            mapper_name,
-                            "--key-file",
-                            "-",
-                        ],
-                        input_text=(luks_passphrase or "") + "\n",
-                        timeout=25,
-                    )
-                if rc != 0 and has_cryptsetup:
-                    rc, out = run_cmd_with_input(
-                        [
-                            "cryptsetup",
-                            "luksOpen",
-                            device,
-                            mapper_name,
-                            "--key-file",
-                            "-",
-                        ],
-                        input_text=(luks_passphrase or "") + "\n",
-                        timeout=25,
-                    )
-                if rc != 0 and has_udisksctl:
-                    try:
-                        with tempfile.NamedTemporaryFile(
-                            "w", delete=False, encoding="utf-8"
-                        ) as tmp:
-                            tmp.write(luks_passphrase or "")
-                            tmp.flush()
-                            keyfile_path = tmp.name
-                        rc, out = run_cmd(
-                            [
-                                "udisksctl",
-                                "unlock",
-                                "-b",
-                                device,
-                                "--key-file",
-                                keyfile_path,
-                            ],
-                            timeout=25,
-                        )
-                        if rc != 0:
-                            rc, out = run_cmd(
-                                [
-                                    "sudo",
-                                    "-n",
-                                    "udisksctl",
-                                    "unlock",
-                                    "-b",
-                                    device,
-                                    "--key-file",
-                                    keyfile_path,
-                                ],
-                                timeout=25,
-                            )
-                    finally:
-                        if keyfile_path:
-                            try:
-                                os.unlink(keyfile_path)
-                            except OSError:
-                                pass
-                if rc != 0:
-                    if not has_cryptsetup:
-                        out = (
-                            (out or "").strip()
-                            + "\n"
-                            + app.tr(
-                                "hdd_luks_cryptsetup_hint",
-                                "Hint: cryptsetup is not installed in this system package environment. Please install: sudo apt install -y cryptsetup",
-                            )
-                        ).strip()
-                    app.after(
-                        0,
-                        lambda: app.log(
-                            app.tr(
-                                "hdd_luks_open_failed",
-                                "LUKS open failed for {label}: {output}",
-                            ).format(label=label, output=out)
-                        ),
-                    )
+                        "hdd_luks_passphrase_prompt",
+                        "Please enter the LUKS passphrase for {device}:",
+                    ).format(device=device),
+                )
+                if not passphrase:
                     return
-                for _ in range(15):
-                    time.sleep(0.2)
-                    current_luks = luks_info(device)
-                    mapper_path = current_luks.get("mapper_path") or mapper_path
-                    mapper_name = current_luks.get("mapper_name") or mapper_name
-                    if mapper_path and os.path.exists(mapper_path):
-                        break
-
-            if not mapper_path or not os.path.exists(mapper_path):
-                available_mappers = (
-                    current_luks.get("available_mappers") or hdd_list_mappers()
-                )
-                mapper_list = ", ".join(available_mappers) if available_mappers else "-"
-                searched = mapper_path or f"/dev/mapper/{mapper_name}"
-                app.after(
-                    0,
-                    lambda: app.log(
-                        app.tr(
-                            "hdd_mount_failed_mapper_missing",
-                            "HDD mount failed for {label}: searched device: {searched} | available mappers: {mappers}",
-                        ).format(
-                            label=label,
-                            searched=searched,
-                            mappers=mapper_list,
-                        )
-                    ),
-                )
-                return
-
-            mount_source = mount_source_for(mapper_path)
-            app.hdd_luks_mappers[device] = mapper_name
-            app.after(
-                0,
-                lambda: app.log(
-                    app.tr(
-                        "hdd_luks_mount_source_selected",
-                        "LUKS Mount-Quelle gewählt: {source}",
-                    ).format(source=mount_source)
-                ),
-            )
-
-        mounted, target = is_mounted(device, mountpoint)
-        if mounted is True:
-            app.after(
-                0,
-                lambda: app.log(
-                    app.tr(
-                        "hdd_already_mounted",
-                        "HDD already mounted: {label} ({target}).",
-                    ).format(label=label, target=target or mountpoint)
-                ),
-            )
-            app.after(
-                0,
-                lambda: _call_with_optional_select_tab(
-                    app.hdd_info_async, idx, select_tab, log_event=False
-                ),
-            )
+            if passphrase is not None:
+                _assert_hdd_request_device(request)
+                current = hdd_mount_service.unlock_device(current, passphrase, runner)
+            _assert_hdd_request_device(request)
+            rc, out = hdd_mount_service.mount_device(current, runner)
+        except (hdd_mount_service.MountPolicyError, OSError, TclError) as exc:
+            report_failure(exc)
             return
-
-        used_desktop_mount = False
-        if has_cmd("udisksctl"):
-            rc, out = run_cmd(["udisksctl", "mount", "-b", mount_source], timeout=20)
-            if rc == 0:
-                used_desktop_mount = True
-            else:
-                app.after(
-                    0,
-                    lambda: app.log(
-                        app.tr(
-                            "hdd_udisks_mount_failed_fallback",
-                            "udisksctl-Mount fehlgeschlagen, klassischer Mount auf den konfigurierten Pfad wird versucht.",
-                        )
-                    ),
-                )
-                if current_luks.get("is_luks"):
-                    app.after(
-                        0,
-                        lambda: app.log(
-                            app.tr(
-                                "hdd_luks_root_mount_notice",
-                                "LUKS wird per Root-Mount auf den konfigurierten Pfad eingebunden.",
-                            )
-                        ),
-                    )
-
-        if not used_desktop_mount:
-            if current_luks.get("is_luks"):
-                app.after(
-                    0,
-                    lambda: app.log(
-                        app.tr(
-                            "hdd_luks_root_mount_notice",
-                            "LUKS wird per Root-Mount auf den konfigurierten Pfad eingebunden.",
-                        )
-                    ),
-                )
-            rc, out = run_cmd(["sudo", "-n", "mkdir", "-p", mountpoint], timeout=8)
-            if rc != 0:
-                rc, out = run_cmd(["mkdir", "-p", mountpoint], timeout=8)
-            if rc != 0:
-                app.after(
-                    0,
-                    lambda: app.log(
-                        app.tr(
-                            "hdd_mountpoint_error",
-                            "HDD mountpoint error {mountpoint}: {output}",
-                        ).format(mountpoint=mountpoint, output=out)
-                    ),
-                )
-                return
-
-            rc, out = run_cmd(
-                ["sudo", "-n", "mount", mount_source, mountpoint], timeout=12
-            )
-            if rc != 0:
-                rc, out = run_cmd(["mount", mount_source, mountpoint], timeout=12)
+        finally:
+            passphrase = None
 
         def done():
             if rc == 0:
-                if used_desktop_mount:
-                    app.log(
-                        app.tr(
-                            "hdd_mounted_desktop_integrated",
-                            "HDD desktop-integriert gemountet: {label} ({source}).",
-                        ).format(label=label, source=mount_source)
-                    )
-                else:
-                    app.log(
-                        app.tr(
-                            "hdd_mounted",
-                            "HDD mounted: {label} ({source} -> {mountpoint}).",
-                        ).format(
-                            label=label,
-                            source=mount_source,
-                            mountpoint=mountpoint,
-                        )
-                    )
+                app.log(
+                    app.tr(
+                        "hdd_mounted_desktop_integrated",
+                        "HDD desktop-integriert gemountet: {label} ({source}).",
+                    ).format(label=label, source=current.source.path)
+                )
             else:
                 app.log(
                     app.tr(
-                        "hdd_mount_failed",
-                        "HDD mount failed for {label}: {output}",
+                        "hdd_mount_failed", "HDD mount failed for {label}: {output}."
                     ).format(label=label, output=out)
                 )
-                if (
-                    "password" in (out or "").lower()
-                    or "not permitted" in (out or "").lower()
-                ):
-                    app.log(
-                        app.tr(
-                            "hdd_mount_sudo_hint",
-                            "Note: sudo authentication is missing or permissions are insufficient (see sudo auth at startup).",
-                        )
-                    )
             app.hdd_refresh_async()
             _call_with_optional_select_tab(
                 app.hdd_info_async, idx, select_tab, log_event=False
@@ -1516,20 +1389,56 @@ def hdd_mount_async(app, idx, select_tab=True):
     threading.Thread(target=job, daemon=True).start()
 
 
+def _ask_hdd_secret(app, title, prompt):
+    """Only the modal dialog runs on Tk; the command worker waits separately."""
+    ready = threading.Event()
+    result = {}
+
+    def ask():
+        try:
+            result["value"] = simpledialog.askstring(
+                title, prompt, show="*", parent=app
+            )
+        except TclError as exc:
+            result["error"] = exc
+        finally:
+            ready.set()
+
+    call_in_ui_thread(app, ask)
+    ready.wait()
+    if "error" in result:
+        raise result.pop("error")
+    return result.pop("value", None)
+
+
+def _authorize_hdd_unmount(app, runner):
+    """Keep HDD sudo authorization on the same controlled subprocess boundary."""
+    rc, _out = runner(["sudo", "-n", "true"], timeout=3)
+    if rc == 0:
+        return True
+    for _attempt in range(3):
+        password = _ask_hdd_secret(app, "HDD Unmount", "Sudo Passwort")
+        if password is None:
+            return False
+        try:
+            rc, _out = runner(
+                ["sudo", "-S", "-v"], input_text=password + "\n", timeout=6
+            )
+        finally:
+            password = None
+        if rc == 0:
+            return True
+    call_in_ui_thread(app, lambda: app.log("HDD unmount authorization failed."))
+    return False
+
+
 def hdd_unmount_async(app, idx, select_tab=True):
+    runner = hdd_mount_service.run_hdd_command
     if idx < 0 or idx >= len(app.hdd_slots):
         return
-    if not app.ensure_sudo_session("HDD Unmount"):
-        return
-    slot = app.hdd_slots[idx]
+    slot = dict(app.hdd_slots[idx])
     label = slot_display_name(app, idx)
-    resolve_slot_device = _app_callable(
-        app,
-        "_hdd_resolve_slot_device",
-        lambda current_slot: hdd_resolve_slot_device(app, current_slot),
-    )
-    device, _disk = resolve_slot_device(slot)
-    mountpoint = _slot_mountpoint(slot, device)
+    device, disk = hdd_resolve_slot_device(app, slot)
     if not hdd_slot_configured(slot):
         app.log(
             app.tr(
@@ -1539,52 +1448,59 @@ def hdd_unmount_async(app, idx, select_tab=True):
         )
         return
 
-    def job():
-        luks_info = _app_callable(
+    def rejected(error):
+        call_in_ui_thread(
             app,
-            "_hdd_luks_info_for_device",
-            lambda current_device: hdd_luks_info_for_device(app, current_device),
+            lambda: app.log(f"HDD unmount refused for {label}: {error}"),
         )
-        mount_source_for = _app_callable(
-            app,
-            "_hdd_find_mount_source",
-            hdd_find_mount_source,
-        )
-        is_mounted = _app_callable(
-            app,
-            "_hdd_is_mounted",
-            lambda current_device, current_mountpoint: hdd_is_mounted(
-                app, current_device, current_mountpoint
-            ),
-        )
-        current_luks = luks_info(device)
-        raw_mount_source = (
-            current_luks.get("mapper_path") if current_luks.get("is_luks") else device
-        )
-        if not raw_mount_source:
-            raw_mount_source = device
-        mount_source = mount_source_for(raw_mount_source)
 
-        mounted, target = is_mounted(device, mountpoint)
-        active_target = target or mountpoint
-        if mounted is False:
-            app.after(
-                0,
-                lambda: app.log(
-                    app.tr(
-                        "hdd_already_unmounted",
-                        "HDD already unmounted: {label}.",
-                    ).format(label=label)
-                ),
-            )
-        else:
-            rc, out = run_cmd(["sudo", "-n", "umount", active_target], timeout=12)
+    if not device or not disk or not slot.get("device_uuid"):
+        rejected("No confirmed slot device.")
+        return
+    try:
+        request = _capture_hdd_request_device(device, slot.get("device_uuid"))
+    except hdd_mount_service.MountPolicyError as exc:
+        rejected(str(exc))
+        return
+
+    def job():
+        try:
+            identity = _inspect_hdd_request_device(request, runner)
+            expected_target = hdd_mount_service.verified_mount_target(identity, runner)
+            if not _authorize_hdd_unmount(app, runner):
+                return
+        except (hdd_mount_service.MountPolicyError, OSError, TclError) as exc:
+            rejected(str(exc))
+            return
+        mount_source = identity.source.path
+        # Only the verified live crypt child can authorize closing a mapper.
+        current_luks = {
+            "is_luks": identity.is_luks,
+            "mapper_name": (
+                mount_source
+                if identity.is_luks and identity.source.kind == "crypt"
+                else ""
+            ),
+        }
+        active_target = expected_target
+
+        def unmount(args, timeout):
+            _assert_hdd_request_device(request)
+            if (
+                hdd_mount_service.verified_mount_target(identity, runner)
+                != expected_target
+            ):
+                raise hdd_mount_service.MountPolicyError("Mount target changed.")
+            return runner(args, timeout=timeout)
+
+        try:
+            rc, out = unmount(["sudo", "-n", "umount", active_target], timeout=12)
             if rc != 0:
-                rc, out = run_cmd(["sudo", "-n", "umount", mount_source], timeout=12)
+                rc, out = unmount(["sudo", "-n", "umount", mount_source], timeout=12)
             if rc != 0:
-                rc, out = run_cmd(["umount", active_target], timeout=12)
+                rc, out = unmount(["umount", active_target], timeout=12)
             if rc != 0 and has_cmd("udisksctl") and not current_luks.get("is_luks"):
-                rc, out = run_cmd(
+                rc, out = unmount(
                     ["udisksctl", "unmount", "-b", mount_source], timeout=20
                 )
 
@@ -1606,20 +1522,38 @@ def hdd_unmount_async(app, idx, select_tab=True):
                     ),
                 )
                 return
+        except (hdd_mount_service.MountPolicyError, OSError) as exc:
+            rejected(str(exc))
+            return
 
-        close_rc = 0
-        close_out = ""
-        if current_luks.get("is_luks") and has_cmd("cryptsetup"):
-            mapper_name = current_luks.get("mapper_name")
-            if mapper_name:
-                close_rc, close_out = run_cmd(
-                    ["sudo", "-n", "cryptsetup", "luksClose", mapper_name],
-                    timeout=20,
+        closed = False
+        close_out = (
+            "Close not performed: cryptsetup or a verified crypt mapper is unavailable."
+        )
+        mapper_name = current_luks.get("mapper_name")
+        if current_luks.get("is_luks") and mapper_name and has_cmd("cryptsetup"):
+            try:
+                _assert_hdd_request_device(request)
+                hdd_mount_service.revalidate(identity, runner)
+                close_rc, close_out = runner(
+                    ["sudo", "-n", "cryptsetup", "luksClose", mapper_name], timeout=20
                 )
                 if close_rc != 0:
-                    close_rc, close_out = run_cmd(
+                    _assert_hdd_request_device(request)
+                    hdd_mount_service.revalidate(identity, runner)
+                    close_rc, close_out = runner(
                         ["cryptsetup", "luksClose", mapper_name], timeout=20
                     )
+                if close_rc == 0:
+                    closed = hdd_mount_service.confirm_mapper_closed(identity, runner)
+                    if not closed:
+                        close_out = (
+                            "Mapper remains present; LUKS close could not be confirmed."
+                        )
+                else:
+                    close_out = close_out or "LUKS close command failed."
+            except (hdd_mount_service.MountPolicyError, OSError) as exc:
+                close_out = str(exc)
 
         def done():
             app.log(
@@ -1628,8 +1562,8 @@ def hdd_unmount_async(app, idx, select_tab=True):
                     "HDD unmount successful: {label}.",
                 ).format(label=label)
             )
-            if current_luks.get("is_luks") and current_luks.get("mapper_name"):
-                if close_rc == 0:
+            if current_luks.get("is_luks"):
+                if closed:
                     app.log(
                         app.tr(
                             "hdd_luks_closed",
