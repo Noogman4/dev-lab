@@ -53,6 +53,8 @@ def test_actual_urllib_redirect_does_not_read_intermediate_body(monkeypatch, cod
     urls = []
 
     class SyntheticHTTP(request.HTTPHandler):
+        handler_order = 499  # Serve synthetic IO before the production handler.
+
         def http_open(self, req):
             urls.append(req.full_url)
             first = len(urls) == 1
@@ -357,7 +359,11 @@ def test_read_deadline_is_checked_between_bounded_reads(monkeypatch):
     timeouts, reads = [], []
     response = Response()
     response.fp = SimpleNamespace(
-        raw=SimpleNamespace(_sock=SimpleNamespace(settimeout=timeouts.append))
+        raw=SimpleNamespace(
+            _sock=SimpleNamespace(
+                settimeout=timeouts.append, shutdown=lambda _how: None
+            )
+        )
     )
     original_read = response.read1
 
