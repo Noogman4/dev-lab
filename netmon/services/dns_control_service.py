@@ -5,8 +5,12 @@ from __future__ import annotations
 import ipaddress
 import os
 import re
-import tempfile
 from typing import Callable
+
+try:
+    from netmon.core.privileged_config import write_privileged_config
+except ModuleNotFoundError:
+    from core.privileged_config import write_privileged_config
 
 RunCmd = Callable[..., tuple[int, str]]
 HasCmd = Callable[[str], bool]
@@ -849,36 +853,13 @@ class DNSControlService:
         return success, details
 
     def write_dropin(self, content: str) -> tuple[bool, str]:
-        tmp_path = ""
-        try:
-            with tempfile.NamedTemporaryFile(
-                mode="w", encoding="utf-8", delete=False
-            ) as temp_file:
-                temp_file.write(content)
-                tmp_path = temp_file.name
-            rc_dir, out_dir = self.run_cmd(
-                ["sudo", "-n", "mkdir", "-p", self.dot_dropin_dir],
-                timeout=10,
-            )
-            if rc_dir != 0:
-                return False, (out_dir or "").strip() or "Drop-in-Verzeichnis fehlt."
-            rc_install, out_install = self.run_cmd(
-                ["sudo", "-n", "install", "-m", "644", tmp_path, self.dot_dropin_path],
-                timeout=12,
-            )
-            if rc_install != 0:
-                return (
-                    False,
-                    (out_install or "").strip()
-                    or "DNS-Drop-in konnte nicht geschrieben werden.",
-                )
-            return True, ""
-        finally:
-            if tmp_path:
-                try:
-                    os.remove(tmp_path)
-                except Exception:
-                    pass
+        rc, out = write_privileged_config(
+            self.dot_dropin_path,
+            content,
+            run_cmd_fn=self.run_cmd,
+            timeout=12,
+        )
+        return rc == 0, (out or "").strip()
 
     def remove_dropin(self) -> tuple[bool, str]:
         rc, out = self.run_cmd(

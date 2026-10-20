@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
+
 import os
 import re
 import shutil
 import subprocess
-import tempfile
+
+try:
+    from netmon.core.privileged_config import write_privileged_config
+except ModuleNotFoundError:
+    from core.privileged_config import write_privileged_config
 
 RKHUNTER_CONFIG_PATH = "/etc/rkhunter.conf"
 RKHUNTER_BACKUP_PATH = "/etc/rkhunter.conf.netmon.bak"
@@ -45,7 +50,7 @@ def _normalize_allowed_path(path, *, allow_backup=False, allow_prop_db=False):
     return candidate
 
 
-def _run_cmd(args, timeout=15):
+def _run_cmd(args, timeout=15, input_text=None):
     try:
         proc = subprocess.run(
             list(args),
@@ -54,6 +59,8 @@ def _run_cmd(args, timeout=15):
             text=True,
             timeout=timeout,
             check=False,
+            input=input_text,
+            encoding="utf-8" if input_text is not None else None,
         )
         return proc.returncode, (proc.stdout or "").strip()
     except subprocess.TimeoutExpired:
@@ -186,34 +193,15 @@ def _read_config(config_path):
 
 
 def _write_config(config_text, config_path):
-    tmp_path = ""
-    try:
-        safe_config_path = _normalize_allowed_path(config_path)
-        if not safe_config_path:
-            return 1, "Nicht erlaubter rkhunter-Pfad."
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            prefix="netmon-rkhunter-",
-            suffix=".conf",
-            delete=False,
-        ) as fh:
-            fh.write(config_text)
-            fh.flush()
-            os.fsync(fh.fileno())
-            tmp_path = fh.name
-
-        rc, out = _run_cmd(
-            ["sudo", "-n", "install", "-m", "644", tmp_path, safe_config_path],
-            timeout=20,
-        )
-        return rc, out
-    finally:
-        if tmp_path:
-            try:
-                os.remove(tmp_path)
-            except Exception:
-                pass
+    safe_config_path = _normalize_allowed_path(config_path)
+    if not safe_config_path:
+        return 1, "Nicht erlaubter rkhunter-Pfad."
+    return write_privileged_config(
+        safe_config_path,
+        config_text,
+        run_cmd_fn=_run_cmd,
+        timeout=20,
+    )
 
 
 def repair_config(config_path=RKHUNTER_CONFIG_PATH):

@@ -3314,7 +3314,7 @@ def test_apply_security_baseline_ufw_applies_profile_and_reruns_checks(monkeypat
         + "\n"
     }
 
-    def fake_run_cmd(args, timeout=0):
+    def fake_run_cmd(args, timeout=0, input_text=None):
         command_log.append(tuple(args))
         if args == [
             "sudo",
@@ -3367,13 +3367,10 @@ def test_apply_security_baseline_ufw_applies_profile_and_reruns_checks(monkeypat
             assert args[4] == "/etc/ufw/sysctl.conf"
             assert args[5].startswith("/etc/ufw/sysctl.conf.netmon-backup-")
             return 0, "backup"
-        if args[:3] == ["sudo", "-n", "cp"] and args[4] == "/etc/ufw/sysctl.conf":
-            ufw_sysctl_content["text"] = (
-                __import__("pathlib").Path(args[3]).read_text(encoding="utf-8")
-            )
-            return 0, "copied"
-        if args == ["sudo", "-n", "chmod", "0644", "/etc/ufw/sysctl.conf"]:
-            return 0, "mode"
+        if input_text is not None:
+            assert args[6] == "/etc/ufw/sysctl.conf"
+            ufw_sysctl_content["text"] = input_text
+            return 0, "written"
         if args == [
             "sudo",
             "-n",
@@ -3853,12 +3850,11 @@ def test_apply_security_baseline_sysctl_writes_dropin_and_reruns_checks(monkeypa
 
     seen = {"rerun": 0, "confirm": 0, "info": 0}
 
-    def fake_run_cmd(args, timeout=0):
+    def fake_run_cmd(args, timeout=0, input_text=None):
         if args[:4] == ["sudo", "-n", "test", "-f"]:
             return 1, ""
-        if args[:3] == ["sudo", "-n", "cp"]:
-            return 0, ""
-        if args[:4] == ["sudo", "-n", "chmod", "0644"]:
+        if input_text is not None:
+            assert args[6] == "/etc/sysctl.d/99-zz-netmon-hardening.conf"
             return 0, ""
         if args[:4] == ["sudo", "-n", "sysctl", "--system"]:
             return 0, "sysctl reloaded"

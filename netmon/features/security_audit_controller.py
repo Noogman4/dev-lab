@@ -13,11 +13,15 @@ import shutil
 import stat
 import subprocess
 import threading
-import tempfile
 from datetime import datetime
 from pathlib import Path
 from time import monotonic
 from tkinter import messagebox
+
+try:
+    from netmon.core.privileged_config import write_privileged_config
+except ModuleNotFoundError:
+    from core.privileged_config import write_privileged_config
 
 try:
     from netmon.core.utils import call_in_ui_thread
@@ -2931,21 +2935,6 @@ def _implausible_sysctl_config_line(content: str) -> str:
     return ""
 
 
-def _write_temp_sysctl_dropin(content: str) -> str:
-    handle = tempfile.NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
-        prefix="netmon-sysctl-",
-        suffix=".conf",
-        delete=False,
-    )
-    try:
-        handle.write(content)
-        return handle.name
-    finally:
-        handle.close()
-
-
 def _read_existing_sysctl_dropin(path: str, *, run_cmd_fn=None) -> tuple[bool, str]:
     runner = run_cmd_fn or run_cmd
     rc_test, _out_test = runner(["sudo", "-n", "test", "-f", path], timeout=5)
@@ -2969,23 +2958,16 @@ def _restore_sysctl_dropin(
 ):
     runner = run_cmd_fn or run_cmd
     if existed_before:
-        temp_path = _write_temp_sysctl_dropin(previous_content)
-        try:
-            rc_cp, out_cp = runner(["sudo", "-n", "cp", temp_path, path], timeout=10)
-            if rc_cp != 0:
-                raise RuntimeError(
-                    out_cp or f"Datei konnte nicht wiederhergestellt werden: {path}"
-                )
-            rc_mode, out_mode = runner(["sudo", "-n", "chmod", "0644", path], timeout=5)
-            if rc_mode != 0:
-                raise RuntimeError(
-                    out_mode or f"Dateirechte konnten nicht gesetzt werden: {path}"
-                )
-        finally:
-            try:
-                os.unlink(temp_path)
-            except OSError:
-                pass
+        rc_cp, out_cp = write_privileged_config(
+            path,
+            previous_content,
+            run_cmd_fn=runner,
+            timeout=10,
+        )
+        if rc_cp != 0:
+            raise RuntimeError(
+                out_cp or f"Datei konnte nicht wiederhergestellt werden: {path}"
+            )
     else:
         rc_rm, out_rm = runner(["sudo", "-n", "rm", "-f", path], timeout=10)
         if rc_rm != 0:
@@ -3017,26 +2999,18 @@ def _apply_sysctl_dropin(
             ),
         )
 
-    temp_path = _write_temp_sysctl_dropin(content)
-    try:
-        rc_cp, out_cp = runner(["sudo", "-n", "cp", temp_path, path], timeout=10)
-        if rc_cp != 0:
-            return False, out_cp or f"Datei konnte nicht geschrieben werden: {path}"
-        rc_mode, out_mode = runner(["sudo", "-n", "chmod", "0644", path], timeout=5)
-        if rc_mode != 0:
-            return (
-                False,
-                out_mode or f"Dateirechte konnten nicht gesetzt werden: {path}",
-            )
-        rc_load, out_load = runner(["sudo", "-n", "sysctl", "--system"], timeout=20)
-        if rc_load != 0:
-            return False, out_load or "sysctl --system fehlgeschlagen"
-        return True, out_load
-    finally:
-        try:
-            os.unlink(temp_path)
-        except OSError:
-            pass
+    rc_cp, out_cp = write_privileged_config(
+        path,
+        content,
+        run_cmd_fn=runner,
+        timeout=10,
+    )
+    if rc_cp != 0:
+        return False, out_cp or f"Datei konnte nicht geschrieben werden: {path}"
+    rc_load, out_load = runner(["sudo", "-n", "sysctl", "--system"], timeout=20)
+    if rc_load != 0:
+        return False, out_load or "sysctl --system fehlgeschlagen"
+    return True, out_load
 
 
 def _build_ufw_sysctl_override_content(
@@ -3157,26 +3131,17 @@ def _apply_ufw_sysctl_overrides(
                 ),
             )
 
-        temp_path = _write_temp_sysctl_dropin(next_content)
-        try:
-            rc_cp, out_cp = runner(["sudo", "-n", "cp", temp_path, path], timeout=10)
-            if rc_cp != 0:
-                return (
-                    False,
-                    out_cp
-                    or f"UFW-sysctl-Datei konnte nicht geschrieben werden: {path}",
-                )
-            rc_mode, out_mode = runner(["sudo", "-n", "chmod", "0644", path], timeout=5)
-            if rc_mode != 0:
-                return (
-                    False,
-                    out_mode or f"Dateirechte konnten nicht gesetzt werden: {path}",
-                )
-        finally:
-            try:
-                os.unlink(temp_path)
-            except OSError:
-                pass
+        rc_cp, out_cp = write_privileged_config(
+            path,
+            next_content,
+            run_cmd_fn=runner,
+            timeout=10,
+        )
+        if rc_cp != 0:
+            return (
+                False,
+                out_cp or f"UFW-sysctl-Datei konnte nicht geschrieben werden: {path}",
+            )
 
     rc_load, out_load = runner(
         ["sudo", "-n", "sysctl", "-e", "-q", "-p", path],

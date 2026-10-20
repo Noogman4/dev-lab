@@ -9,9 +9,16 @@ import re
 import shutil
 import socket
 import ssl
-import tempfile
 import threading
 import time
+
+try:
+    from netmon.core.privileged_config import (
+        WRITE_COMMITTED_ERROR,
+        write_privileged_config,
+    )
+except ModuleNotFoundError:
+    from core.privileged_config import WRITE_COMMITTED_ERROR, write_privileged_config
 
 try:
     from netmon.core.utils import call_in_ui_thread
@@ -19,9 +26,9 @@ except ModuleNotFoundError:
     from core.utils import call_in_ui_thread
 
 try:
-    from netmon.config.constants import DOT_DROPIN_DIR, DOT_DROPIN_PATH, DOT_PROFILES
+    from netmon.config.constants import DOT_DROPIN_PATH, DOT_PROFILES
 except ModuleNotFoundError:
-    from config.constants import DOT_DROPIN_DIR, DOT_DROPIN_PATH, DOT_PROFILES
+    from config.constants import DOT_DROPIN_PATH, DOT_PROFILES
 
 try:
     from netmon.core.command import run_cmd
@@ -93,13 +100,17 @@ def _confirm_dot_activation(app, action_label):
 
 def _dot_status_text(app, ok):
     if _app_value(app, "dot_vpn_conflict"):
-        return _tr(app, "dot_state_active_vpn_conflict", "DoT: aktiv, aber VPN-Konflikt")
+        return _tr(
+            app, "dot_state_active_vpn_conflict", "DoT: aktiv, aber VPN-Konflikt"
+        )
     if ok is True:
         return _tr(app, "dot_state_active_test_ok", "DoT: aktiv / Test ok")
     if ok is None and app.dot_enabled:
         return _tr(app, "dot_state_active", "DoT: aktiv")
     if ok is False and app.dot_enabled:
-        return _tr(app, "dot_state_active_test_failed", "DoT: aktiv, aber Test fehlgeschlagen")
+        return _tr(
+            app, "dot_state_active_test_failed", "DoT: aktiv, aber Test fehlgeschlagen"
+        )
     if ok is False:
         return _tr(app, "dot_state_disabled", "DoT: deaktiviert")
     return _tr(app, "dot_state_unknown", "DoT: unbekannt")
@@ -312,13 +323,15 @@ def parse_dot_dropin(text):
     }
 
 
-def read_dot_dropin(app):
+def read_dot_dropin(app, *, strict=False):
     try:
         with open(DOT_DROPIN_PATH, "r", encoding="utf-8") as fh:
             return fh.read()
     except FileNotFoundError:
         return ""
     except Exception as exc:
+        if strict:
+            raise
         app.log_debug_safe(f"DoT-Drop-in lesen fehlgeschlagen: {exc}")
         return ""
 
@@ -574,7 +587,8 @@ def collect_dot_status(app, run_test=False):
 
     summary_lines.append(
         _tr(app, "dot_resolved_state_value", "systemd-resolved: {value}").format(
-            value=preflight["resolved_state"] or _tr(app, "dns_value_unknown", "unknown")
+            value=preflight["resolved_state"]
+            or _tr(app, "dns_value_unknown", "unknown")
         )
     )
     summary_lines.append(
@@ -589,9 +603,11 @@ def collect_dot_status(app, run_test=False):
     )
     summary_lines.append(
         _tr(app, "dot_status_enabled_value", "DNS over TLS: {value}").format(
-            value=_tr(app, "value_enabled", "enabled")
-            if enabled
-            else _tr(app, "value_disabled", "disabled")
+            value=(
+                _tr(app, "value_enabled", "enabled")
+                if enabled
+                else _tr(app, "value_disabled", "disabled")
+            )
         )
     )
     summary_lines.append(
@@ -599,23 +615,33 @@ def collect_dot_status(app, run_test=False):
     )
     summary_lines.append(
         _tr(app, "dot_dropin_value", "NetMon DoT drop-in: {value}").format(
-            value=_tr(app, "value_present", "present")
-            if dropin_text.strip()
-            else _tr(app, "value_not_present", "not present")
+            value=(
+                _tr(app, "value_present", "present")
+                if dropin_text.strip()
+                else _tr(app, "value_not_present", "not present")
+            )
         )
     )
     summary_lines.append(
-        _tr(app, "dns_control_report_global_enforcement", "Global DNS enforcement: {value}").format(
-            value=_tr(app, "value_yes", "YES")
-            if dropin_conflict
-            else _tr(app, "value_no", "NO")
+        _tr(
+            app,
+            "dns_control_report_global_enforcement",
+            "Global DNS enforcement: {value}",
+        ).format(
+            value=(
+                _tr(app, "value_yes", "YES")
+                if dropin_conflict
+                else _tr(app, "value_no", "NO")
+            )
         )
     )
     summary_lines.append(
         _tr(app, "dns_control_report_vpn_active", "VPN active: {value}").format(
-            value=_tr(app, "value_yes", "YES")
-            if vpn_active
-            else _tr(app, "value_no", "NO")
+            value=(
+                _tr(app, "value_yes", "YES")
+                if vpn_active
+                else _tr(app, "value_no", "NO")
+            )
         )
     )
     if vpn_conflict:
@@ -684,19 +710,27 @@ def collect_dot_status(app, run_test=False):
         else:
             summary_lines.append(_tr(app, "dot_test_failed", "Test: fehlgeschlagen"))
         if query_ok:
-            summary_lines.append(_tr(app, "dot_resolver_query_ok", "Resolver-Abfrage: OK"))
+            summary_lines.append(
+                _tr(app, "dot_resolver_query_ok", "Resolver-Abfrage: OK")
+            )
         elif query_timeout:
             summary_lines.append(
                 _tr(app, "dot_resolver_query_timeout", "Resolver-Abfrage: Timeout")
             )
         else:
             summary_lines.append(
-                _tr(app, "dot_resolver_query_failed", "Resolver-Abfrage: fehlgeschlagen")
+                _tr(
+                    app, "dot_resolver_query_failed", "Resolver-Abfrage: fehlgeschlagen"
+                )
             )
         if tls_ok is None:
-            summary_lines.append(_tr(app, "dot_tls_probe_skipped", "TLS-Probe: übersprungen"))
+            summary_lines.append(
+                _tr(app, "dot_tls_probe_skipped", "TLS-Probe: übersprungen")
+            )
         elif tls_timeout:
-            summary_lines.append(_tr(app, "dot_tls_probe_timeout", "TLS-Probe: Timeout"))
+            summary_lines.append(
+                _tr(app, "dot_tls_probe_timeout", "TLS-Probe: Timeout")
+            )
         else:
             summary_lines.append(
                 _tr(app, "dot_tls_probe_value", "TLS-Probe: {value}").format(
@@ -717,9 +751,7 @@ def collect_dot_status(app, run_test=False):
         if vpn_conflict:
             final_ok = None
         if enabled:
-            summary_lines.append(
-                _tr(app, "dot_test_not_run", "Test: not run")
-            )
+            summary_lines.append(_tr(app, "dot_test_not_run", "Test: not run"))
         else:
             summary_lines.append(
                 _tr(
@@ -775,7 +807,9 @@ def show_dot_status_result(
         app.nb.select(app.tab_dns)
     if show_output:
         app.update_dns_output(status.get("text", ""), append=append)
-    _app_var_set(app, "dot_test_hint_var", "" if startup else _dot_test_hint_text(app, status))
+    _app_var_set(
+        app, "dot_test_hint_var", "" if startup else _dot_test_hint_text(app, status)
+    )
     set_dot_state(
         app,
         status.get("ok"),
@@ -926,35 +960,31 @@ def enable_dot_async(app):
     app.log_safe("DoT-Aktivierung gestartet")
 
     def job():
-        tmp_path = ""
-        previous_dropin = read_dot_dropin(app)
-        wrote_dropin = False
+        restore_dropin = False
         try:
+            # An unreadable backup must not be mistaken for an absent drop-in.
+            previous_dropin = read_dot_dropin(app, strict=True)
             profile_name, _profile, content = build_dot_dropin_content(app)
-            with tempfile.NamedTemporaryFile(
-                mode="w", encoding="utf-8", delete=False
-            ) as temp_file:
-                temp_file.write(content)
-                tmp_path = temp_file.name
-            rc_dir, out_dir = run_cmd(
-                ["sudo", "-n", "mkdir", "-p", DOT_DROPIN_DIR],
-                timeout=10,
-            )
-            if rc_dir != 0:
-                raise RuntimeError(
-                    (out_dir or "").strip()
-                    or "Drop-in-Verzeichnis konnte nicht erstellt werden."
-                )
-            rc_install, out_install = run_cmd(
-                ["sudo", "-n", "install", "-m", "644", tmp_path, DOT_DROPIN_PATH],
+            # A lost response can also hide a completed exchange. Restore unless
+            # the helper explicitly reports failure before the exchange (rc=1).
+            restore_dropin = True
+            rc_install, out_install = write_privileged_config(
+                DOT_DROPIN_PATH,
+                content,
+                run_cmd_fn=run_cmd,
                 timeout=12,
             )
+            restore_dropin = rc_install != 1
+            if rc_install == WRITE_COMMITTED_ERROR:
+                app.log_safe(
+                    "DoT-Drop-in bereits ausgetauscht; Abschluss fehlgeschlagen. "
+                    "Vorherige Konfiguration wird wiederhergestellt."
+                )
             if rc_install != 0:
                 raise RuntimeError(
                     (out_install or "").strip()
                     or "DoT-Drop-in konnte nicht geschrieben werden."
                 )
-            wrote_dropin = True
             rc_restart, out_restart = run_cmd(
                 ["sudo", "-n", "systemctl", "restart", "systemd-resolved"],
                 timeout=15,
@@ -976,9 +1006,36 @@ def enable_dot_async(app):
             )
             app.log_safe("DoT-Konfiguration aktualisiert")
         except Exception as exc:
+            detail = str(exc)
+            if restore_dropin:
+                try:
+                    restored, restore_detail = app._restore_dot_dropin_backup(
+                        previous_dropin
+                    )
+                    if not restored:
+                        raise RuntimeError(
+                            restore_detail or "Drop-in-Ruecknahme fehlgeschlagen."
+                        )
+                    restarted, restart_detail = app._restart_resolved_for_dns_policy()
+                    if not restarted:
+                        raise RuntimeError(
+                            restart_detail or "Resolver-Neustart fehlgeschlagen."
+                        )
+                except Exception as rollback_exc:
+                    rollback_result = (
+                        "Rollback nicht vollstaendig bestaetigt: "
+                        f"{rollback_exc}. Datei- und Resolverzustand manuell pruefen."
+                    )
+                else:
+                    rollback_result = (
+                        "Rollback-Schritte erfolgreich: vorheriges Drop-in "
+                        "wiederhergestellt und Resolver neu gestartet."
+                    )
+                detail += "\n" + rollback_result
+                app.log_safe(rollback_result)
             app.after(
                 0,
-                lambda e=str(exc): show_dot_status_result(
+                lambda e=detail: show_dot_status_result(
                     app,
                     {
                         "ok": False,
@@ -999,19 +1056,8 @@ def enable_dot_async(app):
                 ),
             )
             app.log_safe("DoT-Test fehlgeschlagen")
-            if wrote_dropin:
-                try:
-                    app._restore_dot_dropin_backup(previous_dropin)
-                    app._restart_resolved_for_dns_policy()
-                except Exception:
-                    pass
         finally:
             app.dot_running = False
-            if tmp_path:
-                try:
-                    os.remove(tmp_path)
-                except Exception:
-                    pass
 
     threading.Thread(target=job, daemon=True).start()
 
