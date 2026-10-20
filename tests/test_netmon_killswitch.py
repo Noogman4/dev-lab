@@ -5,13 +5,21 @@ import pytest
 from tools import netmon
 
 
-def _fake_activation_links(monkeypatch, name):
+def _fake_activation_links(monkeypatch, name, *, active=False):
     # Collision check, pre-creation absence, then a live kernel WG identity.
-    observations = iter([{}, {}])
+    live = {name: (42, "wireguard")}
+    observations = iter([live, live, {}] if active else [{}, {}])
     monkeypatch.setattr(
         netmon.vpn_controller,
         "_network_links",
         lambda: next(observations, {name: (42, "wireguard")}),
+    )
+    monkeypatch.setattr(
+        netmon.vpn_controller,
+        "_owned_nm_command",
+        lambda operation, *, identity=None: netmon.vpn_controller.run_cmd(
+            ["synthetic-owned", operation, *(identity or [])]
+        ),
     )
 
 
@@ -531,7 +539,7 @@ def test_vpn_switch_reapplies_killswitch_rules_after_successful_switch(monkeypat
 
     assert app.vpn_switch("wg-slot", ensure_sudo=False, refresh_ui=True) is True
     assert ["sudo", "-n", "test", "-f", "/etc/wireguard/wg-slot.conf"] in calls
-    assert ["sudo", "-n", "wg-quick", "up", "wg-slot"] in calls
+    assert ["synthetic-owned", "wg-up", "wg-slot"] in calls
     assert synced == [False]
 
 
@@ -615,7 +623,7 @@ def test_vpn_switch_prepares_and_schedules_dns_finalize(monkeypatch):
     assert prepare_calls == ["prepare"]
     assert finalize_delays == [2500]
     assert ["sudo", "-n", "test", "-f", "/etc/wireguard/wg-slot.conf"] in calls
-    assert ["sudo", "-n", "wg-quick", "up", "wg-slot"] in calls
+    assert ["synthetic-owned", "wg-up", "wg-slot"] in calls
 
 
 def test_vpn_switch_reconciles_non_killswitch_firewall_rules_after_success(monkeypatch):
@@ -659,7 +667,7 @@ def test_vpn_switch_reconciles_non_killswitch_firewall_rules_after_success(monke
     )
 
     assert app.vpn_switch("wg-slot", ensure_sudo=False, refresh_ui=True) is True
-    assert ["sudo", "-n", "wg-quick", "up", "wg-slot"] in calls
+    assert ["synthetic-owned", "wg-up", "wg-slot"] in calls
     assert reconciles == [
         {
             "reason": "VPN aktiv: wg-slot",
@@ -720,7 +728,7 @@ def test_vpn_switch_can_skip_cleanup_after_restore_cleanup(monkeypatch):
         is True
     )
     assert cleanup_calls == []
-    assert ["sudo", "-n", "wg-quick", "up", "wg-slot"] in calls
+    assert ["synthetic-owned", "wg-up", "wg-slot"] in calls
 
 
 def test_vpn_off_prepares_and_schedules_dns_finalize(monkeypatch):
@@ -962,8 +970,10 @@ def test_isp_stealth_on_skips_duplicate_killswitch_activation_when_already_activ
 
 
 def test_vpn_switch_force_reconnect_rebuilds_same_profile(monkeypatch):
-    _fake_activation_links(monkeypatch, "wg-slot")
+    _fake_activation_links(monkeypatch, "wg-slot", active=True)
     app = netmon.App.__new__(netmon.App)
+    app._wg_activation_links = {"wg-slot": 42}
+    app.resolve_profile_family_runtime = lambda *a, **kw: {"runtime_profile": "wg-slot"}
     logs = []
     calls = []
 
@@ -1005,7 +1015,7 @@ def test_vpn_switch_force_reconnect_rebuilds_same_profile(monkeypatch):
         is True
     )
     assert ["sudo", "-n", "test", "-f", "/etc/wireguard/wg-slot.conf"] in calls
-    assert ["sudo", "-n", "wg-quick", "up", "wg-slot"] in calls
+    assert ["synthetic-owned", "wg-up", "wg-slot"] in calls
     assert "Vorhandenes Runtimeprofil erkannt - Reconnect wird erzwungen." in logs
     assert "VPN Verbindung neu aufgebaut." in logs
 

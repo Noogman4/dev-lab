@@ -352,6 +352,22 @@ def test_resolve_runtime_vpn_profile_logs_when_no_ipv4_copy_is_available():
 
 
 def test_vpn_switch_uses_ipv4_runtime_profile_when_ipv6_is_disabled(monkeypatch):
+    observations = iter([{}, {}])
+    monkeypatch.setattr(
+        netmon.vpn_controller,
+        "_network_links",
+        lambda: next(observations, {"wg-ipv6__ipv4": (42, "wireguard")}),
+    )
+    monkeypatch.setattr(
+        netmon.vpn_controller, "cleanup_wireguard_interfaces", lambda app: True
+    )
+    monkeypatch.setattr(
+        netmon.vpn_controller,
+        "_owned_nm_command",
+        lambda operation, *, identity=None: fake_run_cmd(
+            ["synthetic-owned", operation, *identity]
+        ),
+    )
     app = netmon.App.__new__(netmon.App)
     logs = []
     refreshes = []
@@ -397,7 +413,6 @@ def test_vpn_switch_uses_ipv4_runtime_profile_when_ipv6_is_disabled(monkeypatch)
         "-f",
         "/etc/wireguard/wg-ipv6__ipv4.conf",
     ] in run_calls
-    assert ["sudo", "-n", "wg-quick", "down", "wg-old"] in run_calls
-    assert ["sudo", "-n", "wg-quick", "up", "wg-ipv6__ipv4"] in run_calls
+    assert ["synthetic-owned", "wg-up", "wg-ipv6__ipv4"] in run_calls
     assert "VPN gestartet: wg-ipv6" in logs
     assert refreshes == ["profiles", "ipv6", True]

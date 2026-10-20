@@ -522,57 +522,19 @@ def test_get_wg_interfaces_and_active_profile_use_wg_show(monkeypatch):
     assert calls == [["wg", "show", "interfaces"], ["wg", "show", "interfaces"]]
 
 
-def test_cleanup_wireguard_interfaces_forces_delete_when_down_leaves_iface(monkeypatch):
+def test_cleanup_wireguard_interfaces_delegates_to_protected_helper(monkeypatch):
     app = netmon.App.__new__(netmon.App)
-    logs = []
-    debug_logs = []
     calls = []
-    state = {"ifaces": ["wg-old", "wg-stuck"]}
-
-    app._network_service = lambda: None
-    app.log_safe = logs.append
-    app.log_network_debug = debug_logs.append
-
-    def fake_run_cmd(args, timeout=0, text=True):
-        calls.append(args)
-        if args in (
-            ["wg", "show", "interfaces"],
-            ["sudo", "-n", "wg", "show", "interfaces"],
-        ):
-            return 0, " ".join(state["ifaces"])
-        if args == ["sudo", "-n", "wg-quick", "down", "wg-old"]:
-            state["ifaces"] = [iface for iface in state["ifaces"] if iface != "wg-old"]
-            return 0, "down old"
-        if args == ["sudo", "-n", "wg-quick", "down", "wg-stuck"]:
-            return 1, "still present"
-        if args == ["sudo", "-n", "ip", "link", "delete", "wg-stuck"]:
-            state["ifaces"] = [
-                iface for iface in state["ifaces"] if iface != "wg-stuck"
-            ]
-            return 0, "deleted"
-        raise AssertionError(f"Unexpected command: {args}")
-
-    monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
-    monkeypatch.setattr(netmon.vpn_controller, "run_cmd", fake_run_cmd)
-
-    assert app.cleanup_wireguard_interfaces() is True
-    assert calls == [
-        ["wg", "show", "interfaces"],
-        ["sudo", "-n", "wg-quick", "down", "wg-old"],
-        ["sudo", "-n", "wg-quick", "down", "wg-stuck"],
-        ["wg", "show", "interfaces"],
-        ["sudo", "-n", "ip", "link", "delete", "wg-stuck"],
-        ["wg", "show", "interfaces"],
-    ]
-    assert logs == [
-        "WG Cleanup gestartet",
-        "WG down: wg-old",
-        "WG down: wg-stuck",
-        "WG down Fehler (wg-stuck): rc=1",
-        "still present",
-        "WG forced delete: wg-stuck",
-        "WG state clean",
-    ]
+    app.log_safe = lambda text: None
+    app.get_wg_interfaces = lambda: ["corporate", "wg-old"]
+    monkeypatch.setattr(
+        vpn_controller, "_owned_nm_command", lambda op: calls.append(op)
+    )
+    monkeypatch.setattr(
+        vpn_controller, "run_cmd", lambda *a, **kw: pytest.fail("raw teardown")
+    )
+    assert app.cleanup_wireguard_interfaces()
+    assert calls == ["wg-cleanup"]
 
 
 def test_vpn_switch_runs_cleanup_before_starting_new_profile(monkeypatch):
@@ -629,10 +591,17 @@ def test_vpn_switch_runs_cleanup_before_starting_new_profile(monkeypatch):
         calls.append(args)
         if args == ["sudo", "-n", "test", "-f", "/etc/wireguard/wg-new.conf"]:
             return 0, ""
-        if args == ["sudo", "-n", "wg-quick", "up", "wg-new"]:
+        if args == ["synthetic-owned", "wg-up", "wg-new"]:
             return 0, "up ok"
         raise AssertionError(f"Unexpected command: {args}")
 
+    monkeypatch.setattr(
+        vpn_controller,
+        "_owned_nm_command",
+        lambda operation, *, identity=None: fake_run_cmd(
+            ["synthetic-owned", operation, *identity]
+        ),
+    )
     monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
     monkeypatch.setattr(netmon.vpn_controller, "run_cmd", fake_run_cmd)
     monkeypatch.setattr(
@@ -640,9 +609,7 @@ def test_vpn_switch_runs_cleanup_before_starting_new_profile(monkeypatch):
     )
 
     assert app.vpn_switch("wg-new", ensure_sudo=False, refresh_ui=True) is True
-    assert calls.index("cleanup") < calls.index(
-        ["sudo", "-n", "wg-quick", "up", "wg-new"]
-    )
+    assert calls.index("cleanup") < calls.index(["synthetic-owned", "wg-up", "wg-new"])
     assert "profiles" in calls
     assert "ipv6" in calls
     assert "end" in calls

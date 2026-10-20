@@ -2626,55 +2626,16 @@ def get_wg_interfaces(app):
 
 
 def cleanup_wireguard_interfaces(app):
-    app.__dict__.pop("_wg_activation_links", None)
-    network_service = app._network_service()
-    app.log_safe("WG Cleanup gestartet")
-
-    active_ifaces = app.get_wg_interfaces()
-    for iface in active_ifaces:
-        app.log_safe(f"WG down: {iface}")
-        down_cmd = ["sudo", "-n", "wg-quick", "down", iface]
-        if network_service is not None:
-            rc_down, out_down = network_service.wg_quick_down(iface, timeout=12)
-        else:
-            rc_down, out_down = run_cmd(down_cmd, timeout=12)
-        _log_command_result(app, "WG", down_cmd, rc_down, out_down)
-        if rc_down != 0:
-            app.log_safe(f"WG down Fehler ({iface}): rc={rc_down}")
-            if out_down:
-                app.log_safe((out_down or "").strip())
-
-    remaining_ifaces = app.get_wg_interfaces()
-    deleted_ifaces = []
-    for iface in remaining_ifaces:
-        app.log_safe(f"WG forced delete: {iface}")
-        delete_cmd = ["sudo", "-n", "ip", "link", "delete", iface]
-        rc_delete, out_delete = run_cmd(delete_cmd, timeout=10)
-        _log_command_result(app, "NET", delete_cmd, rc_delete, out_delete)
-        if rc_delete != 0:
-            app.log_safe(f"WG forced delete Fehler ({iface}): rc={rc_delete}")
-            if out_delete:
-                app.log_safe((out_delete or "").strip())
-        else:
-            deleted_ifaces.append(iface)
-
-    final_ifaces = app.get_wg_interfaces()
-    if final_ifaces and deleted_ifaces:
-        lingering = [
-            iface for iface in final_ifaces if iface not in set(deleted_ifaces)
-        ]
-        if not lingering:
-            app.log_safe(
-                "WG Cleanup: keine bestaetigte Rest-Schnittstelle mehr, stale Interface-Liste wird ignoriert."
-            )
-            final_ifaces = []
-    if final_ifaces:
+    app.log_safe("WG Cleanup: nur nachgewiesene NetMon-Interfaces")
+    try:
+        _owned_nm_command("wg-cleanup")
+    except (OSError, ValueError, nm_ownership.OwnershipError):
         app.log_safe(
-            "WG Cleanup fehlgeschlagen: " + ", ".join(final_ifaces) + " weiterhin aktiv"
+            "WG Cleanup abgebrochen: Eigentum oder Interface-Identitaet nicht sicher."
         )
         return False
-
-    app.log_safe("WG state clean")
+    app.__dict__.pop("_wg_activation_links", None)
+    app.log_safe("WG Cleanup abgeschlossen; fremde Interfaces bleiben erhalten.")
     return True
 
 
@@ -2854,6 +2815,15 @@ def vpn_switch(
 
         active_ifaces = app.get_wg_interfaces()
         reconnecting_same_profile = runtime_target in active_ifaces
+        if (
+            reconnecting_same_profile
+            and runtime_target
+            not in _verified_firewall_interfaces(app, {runtime_target})
+        ):
+            app.log_safe(
+                "VPN Start abgebrochen: fremdes oder nicht verifiziertes Interface gleichen Namens."
+            )
+            return False
         if reconnecting_same_profile:
             if not force_reconnect and len(active_ifaces) == 1:
                 if runtime_target not in _verified_firewall_interfaces(
@@ -2880,7 +2850,7 @@ def vpn_switch(
             )
         elif len(active_ifaces) > 1:
             app.log_safe(
-                "Mehrere aktive WG-Interfaces erkannt. Cleanup vor neuem Start wird erzwungen."
+                "Mehrere aktive WG-Interfaces erkannt; nur NetMon-Interfaces werden bereinigt."
             )
 
         if len(runtime_target) > 15:
@@ -2932,7 +2902,15 @@ def vpn_switch(
                 app.refresh_safe()
             return False
 
-        up_cmd = ["sudo", "-n", "wg-quick", "up", runtime_target]
+        up_cmd = [
+            "sudo",
+            "-n",
+            "/usr/bin/python3",
+            "-I",
+            nm_ownership.HELPER,
+            "wg-up",
+            runtime_target,
+        ]
         # Require absence immediately before creation; never adopt an existing
         # same-named link, including a foreign WireGuard tunnel.
         try:
@@ -2942,10 +2920,14 @@ def vpn_switch(
             app.log_safe("VPN Start abgebrochen: Interface nicht sicher neu anlegbar.")
             return False
         app.__dict__.setdefault("_wg_activation_links", {}).pop(runtime_target, None)
-        if network_service is not None:
-            rc, out = network_service.wg_quick_up(runtime_target, timeout=20)
-        else:
-            rc, out = run_cmd(up_cmd, timeout=20)
+        try:
+            _owned_nm_command("wg-up", identity=[runtime_target])
+            rc, out = 0, "NetMon WireGuard-Start mit geschuetztem Eigentumsnachweis"
+        except (OSError, ValueError, nm_ownership.OwnershipError):
+            rc, out = (
+                1,
+                "WireGuard-Start oder geschuetzter Eigentumsnachweis fehlgeschlagen.",
+            )
         _log_command_result(app, "WG", up_cmd, rc, out)
         if rc == 0:
             try:

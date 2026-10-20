@@ -82,6 +82,13 @@ def tunnel(monkeypatch):
         app.__dict__.pop("_wg_activation_links", None)
         return True
 
+    def owned(operation, *, identity=None):
+        assert operation == "wg-up"
+        rc, _out = up(identity[0])
+        if rc:
+            raise vpn.nm_ownership.OwnershipError("synthetic start failure")
+
+    monkeypatch.setattr(vpn, "_owned_nm_command", owned)
     monkeypatch.setattr(vpn, "run_cmd", command)
     monkeypatch.setattr(vpn, "cleanup_wireguard_interfaces", cleanup)
     state.app, state.rules, state.events = app, rules, events
@@ -125,9 +132,15 @@ def test_unverified_activation_never_records_ownership(tunnel, failure):
     assert tunnel.rules == []
 
 
-def test_foreign_live_wireguard_is_not_adopted(tunnel):
+@pytest.mark.parametrize("force", [False, True])
+@pytest.mark.parametrize("external", [False, True])
+def test_foreign_live_wireguard_is_not_adopted(tunnel, force, external):
     tunnel.links["work"] = (20, "wireguard")
-    assert not vpn.vpn_switch(tunnel.app, "work", ensure_sudo=False)
+    if external:
+        tunnel.links["corporate"] = (7, "wireguard")
+    assert not vpn.vpn_switch(
+        tunnel.app, "work", ensure_sudo=False, force_reconnect=force
+    )
     assert tunnel.events == ["end"]
     assert tunnel.rules == []
 

@@ -565,6 +565,181 @@ class OwnershipStore:
                 os.close(directory)
 
 
+class WireGuard:
+    """Fixed privileged commands; diagnostics never relay profile/key material."""
+
+    def command(self, arguments):
+        result = subprocess.run(
+            arguments,
+            env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C", "LC_ALL": "C"},
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+        if result.returncode or len(result.stdout) > MAX_CONFIG:
+            raise OwnershipError("WireGuard operation failed")
+        return result.stdout.decode("utf-8", errors="strict").strip()
+
+    def identity(self, name):
+        rows = json.loads(self.command(["/usr/sbin/ip", "-j", "-d", "link", "show"]))
+        if not isinstance(rows, list):
+            raise OwnershipError("Invalid link inventory")
+        matches = [row for row in rows if row["ifname"] == name]
+        if not matches:
+            return None
+        if len(matches) != 1:
+            raise OwnershipError("Ambiguous link identity")
+        row = matches[0]
+        if (
+            type(row["ifindex"]) is not int
+            or row["ifindex"] <= 0
+            or row.get("linkinfo", {}).get("info_kind") != "wireguard"
+        ):
+            raise OwnershipError("Not a WireGuard link")
+        public_key = self.command(["/usr/bin/wg", "show", name, "public-key"])
+        if not re.fullmatch(r"[A-Za-z0-9+/]{43}=", public_key):
+            raise OwnershipError("WireGuard public identity unavailable")
+        return {
+            "ifindex": row["ifindex"],
+            "public_key": public_key,
+            "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
+            "netns": os.stat("/proc/self/ns/net").st_ino,
+        }
+
+    def up(self, source):
+        self.command(["/usr/bin/wg-quick", "up", str(source)])
+
+    def down(self, source):
+        self.command(["/usr/bin/wg-quick", "down", str(source)])
+
+
+class WireGuardStore(OwnershipStore):
+    """Only root-observed creations authorize teardown, including after restart.
+
+    Persist the original config separately (0600) so later profile changes cannot
+    replace teardown hooks. No forced link deletion and no adoption of live links.
+    """
+
+    def __init__(self, registry="/var/lib/netmon/wg-quick-ownership", *, wg=None, **kw):
+        super().__init__(registry=registry, **kw)
+        self.wg = wg or WireGuard()
+
+    @staticmethod
+    def name(value):
+        if not isinstance(value, str) or not re.fullmatch(
+            r"[A-Za-z0-9_=+.-]{1,15}", value
+        ):
+            raise OwnershipError("Invalid WireGuard interface name")
+        if value in {".", ".."}:
+            raise OwnershipError("Invalid WireGuard interface name")
+        return value
+
+    def _forget(self, directory, name):
+        for suffix in (".json", ".conf"):
+            try:
+                os.unlink(name + suffix, dir_fd=directory)
+            except FileNotFoundError:
+                pass
+        os.fsync(directory)
+
+    def _write(self, directory, filename, data):
+        # The store lock serializes publication; existing files are never adopted.
+        fd = os.open(
+            filename,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o600,
+            dir_fd=directory,
+        )
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.fsync(directory)
+
+    def up(self, name):
+        name = self.name(name)
+        with self.locked(create=True) as directory:
+            if self.wg.identity(name) is not None:
+                raise OwnershipError("Existing interface retained; name collision")
+            # An absent link cannot grant authority over its future namesake.
+            self._forget(directory, name)
+            profiles = _directory(
+                PROFILE_DIRECTORY, owner=self.owner, anchor=self.anchor
+            )
+            try:
+                data, _info = _read(profiles, name + ".conf", self.owner, MAX_CONFIG)
+            finally:
+                os.close(profiles)
+            with _import_snapshot(
+                self.registry, name, data, owner=self.owner
+            ) as source:
+                if self.wg.identity(name) is not None:
+                    raise OwnershipError("Interface appeared before creation")
+                self.wg.up(source)
+            identity = self.wg.identity(name)
+            if identity is None:
+                raise OwnershipError("No link after WireGuard activation")
+            self._write(directory, name + ".conf", data)
+            self._write(
+                directory,
+                name + ".json",
+                json.dumps(
+                    {
+                        "schema": 1,
+                        "name": name,
+                        "identity": identity,
+                        "sha256": hashlib.sha256(data).hexdigest(),
+                    },
+                    sort_keys=True,
+                ).encode(),
+            )
+            return identity
+
+    def cleanup(self):
+        try:
+            with self.locked() as directory:
+                entries = os.listdir(directory)
+                if len(entries) > 2 * MAX_ENTRIES + 1:
+                    raise OwnershipError("Too many WireGuard receipts")
+                for filename in sorted(entries):
+                    if not filename.endswith(".json"):
+                        continue
+                    name = self.name(filename[:-5])
+                    raw, _info = _read(directory, filename, self.owner, MAX_RECORD)
+                    receipt = json.loads(raw)
+                    if (
+                        receipt.get("schema") != 1
+                        or receipt.get("name") != name
+                        or not isinstance(receipt.get("identity"), dict)
+                    ):
+                        raise OwnershipError("Invalid WireGuard receipt")
+                    current = self.wg.identity(name)
+                    if current is None:
+                        self._forget(directory, name)
+                        continue
+                    if current != receipt["identity"]:
+                        raise OwnershipError("Replaced WireGuard interface retained")
+                    data, _info = _read(
+                        directory, name + ".conf", self.owner, MAX_CONFIG
+                    )
+                    if hashlib.sha256(data).hexdigest() != receipt.get("sha256"):
+                        raise OwnershipError("Changed teardown profile retained")
+                    with _import_snapshot(
+                        self.registry, name, data, owner=self.owner
+                    ) as source:
+                        if self.wg.identity(name) != current:
+                            raise OwnershipError("Interface changed before teardown")
+                        self.wg.down(source)
+                    if self.wg.identity(name) is not None:
+                        raise OwnershipError("Interface remains after teardown")
+                    self._forget(directory, name)
+        except FileNotFoundError:
+            # Only an absent registry means no ownership evidence. Missing files
+            # inside an existing registry must propagate as verification failures.
+            if self.registry.exists():
+                raise
+
+
 def trusted_helper_available():
     try:
         directory = _directory(Path(HELPER).parent)
@@ -596,7 +771,11 @@ def main(arguments=None):
         return 1
     try:
         store = OwnershipStore()
-        if arguments in (
+        if len(arguments) == 2 and arguments[0] == "wg-up":
+            print(json.dumps(WireGuardStore().up(arguments[1])))
+        elif arguments == ["wg-cleanup"]:
+            WireGuardStore().cleanup()
+        elif arguments in (
             ["import"],
             ["import-checked"],
             ["install-profile"],
