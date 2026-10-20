@@ -4,6 +4,7 @@ import http.client
 import io
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import os
+import socket
 from pathlib import Path
 import threading
 from types import SimpleNamespace
@@ -104,7 +105,13 @@ def http_server(monkeypatch):
             self.end_headers()
             self.wfile.write(state.response_payload)
 
-    monkeypatch.setenv("no_proxy", "127.0.0.1,localhost")
+    # These resource-limit tests deliberately use a local server. Destination
+    # enforcement is tested separately without this fixture's resolver override.
+    monkeypatch.setattr(
+        transport,
+        "_public_addresses",
+        lambda host, port: socket.getaddrinfo(host, port, type=socket.SOCK_STREAM),
+    )
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     thread = threading.Thread(
         target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
