@@ -2389,6 +2389,8 @@ class App(TkBase):
         if tk is None:
             raise RuntimeError("tkinter is not available")
         super().__init__(className="NetMon")
+        # Widget initialization must not persist partially loaded preferences.
+        self._initializing_preferences = True
         self._apply_window_icon()
 
         self.debug_mode = False
@@ -6043,6 +6045,14 @@ class App(TkBase):
         self.after(3600, self.auto_refresh)
         self.after(2400, self.maybe_offer_quickstart_tour)
         self.schedule_donation_popup_startup()
+
+        # Process queued widget-initialization events before enabling writes.
+        def finish_preferences_initialization():
+            self._initializing_preferences = False
+            if self.__dict__.pop("_donation_first_seen_needs_save", False):
+                self.save_settings(log_success=False)
+
+        self.after(0, finish_preferences_initialization)
 
     # scroll helpers (Linux wheel)
     def _scroll_up(self, _e):
@@ -20208,6 +20218,8 @@ class App(TkBase):
             return first_seen_at
         first_seen_at = int(time.time())
         self.settings["donation_popup_first_seen_at"] = first_seen_at
+        if self.__dict__.get("_initializing_preferences", False):
+            self._donation_first_seen_needs_save = True
         try:
             self.save_settings(log_success=False)
         except Exception:
@@ -20797,6 +20809,8 @@ class App(TkBase):
                 pass
 
     def save_settings(self, log_success: bool = True):
+        if self.__dict__.get("_initializing_preferences", False):
+            return
         try:
             os.makedirs(self.netmon_config_dir, exist_ok=True)
 
@@ -31660,6 +31674,8 @@ class App(TkBase):
             )
 
     def save_privacy_config(self):
+        if self.__dict__.get("_initializing_preferences", False):
+            return
         vpn_choice_var = self.__dict__.get("isp_stealth_vpn_choice")
         vpn_profile_var = self.__dict__.get("isp_stealth_vpn_profile")
         strict_var = self.__dict__.get("strict_protection_var")
@@ -31742,8 +31758,9 @@ class App(TkBase):
                     alarm_time_var.get() if alarm_time_var is not None else "07:00"
                 )
                 or "07:00",
-                "theme": (self.__dict__.get("_app_theme") or LIGHT_THEME).get(
-                    "name", "light"
+                "theme": self._normalize_theme_name(
+                    (self.__dict__.get("_app_theme") or {}).get("name")
+                    or self.__dict__.get("_preferred_theme_name", "dark")
                 ),
             }
         )

@@ -54,8 +54,8 @@ def test_main_deb_builder_only_restores_legacy_install_dns():
     assert "8.8.8.8" not in source
     assert 'cat > "$PKG_DIR/DEBIAN/prerm"' in source
     assert "restore_netmon_install_dns" in source
-    assert 'ipv4.dns "$OLD_DNS"' in source
-    assert 'rm -f "$NETMON_INSTALL_DNS_STATE"' in source
+    # DNS restoration and cleanup are exercised with fake nmcli in
+    # test_debian_reinstall_regressions, independently of shell/Python syntax.
     assert '"$PKG_DIR/DEBIAN/prerm"' in source
 
 

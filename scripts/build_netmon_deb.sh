@@ -230,26 +230,138 @@ ASSET_DIR="/usr/share/netmon/assets/log-pics"
 
 restore_legacy_install_dns() {
   [ -f "$NETMON_INSTALL_DNS_STATE" ] || return 0
-  command -v nmcli >/dev/null 2>&1 || return 0
+  if ! command -v nmcli >/dev/null 2>&1; then
+    echo "NetMon: DNS recovery requires nmcli; retained $NETMON_INSTALL_DNS_STATE." >&2
+    return 1
+  fi
 
-  while IFS='|' read -r UUID OLD_DNS OLD_IGNORE_AUTO_DNS; do
-    [ -n "$UUID" ] || continue
-    nmcli connection show "$UUID" >/dev/null 2>&1 || continue
+  /usr/bin/python3 -I - "$NETMON_STATE_DIR" <<'PYDNS'
+import fcntl
+import os
+import stat
+import subprocess
+import sys
+import uuid
 
-    if [ -n "$OLD_IGNORE_AUTO_DNS" ]; then
-      nmcli connection modify "$UUID" \
-        ipv4.dns "$OLD_DNS" \
-        ipv4.ignore-auto-dns "$OLD_IGNORE_AUTO_DNS" >/dev/null 2>&1 || true
-    else
-      nmcli connection modify "$UUID" \
-        ipv4.dns "$OLD_DNS" \
-        ipv4.ignore-auto-dns no >/dev/null 2>&1 || true
-    fi
-    nmcli connection up "$UUID" >/dev/null 2>&1 || true
-  done < "$NETMON_INSTALL_DNS_STATE"
 
-  rm -f "$NETMON_INSTALL_DNS_STATE" >/dev/null 2>&1 || true
-  rmdir "$NETMON_STATE_DIR" >/dev/null 2>&1 || true
+def signature(info):
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+
+def restore(directory):
+    name = "install-dns-nm.state"
+    directory_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        # All cooperating readers/writers must lock this stable directory inode.
+        fcntl.flock(directory_fd, fcntl.LOCK_EX)
+        try:
+            state_fd = os.open(
+                name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory_fd
+            )
+        except FileNotFoundError:
+            return 0  # Another cooperating invocation already finished.
+        with os.fdopen(state_fd, "rb") as state:
+            initial = os.fstat(state.fileno())
+            if not stat.S_ISREG(initial.st_mode):
+                raise ValueError("recovery state is not a regular file")
+            data = state.read()
+            if signature(os.fstat(state.fileno())) != signature(initial):
+                raise ValueError("recovery state changed while reading")
+            text = data.decode("utf-8")
+            if "\0" in text or "\r" in text:
+                raise ValueError("unexpected NUL or CR in legacy state")
+            records = text.split("\n") if text else []
+            if records and records[-1] == "":
+                records.pop()
+            rows = []
+            seen = set()
+            for number, record in enumerate(records, 1):
+                fields = record.split("|")
+                if len(fields) != 3:
+                    raise ValueError(f"line {number}: expected UUID|DNS|IGNORE")
+                identity = str(uuid.UUID(fields[0]))
+                if fields[0].lower() != identity:
+                    raise ValueError(f"line {number}: expected a complete UUID")
+                if identity in seen:
+                    raise ValueError(f"line {number}: duplicate UUID {identity}")
+                seen.add(identity)
+                rows.append((identity, fields[1], fields[2] or "no"))
+
+            failed = False
+            for identity, dns, ignore in rows:
+                if subprocess.run(
+                    ["nmcli", "connection", "show", "uuid", identity],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                ).returncode:
+                    print(
+                        f"NetMon: DNS restore failed: unavailable UUID {identity}.",
+                        file=sys.stderr,
+                    )
+                    failed = True
+                    continue
+                if subprocess.run(
+                    [
+                        "nmcli",
+                        "connection",
+                        "modify",
+                        "uuid",
+                        identity,
+                        "ipv4.dns",
+                        dns,
+                        "ipv4.ignore-auto-dns",
+                        ignore,
+                    ],
+                    check=False,
+                ).returncode:
+                    print(
+                        f"NetMon: DNS restore failed: cannot modify UUID {identity}.",
+                        file=sys.stderr,
+                    )
+                    failed = True
+                    continue
+                if subprocess.run(
+                    ["nmcli", "connection", "up", "uuid", identity], check=False
+                ).returncode:
+                    print(
+                        f"NetMon: DNS restore failed: cannot activate UUID {identity}.",
+                        file=sys.stderr,
+                    )
+                    failed = True
+            if failed:
+                raise ValueError("restoration incomplete")
+
+            # Recheck both the opened snapshot and the current directory entry.
+            # This is NOT atomic against root writers ignoring the directory lock.
+            state.seek(0)
+            if (
+                state.read() != data
+                or signature(os.fstat(state.fileno())) != signature(initial)
+                or signature(os.stat(name, dir_fd=directory_fd, follow_symlinks=False))
+                != signature(initial)
+            ):
+                raise ValueError(
+                    "recovery state changed; current file must be retained"
+                )
+            os.unlink(name, dir_fd=directory_fd)
+            return 0
+    finally:
+        os.close(directory_fd)
+
+
+try:
+    status = restore(sys.argv[1])
+except (OSError, ValueError) as error:
+    print(
+        f"NetMon: DNS recovery failed for {sys.argv[1]}/install-dns-nm.state: {error}; "
+        "check the retained state; earlier successful changes may remain.",
+        file=sys.stderr,
+    )
+    status = 1
+sys.exit(status)
+PYDNS
+  # Keep the directory inode as the shared lock anchor.
 }
 
 seed_log_pics_dir() {
@@ -304,27 +416,139 @@ NETMON_INSTALL_DNS_STATE="$NETMON_STATE_DIR/install-dns-nm.state"
 
 restore_netmon_install_dns() {
   [ "${1:-}" = "remove" ] || [ "${1:-}" = "deconfigure" ] || return 0
-  command -v nmcli >/dev/null 2>&1 || return 0
   [ -f "$NETMON_INSTALL_DNS_STATE" ] || return 0
+  if ! command -v nmcli >/dev/null 2>&1; then
+    echo "NetMon: DNS recovery requires nmcli; retained $NETMON_INSTALL_DNS_STATE." >&2
+    return 1
+  fi
 
-  while IFS='|' read -r UUID OLD_DNS OLD_IGNORE_AUTO_DNS; do
-    [ -n "$UUID" ] || continue
-    nmcli connection show "$UUID" >/dev/null 2>&1 || continue
+  /usr/bin/python3 -I - "$NETMON_STATE_DIR" <<'PYDNS'
+import fcntl
+import os
+import stat
+import subprocess
+import sys
+import uuid
 
-    if [ -n "$OLD_IGNORE_AUTO_DNS" ]; then
-      nmcli connection modify "$UUID" \
-        ipv4.dns "$OLD_DNS" \
-        ipv4.ignore-auto-dns "$OLD_IGNORE_AUTO_DNS" >/dev/null 2>&1 || true
-    else
-      nmcli connection modify "$UUID" \
-        ipv4.dns "$OLD_DNS" \
-        ipv4.ignore-auto-dns no >/dev/null 2>&1 || true
-    fi
-    nmcli connection up "$UUID" >/dev/null 2>&1 || true
-  done < "$NETMON_INSTALL_DNS_STATE"
 
-  rm -f "$NETMON_INSTALL_DNS_STATE" >/dev/null 2>&1 || true
-  rmdir "$NETMON_STATE_DIR" >/dev/null 2>&1 || true
+def signature(info):
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+
+def restore(directory):
+    name = "install-dns-nm.state"
+    directory_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        # All cooperating readers/writers must lock this stable directory inode.
+        fcntl.flock(directory_fd, fcntl.LOCK_EX)
+        try:
+            state_fd = os.open(
+                name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory_fd
+            )
+        except FileNotFoundError:
+            return 0  # Another cooperating invocation already finished.
+        with os.fdopen(state_fd, "rb") as state:
+            initial = os.fstat(state.fileno())
+            if not stat.S_ISREG(initial.st_mode):
+                raise ValueError("recovery state is not a regular file")
+            data = state.read()
+            if signature(os.fstat(state.fileno())) != signature(initial):
+                raise ValueError("recovery state changed while reading")
+            text = data.decode("utf-8")
+            if "\0" in text or "\r" in text:
+                raise ValueError("unexpected NUL or CR in legacy state")
+            records = text.split("\n") if text else []
+            if records and records[-1] == "":
+                records.pop()
+            rows = []
+            seen = set()
+            for number, record in enumerate(records, 1):
+                fields = record.split("|")
+                if len(fields) != 3:
+                    raise ValueError(f"line {number}: expected UUID|DNS|IGNORE")
+                identity = str(uuid.UUID(fields[0]))
+                if fields[0].lower() != identity:
+                    raise ValueError(f"line {number}: expected a complete UUID")
+                if identity in seen:
+                    raise ValueError(f"line {number}: duplicate UUID {identity}")
+                seen.add(identity)
+                rows.append((identity, fields[1], fields[2] or "no"))
+
+            failed = False
+            for identity, dns, ignore in rows:
+                if subprocess.run(
+                    ["nmcli", "connection", "show", "uuid", identity],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                ).returncode:
+                    print(
+                        f"NetMon: DNS restore failed: unavailable UUID {identity}.",
+                        file=sys.stderr,
+                    )
+                    failed = True
+                    continue
+                if subprocess.run(
+                    [
+                        "nmcli",
+                        "connection",
+                        "modify",
+                        "uuid",
+                        identity,
+                        "ipv4.dns",
+                        dns,
+                        "ipv4.ignore-auto-dns",
+                        ignore,
+                    ],
+                    check=False,
+                ).returncode:
+                    print(
+                        f"NetMon: DNS restore failed: cannot modify UUID {identity}.",
+                        file=sys.stderr,
+                    )
+                    failed = True
+                    continue
+                if subprocess.run(
+                    ["nmcli", "connection", "up", "uuid", identity], check=False
+                ).returncode:
+                    print(
+                        f"NetMon: DNS restore failed: cannot activate UUID {identity}.",
+                        file=sys.stderr,
+                    )
+                    failed = True
+            if failed:
+                raise ValueError("restoration incomplete")
+
+            # Recheck both the opened snapshot and the current directory entry.
+            # This is NOT atomic against root writers ignoring the directory lock.
+            state.seek(0)
+            if (
+                state.read() != data
+                or signature(os.fstat(state.fileno())) != signature(initial)
+                or signature(os.stat(name, dir_fd=directory_fd, follow_symlinks=False))
+                != signature(initial)
+            ):
+                raise ValueError(
+                    "recovery state changed; current file must be retained"
+                )
+            os.unlink(name, dir_fd=directory_fd)
+            return 0
+    finally:
+        os.close(directory_fd)
+
+
+try:
+    status = restore(sys.argv[1])
+except (OSError, ValueError) as error:
+    print(
+        f"NetMon: DNS recovery failed for {sys.argv[1]}/install-dns-nm.state: {error}; "
+        "check the retained state; earlier successful changes may remain.",
+        file=sys.stderr,
+    )
+    status = 1
+sys.exit(status)
+PYDNS
+  # Keep the directory inode as the shared lock anchor.
 }
 
 restore_netmon_install_dns "${1:-}"
