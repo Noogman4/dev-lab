@@ -123,7 +123,8 @@ beibehalten. Nach Aenderungen erneut pruefen. Die Pruefung verwendet ausschliess
 den Repository-Verifier mit dessen festem H-01-Pin, niemals das Skript aus der ZIP.
 Auch die mitgelieferten Verifikationsskripte muessen bytegleich mit diesem
 Checkout sein; ein altes oder manipuliertes Verifikationsskript wird abgelehnt.
-Sie prueft Signatur und exakte Payload-Hashes, Produktionsnamen, Version, benoetigte
+Sie prueft beide Signaturen und die exakten Hashes aller Bundle-Dateien,
+Produktionsnamen, Version, benoetigte
 Dateien/Struktur und das Fehlen von `UNSIGNED-TEST-ONLY` in Pfaden und Dateiinhalten.
 Ein umbenanntes oder in den Produktionsbereich kopiertes Test-ZIP wird abgelehnt.
 Symlinks, Sonderdateien, doppelte/unsichere Pfade und widerspruechliche ZIP-Metadaten
@@ -133,14 +134,27 @@ Mit hochgeladen werden muessen insbesondere:
 
 - `public_html/dist/SHA256SUMS` und `SHA256SUMS.minisig`
 - alle drei in den signierten Summen aufgefuehrten Paket-/Dokudateien
+- `public_html/verify/RELEASE-SHA256SUMS` und `RELEASE-SHA256SUMS.minisig`
 - `public_html/verify/netmonroots.minisign.pub`
 - `public_html/verify/verify_netmon_signature.sh`
 - `public_html/latest-version.json`
 
-Die Minisign-Signatur authentifiziert die drei Payload-Hashes, nicht jede
-Website-Datei und nicht den ZIP-Container als Ganzes. Die ZIP-Pruefung liefert
-zusaetzliche Struktur-/Integritaetskontrollen. Details, Ressourcenlimits und
-Betriebsannahmen: [M-04](security/M-04.md).
+Die Download-Signatur authentifiziert weiterhin die drei Payload-Hashes.
+Zusaetzlich bindet das mit demselben gepinnten Key signierte
+`verify/RELEASE-SHA256SUMS` alle uebrigen Dateien im jeweiligen Bundle,
+einschliesslich PHP, JavaScript, HTML, `.htaccess`, Metadaten und
+Download-Signatur. Nur dieses Manifest und seine eigene Signatur sind wegen
+der Selbstreferenz ausgenommen. Die Pruefung verlangt exakt dieselbe Dateimenge
+und passende Hashes; alte Bundles ohne Vollmanifest werden abgelehnt und muessen
+neu gebaut werden. ZIP-Metadaten sind nicht signiert und unterliegen weiterhin
+den Strukturkontrollen.
+
+Der Build vergleicht ausserdem den Upload-Ordner vollstaendig mit der
+authentifizierten ZIP. Bei einem spaeteren Ordner-Upload dieselbe Pruefung
+unmittelbar davor mit `--upload-directory <public_html-Ordner>` wiederholen.
+Produktive Statistikdateien bleiben nach der bestehenden Deployment-Anleitung
+erhalten; das Manifest beschreibt den ausgelieferten Bundle-Inhalt, nicht den
+spaeter veraenderlichen Serverzustand. Details und Betriebsannahmen: [M-04](security/M-04.md).
 
 ## Verifikation fuer Nutzer
 

@@ -5,12 +5,12 @@ both the public key and verifier. The repository trust anchor is never edited.
 Real NetMon-key fixtures remain covered by test_netmon_signature.py.
 """
 
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
 import zipfile
+from pathlib import Path
 
 import pytest
 
@@ -115,6 +115,7 @@ def environment(root, **values):
 def run_build(root, profile, **values):
     return subprocess.run(
         [shutil.which("bash"), str(root / "scripts" / profile[0])],
+        check=False,
         env=environment(root, **values),
         capture_output=True,
         text=True,
@@ -131,6 +132,7 @@ def gate(root, path, kind):
             "--kind",
             kind,
         ],
+        check=False,
         env=environment(root),
         capture_output=True,
         text=True,
@@ -428,6 +430,7 @@ def test_test_build_failure_cleans_only_its_own_output(repo):
     (root / f"dist/netmon_{VERSION}_all.deb").unlink()
     result = subprocess.run(
         [sys.executable, str(root / "scripts/build_netmon_unsigned_test_bundle.py")],
+        check=False,
         env=environment(root),
         capture_output=True,
         text=True,
@@ -540,4 +543,143 @@ def test_failed_atomic_promotion_leaves_no_production_copy(repo, profile):
     assert result.returncode != 0
     assert "simulated EXDEV" in result.stderr
     assert "Fertig:" not in result.stdout
+    no_production_output(root, profile)
+
+
+@pytest.mark.parametrize(
+    "profile,member",
+    [
+        (profile, member)
+        for profile in PROFILES
+        for member in (
+            ["download-config.php", "downloads.html", "app.js", ".htaccess"]
+            if profile[3] == "site"
+            else ["download-config.php", "downloads.html"]
+        )
+    ],
+)
+def test_gate_authenticates_deployable_web_content(repo, profile, member):
+    root, secret = repo
+    result = run_build(root, profile, NETMON_MINISIGN_SECRET_KEY=str(secret))
+    assert result.returncode == 0, result.stdout + result.stderr
+    path = root / "dist" / profile[1] / profile[2]
+    rewrite_zip(path, {f"public_html/{member}": b"modified deployable content\n"})
+    rejected = gate(root, path, profile[3])
+    assert rejected.returncode != 0, rejected.stdout + rejected.stderr
+    assert "Release checksums or member set mismatch" in rejected.stderr
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "missing",
+        "missing-signature",
+        "corrupt-signature",
+        "rehashed",
+        "omitted",
+        "extra",
+        "duplicate",
+        "self-reference",
+    ],
+)
+def test_full_member_manifest_requires_signature_and_exact_coverage(
+    repo, profile, failure
+):
+    import hashlib
+
+    root, secret = repo
+    result = run_build(root, profile, NETMON_MINISIGN_SECRET_KEY=str(secret))
+    assert result.returncode == 0, result.stdout + result.stderr
+    path = root / "dist" / profile[1] / profile[2]
+    manifest = "public_html/verify/RELEASE-SHA256SUMS"
+    signature = manifest + ".minisig"
+    with zipfile.ZipFile(path) as archive:
+        message = archive.read(manifest)
+    changes = {}
+    if failure == "missing":
+        changes[manifest] = None
+    elif failure == "missing-signature":
+        changes[signature] = None
+    elif failure == "corrupt-signature":
+        changes[signature] = b"invalid"
+    else:
+        lines = message.splitlines(keepends=True)
+        selected = next(line for line in lines if line.endswith(b"  downloads.html\n"))
+        if failure == "rehashed":
+            replacement = b"modified HTML with updated unsigned checksum\n"
+            changes["public_html/downloads.html"] = replacement
+            message = message.replace(
+                selected,
+                hashlib.sha256(replacement).hexdigest().encode()
+                + b"  downloads.html\n",
+            )
+        elif failure == "omitted":
+            message = message.replace(selected, b"")
+        elif failure == "extra":
+            message += b"0" * 64 + b"  unexpected.php\n"
+        elif failure == "duplicate":
+            message += selected
+        else:
+            message += b"0" * 64 + b"  verify/RELEASE-SHA256SUMS\n"
+        changes[manifest] = message
+        if failure != "rehashed":
+            # Even a valid signature must not authorize partial/ambiguous coverage.
+            local = root / "coverage-manifest"
+            local.write_bytes(message)
+            subprocess.run(
+                [
+                    shutil.which("minisign"),
+                    "-S",
+                    "-s",
+                    str(secret),
+                    "-m",
+                    str(local),
+                    "-x",
+                    str(local) + ".minisig",
+                ],
+                check=True,
+                capture_output=True,
+            )
+            changes[signature] = Path(str(local) + ".minisig").read_bytes()
+    rewrite_zip(path, changes)
+    rejected = gate(root, path, profile[3])
+    assert rejected.returncode != 0, rejected.stdout + rejected.stderr
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+@pytest.mark.parametrize("damage", ["php", "html", "extra", "symlink", "missing"])
+def test_post_packaging_web_directory_changes_block_promotion(repo, profile, damage):
+    root, secret = repo
+    zipper = root / "test-bin/zip"
+    zipper.unlink()
+    action = {
+        "php": "printf changed > public_html/download-config.php",
+        "html": "printf changed > public_html/downloads.html",
+        "extra": "printf extra > public_html/extra.php",
+        "symlink": f'"{sys.executable}" -c \'from pathlib import Path; p=Path("public_html/downloads.html"); p.unlink(); p.symlink_to("docs.html")\'',
+        "missing": "rm public_html/downloads.html",
+    }[damage]
+    zipper.write_text(f'#!/bin/sh\n"{shutil.which("zip")}" "$@"\n{action}\n')
+    zipper.chmod(0o700)
+    result = run_build(root, profile, NETMON_MINISIGN_SECRET_KEY=str(secret))
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "Fertig:" not in result.stdout
+    no_production_output(root, profile)
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+@pytest.mark.parametrize("failure", ["error", "missing"])
+def test_full_manifest_signing_failure_blocks_production(repo, profile, failure):
+    root, secret = repo
+    signer = root / "test-bin/minisign"
+    signer.unlink()
+    status = 2 if failure == "error" else 0
+    signer.write_text(
+        '#!/bin/sh\ncase "$*" in *RELEASE-SHA256SUMS*) '
+        f'exit {status};; esac\nexec "{shutil.which("minisign")}" "$@"\n'
+    )
+    signer.chmod(0o700)
+    result = run_build(root, profile, NETMON_MINISIGN_SECRET_KEY=str(secret))
+    assert result.returncode != 0, result.stdout + result.stderr
     no_production_output(root, profile)

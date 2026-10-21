@@ -119,6 +119,7 @@ Zusaetzlich enthalten:
 
 Verpflichtend bei jedem Produktions-Build:
 
+- `dist/site-build/public_html/verify/RELEASE-SHA256SUMS` und `.minisig`
 - `dist/site-build/public_html/dist/SHA256SUMS.minisig`
 - `dist/site-build/public_html/verify/netmonroots.minisign.pub`
 - `dist/site-build/public_html/verify/verify_netmon_signature.sh`
@@ -127,7 +128,10 @@ Verpflichtend bei jedem Produktions-Build:
 Vor dem manuellen Upload muss die fertige ZIP aus einem geprueften Checkout
 mit `python3 scripts/verify_netmon_release_bundle.py <ZIP> --kind site`
 beziehungsweise `--kind update` geprueft werden. Bei einem Build-/Prueffehler
-nicht hochladen. Alte Ausgaben liegen nach einem neuen Versuch nur noch in
+nicht hochladen. Das separat signierte Vollmanifest bindet alle Bundle-Dateien;
+alte Bundles ohne Vollmanifest muessen neu gebaut werden. Bei einem Ordner-Upload
+zusaetzlich `--upload-directory <public_html-Ordner>` angeben. Alte Ausgaben liegen
+nach einem neuen Versuch nur noch in
 `dist/.release-history/` und sind kein neuer Build-Erfolg. Im Repository gibt es
 keinen automatisierten Publikationsjob.
 

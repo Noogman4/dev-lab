@@ -20,7 +20,7 @@ BASH = shutil.which("bash")
 def verify(key=PUBLIC_KEY, signature=SIGNATURE, message=MESSAGE, *, env=None):
     return subprocess.run(
         [BASH, str(VERIFIER), str(key), str(signature), str(message)],
-        env={"PATH": "/usr/bin:/bin", "LC_ALL": "C", **(env or {})},
+        env={"PATH": os.environ.get("PATH", os.defpath), "LC_ALL": "C", **(env or {})},
         capture_output=True,
         text=True,
         check=False,

@@ -78,6 +78,13 @@ sign_release() {
 
 finish_release_build() {
   local kind="$1" filename="$2"
+  # Download checksums stay compatible. A second signed manifest binds the
+  # complete deployable tree, excluding only itself and its own signature.
+  python3 "$ROOT_DIR/scripts/verify_netmon_release_bundle.py" "$PUBLIC_DIR" \
+    --kind "$kind" --write-manifest
+  minisign -S -s "$NETMON_MINISIGN_SECRET_KEY" \
+    -m "$PUBLIC_DIR/verify/RELEASE-SHA256SUMS" \
+    -x "$PUBLIC_DIR/verify/RELEASE-SHA256SUMS.minisig"
   find "$PUBLIC_DIR" -type d -exec chmod 755 {} +
   find "$PUBLIC_DIR" -type f -exec chmod 644 {} +
   chmod 755 "$PUBLIC_DIR/verify/verify_netmon_download.sh" "$MINISIGN_VERIFY_SCRIPT"
@@ -87,7 +94,8 @@ finish_release_build() {
   )
   # Inspect the actual ZIP bytes, using the repository verifier, never a verifier
   # supplied by the archive. Only a verified ZIP and its directory are promoted.
-  python3 "$ROOT_DIR/scripts/verify_netmon_release_bundle.py" "$BUILD_DIR/$filename" --kind "$kind"
+  python3 "$ROOT_DIR/scripts/verify_netmon_release_bundle.py" "$BUILD_DIR/$filename" \
+    --kind "$kind" --upload-directory "$PUBLIC_DIR"
   # The upload directory is also an output. Recheck it after packaging so a
   # changed source cannot leave a valid ZIP beside an invalid upload directory.
   bash "$ROOT_DIR/scripts/verify_netmon_signature.sh" \

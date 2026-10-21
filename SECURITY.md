@@ -24,6 +24,10 @@ Both production bundle scripts always sign and verify before success.
 staging; older outputs are retained outside the current output path in
 `dist/.release-history/`, and failed staging is removed. The final ZIP is checked
 by `scripts/verify_netmon_release_bundle.py` with the repository verifier.
+A separate signed `verify/RELEASE-SHA256SUMS` binds every bundled file except
+itself and its own signature. Exact membership is required; old bundles without
+this manifest are rejected. The staged upload directory must also match the
+authenticated ZIP before promotion. Download checksum verification is unchanged.
 Unsigned local payload tests use only `make unsigned-test-bundle`, with separate
 `unsigned-test-builds/` output, different names, an `UNSIGNED-TEST-ONLY` marker
 and no production upload structure. Never publish these test artifacts.
@@ -31,7 +35,7 @@ and no production upload structure. Never publish these test artifacts.
 There is no automated publication job in this repository. Before manual upload,
 run the [local publication gate](docs/MINISIGN_RELEASES.md#upload-und-lokale-freigabepruefung)
 on the exact ZIP to upload. It rejects unsigned, invalid and relabelled test
-bundles, checks the pinned signature and payload hashes, and validates the
+bundles, checks both pinned signatures and every bundled file hash, and validates the
 production structure. This is not a server-side enforcement guarantee.
 
 - Minisign key ID: `54BF5F1867BDD004`

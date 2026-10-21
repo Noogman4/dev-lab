@@ -253,6 +253,9 @@ Fuer alle Produktions-Releases:
 - ein optional gesetzter `NETMON_MINISIGN_PUBKEY` muss exakt mit dem Repository-Pin uebereinstimmen
 - ohne Secret Key oder ohne `minisign` bricht der Release-Build ab
 - `NETMON_ALLOW_UNSIGNED_BUILD` kann keine Signierung oder Verifikation umgehen
+- `verify/RELEASE-SHA256SUMS` und `.minisig` authentifizieren alle Bundle-Dateien;
+  alte Bundles ohne Vollmanifest neu bauen. Bei einem Ordner-Upload die ZIP-Pruefung
+  zusaetzlich mit `--upload-directory <public_html-Ordner>` ausfuehren.
 - unsignierte Testpakete ausschliesslich ueber `make unsigned-test-bundle`; sie
   liegen unter `unsigned-test-builds/`, haben keine Uploadstruktur und duerfen
   niemals veroeffentlicht werden

@@ -7,13 +7,13 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import stat
 import struct
 import subprocess
 import tempfile
 import zipfile
+from pathlib import Path
 
 from read_netmon_version import ROOT, read_netmon_version
 
@@ -29,6 +29,9 @@ MAX_MEMBERS = 10_000
 MAX_DIRECTORY_BYTES = 8 * 1024 * 1024
 SMALL_FILE_BYTES = 256 * 1024
 CHUNK_BYTES = 64 * 1024
+RELEASE_MANIFEST = "verify/RELEASE-SHA256SUMS"
+RELEASE_SIGNATURE = RELEASE_MANIFEST + ".minisig"
+MANIFEST_FILES = {RELEASE_MANIFEST, RELEASE_SIGNATURE}
 
 
 def check_envelope(handle):
@@ -121,6 +124,7 @@ def expected_files(version, kind):
         "verify/netmonroots.minisign.pub",
         "verify/verify_netmon_signature.sh",
         "verify/verify_netmon_download.sh",
+        *MANIFEST_FILES,
         *(f"dist/{name}" for name in payloads),
     }
     if kind == "site":
@@ -185,7 +189,66 @@ def expected_files(version, kind):
     return files, payloads
 
 
-def verify_bundle(path, kind):
+def directory_hashes(directory, required):
+    """Hash an exact upload tree; never accept links or special files."""
+    directories = {""} | {
+        "/".join(name.split("/")[:depth])
+        for name in required
+        for depth in range(1, len(name.split("/")))
+    }
+    hashes, total = {}, 0
+
+    def visit(path, relative):
+        nonlocal total
+        mode = path.lstat().st_mode
+        if stat.S_ISDIR(mode):
+            if relative not in directories:
+                raise ValueError("Unexpected upload directory")
+            for child in sorted(path.iterdir()):
+                visit(child, f"{relative}/{child.name}".lstrip("/"))
+        elif stat.S_ISREG(mode) and relative in required:
+            descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(descriptor, "rb") as source:
+                if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                    raise ValueError("Upload member must be a regular file")
+                digest, actual = hashlib.sha256(), 0
+                while chunk := source.read(CHUNK_BYTES):
+                    actual += len(chunk)
+                    total += len(chunk)
+                    if actual > MAX_FILE_BYTES or total > MAX_TOTAL_BYTES:
+                        raise ValueError("Upload content byte budget exceeded")
+                    digest.update(chunk)
+                hashes[relative] = digest.hexdigest()
+        else:
+            raise ValueError("Unexpected or unsafe upload member")
+
+    visit(directory, "")
+    if hashes.keys() != required:
+        raise ValueError("Missing expected upload files")
+    return hashes
+
+
+def write_manifest(directory, kind):
+    required, _ = expected_files(read_netmon_version(), kind)
+    hashes = directory_hashes(directory, required - MANIFEST_FILES)
+    message = "".join(f"{hashes[name]}  {name}\n" for name in sorted(hashes))
+    if len(message.encode("ascii")) > SMALL_FILE_BYTES:
+        raise ValueError("Release manifest byte budget exceeded")
+    (directory / RELEASE_MANIFEST).write_text(message, encoding="ascii")
+
+
+def check_sums(message, expected):
+    sums = {}
+    for line in message.decode("ascii").splitlines():
+        match = re.fullmatch(r"([0-9a-f]{64})  (.+)", line)
+        if not match or match[2] in sums:
+            raise ValueError("Invalid or duplicate checksum entry")
+        sums[match[2]] = match[1]
+    if sums != expected:
+        raise ValueError("Release checksums or member set mismatch")
+
+
+def verify_bundle(path, kind, upload_directory=None):
     if path.name != BUNDLE_NAMES[kind]:
         raise ValueError("Not a production bundle filename")
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
@@ -253,6 +316,7 @@ def verify_bundle(path, kind):
                     "dist/SHA256SUMS.minisig",
                     "verify/netmonroots.minisign.pub",
                     "latest-version.json",
+                    *MANIFEST_FILES,
                 }
                 with archive.open(member) as source:
                     while chunk := source.read(CHUNK_BYTES):
@@ -298,29 +362,42 @@ def verify_bundle(path, kind):
                 ("dist/SHA256SUMS", "SHA256SUMS"),
                 ("dist/SHA256SUMS.minisig", "SHA256SUMS.minisig"),
                 ("verify/netmonroots.minisign.pub", "key.pub"),
+                (RELEASE_MANIFEST, "RELEASE-SHA256SUMS"),
+                (RELEASE_SIGNATURE, "RELEASE-SHA256SUMS.minisig"),
             ]:
                 (target / filename).write_bytes(contents[relative])
-            subprocess.run(
-                [
-                    "bash",
-                    str(ROOT / "scripts/verify_netmon_signature.sh"),
-                    str(target / "key.pub"),
-                    str(target / "SHA256SUMS.minisig"),
-                    str(target / "SHA256SUMS"),
-                ],
-                check=True,
-                timeout=30,
-            )
-        sums = {}
-        for line in contents["dist/SHA256SUMS"].decode("ascii").splitlines():
-            match = re.fullmatch(r"([0-9a-f]{64})  (.+)", line)
-            if not match or match[2] in sums:
-                raise ValueError("Invalid or duplicate checksum entry")
-            sums[match[2]] = match[1]
-        if sums.keys() != payloads or any(
-            hashes[f"dist/{name}"] != digest for name, digest in sums.items()
+            for manifest in ("SHA256SUMS", "RELEASE-SHA256SUMS"):
+                subprocess.run(
+                    [
+                        "bash",
+                        str(ROOT / "scripts/verify_netmon_signature.sh"),
+                        str(target / "key.pub"),
+                        str(target / (manifest + ".minisig")),
+                        str(target / manifest),
+                    ],
+                    check=True,
+                    timeout=30,
+                )
+        check_sums(
+            contents["dist/SHA256SUMS"],
+            {name: hashes[f"dist/{name}"] for name in payloads},
+        )
+        # Only the manifest and its own signature are excluded (self-reference).
+        # The pinned key authenticates the manifest; its exact set binds every
+        # other deployable byte, including the original download signature.
+        check_sums(
+            contents[RELEASE_MANIFEST],
+            {
+                name: digest
+                for name, digest in hashes.items()
+                if name not in MANIFEST_FILES
+            },
+        )
+        if (
+            upload_directory is not None
+            and directory_hashes(upload_directory, required) != hashes
         ):
-            raise ValueError("Release checksums or payload set mismatch")
+            raise ValueError("Upload directory differs from authenticated ZIP")
         handle.seek(0)
         digest = hashlib.file_digest(handle, "sha256").hexdigest()
         after = os.fstat(handle.fileno())
@@ -340,9 +417,24 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("bundle", type=Path)
     parser.add_argument("--kind", choices=BUNDLE_NAMES, required=True)
+    parser.add_argument(
+        "--write-manifest",
+        action="store_true",
+        help="Generate the unsigned full-member manifest in the given staging directory",
+    )
+    parser.add_argument(
+        "--upload-directory",
+        type=Path,
+        help="Also require this upload directory to match the authenticated ZIP",
+    )
     args = parser.parse_args()
     try:
-        digest = verify_bundle(args.bundle, args.kind)
+        if args.write_manifest:
+            if args.upload_directory is not None:
+                raise ValueError("Manifest creation cannot verify an upload directory")
+            write_manifest(args.bundle, args.kind)
+            return 0
+        digest = verify_bundle(args.bundle, args.kind, args.upload_directory)
     except (
         OSError,
         ValueError,
