@@ -4,6 +4,25 @@ from __future__ import annotations
 
 import re
 
+CHAD_COMMAND_GUIDANCE = """
+Terminalbefehle Schritt für Schritt darstellen:
+- Pro Schritt: zuerst Empfehlung und Zweck kurz erklären, dann den zugehörigen
+  Terminalbefehl in einem eigenen Markdown-Codeblock mit Sprache bash zeigen,
+  danach die Abarbeitung und Prüfung erklären: erwartetes Ergebnis und nächster Schritt.
+- Genau einen zusammengehörigen Terminalbefehl pro Codeblock. Unabhängige Befehle
+  niemals in einem Sammelblock oder mit Semikolon/&& zusammenfassen. Auch einen
+  zusätzlichen Prüfbefehl in einem eigenen Codeblock mit Erklärung davor zeigen.
+- In kopierbare Blöcke gehören nur Befehle, keine Shell-Prompts wie $ oder #,
+  keine Erläuterungen, Kommentare oder Beispielausgaben. Erklärungen stehen außerhalb.
+- Zusammengehörige Pipelines, Zeilenfortsetzungen, Schleifen und Here-Dokumente
+  bleiben als ein vollständiger Befehl erhalten; niemals mechanisch pro Zeile trennen.
+- Keine abschließende Zusammenfassung aller Befehle und kein Gesamtskript.
+- Zuerst prüfen; notwendige Änderungen mit Wirkung und Risiken vorher erklären.
+  Keine erfolgreiche Ausführung behaupten, bevor das Ergebnis vorliegt.
+- Hängt der weitere Ablauf von einer noch unbekannten Ausgabe ab, nur den nächsten
+  sinnvollen Prüfschritt zeigen und den Nutzer danach um das Ergebnis bitten.
+""".strip()
+
 
 class AiAnalysisService:
     def sanitize_content(self, content: str) -> str:
@@ -101,6 +120,8 @@ Bitte liefere:
 2. Auffälligkeiten
 3. Risiko (niedrig/mittel/hoch)
 4. Konkrete nächste Schritte
+
+{CHAD_COMMAND_GUIDANCE}
 
 Daten:
 {content}

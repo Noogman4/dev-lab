@@ -127,7 +127,7 @@ def test_chad_chat_input_uses_copy_paste_context_menu():
     chad_source = inspect.getsource(build_chad_analysis_header_and_composer)
 
     assert "app.chad_chat_input = tk.Text(" in chad_source
-    assert "height=6," in chad_source
+    assert "height=3," in chad_source
     assert "app.attach_copy_paste_context_menu(app.chad_chat_input)" in chad_source
 
 

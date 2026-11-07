@@ -6,9 +6,9 @@ import tkinter as tk
 from tkinter import ttk
 
 try:
-    from netmon.features import chad_controller
+    from netmon.features import chad_composer, chad_controller
 except ModuleNotFoundError:
-    from features import chad_controller
+    from features import chad_composer, chad_controller
 
 
 def build_chad_tab(app):
@@ -51,10 +51,10 @@ def build_chad_analysis_header_and_composer(app):
     chat_layout = ttk.Frame(app.tab_chad_analysis)
     chat_layout.grid(row=2, column=0, sticky="nsew")
     chat_layout.columnconfigure(0, weight=1)
-    chat_layout.rowconfigure(1, weight=1)
+    chat_layout.rowconfigure(0, weight=1)
 
     composer_frame = ttk.Frame(chat_layout)
-    composer_frame.grid(row=0, column=0, sticky="ew", pady=(0, 3))
+    composer_frame.grid(row=1, column=0, sticky="ew", pady=(6, 3))
     composer_frame.columnconfigure(0, weight=1)
     app.btn_chad_import_file = ttk.Button(
         composer_frame,
@@ -62,15 +62,21 @@ def build_chad_analysis_header_and_composer(app):
         command=app.import_file_to_chad_chat,
     )
     app.btn_chad_import_file.grid(row=0, column=0, sticky="w", padx=(0, 3))
+    app.btn_chad_browser = ttk.Button(
+        composer_frame,
+        text=app.tr("chad_btn_copy_open_chatgpt", "Prompt kopieren & ChatGPT öffnen"),
+        command=lambda: chad_controller.copy_prompt_and_open_chatgpt(app),
+    )
+    app.btn_chad_browser.grid(row=0, column=1, sticky="w", padx=(0, 6))
     app.btn_chad_online = ttk.Button(
         composer_frame,
         text=app.tr("chad_btn_online_analysis", "Online analysieren"),
         command=app.run_chad_online_analysis,
     )
-    app.btn_chad_online.grid(row=0, column=1, sticky="w", padx=(0, 6))
+    app.btn_chad_online.grid(row=0, column=2, sticky="w", padx=(0, 6))
 
     composer_input_frame = ttk.Frame(composer_frame)
-    composer_input_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+    composer_input_frame.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(6, 0))
     composer_input_frame.columnconfigure(0, weight=1)
     composer_input_frame.rowconfigure(0, weight=1)
     composer_input_scroll = ttk.Scrollbar(composer_input_frame, orient="vertical")
@@ -78,27 +84,30 @@ def build_chad_analysis_header_and_composer(app):
     app.chad_chat_input = tk.Text(
         composer_input_frame,
         wrap="word",
-        height=6,
+        height=3,
         yscrollcommand=composer_input_scroll.set,
     )
     app.chad_chat_input.grid(row=0, column=0, sticky="ew")
     composer_input_scroll.configure(command=app.chad_chat_input.yview)
-    app.chad_chat_input.bind(
-        "<Return>",
-        lambda _event: app.send_chad_chat_message(),
+    app.btn_chad_send = ttk.Button(
+        composer_input_frame,
+        text=app.tr("chad_btn_send", "Senden"),
+        command=lambda: app.send_chad_chat_message(),
     )
-    app.chad_chat_input.bind(
-        "<KP_Enter>",
-        lambda _event: app.send_chad_chat_message(),
-    )
+    app.btn_chad_send.grid(row=0, column=2, sticky="se", padx=(6, 0))
+    ttk.Label(
+        composer_frame,
+        text=app.tr("chad_input_hint", "Enter: senden · Shift+Enter: neue Zeile"),
+    ).grid(row=2, column=0, columnspan=3, sticky="w", pady=(2, 0))
     app.attach_copy_paste_context_menu(app.chad_chat_input)
+    chad_composer.bind_input(app)
     return chat_layout
 
 
 def build_chad_analysis_output(app, chat_layout, light_theme) -> None:
     """Build the Chad output controls, analysis text and chat tags."""
     output_frame = ttk.Frame(chat_layout)
-    output_frame.grid(row=1, column=0, sticky="nsew", pady=(0, 2))
+    output_frame.grid(row=0, column=0, sticky="nsew", pady=(0, 2))
     output_frame.columnconfigure(0, weight=1)
     output_frame.rowconfigure(1, weight=1)
     output_head = ttk.Frame(output_frame)

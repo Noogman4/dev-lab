@@ -165,3 +165,59 @@ def test_about_text_wraps_to_available_width_on_resize(about_app, language, them
         if previous is not None:
             assert (current > previous) is (width == 900)
         previous = current
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+@pytest.mark.parametrize("available", [False, True])
+def test_about_documentation_availability_is_honest(
+    about_app, language, available, tmp_path
+):
+    app = about_app
+    app.lang = LangService(str(ROOT / "netmon" / "lang")).load(language)
+    doc = tmp_path / "manual.pdf"
+    if available:
+        doc.write_bytes(b"synthetic PDF fixture")
+    app._get_available_program_documentation_path = lambda: (
+        str(doc) if available else ""
+    )
+    app.open_about_program_dialog()
+    app.update()
+    items = list(descendants(app.about_program_window))
+    button = next(
+        w
+        for w in items
+        if isinstance(w, ttk.Button)
+        and w.cget("text") == app.lang["about_docs_open_title"]
+    )
+    assert button.instate(["!disabled"] if available else ["disabled"])
+    texts = [w.cget("text") for w in items if isinstance(w, ttk.Label)]
+    if available:
+        assert any(doc.name in text for text in texts)
+        assert app.lang["about_docs_summary"] in texts
+    else:
+        assert app.lang["about_docs_unavailable"] in texts
+        assert app.lang["about_docs_summary"] not in texts
+        assert app.lang["about_docs_troubleshooting"] not in texts
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_about_dialog_renders_installed_test_package_version(
+    about_app, monkeypatch, language
+):
+    app = about_app
+    app.lang = LangService(str(ROOT / "netmon" / "lang")).load(language)
+    monkeypatch.setattr(app_module, "__file__", "/usr/lib/netmon/netmon/app.py")
+    monkeypatch.setattr(
+        app_module,
+        "run_cmd",
+        Mock(return_value=(0, "install ok installed\t1.1.21~v4dnstest20261030.2")),
+    )
+    app._get_about_program_system_info = App._get_about_program_system_info.__get__(app)
+    app.open_about_program_dialog()
+    app.update()
+    labels = [
+        w.cget("text")
+        for w in descendants(app.about_program_window)
+        if isinstance(w, ttk.Label)
+    ]
+    assert any("1.1.21~v4dnstest20261030.2" in text for text in labels)

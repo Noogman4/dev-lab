@@ -10,7 +10,6 @@ from tkinter import ttk
 
 from .manager import SecureBrowserManager
 
-
 LOGGER = logging.getLogger(__name__)
 
 HEADER_BUTTON_WIDTH = 16
@@ -635,9 +634,7 @@ def create_secure_browser_tab(
         variable=child_lock_var,
         command=configure_child_lock,
     )
-    draft_child_lock.grid(
-        row=0, column=1, sticky="w", pady=(0, 0)
-    )
+    draft_child_lock.grid(row=0, column=1, sticky="w", pady=(0, 0))
     child_lock_hint = ttk.Label(
         child_lock_row,
         text=T(
@@ -739,13 +736,21 @@ def create_secure_browser_tab(
     content_frame.rowconfigure(1, weight=1)
     scrollbar_factory = getattr(ttk, "Scrollbar", ttk.Frame)
 
+    summary_frame = ttk.Frame(content_frame)
+    summary_frame.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 8))
+    summary_frame.columnconfigure(0, weight=1)
     summary_text = tk.Text(
-        content_frame,
+        summary_frame,
         wrap="word",
         height=3,
         font=("TkDefaultFont", 10),
     )
-    summary_text.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 8))
+    summary_text.grid(row=0, column=0, sticky="nsew")
+    summary_scrollbar = scrollbar_factory(
+        summary_frame, orient="vertical", command=getattr(summary_text, "yview", None)
+    )
+    summary_scrollbar.grid(row=0, column=1, sticky="ns")
+    summary_text.configure(yscrollcommand=getattr(summary_scrollbar, "set", None))
     summary_text.insert(
         "1.0",
         T("secure_browser_inventory_not_run", "Inventur noch nicht ausgeführt.")
@@ -899,8 +904,7 @@ def create_secure_browser_tab(
             return
         child_lock_loaded_name = normalized_name
         child_lock_loaded_enabled = bool(
-            normalized_name
-            and manager.container_child_lock_enabled(normalized_name)
+            normalized_name and manager.container_child_lock_enabled(normalized_name)
         )
         child_lock_state.clear()
         child_lock_dirty = False
@@ -1141,11 +1145,7 @@ def create_secure_browser_tab(
             ):
                 manager.configure_container_child_lock(
                     current_admin_target,
-                    (
-                        dict(child_lock_state)
-                        if bool(child_lock_var.get())
-                        else None
-                    ),
+                    (dict(child_lock_state) if bool(child_lock_var.get()) else None),
                 )
                 child_lock_loaded_enabled = bool(child_lock_var.get())
                 child_lock_dirty = False

@@ -5,6 +5,9 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from test_killswitch_failure_recovery import (
+    simulated_snapshot_transport as simulated_snapshot_transport,
+)
 from test_netmon_nm_ownership import store as store  # noqa: PLC0414
 
 from netmon.core import nm_ownership as own

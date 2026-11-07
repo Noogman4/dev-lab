@@ -272,11 +272,16 @@ def build_vpn_slots_tab(app):
     )
     app.btn_primary_vpn_2_apply.grid(row=1, column=4, sticky="w", pady=(6, 0))
 
+    vpn_table_frame = ttk.Frame(app.tab_vpn_slots)
+    vpn_table_frame.pack(fill="x", pady=(10, 0))
+    vpn_table_scroll = ttk.Scrollbar(vpn_table_frame, orient="vertical")
+    vpn_table_scroll.pack(side="right", fill="y")
     app.vpn_table = ttk.Treeview(
-        app.tab_vpn_slots,
+        vpn_table_frame,
         columns=("slot", "name", "profile", "status"),
         show="headings",
         height=8,
+        yscrollcommand=vpn_table_scroll.set,
     )
     for col, title, width, anchor in [
         ("slot", app.tr("vpn_col_slot", "Slot"), 60, "center"),
@@ -286,15 +291,14 @@ def build_vpn_slots_tab(app):
     ]:
         app.vpn_table.heading(col, text=title)
         app.vpn_table.column(col, width=width, anchor=anchor)
-    app.vpn_table.pack(fill="x", pady=(10, 0))
+    app.vpn_table.pack(side="left", fill="both", expand=True)
+    vpn_table_scroll.configure(command=app.vpn_table.yview)
     app.vpn_table.bind("<<TreeviewSelect>>", app.on_vpn_table_select)
     app.attach_simple_tree_context_menu(app.vpn_table)
 
     manual_wg_frame = ttk.LabelFrame(
         app.tab_vpn_slots,
-        text=app.tr(
-            "vpn_group_manual_wireguard", "Manuelle WireGuard-Konfiguration"
-        ),
+        text=app.tr("vpn_group_manual_wireguard", "Manuelle WireGuard-Konfiguration"),
         padding=8,
     )
     manual_wg_frame.pack(fill="x", pady=(10, 0))
@@ -316,9 +320,7 @@ def build_vpn_slots_tab(app):
     ttk.Label(
         manual_wg_frame,
         text=app.tr("vpn_label_profile_name", "Profilname:"),
-    ).grid(
-        row=0, column=0, sticky="w", padx=(0, 4), pady=(0, 4)
-    )
+    ).grid(row=0, column=0, sticky="w", padx=(0, 4), pady=(0, 4))
     app.manual_wg_profile_name_entry = ttk.Entry(
         manual_wg_frame,
         textvariable=app.manual_wg_profile_name_var,
@@ -331,9 +333,7 @@ def build_vpn_slots_tab(app):
     ttk.Label(
         manual_wg_frame,
         text=app.tr("vpn_label_private_key", "Private Key:"),
-    ).grid(
-        row=0, column=2, sticky="w", padx=(0, 4), pady=(0, 4)
-    )
+    ).grid(row=0, column=2, sticky="w", padx=(0, 4), pady=(0, 4))
     app.manual_wg_private_key_entry = ttk.Entry(
         manual_wg_frame,
         textvariable=app.manual_wg_private_key_var,
@@ -345,9 +345,7 @@ def build_vpn_slots_tab(app):
     ttk.Label(
         manual_wg_frame,
         text=app.tr("vpn_label_public_key", "Public Key:"),
-    ).grid(
-        row=1, column=0, sticky="w", padx=(0, 4), pady=(0, 4)
-    )
+    ).grid(row=1, column=0, sticky="w", padx=(0, 4), pady=(0, 4))
     app.manual_wg_public_key_entry = ttk.Entry(
         manual_wg_frame,
         textvariable=app.manual_wg_public_key_var,
@@ -360,9 +358,7 @@ def build_vpn_slots_tab(app):
     ttk.Label(
         manual_wg_frame,
         text=app.tr("vpn_label_preshared_key_optional", "Preshared Key (optional):"),
-    ).grid(
-        row=1, column=2, sticky="w", padx=(0, 4), pady=(0, 4)
-    )
+    ).grid(row=1, column=2, sticky="w", padx=(0, 4), pady=(0, 4))
     app.manual_wg_preshared_key_entry = ttk.Entry(
         manual_wg_frame,
         textvariable=app.manual_wg_preshared_key_var,
@@ -374,9 +370,7 @@ def build_vpn_slots_tab(app):
     ttk.Label(
         manual_wg_frame,
         text=app.tr("vpn_label_endpoint", "Endpoint:"),
-    ).grid(
-        row=2, column=2, sticky="w", padx=(0, 4), pady=(0, 4)
-    )
+    ).grid(row=2, column=2, sticky="w", padx=(0, 4), pady=(0, 4))
     app.manual_wg_endpoint_entry = ttk.Entry(
         manual_wg_frame,
         textvariable=app.manual_wg_endpoint_var,
@@ -387,9 +381,7 @@ def build_vpn_slots_tab(app):
     ttk.Label(
         manual_wg_frame,
         text=app.tr("vpn_label_address", "Address:"),
-    ).grid(
-        row=2, column=0, sticky="w", padx=(0, 4), pady=(0, 4)
-    )
+    ).grid(row=2, column=0, sticky="w", padx=(0, 4), pady=(0, 4))
     app.manual_wg_address_entry = ttk.Entry(
         manual_wg_frame,
         textvariable=app.manual_wg_address_var,
@@ -402,9 +394,7 @@ def build_vpn_slots_tab(app):
     ttk.Label(
         manual_wg_frame,
         text=app.tr("vpn_label_allowed_ips", "Allowed IPs:"),
-    ).grid(
-        row=3, column=0, sticky="w", padx=(0, 4), pady=(0, 4)
-    )
+    ).grid(row=3, column=0, sticky="w", padx=(0, 4), pady=(0, 4))
     app.manual_wg_allowed_ips_entry = ttk.Entry(
         manual_wg_frame,
         textvariable=app.manual_wg_allowed_ips_var,
@@ -417,9 +407,7 @@ def build_vpn_slots_tab(app):
     ttk.Label(
         manual_wg_frame,
         text=app.tr("vpn_label_dns_optional", "DNS (optional):"),
-    ).grid(
-        row=3, column=2, sticky="w", padx=(0, 4), pady=(0, 4)
-    )
+    ).grid(row=3, column=2, sticky="w", padx=(0, 4), pady=(0, 4))
     app.manual_wg_dns_entry = ttk.Entry(
         manual_wg_frame,
         textvariable=app.manual_wg_dns_var,
@@ -429,12 +417,8 @@ def build_vpn_slots_tab(app):
 
     ttk.Label(
         manual_wg_frame,
-        text=app.tr(
-            "vpn_label_keepalive_optional", "Persistent Keepalive (optional):"
-        ),
-    ).grid(
-        row=4, column=0, sticky="w", padx=(0, 4), pady=(0, 4)
-    )
+        text=app.tr("vpn_label_keepalive_optional", "Persistent Keepalive (optional):"),
+    ).grid(row=4, column=0, sticky="w", padx=(0, 4), pady=(0, 4))
     app.manual_wg_keepalive_entry = ttk.Entry(
         manual_wg_frame,
         textvariable=app.manual_wg_keepalive_var,
@@ -484,9 +468,7 @@ def build_vpn_slots_tab(app):
         text=app.tr("btn_clear_fields", "Felder leeren"),
         command=app.clear_manual_wireguard_form,
     )
-    app.btn_manual_wg_clear.grid(
-        row=5, column=2, sticky="e", padx=(0, 8), pady=(6, 0)
-    )
+    app.btn_manual_wg_clear.grid(row=5, column=2, sticky="e", padx=(0, 8), pady=(6, 0))
     app.add_tooltip(
         app.btn_manual_wg_clear,
         app.tr(

@@ -31,6 +31,10 @@ def app(tmp_path, monkeypatch, store):
     monkeypatch.setattr(own.socket, "if_nameindex", list)
     directory = tmp_path / "wireguard"
     directory.mkdir(mode=0o700)
+    managed = tmp_path / "Documents" / "NetMon" / "WireGuard"
+    monkeypatch.setattr(
+        vpn, "ensure_netmon_wireguard_profiles_dir", lambda: str(managed)
+    )
     monkeypatch.setattr(own, "PROFILE_DIRECTORY", str(directory))
     logs, dialogs, warnings, operations, imported = [], [], [], [], []
     result = SimpleNamespace(
@@ -50,6 +54,7 @@ def app(tmp_path, monkeypatch, store):
         operations=operations,
         imported=imported,
         directory=directory,
+        managed_directory=managed,
     )
     for method in (
         "reconcile_vpn_slot_firewall_state",
@@ -285,6 +290,45 @@ def test_unsafe_sources_rejected_without_blocking(tmp_path, kind):
         )
     with pytest.raises((OSError, ValueError)):
         wg.ProfileSnapshot.read(source)
+
+
+@pytest.mark.parametrize("route", ["folder", "dialog", "referenced"])
+@pytest.mark.parametrize("mode", [0o664, 0o666])
+def test_writable_source_is_copied_privately_after_confirmation(
+    app, tmp_path, monkeypatch, route, mode
+):
+    source = profile(tmp_path)
+    source.chmod(mode)
+    enter(app, source, route, monkeypatch)
+    copied = app.managed_directory / "work.conf"
+    assert copied.read_bytes() == SAFE
+    assert copied.stat().st_mode & 0o777 == 0o600
+    assert "0600" in app.dialogs[0] and "vertrauenswürdigen" in app.dialogs[0]
+    if route == "folder":
+        assert (app.directory / "work.conf").read_bytes() == SAFE
+    else:
+        assert app.imported == [(SAFE, 0o600, 0o700)]
+    assert source.read_bytes() == SAFE
+    assert source.stat().st_mode & 0o777 == mode
+    assert SAFE.decode() not in " ".join(app.logs + app.warnings)
+
+
+@pytest.mark.parametrize("route", ["folder", "dialog"])
+def test_import_succeeds_after_user_corrects_source_permissions(
+    app, tmp_path, monkeypatch, route
+):
+    source = profile(tmp_path)
+    source.chmod(0o664)
+    monkeypatch.setattr(vpn.messagebox, "askyesno", lambda *_a, **_kw: False)
+    enter(app, source, route, monkeypatch)
+    assert not app.operations
+    source.chmod(0o600)  # Explicit user action, never performed by importer.
+    monkeypatch.setattr(vpn.messagebox, "askyesno", lambda *_a, **_kw: True)
+    enter(app, source, route, monkeypatch)
+    if route == "folder":
+        assert (app.directory / "work.conf").read_bytes() == SAFE
+    else:
+        assert app.imported == [(SAFE, 0o600, 0o700)]
 
 
 @pytest.mark.parametrize("mutation", ["content", "replace", "unlink"])

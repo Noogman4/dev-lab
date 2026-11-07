@@ -5,8 +5,14 @@ from __future__ import annotations
 import ipaddress
 import os
 import re
-import tempfile
+import threading
+import uuid
 from typing import Callable
+
+try:
+    from netmon.core.privileged_config import write_privileged_config
+except ModuleNotFoundError:
+    from core.privileged_config import write_privileged_config
 
 RunCmd = Callable[..., tuple[int, str]]
 HasCmd = Callable[[str], bool]
@@ -28,6 +34,10 @@ class DNSControlService:
     )
     SKIP_DEVICE_NAMES = {"lo", "docker0"}
     ALLOWED_TYPES = {"ethernet", "wifi", "802-3-ethernet", "802-11-wireless"}
+    AUTO_DNS_RELEASE_BLOCK_REASON = (
+        "DHCP-/ISP-DNS-Freigabe vorläufig gesperrt; "
+        "sichere Koordination mit VPN-Wechseln fehlt."
+    )
 
     def __init__(
         self,
@@ -41,6 +51,11 @@ class DNSControlService:
         self.has_cmd = has_cmd
         self.dot_dropin_path = dot_dropin_path
         self.dot_dropin_dir = dot_dropin_dir
+        self._vpn_repair_lock = threading.Lock()
+        self.dns_mutation_lock = threading.RLock()
+        self._unresolved_vpn_state = None
+        self._resolved_reload_pending = False
+        self._nm_activation_pending = {}
 
     @staticmethod
     def _translate_policy_warning(warning: str, tr=None) -> str:
@@ -85,6 +100,34 @@ class DNSControlService:
     def read_resolvectl_status(self, timeout: int = 8) -> tuple[int, str]:
         return self.run_cmd(["resolvectl", "status"], timeout=timeout)
 
+    def verify_dns_profile(self, servers: list[str]) -> tuple[bool, str]:
+        """Confirm the observed resolver list, without changing any DNS state."""
+        try:
+            expected = {self.normalize_dns_server(server) for server in servers}
+            if not expected:
+                return False, "Resolver-Profil unklar: keine Zielserver."
+            for server in expected:
+                ipaddress.ip_address(server)
+            rc, text = self.read_resolvectl_status()
+            snapshot = self.parse_dns_snapshot(text, status_ok=rc == 0)
+            if not snapshot["status_ok"] or snapshot["parse_errors"]:
+                return (
+                    False,
+                    "Resolver-Zustand nicht vollständig lesbar; Profil nicht bestätigt.",
+                )
+            actual = set(snapshot["active_dns"])
+            if actual != expected:
+                return False, (
+                    "Resolver-Profil abweichend. Erwartet: "
+                    + ", ".join(sorted(expected))
+                    + "; erkannt: "
+                    + (", ".join(sorted(actual)) or "keine DNS-Server")
+                    + ". Konfiguration prüfen."
+                )
+            return True, "Resolver-Profil bestätigt: " + ", ".join(sorted(actual))
+        except Exception:
+            return False, "Resolver-Zustand nicht prüfbar; Profil nicht bestätigt."
+
     def parse_active_dns_servers(self, resolvectl_output: str) -> list[str]:
         servers: list[str] = []
         collecting = False
@@ -124,11 +167,14 @@ class DNSControlService:
                 return True
         return False
 
-    def get_wireguard_interfaces(self) -> set[str]:
+    def get_wireguard_interfaces(self) -> set[str] | None:
         interfaces: set[str] = set()
+        inventory_known = False
 
         if self.has_cmd("wg"):
             rc, out = self.run_cmd(["wg", "show", "interfaces"], timeout=6)
+            if rc == 0:
+                inventory_known = True
             if rc == 0 and out:
                 interfaces.update(
                     token.strip() for token in out.split() if str(token or "").strip()
@@ -141,6 +187,8 @@ class DNSControlService:
                 ["ip", "-o", "link", "show", "type", "wireguard"],
                 timeout=6,
             )
+            if rc == 0:
+                inventory_known = True
             if rc == 0 and out:
                 for line in out.splitlines():
                     parts = line.split(":", 2)
@@ -150,17 +198,15 @@ class DNSControlService:
                     if iface:
                         interfaces.add(iface)
 
-        return interfaces
+        return interfaces if inventory_known else None
 
     def normalize_dns_server(self, dns_server: str) -> str:
-        value = (dns_server or "").strip().strip("[]")
-        if not value:
-            return ""
-        if "#" in value:
-            value = value.split("#", 1)[0].strip()
-        if "%" in value:
-            value = value.split("%", 1)[0]
-        return value
+        value = str(dns_server or "").strip().split("#", 1)[0].strip().strip("[]")
+        try:
+            # IPv6 interface zones are part of the link identity, not discarded.
+            return str(ipaddress.ip_address(value))
+        except ValueError:
+            return value.lower()
 
     def detect_dnssec_mode(self, resolvectl_output: str) -> str:
         lower_text = (resolvectl_output or "").lower()
@@ -206,76 +252,211 @@ class DNSControlService:
             return True
         return False
 
-    def parse_link_sections(self, resolvectl_output: str) -> list[dict]:
-        sections: list[dict] = []
-        current: dict | None = None
-        collecting = False
-        wireguard_ifaces = self.get_wireguard_interfaces()
+    def read_dns_snapshot(self, timeout: int = 8) -> dict:
+        code, text = self.read_resolvectl_status(timeout=timeout)
+        snapshot = self.parse_dns_snapshot(text, status_ok=code == 0)
+        conflict, content = self.detect_netmon_dot_dropin_conflict()
+        snapshot.update(dot_dropin_conflict=conflict, dot_dropin_content=content)
+        return snapshot
 
-        def finalize_current() -> None:
-            nonlocal current, collecting
-            if current is not None:
-                current["dns_servers"] = sorted(set(current["dns_servers"]))
-                sections.append(current)
-            current = None
-            collecting = False
+    def parse_dns_snapshot(self, text: str, *, status_ok: bool = True) -> dict:
+        links = []
+        global_section = {"dns_servers": [], "domains": [], "default_route": None}
+        current = global_section
+        collecting = ""
+        # Keep inventory success in this snapshot, not mutable service state:
+        # UI/status workers may query concurrently.
+        inventory = self.get_wireguard_interfaces() if status_ok else None
+        wireguard_ifaces = inventory or set()
+        recognized = False
+        parse_errors = []
 
-        for raw_line in (resolvectl_output or "").splitlines():
-            stripped = raw_line.strip()
-            if stripped.startswith("Link "):
-                finalize_current()
-                iface = ""
-                match = re.search(r"\(([^)]+)\)", stripped)
-                if match:
-                    iface = match.group(1).strip()
-                lowered = stripped.lower()
-                iface_lower = iface.lower()
+        def set_default_route(value):
+            previous = current["default_route"]
+            if value is None or (previous is not None and previous != value):
+                parse_errors.append("Widersprüchliche/ungültige DefaultRoute-Angabe")
+            current["default_route"] = value
+
+        for raw in (text or "").splitlines():
+            line = raw.strip()
+            if line == "Global":
+                recognized = True
+                current = global_section
+                collecting = ""
+                continue
+            if line.startswith("Link "):
+                recognized = True
+                match = re.search(r"\(([^)]+)\)", line)
+                iface = match[1].strip() if match else ""
+                if not iface:
+                    parse_errors.append("Ungültiger Link-Header")
                 current = {
-                    "header": stripped,
+                    "header": line,
                     "iface": iface,
-                    "is_vpn": (
-                        bool(iface and iface in wireguard_ifaces)
-                        or bool(
-                            any(token in lowered for token in self.VPN_TOKENS)
-                            or any(token in iface_lower for token in self.VPN_TOKENS)
-                        )
-                    ),
+                    "is_vpn": iface in wireguard_ifaces
+                    or any(t in iface.lower() for t in self.VPN_TOKENS),
                     "dns_servers": [],
                     "current_dns_server": "",
+                    "domains": [],
+                    "default_route": None,
+                    "dns_scope": None,
                 }
+                links.append(current)
+                collecting = ""
                 continue
-
-            if current is None:
+            if not line:
+                collecting = ""
                 continue
-
-            if not stripped:
-                collecting = False
+            if line.startswith("Protocols:"):
+                positive = "+DefaultRoute" in line
+                negative = "-DefaultRoute" in line
+                if positive and negative:
+                    parse_errors.append("Widersprüchliche DefaultRoute-Flags")
+                elif positive or negative:
+                    set_default_route(positive)
+                collecting = ""
                 continue
-
-            if stripped.startswith("Current DNS Server:"):
-                value = stripped.split(":", 1)[1].strip()
-                current["current_dns_server"] = value
-                if value:
-                    current["dns_servers"].extend(value.split())
-                collecting = False
+            if line.startswith(
+                ("DefaultRoute setting:", "Default Route:", "DefaultRoute:")
+            ):
+                value = line.split(":", 1)[1].strip().lower()
+                set_default_route({"yes": True, "no": False}.get(value))
+                collecting = ""
                 continue
-
-            if stripped.startswith("DNS Servers:"):
-                value = stripped.split(":", 1)[1].strip()
-                if value:
-                    current["dns_servers"].extend(value.split())
-                collecting = True
+            if line.startswith("Current Scopes:"):
+                current["dns_scope"] = "DNS" in line.split(":", 1)[1].split()
+                collecting = ""
                 continue
-
-            if collecting and not stripped.endswith(":"):
-                tokens = self._dns_server_continuation_tokens(stripped)
+            if line.startswith("Current DNS Server:"):
+                value = line.split(":", 1)[1].strip()
+                current["current_dns_server"] = self.normalize_dns_server(value)
+                current["dns_servers"].extend(value.split())
+                collecting = ""
+                continue
+            if line.startswith(("DNS Servers:", "DNS Domain:")):
+                collecting = (
+                    "dns_servers" if line.startswith("DNS Servers:") else "domains"
+                )
+                current[collecting].extend(line.split(":", 1)[1].split())
+                continue
+            # Continuations must be indented values, not another status field.
+            if collecting == "dns_servers":
+                tokens = self._dns_server_continuation_tokens(line)
                 if tokens:
-                    current["dns_servers"].extend(tokens)
+                    current[collecting].extend(tokens)
                     continue
-                collecting = False
+            elif collecting == "domains" and ":" not in line:
+                current[collecting].extend(line.split())
+                continue
+            collecting = ""
+        for section in [global_section, *links]:
+            for token in section["dns_servers"]:
+                try:
+                    ipaddress.ip_address(self.normalize_dns_server(token))
+                except ValueError:
+                    parse_errors.append("Ungültige DNS-Adresse")
+            section["dns_servers"] = sorted(
+                {self.normalize_dns_server(x) for x in section["dns_servers"] if x}
+            )
+            section["domains"] = sorted(
+                {
+                    x.lower().rstrip(".") if x not in {"~.", "."} else "~."
+                    for x in section["domains"]
+                }
+            )
+        known = status_ok and recognized
+        vpn_found = any(x["is_vpn"] for x in links)
+        wireguard_links = {
+            x["iface"]
+            for x in links
+            if x["iface"]
+            and (
+                x["iface"].lower().startswith("wg") or "wireguard" in x["iface"].lower()
+            )
+        }
+        inventory_conflict = inventory is not None and any(
+            iface not in inventory for iface in wireguard_links
+        )
+        vpn_state = (
+            "unknown"
+            if inventory_conflict
+            else (
+                "active"
+                if vpn_found
+                else "inactive" if inventory == set() else "unknown"
+            )
+        )
+        return {
+            "text": text or "",
+            "status_ok": known,
+            "vpn_state": (
+                vpn_state if known and all(x["iface"] for x in links) else "unknown"
+            ),
+            "parse_errors": parse_errors,
+            "global": global_section,
+            "links": links,
+            "active_dns": sorted(
+                {
+                    d
+                    for section in [global_section, *links]
+                    for d in section["dns_servers"]
+                }
+            ),
+            "dot_active": "+dnsovertls" in (text or "").lower()
+            or "dns over tls: yes" in (text or "").lower(),
+        }
 
-        finalize_current()
-        return sections
+    def parse_link_sections(self, resolvectl_output: str) -> list[dict]:
+        return self.parse_dns_snapshot(resolvectl_output)["links"]
+
+    def vpn_dns_routing(self, snapshot: dict) -> dict:
+        links = snapshot["links"]
+        vpn = [
+            x
+            for x in links
+            if x["is_vpn"] and x["dns_servers"] and x.get("dns_scope") is not False
+        ]
+        vpn_dns = sorted({d for x in vpn for d in x["dns_servers"]})
+        vpn_domains = {d for x in vpn for d in x["domains"]}
+        root_route = "~." in vpn_domains
+        exposed = []
+        split_ifaces = []
+        for section in [snapshot["global"], *[x for x in links if not x["is_vpn"]]]:
+            if not section["dns_servers"] or section.get("dns_scope") is False:
+                continue
+            domains = set(section["domains"])
+            # Search domains also route DNS; '~' changes search expansion only.
+            overlap = {d.lstrip("~") for d in domains} & {
+                d.lstrip("~") for d in vpn_domains
+            }
+            specific = bool(domains) and "~." not in domains and not overlap
+            if specific:
+                if section.get("iface"):
+                    split_ifaces.append(section["iface"])
+                # Specific domains do not disable a link's default route.
+                # Preserve intentional split profiles; an unsafe general route
+                # remains visible even when we cannot safely rewrite that profile.
+                if root_route or (
+                    section.get("iface") and section.get("default_route") is False
+                ):
+                    continue
+                exposed.append(section)
+                continue
+            if overlap or "~." in domains:
+                exposed.append(section)
+            elif root_route:
+                continue
+            elif not section.get("iface") or section.get("default_route") is not False:
+                exposed.append(section)
+        return {
+            "vpn_dns": vpn_dns,
+            "exposed_dns": sorted({d for x in exposed for d in x["dns_servers"]}),
+            "repair_ifaces": sorted({x["iface"] for x in exposed if x.get("iface")}),
+            "split_ifaces": sorted(split_ifaces),
+            "policy_unknown": bool(snapshot.get("parse_errors"))
+            or snapshot["vpn_state"] == "unknown"
+            or (snapshot["vpn_state"] == "active" and not vpn_dns),
+        }
 
     def _dns_server_continuation_tokens(self, line: str) -> list[str]:
         tokens = str(line or "").strip().split()
@@ -286,10 +467,19 @@ class DNSControlService:
         return []
 
     def find_vpn_dns_servers(self, resolvectl_output: str) -> tuple[str, list[str]]:
-        for section in self.parse_link_sections(resolvectl_output):
-            if section["is_vpn"] and section["dns_servers"]:
-                return section["iface"], section["dns_servers"]
-        return "", []
+        sections = [
+            s
+            for s in self.parse_link_sections(resolvectl_output)
+            if s["is_vpn"] and s["dns_servers"]
+        ]
+        return (
+            (
+                sections[0]["iface"],
+                sorted({d for s in sections for d in s["dns_servers"]}),
+            )
+            if sections
+            else ("", [])
+        )
 
     def dns_sources_for_sections(
         self, resolvectl_output: str
@@ -397,43 +587,47 @@ class DNSControlService:
         *,
         resolvectl_output: str,
     ) -> dict:
-        text = resolvectl_output or ""
+        return self.evaluate_dns_snapshot(self.parse_dns_snapshot(resolvectl_output))
+
+    def evaluate_dns_snapshot(self, snapshot: dict) -> dict:
+        text = snapshot["text"]
         lower_text = text.lower()
-        vpn_active = self.detect_vpn_active(text)
-        active_dns = self.parse_active_dns_servers(text)
-        vpn_dns, physical_dns = self.dns_sources_for_sections(text)
-        global_dns = [
-            dns for dns in physical_dns if not self.dns_server_is_private_or_local(dns)
-        ]
-        if not vpn_dns and not physical_dns:
-            global_dns = [
-                dns
-                for dns in active_dns
-                if not self.dns_server_is_private_or_local(dns)
-            ]
-        dot_dropin_conflict, dot_dropin_content = (
-            self.detect_netmon_dot_dropin_conflict()
+        vpn_active = snapshot["vpn_state"] == "active"
+        active_dns = snapshot["active_dns"]
+        routing = self.vpn_dns_routing(snapshot)
+        vpn_dns = routing["vpn_dns"]
+        physical_dns = sorted(
+            {d for x in snapshot["links"] if not x["is_vpn"] for d in x["dns_servers"]}
         )
+        global_dns = (
+            routing["exposed_dns"] if vpn_active else snapshot["global"]["dns_servers"]
+        )
+        if "dot_dropin_content" in snapshot:
+            dot_dropin_conflict, dot_dropin_content = (
+                snapshot["dot_dropin_conflict"],
+                snapshot["dot_dropin_content"],
+            )
+        else:
+            dot_dropin_conflict, dot_dropin_content = (
+                self.detect_netmon_dot_dropin_conflict()
+            )
         dot_dropin_exists = bool(dot_dropin_content)
         dot_active = "+dnsovertls" in lower_text or "dns over tls: yes" in lower_text
-        dnssec_mode = self.detect_dnssec_mode(resolvectl_output)
+        dnssec_mode = self.detect_dnssec_mode(text)
         dnssec_strict = dnssec_mode == "yes"
         dnssec_allow_downgrade = dnssec_mode == "allow-downgrade"
         docker_detected = any(token in lower_text for token in ("docker0", "veth"))
-        vpn_dns_detected = sorted(
-            set(
-                dns
-                for dns in active_dns
-                if self.is_vpn_dns_server(dns) or dns in vpn_dns
-            )
+        # Only eligible competing routes are policy evidence. Shadowed global
+        # resolvers and intentional split DNS remain visible as diagnostics.
+        vpn_dns_detected = vpn_dns if vpn_active else []
+        public_dns_detected = global_dns if vpn_active else active_dns
+        only_vpn_dns = (
+            vpn_active
+            and bool(vpn_dns)
+            and not global_dns
+            and not routing["policy_unknown"]
         )
-        public_dns_detected = sorted(
-            set(dns for dns in active_dns if dns not in vpn_dns_detected)
-        )
-        only_vpn_dns = vpn_active and bool(vpn_dns_detected) and not public_dns_detected
-        multiple_dns_sources = (
-            vpn_active and bool(vpn_dns_detected) and bool(public_dns_detected)
-        )
+        multiple_dns_sources = vpn_active and bool(vpn_dns) and bool(global_dns)
         public_dns_while_vpn = vpn_active and bool(global_dns)
         conflict = public_dns_while_vpn or (vpn_active and dot_dropin_conflict)
 
@@ -523,8 +717,17 @@ class DNSControlService:
             else:
                 recommendations.append("Keine Änderung empfohlen.")
 
+        if routing["policy_unknown"]:
+            risk = "unbekannt"
+            recommendations = ["DNS-/VPN-Status unklar; keine automatische Änderung."]
+
         return {
             "vpn_active": vpn_active,
+            "vpn_state": snapshot["vpn_state"],
+            "policy_unknown": routing["policy_unknown"],
+            "repair_ifaces": routing["repair_ifaces"],
+            "split_ifaces": routing["split_ifaces"],
+            "configured_global_dns": snapshot["global"]["dns_servers"],
             "vpn_dns": vpn_dns,
             "vpn_dns_detected": vpn_dns_detected,
             "global_dns": global_dns,
@@ -659,7 +862,13 @@ class DNSControlService:
         only_vpn_dns = bool(evaluation["only_vpn_dns"])
         multiple_dns_sources = bool(evaluation["multiple_dns_sources"])
 
-        if evaluation["vpn_active"]:
+        if evaluation["policy_unknown"]:
+            risk = _tr("dns_leak_unknown", "unknown")
+            status = _tr(
+                "dns_leak_status_unknown",
+                "VPN/DNS status unknown; no policy conclusion",
+            )
+        elif evaluation["vpn_active"]:
             if leak:
                 risk = _tr("dns_leak_risk_high", "high")
                 status = _tr(
@@ -693,9 +902,13 @@ class DNSControlService:
             ),
             _tr("dns_leak_vpn_detected", "VPN detected: {value}").format(
                 value=(
-                    _tr("dns_leak_yes", "YES")
-                    if evaluation["vpn_active"]
-                    else _tr("dns_leak_no", "NO")
+                    _tr("dns_leak_unknown", "unknown")
+                    if evaluation["vpn_state"] == "unknown"
+                    else (
+                        _tr("dns_leak_yes", "YES")
+                        if evaluation["vpn_active"]
+                        else _tr("dns_leak_no", "NO")
+                    )
                 )
             ),
             "",
@@ -714,7 +927,13 @@ class DNSControlService:
                 "",
                 _tr("dns_leak_detected", "Leak detected: {value}").format(
                     value=(
-                        _tr("dns_leak_yes", "YES") if leak else _tr("dns_leak_no", "NO")
+                        _tr("dns_leak_unknown", "unknown")
+                        if evaluation["policy_unknown"]
+                        else (
+                            _tr("dns_leak_yes", "YES")
+                            if leak
+                            else _tr("dns_leak_no", "NO")
+                        )
                     )
                 ),
                 _tr("dns_leak_status_line", "Status: {status}").format(status=status),
@@ -734,7 +953,9 @@ class DNSControlService:
             lines.append("")
 
         lines.append(_tr("dns_leak_recommendation", "Recommendation:"))
-        if leak:
+        if evaluation["policy_unknown"]:
+            lines.append(f"- {evaluation['recommendation']}")
+        elif leak:
             lines.append(
                 f"- {_tr('dns_leak_action_enforce_vpn_dns', 'Enforce VPN DNS')}"
             )
@@ -757,128 +978,157 @@ class DNSControlService:
 
         return "\n".join(lines)
 
-    def apply_nm_dns_policy_to_targets(
-        self,
-        *,
-        ignore_auto_dns: bool,
-        targets: list[tuple[str, str]],
-    ) -> tuple[bool, list[str]]:
+    def read_nm_dns_profiles(self, targets: list[tuple[str, str]]) -> list[dict]:
         if not self.has_cmd("nmcli"):
-            return False, ["nmcli fehlt – NetworkManager ist nicht verfügbar."]
-        if not targets:
-            return False, ["Keine aktive physische LAN/WLAN-Connection gefunden."]
-
-        details: list[str] = []
-        success = True
-        ignore_value = "yes" if ignore_auto_dns else "no"
-
-        def run_step(cmd: list[str], *, error_prefix: str) -> tuple[bool, str]:
-            rc, out = self.run_cmd(cmd, timeout=12)
-            if rc == 0:
-                return True, ""
-            message = (out or "").strip() or "unbekannter Fehler"
-            return False, f"{error_prefix}: {message}"
-
-        for iface, con in targets:
-            details.append(f"✔ Verbindung erkannt: {con} ({iface})")
-
-            ipv4_ok, ipv4_err = run_step(
-                [
-                    "sudo",
-                    "-n",
-                    "nmcli",
-                    "con",
-                    "mod",
-                    con,
-                    "ipv4.ignore-auto-dns",
-                    ignore_value,
-                ],
-                error_prefix="✖ Fehler beim Setzen von Auto-DNS (IPv4)",
+            raise ValueError("nmcli fehlt – NetworkManager ist nicht verfügbar.")
+        profiles = []
+        fields = "connection.uuid,connection.interface-name,connection.type,ipv4.ignore-auto-dns,ipv6.ignore-auto-dns,ipv4.dns,ipv6.dns"
+        for iface, name in targets:
+            rc, out = self.run_cmd(
+                ["nmcli", "-g", fields, "con", "show", "id", name],
+                timeout=8,
+                # Empty final DNS fields are part of the seven-field snapshot.
+                preserve_output=True,
             )
-            ipv6_ok, ipv6_err = run_step(
-                [
-                    "sudo",
-                    "-n",
-                    "nmcli",
-                    "con",
-                    "mod",
-                    con,
-                    "ipv6.ignore-auto-dns",
-                    ignore_value,
-                ],
-                error_prefix="✖ Fehler beim Setzen von Auto-DNS (IPv6)",
+            values = (out or "").split("\n")
+            if values and values[-1] == "":
+                values.pop()
+            if rc or len(values) != 7:
+                raise ValueError(
+                    f"DNS-Profil nicht vollständig lesbar: {name} ({iface})"
+                )
+            identity, bound_iface, kind, dns4_auto, dns6_auto, dns4, dns6 = values
+            try:
+                canonical = str(uuid.UUID(identity))
+            except ValueError as exc:
+                raise ValueError(f"Ungültige Profil-UUID: {name}") from exc
+            if (
+                identity.lower() != canonical
+                or (bound_iface and bound_iface != iface)
+                or not self.is_physical_dns_candidate(name, kind, iface)
+            ):
+                raise ValueError(f"DNS-Profilidentität abweichend: {name} ({iface})")
+            if dns4_auto not in {"yes", "no"} or dns6_auto not in {"yes", "no"}:
+                raise ValueError(f"Auto-DNS-Zustand unklar: {name}")
+            rc, active = self.run_cmd(
+                ["nmcli", "-g", "GENERAL.CON-UUID", "device", "show", iface], timeout=8
             )
-            if ipv4_ok and ipv6_ok:
-                auto_dns_label = "deaktiviert" if ignore_auto_dns else "aktiviert"
-                details.append(f"✔ Auto-DNS {auto_dns_label} (IPv4 / IPv6)")
-            else:
-                success = False
-                if ipv4_err:
-                    details.append(ipv4_err)
-                if ipv6_err:
-                    details.append(ipv6_err)
+            if rc or (active or "").strip().lower() != canonical:
+                raise ValueError(f"Aktive Verbindung geändert: {iface}")
+            profiles.append(
+                {
+                    "iface": iface,
+                    "name": name,
+                    "uuid": canonical,
+                    "properties": {
+                        "ipv4.ignore-auto-dns": dns4_auto,
+                        "ipv6.ignore-auto-dns": dns6_auto,
+                        "ipv4.dns": dns4,
+                        "ipv6.dns": dns6,
+                    },
+                }
+            )
+        return profiles
 
-            dns4_ok, dns4_err = run_step(
-                ["sudo", "-n", "nmcli", "con", "mod", con, "ipv4.dns", ""],
-                error_prefix="✖ Fehler beim Zurücksetzen der DNS-Server (IPv4)",
-            )
-            dns6_ok, dns6_err = run_step(
-                ["sudo", "-n", "nmcli", "con", "mod", con, "ipv6.dns", ""],
-                error_prefix="✖ Fehler beim Zurücksetzen der DNS-Server (IPv6)",
-            )
-            if dns4_ok and dns6_ok:
-                details.append("✔ Manuelle DNS-Server zurückgesetzt")
-            else:
-                success = False
-                if dns4_err:
-                    details.append(dns4_err)
-                if dns6_err:
-                    details.append(dns6_err)
-
-            up_ok, up_err = run_step(
-                ["sudo", "-n", "nmcli", "con", "up", con],
-                error_prefix="✖ Fehler beim Neustart der Verbindung",
-            )
-            if up_ok:
-                details.append("✔ Verbindung neu gestartet")
-            else:
-                success = False
-                details.append(up_err)
-
-            details.append("")
-        return success, details
-
-    def write_dropin(self, content: str) -> tuple[bool, str]:
-        tmp_path = ""
-        try:
-            with tempfile.NamedTemporaryFile(
-                mode="w", encoding="utf-8", delete=False
-            ) as temp_file:
-                temp_file.write(content)
-                tmp_path = temp_file.name
-            rc_dir, out_dir = self.run_cmd(
-                ["sudo", "-n", "mkdir", "-p", self.dot_dropin_dir],
-                timeout=10,
-            )
-            if rc_dir != 0:
-                return False, (out_dir or "").strip() or "Drop-in-Verzeichnis fehlt."
-            rc_install, out_install = self.run_cmd(
-                ["sudo", "-n", "install", "-m", "644", tmp_path, self.dot_dropin_path],
+    def _apply_nm_dns_profiles(
+        self, profiles: list[dict], ignore_auto_dns: bool
+    ) -> tuple[bool, list[str]]:
+        if ignore_auto_dns is not True:
+            return False, [self.AUTO_DNS_RELEASE_BLOCK_REASON]
+        details = []
+        desired = {
+            "ipv4.ignore-auto-dns": "yes",
+            "ipv6.ignore-auto-dns": "yes",
+            "ipv4.dns": "",
+            "ipv6.dns": "",
+        }
+        for profile in profiles:
+            changes = {
+                key: value
+                for key, value in desired.items()
+                if profile["properties"][key] != value
+            }
+            pending = self._nm_activation_pending.get(profile["uuid"])
+            retry_activation = pending == (profile["iface"], desired) and not changes
+            if not changes and not retry_activation:
+                details.append(
+                    f"✔ Bereits korrekt: {profile['name']} ({profile['iface']}); keine Aktivierung"
+                )
+                continue
+            # Revalidate identity AND the settings used to build this plan.
+            live = self.read_nm_dns_profiles([(profile["iface"], profile["name"])])[0]
+            if live != profile:
+                raise ValueError(
+                    f"DNS-Profil während Planung geändert: {profile['name']}"
+                )
+            if changes:
+                command = ["sudo", "-n", "nmcli", "con", "mod", "uuid", profile["uuid"]]
+                for key, value in changes.items():
+                    command.extend([key, value])
+                rc, out = self.run_cmd(command, timeout=12)
+                if rc:
+                    return False, details + [
+                        f"✖ DNS-Änderung fehlgeschlagen: {out}; mögliche Teiländerungen prüfen"
+                    ]
+                # Retain our own successful modify before the fallible readback.
+                # Retrying still requires matching UUID, interface and settings.
+                self._nm_activation_pending[profile["uuid"]] = (
+                    profile["iface"],
+                    dict(desired),
+                )
+                updated = self.read_nm_dns_profiles(
+                    [(profile["iface"], profile["name"])]
+                )[0]
+                if (
+                    updated["uuid"] != profile["uuid"]
+                    or updated["properties"] != desired
+                ):
+                    return False, details + [
+                        "✖ DNS-Profil nach Änderung nicht bestätigt; keine Aktivierung"
+                    ]
+                # A failed activation may be explicitly retried without rewriting
+                # the profile; an initially correct profile never gets this flag.
+                self._nm_activation_pending[profile["uuid"]] = (
+                    profile["iface"],
+                    desired,
+                )
+            rc, out = self.run_cmd(
+                ["sudo", "-n", "nmcli", "con", "up", "uuid", profile["uuid"]],
                 timeout=12,
             )
-            if rc_install != 0:
-                return (
-                    False,
-                    (out_install or "").strip()
-                    or "DNS-Drop-in konnte nicht geschrieben werden.",
+            if rc:
+                return False, details + [
+                    f"✖ Aktivierung fehlgeschlagen: {out}; Teiländerungen können bestehen bleiben"
+                ]
+            self._nm_activation_pending.pop(profile["uuid"], None)
+            details.append(
+                f"✔ DNS-Eigenschaften geändert und Verbindung aktiviert: {profile['name']} ({profile['iface']})"
+            )
+        return True, details
+
+    def apply_nm_dns_policy_to_targets(
+        self, *, ignore_auto_dns: bool, targets: list[tuple[str, str]]
+    ) -> tuple[bool, list[str]]:
+        if ignore_auto_dns is not True:
+            return False, [self.AUTO_DNS_RELEASE_BLOCK_REASON]
+        if not targets:
+            return False, ["Keine aktive physische LAN/WLAN-Connection gefunden."]
+        with self.dns_mutation_lock:
+            try:
+                return self._apply_nm_dns_profiles(
+                    self.read_nm_dns_profiles(targets), ignore_auto_dns
                 )
-            return True, ""
-        finally:
-            if tmp_path:
-                try:
-                    os.remove(tmp_path)
-                except Exception:
-                    pass
+            except ValueError as exc:
+                return False, [str(exc)]
+
+    def write_dropin(self, content: str) -> tuple[bool, str]:
+        rc, out = write_privileged_config(
+            self.dot_dropin_path,
+            content,
+            run_cmd_fn=self.run_cmd,
+            timeout=12,
+        )
+        return rc == 0, (out or "").strip()
 
     def remove_dropin(self) -> tuple[bool, str]:
         rc, out = self.run_cmd(
@@ -894,38 +1144,286 @@ class DNSControlService:
         )
         return rc == 0, (out or "").strip()
 
-    def apply_vpn_dns_policy(
-        self, *, targets: list[tuple[str, str]]
-    ) -> tuple[bool, str]:
-        nm_ok, nm_details = self.apply_nm_dns_policy_to_targets(
-            ignore_auto_dns=True,
-            targets=targets,
-        )
-        rm_ok, rm_detail = self.remove_dropin()
-        restart_ok, restart_detail = self.restart_resolved()
-        success = nm_ok and rm_ok and restart_ok
+    @staticmethod
+    def _snapshot_key(snapshot: dict) -> tuple:
+        def section_key(section):
+            return (
+                section.get("iface", ""),
+                tuple(section["dns_servers"]),
+                tuple(section["domains"]),
+                section["default_route"],
+                section.get("dns_scope"),
+                section.get("is_vpn"),
+            )
 
+        return (
+            snapshot["vpn_state"],
+            section_key(snapshot["global"]),
+            tuple(sorted((section_key(x) for x in snapshot["links"]), key=repr)),
+            snapshot.get("dot_dropin_content", ""),
+            tuple(snapshot.get("parse_errors", ())),
+        )
+
+    def _repair_key(self, snapshot: dict, profiles: list[dict]) -> tuple:
+        return (
+            self._snapshot_key(snapshot),
+            tuple(
+                sorted(
+                    (p["iface"], p["uuid"], tuple(sorted(p["properties"].items())))
+                    for p in profiles
+                )
+            ),
+            self._resolved_reload_pending,
+        )
+
+    def non_vpn_guard_repair_key(self, snapshot, allowed, targets):
+        return (
+            self._repair_key(
+                snapshot, self.read_nm_dns_profiles(targets) if targets else []
+            ),
+            tuple(allowed),
+        )
+
+    def _vpn_plan_current(self, before, current, expected_dropin, *, planned_ifaces=()):
+        planned_ifaces = set(planned_ifaces)
+
+        def vpn_links(snapshot):
+            return sorted(
+                (
+                    x["iface"],
+                    tuple(x["dns_servers"]),
+                    tuple(x["domains"]),
+                    x["default_route"],
+                    x.get("dns_scope"),
+                )
+                for x in snapshot["links"]
+                if x["is_vpn"]
+            )
+
+        return (
+            current["vpn_state"] == "active"
+            and not self.evaluate_dns_snapshot(current)["policy_unknown"]
+            and vpn_links(current) == vpn_links(before)
+            and self._resolver_routing_key(before, planned_ifaces=planned_ifaces)
+            == self._resolver_routing_key(current, planned_ifaces=planned_ifaces)
+            and all(
+                not section.get("dns_servers")
+                for section in current.get("links", ())
+                if section.get("iface") in planned_ifaces and not section.get("is_vpn")
+            )
+            and current.get("dot_dropin_content", "") == expected_dropin
+        )
+
+    @staticmethod
+    def _resolver_routing_key(snapshot, *, planned_ifaces=()):
+        """Return every parsed resolver input that can change DNS routing."""
+        planned_ifaces = set(planned_ifaces)
+
+        def section_key(section):
+            return (
+                section.get("iface", ""),
+                tuple(section.get("dns_servers", ())),
+                tuple(section.get("domains", ())),
+                section.get("default_route"),
+                section.get("dns_scope"),
+                section.get("is_vpn"),
+            )
+
+        return (
+            snapshot.get("vpn_state"),
+            bool(snapshot.get("status_ok")),
+            tuple(snapshot.get("parse_errors", ())),
+            section_key(snapshot.get("global", {})),
+            tuple(
+                sorted(
+                    (
+                        (
+                            (
+                                section.get("iface", ""),
+                                (),
+                                (),
+                                None,
+                                None,
+                                section.get("is_vpn"),
+                            )
+                            if section.get("iface") in planned_ifaces
+                            and not section.get("is_vpn")
+                            else section_key(section)
+                        )
+                        for section in snapshot.get("links", ())
+                    ),
+                    key=repr,
+                )
+            ),
+        )
+
+    def clear_vpn_repair_backoff(self) -> None:
+        self._unresolved_vpn_state = None
+
+    def apply_vpn_dns_policy(
+        self,
+        *,
+        targets: list[tuple[str, str]],
+        automatic: bool = False,
+        snapshot: dict | None = None,
+    ) -> tuple[bool, str]:
+        if not self._vpn_repair_lock.acquire(blocking=False):
+            return (
+                False,
+                "DNS Control: Reparatur läuft bereits; keine weitere Änderung.",
+            )
+        if not self.dns_mutation_lock.acquire(blocking=False):
+            self._vpn_repair_lock.release()
+            return (
+                False,
+                "DNS Control: DNS-Änderung läuft bereits; keine weitere Änderung.",
+            )
         lines = [
             "=== DNS Control ===",
             "Aktion: VPN-DNS erzwingen",
-            f"Ergebnis: {'erfolgreich' if success else 'fehlgeschlagen'}",
-            "",
-            "[System]",
-            (
-                "✔ NetMon DoT-Konfiguration entfernt"
-                if rm_ok
-                else f"✖ Fehler beim Entfernen der NetMon DoT-Konfiguration: {rm_detail or 'unknown'}"
-            ),
-            (
-                "✔ systemd-resolved neu gestartet"
-                if restart_ok
-                else f"✖ Fehler beim Neustarten von systemd-resolved: {restart_detail or 'fehlgeschlagen'}"
-            ),
-            "",
-            "[NetworkManager]",
-            *nm_details,
+            "Auslöser: "
+            + ("automatische Prüfung" if automatic else "ausdrückliche Benutzeraktion"),
         ]
-        return success, "\n".join(lines).strip()
+        selected = []
+        before = snapshot
+        try:
+            before = before or self.read_dns_snapshot()
+            policy = self.evaluate_dns_snapshot(before)
+            if before["vpn_state"] != "active" or policy["policy_unknown"]:
+                return False, "\n".join(
+                    lines
+                    + ["VPN-/DNS-Status unklar oder VPN nicht aktiv; keine Änderung."]
+                )
+            if automatic and not policy["conflict"]:
+                self.clear_vpn_repair_backoff()
+                return True, "\n".join(lines + ["DNS-Policy korrekt; keine Änderung."])
+            unsafe_split_routes = sorted(
+                set(policy["repair_ifaces"]) & set(policy["split_ifaces"])
+            )
+            if automatic and unsafe_split_routes:
+                unresolved_key = self._repair_key(before, [])
+                if unresolved_key == self._unresolved_vpn_state:
+                    return False, "\n".join(
+                        lines
+                        + [
+                            "Unveränderter Split-DNS-/DefaultRoute-Konflikt; "
+                            "sicherer Eingriff fehlt, Wiederholung unterdrückt."
+                        ]
+                    )
+                self._unresolved_vpn_state = unresolved_key
+                return False, "\n".join(
+                    lines
+                    + [
+                        "Parallele Default-DNS-Route auf Split-DNS-Interface erkannt ("
+                        + ", ".join(unsafe_split_routes)
+                        + "); sicherer gezielter NM-Eingriff nicht möglich. "
+                        "Konflikt bleibt ausdrücklich ungeklärt; Split-DNS bleibt erhalten."
+                    ]
+                )
+            selected = [
+                (iface, name)
+                for iface, name in targets
+                if iface not in policy["split_ifaces"]
+                and (not automatic or iface in policy["repair_ifaces"])
+            ]
+            profiles = self.read_nm_dns_profiles(selected) if selected else []
+            key = self._repair_key(before, profiles)
+            if automatic and key == self._unresolved_vpn_state:
+                return False, "\n".join(
+                    lines
+                    + [
+                        "Unveränderte ungeklärte DNS-Abweichung; wirkungslose Wiederholung unterdrückt."
+                    ]
+                )
+            # No mutation may use a resolver state superseded while reading NM.
+            fresh = self.read_dns_snapshot()
+            if self._snapshot_key(fresh) != self._snapshot_key(before):
+                return False, "\n".join(
+                    lines
+                    + ["DNS-/VPN-Zustand während Planung geändert; keine Änderung."]
+                )
+            ok, details = self._apply_nm_dns_profiles(profiles, True)
+            lines.extend(details)
+            if not ok:
+                raise ValueError(
+                    "DNS-Profiländerung unvollständig; keine weiteren Änderungen."
+                )
+            current = self.read_dns_snapshot()
+            if not self._vpn_plan_current(
+                before,
+                current,
+                before.get("dot_dropin_content", ""),
+                planned_ifaces={iface for iface, _name in selected},
+            ):
+                raise ValueError(
+                    "DNS-/VPN-Zustand nach Aktivierung geändert; Reparaturplan gestoppt"
+                )
+            remove = bool(before.get("dot_dropin_content")) and (
+                not automatic or policy["dot_dropin_conflict"]
+            )
+            if remove:
+                ok, detail = self.remove_dropin()
+                if not ok or os.path.lexists(self.dot_dropin_path):
+                    raise ValueError(
+                        f"DoT-Datei nicht entfernt: {detail}; kein Neustart."
+                    )
+                self._resolved_reload_pending = True
+                lines.append("✔ NetMon DoT-Konfiguration entfernt")
+            if self._resolved_reload_pending:
+                current = self.read_dns_snapshot()
+                expected_dropin = "" if remove else before.get("dot_dropin_content", "")
+                if not self._vpn_plan_current(
+                    before,
+                    current,
+                    expected_dropin,
+                    planned_ifaces={iface for iface, _name in selected},
+                ):
+                    raise ValueError(
+                        "DNS-/VPN-Zustand vor Resolver-Neustart geändert; Plan gestoppt"
+                    )
+                ok, detail = self.restart_resolved()
+                if not ok:
+                    raise ValueError(f"Resolver-Neustart fehlgeschlagen: {detail}")
+                self._resolved_reload_pending = False
+                lines.append(
+                    "✔ systemd-resolved nach Konfigurationsänderung neu gestartet"
+                )
+            after = self.read_dns_snapshot()
+            verified = self.evaluate_dns_snapshot(after)
+            success = (
+                after["vpn_state"] == "active"
+                and not verified["policy_unknown"]
+                and not verified["conflict"]
+            )
+            if success:
+                self.clear_vpn_repair_backoff()
+                lines.append(
+                    "✔ DNS-Policy nachgeprüft; korrekt (keine unnötige erneute Aktivierung)"
+                )
+            else:
+                self._unresolved_vpn_state = self._repair_key(
+                    after, self.read_nm_dns_profiles(selected) if selected else []
+                )
+                lines.append(
+                    "✖ DNS-Policy weiterhin ungeklärt/abweichend; Befehlsannahme ist kein Reparaturnachweis."
+                )
+            return success, "\n".join(lines)
+        except ValueError as exc:
+            lines.append(
+                f"{exc}; mögliche Teiländerungen bleiben sichtbar, keine weiteren Änderungen."
+            )
+            # Capture partial progress so an unchanged failure is not replayed.
+            try:
+                after = self.read_dns_snapshot()
+                self._unresolved_vpn_state = self._repair_key(
+                    after, self.read_nm_dns_profiles(selected) if selected else []
+                )
+            except ValueError:
+                self._unresolved_vpn_state = None
+            return False, "\n".join(lines)
+        finally:
+            self.dns_mutation_lock.release()
+            self._vpn_repair_lock.release()
 
 
 __all__ = ["DNSControlService"]

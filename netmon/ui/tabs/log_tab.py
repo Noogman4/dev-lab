@@ -156,8 +156,12 @@ def build_log_tab(app):
     )
     app.log_overlay_picker_title.pack(fill="x", padx=8, pady=(6, 4))
 
+    picker_list_frame = tk.Frame(app.log_overlay_picker_frame, bg="#0f0f0f")
+    picker_list_frame.pack(fill="both", expand=True, padx=8)
+    picker_list_scroll = ttk.Scrollbar(picker_list_frame, orient="vertical")
+    picker_list_scroll.pack(side="right", fill="y")
     app.log_overlay_picker_list = tk.Listbox(
-        app.log_overlay_picker_frame,
+        picker_list_frame,
         height=8,
         exportselection=False,
         activestyle="none",
@@ -168,8 +172,10 @@ def build_log_tab(app):
         relief="flat",
         highlightthickness=1,
         highlightbackground="#3a3a3a",
+        yscrollcommand=picker_list_scroll.set,
     )
-    app.log_overlay_picker_list.pack(fill="both", expand=True, padx=8)
+    app.log_overlay_picker_list.pack(side="left", fill="both", expand=True)
+    picker_list_scroll.configure(command=app.log_overlay_picker_list.yview)
     app.log_overlay_picker_list.bind(
         "<<ListboxSelect>>", app._on_log_overlay_picker_select
     )
@@ -219,9 +225,7 @@ def build_log_tab(app):
 
     app.chk_log_auto_clear = ttk.Checkbutton(
         log_footer,
-        text=app.tr(
-            "settings_auto_log_clear", "Clear log automatically on startup"
-        ),
+        text=app.tr("settings_auto_log_clear", "Clear log automatically on startup"),
         variable=app.var_auto_log_clear,
     )
     app.chk_log_auto_clear.pack(side="right")

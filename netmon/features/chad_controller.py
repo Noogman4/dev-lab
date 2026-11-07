@@ -9,6 +9,8 @@ import threading
 import time
 from datetime import datetime
 
+from . import chad_code_blocks, chad_prompt_display
+
 try:
     from netmon.core.utils import call_in_ui_thread
 except ModuleNotFoundError:
@@ -174,9 +176,11 @@ def refresh_chad_runtime_status(app):
     _set_var(
         app,
         "chad_settings_api_status_var",
-        _tr(app, "chad_settings_status_connected", "Verbunden")
-        if available
-        else _tr(app, "chad_settings_status_disconnected", "Getrennt"),
+        (
+            _tr(app, "chad_settings_status_key_present", "API-Key vorhanden")
+            if available
+            else _tr(app, "chad_settings_status_disconnected", "Getrennt")
+        ),
     )
     _set_var(app, "chad_settings_model_var", _get_online_service_model_name(app))
 
@@ -407,8 +411,6 @@ def ensure_chad_inline_prompt(app):
     _focus_chad_input_end(app)
 
 
-
-
 def get_chad_transcript_text(app) -> str:
     widget = _get_chad_output_widget(app)
     if widget is None:
@@ -417,8 +419,6 @@ def get_chad_transcript_text(app) -> str:
         return widget.get("1.0", "end").strip()
     except Exception:
         return ""
-
-
 
 
 def _get_chad_entry_kind(title: str) -> str:
@@ -450,6 +450,8 @@ def _ensure_chad_output_store(app):
 
 
 def _chad_entry_matches_filter(app, entry: dict) -> bool:
+    if entry.get("kind") == "error":
+        return True
     mode = "all"
     value = _app_var_get(app, "chad_output_filter_var", "all")
     if value is not None:
@@ -476,12 +478,41 @@ def refresh_chad_output_view(app):
     if widget is None:
         return
     entries = list(_ensure_chad_output_store(app))
+    visible = [
+        entry
+        for entry in entries
+        if _chad_entry_matches_filter(app, entry)
+        and str(entry.get("title") or "").strip()
+        and str(entry.get("text") or "").strip()
+    ]
+    previous = app.__dict__.get("chad_rendered_entries")
+    same_prefix = (
+        previous is not None
+        and len(previous) <= len(visible)
+        and all(before is after for before, after in zip(previous, visible))
+    )
+    top_index, selection, at_bottom = None, (), True
+    try:
+        top_index = widget.index("@0,0")
+        selection = widget.tag_ranges("sel")
+        last_line = widget.dlineinfo("end-1c")
+        at_bottom = (
+            widget.compare("end-1c", "==", "1.0")
+            or widget.yview()[1] >= 0.999
+            or (
+                last_line is not None
+                and 0 <= last_line[1]
+                and last_line[1] + last_line[3] <= widget.winfo_height()
+            )
+        )
+    except Exception:
+        pass
     widget.configure(state="normal")
+    chad_prompt_display.clear(app)
+    chad_code_blocks.clear(app)
     widget.delete("1.0", "end")
     first = True
-    for entry in entries:
-        if not _chad_entry_matches_filter(app, entry):
-            continue
+    for entry in visible:
         title = str(entry.get("title") or "").strip()
         body = str(entry.get("text") or "").strip()
         if not title or not body:
@@ -490,12 +521,24 @@ def refresh_chad_output_view(app):
             widget.insert("end", "\n\n")
         header_tag, body_tag = _get_chad_entry_tags(title)
         widget.insert("end", f"--- {title} ---\n", header_tag)
-        widget.insert("end", body, body_tag)
+        chad_prompt_display.insert_body(app, widget, entry, body, body_tag)
         first = False
     widget.configure(state="disabled")
+    app.chad_rendered_entries = visible
     try:
-        if _app_var_get(app, "chad_auto_scroll_var", False):
+        widget.update_idletasks()
+    except Exception:
+        pass
+    try:
+        if same_prefix:
+            for start, end in zip(selection[::2], selection[1::2]):
+                widget.tag_add("sel", start, end)
+        if _app_var_get(app, "chad_auto_scroll_var", False) and at_bottom:
             widget.see("end")
+            widget.update_idletasks()
+            widget.yview_moveto(1.0)
+        elif same_prefix and top_index is not None:
+            widget.yview(top_index)
     except Exception:
         pass
     try:
@@ -504,7 +547,7 @@ def refresh_chad_output_view(app):
         pass
 
 
-def append_to_chad_output(app, title: str, text: str):
+def append_to_chad_output(app, title: str, text: str, *, kind: str | None = None):
     widget = _get_chad_output_widget(app)
     if widget is None:
         return
@@ -515,7 +558,7 @@ def append_to_chad_output(app, title: str, text: str):
         {
             "title": str(title or "").strip() or "System",
             "text": text,
-            "kind": _get_chad_entry_kind(title),
+            "kind": kind or _get_chad_entry_kind(title),
         }
     )
     refresh_chad_output_view(app)
@@ -624,6 +667,7 @@ def update_chad_controls_state(app):
         ("btn_chad_load_analysis", "normal"),
         ("btn_chad_save_analysis", "normal"),
         ("btn_chad_online", "normal"),
+        ("btn_chad_send", "normal"),
         ("btn_chad_copy", "normal"),
         ("btn_chad_clear", "normal"),
         ("btn_chad_top", "normal"),
@@ -825,9 +869,7 @@ def filter_chad_analysis_input(app, raw_text: str) -> str:
     filtered_text = "\n".join(compact_lines).strip()
     if filtered_text:
         if removed_count > 0:
-            filtered_text += (
-                f"\n\nHinweis: {removed_count} lokale Info-/Rauschzeile(n) wurden vor der Chad Analyse ausgeblendet."
-            )
+            filtered_text += f"\n\nHinweis: {removed_count} lokale Info-/Rauschzeile(n) wurden vor der Chad Analyse ausgeblendet."
         return filtered_text
 
     return (
@@ -894,9 +936,7 @@ def _build_chad_prompt_overrides(app) -> str:
             "relevante Funde."
         )
     else:
-        parts.append(
-            "Fokussiere auf die Bewertung und vermeide lange Maßnahmenlisten."
-        )
+        parts.append("Fokussiere auf die Bewertung und vermeide lange Maßnahmenlisten.")
 
     if _get_bool_setting(app, "chad_filter_beginner_var"):
         parts.append(
@@ -1035,6 +1075,66 @@ def set_chad_analysis(app, title: str, raw_text: str):
     _apply_prepared_chad_analysis(app, title, prompt)
 
 
+def copy_prompt_and_open_chatgpt(app) -> bool:
+    """Copy the prepared text locally, then request the fixed browser URL."""
+    prompt = str(app.__dict__.get("chad_analysis_current_prompt") or "").strip()
+    status = app.chad_analysis_status_var
+    if not prompt:
+        status.set(
+            _tr(
+                app,
+                "chad_browser_no_prompt",
+                "Bitte zuerst eine Analyse vorbereiten.",
+            )
+        )
+        return False
+
+    prompt = AiAnalysisService().sanitize_content(prompt)
+    try:
+        app.clipboard_clear()
+        app.clipboard_append(prompt)
+    except Exception:
+        status.set(
+            _tr(app, "chad_browser_copy_failed", "Prompt konnte nicht kopiert werden.")
+        )
+        return False
+
+    try:
+        opened = app._open_url_with_xdg_open("https://chatgpt.com/", label="ChatGPT")
+    except Exception:
+        opened = False
+    if not opened:
+        status.set(
+            _tr(
+                app,
+                "chad_browser_open_failed",
+                "Prompt kopiert. ChatGPT bitte selbst öffnen.",
+            )
+        )
+        return False
+
+    has_images = any(
+        isinstance(item, dict) and item.get("type") == "image"
+        for item in (app.__dict__.get("chad_pending_files") or [])
+    )
+    status.set(
+        _tr(
+            app,
+            (
+                "chad_browser_prompt_copied_images"
+                if has_images
+                else "chad_browser_prompt_copied"
+            ),
+            (
+                "Prompt kopiert; Bilder bitte manuell anhängen."
+                if has_images
+                else "Prompt kopiert – mit Strg+V in ChatGPT einfügen."
+            ),
+        )
+    )
+    return True
+
+
 def copy_chad_analysis_to_clipboard(app):
     if not ensure_chad_enabled(app):
         return
@@ -1166,6 +1266,11 @@ def load_chad_analysis_from_file(app):
                         "kind": str(item.get("kind") or _get_chad_entry_kind(title)),
                     }
                 )
+                if item.get("prompt_foldable") is True:
+                    restored_entries[-1].update(
+                        prompt_foldable=True,
+                        prompt_collapsed=item.get("prompt_collapsed") is True,
+                    )
             if not restored_entries:
                 transcript = str(payload.get("transcript") or "").strip()
                 if transcript:
@@ -1199,9 +1304,7 @@ def load_chad_analysis_from_file(app):
             )
         _select_chad_tab_safe(app)
     except Exception as exc:
-        app.chad_analysis_status_var.set(
-            f"Analyse konnte nicht geladen werden: {exc}"
-        )
+        app.chad_analysis_status_var.set(f"Analyse konnte nicht geladen werden: {exc}")
         log_chad_error(app, "Load", str(exc))
 
 
@@ -1343,7 +1446,19 @@ def send_chad_chat_message(app):
                     app.tr("chad_status_reply_received", "Reply received.")
                 )
             else:
-                app.chad_chat_status_var.set(result)
+                incomplete = bool(getattr(service, "last_response_incomplete", False))
+                app.chad_chat_status_var.set(result.splitlines()[0] if result else "")
+                append_to_chad_output(
+                    app,
+                    (
+                        _tr(app, "chad_output_incomplete", "Unvollständige API-Antwort")
+                        if incomplete
+                        else _tr(app, "chad_output_api_error", "API-Fehler")
+                    ),
+                    result,
+                    kind="error",
+                )
+                refresh_chad_runtime_status(app)
                 log_chad_error(app, "Chat", result)
 
         call_in_ui_thread(app, update_ui)
@@ -1407,6 +1522,24 @@ def run_chad_online_analysis(app):
         )
         return
 
+    # Capture the actual entry object: a later preparation may reuse the same text.
+    source_name = _get_chad_source_name(app)
+    prompt_entry = next(
+        (
+            entry
+            for entry in reversed(_ensure_chad_output_store(app))
+            if entry.get("text") == prompt
+            and (
+                entry.get("kind") not in {"answer", "user", "error"}
+                or entry.get("title") == source_name
+            )
+        ),
+        None,
+    )
+    if prompt_entry is not None and prompt_entry.get("prompt_collapsed") is True:
+        prompt_entry["prompt_collapsed"] = False
+        refresh_chad_output_view(app)
+
     service = getattr(app, "ai_online_service", None)
     refresh_chad_runtime_status(app)
     if service is None or not service.is_available():
@@ -1447,10 +1580,14 @@ def run_chad_online_analysis(app):
         latency_ms = int((time.monotonic() - started_at) * 1000)
 
         def update_ui():
+            if any(entry is prompt_entry for entry in _ensure_chad_output_store(app)):
+                if success:
+                    prompt_entry.update(prompt_foldable=True, prompt_collapsed=True)
+                elif prompt_entry.get("prompt_foldable") is True:
+                    prompt_entry["prompt_collapsed"] = False
             if success:
                 app.chad_online_result = result
                 app.chad_pending_files = []
-                source_name = _get_chad_source_name(app)
                 mark_chad_status_event(
                     app,
                     analysis_title=f"Abgeschlossen: {source_name or 'Analyse'}",
@@ -1474,13 +1611,29 @@ def run_chad_online_analysis(app):
                     )
                 )
             else:
+                incomplete = bool(getattr(service, "last_response_incomplete", False))
                 app.chad_online_status_var.set(
-                    app.tr(
+                    _tr(app, "chad_online_status_incomplete", "Analyse unvollständig.")
+                    if incomplete
+                    else app.tr(
                         "chad_online_status_error",
                         "Analysis error.",
                     )
                 )
-                app.chad_analysis_status_var.set(result)
+                app.chad_analysis_status_var.set(
+                    result.splitlines()[0] if result else ""
+                )
+                append_to_chad_output(
+                    app,
+                    (
+                        _tr(app, "chad_output_incomplete", "Unvollständige API-Antwort")
+                        if incomplete
+                        else _tr(app, "chad_output_api_error", "API-Fehler")
+                    ),
+                    result,
+                    kind="error",
+                )
+                refresh_chad_runtime_status(app)
                 log_chad_error(app, "Analysis", result)
 
         call_in_ui_thread(app, update_ui)

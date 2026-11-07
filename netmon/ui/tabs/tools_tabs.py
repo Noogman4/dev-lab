@@ -169,9 +169,7 @@ def build_basic_tools_tabs(app):
     ttk.Label(
         nmap_bar,
         text=app.tr("tools_label_manual_target", "Custom target / IP:"),
-    ).grid(
-        row=1, column=1, sticky="w", padx=(0, 8)
-    )
+    ).grid(row=1, column=1, sticky="w", padx=(0, 8))
     app.nmap_target_entry = ttk.Entry(
         nmap_bar,
         textvariable=app.nmap_manual_target_var,
@@ -410,8 +408,15 @@ def build_basic_tools_tabs(app):
 
     app.iftop_summary_var.trace_add("write", _sync_iftop_summary_text)
 
-    app.iftop_text = tk.Text(app.tab_iftop, wrap="word")
-    app.iftop_text.pack(fill="both", expand=True)
+    iftop_output_frame = ttk.Frame(app.tab_iftop)
+    iftop_output_frame.pack(fill="both", expand=True)
+    iftop_scroll = ttk.Scrollbar(iftop_output_frame, orient="vertical")
+    iftop_scroll.pack(side="right", fill="y")
+    app.iftop_text = tk.Text(
+        iftop_output_frame, wrap="word", yscrollcommand=iftop_scroll.set
+    )
+    app.iftop_text.pack(side="left", fill="both", expand=True)
+    iftop_scroll.configure(command=app.iftop_text.yview)
     app.attach_chad_context_menu(app.iftop_text, "iftop analysis")
     app.refresh_iftop_interfaces()
 
@@ -530,9 +535,7 @@ def build_basic_tools_tabs(app):
     ttk.Label(
         name_filter_pair,
         text=app.tr("tools_label_name", "Name:"),
-    ).grid(
-        row=0, column=0, sticky="w", padx=(0, 6)
-    )
+    ).grid(row=0, column=0, sticky="w", padx=(0, 6))
     app.htop_name_filter_entry = ttk.Entry(
         name_filter_pair,
         textvariable=app.htop_name_filter_var,
@@ -548,9 +551,7 @@ def build_basic_tools_tabs(app):
     ttk.Label(
         user_filter_pair,
         text=app.tr("tools_label_user", "User:"),
-    ).grid(
-        row=0, column=0, sticky="w", padx=(0, 6)
-    )
+    ).grid(row=0, column=0, sticky="w", padx=(0, 6))
     app.htop_user_filter_entry = ttk.Entry(
         user_filter_pair,
         textvariable=app.htop_user_filter_var,
@@ -589,7 +590,9 @@ def build_basic_tools_tabs(app):
         text=app.tr("btn_apply_filter", "Apply filter"),
         command=app.apply_htop_filters,
     )
-    app.btn_htop_apply_filters.grid(row=1, column=1, sticky="e", padx=(0, 8), pady=(0, 6))
+    app.btn_htop_apply_filters.grid(
+        row=1, column=1, sticky="e", padx=(0, 8), pady=(0, 6)
+    )
     app.btn_htop_clear_filters = ttk.Button(
         htop_table_frame,
         text=app.tr("btn_clear_filters", "Clear filters"),

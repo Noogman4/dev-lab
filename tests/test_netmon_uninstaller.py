@@ -163,7 +163,7 @@ purge_netmon_package() { printf 'PACKAGE-REMOVED\\n'; }
 main
 """
     for execute, expect_package in [("y", True), ("n", False)]:
-        answers = ["y", "n", "n", "n", "n", "n", "n", "n", "n", "n", execute]
+        answers = ["y", "n", "n", "n", "n", "n", "n", "n", "n", execute]
         result = subprocess.run(
             ["bash", "-c", command, "test", str(SCRIPT)],
             input="\n".join(answers) + "\n",
@@ -253,3 +253,75 @@ def test_privileged_launcher_validates_before_exec(monkeypatch, capsys):
                 assert result.code == 0
             assert not calls
             assert "retained" in capsys.readouterr().out
+
+
+def test_uninstaller_refuses_dns_reset_and_preserves_dropin(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    dropin = home / "netmon-dot.conf"
+    dropin.write_text("[Resolve]\nDNS=10.64.0.1\n")
+    commands = tmp_path / "bin"
+    commands.mkdir()
+    calls = tmp_path / "calls"
+    for name in ("nmcli", "resolvectl", "systemctl", "ip"):
+        fake = commands / name
+        fake.write_text(
+            f'#!/bin/sh\nprintf "%s\\n" "{name}" >> "$TEST_CALLS"\nif [ "{name}" = nmcli ]; then printf "Wired:eth0\\n"; fi\nexit 0\n'
+        )
+        fake.chmod(0o700)
+    monkeypatch.setenv("PATH", str(commands) + ":/usr/bin:/bin")
+    monkeypatch.setenv("TEST_CALLS", str(calls))
+    result = _run_uninstaller_function(
+        'NETMON_DOT_DROPIN="$TEST_HOME/netmon-dot.conf"\nreset_netmon_dns_changes',
+        home_dir=home,
+        documents_dir=home / "Documents",
+    )
+    assert result.returncode != 0
+    assert "vorläufig gesperrt" in result.stdout + result.stderr
+    assert dropin.read_text() == "[Resolve]\nDNS=10.64.0.1\n"
+    assert not calls.exists()
+
+
+def test_reset_refuses_pending_firewall_before_any_ufw_command(tmp_path):
+    result = _run_uninstaller_function(
+        """
+check_firewall_transaction() { return 1; }
+ufw() { printf 'UNSAFE UFW WRITE\\n'; }
+reset_ufw
+""",
+        home_dir=tmp_path,
+        documents_dir=tmp_path,
+    )
+    assert result.returncode != 0
+    assert "UNSAFE" not in result.stdout
+
+
+def test_cleanup_step_refuses_pending_firewall_before_any_action(tmp_path):
+    result = _run_uninstaller_function(
+        """
+check_firewall_transaction() { return 1; }
+cleanup_action() { printf 'UNSAFE CLEANUP\\n'; }
+run_checked_cleanup cleanup_action
+""",
+        home_dir=tmp_path,
+        documents_dir=tmp_path,
+    )
+    assert result.returncode != 0
+    assert "UNSAFE" not in result.stdout
+
+
+def test_menu_refuses_pending_transaction_before_questions_and_cleanup(tmp_path):
+    result = _run_uninstaller_function(
+        """
+ensure_root() { :; }
+detect_netmon_language() { :; }
+check_firewall_transaction() { return 1; }
+prompt_yes_no() { printf 'UNSAFE PROMPT\\n'; return 0; }
+ensure_netmon_not_running() { printf 'UNSAFE PROCESS STOP\\n'; }
+main
+""",
+        home_dir=tmp_path,
+        documents_dir=tmp_path,
+    )
+    assert result.returncode != 0
+    assert "UNSAFE" not in result.stdout

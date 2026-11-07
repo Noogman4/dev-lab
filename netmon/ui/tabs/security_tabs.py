@@ -792,7 +792,12 @@ def build_packet_capture_output_panel(app) -> None:
     )
     output_frame.pack(fill="both", expand=True, pady=(8, 0))
     app.packet_capture_text = tk.Text(output_frame, wrap="word", height=14)
-    app.packet_capture_text.pack(fill="both", expand=True)
+    capture_scroll = ttk.Scrollbar(
+        output_frame, orient="vertical", command=app.packet_capture_text.yview
+    )
+    capture_scroll.pack(side="right", fill="y")
+    app.packet_capture_text.configure(yscrollcommand=capture_scroll.set)
+    app.packet_capture_text.pack(side="left", fill="both", expand=True)
     app.packet_capture_text.insert(
         "1.0",
         app.tr(
@@ -1841,7 +1846,12 @@ def build_startup_guard_tab(app):
         wrap="word",
         height=14,
     )
-    app.startup_guard_details_text.pack(fill="both", expand=True)
+    details_scroll = ttk.Scrollbar(
+        details_frame, orient="vertical", command=app.startup_guard_details_text.yview
+    )
+    details_scroll.pack(side="right", fill="y")
+    app.startup_guard_details_text.configure(yscrollcommand=details_scroll.set)
+    app.startup_guard_details_text.pack(side="left", fill="both", expand=True)
     app.startup_guard_details_text.insert(
         "1.0",
         app.tr(
@@ -2390,6 +2400,11 @@ def build_repository_guard_tab(app):
         height=18,
     )
     app.repository_guard_detail_text.grid(row=0, column=0, sticky="nsew")
+    detail_scroll = ttk.Scrollbar(
+        detail_frame, orient="vertical", command=app.repository_guard_detail_text.yview
+    )
+    detail_scroll.grid(row=0, column=1, sticky="ns")
+    app.repository_guard_detail_text.configure(yscrollcommand=detail_scroll.set)
     app.repository_guard_detail_text.insert(
         "1.0",
         app.tr(
@@ -2964,6 +2979,15 @@ def build_roots_baseline_guard_tab(app):
         xscrollcommand=roots_history_scroll_x.set,
     )
     app.roots_baseline_guard_history_list.grid(row=0, column=0, sticky="nsew")
+    roots_history_scroll_y = ttk.Scrollbar(
+        history_frame,
+        orient="vertical",
+        command=app.roots_baseline_guard_history_list.yview,
+    )
+    roots_history_scroll_y.grid(row=0, column=1, sticky="ns")
+    app.roots_baseline_guard_history_list.configure(
+        yscrollcommand=roots_history_scroll_y.set
+    )
     roots_history_scroll_x.configure(
         command=app.roots_baseline_guard_history_list.xview
     )
@@ -3528,6 +3552,11 @@ def build_firewall_tab(app):
         borderwidth=1,
     )
     app.firewall_tab_summary_text.grid(row=0, column=0, sticky="nsew")
+    summary_scroll = ttk.Scrollbar(
+        summary_group, orient="vertical", command=app.firewall_tab_summary_text.yview
+    )
+    summary_scroll.grid(row=0, column=1, sticky="ns")
+    app.firewall_tab_summary_text.configure(yscrollcommand=summary_scroll.set)
     app.firewall_tab_summary_text.insert(
         "1.0",
         app.tr("firewall_summary_loading", "Firewall-Transparenz wird geladen..."),
@@ -3880,6 +3909,22 @@ def build_security_tabs(app):
         ),
     )
 
+    from ...features.path_guard_controller import build_review_panel, copy_prompt
+
+    app.btn_path_guard_copy_prompt = ttk.Button(
+        path_guard_frame,
+        text=app.tr("path_guard_btn_copy_prompt", "Als Prompt kopieren"),
+        command=lambda: copy_prompt(app),
+    )
+    app.btn_path_guard_copy_prompt.pack(side="left", padx=(8, 0))
+    app.add_tooltip(
+        app.btn_path_guard_copy_prompt,
+        app.tr(
+            "tooltip_path_guard_copy_prompt",
+            "Kopiert die letzte PATH-Auswertung als Prompt zum Einfügen in einen Chat.",
+        ),
+    )
+
     ttk.Label(
         path_guard_frame,
         textvariable=app.path_guard_status_var,
@@ -3890,6 +3935,8 @@ def build_security_tabs(app):
         orient="vertical",
     )
     app.path_guard_pane.pack(fill="both", expand=True)
+
+    build_review_panel(app, app.path_guard_pane)
 
     path_guard_detail_frame = ttk.LabelFrame(
         app.path_guard_pane,
@@ -3906,6 +3953,11 @@ def build_security_tabs(app):
         height=18,
     )
     app.path_guard_detail.grid(row=0, column=0, sticky="nsew")
+    path_detail_scroll = ttk.Scrollbar(
+        path_guard_detail_frame, orient="vertical", command=app.path_guard_detail.yview
+    )
+    path_detail_scroll.grid(row=0, column=1, sticky="ns")
+    app.path_guard_detail.configure(yscrollcommand=path_detail_scroll.set)
     app.path_guard_detail.insert(
         "1.0",
         app.tr(
@@ -4166,7 +4218,14 @@ def build_security_tabs(app):
     ]:
         app.process_guard_tree.heading(col, text=title)
         app.process_guard_tree.column(col, width=width, anchor=anchor)
-    app.process_guard_tree.pack(fill="both", expand=True)
+    process_tree_scroll = ttk.Scrollbar(
+        process_guard_tree_frame,
+        orient="vertical",
+        command=app.process_guard_tree.yview,
+    )
+    process_tree_scroll.pack(side="right", fill="y")
+    app.process_guard_tree.configure(yscrollcommand=process_tree_scroll.set)
+    app.process_guard_tree.pack(side="left", fill="both", expand=True)
     app.process_guard_tree.bind("<<TreeviewSelect>>", app.on_process_guard_select)
     app.attach_process_guard_tree_context_menu()
 
@@ -4175,7 +4234,14 @@ def build_security_tabs(app):
         wrap="word",
         height=10,
     )
-    app.process_guard_detail.pack(fill="both", expand=True)
+    process_detail_scroll = ttk.Scrollbar(
+        process_guard_detail_frame,
+        orient="vertical",
+        command=app.process_guard_detail.yview,
+    )
+    process_detail_scroll.pack(side="right", fill="y")
+    app.process_guard_detail.configure(yscrollcommand=process_detail_scroll.set)
+    app.process_guard_detail.pack(side="left", fill="both", expand=True)
     app.process_guard_detail.insert(
         "1.0",
         app.tr(

@@ -49,9 +49,9 @@ except ModuleNotFoundError:
     from core.utils import safe_write_json, call_in_ui_thread
 
 try:
-    from netmon.core.state import get_netmon_documents_dir
+    from netmon.core.state import get_netmon_wireguard_dir
 except ModuleNotFoundError:
-    from core.state import get_netmon_documents_dir
+    from core.state import get_netmon_wireguard_dir
 
 
 def _app_value(app, name, default=None):
@@ -173,7 +173,7 @@ def _prepare_wireguard_imports(app, paths):
                 path, name, payload["content"].encode(), protected=True
             )
         else:
-            snapshot = wireguard_import.ProfileSnapshot.read(path)
+            snapshot = wireguard_import.ProfileSnapshot.read(path, for_copy=True)
         total += len(snapshot.data)
         if total > wireguard_import.MAX_BATCH_BYTES:
             raise ValueError("WireGuard-Import-Batch ist zu gross")
@@ -186,13 +186,25 @@ def _prepare_wireguard_imports(app, paths):
     )
     # Digest is of the reviewed bytes, not a mutable pathname. Never display keys
     # or hook command values; an unavailable/closed GUI cannot approve the batch.
+    directory = ensure_netmon_wireguard_profiles_dir()
     text = (
-        "Gepruefte WireGuard-Profile importieren? / Import reviewed WireGuard profiles?\n\n"
-        + details
+        "WireGuard-Profile übernehmen und importieren?\n\n"
+        f"Zielordner: {directory}\n"
+        "Neue Kopien sind nur für dich les- und schreibbar (0600). "
+        "Die Originaldateien bleiben unverändert. Bestehende Dateien werden "
+        "nicht überschrieben.\n\n" + details
     )
+    if any(s.for_copy and s.identity[4] & 0o022 for s in snapshots):
+        text += (
+            "\n\nEinige Quelldateien sind auch für andere beschreibbar. "
+            "Bitte nur Profile aus einer vertrauenswürdigen Quelle übernehmen."
+        )
     if not messagebox.askyesno("WireGuard-Import bestaetigen", text, parent=app):
         return None
-    return tuple(snapshots)
+    prepared = []
+    for snapshot in snapshots:
+        prepared.append(snapshot if snapshot.protected else snapshot.copy_to(directory))
+    return tuple(prepared)
 
 
 def _verify_import_snapshot(snapshot):
@@ -322,12 +334,7 @@ def _privacy_config_dict(app):
 
 
 def netmon_wireguard_profiles_dir():
-    path = os.path.join(get_netmon_documents_dir(), "WireGuard")
-    try:
-        os.makedirs(path, exist_ok=True)
-    except Exception:
-        pass
-    return path
+    return get_netmon_wireguard_dir()
 
 
 def _legacy_netmon_wireguard_profiles_dir():
@@ -335,27 +342,70 @@ def _legacy_netmon_wireguard_profiles_dir():
 
 
 def ensure_netmon_wireguard_profiles_dir():
-    target_dir = netmon_wireguard_profiles_dir()
-    legacy_dir = _legacy_netmon_wireguard_profiles_dir()
-    if os.path.isdir(legacy_dir) and os.path.abspath(legacy_dir) != os.path.abspath(
-        target_dir
-    ):
+    # Discovery must not copy secret-bearing profiles or bypass import review.
+    return netmon_wireguard_profiles_dir()
+
+
+def _alternative_wireguard_profile_dirs(standard):
+    candidates = [
+        os.path.expanduser("~/Documents/NetMon/WireGuard"),
+        os.path.expanduser("~/Dokumente/NetMon/WireGuard"),
+        _legacy_netmon_wireguard_profiles_dir(),
+    ]
+    seen = {os.path.realpath(standard)}
+    found = []
+    for path in candidates:
+        resolved = os.path.realpath(path)
+        if resolved in seen:
+            continue
+        seen.add(resolved)
         try:
-            entries = sorted(os.listdir(legacy_dir))
+            with os.scandir(path) as entries:
+                if any(
+                    entry.name.endswith(".conf")
+                    and entry.is_file(follow_symlinks=False)
+                    for entry in entries
+                ):
+                    found.append(path)
         except OSError:
-            entries = []
-        for entry in entries:
-            source = os.path.join(legacy_dir, entry)
-            target = os.path.join(target_dir, entry)
-            if not os.path.isfile(source) or os.path.exists(target):
-                continue
-            try:
-                os.makedirs(os.path.dirname(target), exist_ok=True)
-                with open(source, "rb") as src_handle, open(target, "wb") as dst_handle:
-                    dst_handle.write(src_handle.read())
-            except Exception:
-                continue
-    return target_dir
+            continue
+    return found
+
+
+def _wireguard_import_initialdir(app):
+    standard = ensure_netmon_wireguard_profiles_dir()
+    initialdir = app.get_wg_import_dir() or standard
+    if not os.path.isdir(initialdir):
+        initialdir = standard
+    # A deliberately selected import source remains valid, independent of locale.
+    if os.path.realpath(initialdir) != os.path.realpath(standard):
+        return initialdir
+    for other in _alternative_wireguard_profile_dirs(standard):
+        if messagebox.askyesno(
+            "WireGuard-Profile im bisherigen Ordner",
+            f"Standardordner: {standard}\n\n"
+            f"Weitere Profile gefunden in: {other}\n\n"
+            "Diesen Ordner jetzt zur Dateiauswahl öffnen? "
+            "Die ausgewählten Profile werden anschließend sicher geprüft und "
+            "zum Import bestätigt. Es werden keine Dateien automatisch "
+            "verschoben oder überschrieben.",
+            parent=app,
+        ):
+            return other
+    return initialdir
+
+
+def _log_wireguard_import_error(app, operation, error):
+    if isinstance(
+        error,
+        (wireguard_import.ProfilePermissionsError, wireguard_import.ProfileCopyError),
+    ):
+        detail = str(error)
+        app.log(f"{operation} abgebrochen: {detail}")
+        messagebox.showwarning("WireGuard-Dateirechte prüfen", detail, parent=app)
+    else:
+        # Arbitrary exception messages can contain private configuration data.
+        app.log(f"{operation} abgebrochen: Quelldatei oder Bestaetigung ungueltig.")
 
 
 def _save_privacy_config_safe(app, error_prefix: str = "") -> bool:
@@ -1987,7 +2037,25 @@ def ensure_profile_family_ready_for_use(app, profile_name, log_failures=True):
     return resolved
 
 
+def _firewall_recovery_pending(app):
+    # Import locally to keep the controller's startup dependency graph unchanged.
+    try:
+        from netmon.features import firewall_controller
+    except ModuleNotFoundError:
+        from features import firewall_controller
+    return firewall_controller.firewall_recovery_pending(app)
+
+
 def apply_profile_ufw_rules_non_killswitch(app, interfaces, endpoints):
+    if _firewall_recovery_pending(app):
+        app.log("VPN/UFW-Regelsetzung gesperrt: Firewall-Wiederherstellung ungeklärt.")
+        return False
+    snapshots = app.__dict__.get("firewall_snapshots")
+    if snapshots is not None and snapshots.state() == "on":
+        app.log(
+            "VPN/UFW-Regelsetzung erfolgt ausschließlich über die aktive Killswitch-Transaktion."
+        )
+        return False
     interfaces = sorted(
         {str(i).strip() for i in (interfaces or set()) if str(i).strip()}
     )
@@ -2010,6 +2078,17 @@ def apply_profile_ufw_rules_non_killswitch(app, interfaces, endpoints):
         ufw_lock = threading.Lock()
         app.ufw_lock = ufw_lock
     with ufw_lock:
+        # Killswitch activation may have completed while this worker waited.
+        # Recheck under the same mutation lock before using the raw service.
+        try:
+            from netmon.features import firewall_controller
+        except ModuleNotFoundError:
+            from features import firewall_controller
+        if firewall_controller.unrelated_ufw_writes_blocked(app):
+            app.log(
+                "VPN/UFW-Regelsetzung gesperrt: Killswitch-Zustand hat sich während des Wartens geändert."
+            )
+            return False
         try:
             rc_status, out_status = app._read_ufw_status(verbose=True)
         except Exception as exc:
@@ -2104,6 +2183,9 @@ def apply_profile_ufw_rules_non_killswitch(app, interfaces, endpoints):
 def reconcile_vpn_slot_firewall_state(
     app, reason="", touched_profiles=None, refresh_ui=False
 ):
+    if _firewall_recovery_pending(app):
+        app.log("VPN/UFW-Abgleich gesperrt: Firewall-Wiederherstellung ungeklärt.")
+        return False
     touched = []
     for profile in touched_profiles or []:
         base = app._base_wg_profile_name(profile)
@@ -2144,11 +2226,22 @@ def reconcile_vpn_slot_firewall_state(
         )
         return True
 
-    if app.killswitch_is_on():
+    snapshots = app.__dict__.get("firewall_snapshots")
+    protected_on = snapshots is not None and snapshots.state() == "on"
+    if protected_on or app.killswitch_is_on():
         app.log(
             "Killswitch-Sollzustand wird mit aktueller Profilfamilie synchronisiert."
         )
-        ok = app._killswitch_on_sync(refresh_ui=refresh_ui)
+        if protected_on:
+            try:
+                from netmon.features import firewall_controller
+            except ModuleNotFoundError:
+                from features import firewall_controller
+            ok = firewall_controller.killswitch_on_sync(
+                app, refresh_ui=refresh_ui, require_active=True
+            )
+        else:
+            ok = app._killswitch_on_sync(refresh_ui=refresh_ui)
         if ok:
             app.log("Killswitch-Sollzustand vorbereitet.")
         return ok
@@ -2271,29 +2364,39 @@ def get_nm_wireguard_profiles(app):
     ]
 
 
-def get_active_nm_vpn_connections(app):
+def get_active_nm_vpn_connections(app, *, strict=False):
     if not has_cmd("nmcli"):
-        return []
+        return None if strict else []
     cmd = ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"]
     rc, out = run_cmd(cmd, timeout=10)
     if callable(getattr(app, "_debug_log_system_cmd", None)):
         app._debug_log_system_cmd(cmd, rc, out)
     if rc != 0:
-        return []
+        return None if strict else []
+    if strict and any(
+        line.strip() and (":" not in line or not all(line.rsplit(":", 1)))
+        for line in (out or "").splitlines()
+    ):
+        return None
     return [
         name for name, conn_type in _parse_nm_name_type_rows(out) if conn_type == "vpn"
     ]
 
 
-def get_active_nm_wireguard_connections(app):
+def get_active_nm_wireguard_connections(app, *, strict=False):
     if not has_cmd("nmcli"):
-        return []
+        return None if strict else []
     cmd = ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"]
     rc, out = run_cmd(cmd, timeout=10)
     if callable(getattr(app, "_debug_log_system_cmd", None)):
         app._debug_log_system_cmd(cmd, rc, out)
     if rc != 0:
-        return []
+        return None if strict else []
+    if strict and any(
+        line.strip() and (":" not in line or not all(line.rsplit(":", 1)))
+        for line in (out or "").splitlines()
+    ):
+        return None
     return [
         name
         for name, conn_type in _parse_nm_name_type_rows(out)
@@ -2548,7 +2651,7 @@ def active_wg_profile(app):
     return None
 
 
-def get_wg_interfaces(app):
+def get_wg_interfaces(app, *, strict=False):
     commands = [
         ["wg", "show", "interfaces"],
         ["sudo", "-n", "wg", "show", "interfaces"],
@@ -2562,6 +2665,8 @@ def get_wg_interfaces(app):
         if rc == 0:
             break
     if rc != 0:
+        if strict:
+            raise RuntimeError("WireGuard interface state could not be read")
         return []
 
     interfaces = []
@@ -2672,7 +2777,9 @@ def parse_vpn_endpoint(app, profile_name):
     return None, None
 
 
-def resolve_profile_family_runtime(app, profile_name, log_missing=True):
+def resolve_profile_family_runtime(
+    app, profile_name, log_missing=True, *, create_missing_ipv4=True
+):
     base_profile = app._base_wg_profile_name(profile_name)
     system_ipv6_disabled = app.ipv6_is_disabled()
     ipv4_profile = app._internal_ipv4_profile_name(base_profile) if base_profile else ""
@@ -2693,7 +2800,7 @@ def resolve_profile_family_runtime(app, profile_name, log_missing=True):
 
     base_exists = app._wg_profile_exists(base_profile)
     ipv4_exists = bool(ipv4_profile and app._wg_profile_exists(ipv4_profile))
-    if system_ipv6_disabled and not ipv4_exists:
+    if create_missing_ipv4 and system_ipv6_disabled and not ipv4_exists:
         ipv4_exists = app.ensure_internal_ipv4_profile(
             base_profile,
             log_failures=log_missing,
@@ -2766,7 +2873,7 @@ def vpn_switch(
             app.log_safe(
                 app.tr("vpn_log_no_profile_selected", "Kein WireGuard-Profil gewählt.")
             )
-            app._recover_firewall_preserving_killswitch()
+            # No mutation has started; preserve the existing firewall verbatim.
             if refresh_ui:
                 app.refresh_safe()
             return False
@@ -2786,9 +2893,15 @@ def vpn_switch(
         if not runtime_target:
             runtime_target = app.resolve_runtime_vpn_profile(target, log_missing=True)
         if not runtime_target:
-            app._recover_firewall_preserving_killswitch()
+            # Missing profiles do not authorize a new emergency firewall state.
             if refresh_ui:
                 app.refresh_safe()
+            return False
+
+        if _firewall_recovery_pending(app):
+            app.log_safe(
+                "VPN-Wechsel gesperrt: Firewall-Wiederherstellung ungeklärt; bestehender Zustand bleibt erhalten."
+            )
             return False
 
         active_ifaces = app.get_wg_interfaces()
@@ -2919,6 +3032,7 @@ def vpn_switch(
             app._schedule_dns_finalize_after_vpn_profile_switch(delay_ms=2500)
             app.run_async(lambda t=target: app.verify_vpn_exit_country(t))
         else:
+            app._recover_firewall_preserving_killswitch()
             app._schedule_dns_finalize_after_vpn_profile_switch(delay_ms=750)
         if callable(getattr(app, "debug_nm_state", None)):
             app.debug_nm_state(f"nach VPN Wechsel auf {target}")
@@ -2931,6 +3045,51 @@ def vpn_switch(
         app._end_network_operation()
 
 
+def pause_dns_for_firewall_sync(app):
+    app._vpn_firewall_sync_pending = True
+    app._vpn_dns_completion_deferred = True
+    app._vpn_dns_prepare_deferred = True
+    app._dns_finalize_token = int(app.__dict__.get("_dns_finalize_token", 0)) + 1
+    app.__dict__.pop("_vpn_dns_resume_token", None)
+
+
+def sync_killswitch_after_tunnel_change(app, *, protected_state=None):
+    """Reconcile current interfaces, never authorize a fresh activation.
+
+    Caller owns the network operation; Root rechecks active authority under its
+    UFW lock. A newer explicit OFF wins, including after the initial state read.
+    """
+    snapshots = app.__dict__.get("firewall_snapshots")
+    if protected_state is None:
+        try:
+            protected_state = snapshots.state() if snapshots is not None else "absent"
+        except Exception:
+            protected_state = "unknown"
+    if protected_state in {"on", "unknown", "recovery"}:
+        pause_dns_for_firewall_sync(app)
+    if protected_state == "on":
+        try:
+            from netmon.features import firewall_controller
+        except ModuleNotFoundError:
+            from features import firewall_controller
+        if firewall_controller.killswitch_on_sync(
+            app, refresh_ui=False, require_active=True
+        ):
+            return True
+        if snapshots.state() != "off":
+            app.log_safe(
+                "VPN-Zustand geändert, aber der Killswitch-Abgleich ist nicht bestätigt; DNS-Abschluss bleibt pausiert."
+            )
+            return False
+    elif protected_state not in {"off", "absent", "reviewed"}:
+        app.log_safe(
+            "VPN-Zustand geändert, aber der Firewall-Zustand ist ungeklärt; DNS-Abschluss bleibt pausiert."
+        )
+        return False
+    app.__dict__.pop("_vpn_firewall_sync_pending", None)
+    return True
+
+
 def vpn_off(app, ensure_sudo=True, refresh_ui=True):
     if not app._try_begin_network_operation("VPN deaktivieren"):
         if refresh_ui:
@@ -2941,8 +3100,23 @@ def vpn_off(app, ensure_sudo=True, refresh_ui=True):
             app.debug_nm_state("vor VPN AUS")
         if ensure_sudo and not app.ensure_sudo_session("VPN deaktivieren"):
             return False
+        snapshots = app.__dict__.get("firewall_snapshots")
+        try:
+            protected_state = snapshots.state() if snapshots is not None else "absent"
+        except Exception:
+            protected_state = "unknown"
+        if protected_state in {"on", "unknown", "recovery"}:
+            pause_dns_for_firewall_sync(app)
+        elif protected_state == "off":
+            app.__dict__.pop("_vpn_firewall_sync_pending", None)
         cleanup_ok = cleanup_wireguard_interfaces(app)
         if not cleanup_ok:
+            if refresh_ui:
+                app.refresh_safe()
+            return False
+        if not sync_killswitch_after_tunnel_change(
+            app, protected_state=protected_state
+        ):
             if refresh_ui:
                 app.refresh_safe()
             return False
@@ -3385,7 +3559,7 @@ def ensure_internal_ipv4_profile(app, profile_name, log_failures=True):
 
 
 def import_wg_profiles_from_folder(app):
-    initialdir = app.get_wg_import_dir() or ensure_netmon_wireguard_profiles_dir()
+    initialdir = _wireguard_import_initialdir(app)
     files = filedialog.askopenfilenames(
         title=app.tr("wg_profiles_dialog_select", "WireGuard-Profile auswählen"),
         initialdir=initialdir,
@@ -3414,8 +3588,8 @@ def import_wg_profiles_from_folder(app):
         if snapshots is None:
             app.log("WireGuard-Import abgebrochen.")
             return
-    except Exception:
-        app.log("WireGuard-Import abgebrochen: Quelldatei oder Bestaetigung ungueltig.")
+    except Exception as exc:
+        _log_wireguard_import_error(app, "WireGuard-Import", exc)
         return
 
     def job():
@@ -3478,9 +3652,7 @@ def import_wg_profiles_to_networkmanager(app):
         app.log("NetworkManager-Import nicht verfügbar: nmcli fehlt.")
         return
 
-    initialdir = app.get_wg_import_dir() or ensure_netmon_wireguard_profiles_dir()
-    if not os.path.isdir(initialdir):
-        initialdir = ensure_netmon_wireguard_profiles_dir()
+    initialdir = _wireguard_import_initialdir(app)
 
     files = filedialog.askopenfilenames(
         title=app.tr(
@@ -3645,10 +3817,8 @@ def _start_nm_import_job(app, paths, operation_name):
         snapshots = _prepare_wireguard_imports(app, paths)
         if snapshots is None:
             return
-    except Exception:
-        app.log(
-            "NetworkManager-Import abgebrochen: Quelldatei oder Bestaetigung ungueltig."
-        )
+    except Exception as exc:
+        _log_wireguard_import_error(app, "NetworkManager-Import", exc)
         return
     session = _nm_session(app)
     job = session.new_job("import")

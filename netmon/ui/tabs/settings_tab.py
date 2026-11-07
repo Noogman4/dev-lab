@@ -5,6 +5,9 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
+from ...config.constants import NETMON_SUPPORT_EMAIL
+from ..widgets.scrollable_form import ScrollableForm
+
 
 def build_settings_tab(app):
     app.tab_settings = ttk.Frame(app.nb, padding=10)
@@ -23,27 +26,34 @@ def build_settings_content(app, theme_display_names, dns_profiles) -> None:
     frame.rowconfigure(0, weight=1)
     app.settings_nb = ttk.Notebook(frame)
     app.settings_nb.grid(row=0, column=0, sticky="nsew")
-    general_tab = ttk.Frame(app.settings_nb, padding=12)
-    backup_tab = ttk.Frame(app.settings_nb, padding=12)
-    app.settings_tours_tab = ttk.Frame(app.settings_nb, padding=12)
-    support_tab = ttk.Frame(app.settings_nb, padding=12)
-    for tab, key, fallback in (
-        (general_tab, "settings_tab_general", "Allgemein"),
-        (backup_tab, "settings_tab_backup", "Backup"),
-        (app.settings_tours_tab, "settings_tab_tours", "Tour"),
-        (support_tab, "settings_tab_support", "Support"),
+    app.settings_scroll_forms = {}
+    pages = {}
+    for name, key, fallback in (
+        ("general", "settings_tab_general", "Allgemein"),
+        ("backup", "settings_tab_backup", "Backup"),
+        ("tours", "settings_tab_tours", "Tour"),
+        ("support", "settings_tab_support", "Support"),
     ):
+        tab = pages[name] = ttk.Frame(app.settings_nb)
         app.settings_nb.add(tab, text=app.tr(key, fallback))
+        app.settings_scroll_forms[name] = ScrollableForm(tab)
+    app.settings_tours_tab = pages["tours"]
+    general_tab = app.settings_scroll_forms["general"].content
+    backup_tab = app.settings_scroll_forms["backup"].content
+    support_tab = app.settings_scroll_forms["support"].content
     build_settings_general_system(app, general_tab, theme_display_names, dns_profiles)
     build_settings_tooltips(app, general_tab)
     build_settings_donation(app, general_tab)
     build_settings_privacy(app, general_tab)
     build_settings_security(app, general_tab)
     build_settings_logging(app, general_tab)
-    build_settings_tours(app, app.settings_tours_tab)
+    build_settings_tours(app, app.settings_scroll_forms["tours"].content)
     build_settings_support(app, support_tab)
     build_settings_maintenance(app, general_tab)
     app._build_settings_backup_tab(backup_tab)
+    app.settings_backup_tab = pages["backup"]
+    for form in app.settings_scroll_forms.values():
+        form.bind_controls()
 
 
 def build_settings_general_system(
@@ -562,6 +572,16 @@ def build_settings_tours(app, tours_tab) -> None:
 
 def build_settings_support(app, support_tab) -> None:
     """Build support package actions and the optional support form."""
+    app.support_contact_label = ttk.Label(
+        support_tab,
+        text=app.tr("about_support_contact", "Support: {email}").format(
+            email=NETMON_SUPPORT_EMAIL
+        ),
+        font=("TkDefaultFont", 14, "bold"),
+        wraplength=760,
+        justify="left",
+    )
+    app.support_contact_label.pack(anchor="w", pady=(0, 12))
     support_group = ttk.LabelFrame(
         support_tab,
         text=app.tr("support_group_title", "Support / diagnostics"),

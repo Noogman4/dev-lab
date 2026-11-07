@@ -67,6 +67,16 @@ class ImmediateThread:
             self.target(*self.args, **self.kwargs)
 
 
+def bind_effective_dns_profile(app, servers):
+    """Explicit resolver readback for tests of successful profile selection."""
+    service = app._dns_control_service()
+    service.read_resolvectl_status = lambda timeout=8: (
+        0,
+        "Global\n    DNS Servers: " + " ".join(servers) + "\n",
+    )
+    service.get_wireguard_interfaces = lambda: set()
+
+
 @pytest.fixture
 def passive_dns_status(monkeypatch, request):
     """Opt-in status response; every other command retains its real guard."""
@@ -155,6 +165,7 @@ def test_passive_dns_status_preserves_unexpected_command_guard(
 
 def test_dns_consistency_logs_killswitch_hint_and_http_blocked(monkeypatch):
     app = netmon.App.__new__(netmon.App)
+    bind_effective_dns_profile(app, ["1.1.1.1"])
     logs = []
 
     app.dns_consistency_enabled = True
@@ -202,6 +213,7 @@ def test_dns_consistency_normalizes_manual_dns_hostname_for_explicit_query(
     monkeypatch,
 ):
     app = netmon.App.__new__(netmon.App)
+    bind_effective_dns_profile(app, ["8.8.8.8"])
     commands = []
 
     app.dns_consistency_enabled = True
@@ -391,7 +403,7 @@ def test_update_dns_header_falls_back_to_active_resolver_dns():
 
     assert (
         app.nm_dns_header_var.get()
-        == "NM DNS (enp4s0): 1.1.1.1, 1.0.0.1 | IP: 198.51.100.42 | Land: DE"
+        == "Resolver DNS: 1.1.1.1, 1.0.0.1 | IP: 198.51.100.42 | Land: DE"
     )
 
 
@@ -833,6 +845,7 @@ def test_remove_manual_dns_server_resets_selection(monkeypatch):
 
 def test_apply_dns_profile_choice_via_control_uses_manual_dns_flow(monkeypatch):
     app = netmon.App.__new__(netmon.App)
+    bind_effective_dns_profile(app, ["1.1.1.1", "1.0.0.1"])
     calls = []
 
     monkeypatch.setattr(
@@ -864,6 +877,7 @@ def test_apply_dns_profile_choice_via_control_uses_manual_dns_flow(monkeypatch):
 
 def test_apply_dns_profile_choice_via_control_supports_custom_dns(monkeypatch):
     app = netmon.App.__new__(netmon.App)
+    bind_effective_dns_profile(app, ["8.8.8.8"])
     calls = []
 
     monkeypatch.setattr(
@@ -898,7 +912,7 @@ def test_apply_dns_profile_choice_via_control_supports_custom_dns(monkeypatch):
     assert result["success"] is True
 
 
-def test_apply_dns_profile_choice_via_control_uses_auto_dns_flow(monkeypatch):
+def test_apply_dns_profile_choice_via_control_rejects_auto_dns_flow(monkeypatch):
     app = netmon.App.__new__(netmon.App)
     calls = []
 
@@ -922,11 +936,13 @@ def test_apply_dns_profile_choice_via_control_uses_auto_dns_flow(monkeypatch):
 
     result = app._apply_dns_profile_choice_via_control("System (DHCP/auto)")
 
-    assert calls == [False]
+    assert calls == []
     assert result["choice"] == "System (DHCP/auto)"
     assert result["servers"] == []
-    assert result["dropin_state"] == "entfernt"
-    assert result["success"] is True
+    assert result["dropin_state"] == "unverändert"
+    assert result["success"] is False
+    assert result["restart_ok"] is False
+    assert "vorläufig gesperrt" in " ".join(result["nm_details"])
 
 
 def test_format_dns_profile_control_result_compacts_normal_output():
@@ -1117,6 +1133,9 @@ Link 2 (enp4s0)
             "is_vpn": False,
             "dns_servers": ["1.1.1.1", "192.168.1.1"],
             "current_dns_server": "",
+            "domains": ["lan", "not-a-dns-token"],
+            "default_route": None,
+            "dns_scope": None,
         }
     ]
 
@@ -1253,14 +1272,70 @@ def test_resolved_status_async_shows_compact_dns_status_without_raw_dump(monkeyp
             "=== DNS Status ===\n\n"
             "✔ systemd-resolved: aktiv\n"
             "✔ Aktiver DNS: 1.1.1.1\n"
-            "✔ Fallback DNS: 1.0.0.1\n"
+            "✔ Weiterer DNS-Server: 1.0.0.1\n"
             "✔ DNS-over-TLS: aktiv\n"
-            "○ DNSSEC: aktiv (Fallback möglich)\n\n"
+            "○ DNSSEC: optional (allow-downgrade)\n\n"
             "=== Ergebnis ===\n"
             "✔ DNS-System läuft stabil",
             False,
         )
     ]
+
+
+@pytest.mark.parametrize(
+    "case,configured",
+    [
+        ("plain", True),
+        ("mixed", False),
+        ("missing", False),
+        ("stopped", False),
+        ("unreadable", False),
+        ("unknown_vpn", False),
+    ],
+)
+def test_resolved_status_plain_dns_is_neutral_only_for_matching_profile(
+    monkeypatch, case, configured
+):
+    app = netmon.App.__new__(netmon.App)
+    outputs = []
+    app.log = lambda _: None
+    app.after = lambda _delay, callback: callback()
+    app.update_dns_output = lambda text: outputs.append(text)
+    app.update_dnssec_mode_status_labels = lambda _: None
+    app.get_selected_user_dns = lambda: ["8.8.8.8", "8.8.4.4"]
+    app._dns_control_service().get_wireguard_interfaces = lambda: (
+        None if case == "unknown_vpn" else set()
+    )
+    monkeypatch.setattr(netmon.threading, "Thread", ImmediateThread)
+    monkeypatch.setattr(netmon, "has_cmd", lambda name: name == "resolvectl")
+
+    def read(args, **kwargs):
+        if args == ["systemctl", "is-active", "systemd-resolved"]:
+            return (1, "inactive") if case == "stopped" else (0, "active")
+        if args == ["resolvectl", "status"]:
+            if case == "unreadable":
+                return 1, "unavailable"
+            servers = "8.8.8.8 8.8.4.4" + (" 1.1.1.1" if case == "mixed" else "")
+            if case == "missing":
+                servers = ""
+            return (
+                0,
+                "Global\n    Protocols: -DNSOverTLS DNSSEC=allow-downgrade/supported\n    DNS Servers: "
+                + servers
+                + "\n",
+            )
+        pytest.fail(f"Unexpected command: {args}")
+
+    monkeypatch.setattr(netmon, "run_cmd", read)
+    app.resolved_status_async(select_tab=False)
+
+    assert len(outputs) == 1
+    assert ("DNS konfiguriert – DNS-over-TLS ausgeschaltet" in outputs[0]) is configured
+    assert ("DNS-System eingeschränkt" in outputs[0]) is (not configured)
+    assert "○ DNS-over-TLS: ausgeschaltet" in outputs[0]
+    if case == "plain":
+        assert "Weiterer DNS-Server: 8.8.4.4" in outputs[0]
+        assert "DNSSEC: optional (allow-downgrade)" in outputs[0]
 
 
 def test_resolved_status_async_background_refresh_keeps_current_tab(monkeypatch):
@@ -1579,6 +1654,10 @@ def test_apply_dns_accepts_vpn_dns_silently_in_stealth_auto_mode(monkeypatch):
 
 def test_enforce_dns_clean_skips_dnssec_confirmation_for_background_apply():
     app = netmon.App.__new__(netmon.App)
+    app._dns_control_service().read_resolvectl_status = lambda timeout=8: (
+        0,
+        "Global\n    Protocols: -DNSOverTLS\n",
+    )
     apply_calls = []
 
     app._auto_dns_control_available = lambda: True
@@ -1656,7 +1735,7 @@ def test_apply_dns_reports_control_layer_target_errors(monkeypatch):
     monkeypatch.setattr(
         netmon.dns_controller,
         "apply_dns_profile_choice_via_control",
-        lambda _app, choice: {
+        lambda _app, choice, **_kwargs: {
             "choice": choice,
             "servers": ["1.1.1.1", "1.0.0.1"],
             "success": False,
@@ -1705,7 +1784,7 @@ def test_apply_dns_refreshes_dns_guard_whitelist_and_check_on_success(monkeypatc
     monkeypatch.setattr(
         netmon.dns_controller,
         "apply_dns_profile_choice_via_control",
-        lambda _app, choice: {
+        lambda _app, choice, **_kwargs: {
             "choice": choice,
             "servers": ["84.200.69.80#DNS.Watch"],
             "success": True,
@@ -1732,6 +1811,7 @@ def test_apply_dns_refreshes_dns_guard_whitelist_and_check_on_success(monkeypatc
 
 def test_dns_consistency_result_with_hostname_does_not_switch_to_dns_tab(monkeypatch):
     app = netmon.App.__new__(netmon.App)
+    bind_effective_dns_profile(app, ["84.200.69.80"])
     selects = []
 
     app.dns_consistency_enabled = True
@@ -2107,39 +2187,39 @@ def test_get_selected_dot_dns_includes_hostname_variants():
     ]
 
 
-def test_dns_guard_loop_enforces_when_dirty():
+def test_dns_guard_loop_enforces_when_dirty(monkeypatch, passive_dns_service):
     app = netmon.App.__new__(netmon.App)
-    app.is_dot_active = lambda: False
-    app.is_vpn_active = lambda: False
-    events = []
-    scheduled = []
-
+    service = passive_dns_service(app)
+    app._active_nm_dns_targets = lambda: []
+    state = {"text": "Global\n    DNS Servers: 9.9.9.9\n"}
+    service.read_resolvectl_status = lambda timeout=8: (0, state["text"])
+    events, scheduled = [], []
     app.dns_guard_enabled_var = DummyVar(True)
-    app.dns_guard_state = ""
-    app.last_dns_guard_state = None
-    app.dns_guard_check_running = False
-    app.last_dns_guard_repair_ts = 0.0
     app.dns_guard_transition_until = 0.0
-    app.get_current_dns = lambda: ["10.2.0.1", "1.1.1.1"]
-    app.rebuild_dns_guard_whitelist = lambda: ["10.2.0.1"]
+    app.get_selected_user_dns = lambda: ["1.1.1.1"]
+    app._auto_dns_control_available = lambda: True
     app.log_safe = lambda msg: events.append(("log", msg))
-    app.enforce_dns_clean = lambda: (True, "guard fixed")
+
+    def repair():
+        state["text"] = "Global\n    DNS Servers: 1.1.1.1\n"
+        return True, "guard fixed"
+
+    app.enforce_dns_clean = repair
     app.update_dns_output = lambda text, append=False: events.append(
         ("output", text, append)
     )
     app.after = lambda delay, callback: scheduled.append((delay, callback))
-    app.log_debug_safe = lambda msg: None
+    app.log_debug_safe = lambda msg: events.append(("error", msg))
     app.dns_guard_status_var = DummyVar()
     app.dns_guard_last_action_var = DummyVar()
     app.set_light = lambda _light, color: events.append(("light", color))
-
     app.dns_guard_loop()
-
     assert ("log", "DNS Guard: Abweichung erkannt") in events
-    assert ("log", "DNS Guard: Inkonsistenz erkannt → Auto-Korrektur") in events
+    assert ("log", "DNS Guard: automatische Korrektur nachgeprüft") in events
     assert ("output", "guard fixed", True) in events
-    assert app.dns_guard_status_var.get() == "DNS Guard: aktiv / korrigiert"
-    assert app.dns_guard_last_action_var.get().startswith("Letzte Korrektur: ")
+    assert app.dns_guard_status_var.get() == "DNS Guard: aktiv / sauber"
+    assert app.dns_guard_last_action_var.get().startswith("Letzter Reparaturversuch: ")
+    assert not [event for event in events if event[0] == "error"]
     assert scheduled and scheduled[-1][0] == 5000
 
 
@@ -2219,23 +2299,23 @@ def test_update_dns_guard_indicator_sets_label_and_light():
     assert app.dns_guard_label.config["text"] == "DNS Guard: Wechsel wird geprüft"
 
 
-def test_rebuild_dns_guard_whitelist_switches_between_vpn_and_manual():
+def test_rebuild_dns_guard_whitelist_switches_between_vpn_and_manual(
+    passive_dns_service,
+):
     app = netmon.App.__new__(netmon.App)
-    app.is_vpn_active = lambda: True
-    app.is_dot_active = lambda: False
-    app.get_active_vpn_dns = lambda: ["10.2.0.1", "2a07:b944::2:1"]
+    service = passive_dns_service(app)
+    service.get_wireguard_interfaces = lambda: {"wg0"}
     app.get_selected_user_dns = lambda: ["1.1.1.1"]
     app.get_selected_dot_dns = lambda: ["9.9.9.9"]
-    app.get_current_dns = lambda: ["9.9.9.9"]
-
+    state = {"text": "Link 3 (wg0)\n    DNS Servers: 10.2.0.1 2a07:b944::2:1\n"}
+    service.read_resolvectl_status = lambda timeout=8: (0, state["text"])
     assert app.rebuild_dns_guard_whitelist() == ["10.2.0.1", "2a07:b944::2:1"]
     assert app.get_allowed_dns() == ["10.2.0.1", "2a07:b944::2:1"]
-
-    app.is_vpn_active = lambda: False
+    state["text"] = "Global\n    DNS Servers: 9.9.9.9\n"
+    service.get_wireguard_interfaces = lambda: set()
     assert app.rebuild_dns_guard_whitelist() == ["1.1.1.1"]
     assert app.get_allowed_dns() == ["1.1.1.1"]
-
-    app.is_dot_active = lambda: True
+    state["text"] += "    Protocols: +DNSOverTLS\n"
     assert app.rebuild_dns_guard_whitelist() == ["9.9.9.9"]
     assert app.get_allowed_dns() == ["9.9.9.9"]
 
@@ -2281,7 +2361,7 @@ def test_run_dns_guard_check_once_respects_transition_and_no_repair():
     assert logs == ["DNS Guard: Wechsel wird geprüft"] or logs == []
 
 
-def test_run_dns_guard_check_once_marks_dot_profile_ok():
+def test_run_dns_guard_check_once_marks_dot_profile_ok(passive_dns_service):
     app = netmon.App.__new__(netmon.App)
     logs = []
 
@@ -2294,15 +2374,12 @@ def test_run_dns_guard_check_once_marks_dot_profile_ok():
     app.dns_guard_last_action_var = DummyVar()
     app.log_safe = logs.append
     app.update_dns_guard_indicator = lambda: None
-    app.rebuild_dns_guard_whitelist = lambda: [
-        "1.1.1.1",
-        "1.0.0.1",
-        "1.1.1.1#cloudflare-dns.com",
-        "1.0.0.1#cloudflare-dns.com",
-    ]
-    app.get_current_dns = lambda: ["1.1.1.1#cloudflare-dns.com", "1.0.0.1"]
-    app.is_vpn_active = lambda: False
-    app.is_dot_active = lambda: True
+    service = passive_dns_service(app)
+    service.read_resolvectl_status = lambda timeout=8: (
+        0,
+        "Global\n    Protocols: +DNSOverTLS\n    DNS Servers: 1.1.1.1#cloudflare-dns.com 1.0.0.1\n",
+    )
+    app.get_selected_dot_dns = lambda: ["1.1.1.1", "1.0.0.1"]
 
     app.run_dns_guard_check_once()
 
@@ -2310,7 +2387,9 @@ def test_run_dns_guard_check_once_marks_dot_profile_ok():
     assert logs == ["DNS Guard: OK"]
 
 
-def test_run_dns_guard_check_once_marks_unknown_when_target_dns_is_missing():
+def test_run_dns_guard_check_once_marks_unknown_when_target_dns_is_missing(
+    passive_dns_service,
+):
     app = netmon.App.__new__(netmon.App)
     logs = []
 
@@ -2323,10 +2402,13 @@ def test_run_dns_guard_check_once_marks_unknown_when_target_dns_is_missing():
     app.dns_guard_last_action_var = DummyVar()
     app.log_safe = logs.append
     app.update_dns_guard_indicator = lambda: None
-    app.rebuild_dns_guard_whitelist = lambda: []
-    app.get_current_dns = lambda: ["10.2.0.1"]
-    app.is_vpn_active = lambda: True
-    app.is_dot_active = lambda: False
+    service = passive_dns_service(app)
+    service.get_wireguard_interfaces = lambda: {"wg0"}
+    service.read_resolvectl_status = lambda timeout=8: (
+        0,
+        "Global\n    DNS Servers: 10.2.0.1\nLink 3 (wg0)\n    DNS Servers: \n",
+    )
+    app.get_selected_dot_dns = lambda: []
 
     app.run_dns_guard_check_once()
 
@@ -2353,7 +2435,7 @@ def test_schedule_dns_finalize_after_vpn_profile_switch_coalesces_callbacks():
     assert calls == ["finalized"]
 
 
-def test_run_dns_guard_check_once_marks_dot_profile_mismatch():
+def test_run_dns_guard_check_once_marks_dot_profile_mismatch(passive_dns_service):
     app = netmon.App.__new__(netmon.App)
     logs = []
 
@@ -2366,15 +2448,12 @@ def test_run_dns_guard_check_once_marks_dot_profile_mismatch():
     app.dns_guard_last_action_var = DummyVar()
     app.log_safe = logs.append
     app.update_dns_guard_indicator = lambda: None
-    app.rebuild_dns_guard_whitelist = lambda: [
-        "1.1.1.1",
-        "1.0.0.1",
-        "1.1.1.1#cloudflare-dns.com",
-        "1.0.0.1#cloudflare-dns.com",
-    ]
-    app.get_current_dns = lambda: ["9.9.9.9"]
-    app.is_vpn_active = lambda: False
-    app.is_dot_active = lambda: True
+    service = passive_dns_service(app)
+    service.read_resolvectl_status = lambda timeout=8: (
+        0,
+        "Global\n    Protocols: +DNSOverTLS\n    DNS Servers: 9.9.9.9\n",
+    )
+    app.get_selected_dot_dns = lambda: ["1.1.1.1", "1.0.0.1"]
 
     app.run_dns_guard_check_once()
 
@@ -3478,7 +3557,7 @@ def test_update_dot_light_marks_vpn_states():
     app.dot_vpn_conflict = False
 
     app._update_dot_light()
-    assert colors[-1] == "green"
+    assert colors[-1] == "yellow"
 
     app.dot_enabled = False
     app._update_dot_light()
@@ -3489,7 +3568,7 @@ def test_update_dot_light_marks_vpn_states():
     assert colors[-1] == "red"
 
 
-def test_restore_isp_dns_after_vpn_uses_cloudflare_fallback():
+def test_restore_isp_dns_after_vpn_refuses_cloudflare_fallback():
     app = netmon.App.__new__(netmon.App)
     calls = []
     logs = []
@@ -3502,19 +3581,14 @@ def test_restore_isp_dns_after_vpn_uses_cloudflare_fallback():
     app.apply_dns = lambda **kwargs: calls.append(kwargs) or True
     app.log_safe = logs.append
 
-    assert app._restore_isp_dns_after_vpn_switch() is True
-    assert calls == [
-        {
-            "choice": "Cloudflare (1.1.1.1)",
-            "refresh_ui": False,
-            "update_choice_var": True,
-            "confirm_dnssec": False,
-        }
-    ]
-    assert logs == ["DNS nach VPN-Aus gesetzt: Cloudflare (1.1.1.1)"]
+    assert app._isp_dns_restore_choice_after_vpn() == "Cloudflare (1.1.1.1)"
+    assert app._restore_isp_dns_after_vpn_switch() is False
+    assert calls == []
+    assert any("vorläufig gesperrt" in message for message in logs)
+    assert logs[-1] == "DNS nach VPN-Aus nicht gesetzt: Cloudflare (1.1.1.1)"
 
 
-def test_restore_isp_dns_after_vpn_prefers_selected_dns_choice():
+def test_restore_isp_dns_after_vpn_refuses_even_selected_dns_choice():
     app = netmon.App.__new__(netmon.App)
     calls = []
 
@@ -3526,8 +3600,9 @@ def test_restore_isp_dns_after_vpn_prefers_selected_dns_choice():
     app.apply_dns = lambda **kwargs: calls.append(kwargs) or True
     app.log_safe = lambda _message: None
 
-    assert app._restore_isp_dns_after_vpn_switch() is True
-    assert calls[0]["choice"] == "Quad9 (malware-blocking)"
+    assert app._isp_dns_restore_choice_after_vpn() == "Quad9 (malware-blocking)"
+    assert app._restore_isp_dns_after_vpn_switch() is False
+    assert calls == []
 
 
 def test_restore_isp_dns_after_vpn_skips_during_internet_vpn_restore():
@@ -3549,9 +3624,11 @@ def test_restore_isp_dns_after_vpn_skips_during_internet_vpn_restore():
     assert logs == ["[DEBUG] DNS nach VPN-Aus übersprungen: Internet-AN-Restore aktiv."]
 
 
-def test_apply_automatic_dns_restore_choice_bypasses_ui_lock_during_transition():
+def test_automatic_dns_restore_stays_blocked_during_transition():
     app = netmon.App.__new__(netmon.App)
     calls = []
+    app.is_vpn_active = lambda: False
+    app._auto_dns_control_available = lambda: True
 
     app._dns_runtime_transition_active = lambda: True
     app._set_dns_choice_safe = lambda choice: calls.append(("set", choice))
@@ -3562,12 +3639,8 @@ def test_apply_automatic_dns_restore_choice_bypasses_ui_lock_during_transition()
     app.apply_dns = lambda **kwargs: calls.append(("apply_dns", kwargs)) or False
     app.log_safe = lambda _message: None
 
-    assert app._apply_automatic_dns_restore_choice("Cloudflare (1.1.1.1)") is True
-    assert calls == [
-        ("set", "Cloudflare (1.1.1.1)"),
-        ("control", "Cloudflare (1.1.1.1)"),
-        ("refresh", None),
-    ]
+    assert app._apply_automatic_dns_restore_choice("Cloudflare (1.1.1.1)") is False
+    assert calls == []
 
 
 def test_restore_isp_dns_on_startup_uses_fallback_without_active_dns(monkeypatch):

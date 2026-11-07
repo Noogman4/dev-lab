@@ -9,6 +9,9 @@ import pytest
 from netmon.config.constants import VPN_SLOT_COUNT
 from netmon.features import vpn_controller
 from tools import netmon
+from test_killswitch_failure_recovery import (
+    simulated_snapshot_transport as simulated_snapshot_transport,
+)
 
 
 @pytest.fixture
@@ -138,7 +141,7 @@ def test_load_vpn_slots_config_reads_saved_slots(tmp_path):
     assert slots[9] == {"slot": 10, "custom_name": "", "profile": ""}
 
 
-def test_ensure_netmon_wireguard_profiles_dir_uses_documents_dir_and_migrates(
+def test_ensure_netmon_wireguard_profiles_dir_does_not_copy_legacy_profiles(
     monkeypatch, tmp_path
 ):
     docs_dir = tmp_path / "Documents" / "NetMon"
@@ -147,8 +150,8 @@ def test_ensure_netmon_wireguard_profiles_dir_uses_documents_dir_and_migrates(
     (legacy_dir / "demo.conf").write_text("[Interface]\nAddress = 10.0.0.2/32\n")
     monkeypatch.setattr(
         vpn_controller,
-        "get_netmon_documents_dir",
-        lambda: str(docs_dir),
+        "get_netmon_wireguard_dir",
+        lambda: str(docs_dir / "WireGuard"),
     )
     monkeypatch.setattr(
         vpn_controller,
@@ -159,7 +162,8 @@ def test_ensure_netmon_wireguard_profiles_dir_uses_documents_dir_and_migrates(
     result = vpn_controller.ensure_netmon_wireguard_profiles_dir()
 
     assert result == str(docs_dir / "WireGuard")
-    assert (docs_dir / "WireGuard" / "demo.conf").is_file()
+    assert not (docs_dir / "WireGuard" / "demo.conf").exists()
+    assert (legacy_dir / "demo.conf").is_file()
 
 
 def test_update_vpn_slot_buttons_sets_labels_and_colors():
@@ -1167,7 +1171,9 @@ def test_import_wg_profiles_from_folder_uses_initialdir_and_remembers_last_direc
     logs = []
     dialog_kwargs = {}
     app.log = logs.append
-    app.get_wg_import_dir = lambda: "/start/here"
+    initialdir = tmp_path / "start" / "here"
+    initialdir.mkdir(parents=True)
+    app.get_wg_import_dir = lambda: str(initialdir)
     app.set_wg_import_dir = lambda folder: calls.append(("dir", folder))
     app.sync_internal_ipv4_profiles = lambda log_failures=True: calls.append("sync")
     app.refresh_wg_profiles = lambda: setattr(app, "wg_profiles", ["wg-imported"])
@@ -1200,7 +1206,7 @@ def test_import_wg_profiles_from_folder_uses_initialdir_and_remembers_last_direc
     monkeypatch.setattr(vpn_controller, "_owned_nm_command", lambda *a, **k: None)
     app.import_wg_profiles_from_folder()
 
-    assert dialog_kwargs["initialdir"] == "/start/here"
+    assert dialog_kwargs["initialdir"] == str(initialdir)
     assert calls == [("dir", str(tmp_path)), "sync", "buttons", "table"]
     assert (
         "WireGuard-Import beendet: 1 importiert, 0 übersprungen, 0 fehlgeschlagen."

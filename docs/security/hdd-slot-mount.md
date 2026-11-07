@@ -50,11 +50,16 @@ Ein tatsächlicher Root-Kompromiss wurde nicht ausgeführt oder nachgewiesen.
 - Mount und LUKS-Unlock benutzen ausschließlich UDisks unter der Identität
   des angemeldeten Benutzers. Es gibt keinen sudo-, cryptsetup-, mkdir-
   oder klassischen mount-Fallback mehr in diesem Mount-Ablauf.
-- Mount-Optionen sind fest `nodev,nosuid,noexec`. Vom Benutzer konfigurierbare
-  Zielpfade und Optionen gelangen nicht an den Mount-Aufruf.
+- Reguläre Mounts verwenden fest `nodev,nosuid,noexec`. Vom Benutzer konfigurierbare
+  Zielpfade und Optionen gelangen nicht an den Mount-Aufruf. Der unten beschriebene,
+  native LUKS-System-Mount verwendet ausdrücklich einen anderen Optionsvertrag
+  aus der System-fstab. Nach ausdrücklicher Benutzerfreigabe gelten dort die
+  administrierten Linux-Einstellungen ohne zusätzliches NetMon-Popup.
 - Weil UDisks bei fstab-Geräten Systemoptionen übernehmen kann, werden
   solche Geräte vor dem Mount mit der festen Systemdatei `/etc/fstab`
-  abgeglichen und abgewiesen. Die unten dokumentierte Nachbesserung B-01
+  abgeglichen und grundsätzlich abgewiesen. Die unten beschriebene enge LUKS-
+  Ausnahme verlangt einen vollständig verifizierten System-Mount-Prüfstand.
+  Die Nachbesserung B-01
   ersetzt die zunächst umleitbare Abfrage. Nicht eindeutige oder fehlerhafte
   Antworten führen zum Abbruch.
 - Die LUKS-Passphrase verbleibt außerhalb der Kommandozeile in einer privaten
@@ -393,3 +398,208 @@ wurde nicht geändert. Es erfolgte kein automatischer Commit oder Push.
 
 - https://storaged.org/doc/udisks2-api/latest/udisksctl.1.html
 - https://storaged.org/doc/udisks2-api/latest/mount_options.html
+
+
+## Nativer LUKS-System-Mount, 31.10.2026
+
+Der Benutzer hat für den vorhandenen Container ausdrücklich den nativen
+UDisks-Mount mit den administrierten Linux-Einstellungen freigegeben. Die
+ursprüngliche zusätzliche Bestätigung vor jedem Mount wurde auf erneuten
+Benutzerwunsch entfernt. „Mount“ setzt nach erforderlicher LUKS-Passphrase und
+erfolgreichen Geräte-/Systemprüfungen unmittelbar mit dem Einhängen fort.
+Native Linux-/Polkit-Autorisierung bleibt erhalten.
+
+Für diesen eng begrenzten System-Mount gilt bewusst der Systemvertrag statt
+des bisherigen zwingenden `noexec`-Vertrags. Der bestehende fstab-Eintrag enthält
+`nosuid,nodev`, aber kein `noexec`: Programme auf dem Laufwerk können ausführbar
+sein. Reguläre Mounts verlangen weiterhin `nodev,nosuid,noexec`; der Service
+verweigert fstab-Treffer, wenn kein verifizierter System-Mount-Prüfstand
+übergeben wird. Die Erleichterung betrifft ausschließlich das zusätzliche
+NetMon-Popup, keine Geräte-, Konfigurations- oder Zielprüfung. LUKS-Automount
+bleibt gesperrt. Es gibt keinen neuen Einstellungswert und keine Speicherung
+einer ungeprüften Freigabe im Slot.
+
+Der neue Weg ist absichtlich eng begrenzt:
+
+- Genau ein inneres ext4-Dateisystem mit UUID und Typ `crypt`, direkt unter dem
+  gebundenen LUKS-Gerät; keine fremden, zusätzlichen oder mehrdeutigen Mapper.
+- Genau ein fstab-Treffer über die innere `UUID=…` oder ihren `/dev/disk/by-uuid/…`-
+  Alias. Ziel ausschließlich `/mnt/<innere UUID>`, Typ `auto` oder `ext4`,
+  Dump-/Passfelder `0 0`. Kein frei gewählter Slot-Zielpfad.
+- `nosuid,nodev,noauto` sind erforderlich. Zusätzlich sind nur `noexec`,
+  `nofail`, `x-gvfs-show` sowie höchstens eines von `ro`/`rw` zulässig.
+  Gegenoptionen, unbekannte und doppelte Optionen werden verweigert. Die
+  Auslassung von `noexec` ist die ausdrücklich freigegebene Ausnahme.
+- Das Ziel muss bereits existieren. Alle Verzeichniskomponenten werden mit
+  `O_PATH|O_DIRECTORY|O_NOFOLLOW` geprüft: Root-Eigentum und keine Gruppen-/
+  Fremdschreibrechte. NetMon erstellt oder verändert kein Verzeichnis.
+- Die bestehende fstab-, Swapfile- und UUID-Prüfung bleibt aktiv. Ein zusätzlicher
+  nicht auflösbarer fremder UUID-Eintrag kann diesen Sonderfall weiterhin
+  konservativ sperren, wenn die bestehende Unabhängigkeitsprüfung keine leere
+  UDisks-Systemkonfiguration bestätigen kann.
+- UDisks muss dieselbe Quelle, UUID, Gerätenummer, Dateisystemart und UUID-Alias
+  melden. Seine `Block.Configuration` muss genau denselben fstab-Eintrag
+  einschließlich Quelle, Ziel, Typ, Optionen und Zahlenfeldern enthalten.
+- Der unveränderliche Prüfstand enthält fstab-Dateiidentität und Inhalt,
+  Geräte-/Mapperidentität, FS-ID und Inode des Quellknotens sowie die geprüften
+  Zielverzeichnisse. Unmittelbar vor dem Mount wird alles erneut ermittelt und
+  mit dem Prüfstand verglichen. Die äußere Gerätebindung vor Passphrase-Dialog
+  und Worker bleibt erhalten.
+
+Der einzige neue Aktionsaufruf lautet `udisksctl mount --block-device <Quelle>`.
+Es werden bewusst keine vermeintlich erzwungenen Caller-Mountoptionen angegeben.
+UDisks verwendet für fstab-Geräte die Systemoptionen und ignoriert die Optionen
+des Aufrufers, wie in der [UDisks-Mount-Dokumentation](https://storaged.org/doc/udisks2-api/2.10.1/gdbus-org.freedesktop.UDisks2.Filesystem.html#gdbus-method-org-freedesktop-UDisks2-Filesystem.Mount)
+beschrieben. Die Struktur der verglichenen Konfiguration folgt der
+[Block.Configuration-Dokumentation](https://storaged.org/doc/udisks2-api/2.10.1/gdbus-org.freedesktop.UDisks2.Block.html#gdbus-property-org-freedesktop-UDisks2-Block.Configuration).
+Kein Root-Mount-Fallback, Remount oder automatischer fstab-Eingriff wird ergänzt.
+
+Nach Erfolg muss die bestehende Kernel-Mountprüfung genau die gebundene Quelle
+und das verifizierte Ziel nachweisen. Andernfalls wird kein Erfolg gemeldet;
+NetMon versucht keine automatische Rückabwicklung. Bei Abbruch oder Fehler nach
+bestätigtem Unlock zeigt die Oberfläche, dass LUKS entsperrt bleibt und der
+Mount nicht bestätigt wurde, und aktualisiert den Laufwerksstatus. Ein Mapper
+wird dabei nicht automatisch geschlossen. Erfolgsmeldungen nennen ausdrücklich
+die Systemoptionen. Eine atomare Transaktion über Passphrase-Dialog, fstab, UDisks und
+Kernel wird nicht behauptet; Änderungen nach der letzten Prüfung bleiben wie
+beim bisherigen Mountpfad eine Laufzeitgrenze.
+
+### Prüfung und Grenzen
+
+Vor Änderung: 419 bestehende HDD-/Guard-Tests bestanden. Nach Änderung:
+479 Tests bestanden, darunter 60 neue Fälle in
+`tests/test_hdd_luks_system_mount.py`. Alle Mount-/Unlock-Aktionen und Busdaten
+sind synthetisch. Der gemeinsame Lauf umfasst die bisherigen Sicherheits-,
+Swapfile-, UUID-, Rückmeldungs-, Busy-, Unmount- und HDD-Funktionstests sowie
+den Host-Access-Guard. Ausführung über `tests/run_isolated_suite.py` in der
+geprüften Bubblewrap-/Xvfb-Isolation ohne Host-Geräte, Dienstsockets oder Netz.
+
+Zusätzlich: Black-Formatprüfung, Ruff und Syntax-/Sprachdateiprüfung für die
+geänderten Dateien. Keine neuen Abhängigkeiten.
+
+**Stand vor dem folgenden manuellen Test:** kein realer LUKS-Mount oder
+Desktop-/Polkit-Abnahmenachweis. In der zunächst verwendeten Sandbox
+sind weder das in der Übergabe genannte installierte
+`netmon`-Paket noch `/usr/lib/netmon/…` sichtbar; der frühere Installationsstand
+wurde deshalb nicht neu bestätigt. Die lokale `/etc/fstab` wird nicht als
+Abbild des beschriebenen Desktop-Hosts ausgegeben.
+
+Bis dahin keine Installation, Paketneuerstellung, NetMon-Start, realen
+Geräteaktionen, Systemkonfigurationsänderungen, DNS-/Firewall-/VPN-Änderungen,
+KS48-Prüfrunde, Commits oder Pushes. Das bestehende V4-DEB bleibt unverändert.
+
+### Manueller Container-Test und vereinfachter Dialog, 31.10.2026
+
+Der Benutzer hat anschließend den Start aus der V4-Arbeitskopie und den
+manuellen Test angefordert. Die GUI verwendet private Konfigurationskopien
+unter `/tmp/user/1000/netmon-v4-hdd-gui-avxh312w/`: DNS-Guard und HDD-Automount
+aus, gespeicherte Originaleinstellungen unverändert. Außerhalb der Sandbox
+sind die Host-Gerätenodes zugänglich; die Host-fstab hat weiterhin SHA-256
+`d3a3efb8988b07d0011769a12cfa9132da9717f75830fdb6bf4f9a0ee3d6e081`.
+
+Der erste Start mit `NoNewPrivileges=1` war für den Unmount-Test ungeeignet:
+Er blockierte sudo unabhängig vom Passwort. Der Fehler ist als Problem des
+Teststarts eingegrenzt, nicht als nachgewiesene Unmount-Regression. Nach
+regulärem Schließen durch den Benutzer wurde dieselbe Arbeitskopie mit
+`NoNewPrivileges=0` und weiter deaktiviertem DNS-Guard gestartet. Dafür wurde
+kein Produktcode geändert. Der Benutzer bediente sämtliche Geräteaktionen.
+
+Das Laufzeitlog des zweiten Starts bestätigt (Europe/Berlin):
+
+- 12:55:10: Container erfolgreich ausgehängt und `/dev/dm-0` geschlossen.
+- 12:56:16: Container über den neuen nativen Systempfad gemountet.
+- 12:56:23: Container erneut erfolgreich ausgehängt und Mapper geschlossen.
+
+Der Benutzer bestätigt: Mount und Unmount laufen sauber durch. Die vorherige
+lesende Kernelprüfung bestätigte die innere Dateisystem-UUID am erwarteten Ziel
+mit `rw,nosuid,nodev,relatime`, also ohne `noexec`, passend zum bewusst
+bestätigten Systemvertrag. Das ist ein realer Nachweis dieses Containerablaufs,
+keine vollständige Abnahme aller HDD-Slots oder Hotplug-Szenarien.
+
+Auf Benutzerwunsch wurde der Bestätigungsdialog zunächst kurz und verständlich:
+Titel „Laufwerk öffnen“, Frage mit dem Slotnamen, Hinweis auf die geltenden
+Linux-Einstellungen und darauf, nur vertrauenswürdige Programme zu starten.
+Bei „Nein“ bleibt das Laufwerk entsperrt. UUID, Mapperpfad, Ziel und Optionen
+werden nicht mehr im Dialog angezeigt; sie bleiben in der technischen
+Protokollierung. In diesem Zwischenstand blieb die Bestätigung pro Mount
+erforderlich; Gerätebindung,
+Prüfstandvergleich, Mount-/Unmount-Ablauf und Ablehnung als Voreinstellung
+werden nicht gelockert. Deutsch, Englisch und englischer Fallback sind
+angepasst. Dieser Dialog-Zwischenstand wurde anschließend durch die unten
+beschriebene direkte Ausführung ersetzt.
+
+Die bestehenden Dialogtests werden an die neue Darstellung angepasst; die
+nativen Sicherheits- und Ablaufprüfungen bleiben erhalten. Keine neue
+Abhängigkeit, Installation, Paketneuerstellung, fstab-Änderung, Commit oder Push.
+
+Nach der Dialoganpassung erneut 479 HDD-/Guard-Tests bestanden; Black, Ruff
+und Syntax-/JSON-Prüfung ohne Befund. Die laufende GUI wurde dafür weder
+neugestartet noch fernbedient.
+
+
+### Zusätzliche Mount-Bestätigung entfernt (aktueller Stand)
+
+Der Benutzer hat nach Erklärung des Optionsvertrags ausdrücklich beauftragt,
+das zusätzliche Popup wegzulassen und für den verifizierten systemverwalteten
+LUKS-Container die bestehenden Linux-Einstellungen als Standard zu verwenden.
+Die frühere Freigabe „Bestätigung vor jedem System-Mount“ ist damit für diesen
+Ablauf ersetzt.
+
+Der Controller übergibt den geprüften System-Mount-Prüfstand jetzt direkt an
+den Service. Die erneute Prüfung der äußeren Gerätebindung zwischen Planung
+und Ausführung sowie sämtliche Service-Revalidierungen bleiben an gleicher
+Stelle erhalten. Der Service vergleicht vor UDisks weiterhin Geräte-/Mapper-
+Identität, Quellknoten-Inode, fstab-Inhalt und -Identität, UDisks-Konfiguration
+und Zielverzeichnisse. Auch Post-Mount-Kontrolle und Unmount-Ablauf bleiben
+unverändert. LUKS-Passphrase und gegebenenfalls native Linux-Autorisierung
+werden weiterhin angefordert; nur der zusätzliche NetMon-Ja-/Nein-Dialog
+entfällt. Fehler nach Unlock melden weiterhin den offen gebliebenen Zustand.
+
+Der unbenutzte Dialoghelfer und seine drei Sprachschlüssel sind entfernt.
+Die vorhandenen Positivtests verlangen einen direkten Mount ohne zusätzliche
+NetMon-Bestätigung. Die elf Wechsel-/Manipulationsfälle setzen Änderungen nun
+zwischen erster Prüfstanderstellung und Verwendung ein und verlangen weiter
+Ablehnung ohne Mount. Ausschließlich die fünf Fälle für Abbruch, Thread-
+Dispatch und Übersetzungen des entfernten Popups entfallen; die übrigen
+Sicherheitsprüfungen bleiben bestehen. Kein Mount-/Unmount-/Unlock-/Close-Test
+wird real durch den Agenten ausgelöst.
+
+Der manuelle Mount-/Unmount-Nachtest ohne Popup wurde anschließend vom
+Benutzer bestanden gemeldet und durch die unten genannten Logerfolge gestützt.
+Die früheren realen Erfolge mit Popup bleiben als vorheriger Stand dokumentiert. Kein Paketbau, keine Installation, keine
+Änderung an `/etc/fstab` oder gespeicherten Benutzerkonfigurationen, keine
+DNS-/Firewall-/VPN-Änderung und kein Commit/Push.
+
+Abschlussprüfung nach Entfernung: **474 HDD-/Guard-Tests bestanden**, davon
+55 native LUKS-System-Mount-Fälle. Die Differenz zu den früheren 479 Fällen
+besteht ausschließlich aus fünf entfallenen Tests des entfernten Popups.
+Black, Ruff, Syntax-/JSON-Prüfung und Suche nach verwaisten Dialogreferenzen
+ohne Befund. AST-Vergleich bestätigt unveränderte Service-Prüflogik und
+Prüfreihenfolge; im Service wurden nur Erläuterung und Fehlerwortlaut
+aktualisiert. Der Unmount-Code bleibt AST-identisch. Der anschließende echte Mount-/Unmount-
+Nachtest ohne Popup ist im folgenden Nachtrag dokumentiert.
+
+
+### Manueller Nachtest ohne Zusatzpopup bestanden, 31.10.2026
+
+Der Benutzer bestätigt nach dem Neustart ausdrücklich: manueller Nachtest
+bestanden, Mount und Unmount funktionieren. Das Testlaufzeitlog unter
+`/tmp/user/1000/netmon-v4-hdd-gui-avxh312w/Documents/NetMon/Logs/runtime.log`
+zeigt nach dem neuen Start um 13:17:43 Uhr (Europe/Berlin):
+
+- 13:18:03: Container erfolgreich ausgehängt, LUKS `/dev/dm-0` geschlossen.
+- 13:18:21: Container über den Systempfad erfolgreich gemountet; protokollierte
+  Systemoptionen `nosuid,nodev,nofail,x-gvfs-show,noauto`.
+- 13:18:28: Container erneut erfolgreich ausgehängt, LUKS `/dev/dm-0` geschlossen.
+
+Damit ist der manuelle LUKS-Mount-/Unmount-Nachtest ohne zusätzliches NetMon-
+Popup für diesen Container bestanden. Die Geräteaktionen und die sichtbare
+Bedienung stammen vom Benutzer; der Agent hat das Laufzeitlog nur gelesen.
+Die Logmeldungen stützen den Benutzerbericht, ersetzen aber keine zusätzliche
+unabhängige Kernelprüfung oder vollständige Abnahme aller HDD-Slots.
+Ältere Fehlversuche im selben Log gehören zu vorherigen Läufen und werden
+nicht dem bestandenen Nachtest zugerechnet.
+
+Für diese Ergebnisdokumentation wurden ausschließlich diese Notizen geändert;
+keine erneuten Geräteaktionen, Codeänderungen, Tests, Paketbauten,
+Installationen, Systemänderungen oder Commits/Pushes ausgeführt.

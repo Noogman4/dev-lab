@@ -1,5 +1,7 @@
 import subprocess
 import sys
+import json
+import shutil
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -42,21 +44,41 @@ def test_main_deb_builder_generates_required_policy_artifacts():
     assert 'find "$PKG_DIR" -type f -exec chmod 0644' in source
 
 
-def test_main_deb_builder_only_restores_legacy_install_dns():
-    source = (PROJECT_ROOT / "scripts" / "build_netmon_deb.sh").read_text(
-        encoding="utf-8"
-    )
+def test_main_deb_builder_never_restores_legacy_install_dns():
+    import re
 
-    assert 'NETMON_INSTALL_DNS_STATE="$NETMON_STATE_DIR/install-dns-nm.state"' in source
-    assert "restore_legacy_install_dns" in source
-    assert "apply_netmon_install_dns" not in source
-    assert "NETMON_INSTALL_DNS_SERVER" not in source
-    assert "8.8.8.8" not in source
-    assert 'cat > "$PKG_DIR/DEBIAN/prerm"' in source
-    assert "restore_netmon_install_dns" in source
-    assert 'ipv4.dns "$OLD_DNS"' in source
-    assert 'rm -f "$NETMON_INSTALL_DNS_STATE"' in source
-    assert '"$PKG_DIR/DEBIAN/prerm"' in source
+    source = (PROJECT_ROOT / "scripts/build_netmon_deb.sh").read_text()
+    for phase in ("postinst", "prerm"):
+        match = re.search(
+            rf"^cat > \"\$PKG_DIR/DEBIAN/{phase}\" <<'([A-Z]+)'\n(.*?)^\1$",
+            source,
+            re.M | re.S,
+        )
+        assert match is not None
+        assert not re.search(r"\b(nmcli|resolvectl|systemctl|nft|sudo)\b", match[2])
+        assert not re.search(r"^\s*(?:/usr/sbin/)?ufw\s", match[2], re.M)
+        if phase == "prerm":
+            assert "ufw-snapshot/state.json" in match[2]
+            assert '"-I", path, "removal"' in match[2]
+    assert "restore_legacy_install_dns" not in source
+    assert "restore_netmon_install_dns" not in source
+    assert "install-dns-nm.state" not in source
+
+
+def test_deb_test_version_rejects_non_test_versions_without_building():
+    result = subprocess.run(
+        [
+            "bash",
+            str(PROJECT_ROOT / "scripts/build_netmon_deb.sh"),
+            "--test-version",
+            "1.1.21",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 2
+    assert "Test version must be" in result.stderr
 
 
 def test_main_deb_policy_sources_exist():
@@ -145,9 +167,9 @@ def test_release_builders_derive_version_and_require_signatures():
         assert "maybe_sign_release" not in source
 
 
-def test_current_release_metadata_is_consistent():
+def test_current_package_metadata_is_consistent():
     result = subprocess.run(
-        [sys.executable, "scripts/check_release_consistency.py"],
+        [sys.executable, "scripts/check_release_consistency.py", "--package-only"],
         cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,
@@ -155,6 +177,57 @@ def test_current_release_metadata_is_consistent():
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_public_release_gate_remains_separate_from_local_test_package():
+    version = subprocess.check_output(
+        [sys.executable, "scripts/read_netmon_version.py"], cwd=PROJECT_ROOT, text=True
+    ).strip()
+    published = json.loads((PROJECT_ROOT / "site/latest-version.json").read_text())
+    result = subprocess.run(
+        [sys.executable, "scripts/check_release_consistency.py"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if published["version"] == version:
+        assert result.returncode == 0, result.stdout + result.stderr
+    else:
+        assert result.returncode == 1
+        assert "site/latest-version.json: erwartet Version" in result.stdout
+
+
+def test_package_only_check_still_rejects_mismatched_package_version(tmp_path):
+    files = (
+        "scripts/check_release_consistency.py",
+        "scripts/read_netmon_version.py",
+        "netmon/config/constants.py",
+        "docs/security/netmonroots.minisign.pub",
+        "README.md",
+        "docs/README.md",
+        "docs/CONFIGURATION.md",
+        "docs/DEB_PACKAGING_PLAN.md",
+        "docs/CHANGELOG.md",
+        "packaging/changelog",
+        "packaging/netmon.1",
+        "packaging/netmon-uninstall.1",
+    )
+    for name in files:
+        target = tmp_path / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(PROJECT_ROOT / name, target)
+    changelog = tmp_path / "packaging/changelog"
+    changelog.write_text("netmon (0.0.0) unstable; urgency=low\n")
+    result = subprocess.run(
+        [sys.executable, "scripts/check_release_consistency.py", "--package-only"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "packaging/changelog: fehlt" in result.stdout
 
 
 def test_release_public_key_is_pinned_in_repository_and_policy():

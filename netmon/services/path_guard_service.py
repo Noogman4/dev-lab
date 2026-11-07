@@ -4,8 +4,22 @@ import os
 import stat
 from pathlib import Path
 
+from .path_guard_review import PathGuardReview
+
 
 class PathGuardService:
+    def __init__(self, review_path=None):
+        self.reviews = PathGuardReview(review_path)
+
+    def accept_finding(self, key, fingerprint):
+        self.reviews.accept(self.run_check(), key, fingerprint)
+
+    def revoke_finding(self, key):
+        self.reviews.revoke(key)
+
+    def repair_finding(self, key, fingerprint):
+        self.reviews.repair(self.run_check(), key, fingerprint)
+
     def _home_path_variants(self) -> tuple[str, ...]:
         home = str(Path.home())
         return (
@@ -47,8 +61,10 @@ class PathGuardService:
         return normalized == ""
 
     def get_current_path_entries(self) -> list[str]:
-        raw = os.environ.get("PATH", "")
-        return [part.strip() for part in raw.split(":") if part.strip()]
+        raw = os.environ.get("PATH")
+        # Empty components mean the current directory; whitespace is part of
+        # an actual directory name, not decoration to strip from PATH.
+        return raw.split(os.pathsep) if raw is not None else []
 
     def get_shell_profile_paths(self) -> list[str]:
         home = Path.home()
@@ -78,7 +94,7 @@ class PathGuardService:
             item = {
                 "entry": entry,
                 "index": index,
-                "exists": os.path.isdir(entry),
+                "exists": os.path.isdir(entry or "."),
                 "severity": "ok",
                 "issues": [],
             }
@@ -87,6 +103,12 @@ class PathGuardService:
                 item["severity"] = "high"
                 item["issues"].append(
                     "Aktuelles Verzeichnis '.' im PATH ist gefährlich."
+                )
+
+            if entry == "":
+                item["severity"] = "high"
+                item["issues"].append(
+                    "Leerer PATH-Eintrag verweist auf das aktuelle Verzeichnis."
                 )
 
             if any(entry.startswith(token) for token in suspicious_tokens):
@@ -107,7 +129,7 @@ class PathGuardService:
 
             if item["exists"]:
                 try:
-                    mode = os.stat(entry).st_mode
+                    mode = os.stat(entry or ".").st_mode
                     if mode & stat.S_IWOTH:
                         item["severity"] = "high"
                         item["issues"].append(
@@ -126,6 +148,7 @@ class PathGuardService:
 
             if (
                 index <= 2
+                and entry != ""
                 and not self._is_normal_user_bin_entry(entry)
                 and not any(
                     entry == prefix or entry.startswith(prefix + os.sep)
@@ -250,13 +273,14 @@ class PathGuardService:
         else:
             risk = "niedrig"
 
-        return {
+        result = {
             "path_entries": entries,
             "path_findings": path_findings,
             "profile_findings": profile_findings,
             "risk": risk,
             "counts": {"high": high, "medium": medium},
         }
+        return self.reviews.enrich(result)
 
 
 __all__ = ["PathGuardService"]

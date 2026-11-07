@@ -18,6 +18,8 @@ from datetime import datetime
 from pathlib import Path
 from time import monotonic
 from tkinter import messagebox
+from .firewall_controller import unrelated_ufw_operation
+from . import path_guard_controller
 
 try:
     from netmon.core.utils import call_in_ui_thread
@@ -6122,6 +6124,7 @@ def apply_security_baseline_sysctl(
     return True
 
 
+@unrelated_ufw_operation
 def apply_security_baseline_ufw(
     app,
     *,
@@ -6135,6 +6138,14 @@ def apply_security_baseline_ufw(
     show_success_dialog: bool = True,
     override_profile: dict | None = None,
 ):
+    from .firewall_controller import guarded_ufw_command
+
+    original_runner = run_cmd_fn or run_cmd
+
+    def guarded_runner(args, **kwargs):
+        return guarded_ufw_command(app, args, runner=original_runner, **kwargs)
+
+    run_cmd_fn = guarded_runner
     askyesno_runner = askyesno_fn or messagebox.askyesno
     showinfo_runner = showinfo_fn or messagebox.showinfo
     showerror_runner = showerror_fn or messagebox.showerror
@@ -8808,6 +8819,11 @@ def _path_guard_text(
 def _translate_path_guard_issue(app, text: str) -> str:
     raw = str(text or "").strip()
     mapping = {
+        "Leerer PATH-Eintrag verweist auf das aktuelle Verzeichnis.": (
+            "path_guard_issue_empty_entry",
+            "Leerer PATH-Eintrag verweist auf das aktuelle Verzeichnis.",
+            "An empty PATH entry refers to the current directory.",
+        ),
         "PATH-Verzeichnis ist für alle beschreibbar.": (
             "path_guard_issue_world_writable",
             "PATH-Verzeichnis ist für alle beschreibbar.",
@@ -8961,7 +8977,7 @@ def _format_path_guard_result(app, result: dict) -> str:
         )
     )
     for idx, entry in enumerate(result.get("path_entries", []), start=1):
-        lines.append(f"{idx}. {entry}")
+        lines.append(f"{idx}. {path_guard_controller.display_target(app, entry)}")
 
     lines.append("")
     lines.append(
@@ -8975,7 +8991,7 @@ def _format_path_guard_result(app, result: dict) -> str:
     relevant_path_findings = False
     for item in result.get("path_findings", []):
         sev = item.get("severity", "ok")
-        entry = item.get("entry", "-")
+        entry = path_guard_controller.display_target(app, item.get("entry", "-"))
         issues = item.get("issues", [])
         if sev == "ok":
             continue
@@ -9120,7 +9136,7 @@ def _format_path_guard_result(app, result: dict) -> str:
             )
         )
 
-    return "\n".join(lines)
+    return "\n".join(lines) + path_guard_controller.summary_text(app, result)
 
 
 def set_path_guard_light(app, state: str, message: str = ""):
@@ -9162,8 +9178,11 @@ def run_path_guard_check(app):
         app.path_guard_last_result = result
         text = _format_path_guard_result(app, result)
         risk = str(result.get("risk") or "").strip().lower()
+        review_status = path_guard_controller.review_status(app, result)
 
-        if risk == "hoch":
+        if review_status is not None:
+            app.set_path_guard_light(*review_status)
+        elif risk == "hoch":
             app.set_path_guard_light("error", "PATH Guard: Risiko hoch")
         elif risk == "mittel":
             app.set_path_guard_light("warning", "PATH Guard: Risiko mittel")
@@ -9172,6 +9191,7 @@ def run_path_guard_check(app):
         else:
             app.set_path_guard_light("unknown", "PATH Guard: Risiko unbekannt")
 
+        path_guard_controller.render(app, result)
         detail_widget = _app_value(app, "path_guard_detail") or _app_value(
             app, "security_detail"
         )

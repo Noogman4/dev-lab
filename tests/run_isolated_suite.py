@@ -17,12 +17,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--probe", action="store_true")
     parser.add_argument("--php", type=Path)
+    parser.add_argument("--output-dir", type=Path)
     options, pytest_args = parser.parse_known_args()
     root = Path(__file__).resolve().parents[1]
     for program in ("bwrap", "xvfb-run"):
         if shutil.which(program) is None:
             parser.error(f"Required existing tool missing: {program}")
-    output = Path(tempfile.mkdtemp(prefix="netmon-isolation-"))
+    if options.output_dir:
+        output = options.output_dir.resolve()
+        output.mkdir(mode=0o700, parents=True, exist_ok=False)
+    else:
+        output = Path(tempfile.mkdtemp(prefix="netmon-isolation-"))
     for name in ("home", "tmp", "runtime", "config", "cache", "data"):
         (output / name).mkdir(mode=0o700)
     # Certificate fixtures need req settings, not the host's OpenSSL config.
@@ -108,6 +113,7 @@ def main():
         "XDG_DATA_HOME": "/work/data",
         "OPENSSL_CONF": "/work/config/openssl.cnf",
         "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
         "PYTHONUNBUFFERED": "1",
         "LC_ALL": "C.UTF-8",
         "TZ": "Europe/Berlin",
@@ -152,7 +158,15 @@ def main():
             ),
         ]
     print(f"Isolated output: {output}", flush=True)
-    result = subprocess.run(command, check=False)
+    result = subprocess.run(
+        command,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    (output / "console.log").write_text(result.stdout)
+    print(result.stdout, end="", flush=True)
     return result.returncode
 
 

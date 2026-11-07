@@ -1,6 +1,6 @@
 # NetMon
 
-Dokumentierter Paket- und App-Stand: `1.1.21`.
+Dokumentierter Paket- und App-Stand: `1.1.22`.
 
 NetMon ist eine Linux-GUI fuer Netzwerk-, DNS-, Firewall-, VPN-, Security-, Radio- und Hilfsfunktionen. Der Startpfad liegt in `netmon/main.py`, die Hauptoberflaeche in `netmon/app.py`, und die Funktionslogik ist in Controller-, Service- und Tab-Module aufgeteilt.
 

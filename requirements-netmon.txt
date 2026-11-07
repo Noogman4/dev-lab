@@ -1,0 +1,10 @@
+# Python modules for the NetMon Tk application and optional document/Chad features.
+# Development-only lab/Qt dependencies remain in requirements.txt.
+psutil
+Pillow
+requests
+keyring
+SecretStorage; sys_platform == "linux"
+PyPDF2
+python-docx
+openpyxl

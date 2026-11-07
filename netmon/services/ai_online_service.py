@@ -6,9 +6,12 @@ import base64
 import mimetypes
 import os
 import json
+import re
 import urllib.error
 import urllib.request
 from pathlib import Path
+
+from .ai_analysis_service import CHAD_COMMAND_GUIDANCE
 
 try:
     import requests
@@ -22,6 +25,7 @@ class AiOnlineService:
         self.default_model = "gpt-4.1-mini"
         self.last_usage = {}
         self.last_usage_text = ""
+        self.last_response_incomplete = False
 
     def is_available(self):
         return bool(self.api_key)
@@ -36,7 +40,9 @@ class AiOnlineService:
         try:
             resolved.relative_to(home_dir)
         except ValueError as exc:
-            raise ValueError("Image path must be inside the user home directory.") from exc
+            raise ValueError(
+                "Image path must be inside the user home directory."
+            ) from exc
 
         mime, _ = mimetypes.guess_type(str(resolved))
         if not mime:
@@ -84,42 +90,58 @@ class AiOnlineService:
             f"Gesamt: {total_tokens} | Input: {input_tokens} | Output: {output_tokens}"
         )
 
-    def _format_api_error(self, response_text: str) -> str:
-        text = (response_text or "").strip()
-        if not text:
-            return "Fehler: Unbekannter API-Fehler"
+    def _safe_error_text(self, text: str, *, limit: int | None = 1000) -> str:
+        text = str(text)
+        if self.api_key:
+            text = text.replace(self.api_key, "[REDACTED]")
+        text = re.sub(r"(?i)\bBearer\s+\S+", "Bearer [REDACTED]", text)
+        text = re.sub(r"\bsk-[A-Za-z0-9_*.-]{4,}", "[REDACTED]", text)
+        return text if limit is None else text[:limit]
 
+    def _format_api_error(
+        self, response_text: str, status_code: int | None = None
+    ) -> str:
         try:
-            data = json.loads(text)
-        except Exception:
-            return "Fehler: Unbekannter API-Fehler"
+            data = json.loads(response_text)
+        except (ValueError, TypeError):
+            data = {}
+        if not isinstance(data, dict):
+            data = {}
+        error = data.get("error")
+        if not isinstance(error, dict):
+            error = data
+        message = error.get("message")
+        if not isinstance(message, str) or not message.strip():
+            message = "Unbekannter API-Fehler"
+        parts = ["Fehler: " + self._safe_error_text(message.strip())]
+        if type(status_code) is int and 100 <= status_code <= 599:
+            parts.append(f"HTTP-Status: {status_code}")
+        for key, label in (("code", "API-Code"), ("type", "API-Typ")):
+            value = error.get(key)
+            if isinstance(value, str):
+                value = self._safe_error_text(value)
+                if re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", value):
+                    parts.append(f"{label}: {value}")
+        if status_code == 401:
+            parts.append(
+                "Anmeldung abgelehnt: OpenAI-API-Key, Projektberechtigungen und gegebenenfalls IP-Freigabe prüfen. "
+                "Speichern im Schlüsselbund bestätigt keine erfolgreiche API-Anmeldung."
+            )
+        return "\n".join(parts)
 
-        error_data = data.get("error")
-        if isinstance(error_data, dict):
-            message = str(error_data.get("message") or "").strip()
-            if message:
-                return f"Fehler: {message}"
-
-        message = str(data.get("message") or "").strip()
-        if message:
-            return f"Fehler: {message}"
-
-        return "Fehler: Unbekannter API-Fehler"
-
-    def _analysis_max_output_tokens(self, prompt: str, files: list[dict] | None = None) -> int:
+    def _analysis_max_output_tokens(
+        self, prompt: str, files: list[dict] | None = None
+    ) -> int:
         prompt_length = len(str(prompt or ""))
-        has_files = bool(files)
         if prompt_length >= 80000:
-            return 3200
+            return 6400
         if prompt_length >= 40000:
-            return 2600
-        if prompt_length >= 15000:
-            return 2000
-        if has_files:
-            return 1200
-        return 1400
+            return 5120
+        return 4096
 
-    def _analysis_timeout_seconds(self, prompt: str, files: list[dict] | None = None) -> int:
+    def _analysis_timeout_seconds(
+        self, prompt: str, files: list[dict] | None = None
+    ) -> int:
         prompt_length = len(str(prompt or ""))
         has_files = bool(files)
         if prompt_length >= 80000 or has_files:
@@ -128,9 +150,46 @@ class AiOnlineService:
             return 75
         if prompt_length >= 15000:
             return 60
-        return 30
+        return 60
+
+    def _read_response(self, data: dict) -> tuple[bool, str]:
+        """Preserve partial output, but never report it as a completed answer."""
+        self._update_usage_from_response(data)
+        self.last_response_incomplete = data.get("status") == "incomplete"
+        text = data.get("output_text")
+        if not isinstance(text, str) or not text.strip():
+            parts = []
+            for item in data.get("output", []) or []:
+                for content in item.get("content", []) or []:
+                    if content.get("type") == "output_text":
+                        parts.append(content.get("text", ""))
+            text = "\n".join(parts)
+        text = text.strip()
+        if self.last_response_incomplete:
+            details = data.get("incomplete_details")
+            reason = details.get("reason") if isinstance(details, dict) else None
+            if reason == "max_output_tokens":
+                notice = "Antwort unvollständig: Ausgabelimit erreicht."
+            elif reason == "content_filter":
+                notice = (
+                    "Antwort unvollständig: API-Inhaltsfilter hat die Ausgabe begrenzt."
+                )
+            else:
+                notice = "Antwort unvollständig: Die API meldet einen Abbruch."
+            notice += "\nDer folgende Text ist nur eine Teilantwort. Es erfolgt keine automatische Wiederholung."
+            if text:
+                notice += "\n\n" + self._safe_error_text(text, limit=None)
+            return False, notice
+        if data.get("status") in {"failed", "cancelled", "queued", "in_progress"}:
+            return False, "Antwort nicht abgeschlossen.\n" + self._format_api_error(
+                data.get("error") and json.dumps({"error": data["error"]}) or "{}"
+            )
+        if not text:
+            return False, "Empty response from API."
+        return True, text
 
     def analyze(self, prompt: str, files: list[dict] | None = None) -> tuple[bool, str]:
+        self.last_response_incomplete = False
         if not self.api_key:
             return False, "No API key configured (OPENAI_API_KEY)."
 
@@ -168,6 +227,7 @@ class AiOnlineService:
                     "max_output_tokens": max_output_tokens,
                 }
 
+            payload["instructions"] = CHAD_COMMAND_GUIDANCE
             status_code, response_text = self._post_json(
                 url,
                 headers,
@@ -176,34 +236,18 @@ class AiOnlineService:
             )
 
             if status_code != 200:
-                return False, self._format_api_error(response_text)
+                return False, self._format_api_error(response_text, status_code)
 
             data = json.loads(response_text)
-            self._update_usage_from_response(data)
-            if data.get("output_text"):
-                return True, str(data.get("output_text", "")).strip()
-
-            output = data.get("output", [])
-            text_parts = []
-
-            for item in output:
-                for content in item.get("content", []):
-                    if content.get("type") == "output_text":
-                        text_parts.append(content.get("text", ""))
-
-            result_text = "\n".join(text_parts).strip()
-
-            if not result_text:
-                return False, "Empty response from API."
-
-            return True, result_text
+            return self._read_response(data)
 
         except Exception as exc:
-            return False, f"Error during online analysis: {exc}"
+            return False, "Error during online analysis: " + self._safe_error_text(exc)
 
     def chat(
         self, messages: list[dict], files: list[dict] | None = None
     ) -> tuple[bool, str]:
+        self.last_response_incomplete = False
         if not self.api_key:
             return False, "No API key configured."
 
@@ -283,6 +327,7 @@ class AiOnlineService:
             payload = {
                 "model": self.default_model,
                 "input": input_items,
+                "instructions": CHAD_COMMAND_GUIDANCE,
                 "max_output_tokens": 900,
             }
 
@@ -294,32 +339,13 @@ class AiOnlineService:
             )
 
             if status_code != 200:
-                return False, self._format_api_error(response_text)
+                return False, self._format_api_error(response_text, status_code)
 
             data = json.loads(response_text)
-            self._update_usage_from_response(data)
-            if data.get("output_text"):
-                result_text = str(data.get("output_text", "")).strip()
-                if result_text:
-                    return True, result_text
-
-            output = data.get("output", [])
-            text_parts = []
-
-            for item in output:
-                for content in item.get("content", []):
-                    if content.get("type") == "output_text":
-                        text_parts.append(content.get("text", ""))
-
-            result_text = "\n".join(text_parts).strip()
-
-            if not result_text:
-                return False, "Empty response from API."
-
-            return True, result_text
+            return self._read_response(data)
 
         except Exception as exc:
-            return False, f"Error in chat: {exc}"
+            return False, "Error in chat: " + self._safe_error_text(exc)
 
 
 __all__ = ["AiOnlineService"]

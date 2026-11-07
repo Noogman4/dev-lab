@@ -548,9 +548,20 @@ def _cancel_pending_after_callbacks(app):
         pending = tuple(app.tk.call("after", "info"))
     except Exception:
         pending = ()
+    widgets = [app]
+    for widget in widgets:
+        widgets.extend(getattr(widget, "children", {}).values())
+    owners = {
+        command: widget
+        for widget in widgets
+        for command in (getattr(widget, "_tclCommands", None) or ())
+    }
     for callback_id in pending:
         try:
-            app.after_cancel(callback_id)
+            script = app.tk.call("after", "info", callback_id)[0]
+            # Tkinter tracks registered callbacks on the creating widget.
+            # Cancel there so destroy() cannot try to delete the command twice.
+            owners.get(script, app).after_cancel(callback_id)
         except Exception:
             pass
 

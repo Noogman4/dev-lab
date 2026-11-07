@@ -641,8 +641,26 @@ def build_chad_settings_answer_style(app, frame) -> None:
 
 def build_chad_settings_content(app) -> None:
     """Build all Chad settings content inside the application's tab."""
-    frame = ttk.Frame(app.tab_chad_settings, padding=12)
-    frame.pack(fill="both", expand=True)
+    wrap = ttk.Frame(app.tab_chad_settings)
+    wrap.pack(fill="both", expand=True)
+    canvas = app.chad_settings_canvas = tk.Canvas(wrap, highlightthickness=0, bd=0)
+    scrollbar = app.chad_settings_scrollbar = ttk.Scrollbar(
+        wrap, orient="vertical", command=canvas.yview
+    )
+    scrollbar.pack(side="right", fill="y")
+    canvas.pack(side="left", fill="both", expand=True)
+    canvas.configure(yscrollcommand=scrollbar.set)
+    frame = app.chad_settings_scroll_frame = ttk.Frame(canvas, padding=12)
+    window = canvas.create_window((0, 0), window=frame, anchor="nw")
+
+    def fit(_event=None):
+        width = max(1, canvas.winfo_width())
+        height = max(canvas.winfo_height(), frame.winfo_reqheight())
+        canvas.itemconfigure(window, width=width, height=height)
+        canvas.configure(scrollregion=(0, 0, width, height))
+
+    frame.bind("<Configure>", fit)
+    canvas.bind("<Configure>", fit)
     build_chad_settings_summary(app, frame)
     build_chad_settings_connection(app, frame)
     build_chad_settings_status(app, frame)
@@ -651,3 +669,61 @@ def build_chad_settings_content(app) -> None:
     build_chad_settings_focus(app, frame)
     build_chad_settings_systemcheck_profiles(app, frame)
     build_chad_settings_answer_style(app, frame)
+
+    # A private bindtag lets wheel events over controls scroll this form before
+    # widget class handlers can change a model/profile or scroll the main page.
+    scroll_tag = f"ChadSetupScroll{canvas}"
+
+    def wheel(event):
+        number = getattr(event, "num", None)
+        delta = int(getattr(event, "delta", 0) or 0)
+        if number in (4, 5):
+            step = -1 if number == 4 else 1
+        elif delta:
+            step = (
+                -max(1, abs(delta) // 120) if delta > 0 else max(1, abs(delta) // 120)
+            )
+        else:
+            return "break"
+        canvas.yview_scroll(step, "units")
+        return "break"
+
+    def reveal_focus(event):
+        widget = event.widget
+        parent = widget
+        while parent is not None and parent is not frame:
+            parent = parent.master
+        if parent is None or widget.winfo_height() > canvas.winfo_height():
+            return
+        top = widget.winfo_rooty() - frame.winfo_rooty()
+        bottom = top + widget.winfo_height()
+        visible_top = canvas.canvasy(0)
+        target = None
+        if top < visible_top:
+            target = top
+        elif bottom > visible_top + canvas.winfo_height():
+            target = bottom - canvas.winfo_height()
+        if target is not None:
+            canvas.yview_moveto(max(0, target) / max(1, frame.winfo_height()))
+
+    sequences = ("<MouseWheel>", "<Button-4>", "<Button-5>", "<FocusIn>")
+    for sequence in sequences:
+        canvas.bind_class(
+            scroll_tag, sequence, reveal_focus if sequence == "<FocusIn>" else wheel
+        )
+
+    def attach(widget):
+        tags = widget.bindtags()
+        widget.bindtags((tags[0], scroll_tag, *tags[1:]))
+        for child in widget.winfo_children():
+            attach(child)
+
+    attach(canvas)
+    attach(scrollbar)
+
+    def cleanup(event):
+        if event.widget is canvas:
+            for sequence in sequences:
+                canvas.unbind_class(scroll_tag, sequence)
+
+    canvas.bind("<Destroy>", cleanup)

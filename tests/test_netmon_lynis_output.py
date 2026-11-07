@@ -693,7 +693,9 @@ def test_enable_game_mode_steam_remote_play_applies_optional_ufw_exception_sets(
     app.ensure_sudo_session = (
         lambda _reason: seen.__setitem__("sudo", seen["sudo"] + 1) or True
     )
-    app.killswitch_is_on = lambda: True
+    app.killswitch_is_on = (
+        lambda: False
+    )  # User explicitly disabled KS before this preset.
     app.killswitch_off = (
         lambda **_kwargs: seen.__setitem__("killswitch_off", seen["killswitch_off"] + 1)
         or True
@@ -725,7 +727,7 @@ def test_enable_game_mode_steam_remote_play_applies_optional_ufw_exception_sets(
 
     assert result is True
     assert seen["sudo"] == 1
-    assert seen["killswitch_off"] == 1
+    assert seen["killswitch_off"] == 0
     assert seen["ufw_logging"] == ["low"]
     assert isinstance(seen["ufw_rules"], list)
     assert len(seen["ufw_rules"]) >= 10
@@ -750,7 +752,9 @@ def test_enable_game_mode_minecraft_lan_uses_lan_discovery_set(monkeypatch):
     app.ensure_sudo_session = (
         lambda _reason: seen.__setitem__("sudo", seen["sudo"] + 1) or True
     )
-    app.killswitch_is_on = lambda: True
+    app.killswitch_is_on = (
+        lambda: False
+    )  # User explicitly disabled KS before this preset.
     app.killswitch_off = (
         lambda **_kwargs: seen.__setitem__("killswitch_off", seen["killswitch_off"] + 1)
         or True
@@ -778,7 +782,7 @@ def test_enable_game_mode_minecraft_lan_uses_lan_discovery_set(monkeypatch):
 
     assert result is True
     assert seen["sudo"] == 1
-    assert seen["killswitch_off"] == 1
+    assert seen["killswitch_off"] == 0
     assert seen["ufw_logging"] == ["low"]
     assert seen["ufw_rules"] == [
         {
@@ -817,7 +821,9 @@ def test_enable_game_mode_aborts_when_exception_dialog_is_cancelled(monkeypatch)
     app.ensure_sudo_session = (
         lambda _reason: seen.__setitem__("sudo", seen["sudo"] + 1) or True
     )
-    app.killswitch_is_on = lambda: True
+    app.killswitch_is_on = (
+        lambda: False
+    )  # User explicitly disabled KS before this preset.
     app._security_query_log_level = lambda: "HIGH"
     app.is_dot_active = lambda: False
     app.is_vpn_active = lambda: False
@@ -850,6 +856,8 @@ def test_disable_game_mode_rolls_back_optional_ufw_exception_rules(
 ):
     app = netmon_app.App.__new__(netmon_app.App)
     passive_dns_service(app)
+    if vpn_active:
+        app._dns_control_service().get_wireguard_interfaces = lambda: {"wg0"}
     logs = []
     seen = {"sudo": 0, "killswitch_on": 0, "ufw_logging": [], "rollback_rules": None}
     app.settings = {"security_game_mode_preset": "steam_remote_play"}
@@ -934,6 +942,8 @@ def test_disable_game_mode_restores_previous_state(
 ):
     app = netmon_app.App.__new__(netmon_app.App)
     passive_dns_service(app)
+    if vpn_active:
+        app._dns_control_service().get_wireguard_interfaces = lambda: {"wg0"}
     logs = []
     seen = {"sudo": 0, "killswitch_on": 0, "ufw_logging": []}
     app.settings = {"security_game_mode_preset": "online"}
