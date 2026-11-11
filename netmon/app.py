@@ -2790,6 +2790,7 @@ class App(TkBase):
             pass
         if netmon_radio_core is not None:
             try:
+                netmon_radio_core.write_netmon_host_state(os.getpid())
                 if netmon_radio_core.standalone_radio_is_running():
                     netmon_radio_core.set_radio_detached_state(True)
                 else:
@@ -6207,6 +6208,10 @@ class App(TkBase):
                 panel = self.__dict__.get("radio_embedded_panel")
                 if panel is not None and not (detached_radio or standalone_transition):
                     try:
+                        panel.stop_radio_recording()
+                    except Exception:
+                        pass
+                    try:
                         panel.close_projectm_visualizer_test()
                     except Exception:
                         pass
@@ -6217,6 +6222,8 @@ class App(TkBase):
                 if netmon_radio_core is not None:
                     try:
                         netmon_radio_core.clear_netmon_host_state(os.getpid())
+                        if not (detached_radio or standalone_transition):
+                            netmon_radio_core.clear_radio_host_state(os.getpid())
                     except Exception:
                         pass
                 clock_after_id = self.__dict__.get("_clock_after_id")
@@ -16990,7 +16997,9 @@ class App(TkBase):
         return value
 
     def _read_gpu_temp(self):
-        if has_cmd("nvidia-smi"):
+        # A failing nvidia-smi (no NVIDIA device) is not retried every 1.5 s.
+        retry_at = float(self.__dict__.get("_nvidia_smi_retry_at", 0.0))
+        if has_cmd("nvidia-smi") and time.monotonic() >= retry_at:
             rc, out = run_cmd(
                 [
                     "nvidia-smi",
@@ -17008,6 +17017,8 @@ class App(TkBase):
                         return "nvidia-smi", float(raw)
                     except Exception:
                         continue
+            if rc != 0:
+                self.__dict__["_nvidia_smi_retry_at"] = time.monotonic() + 300.0
 
         temps = {}
         try:
@@ -17619,26 +17630,16 @@ class App(TkBase):
 
     def emergency_stop_radio_mpv(self):
         try:
-            self.stop_radio_playback(async_mode=False, clear_current=True)
-        except Exception:
-            pass
-        pattern = r"mpv.*--input-ipc-server=.*netmon-radio-.*\.sock"
-        try:
-            proc = subprocess.run(
-                ["pkill", "-f", pattern],
-                capture_output=True,
-                text=True,
-                check=False,
+            accepted = bool(
+                self.stop_radio_playback(async_mode=True, clear_current=True)
             )
-            if proc.returncode == 0:
-                self.log_safe("Radio-Not-Aus: hängende mpv-Radio-Prozesse beendet.")
-            elif proc.returncode == 1:
+            if accepted:
                 self.log_safe(
-                    "Radio-Not-Aus: keine zusätzlichen mpv-Radio-Prozesse gefunden."
+                    "Radio-Not-Aus: Stopp der eigenen Wiedergabe angefordert."
                 )
             else:
-                self.log_safe(f"Radio-Not-Aus: pkill meldete rc={proc.returncode}.")
-            return proc.returncode in {0, 1}
+                self.log_safe("Radio-Not-Aus: Stoppauftrag nicht angenommen.")
+            return accepted
         except Exception as exc:
             self.log_safe(f"Radio-Not-Aus fehlgeschlagen: {exc}")
             return False
@@ -30117,10 +30118,13 @@ class App(TkBase):
         security_monitoring_controller.security_poll_async(self)
 
     def _security_query_log_level(self):
-        attempts = [
-            ["sudo", "-n", "ufw", "status", "verbose"],
-            ["ufw", "status", "verbose"],
-        ]
+        # Runs in the Tk refresh: no failing sudo during its backoff, and plain
+        # `ufw status` only as root (it is refused otherwise and only costs time).
+        attempts = []
+        if not firewall_controller.sudo_status_backoff_active(self):
+            attempts.append(["sudo", "-n", "ufw", "status", "verbose"])
+        if os.geteuid() == 0:
+            attempts.append(["ufw", "status", "verbose"])
 
         for cmd in attempts:
             try:
@@ -30130,6 +30134,8 @@ class App(TkBase):
                     f"Security: UFW-Level-Abfrage fehlgeschlagen (cmd={' '.join(cmd)}): {e}"
                 )
                 continue
+            if cmd[0] == "sudo":
+                firewall_controller.note_ufw_status_result(self, rc, out)
 
             if rc != 0 or not out:
                 continue
@@ -32802,7 +32808,9 @@ class App(TkBase):
         )
 
     def _import_projectm_preset_pack_from_url(self, url, pack_name):
-        with projectm_archive.download_preset_archive(url, timeout=45) as temp_path:
+        with projectm_archive.download_protected_preset_archive(
+            url, timeout=45
+        ) as temp_path:
             result = netmon_projectm_sidecar.install_projectm_preset_archive(
                 self,
                 temp_path,
@@ -42191,6 +42199,15 @@ class App(TkBase):
         self.after(0, self.update_dns_guard_indicator)
 
     def refresh(self):
+        # One ufw status snapshot per cycle, owned by this thread only; other
+        # threads and explicit operations keep reading live (refresh_scope).
+        firewall_controller.begin_refresh_scope(self)
+        try:
+            self._refresh_lights()
+        finally:
+            firewall_controller.end_refresh_scope(self)
+
+    def _refresh_lights(self):
         inet = self.check_internet()
         inet_state = self._internet_suspend_indicator_override()
         if inet_state is None:

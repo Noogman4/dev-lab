@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import argparse
-import base64
 from datetime import datetime
 import hashlib
-import io
 import json
 import math
 import os
@@ -20,8 +18,8 @@ import tkinter as tk
 import types
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
-from netmon.core import icon_http, projectm_archive
-from netmon.core.icon_payload import check_dimensions, sanitize_icon
+from netmon.core import icon_http, projectm_archive, radio_logo, radio_sandbox
+from netmon.ui import projectm_pixel_window
 
 _LOGO_WORKERS = threading.BoundedSemaphore(2)
 
@@ -1379,6 +1377,10 @@ def _init_radio_ui_projectm_runtime_state(app) -> None:
     app.radio_projectm_log_handle = None
     app.radio_projectm_log_path = ""
     app.radio_projectm_package_probe = {}
+    app._projectm_status_after = None
+    app._projectm_observed_request = None
+    app._projectm_closing = False
+    app._projectm_pixel_window = None
 
 
 def _radio_ui_recordings_dir(settings) -> str:
@@ -1387,6 +1389,8 @@ def _radio_ui_recordings_dir(settings) -> str:
 
 def _init_radio_ui_recording_runtime_state(app) -> None:
     app.radio_record_proc = None
+    app.radio_record_starting = False
+    app.radio_record_generation = 0
     app.radio_recordings_dir = _radio_ui_recordings_dir(app.radio_settings)
     app.radio_last_record_path = ""
     app.radio_record_transport_button = None
@@ -3174,7 +3178,7 @@ class NetMonRadioApp(tk.Tk):
         if not url:
             return ""
         digest = hashlib.sha256(url.encode("utf-8")).hexdigest()
-        return os.path.join(self.radio_logo_cache_dir, f"{digest}.png")
+        return os.path.join(self.radio_logo_cache_dir, f"{digest}.pixels")
 
     def _render_station_logo_file(self, path, request_key):
         if request_key != getattr(self, "_radio_logo_request_key", ""):
@@ -3185,34 +3189,41 @@ class NetMonRadioApp(tk.Tk):
                 info = os.fstat(handle.fileno())
                 if (
                     not stat.S_ISREG(info.st_mode)
-                    or info.st_size > icon_http.ICON_BYTES
+                    or info.st_size > radio_logo.MAX_REPLY_BYTES
                 ):
                     raise ValueError("invalid logo cache entry")
-                payload = handle.read(icon_http.ICON_BYTES + 1)
-            suffix, payload = sanitize_icon(payload, allow_svg=False)
-            if Image is not None and ImageTk is not None:
-                with Image.open(io.BytesIO(payload)) as src:
-                    check_dimensions(*src.size)
-                    source = src.convert("RGBA")
-                    rendered = {}
-                    for variant in ("main", "mini"):
-                        image = source.copy()
-                        image.thumbnail(self._radio_logo_size(variant))
-                        rendered[variant] = ImageTk.PhotoImage(image)
-            else:
-                if suffix != ".png":
-                    raise ValueError("PNG required without Pillow")
-                base_image = tk.PhotoImage(data=base64.b64encode(payload))
-                rendered = {
-                    "main": self._fit_tk_photoimage(
-                        base_image,
-                        size=self._radio_logo_size("main"),
-                    ),
-                    "mini": self._fit_tk_photoimage(
-                        base_image,
-                        size=self._radio_logo_size("mini"),
-                    ),
-                }
+                payload = handle.read(radio_logo.MAX_REPLY_BYTES + 1)
+            images = radio_logo.validate_pixels(payload)
+            rendered = {}
+            for variant, index in (
+                ("main", 0 if self.radio_embedded_mode else 1),
+                ("mini", 2),
+            ):
+                width, height, pixels = images[index]
+                if Image is not None and ImageTk is not None:
+                    # Fixed bounded RGBA buffer, no file/container decoder.
+                    image = Image.frombytes("RGBA", (width, height), pixels)
+                    rendered[variant] = ImageTk.PhotoImage(image)
+                else:
+                    image = tk.PhotoImage(width=width, height=height)
+                    rows = []
+                    for y in range(height):
+                        colors = [
+                            "#"
+                            + pixels[
+                                (y * width + x) * 4 : (y * width + x) * 4 + 3
+                            ].hex()
+                            for x in range(width)
+                        ]
+                        rows.append("{" + " ".join(colors) + "}")
+                    image.put(" ".join(rows))
+                    for y in range(height):
+                        for x in range(width):
+                            if pixels[(y * width + x) * 4 + 3] < 128:
+                                image.transparency_set(x, y, True)
+                    rendered[variant] = image
+            if request_key != getattr(self, "_radio_logo_request_key", ""):
+                return
         except Exception:
             self._set_radio_logo_placeholder()
             return
@@ -3231,24 +3242,27 @@ class NetMonRadioApp(tk.Tk):
             except Exception:
                 pass
 
-    def _download_station_logo(self, logo_url, cache_path, request_key):
+    def _download_station_logo(
+        self, logo_url, cache_path, request_key, *, cached_path=None
+    ):
         temporary = None
         try:
-            result = icon_http.fetch(
-                logo_url,
-                limit=icon_http.ICON_BYTES,
-                timeout=8,
-                budget=icon_http.DownloadBudget(seconds=8),
-            )
-            suffix, payload = sanitize_icon(result.data, allow_svg=False)
-            if Image is not None:
-                with Image.open(io.BytesIO(payload)) as src:
-                    check_dimensions(*src.size)
-                    output = io.BytesIO()
-                    src.convert("RGBA").save(output, format="PNG")
-                    _, payload = sanitize_icon(output.getvalue(), allow_svg=False)
-            elif suffix != ".png":
-                raise ValueError("PNG required without Pillow")
+            if cached_path is not None:
+                descriptor = os.open(
+                    cached_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+                )
+                with os.fdopen(descriptor, "rb") as handle:
+                    info = os.fstat(handle.fileno())
+                    if (
+                        not stat.S_ISREG(info.st_mode)
+                        or info.st_size > radio_logo.INPUT_BYTES
+                    ):
+                        raise ValueError("invalid legacy logo cache")
+                    raw = handle.read(radio_logo.INPUT_BYTES + 1)
+                payload = radio_sandbox.decode_logo(raw)
+            else:
+                payload = radio_sandbox.fetch_logo(logo_url)
+            radio_logo.validate_pixels(payload)
             os.makedirs(self.radio_logo_cache_dir, exist_ok=True)
             with tempfile.NamedTemporaryFile(
                 mode="wb", dir=self.radio_logo_cache_dir, prefix=".logo-", delete=False
@@ -3299,6 +3313,10 @@ class NetMonRadioApp(tk.Tk):
         if cache_path and os.path.isfile(cache_path):
             self._render_station_logo_file(cache_path, request_key)
             return
+        legacy_path = os.path.splitext(cache_path)[0] + ".png" if cache_path else ""
+        cached_path = (
+            legacy_path if legacy_path and os.path.isfile(legacy_path) else None
+        )
         self._set_radio_logo_placeholder("Lade Logo...")
         if not _LOGO_WORKERS.acquire(blocking=False):
             self._set_radio_logo_placeholder()
@@ -3306,7 +3324,12 @@ class NetMonRadioApp(tk.Tk):
 
         def download():
             try:
-                self._download_station_logo(logo_url, cache_path, request_key)
+                if cached_path is None:
+                    self._download_station_logo(logo_url, cache_path, request_key)
+                else:
+                    self._download_station_logo(
+                        logo_url, cache_path, request_key, cached_path=cached_path
+                    )
             finally:
                 _LOGO_WORKERS.release()
 
@@ -3318,6 +3341,21 @@ class NetMonRadioApp(tk.Tk):
 
     def _refresh_projectm_status(self):
         state = netmon_projectm_sidecar.describe_projectm_sidecar_runtime(self)
+        data = vars(self)
+        request = data.get("radio_projectm_proc")
+        if (
+            state.get("running")
+            and data.get("_projectm_observed_request") is not request
+        ):
+            data["_projectm_observed_request"] = request
+            self.radio_projectm_last_started_at = self._timestamp_text()
+        if (
+            state.get("phase") in {"stopped", "error"}
+            and data.get("_projectm_observed_request") is request
+            and request is not None
+        ):
+            self.radio_projectm_last_stopped_at = self._timestamp_text()
+            data["_projectm_observed_request"] = None
         try:
             self.radio_projectm_status_var.set(str(state.get("status_text") or ""))
         except Exception:
@@ -3389,6 +3427,29 @@ class NetMonRadioApp(tk.Tk):
             self._refresh_radio_miniplayer_content()
         except Exception:
             pass
+        if (
+            state.get("polling")
+            and not data.get("_projectm_status_after")
+            and not data.get("_projectm_closing")
+            and not data.get("_radio_panel_destroying")
+        ):
+
+            def poll():
+                data["_projectm_status_after"] = None
+                try:
+                    if (
+                        not data.get("_projectm_closing")
+                        and not data.get("_radio_panel_destroying")
+                        and self.winfo_exists()
+                    ):
+                        self._refresh_projectm_status()
+                except tk.TclError:
+                    pass
+
+            try:
+                data["_projectm_status_after"] = self.after(100, poll)
+            except (tk.TclError, AttributeError):
+                pass
 
     def open_projectm_preset_folder(self):
         preset_dir = netmon_projectm_sidecar.ensure_projectm_preset_dir(self)
@@ -3591,7 +3652,7 @@ class NetMonRadioApp(tk.Tk):
         )
         self.update_idletasks()
         try:
-            with projectm_archive.download_preset_archive(url) as temp_path:
+            with projectm_archive.download_protected_preset_archive(url) as temp_path:
                 return self._import_projectm_preset_archive_path(
                     temp_path,
                     pack_name=os.path.splitext(os.path.basename(url.split("?", 1)[0]))[
@@ -4243,13 +4304,30 @@ class NetMonRadioApp(tk.Tk):
                 padx=(12, 0),
                 pady=(8, 0),
             )
+        if getattr(self, "radio_output_button_var", None) is None:
+            self.radio_output_button_var = tk.StringVar(
+                value=self.tr("radio_output_button_setup", "Ton einrichten…")
+            )
+        # Protected FIFO output: state is shown on the button itself.
+        self.radio_output_setup_button = ttk.Button(
+            details_frame,
+            textvariable=self.radio_output_button_var,
+            command=self.manage_protected_radio_output,
+        )
+        self.radio_output_setup_button.grid(
+            row=2,
+            column=2,
+            sticky="ne",
+            padx=(12, 0),
+            pady=(8, 0),
+        )
         self.radio_database_count_label = ttk.Label(
             details_frame,
             textvariable=self.radio_database_count_var,
             justify="right",
         )
         self.radio_database_count_label.grid(
-            row=2,
+            row=3,
             column=2,
             sticky="ne",
             padx=(12, 0),
@@ -4807,6 +4885,7 @@ class NetMonRadioApp(tk.Tk):
         )
 
     def _on_close(self):
+        vars(self)["_projectm_closing"] = True
         try:
             self.close_radio_miniplayer()
         except Exception:
@@ -4814,10 +4893,6 @@ class NetMonRadioApp(tk.Tk):
         self._auto_reattach_in_progress = False
         try:
             self.close_custom_radio_station_editor()
-        except Exception:
-            pass
-        try:
-            self.stop_radio_recording()
         except Exception:
             pass
         try:
@@ -4853,7 +4928,7 @@ class NetMonRadioApp(tk.Tk):
             if standalone_owner and int(state.get("owner_pid") or 0) == int(
                 os.getpid()
             ):
-                netmon_radio_core.clear_netmon_host_state(os.getpid())
+                netmon_radio_core.clear_radio_host_state(os.getpid())
         except Exception:
             pass
         self.destroy()
@@ -4866,6 +4941,9 @@ class NetMonRadioApp(tk.Tk):
 
     def update_radio_dependency_state(self):
         return radio_controller.update_radio_dependency_state(self)
+
+    def manage_protected_radio_output(self):
+        return radio_controller.manage_protected_radio_output(self)
 
     def download_radio_db(self):
         return radio_controller.download_radio_db(self)
@@ -5828,13 +5906,19 @@ class NetMonRadioApp(tk.Tk):
 
     def open_projectm_visualizer_test(self):
         status = netmon_projectm_sidecar.launch_projectm_sidecar(self)
-        if status.launched:
-            self.radio_projectm_last_started_at = self._timestamp_text()
         self._refresh_projectm_status()
-        if not status.launched:
+        if not (status.launched or status.starting):
+            self.radio_projectm_status_var.set(status.message)
             return False
         try:
-            self.log_safe("projectM Test-Visualizer gestartet.")
+            projectm_pixel_window.ensure(self, self.radio_projectm_proc)
+        except Exception:
+            self.radio_projectm_status_var.set(
+                "Visualisierung konnte nicht geöffnet werden."
+            )
+            return False
+        try:
+            self.log_safe("projectM: geschuetzter Start angefordert.")
         except Exception:
             pass
         return True
@@ -5846,13 +5930,7 @@ class NetMonRadioApp(tk.Tk):
         return radio_controller.stop_radio_recording(self)
 
     def toggle_radio_recording(self):
-        proc = getattr(self, "radio_record_proc", None)
-        active = False
-        try:
-            active = proc is not None and proc.poll() is None
-        except Exception:
-            active = proc is not None
-        if active:
+        if radio_controller._recording_busy(self):
             return self.stop_radio_recording()
         return self.start_radio_recording()
 
@@ -6153,14 +6231,23 @@ class NetMonRadioApp(tk.Tk):
         return radio_controller.load_radio_playlist_from_file(self)
 
     def close_projectm_visualizer_test(self):
+        projectm_pixel_window.close(self)
         result = netmon_projectm_sidecar.stop_projectm_sidecar(self)
         if result:
-            self.radio_projectm_last_stopped_at = self._timestamp_text()
             try:
-                self.log_safe("projectM Test-Visualizer gestoppt.")
+                self.log_safe("projectM: Beenden angefordert.")
             except Exception:
                 pass
-        self._refresh_projectm_status()
+        data = vars(self)
+        if data.get("_projectm_closing") or data.get("_radio_panel_destroying"):
+            timer = data.pop("_projectm_status_after", None)
+            if timer:
+                try:
+                    self.after_cancel(timer)
+                except tk.TclError:
+                    pass
+        else:
+            self._refresh_projectm_status()
         return result
 
     def install_projectm_visualizer(self):
@@ -6721,6 +6808,10 @@ class NetMonRadioPanel(ttk.Frame):
         if getattr(self, "_radio_panel_destroying", False):
             return super().destroy()
         self._radio_panel_destroying = True
+        try:
+            self.stop_radio_recording()
+        except Exception:
+            pass
         try:
             self.close_custom_radio_station_editor()
         except Exception:

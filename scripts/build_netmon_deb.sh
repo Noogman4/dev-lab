@@ -11,7 +11,7 @@ MAINTAINER="Mr. Happy <netmon.proglab@protonmail.ch>"
 TEST_BUILD=0
 PACKAGE_SUMMARY="Linux-Netzwerkmonitor mit Security-, VPN- und Radio-Funktionen"
 PYTHON_DEPENDS="python3 (>= 3.11), python3-tk, python3-psutil, python3-pil, python3-pil.imagetk"
-FEATURE_TOOLS="network-manager, systemd-resolved, dnsutils, wireguard-tools, ufw, traceroute, mtr, nmap, iproute2, iftop, htop, lynis, rkhunter, clamav, clamav-freshclam, speedtest-cli, mpv, whois, python3-keyring, python3-gi, gir1.2-vte-2.91"
+FEATURE_TOOLS="network-manager, systemd-resolved, dnsutils, wireguard-tools, ufw, traceroute, mtr, nmap, iproute2, iftop, htop, lynis, rkhunter, clamav, clamav-freshclam, speedtest-cli, mpv, pipewire-bin, whois, python3-keyring, python3-gi, gir1.2-vte-2.91"
 EXTRA_TOOLS="wireshark, tshark, projectm, projectm-pulseaudio, python3-pypdf2, python3-docx, python3-openpyxl, python3-pygame, python3-pgzero, sudo, gnome-keyring"
 DEPENDENCIES="$PYTHON_DEPENDS, udisks2, cryptsetup"
 RELATIONSHIPS="Recommends: $FEATURE_TOOLS

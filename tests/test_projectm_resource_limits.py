@@ -17,11 +17,14 @@ from netmon.core import projectm_archive as archive_limits
 from netmon.core import projectm_import_plan as plans
 from netmon.core import projectm_transport as transport
 
+from projectm_zip_legacy_fixture import use_legacy_zip_worker
+
 SYNC_FLATPAK = sidecar._sync_projectm_flatpak_playlist_file
 
 
 @pytest.fixture
 def app(tmp_path, monkeypatch):
+    use_legacy_zip_worker(monkeypatch)
     presets = tmp_path / "Presets"
     old = presets / "Downloaded Packs" / "Pack"
     old.mkdir(parents=True)
@@ -603,7 +606,9 @@ def test_flat_copy_fallback_has_its_own_byte_budget(
         ).exists()
 
 
-def test_flatpak_playlist_does_not_repeat_unbudgeted_scan(app, tmp_path, monkeypatch):
+def test_import_keeps_budgeted_scan_and_original_flatpak_config_untouched(
+    app, tmp_path, monkeypatch
+):
     path = write_archive(tmp_path, ["one.milk"])
     calls = []
     original = sidecar._sync_projectm_flat_scan_dir
@@ -613,6 +618,7 @@ def test_flatpak_playlist_does_not_repeat_unbudgeted_scan(app, tmp_path, monkeyp
         return original(*args, **kwargs)
 
     config = tmp_path / "flatpak.conf"
+    config.write_bytes(b"ORIGINAL FLATPAK SETTINGS\n")
     monkeypatch.setattr(sidecar, "_sync_projectm_flatpak_playlist_file", SYNC_FLATPAK)
     monkeypatch.setattr(sidecar, "_sync_projectm_flat_scan_dir", counted_scan)
     monkeypatch.setattr(
@@ -625,7 +631,7 @@ def test_flatpak_playlist_does_not_repeat_unbudgeted_scan(app, tmp_path, monkeyp
     )
     assert install(app, path)["imported_presets"] == 1
     assert len(calls) == 1 and calls[0] is not None
-    assert sidecar.PROJECTM_FLAT_SCAN_SUBDIR in config.read_text()
+    assert config.read_bytes() == b"ORIGINAL FLATPAK SETTINGS\n"
 
 
 def test_legacy_migration_rolls_back_on_later_import_error(app, tmp_path, monkeypatch):

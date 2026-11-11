@@ -2,7 +2,6 @@ import inspect
 import json
 import os
 import threading
-import http.client
 import zipfile
 from types import SimpleNamespace
 
@@ -227,6 +226,7 @@ def test_build_radio_paths_uses_documents_dir_for_radio_user_files(
     assert paths.radio_favorites_path == str(radio_dir / "radio_favorites.json")
     assert paths.radio_settings_path == str(radio_dir / "radio_settings.json")
     assert paths.radio_host_state_path == str(state_dir / "radio_host_state.json")
+    assert paths.netmon_host_state_path == str(state_dir / "netmon_host_state.json")
 
 
 def test_build_radio_paths_migrates_legacy_radio_user_files(monkeypatch, tmp_path):
@@ -334,6 +334,7 @@ def test_radio_handover_payload_roundtrip_applies_runtime_state():
         target.radio_current_station = None
         target.radio_search_var = DummyVar("")
         target.radio_volume_var = DummyVar(0)
+        target.radio_volume_label_var = DummyVar("50%")
         target.radio_eq_bass_var = DummyVar(0)
         target.radio_eq_mid_var = DummyVar(0)
         target.radio_eq_treble_var = DummyVar(0)
@@ -367,11 +368,13 @@ def test_radio_handover_payload_roundtrip_applies_runtime_state():
     assert target.radio_current_station["name"] == "Station 1"
     assert target.radio_search_var.get() == "ambient"
     assert target.radio_volume_var.get() == 67
+    assert target.radio_volume_label_var.get() == "67%"
     assert target.radio_eq_bass_var.get() == 3
     assert target.radio_eq_mid_var.get() == -2
     assert target.radio_eq_treble_var.get() == 4
     assert target.radio_title_var.get() == "Titel: Artist - Track"
     assert target.radio_handover_title == "Titel: Artist - Track"
+    assert target.radio_handover_station_id == "station-1"
     assert target.radio_settings["theme"] == "pop"
     assert target_theme_palette_calls == [("pop", payload["theme_palette"])]
     assert refresh_calls == ["refresh"]
@@ -617,7 +620,7 @@ def test_add_to_favorites_saves_full_station_payload():
     assert calls[-1] == "refresh"
 
 
-def test_play_radio_station_clears_connecting_title_once_process_starts():
+def test_play_radio_station_clears_connecting_title_once_process_starts(monkeypatch):
     app = type("DummyApp", (), {})()
     app.radio_volume_var = DummyVar(50)
     app.radio_title_var = DummyVar("")
@@ -684,7 +687,9 @@ def test_play_radio_station_clears_connecting_title_once_process_starts():
         radio_controller._radio_ipc_path = lambda _app: "/tmp/netmon-radio-test.sock"
         radio_controller._cleanup_radio_ipc_path = lambda _app: None
         radio_controller.radio_eq_filter_spec = lambda _app: ""
-        radio_controller.subprocess.Popen = lambda *args, **kwargs: FakeProc()
+        monkeypatch.setattr(
+            radio_controller, "_start_radio_playback", lambda *_a, **_k: FakeProc()
+        )
         threading.Thread = ImmediateThread
         radio_controller._wait_for_radio_process = lambda *_args, **_kwargs: None
         radio_controller._poll_radio_metadata = lambda *_args, **_kwargs: None
@@ -715,7 +720,9 @@ def test_play_radio_station_clears_connecting_title_once_process_starts():
     assert app.radio_title_var.get() == "Titel: -"
 
 
-def test_stop_radio_playback_uses_targeted_pkill_fallback(monkeypatch):
+def test_stop_radio_playback_kills_only_captured_process_after_terminate_failure(
+    monkeypatch,
+):
     app = type("DummyApp", (), {})()
     app.radio_proc = None
     app.radio_stop_requested = False
@@ -731,117 +738,81 @@ def test_stop_radio_playback_uses_targeted_pkill_fallback(monkeypatch):
     app.tr = lambda _key, default=None: default
     app.log = lambda _message: None
 
+    killed = threading.Event()
+
     class FakeProc:
         def terminate(self):
             raise RuntimeError("terminate failed")
 
         def wait(self, timeout=None):
-            raise RuntimeError("wait failed")
+            return -9
 
         def kill(self):
-            raise RuntimeError("kill failed")
+            killed.set()
 
         def poll(self):
             return None
 
     app.radio_proc = FakeProc()
-    calls = []
-
     monkeypatch.setattr(
-        radio_controller,
-        "_cleanup_radio_ipc_path",
-        lambda _app: calls.append("cleanup"),
-    )
-    monkeypatch.setattr(
-        radio_controller,
-        "_force_kill_radio_process_by_ipc",
-        lambda ipc_path: calls.append(("pkill", ipc_path)) or True,
+        radio_controller.subprocess,
+        "run",
+        lambda *_a, **_k: pytest.fail("no process-name signaling fallback"),
     )
 
     assert radio_controller.stop_radio_playback(app, async_mode=False) is True
-    assert ("pkill", "/tmp/netmon-radio-test.sock") in calls
+    assert killed.wait(2)
+    assert app.radio_proc is None
 
 
-def test_radio_source_includes_playback_lock_and_targeted_kill_fallback():
+def test_radio_source_keeps_state_lock_and_has_no_process_name_kill_fallback():
     source = inspect.getsource(radio_controller)
 
     assert "def _radio_playback_lock(app):" in source
     assert "with _radio_playback_lock(app):" in source
-    assert "def _force_kill_radio_process_by_ipc(ipc_path: str) -> bool:" in source
+    assert "pkill" not in source
 
 
-def test_start_radio_recording_uses_ffmpeg_and_updates_status(tmp_path):
-    app = type("DummyApp", (), {})()
-    app.netmon_state_dir = str(tmp_path)
-    app.radio_settings = radio_controller.default_radio_settings()
-    app.radio_recordings_dir = str(tmp_path / "records")
-    app.radio_record_status_var = DummyVar("")
-    app.radio_record_dir_var = DummyVar("")
-    app.radio_record_file_var = DummyVar("")
-    app.radio_record_proc = None
-    app.radio_current_station_id = "station-1"
-    app.radio_current_station = {
-        "id": "station-1",
-        "name": "Station 1",
-        "url": "https://example.com/live.mp3",
-    }
-    app.tr = lambda _key, default=None: default
-    app.log = lambda _message: None
+@pytest.mark.parametrize("outcome", [True, False, "error"])
+def test_radio_emergency_stop_uses_owned_lifecycle_without_process_name_signals(
+    monkeypatch, outcome
+):
+    stops, external, logs = [], [], []
 
-    class FakeProc:
-        def __init__(self):
-            self.pid = 1
+    def stop(**kwargs):
+        stops.append(kwargs)
+        if outcome == "error":
+            raise RuntimeError("controlled stop rejection")
+        return outcome
 
-        def poll(self):
-            return None
+    def forbidden(*args, **kwargs):
+        external.append((args, kwargs))
+        raise AssertionError("emergency stop must not search or signal by name")
 
-    calls = []
-    original_has_cmd = radio_controller.has_cmd
-    original_popen = radio_controller.subprocess.Popen
-    original_thread = threading.Thread
-    try:
-        radio_controller.has_cmd = lambda name: name == "ffmpeg"
-        radio_controller.subprocess.Popen = (
-            lambda cmd, **kwargs: calls.append(cmd) or FakeProc()
-        )
-
-        class IgnoreThread:
-            def __init__(self, target=None, args=(), kwargs=None, daemon=None):
-                self.target = target
-                self.args = args
-                self.kwargs = kwargs or {}
-
-            def start(self):
-                return None
-
-        threading.Thread = IgnoreThread
-
-        assert radio_controller.start_radio_recording(app) is True
-    finally:
-        radio_controller.has_cmd = original_has_cmd
-        radio_controller.subprocess.Popen = original_popen
-        threading.Thread = original_thread
-
-    assert calls
-    assert calls[0][0] == "ffmpeg"
-    assert "libmp3lame" in calls[0]
-    assert app.radio_record_proc is not None
-    assert "Aufnahme läuft:" in app.radio_record_status_var.get()
-    assert "Aufnahmeordner:" in app.radio_record_dir_var.get()
-    assert "Letzte Aufnahme:" in app.radio_record_file_var.get()
+    monkeypatch.setattr(radio_controller.subprocess, "run", forbidden)
+    app = SimpleNamespace(stop_radio_playback=stop, log_safe=logs.append)
+    assert App.emergency_stop_radio_mpv(app) is (outcome is True)
+    assert stops == [{"async_mode": True, "clear_current": True}]
+    assert not external
+    assert logs
+    if outcome is True:
+        assert "angefordert" in logs[-1] and "beendet" not in logs[-1]
 
 
-def test_start_radio_recording_prefers_context_menu_station(tmp_path):
-    app = type("DummyApp", (), {})()
-    app.netmon_state_dir = str(tmp_path)
-    app.radio_settings = radio_controller.default_radio_settings()
-    app.radio_recordings_dir = str(tmp_path / "records")
-    app.radio_record_status_var = DummyVar("")
-    app.radio_record_dir_var = DummyVar("")
-    app.radio_record_file_var = DummyVar("")
-    app.radio_record_proc = None
-    app.radio_current_station_id = "station-1"
-    app.radio_context_station_id = "station-2"
+def _recording_start_fixture(tmp_path, monkeypatch, *, context=False):
+    app = SimpleNamespace(
+        netmon_state_dir=str(tmp_path),
+        radio_settings=radio_controller.default_radio_settings(),
+        radio_recordings_dir=str(tmp_path / "records"),
+        radio_record_status_var=DummyVar(""),
+        radio_record_dir_var=DummyVar(""),
+        radio_record_file_var=DummyVar(""),
+        radio_record_proc=None,
+        radio_current_station_id="station-1",
+        radio_context_station_id="station-2" if context else "",
+        tr=lambda _key, default=None: default,
+        log=lambda _message: None,
+    )
     app.radio_stations = [
         {
             "id": "station-1",
@@ -856,45 +827,56 @@ def test_start_radio_recording_prefers_context_menu_station(tmp_path):
     ]
     app.radio_search_results = list(app.radio_stations)
     app.radio_current_station = app.radio_stations[0]
-    app.tr = lambda _key, default=None: default
-    app.log = lambda _message: None
+    calls, messages = [], []
 
-    class FakeProc:
-        def __init__(self):
-            self.pid = 1
+    def start(url, target, **kwargs):
+        calls.append((url, target, kwargs))
+        return SimpleNamespace(output_path=target, poll=lambda: 0, wait=lambda: 0)
 
-        def poll(self):
-            return None
+    class ImmediateThread:
+        def __init__(self, target, **_kwargs):
+            self.target = target
 
-    calls = []
-    original_has_cmd = radio_controller.has_cmd
-    original_popen = radio_controller.subprocess.Popen
-    original_thread = threading.Thread
-    try:
-        radio_controller.has_cmd = lambda name: name == "ffmpeg"
-        radio_controller.subprocess.Popen = (
-            lambda cmd, **kwargs: calls.append(cmd) or FakeProc()
-        )
+        def start(self):
+            self.target()
 
-        class IgnoreThread:
-            def __init__(self, target=None, args=(), kwargs=None, daemon=None):
-                self.target = target
-                self.args = args
-                self.kwargs = kwargs or {}
+    original_status = radio_controller._recording_status_text
 
-            def start(self):
-                return None
+    def status(_app, text):
+        messages.append(text)
+        original_status(_app, text)
 
-        threading.Thread = IgnoreThread
+    monkeypatch.setattr(
+        radio_controller.radio_sandbox, "recording_available", lambda: True
+    )
+    monkeypatch.setattr(radio_controller.radio_sandbox, "start_recording", start)
+    monkeypatch.setattr(radio_controller.threading, "Thread", ImmediateThread)
+    monkeypatch.setattr(
+        radio_controller, "_schedule_ui", lambda _app, callback: callback()
+    )
+    monkeypatch.setattr(radio_controller, "_recording_status_text", status)
+    assert radio_controller.start_radio_recording(app) is True
+    return app, calls, messages
 
-        assert radio_controller.start_radio_recording(app) is True
-    finally:
-        radio_controller.has_cmd = original_has_cmd
-        radio_controller.subprocess.Popen = original_popen
-        threading.Thread = original_thread
 
-    assert calls
-    assert any("live-2.mp3" in str(part) for part in calls[0])
+def test_start_radio_recording_uses_protected_worker_and_updates_status(
+    tmp_path, monkeypatch
+):
+    app, calls, messages = _recording_start_fixture(tmp_path, monkeypatch)
+    assert calls[0][0] == "https://example.com/live-1.mp3"
+    assert "work_root" in calls[0][2]
+    assert any("Aufnahme läuft:" in message for message in messages)
+    assert "Aufnahme gespeichert:" in app.radio_record_status_var.get()
+    assert app.radio_record_proc is None and not app.radio_record_starting
+    assert "Aufnahmeordner:" in app.radio_record_dir_var.get()
+    assert "Letzte Aufnahme:" in app.radio_record_file_var.get()
+
+
+def test_start_radio_recording_prefers_context_menu_station(tmp_path, monkeypatch):
+    _app, calls, _messages = _recording_start_fixture(
+        tmp_path, monkeypatch, context=True
+    )
+    assert calls[0][0] == "https://example.com/live-2.mp3"
 
 
 def test_recording_file_path_includes_station_title_and_date(tmp_path):
@@ -915,7 +897,9 @@ def test_recording_file_path_includes_station_title_and_date(tmp_path):
     assert basename.endswith(".mp3")
 
 
-def test_refresh_radio_recording_ui_updates_dir_and_last_file_text(tmp_path):
+def test_refresh_radio_recording_ui_updates_dir_and_last_file_text(
+    tmp_path, monkeypatch
+):
     app = type("DummyApp", (), {})()
     app.radio_record_proc = None
     app.radio_recordings_dir = str(tmp_path / "records")
@@ -933,12 +917,10 @@ def test_refresh_radio_recording_ui_updates_dir_and_last_file_text(tmp_path):
     os.makedirs(tmp_path / "records", exist_ok=True)
     (tmp_path / "records" / "demo.mp3").write_text("demo", encoding="utf-8")
 
-    original_has_cmd = radio_controller.has_cmd
-    try:
-        radio_controller.has_cmd = lambda name: name == "ffmpeg"
-        radio_controller.refresh_radio_recording_ui(app)
-    finally:
-        radio_controller.has_cmd = original_has_cmd
+    monkeypatch.setattr(
+        radio_controller.radio_sandbox, "recording_available", lambda: True
+    )
+    radio_controller.refresh_radio_recording_ui(app)
 
     assert app.radio_record_dir_var.get().endswith(str(tmp_path / "records"))
     assert app.radio_record_file_var.get() == "Letzte Aufnahme: demo.mp3"
@@ -950,7 +932,13 @@ def test_refresh_radio_recording_ui_updates_dir_and_last_file_text(tmp_path):
     assert app.radio_record_play_last_button.calls[-1]["state"] == "normal"
 
 
-def test_play_last_radio_recording_uses_mpv(tmp_path):
+@pytest.mark.parametrize(
+    "action", ["play_last_radio_recording", "open_last_radio_recording"]
+)
+@pytest.mark.parametrize("start_error", [False, True])
+def test_play_last_radio_recording_uses_protected_mpv_start(
+    tmp_path, monkeypatch, action, start_error
+):
     record_path = tmp_path / "demo.mp3"
     record_path.write_text("demo", encoding="utf-8")
 
@@ -981,8 +969,23 @@ def test_play_last_radio_recording_uses_mpv(tmp_path):
     original_wait = radio_controller._wait_for_radio_process
     original_poll = radio_controller._poll_radio_metadata
     try:
-        radio_controller.subprocess.Popen = (
-            lambda cmd, **kwargs: calls.append(cmd) or FakeProc()
+
+        def protected_start(_app, _volume, media, **kwargs):
+            calls.append((media, kwargs))
+            if start_error:
+                raise RuntimeError("synthetic protected start failure")
+            return FakeProc()
+
+        monkeypatch.setattr(
+            radio_controller,
+            "_start_radio_playback",
+            protected_start,
+        )
+        monkeypatch.setattr(radio_controller, "has_cmd", lambda _cmd: True)
+        monkeypatch.setattr(
+            radio_controller.subprocess,
+            "Popen",
+            lambda *_args, **_kwargs: pytest.fail("external recording player started"),
         )
         radio_controller.stop_radio_playback = lambda _app, **_kwargs: True
         radio_controller._wait_for_radio_process = lambda *_args, **_kwargs: None
@@ -1000,7 +1003,8 @@ def test_play_last_radio_recording_uses_mpv(tmp_path):
 
         threading.Thread = ImmediateThread
 
-        assert radio_controller.play_last_radio_recording(app) is True
+        # True means the asynchronous request was accepted, not that it started.
+        assert getattr(radio_controller, action)(app) is True
     finally:
         radio_controller.subprocess.Popen = original_popen
         radio_controller.stop_radio_playback = original_stop
@@ -1009,8 +1013,41 @@ def test_play_last_radio_recording_uses_mpv(tmp_path):
         threading.Thread = original_thread
 
     assert calls
-    assert calls[0][0] == "mpv"
-    assert calls[0][-1] == str(record_path)
+    assert calls == [(str(record_path), {"local_file": str(record_path)})]
+    if start_error:
+        assert "fehlgeschlagen" in app.radio_header_status_var.get()
+        assert app.radio_proc is None
+
+
+@pytest.mark.parametrize("kind", ["unset", "missing", "directory"])
+def test_open_last_recording_missing_file_does_not_launch_any_player(
+    tmp_path, monkeypatch, kind
+):
+    path = "" if kind == "unset" else str(tmp_path / "missing.mp3")
+    if kind == "directory":
+        path = str(tmp_path)
+    app = SimpleNamespace(
+        radio_last_record_path=path, radio_record_status_var=DummyVar("")
+    )
+    refreshed = []
+    monkeypatch.setattr(
+        radio_controller,
+        "refresh_radio_recording_ui",
+        lambda value: refreshed.append(value),
+    )
+    monkeypatch.setattr(
+        radio_controller,
+        "_play_local_audio_file",
+        lambda *_a, **_k: pytest.fail("missing recording played"),
+    )
+    monkeypatch.setattr(
+        radio_controller.subprocess,
+        "Popen",
+        lambda *_a, **_k: pytest.fail("external player started"),
+    )
+    assert radio_controller.open_last_radio_recording(app) is False
+    assert app.radio_record_status_var.get() == "Keine letzte Aufnahme vorhanden."
+    assert refreshed == [app]
 
 
 def test_open_selected_station_homepage_rejects_disallowed_scheme():
@@ -1426,7 +1463,7 @@ def test_set_radio_search_page_updates_table_and_stays_in_range():
         radio_controller.update_radio_results_table = original_update
 
 
-def test_commit_radio_volume_change_prefers_live_mpv_update():
+def test_commit_radio_volume_change_prefers_live_mpv_update(monkeypatch):
     app = type("DummyApp", (), {})()
     app.radio_volume_var = DummyVar(42)
     app.radio_proc = object()
@@ -1437,10 +1474,18 @@ def test_commit_radio_volume_change_prefers_live_mpv_update():
     app.tr = lambda _key, default=None: default
 
     calls = []
-    radio_controller.save_radio_settings = lambda _app: calls.append("save")
-    radio_controller.apply_radio_volume = lambda _app: calls.append("apply") or True
-    radio_controller.play_radio_station = lambda _app, station_id: calls.append(
-        ("restart", station_id)
+    monkeypatch.setattr(
+        radio_controller, "save_radio_settings", lambda _app: calls.append("save")
+    )
+    monkeypatch.setattr(
+        radio_controller,
+        "apply_radio_volume",
+        lambda _app: calls.append("apply") or True,
+    )
+    monkeypatch.setattr(
+        radio_controller,
+        "play_radio_station",
+        lambda _app, station_id: calls.append(("restart", station_id)),
     )
 
     radio_controller.commit_radio_volume_change(app)
@@ -1474,7 +1519,7 @@ def test_on_radio_volume_preview_syncs_host_and_panel_slider_vars():
     assert host.radio_volume_label_var.get() == "58%"
 
 
-def test_commit_radio_volume_change_restarts_stream_when_live_update_fails():
+def test_commit_radio_volume_change_restarts_stream_when_live_update_fails(monkeypatch):
     app = type("DummyApp", (), {})()
     app.radio_volume_var = DummyVar(64)
     app.radio_proc = object()
@@ -1485,10 +1530,18 @@ def test_commit_radio_volume_change_restarts_stream_when_live_update_fails():
     app.tr = lambda _key, default=None: default
 
     calls = []
-    radio_controller.save_radio_settings = lambda _app: calls.append("save")
-    radio_controller.apply_radio_volume = lambda _app: calls.append("apply") or False
-    radio_controller.play_radio_station = lambda _app, station_id: calls.append(
-        ("restart", station_id)
+    monkeypatch.setattr(
+        radio_controller, "save_radio_settings", lambda _app: calls.append("save")
+    )
+    monkeypatch.setattr(
+        radio_controller,
+        "apply_radio_volume",
+        lambda _app: calls.append("apply") or False,
+    )
+    monkeypatch.setattr(
+        radio_controller,
+        "play_radio_station",
+        lambda _app, station_id: calls.append(("restart", station_id)),
     )
 
     radio_controller.commit_radio_volume_change(app)
@@ -5181,28 +5234,26 @@ def test_summarize_radio_database_import_results_counts_duplicates_and_errors():
     assert summary["errors"] == ["radio_browser_top: timeout"]
 
 
-def test_probe_radio_database_source_reachability_accepts_403(monkeypatch):
-    class Http403Error(radio_controller.urllib.error.HTTPError):
-        def __init__(self):
-            super().__init__(
-                "https://example.com",
-                403,
-                "forbidden",
-                hdrs=None,
-                fp=None,
-            )
+def test_probe_radio_database_source_reachability_uses_protected_helper(monkeypatch):
+    calls = []
 
-    def fake_urlopen(request, timeout=0):
-        raise Http403Error()
+    def probe(url, **kwargs):
+        calls.append((url, kwargs))
+        return True
 
-    monkeypatch.setattr(radio_controller.urllib.request, "urlopen", fake_urlopen)
-
+    monkeypatch.setattr(radio_controller.radio_sandbox, "probe_reachability", probe)
     assert (
         radio_controller._probe_radio_database_source_reachability(
             "radio_browser_api", timeout=0.1
         )
         is True
     )
+    assert calls == [
+        (
+            radio_controller.RADIO_DATABASE_SOURCE_CHECK_ENDPOINTS["radio_browser_api"],
+            {"timeout": 0.1},
+        )
+    ]
 
 
 def test_parse_icecast_entries_from_xml_maps_station_fields():
@@ -5295,48 +5346,43 @@ def test_toggle_radio_station_list_column_updates_selection(monkeypatch):
     assert calls.count("configure") == 2
 
 
-def test_probe_radio_station_reachability_uses_urlopen(monkeypatch):
+def test_probe_radio_station_reachability_uses_protected_helper(monkeypatch):
     calls = []
 
-    class DummyResponse:
-        status = 200
+    def probe(url, **kwargs):
+        calls.append((url, kwargs))
+        return True
 
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-        def getcode(self):
-            return 200
-
-    def fake_urlopen(request, timeout=0):
-        calls.append((request.full_url, timeout, dict(request.headers)))
-        return DummyResponse()
-
-    monkeypatch.setattr(radio_controller.urllib.request, "urlopen", fake_urlopen)
-
+    monkeypatch.setattr(radio_controller.radio_sandbox, "probe_reachability", probe)
     assert (
         radio_controller._probe_radio_station_reachability(
             {"url": "https://example.com/stream"}
         )
         is True
     )
-    assert calls
+    assert calls == [
+        (
+            "https://example.com/stream",
+            {"station": True, "ranged": True, "timeout": 4.0},
+        )
+    ]
 
 
-def test_probe_radio_station_reachability_accepts_icy_response(monkeypatch):
-    def fake_urlopen(request, timeout=0):
-        raise http.client.BadStatusLine("ICY 200 OK")
+def test_probe_radio_station_reachability_keeps_plain_retry(monkeypatch):
+    calls = []
 
-    monkeypatch.setattr(radio_controller.urllib.request, "urlopen", fake_urlopen)
+    def probe(url, **kwargs):
+        calls.append(kwargs["ranged"])
+        return not kwargs["ranged"]
 
+    monkeypatch.setattr(radio_controller.radio_sandbox, "probe_reachability", probe)
     assert (
         radio_controller._probe_radio_station_reachability(
             {"url": "https://example.com/stream"}
         )
         is True
     )
+    assert calls == [True, False]
 
 
 def test_check_visible_radio_station_reachability_resets_current_page_statuses(
@@ -5421,13 +5467,16 @@ def test_check_visible_radio_station_reachability_resets_current_page_statuses(
     assert app.radio_reachability_check_running is False
 
 
-def test_check_visible_radio_station_reachability_falls_back_to_lastcheckok(
+@pytest.mark.parametrize("lastcheckok", [True, False, None])
+def test_check_visible_radio_station_reachability_keeps_unknown(
     monkeypatch,
+    lastcheckok,
 ):
+    messages = []
     app = SimpleNamespace(
         radio_reachability_check_running=False,
         radio_search_results=[
-            {"id": "one", "url": "https://a", "lastcheckok": True},
+            {"id": "one", "url": "https://a", "lastcheckok": lastcheckok},
         ],
         radio_search_page=0,
         radio_live_status_by_station_id={},
@@ -5438,7 +5487,9 @@ def test_check_visible_radio_station_reachability_falls_back_to_lastcheckok(
         radio_controller, "update_radio_results_table", lambda _app: None
     )
     monkeypatch.setattr(
-        radio_controller, "set_radio_status", lambda _app, message: None
+        radio_controller,
+        "set_radio_status",
+        lambda _app, message: messages.append(message),
     )
     monkeypatch.setattr(
         radio_controller, "_schedule_ui", lambda _app, callback: callback()
@@ -5488,7 +5539,9 @@ def test_check_visible_radio_station_reachability_falls_back_to_lastcheckok(
     )
 
     assert radio_controller.check_visible_radio_station_reachability(app) is True
-    assert app.radio_live_status_by_station_id["one"] is True
+    assert app.radio_live_status_by_station_id["one"] is None
+    assert radio_controller._station_online_indicator(app, {"id": "one"}) == "unknown"
+    assert "1 unklar" in messages[-1]
 
 
 def test_radio_core_builds_external_app_command():
@@ -5744,8 +5797,14 @@ def test_radio_core_host_and_attach_state_roundtrip(tmp_path, monkeypatch):
         lambda: str(tmp_path / "state"),
     )
     monkeypatch.setattr("netmon.netmon_radio_core.os.kill", lambda pid, sig: None)
+    monkeypatch.setattr(
+        netmon_radio_core, "_process_identity", lambda pid: ("test-boot", pid * 10)
+    )
 
     assert netmon_radio_core.write_netmon_host_state(12345) is True
+    assert netmon_radio_core.read_netmon_host_state()["pid"] == 12345
+    assert not netmon_radio_core.read_radio_host_state().get("owner_pid")
+    assert netmon_radio_core.write_radio_host_state(mode="embedded", owner_pid=12345)
     state = netmon_radio_core.read_radio_host_state()
     assert state["owner_pid"] == 12345
     assert state["mode"] == "embedded"
@@ -5855,7 +5914,12 @@ def test_radio_core_host_and_attach_state_roundtrip(tmp_path, monkeypatch):
     assert netmon_radio_core.request_radio_attach() is True
     assert netmon_radio_core.clear_radio_attach_request() is True
     assert netmon_radio_core.consume_radio_attach_request() is False
-    assert netmon_radio_core.clear_netmon_host_state(9876) is True
+    assert netmon_radio_core.clear_netmon_host_state(9876) is False
+    assert netmon_radio_core.netmon_host_is_available() is True
+    assert netmon_radio_core.clear_netmon_host_state(12345) is True
+    assert netmon_radio_core.netmon_host_is_available() is False
+    assert netmon_radio_core.read_radio_host_state()["owner_pid"] == 9876
+    assert netmon_radio_core.clear_radio_host_state(9876) is True
 
 
 def test_radio_core_set_radio_mode_updates_host_state(tmp_path, monkeypatch):
@@ -6051,11 +6115,17 @@ def test_phase5_sources_include_transition_status_messages():
     assert "Radio wird gerade an NetMon angeheftet." in standalone_source
 
 
-def test_on_close_keeps_detached_radio_running(monkeypatch):
+@pytest.mark.parametrize("detached", [True, False])
+def test_on_close_respects_recording_and_detached_radio_ownership(
+    monkeypatch, detached
+):
     app = App.__new__(App)
     calls = []
 
     class DummyPanel:
+        def stop_radio_recording(self):
+            calls.append("panel-stop-recording")
+
         def close_projectm_visualizer_test(self):
             calls.append("panel-close-projectm")
 
@@ -6071,7 +6141,7 @@ def test_on_close_keeps_detached_radio_running(monkeypatch):
 
     monkeypatch.setattr(
         "netmon.app.netmon_radio_core.radio_is_detached",
-        lambda: True,
+        lambda: detached,
     )
     monkeypatch.setattr(
         "netmon.app.netmon_radio_core.radio_transition_in_progress",
@@ -6084,9 +6154,10 @@ def test_on_close_keeps_detached_radio_running(monkeypatch):
 
     app.on_close()
 
-    assert "stop-radio" not in calls
-    assert "panel-close-projectm" not in calls
-    assert ("panel-stop-radio", False) not in calls
+    assert ("stop-radio" in calls) is (not detached)
+    assert ("panel-close-projectm" in calls) is (not detached)
+    assert (("panel-stop-radio", False) in calls) is (not detached)
+    assert ("panel-stop-recording" in calls) is (not detached)
     assert "clear-host" in calls
     assert "stop-fun" in calls
     assert "destroy" in calls
@@ -6098,6 +6169,7 @@ def test_standalone_close_auto_reattaches_when_netmon_is_available(monkeypatch):
 
     app.log_safe = lambda message: calls.append(("log", message))
     app.attach_radio_to_netmon = lambda: calls.append("attach") or True
+    app.stop_radio_recording = lambda: calls.append("stop-recording")
     app.close_projectm_visualizer_test = lambda: calls.append("close-projectm")
     app.stop_radio_playback = lambda async_mode=False: calls.append(
         ("stop-radio", async_mode)
@@ -6116,6 +6188,7 @@ def test_standalone_close_auto_reattaches_when_netmon_is_available(monkeypatch):
 
     app._on_close()
 
+    assert calls.count("stop-recording") == 1
     assert "attach" in calls
     assert "destroy" not in calls
 
@@ -6387,6 +6460,9 @@ def test_ensure_projectm_preset_dir_migrates_legacy_presets_without_bundled_sync
 
 
 def test_install_projectm_preset_archive_extracts_zip_pack(monkeypatch, tmp_path):
+    from projectm_zip_legacy_fixture import use_legacy_zip_worker
+
+    use_legacy_zip_worker(monkeypatch)
     docs_dir = tmp_path / "Documents" / "NetMon"
     docs_dir.mkdir(parents=True)
     archive_path = tmp_path / "preset-pack.zip"
@@ -6471,6 +6547,8 @@ def test_refresh_radio_playlist_ui_updates_list_and_buttons(tmp_path):
 
 def test_add_radio_playlist_files_appends_unique_paths(tmp_path):
     app = type("DummyApp", (), {})()
+    app.netmon_state_dir = str(tmp_path)
+    app.radio_settings_path = str(tmp_path / "radio_settings.json")
     app.radio_recordings_dir = str(tmp_path)
     app.radio_playlist_entries = [str(tmp_path / "kept.mp3")]
     app.radio_playlist_status_var = DummyVar("")
@@ -6538,6 +6616,8 @@ def test_play_selected_radio_playlist_entry_uses_local_playback(tmp_path):
 
 def test_remove_selected_radio_playlist_entry_updates_state(tmp_path):
     app = type("DummyApp", (), {})()
+    app.netmon_state_dir = str(tmp_path)
+    app.radio_settings_path = str(tmp_path / "radio_settings.json")
     app.radio_playlist_entries = [str(tmp_path / "a.mp3"), str(tmp_path / "b.mp3")]
     app.radio_playlist_listbox = DummyListbox(selection=(0,))
     app.radio_playlist_status_var = DummyVar("")
@@ -7106,6 +7186,8 @@ def test_radio_folder_browser_back_and_forward_across_modes(tmp_path):
     (playlist_dir / "mix.m3u").write_text("#EXTM3U\n", encoding="utf-8")
 
     app = type("DummyApp", (), {})()
+    app.netmon_state_dir = str(tmp_path)
+    app.radio_settings_path = str(tmp_path / "radio_settings.json")
     app.radio_recordings_dir = str(record_dir)
     app.radio_playlists_dir = str(playlist_dir)
     app.radio_folder_browser_mode = "recordings"
@@ -7411,16 +7493,14 @@ def test_mpv_command_keeps_eq_filter_before_option_terminator():
     assert command[-1] == "http://example.invalid/s"
 
 
-def test_recording_command_whitelists_network_protocols_without_file():
-    command = radio_controller._recording_command(
-        "http://example.invalid/stream", "/tmp/out.mp3"
-    )
-
-    assert "-protocol_whitelist" in command
+def test_recording_command_allows_only_pipe_protocol_without_file_or_network():
+    command = radio_controller.radio_sandbox._recording_command()
     whitelist = command[command.index("-protocol_whitelist") + 1]
-    assert "file" not in whitelist.split(",")
-    assert set(whitelist.split(",")) == {"http", "https", "tcp", "tls", "crypto"}
-    assert command[command.index("-protocol_whitelist") + 2] == "-i"
+    assert whitelist == "pipe"
+    assert command[command.index("-i") + 1] == "pipe:0"
+    assert command[-2:] == ["mp3", "pipe:1"]
+    assert "libmp3lame" in command
+    assert "-nostdin" in command and "-y" not in command
 
 
 def test_radio_ipc_dir_prefers_private_runtime_dir(monkeypatch, tmp_path):

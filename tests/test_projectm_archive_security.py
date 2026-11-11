@@ -23,8 +23,12 @@ from netmon.core.archive_limits import (
 )
 
 
+from projectm_zip_legacy_fixture import use_legacy_zip_worker
+
+
 @pytest.fixture
 def app(tmp_path, monkeypatch):
+    use_legacy_zip_worker(monkeypatch)
     presets = tmp_path / "Presets"
     old = presets / "Downloaded Packs" / "Pack"
     old.mkdir(parents=True)
@@ -76,9 +80,21 @@ class Response(io.BytesIO):
 
 
 def fake_transport(monkeypatch, open_response):
+    """Legacy transport fixture; the UI's process boundary is stubbed explicitly."""
+    from netmon.core import radio_sandbox
+
     monkeypatch.setattr(
         projectm_transport, "_build_opener", lambda: SimpleNamespace(open=open_response)
     )
+
+    def source_stub(url, destination, *, timeout, total_timeout, limit):
+        assert total_timeout == projectm_transport.MAX_DOWNLOAD_SECONDS
+        with projectm_transport.open_preset_response(url, timeout=timeout) as response:
+            return limits.copy_response_limited(
+                response, destination, limit, require_complete=True
+            )
+
+    monkeypatch.setattr(radio_sandbox, "fetch_preset_archive", source_stub)
 
 
 @pytest.mark.parametrize("header", [None, "1", "6"])
@@ -191,7 +207,7 @@ def test_forged_count_cannot_bypass_limit_before_parsing(app, tmp_path, monkeypa
     mutate_central_size(path, count=1)
     monkeypatch.setattr(limits, "MAX_MEMBERS", 2)
     monkeypatch.setattr(
-        sidecar.zipfile,
+        limits.zipfile,
         "ZipFile",
         lambda *_: pytest.fail("Member limit must precede ZipFile allocation"),
     )
@@ -241,7 +257,7 @@ def test_metadata_budget_checked_before_zipfile_parsing(app, tmp_path, monkeypat
     path = write_zip(tmp_path, [("one.milk", b"preset")])
     monkeypatch.setattr(limits, "MAX_DIRECTORY_BYTES", 1)
     monkeypatch.setattr(
-        sidecar.zipfile,
+        limits.zipfile,
         "ZipFile",
         lambda *_: pytest.fail("ZipFile must not parse excessive metadata"),
     )
@@ -584,7 +600,7 @@ def test_zip64_comment_bypass_fails_before_parser_allocation(
     monkeypatch.setattr(limits, "MAX_MEMBERS", 1)
     monkeypatch.setattr(limits, "MAX_DIRECTORY_BYTES", 131)
     monkeypatch.setattr(
-        sidecar.zipfile,
+        limits.zipfile,
         "ZipFile",
         lambda *_: pytest.fail("ZIP64 must be rejected before ZipFile allocation"),
     )
@@ -698,7 +714,7 @@ def test_zip64_locator_without_sentinels_rejected_before_parser(
     struct.pack_into("<H", data, end + 20, len(comment))
     data.extend(comment)
     monkeypatch.setattr(
-        sidecar.zipfile, "ZipFile", lambda *_: pytest.fail("Parser must not run")
+        limits.zipfile, "ZipFile", lambda *_: pytest.fail("Parser must not run")
     )
     with pytest.raises(ValueError, match="ZIP64"):
         limits.check_zip_envelope(io.BytesIO(data))
@@ -744,7 +760,7 @@ def test_inconsistent_structures_rejected_before_zipfile(
         struct.pack_into("<H", data, end + 20, 1)
     path.write_bytes(data)
     monkeypatch.setattr(
-        sidecar.zipfile, "ZipFile", lambda *_: pytest.fail("Parser must not run")
+        limits.zipfile, "ZipFile", lambda *_: pytest.fail("Parser must not run")
     )
     with pytest.raises(ValueError):
         install(app, path)
@@ -773,7 +789,7 @@ def test_zip64_or_truncated_extra_fields_rejected_before_parser(
     info.extra = extra
     path = write_zip(tmp_path, [(info, b"preset")])
     monkeypatch.setattr(
-        sidecar.zipfile, "ZipFile", lambda *_: pytest.fail("Parser must not run")
+        limits.zipfile, "ZipFile", lambda *_: pytest.fail("Parser must not run")
     )
     with pytest.raises(ValueError, match="ZIP64|Truncated"):
         install(app, path)

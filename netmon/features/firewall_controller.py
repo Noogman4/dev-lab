@@ -2031,13 +2031,89 @@ def killswitch_off(
     return True
 
 
+SUDO_STATUS_BACKOFF_SECONDS = 30.0
+_SUDO_PASSWORD_REQUIRED = re.compile(
+    r"^sudo: .*(password|passwort)", re.IGNORECASE | re.MULTILINE
+)
+
+
+def begin_refresh_scope(app) -> dict:
+    """Passive display snapshot owned by the calling (refresh) thread only."""
+    scope = {}
+    app.__dict__["_ufw_status_scope"] = (threading.get_ident(), scope)
+    return scope
+
+
+def end_refresh_scope(app) -> None:
+    current = app.__dict__.get("_ufw_status_scope")
+    if isinstance(current, tuple) and current[0] == threading.get_ident():
+        app.__dict__.pop("_ufw_status_scope", None)
+
+
+def refresh_scope(app):
+    """The snapshot dict if the caller is the refresh that owns it, else None.
+
+    Other threads and every explicit operation (reconcile, switches, kill
+    switch, repairs) always read live and never see the sudo backoff.
+    """
+    if app is None:
+        return None
+    current = app.__dict__.get("_ufw_status_scope")
+    if (
+        isinstance(current, tuple)
+        and len(current) == 2
+        and current[0] == threading.get_ident()
+        and isinstance(current[1], dict)
+    ):
+        return current[1]
+    return None
+
+
+def sudo_status_backoff_active(app) -> bool:
+    """True only for passive refresh reads after a recent sudo password failure."""
+    if refresh_scope(app) is None:
+        return False
+    return time.monotonic() < float(app.__dict__.get("_ufw_sudo_backoff_until", 0.0))
+
+
+def note_ufw_status_result(app, rc, out) -> None:
+    """Remember a sudo password failure briefly; any success clears it.
+
+    Without this, the Tk refresh paid ~35 ms for a failing sudo three times
+    every 3 s (measured stall source in the visualizer window).
+    """
+    if app is None:
+        return
+    if rc == 0:
+        app.__dict__.pop("_ufw_sudo_backoff_until", None)
+    elif _SUDO_PASSWORD_REQUIRED.search(str(out or "")):
+        app.__dict__["_ufw_sudo_backoff_until"] = (
+            time.monotonic() + SUDO_STATUS_BACKOFF_SECONDS
+        )
+
+
 def read_ufw_status(app=None, verbose=False):
     cmd = ["sudo", "-n", "ufw", "status"]
     if verbose:
         cmd.append("verbose")
-    if app is not None:
-        return _run_cmd(app, cmd, timeout=12 if verbose else 8)
-    return run_cmd(cmd, timeout=12 if verbose else 8)
+    if app is None:
+        return run_cmd(cmd, timeout=12 if verbose else 8)
+    # One refresh cycle shares a single status snapshot per flavour; only the
+    # refresh thread itself uses it (see refresh_scope).
+    scope = refresh_scope(app)
+    if isinstance(scope, dict) and verbose in scope:
+        return scope[verbose]
+    if sudo_status_backoff_active(app):
+        result = (1, "")
+    else:
+        result = _run_cmd(app, cmd, timeout=12 if verbose else 8)
+        try:
+            note_ufw_status_result(app, result[0], result[1])
+        except Exception:
+            pass
+    if isinstance(scope, dict):
+        scope[verbose] = result
+    return result
 
 
 def ufw_status_state(status_text):

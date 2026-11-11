@@ -5,11 +5,9 @@
 from __future__ import annotations
 
 import concurrent.futures
-import http.client
 import json
 import os
 import re
-import socket
 import shutil
 import subprocess
 import tempfile
@@ -23,15 +21,23 @@ from datetime import datetime, timezone
 from tkinter import filedialog, messagebox, simpledialog
 from xml.etree import ElementTree
 
+_RECORDING_LOCK_INIT = threading.Lock()
+_PLAYBACK_LOCK_INIT = threading.Lock()
+
+try:
+    from netmon.core import radio_catalog, radio_sandbox, stall_log
+except ModuleNotFoundError:
+    from core import radio_catalog, radio_sandbox, stall_log
+
 try:
     from netmon.core.tooling import has_cmd
 except ModuleNotFoundError:
     from core.tooling import has_cmd
 
 try:
-    from netmon.core.utils import safe_write_json, call_in_ui_thread
+    from netmon.core.utils import safe_write_json
 except ModuleNotFoundError:
-    from core.utils import safe_write_json, call_in_ui_thread
+    from core.utils import safe_write_json
 
 
 def default_radio_settings():
@@ -950,12 +956,14 @@ def apply_radio_handover_payload(app, payload, *, auto_play=False):
             var.set(settings.get(key_name, fallback))
         except Exception:
             pass
+    on_radio_volume_preview(app)
     on_radio_eq_preview(app)
     save_radio_settings(app)
     refresh_radio_ui(app)
     for target in _radio_targets(app):
         try:
             target.radio_handover_title = current_title
+            target.radio_handover_station_id = station_id if current_title else ""
         except Exception:
             pass
     if current_title:
@@ -968,8 +976,8 @@ def apply_radio_handover_payload(app, payload, *, auto_play=False):
 def radio_available(app):
     dep_status = getattr(app, "dep_status", {}) or {}
     if "mpv" in dep_status:
-        return bool(dep_status.get("mpv"))
-    return has_cmd("mpv")
+        return bool(dep_status.get("mpv")) and radio_sandbox.available()
+    return has_cmd("mpv") and radio_sandbox.available()
 
 
 def _radio_targets(app):
@@ -978,6 +986,12 @@ def _radio_targets(app):
     if host_app is not None and host_app is not app:
         targets.append(host_app)
     return targets
+
+
+def _clear_radio_handover_title(app):
+    for target in _radio_targets(app):
+        target.radio_handover_title = ""
+        target.radio_handover_station_id = ""
 
 
 def set_radio_status(app, message):
@@ -1153,13 +1167,243 @@ def filtered_radio_stations(app, query=None):
     return result
 
 
+def _radio_output_ready(app):
+    """Files-only readiness of the protected FIFO output; runs no process."""
+    try:
+        from netmon.core import radio_fifo_output
+
+        return bool(
+            radio_fifo_output.setup_status(
+                radio_fifo_output.paths(), check_version=False
+            )["ready"]
+        )
+    except Exception:
+        return False
+
+
+def _radio_output_hint(app):
+    """Short status-row hint; the detailed reason is shown by the dialog."""
+    ready = _radio_output_ready(app)
+    button = getattr(app, "radio_output_button_var", None)
+    if button is not None:
+        try:
+            button.set(
+                _tr(app, "radio_output_button_ready", "✓ Ton geschützt")
+                if ready
+                else _tr(app, "radio_output_button_setup", "Ton einrichten…")
+            )
+        except Exception:
+            pass
+    if ready:
+        return ""
+    return _tr(
+        app,
+        "radio_output_missing_short",
+        "Geschützte Tonausgabe fehlt – oben einrichten.",
+    )
+
+
+def _restart_audio_after_change(app, dialogs, parent, title, paths, installed, spawn):
+    """Ask, then restart the user's audio services off the Tk thread."""
+    from netmon.core import radio_fifo_output as fifo
+
+    if not dialogs.askyesno(
+        title,
+        _tr(
+            app,
+            "radio_output_restart_prompt",
+            "Damit die Änderung wirkt, müssen die Audiodienste neu gestartet "
+            "werden. Der Ton aller Programme setzt dabei kurz aus. "
+            "Das NetMon-Radio wird vorher gestoppt.\n\nJetzt neu starten?",
+        ),
+        parent=parent,
+    ):
+        dialogs.showinfo(
+            title,
+            _tr(
+                app,
+                "radio_output_restart_later",
+                "Die Änderung wirkt beim nächsten Neustart der Audiodienste "
+                "(z. B. nach einem Neustart des Rechners).",
+            ),
+            parent=parent,
+        )
+        return False
+
+    def work():
+        error = None
+        loaded = None
+        try:
+            stop_radio_playback(app, async_mode=False)
+            fifo.restart_audio_services()
+            loaded = fifo.wait_for_fifo(paths) if installed else None
+        except Exception as exc:
+            error = exc
+
+        def done():
+            try:
+                update_radio_dependency_state(app)
+            except Exception:
+                pass
+            if error is not None:
+                dialogs.showerror(
+                    title,
+                    _tr(
+                        app,
+                        "radio_output_setup_failed",
+                        "Aktion nicht möglich: {error}",
+                    ).format(error=error),
+                    parent=parent,
+                )
+            elif installed and not loaded:
+                dialogs.showerror(
+                    title,
+                    _tr(
+                        app,
+                        "radio_output_restart_not_loaded",
+                        "Audiodienste neu gestartet, aber die geschützte Ausgabe "
+                        "wurde nicht geladen.",
+                    ),
+                    parent=parent,
+                )
+            else:
+                dialogs.showinfo(
+                    title,
+                    (
+                        _tr(
+                            app,
+                            "radio_output_setup_done",
+                            "Eingerichtet und Audiodienste neu gestartet. "
+                            "Das Radio ist bereit.",
+                        )
+                        if installed
+                        else _tr(
+                            app,
+                            "radio_output_remove_done",
+                            "Entfernt und Audiodienste neu gestartet.",
+                        )
+                    ),
+                    parent=parent,
+                )
+
+        _schedule_ui(app, done)
+
+    spawn(work)
+    return True
+
+
+def _start_daemon(target):
+    threading.Thread(target=target, daemon=True).start()
+
+
+def manage_protected_radio_output(app, dialogs=None, spawn=None):
+    """Explicit user action only: set up or remove the protected FIFO output.
+
+    Writes only NetMon's own drop-in and private directory in the user's home
+    (no root, no system files). Afterwards it offers to restart the user's
+    own audio services; that runs off the Tk thread and only after a yes.
+    """
+    from netmon.core import radio_fifo_output as fifo
+
+    dialogs = dialogs or messagebox
+    spawn = spawn or _start_daemon
+    parent = getattr(app, "winfo_toplevel", lambda: None)()
+    title = _tr(app, "radio_output_setup_title", "Geschützte Radioausgabe")
+    try:
+        paths = fifo.paths()
+        installed = (
+            paths.dropin.is_file()
+            and not paths.dropin.is_symlink()
+            and paths.dropin.read_text(errors="replace").startswith(fifo.DROPIN_MARKER)
+        )
+        if installed:
+            status = fifo.setup_status(paths, check_version=False)
+            state = (
+                _tr(app, "radio_output_state_ready", "bereit")
+                if status["ready"]
+                else "; ".join(status["reasons"])
+            )
+            if not dialogs.askyesno(
+                title,
+                _tr(
+                    app,
+                    "radio_output_remove_prompt",
+                    "Die geschützte Radioausgabe ist eingerichtet.\n"
+                    "Status: {state}\n\n"
+                    "Jetzt entfernen? Danach gibt das Radio keinen Ton mehr, "
+                    "bis sie wieder eingerichtet ist.",
+                ).format(state=state),
+                parent=parent,
+            ):
+                return False
+            fifo.uninstall(paths)
+        else:
+            hits = fifo.socket_access_configured(paths)
+            if hits:
+                dialogs.showerror(
+                    title,
+                    _tr(
+                        app,
+                        "radio_output_socket_access",
+                        "Einrichtung nicht möglich: PipeWire nutzt hier einen "
+                        "socketbasierten Zugriff ({files}). Diese Kombination ist "
+                        "nicht geprüft.",
+                    ).format(files=", ".join(hits)),
+                    parent=parent,
+                )
+                return False
+            if not dialogs.askyesno(
+                title,
+                _tr(
+                    app,
+                    "radio_output_setup_prompt",
+                    "NetMon richtet eine geschützte Tonausgabe für das Radio ein. "
+                    "Dabei wird nur Folgendes angelegt:\n\n"
+                    "• {dropin}\n• {state_dir}\n\n"
+                    "Keine Systemdateien, kein root. Danach müssen die "
+                    "Audiodienste einmal neu gestartet werden (NetMon fragt "
+                    "gleich). Entfernen jederzeit über denselben Knopf.\n\n"
+                    "Jetzt einrichten?",
+                ).format(dropin=paths.dropin, state_dir=paths.state_dir),
+                parent=parent,
+            ):
+                return False
+            fifo.install(paths, confirmed=True)
+    except Exception as exc:
+        dialogs.showerror(
+            title,
+            _tr(
+                app,
+                "radio_output_setup_failed",
+                "Aktion nicht möglich: {error}",
+            ).format(error=exc),
+            parent=parent,
+        )
+        try:
+            update_radio_dependency_state(app)
+        except Exception:
+            pass
+        return False
+    try:
+        update_radio_dependency_state(app)
+    except Exception:
+        pass
+    _restart_audio_after_change(
+        app, dialogs, parent, title, paths, not installed, spawn
+    )
+    return True
+
+
 def update_radio_dependency_state(app):
     available = radio_available(app)
     hint = (
-        ""
+        _radio_output_hint(app)
         if available
         else _tr(
-            app, "radio_dependency_missing", "Radio deaktiviert: mpv nicht gefunden."
+            app,
+            "radio_sandbox_dependency_missing",
+            "Radio deaktiviert: geschützte Wiedergabe benötigt mpv, "
+            "PipeWire-Werkzeuge und Bubblewrap.",
         )
     )
     label = getattr(app, "radio_dependency_var", None)
@@ -1175,7 +1419,7 @@ def update_radio_dependency_state(app):
         _set_radio_station_text(app, "")
         _set_radio_title_text(app, _tr(app, "radio_header_title_idle", "Titel: -"))
     elif not getattr(app, "radio_proc", None):
-        set_radio_status(app, _tr(app, "radio_status_ready", "Radio bereit."))
+        set_radio_status(app, hint or _tr(app, "radio_status_ready", "Radio bereit."))
         _set_radio_light(app, "gray")
         _set_radio_station_text(app, "")
         _set_radio_title_text(app, _tr(app, "radio_header_title_idle", "Titel: -"))
@@ -1256,14 +1500,133 @@ def _radio_ipc_path(app):
 
 
 def _radio_playback_lock(app):
-    lock = getattr(app, "radio_playback_lock", None)
-    if lock is None:
-        lock = threading.RLock()
-        try:
+    # This lock protects only Python state. Never wait for processes or call Tk
+    # while holding it; UI callers must not wait for a media operation.
+    with _PLAYBACK_LOCK_INIT:
+        lock = vars(app).get("radio_playback_lock")
+        if lock is None:
+            lock = threading.RLock()
             app.radio_playback_lock = lock
+    return lock
+
+
+class _RadioPlaybackRequest:
+    def __init__(self, generation, previous, legacy_process):
+        self.generation = generation
+        self.previous = previous
+        self.legacy_process = legacy_process
+        self.process = None
+        self.handover_title = ""
+        self.handover_station_id = ""
+        self.cancelled = threading.Event()
+        self.finished = threading.Event()
+        self.done = threading.Event()
+
+
+def _radio_request_current(app, request):
+    with _radio_playback_lock(app):
+        return (
+            vars(app).get("radio_playback_request") is request
+            and vars(app).get("radio_play_generation") == request.generation
+            and not request.cancelled.is_set()
+            and not vars(app).get("_projectm_closing", False)
+            and not vars(app).get("_radio_panel_destroying", False)
+        )
+
+
+def _begin_radio_playback(app):
+    from netmon import netmon_projectm_sidecar
+
+    netmon_projectm_sidecar.invalidate_projectm_playback(app)
+    with _radio_playback_lock(app):
+        previous = vars(app).get("radio_playback_request")
+        proc = vars(app).get("radio_proc")
+        if previous is not None:
+            previous.cancelled.set()
+        generation = vars(app).get("radio_play_generation", 0) + 1
+        legacy = proc if previous is None or previous.process is not proc else None
+        request = _RadioPlaybackRequest(generation, previous, legacy)
+        # Only this request may use the pending title, and only for its station.
+        # Local starts consume it too, so later radio starts cannot resurrect it.
+        request.handover_title = str(
+            getattr(app, "radio_handover_title", "") or ""
+        ).strip()
+        request.handover_station_id = str(
+            getattr(app, "radio_handover_station_id", "") or ""
+        ).strip()
+        _clear_radio_handover_title(app)
+        app.radio_play_generation = generation
+        app.radio_playback_request = request
+        app.radio_proc = None
+        app.radio_ipc_path = ""
+        app.radio_stop_requested = False
+        app.radio_sandbox_state = "starting"
+    return request
+
+
+def _stop_owned_radio_process(proc):
+    """Only the captured process owner may signal and reap this generation."""
+    try:
+        proc.terminate()
+        proc.wait(timeout=3)
+    except Exception:
+        try:
+            proc.kill()
+            proc.wait(timeout=1)
         except Exception:
             pass
-    return lock
+
+
+def _run_radio_playback_request(app, request, start, announce, failed, name):
+    process = None
+    try:
+        # Cancelled intermediate starts still wait for their predecessor. A new
+        # start cannot overtake cleanup or lose the creating thread's lifetime.
+        if request.previous is not None:
+            request.previous.done.wait()
+            request.previous = None
+        if request.legacy_process is not None:
+            _stop_owned_radio_process(request.legacy_process)
+            request.legacy_process = None
+        if not _radio_request_current(app, request):
+            return
+        try:
+            process = start()
+        except Exception as exc:
+
+            def failure(error=str(exc)):
+                if _radio_request_current(app, request):
+                    app.radio_sandbox_state = "failed"
+                    failed(error)
+
+            _schedule_ui(app, failure)
+            return
+        request.process = process
+
+        def publish():
+            with _radio_playback_lock(app):
+                if (
+                    not _radio_request_current(app, request)
+                    or request.finished.is_set()
+                ):
+                    return
+                app.radio_proc = process
+                app.radio_ipc_path = str(getattr(process, "ipc_path", "") or "")
+                app.radio_sandbox_state = "started"
+                app.radio_stop_requested = False
+            announce(process)
+
+        # Keep the callback name useful in traces and delayed-UI fixtures.
+        publish.__name__ = "announce"
+        if _radio_request_current(app, request):
+            if not _schedule_ui(app, publish):
+                request.cancelled.set()
+        _wait_for_radio_process(app, process, name, request)
+    finally:
+        if process is not None and not request.finished.is_set():
+            _stop_owned_radio_process(process)
+        request.finished.set()
+        request.done.set()
 
 
 def _cleanup_radio_ipc_path(app):
@@ -1277,32 +1640,14 @@ def _cleanup_radio_ipc_path(app):
         pass
 
 
-def _force_kill_radio_process_by_ipc(ipc_path: str) -> bool:
-    ipc_path = str(ipc_path or "").strip()
-    if not ipc_path:
-        return False
-    pattern = f"mpv.*--input-ipc-server={re.escape(ipc_path)}"
-    try:
-        proc = subprocess.run(
-            ["pkill", "-f", pattern],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        return proc.returncode == 0
-    except Exception:
-        return False
-
-
 def _send_mpv_command(app, command):
     path = _radio_ipc_path(app)
-    if not path or not os.path.exists(path):
+    if not path:
         return False
 
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.settimeout(1.0)
+    sock = None
     try:
-        sock.connect(path)
+        sock = radio_sandbox.connect_mpv(path, timeout=1.0)
         payload = json.dumps({"command": command}).encode("utf-8") + b"\n"
         sock.sendall(payload)
         try:
@@ -1314,20 +1659,22 @@ def _send_mpv_command(app, command):
         return False
     finally:
         try:
-            sock.close()
+            if sock is not None:
+                sock.close()
         except Exception:
             pass
 
 
 def _query_mpv_property(app, property_name):
     path = _radio_ipc_path(app)
-    if not path or not os.path.exists(path):
+    if not path:
         return None
 
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.settimeout(1.0)
+    # The PCM output can block on one 65536-frame write (about 1.37 s).
+    # Metadata queries run in the existing background polling worker.
+    sock = None
     try:
-        sock.connect(path)
+        sock = radio_sandbox.connect_mpv(path, timeout=2.5)
         payload = (
             json.dumps(
                 {"command": ["get_property", str(property_name or "").strip()]}
@@ -1345,14 +1692,15 @@ def _query_mpv_property(app, property_name):
         return None
     finally:
         try:
-            sock.close()
+            if sock is not None:
+                sock.close()
         except Exception:
             pass
     return None
 
 
 def radio_recording_available(app):
-    return has_cmd("ffmpeg")
+    return radio_sandbox.recording_available()
 
 
 def _recording_status_text(app, text):
@@ -1426,11 +1774,7 @@ def _schedule_record_button_blink(target):
     _stop_record_button_blink(target)
 
     def tick():
-        try:
-            proc = getattr(target, "radio_record_proc", None)
-            active = proc is not None and proc.poll() is None
-        except Exception:
-            active = getattr(target, "radio_record_proc", None) is not None
+        active = _recording_busy(target)
         if not active:
             _stop_record_button_blink(target)
             try:
@@ -2115,12 +2459,8 @@ def refresh_radio_playlist_ui(app):
 
 
 def refresh_radio_recording_ui(app):
-    active = False
-    proc = getattr(app, "radio_record_proc", None)
-    try:
-        active = proc is not None and proc.poll() is None
-    except Exception:
-        active = proc is not None
+    # poll() may reap children and wait internally. Only the owner calls it.
+    active = _recording_busy(app)
     for target in _radio_targets(app):
         start_button = getattr(target, "radio_record_start_button", None)
         stop_button = getattr(target, "radio_record_stop_button", None)
@@ -2267,26 +2607,6 @@ def _recording_file_path(app, station):
     return os.path.join(target_dir, filename)
 
 
-def _recording_command(stream_url, output_path):
-    return [
-        "ffmpeg",
-        "-y",
-        # Ohne Allowlist waehlt ffmpeg den Demuxer nach Inhalt: eine als Stream
-        # ausgelieferte HLS-/concat-Playlist koennte sonst lokale Dateien in
-        # die Aufnahme ziehen. "file" fehlt hier bewusst.
-        "-protocol_whitelist",
-        "http,https,tcp,tls,crypto",
-        "-i",
-        str(stream_url or "").strip(),
-        "-vn",
-        "-acodec",
-        "libmp3lame",
-        "-b:a",
-        "192k",
-        output_path,
-    ]
-
-
 def choose_radio_recordings_dir(app):
     initial_dir = _radio_recordings_dir(app)
     folder = filedialog.askdirectory(
@@ -2420,27 +2740,8 @@ def _start_loaded_radio_playlist(app):
 
 
 def open_last_radio_recording(app):
-    path = str(getattr(app, "radio_last_record_path", "") or "").strip()
-    if not path or not os.path.isfile(path):
-        _recording_status_text(app, "Keine letzte Aufnahme vorhanden.")
-        refresh_radio_recording_ui(app)
-        return False
-    if has_cmd("xdg-open"):
-        try:
-            subprocess.Popen(
-                ["xdg-open", path],
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
-            _recording_status_text(
-                app, f"Letzte Aufnahme geöffnet: {os.path.basename(path)}"
-            )
-            return True
-        except Exception:
-            return False
-    return False
+    """Keep legacy Open actions on the same protected path as Play."""
+    return play_last_radio_recording(app)
 
 
 def _selected_radio_recording_index(app):
@@ -2839,58 +3140,37 @@ def _play_local_audio_file(app, path, *, station_name, title_text):
     except Exception:
         volume = 50
 
+    request = _begin_radio_playback(app)
+    _set_radio_light(app, "yellow")
+    _set_radio_station_text(app, station_name)
+    _set_radio_title_text(app, title_text)
+
+    def announce(proc):
+        app.radio_current_station = None
+        app.radio_current_station_id = ""
+        refresh_radio_source_ui(app)
+        _set_radio_light(app, "green")
+        set_radio_status(app, f"Spielt Mitschnitt: {os.path.basename(path)}")
+        threading.Thread(
+            target=_poll_radio_metadata, args=(app, proc), daemon=True
+        ).start()
+
+    def failed(error):
+        _set_radio_light(app, "red")
+        set_radio_status(app, f"Geschützter Radio-Start fehlgeschlagen: {error}")
+        _recording_status_text(
+            app, f"Mitschnitt konnte nicht abgespielt werden: {error}"
+        )
+
     def worker():
-        with _radio_playback_lock(app):
-            stop_radio_playback(app, async_mode=False)
-            ipc_path = _radio_ipc_path(app)
-            app.radio_ipc_path = ipc_path
-            _cleanup_radio_ipc_path(app)
-            cmd = _mpv_command(
-                volume,
-                path,
-                ipc_path,
-                radio_eq_filter_spec(app),
-            )
-            _schedule_ui(app, lambda: _set_radio_light(app, "yellow"))
-            _schedule_ui(app, lambda: _set_radio_station_text(app, station_name))
-            _schedule_ui(app, lambda: _set_radio_title_text(app, title_text))
-            try:
-                proc = subprocess.Popen(
-                    cmd,
-                    stdin=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            except Exception as exc:
-                _schedule_ui(
-                    app,
-                    lambda err=str(exc): _recording_status_text(
-                        app, f"Mitschnitt konnte nicht abgespielt werden: {err}"
-                    ),
-                )
-                return
-
-            def announce():
-                app.radio_proc = proc
-                app.radio_stop_requested = False
-                app.radio_current_station = None
-                app.radio_current_station_id = ""
-                refresh_radio_source_ui(app)
-                _set_radio_light(app, "green")
-                set_radio_status(app, f"Spielt Mitschnitt: {os.path.basename(path)}")
-
-            _schedule_ui(app, announce)
-
-            threading.Thread(
-                target=_wait_for_radio_process,
-                args=(app, proc, os.path.basename(path)),
-                daemon=True,
-            ).start()
-            threading.Thread(
-                target=_poll_radio_metadata,
-                args=(app, proc),
-                daemon=True,
-            ).start()
+        _run_radio_playback_request(
+            app,
+            request,
+            lambda: _start_radio_playback(app, volume, path, local_file=path),
+            announce,
+            failed,
+            os.path.basename(path),
+        )
 
     threading.Thread(target=worker, daemon=True).start()
     return True
@@ -3096,20 +3376,44 @@ def load_radio_playlist_from_file(app):
     return _load_radio_playlist_path(app, path)
 
 
+def _recording_lock(app):
+    with _RECORDING_LOCK_INIT:
+        lock = getattr(app, "radio_recording_lock", None)
+        if lock is None:
+            lock = threading.RLock()
+            app.radio_recording_lock = lock
+        return lock
+
+
+def _recording_busy(app):
+    return (
+        getattr(app, "radio_record_proc", None) is not None
+        or bool(getattr(app, "radio_record_starting", False))
+        or bool(getattr(app, "radio_record_stopping", False))
+    )
+
+
+class _RadioRecordingRequest:
+    def __init__(self):
+        self.cancelled = threading.Event()
+        self.done = threading.Event()
+        self.stop_generation = None
+
+
+def _finish_recording_process(proc):
+    try:
+        proc.terminate()
+        return proc.wait(timeout=3)
+    except Exception:
+        proc.kill()
+        return proc.wait(timeout=3)
+
+
 def start_radio_recording(app):
     if not radio_recording_available(app):
-        _recording_status_text(app, "Aufnahme nicht verfügbar: ffmpeg fehlt.")
+        _recording_status_text(app, "Geschützte Aufnahme nicht verfügbar.")
         refresh_radio_recording_ui(app)
         return False
-    proc = getattr(app, "radio_record_proc", None)
-    try:
-        if proc is not None and proc.poll() is None:
-            _recording_status_text(app, "Aufnahme läuft bereits.")
-            refresh_radio_recording_ui(app)
-            return False
-    except Exception:
-        if proc is not None:
-            return False
     station = _resolve_target_station(app, getattr(app, "radio_context_station_id", ""))
     if station is None:
         set_radio_status(
@@ -3126,73 +3430,170 @@ def start_radio_recording(app):
         _recording_status_text(app, "Aufnahme fehlgeschlagen: keine Stream-URL.")
         return False
     target_path = _recording_file_path(app, station)
-    try:
-        os.makedirs(os.path.dirname(target_path), exist_ok=True)
-    except Exception:
-        _recording_status_text(app, "Aufnahmeordner konnte nicht erstellt werden.")
+    with _recording_lock(app):
+        busy = _recording_busy(app)
+        if not busy:
+            generation = int(getattr(app, "radio_record_generation", 0)) + 1
+            app.radio_record_generation = generation
+            app.radio_record_start_token = generation
+            request = _RadioRecordingRequest()
+            app.radio_record_request = request
+            app.radio_record_starting = True
+            app.radio_record_stopping = False
+    if busy:
+        _recording_status_text(app, "Aufnahme läuft, startet oder wird beendet.")
         return False
-    try:
-        record_proc = subprocess.Popen(
-            _recording_command(stream_url, target_path),
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    except Exception as exc:
-        _recording_status_text(app, f"Aufnahme fehlgeschlagen: {exc}")
-        refresh_radio_recording_ui(app)
-        return False
-    app.radio_record_proc = record_proc
-    app.radio_last_record_path = target_path
-    _recording_status_text(
-        app,
-        f"Aufnahme läuft: {os.path.basename(target_path)}",
-    )
+    _recording_status_text(app, "Geschützte Aufnahme wird vorbereitet...")
     refresh_radio_recording_ui(app)
 
-    def _wait_for_recording():
-        rc = None
-        try:
-            rc = record_proc.wait()
-        except Exception:
-            rc = None
-        if getattr(app, "radio_record_proc", None) is record_proc:
-            app.radio_record_proc = None
-        status_text = (
-            f"Aufnahme gespeichert: {os.path.basename(target_path)}"
-            if rc == 0
-            else f"Aufnahme beendet (rc={rc if rc is not None else '-'})"
-        )
-        _schedule_ui(app, lambda: _recording_status_text(app, status_text))
-        _schedule_ui(app, lambda: refresh_radio_recording_ui(app))
+    def current_ui(callback):
+        def apply():
+            if getattr(app, "radio_record_generation", 0) == generation:
+                callback()
 
-    threading.Thread(target=_wait_for_recording, daemon=True).start()
+        return _schedule_ui(app, apply)
+
+    def worker():
+        record_proc = None
+        status_text = "Geschützte Aufnahme fehlgeschlagen."
+        try:
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+            with _recording_lock(app):
+                if getattr(app, "radio_record_generation", 0) != generation:
+                    status_text = "Aufnahme gestoppt."
+                    return
+            record_proc = radio_sandbox.start_recording(
+                stream_url, target_path, work_root=_radio_ipc_dir(app)
+            )
+            with _recording_lock(app):
+                cancelled = getattr(app, "radio_record_generation", 0) != generation
+                if not cancelled:
+                    app.radio_record_proc = record_proc
+                    app.radio_last_record_path = record_proc.output_path
+                    app.radio_record_starting = False
+            if cancelled:
+                _finish_recording_process(record_proc)
+                status_text = "Aufnahme gestoppt."
+                return
+
+            def announce():
+                if getattr(app, "radio_record_proc", None) is record_proc:
+                    _recording_status_text(
+                        app,
+                        f"Aufnahme läuft: {os.path.basename(record_proc.output_path)}",
+                    )
+                    refresh_radio_recording_ui(app)
+
+            if current_ui(announce) is False:
+                request.cancelled.set()
+            # Keep bwrap's creating thread alive throughout the recording.
+            # The creating thread owns stop, encoder flushing and reaping.
+            # Neither the UI nor a second waiter touches the process wrapper.
+            while True:
+                if request.cancelled.is_set():
+                    _finish_recording_process(record_proc)
+                    status_text = "Aufnahme gestoppt."
+                    break
+                rc = record_proc.poll()
+                if rc is not None:
+                    status_text = (
+                        f"Aufnahme gespeichert: {os.path.basename(record_proc.output_path)}"
+                        if rc == 0
+                        else (
+                            "Aufnahme beendet: Höchstgröße 2 GB erreicht "
+                            f"({os.path.basename(record_proc.output_path)})."
+                            if getattr(record_proc, "size_limit_reached", False)
+                            else f"Aufnahme beendet (rc={rc})"
+                        )
+                    )
+                    break
+                request.cancelled.wait(0.03)
+        except Exception:
+            # Helper failures do not expose URLs, titles or subprocess stderr.
+            if record_proc is None and request.cancelled.is_set():
+                status_text = "Aufnahme gestoppt."
+            if record_proc is not None:
+                try:
+                    _finish_recording_process(record_proc)
+                except Exception:
+                    pass
+        finally:
+            with _recording_lock(app):
+                # A cancelled starter remains pending until its children end.
+                if getattr(app, "radio_record_start_token", None) == generation:
+                    app.radio_record_starting = False
+                if getattr(app, "radio_record_proc", None) is record_proc:
+                    app.radio_record_proc = None
+                if getattr(app, "radio_record_request", None) is request:
+                    app.radio_record_stopping = False
+                request.done.set()
+
+            def completed():
+                if getattr(app, "radio_record_request", None) is request and getattr(
+                    app, "radio_record_generation", 0
+                ) in (generation, request.stop_generation):
+                    _recording_status_text(app, status_text)
+
+            _schedule_ui(app, completed)
+
+            def refresh_completed_start():
+                host = getattr(app, "radio_host_app", None)
+                if (
+                    host is not None
+                    and getattr(host, "radio_embedded_panel", app) is not app
+                ):
+                    return
+                if getattr(app, "radio_record_start_token", None) == generation:
+                    refresh_radio_recording_ui(app)
+
+            _schedule_ui(app, refresh_completed_start)
+
+    try:
+        # Keep cleanup alive even after Tk has been destroyed during close.
+        threading.Thread(target=worker, daemon=False).start()
+    except Exception:
+        with _recording_lock(app):
+            if getattr(app, "radio_record_request", None) is request:
+                app.radio_record_starting = False
+            request.done.set()
+        _recording_status_text(app, "Aufnahmestart fehlgeschlagen.")
+        refresh_radio_recording_ui(app)
+        return False
     return True
 
 
 def stop_radio_recording(app):
-    proc = getattr(app, "radio_record_proc", None)
-    if proc is None:
-        _recording_status_text(app, "Aufnahme aus.")
-        refresh_radio_recording_ui(app)
-        return False
-    try:
-        proc.terminate()
-        proc.wait(timeout=3)
-    except Exception:
-        try:
-            proc.kill()
-        except Exception:
-            pass
-    app.radio_record_proc = None
-    _recording_status_text(app, "Aufnahme gestoppt.")
+    """Accept cancellation; the recording owner performs all blocking cleanup."""
+    with _recording_lock(app):
+        request = getattr(app, "radio_record_request", None)
+        active = request is not None and not request.done.is_set()
+        generation = int(getattr(app, "radio_record_generation", 0)) + 1
+        app.radio_record_generation = generation
+        if active:
+            request.stop_generation = generation
+            request.cancelled.set()
+            app.radio_record_stopping = True
+        app.radio_record_proc = None
+    _recording_status_text(
+        app, "Aufnahmestopp angefordert." if active else "Aufnahme aus."
+    )
     refresh_radio_recording_ui(app)
-    return True
+    return active
 
 
 def _mpv_command(volume, url, ipc_path, eq_filter=""):
     command = [
         "mpv",
+        "--no-config",
+        "--load-scripts=no",
+        "--no-ytdl",
+        "--ao=pcm",
+        "--ao-pcm-waveheader=no",
+        "--ao-pcm-file=/proc/self/fd/1",
+        "--audio-format=s16",
+        "--audio-samplerate=48000",
+        "--audio-channels=stereo",
+        "--terminal=no",
         "--no-video",
         "--audio-display=no",
         "--force-window=no",
@@ -3209,6 +3610,16 @@ def _mpv_command(volume, url, ipc_path, eq_filter=""):
     command.append("--")
     command.append(url)
     return command
+
+
+def _start_radio_playback(app, volume, media, *, local_file=None):
+    # Preparation owns no app/UI state: cancellation can supersede the handshake.
+    # Only the guarded publication may expose its IPC and "started" status.
+    return radio_sandbox.start_playback(
+        _mpv_command(volume, media, radio_sandbox.IPC_PATH, radio_eq_filter_spec(app)),
+        ipc_root=_radio_ipc_dir(app),
+        local_file=local_file,
+    )
 
 
 def _extract_stream_title(metadata):
@@ -3251,43 +3662,25 @@ def _fetch_icy_stream_title(stream_url, timeout=4):
     url = str(stream_url or "").strip()
     if not url:
         return ""
-    request = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": "NetMon/1.1",
-            "Icy-MetaData": "1",
-        },
-    )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            metaint = response.headers.get("icy-metaint", "")
-            try:
-                interval = int(str(metaint or "").strip() or "0")
-            except Exception:
-                interval = 0
-            if interval <= 0:
-                return ""
-            skipped = 0
-            while skipped < interval:
-                chunk = response.read(min(4096, interval - skipped))
-                if not chunk:
-                    return ""
-                skipped += len(chunk)
-            length_byte = response.read(1)
-            if not length_byte:
-                return ""
-            metadata_length = length_byte[0] * 16
-            if metadata_length <= 0:
-                return ""
-            metadata_block = response.read(metadata_length)
-            if not metadata_block:
-                return ""
-            metadata_text = metadata_block.decode("utf-8", errors="ignore").strip(
-                "\x00"
-            )
-            return _parse_icy_stream_title(metadata_text)
+        return _normalize_title_candidate(
+            radio_sandbox.fetch_icy_title(url, timeout=timeout)
+        )
     except Exception:
         return ""
+
+
+TITLE_POLL_SECONDS = 5.0
+# Protected pipe playback: mpv never sees ICY data (the fetch capsule asks for
+# Icy-MetaData: 0). Only in-band container tags (e.g. Ogg comments) can reach
+# its `metadata`; the other title properties stay empty and each query waits
+# ~1.4 s on the blocking PCM write. Ask the station directly, less often.
+TITLE_POLL_PIPE_SECONDS = 15.0
+
+
+def _radio_title_from_pipe(app):
+    proc = getattr(app, "radio_proc", None)
+    return getattr(proc, "_source_process", None) is not None
 
 
 def _read_radio_stream_title(app):
@@ -3298,6 +3691,10 @@ def _read_radio_stream_title(app):
     title = _extract_stream_title(metadata)
     if title:
         return title, debug_payload
+
+    if _radio_title_from_pipe(app):
+        debug_payload["mpv-properties"] = "skipped-pipe"
+        return _read_icy_station_title(app, debug_payload)
 
     filtered_metadata = _query_mpv_property(app, "filtered-metadata")
     debug_payload["filtered-metadata"] = filtered_metadata
@@ -3316,8 +3713,17 @@ def _read_radio_stream_title(app):
         value = _query_mpv_property(app, property_name)
         debug_payload[property_name] = value
         title = _normalize_title_candidate(value)
+        pipe_input = getattr(getattr(app, "radio_proc", None), "_source_process", None)
+        if title in {"fd://0", "fdclose://0", "-"} or (
+            title == "0" and pipe_input is not None
+        ):
+            title = ""
         if title:
             return title, debug_payload
+    return _read_icy_station_title(app, debug_payload)
+
+
+def _read_icy_station_title(app, debug_payload):
     station = getattr(app, "radio_current_station", None)
     if not isinstance(station, dict):
         station = _resolve_station_by_id(
@@ -3339,14 +3745,29 @@ def _poll_radio_metadata(app, proc):
     last_title = ""
     debug_counter = 0
     while getattr(app, "radio_proc", None) is proc:
+        poll_started = time.monotonic()
         title, debug_payload = _read_radio_stream_title(app)
+        stall_log.write(
+            "title-poll",
+            ms=(time.monotonic() - poll_started) * 1000.0,
+            icy="icy-fetch" in debug_payload,
+            found=bool(title),
+        )
+        if getattr(app, "radio_proc", None) is not proc:
+            return
         if title and title != last_title:
             last_title = title
             _schedule_ui(
                 app,
-                lambda text=title: _set_radio_title_text(
-                    app,
-                    _tr(app, "radio_header_title", "Titel: {title}").format(title=text),
+                lambda text=title: (
+                    _set_radio_title_text(
+                        app,
+                        _tr(app, "radio_header_title", "Titel: {title}").format(
+                            title=text
+                        ),
+                    )
+                    if getattr(app, "radio_proc", None) is proc
+                    else None
                 ),
             )
         elif not title:
@@ -3360,19 +3781,57 @@ def _poll_radio_metadata(app, proc):
                 except Exception:
                     debug_text = "payload-unavailable"
                 _radio_debug_log(app, f"title_poll no_title | {debug_text}")
-        time.sleep(5)
+        interval = (
+            TITLE_POLL_PIPE_SECONDS
+            if _radio_title_from_pipe(app)
+            else TITLE_POLL_SECONDS
+        )
+        # Sleep in short steps so a stopped or replaced player ends the loop soon.
+        deadline = time.monotonic() + interval
+        while getattr(app, "radio_proc", None) is proc:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(0.5, remaining))
 
 
-def _wait_for_radio_process(app, proc, station_name):
+def _wait_for_radio_process(app, proc, station_name, request=None):
     rc = None
     try:
-        rc = proc.wait()
+        if request is None:
+            rc = proc.wait()
+        else:
+            while True:
+                if not _radio_request_current(app, request):
+                    _stop_owned_radio_process(proc)
+                    break
+                try:
+                    rc = proc.wait(timeout=0.1)
+                    break
+                except (subprocess.TimeoutExpired, TimeoutError):
+                    continue
     except Exception:
         rc = None
+        _stop_owned_radio_process(proc)
+    if request is not None:
+        request.finished.set()
+    from netmon import netmon_projectm_sidecar
+
+    netmon_projectm_sidecar.invalidate_projectm_playback(app, proc)
 
     def finalize():
-        if getattr(app, "radio_proc", None) is proc:
+        if request is not None and not _radio_request_current(app, request):
+            return
+        current = getattr(app, "radio_proc", None)
+        # A request already marked finished may never have reached publish().
+        # It still owns its terminal status. The generation guard above lets
+        # Stop/new Start win; publish must not expose a known-finished player.
+        unpublished = (
+            current is None and request is not None and request.process is proc
+        )
+        if current is proc or unpublished:
             app.radio_proc = None
+            app.radio_sandbox_state = "stopped"
             if getattr(app, "radio_stop_requested", False):
                 set_radio_status(
                     app, _tr(app, "radio_status_stopped", "Radio gestoppt.")
@@ -3396,9 +3855,17 @@ def _wait_for_radio_process(app, proc, station_name):
             else:
                 set_radio_status(
                     app,
-                    _tr(
-                        app, "radio_status_ended_rc", "Radio beendet (rc={rc})."
-                    ).format(rc=rc),
+                    (
+                        _tr(
+                            app,
+                            "radio_status_output_lost",
+                            "Radio gestoppt: geschützte Ausgabe verloren.",
+                        )
+                        if getattr(proc, "output_lost", False)
+                        else _tr(
+                            app, "radio_status_ended_rc", "Radio beendet (rc={rc})."
+                        ).format(rc=rc)
+                    ),
                 )
                 _set_radio_light(app, "red")
                 _set_radio_title_text(
@@ -3410,90 +3877,67 @@ def _wait_for_radio_process(app, proc, station_name):
                     ),
                 )
             app.radio_stop_requested = False
-            _cleanup_radio_ipc_path(app)
+            app.radio_ipc_path = ""
             refresh_radio_source_ui(app)
             update_radio_header(app)
 
-    try:
-        call_in_ui_thread(app, finalize)
-    except Exception:
-        finalize()
+    _schedule_ui(app, finalize)
 
 
 def stop_radio_playback(app, *, async_mode=True, clear_current=False):
-    proc = getattr(app, "radio_proc", None)
-    if proc is None:
+    from netmon import netmon_projectm_sidecar
+
+    netmon_projectm_sidecar.invalidate_projectm_playback(app)
+    with _radio_playback_lock(app):
+        generation = vars(app).get("radio_play_generation", 0) + 1
+        app.radio_play_generation = generation
+        request = vars(app).get("radio_playback_request")
+        proc = vars(app).get("radio_proc")
+        if request is not None:
+            request.cancelled.set()
+        legacy = proc if request is None or request.process is not proc else None
+        app.radio_proc = None
+        app.radio_ipc_path = ""
+        app.radio_stop_requested = True
+        app.radio_sandbox_state = "stopping"
+        _clear_radio_handover_title(app)
         if clear_current:
             app.radio_current_station_id = ""
-        if not async_mode:
-            set_radio_status(app, _tr(app, "radio_status_stopped", "Radio gestoppt."))
-            _set_radio_light(app, "gray")
-            _set_radio_station_text(app, "")
-            _set_radio_title_text(app, _tr(app, "radio_header_title_idle", "Titel: -"))
-        return True
 
-    def worker():
+    def stopped():
         with _radio_playback_lock(app):
-            app.radio_stop_requested = True
-            ipc_path = str(getattr(app, "radio_ipc_path", "") or "").strip()
-            try:
-                proc.terminate()
-                proc.wait(timeout=3)
-            except Exception:
-                try:
-                    proc.kill()
-                    try:
-                        proc.wait(timeout=1)
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
-            if proc.poll() is None and ipc_path:
-                _force_kill_radio_process_by_ipc(ipc_path)
-                try:
-                    proc.wait(timeout=1)
-                except Exception:
-                    pass
-            if clear_current:
-                app.radio_current_station_id = ""
-            if getattr(app, "radio_proc", None) is proc:
-                app.radio_proc = None
-            _cleanup_radio_ipc_path(app)
-            app.radio_ipc_path = ""
-            try:
-                call_in_ui_thread(app, lambda: update_radio_header(app))
-                call_in_ui_thread(app, lambda: refresh_radio_source_ui(app))
-                app.after(
-                    0,
-                    lambda: set_radio_status(
-                        app, _tr(app, "radio_status_stopped", "Radio gestoppt.")
-                    ),
-                )
-                call_in_ui_thread(app, lambda: _set_radio_light(app, "gray"))
-                call_in_ui_thread(app, lambda: _set_radio_station_text(app, ""))
-                app.after(
-                    0,
-                    lambda: _set_radio_title_text(
-                        app, _tr(app, "radio_header_title_idle", "Titel: -")
-                    ),
-                )
-            except Exception:
-                update_radio_header(app)
-                refresh_radio_source_ui(app)
-                set_radio_status(
-                    app, _tr(app, "radio_status_stopped", "Radio gestoppt.")
-                )
-                _set_radio_light(app, "gray")
-                _set_radio_station_text(app, "")
-                _set_radio_title_text(
-                    app, _tr(app, "radio_header_title_idle", "Titel: -")
-                )
+            current = vars(app).get("radio_play_generation") == generation
+        if not current or vars(app).get("_radio_panel_destroying", False):
+            return
+        update_radio_header(app)
+        refresh_radio_source_ui(app)
+        set_radio_status(app, _tr(app, "radio_status_stopped", "Radio gestoppt."))
+        _set_radio_light(app, "gray")
+        _set_radio_station_text(app, "")
+        _set_radio_title_text(app, _tr(app, "radio_header_title_idle", "Titel: -"))
 
-    if async_mode:
-        threading.Thread(target=worker, daemon=True).start()
-        return True
+    _schedule_ui(app, stopped)
 
-    worker()
+    def finish():
+        # Each request's creator reaps its own process. No Tk calls or playback
+        # state lock during this wait; a new start keeps the predecessor chain.
+        if request is not None:
+            request.done.wait()
+        if legacy is not None:
+            _stop_owned_radio_process(legacy)
+        with _radio_playback_lock(app):
+            if vars(app).get("radio_play_generation") == generation:
+                app.radio_sandbox_state = "stopped"
+                app.radio_stop_requested = False
+
+    if request is None and legacy is None:
+        finish()
+    elif async_mode or threading.current_thread() is threading.main_thread():
+        # async_mode=False remains synchronous for non-UI callers only. Closing
+        # or detaching on Tk must never wait for a process or its owner thread.
+        threading.Thread(target=finish, daemon=True).start()
+    else:
+        finish()
     return True
 
 
@@ -3760,27 +4204,9 @@ def save_radio_db(app, stations=None):
 
 
 def _download_radio_db_payload():
-    payload = json.dumps(
-        {
-            "hidebroken": True,
-            "limit": RADIO_DB_LIMIT,
-            "offset": 0,
-        }
-    ).encode("utf-8")
-    request = urllib.request.Request(
-        RADIO_DB_ENDPOINT,
-        data=payload,
-        headers={
-            "User-Agent": "NetMon/1.1",
-            "Content-Type": "application/json",
-        },
-        method="POST",
+    return _filter_radio_db_rows(
+        radio_sandbox.fetch_catalog(RADIO_DB_ENDPOINT, post=True)
     )
-    with urllib.request.urlopen(request, timeout=30) as response:
-        charset = response.headers.get_content_charset("utf-8")
-        body = response.read().decode(charset, errors="replace")
-    raw_rows = json.loads(body)
-    return _filter_radio_db_rows(raw_rows)
 
 
 def _radio_database_source_ids_for_download(app):
@@ -3849,44 +4275,16 @@ def _download_radio_source_payload(source_id):
     source_key = str(source_id or "").strip()
     endpoint = RADIO_BROWSER_SOURCE_ENDPOINTS.get(source_key, "")
     if endpoint:
-        if endpoint.endswith("/search") or endpoint.endswith("/stations"):
-            payload = json.dumps(
-                {
-                    "hidebroken": True,
-                    "limit": RADIO_DB_LIMIT,
-                    "offset": 0,
-                }
-            ).encode("utf-8")
-            request = urllib.request.Request(
+        return _filter_radio_db_rows(
+            radio_sandbox.fetch_catalog(
                 endpoint,
-                data=payload,
-                headers={
-                    "User-Agent": "NetMon/1.1",
-                    "Content-Type": "application/json",
-                },
-                method="POST",
+                post=endpoint.endswith(("/search", "/stations")),
             )
-        else:
-            request = urllib.request.Request(
-                endpoint,
-                headers={"User-Agent": "NetMon/1.1"},
-            )
-        with urllib.request.urlopen(request, timeout=30) as response:
-            charset = response.headers.get_content_charset("utf-8")
-            body = response.read().decode(charset, errors="replace")
-        raw_rows = json.loads(body)
-        return _filter_radio_db_rows(raw_rows)
+        )
 
     endpoint = ICECAST_SOURCE_ENDPOINTS.get(source_key, "")
     if endpoint:
-        request = urllib.request.Request(
-            endpoint,
-            headers={"User-Agent": "NetMon/1.1"},
-        )
-        with urllib.request.urlopen(request, timeout=30) as response:
-            charset = response.headers.get_content_charset("utf-8")
-            body = response.read().decode(charset, errors="replace")
-        return _parse_icecast_entries_from_xml(body)
+        return _filter_radio_db_rows(radio_sandbox.fetch_catalog(endpoint, kind="xml"))
 
     if not endpoint:
         raise ValueError(f"quelle nicht unterstützt: {source_id}")
@@ -3921,40 +4319,10 @@ def _probe_radio_database_source_reachability(source_id, timeout=6.0):
     if not url:
         return None
 
-    request = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": "NetMon/1.1",
-            "Accept": "*/*",
-        },
-    )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            code = int(getattr(response, "status", 0) or response.getcode() or 0)
-            if code and code >= 400:
-                return False
-            try:
-                response.read(1)
-            except Exception:
-                pass
-            return True
-    except urllib.error.HTTPError as exc:
-        code = int(getattr(exc, "code", 0) or 0)
-        if code in {401, 403, 405, 406}:
-            return True
-        return False
-    except (
-        urllib.error.URLError,
-        ValueError,
-        socket.timeout,
-        TimeoutError,
-        ConnectionError,
-        http.client.IncompleteRead,
-        http.client.RemoteDisconnected,
-        OSError,
-    ):
-        return False
+        return radio_sandbox.probe_reachability(url, timeout=timeout)
     except Exception:
+        # Missing/failed protection is unknown, with no direct network fallback.
         return None
 
 
@@ -4067,7 +4435,10 @@ def download_radio_db(app):
             selected_source_ids = _radio_database_source_ids_for_download(app)
             if not selected_source_ids:
                 raise ValueError("keine unterstützte Datenbank ausgewählt")
+            if len(selected_source_ids) > 32:
+                raise ValueError("zu viele Katalogquellen")
             payloads = []
+            import_rows = import_bytes = 0
             source_results = []
             total_sources = len(selected_source_ids)
             _schedule_ui(
@@ -4094,6 +4465,13 @@ def download_radio_db(app):
                 )
                 try:
                     rows_for_source = _download_radio_source_payload(source_id)
+                    import_rows += len(rows_for_source)
+                    import_bytes += len(json.dumps(rows_for_source).encode("utf-8"))
+                    if (
+                        import_rows > radio_catalog.MAX_ROWS
+                        or import_bytes > radio_catalog.MAX_IMPORT_BYTES
+                    ):
+                        raise ValueError("Katalogimport überschreitet Gesamtgrenze")
                     payloads.append(rows_for_source)
                     source_results.append(
                         {
@@ -4113,6 +4491,9 @@ def download_radio_db(app):
                             "error": str(exc),
                         }
                     )
+                    raise ValueError(
+                        f"Quelle {source_label} fehlgeschlagen; bisheriger Katalog bleibt erhalten: {exc}"
+                    ) from exc
                 _schedule_ui(
                     app,
                     lambda idx=index, total=total_sources, label=source_label: _set_radio_database_import_progress(
@@ -4453,50 +4834,16 @@ def _probe_radio_station_reachability(row, timeout=4.0):
 
     saw_inconclusive = False
     for url in urls:
-        for headers in (
-            {
-                "User-Agent": "NetMonRadio/1.0",
-                "Icy-MetaData": "1",
-                "Range": "bytes=0-0",
-            },
-            {
-                "User-Agent": "NetMonRadio/1.0",
-            },
-        ):
-            request = urllib.request.Request(url, headers=headers)
+        for ranged in (True, False):
             try:
-                with urllib.request.urlopen(request, timeout=timeout) as response:
-                    code = int(
-                        getattr(response, "status", 0) or response.getcode() or 0
-                    )
-                    if code and code >= 400:
-                        continue
-                    try:
-                        response.read(1)
-                    except Exception:
-                        pass
-                    return True
-            except urllib.error.HTTPError as exc:
-                code = int(getattr(exc, "code", 0) or 0)
-                if code in {401, 403, 405, 406, 416}:
-                    return True
-            except http.client.BadStatusLine as exc:
-                line = str(exc or "").strip().upper()
-                if line.startswith("ICY ") or line.startswith("HTTP/"):
-                    return True
-                saw_inconclusive = True
-            except (
-                urllib.error.URLError,
-                ValueError,
-                socket.timeout,
-                TimeoutError,
-                ConnectionError,
-                http.client.IncompleteRead,
-                http.client.RemoteDisconnected,
-                OSError,
-            ):
-                continue
+                result = radio_sandbox.probe_reachability(
+                    url, station=True, ranged=ranged, timeout=timeout
+                )
             except Exception:
+                result = None
+            if result is True:
+                return True
+            if result is None:
                 saw_inconclusive = True
     return None if saw_inconclusive else False
 
@@ -4543,12 +4890,6 @@ def check_visible_radio_station_reachability(app):
                         reachable = future.result()
                     except Exception:
                         reachable = None
-                    if reachable is None:
-                        fallback = row.get("lastcheckok")
-                        if isinstance(fallback, bool):
-                            reachable = fallback
-                    if reachable is None:
-                        reachable = False
                     results[station_id] = reachable
                     cache[station_id] = reachable
                     _schedule_ui(app, lambda: update_radio_results_table(app))
@@ -4558,10 +4899,13 @@ def check_visible_radio_station_reachability(app):
                 app.radio_reachability_check_running = False
                 _set_radio_reachability_button_state(app, running=False)
                 if results:
-                    online_count = sum(1 for value in results.values() if value)
+                    online_count = sum(1 for value in results.values() if value is True)
+                    unknown_count = sum(
+                        1 for value in results.values() if value is None
+                    )
                     set_radio_status(
                         app,
-                        f"Erreichbarkeit geprüft: {online_count}/{len(results)} Sender online.",
+                        f"Erreichbarkeit geprüft: {online_count}/{len(results)} Sender erreichbar, {unknown_count} unklar.",
                     )
                 else:
                     set_radio_status(app, "Erreichbarkeit konnte nicht geprüft werden.")
@@ -4622,10 +4966,13 @@ def check_radio_database_source_reachability(app):
                 offline_count = sum(
                     1 for value in results.values() if value == "offline"
                 )
+                unknown_count = sum(
+                    1 for value in results.values() if value == "unknown"
+                )
                 if results:
                     set_radio_status(
                         app,
-                        f"Datenbanken geprüft: {online_count} erreichbar, {offline_count} nicht erreichbar.",
+                        f"Datenbanken geprüft: {online_count} erreichbar, {offline_count} nicht erreichbar, {unknown_count} unklar.",
                     )
 
             _schedule_ui(app, finalize)
@@ -4927,124 +5274,68 @@ def play_radio_station(app, station_id=""):
         )
         return False
 
-    def worker():
-        with _radio_playback_lock(app):
-            preserved_title = str(
-                getattr(app, "radio_handover_title", "") or ""
-            ).strip()
-            stop_radio_playback(app, async_mode=False)
-            _schedule_ui(app, lambda: _set_radio_light(app, "yellow"))
-            _schedule_ui(
-                app,
-                lambda: _set_radio_station_text(app, station.get("name", "")),
-            )
-            _schedule_ui(
-                app,
-                lambda: _set_radio_title_text(
-                    app, _tr(app, "radio_header_title_connecting", "Titel: verbinde...")
-                ),
-            )
-            volume = 50
-            try:
-                volume = int(getattr(app, "radio_volume_var").get() or 50)
-            except Exception:
-                volume = 50
-            ipc_path = _radio_ipc_path(app)
-            app.radio_ipc_path = ipc_path
-            _cleanup_radio_ipc_path(app)
-            cmd = _mpv_command(
-                volume, station["url"], ipc_path, radio_eq_filter_spec(app)
-            )
-            try:
-                proc = subprocess.Popen(
-                    cmd,
-                    stdin=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            except Exception as exc:
-                try:
-                    app.after(
-                        0,
-                        lambda err=str(exc): (
-                            set_radio_status(
-                                app,
-                                _tr(
-                                    app,
-                                    "radio_status_start_failed",
-                                    "Radio-Start fehlgeschlagen: {error}",
-                                ).format(error=err),
-                            ),
-                            _set_radio_light(app, "red"),
-                            _set_radio_title_text(
-                                app,
-                                _tr(
-                                    app,
-                                    "radio_header_title_error",
-                                    "Titel: Fehler / keine Verbindung",
-                                ),
-                            ),
-                        ),
-                    )
-                except Exception:
-                    set_radio_status(
-                        app,
-                        _tr(
-                            app,
-                            "radio_status_start_failed",
-                            "Radio-Start fehlgeschlagen: {error}",
-                        ).format(error=exc),
-                    )
-                    _set_radio_light(app, "red")
-                    _set_radio_title_text(
-                        app,
-                        _tr(
-                            app,
-                            "radio_header_title_error",
-                            "Titel: Fehler / keine Verbindung",
-                        ),
-                    )
-                return
+    preserved_title = ""
+    volume = 50
+    try:
+        volume = int(getattr(app, "radio_volume_var").get() or 50)
+    except Exception:
+        pass
+    request = _begin_radio_playback(app)
+    if getattr(request, "handover_station_id", "") == station["id"]:
+        preserved_title = getattr(request, "handover_title", "")
+    _set_radio_light(app, "yellow")
+    _set_radio_station_text(app, station.get("name", ""))
+    _set_radio_title_text(
+        app, _tr(app, "radio_header_title_connecting", "Titel: verbinde...")
+    )
 
-            def announce():
-                app.radio_proc = proc
-                app.radio_stop_requested = False
-                app.radio_current_station_id = station["id"]
-                app.radio_current_station = dict(station)
-                app.radio_playback_mode = "radio"
-                app.radio_local_media_path = ""
-                app.radio_playlist_index = -1
-                save_radio_settings(app)
-                update_radio_header(app)
-                refresh_radio_station_table(app)
-                refresh_radio_favorites_list(app)
-                refresh_radio_source_ui(app)
-                _set_radio_light(app, "green")
-                set_radio_status(
-                    app,
-                    _tr(app, "radio_status_playing", "Spielt: {name}").format(
-                        name=station["name"]
-                    ),
-                )
-                _set_radio_title_text(
-                    app,
-                    preserved_title or _tr(app, "radio_header_title_idle", "Titel: -"),
-                )
-
-            try:
-                call_in_ui_thread(app, announce)
-            except Exception:
-                announce()
-
-            monitor = threading.Thread(
-                target=_wait_for_radio_process,
-                args=(app, proc, station["name"]),
-                daemon=True,
-            )
-            monitor.start()
+    def announce(proc):
+        app.radio_current_station_id = station["id"]
+        app.radio_current_station = dict(station)
+        app.radio_playback_mode = "radio"
+        app.radio_local_media_path = ""
+        app.radio_playlist_index = -1
+        save_radio_settings(app)
+        update_radio_header(app)
+        refresh_radio_station_table(app)
+        refresh_radio_favorites_list(app)
+        refresh_radio_source_ui(app)
+        _set_radio_light(app, "green")
+        set_radio_status(
+            app,
+            _tr(app, "radio_status_playing", "Spielt: {name}").format(
+                name=station["name"]
+            ),
+        )
+        _set_radio_title_text(
+            app, preserved_title or _tr(app, "radio_header_title_idle", "Titel: -")
+        )
         threading.Thread(
             target=_poll_radio_metadata, args=(app, proc), daemon=True
         ).start()
+
+    def failed(error):
+        set_radio_status(
+            app,
+            _tr(
+                app, "radio_status_start_failed", "Radio-Start fehlgeschlagen: {error}"
+            ).format(error=error),
+        )
+        _set_radio_light(app, "red")
+        _set_radio_title_text(
+            app,
+            _tr(app, "radio_header_title_error", "Titel: Fehler / keine Verbindung"),
+        )
+
+    def worker():
+        _run_radio_playback_request(
+            app,
+            request,
+            lambda: _start_radio_playback(app, volume, station["url"]),
+            announce,
+            failed,
+            station["name"],
+        )
 
     threading.Thread(target=worker, daemon=True).start()
     return True
