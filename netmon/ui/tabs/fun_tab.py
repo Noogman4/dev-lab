@@ -53,11 +53,16 @@ def build_fun_tab(app):
     app.btn_fun_stop.pack(side="left", padx=(6, 0))
     app.register_feature_button("fun", app.btn_fun_stop)
 
+    games_frame = ttk.Frame(app.tab_fun)
+    games_frame.pack(fill="both", expand=True)
+    games_scroll = ttk.Scrollbar(games_frame, orient="vertical")
+    games_scroll.pack(side="right", fill="y")
     app.fun_games_table = ttk.Treeview(
-        app.tab_fun,
+        games_frame,
         columns=("name", "source", "status", "start"),
         show="headings",
         height=10,
+        yscrollcommand=games_scroll.set,
     )
     for col, title, width in [
         ("name", app.tr("fun_col_name", "Spiel"), 220),
@@ -67,7 +72,8 @@ def build_fun_tab(app):
     ]:
         app.fun_games_table.heading(col, text=title)
         app.fun_games_table.column(col, width=width, anchor="w")
-    app.fun_games_table.pack(fill="both", expand=True)
+    app.fun_games_table.pack(side="left", fill="both", expand=True)
+    games_scroll.configure(command=app.fun_games_table.yview)
     _bind_if_callable(
         app.fun_games_table,
         "<Double-1>",

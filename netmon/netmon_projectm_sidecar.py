@@ -4,17 +4,22 @@ from __future__ import annotations
 
 import os
 import shutil
-import signal
 import subprocess
 import time
+import threading
 import hashlib
-import zipfile
 from dataclasses import dataclass
 
-from netmon.core import projectm_archive
+from netmon.core import (
+    projectm_archive,
+    projectm_zip,
+    projectm_process,
+    projectm_frontend,
+)
 from netmon.core.projectm_import_plan import ImportPlan, path_key, sync_import_flat_scan
 from netmon.core.archive_limits import ByteBudget, copy_limited
 from netmon.core.state import get_netmon_documents_dir, get_netmon_documents_subdir
+from netmon.core.projectm_profile import NEUTRAL_EQ
 
 PROJECTM_COMMAND_CANDIDATES = (
     "projectM-pulseaudio",
@@ -31,11 +36,7 @@ PROJECTM_FLATPAK_INSTALL_COMMAND = (
     "https://flathub.org/repo/flathub.flatpakrepo && "
     f"flatpak install -y flathub {PROJECTM_FLATPAK_APP_ID}"
 )
-PROJECTM_PROCESS_MATCH_TERMS = (
-    "projectm-pulseaudio",
-    "projectm",
-    "net.sourceforge.projectm",
-)
+_PROCESS_LOCK = threading.RLock()
 PROJECTM_FLATPAK_CONFIG_SUBDIR = os.path.join(
     ".var", "app", PROJECTM_FLATPAK_APP_ID, "config", "projectM"
 )
@@ -46,18 +47,9 @@ PROJECTM_HOST_PRESET_DIR_CANDIDATES = (
     "/usr/local/share/projectm",
 )
 PROJECTM_FLAT_SCAN_SUBDIR = ".netmon_projectm_flat_scan_v1"
-PROJECTM_PRESET_EXTENSIONS = {".milk", ".prjm"}
-PROJECTM_PRESET_ASSET_EXTENSIONS = {
-    ".jpg",
-    ".jpeg",
-    ".png",
-    ".bmp",
-    ".tga",
-    ".gif",
-    ".dds",
-    ".ppm",
-    ".pgm",
-}
+PROJECTM_PRESET_EXTENSIONS = projectm_zip.PRESET_EXTENSIONS
+PROJECTM_PRESET_ASSET_EXTENSIONS = projectm_zip.ASSET_EXTENSIONS
+
 PROJECTM_DOWNLOADED_PACKS_DIRNAME = "Downloaded Packs"
 
 
@@ -73,6 +65,7 @@ class ProjectMSidecarStatus:
     install_command: str = ""
     backend_label: str = ""
     install_strategy: str = "skip"
+    starting: bool = False
 
 
 def get_projectm_preset_dir(app=None):
@@ -96,7 +89,6 @@ def ensure_projectm_preset_dir(app=None):
         return ""
     _migrate_legacy_projectm_presets(app, path)
     _sync_projectm_flat_scan_dir(app, path)
-    _sync_projectm_flatpak_playlist_file(app, path)
     return path
 
 
@@ -281,69 +273,62 @@ def install_projectm_preset_archive(app, archive_path: str, pack_name: str = "")
     imported_files = 0
     target_root = ""
     try:
-        with open(archive_path, "rb") as handle:
-            size, count = projectm_archive.check_zip_envelope(handle)
-            with zipfile.ZipFile(handle, "r") as archive:
-                parsed_members = projectm_archive.validate_members(archive, size, count)
-                if not any(
-                    os.path.splitext(parts[-1])[1].lower() in PROJECTM_PRESET_EXTENSIONS
-                    for _, parts in parsed_members
-                ):
-                    raise ValueError(
-                        "The selected ZIP file does not contain any .milk or .prjm presets."
-                    )
-                plan = ImportPlan(
-                    parsed_members, PROJECTM_PRESET_EXTENSIONS, allowed_exts
+        with projectm_zip.prepared_archive(archive_path) as prepared:
+            parsed_members = prepared.members
+            if not any(
+                os.path.splitext(parts[-1])[1].lower() in PROJECTM_PRESET_EXTENSIONS
+                for _, parts in parsed_members
+            ):
+                raise ValueError(
+                    "The selected ZIP file does not contain any .milk or .prjm presets."
                 )
-                packs_root = _projectm_downloaded_packs_dir(preset_dir)
-                if os.path.islink(preset_dir):
-                    raise ValueError("Preset directories must not be symlinks.")
-                plan.budget.create("directory", "packs-root")
-                os.makedirs(packs_root, exist_ok=True)
-                if os.path.islink(packs_root):
-                    raise ValueError("Preset directories must not be symlinks.")
-                # Exclusive creation: never reuse an existing pack, even after a race.
-                safe_pack = _sanitize_projectm_pack_name(
-                    pack_name or os.path.splitext(os.path.basename(archive_path))[0]
+            plan = ImportPlan(parsed_members, PROJECTM_PRESET_EXTENSIONS, allowed_exts)
+            packs_root = _projectm_downloaded_packs_dir(preset_dir)
+            if os.path.islink(preset_dir):
+                raise ValueError("Preset directories must not be symlinks.")
+            plan.budget.create("directory", "packs-root")
+            os.makedirs(packs_root, exist_ok=True)
+            if os.path.islink(packs_root):
+                raise ValueError("Preset directories must not be symlinks.")
+            # Exclusive creation: never reuse an existing pack, even after a race.
+            safe_pack = _sanitize_projectm_pack_name(
+                pack_name or os.path.splitext(os.path.basename(archive_path))[0]
+            )
+            suffix = 1
+            while True:
+                candidate = os.path.join(
+                    packs_root,
+                    safe_pack if suffix == 1 else f"{safe_pack}_{suffix}",
                 )
-                suffix = 1
-                while True:
-                    candidate = os.path.join(
-                        packs_root,
-                        safe_pack if suffix == 1 else f"{safe_pack}_{suffix}",
-                    )
-                    try:
-                        os.mkdir(candidate, mode=0o700)
-                    except FileExistsError:
-                        suffix += 1
-                        continue
-                    target_root = candidate
-                    plan.budget.create("directory", "pack-root")
-                    break
-                for key, parts in plan.directories.items():
-                    plan.budget.create("directory", key)
-                    os.mkdir(os.path.join(target_root, *parts), mode=0o700)
-                budget = ByteBudget(projectm_archive.MAX_TOTAL_BYTES)
-                for item in plan.files:
-                    target_path = os.path.abspath(
-                        os.path.join(target_root, *item.parts)
-                    )
-                    if os.path.commonpath([target_root, target_path]) != target_root:
-                        raise ValueError("Unsafe ZIP target path.")
-                    plan.budget.create("file", path_key(item.parts))
-                    with open(target_path, "xb") as dest:
-                        projectm_archive.copy_member(archive, item.member, dest, budget)
-                    imported_files += 1
-                    if item.preset:
-                        imported_presets += 1
-                    else:
-                        imported_assets += 1
+                try:
+                    os.mkdir(candidate, mode=0o700)
+                except FileExistsError:
+                    suffix += 1
+                    continue
+                target_root = candidate
+                plan.budget.create("directory", "pack-root")
+                break
+            for key, parts in plan.directories.items():
+                plan.budget.create("directory", key)
+                os.mkdir(os.path.join(target_root, *parts), mode=0o700)
+            budget = ByteBudget(projectm_archive.MAX_TOTAL_BYTES)
+            for item in plan.files:
+                target_path = os.path.abspath(os.path.join(target_root, *item.parts))
+                if os.path.commonpath([target_root, target_path]) != target_root:
+                    raise ValueError("Unsafe ZIP target path.")
+                plan.budget.create("file", path_key(item.parts))
+                with open(target_path, "xb") as dest:
+                    prepared.copy_member(item.member, dest, budget)
+                imported_files += 1
+                if item.preset:
+                    imported_presets += 1
+                else:
+                    imported_assets += 1
         _migrate_legacy_projectm_presets(app, preset_dir, import_budget=plan.budget)
         plan.budget.create("directory", "flat-root")
         _sync_projectm_flat_scan_dir(
             app, preset_dir, import_plan=plan, target_root=target_root
         )
-        _sync_projectm_flatpak_playlist_file(app, preset_dir)
     except BaseException:
         try:
             if target_root:
@@ -504,6 +489,7 @@ def _read_flatpak_list_output(flatpak_path):
             check=False,
             capture_output=True,
             text=True,
+            timeout=10,
         )
         return completed.stdout or completed.stderr or ""
     except Exception:
@@ -537,86 +523,6 @@ def _detect_projectm_command():
 def _is_flatpak_projectm_command(command):
     parts = list(command or [])
     return len(parts) >= 3 and os.path.basename(str(parts[0])) == "flatpak"
-
-
-def _read_process_rows():
-    try:
-        completed = subprocess.run(
-            ["ps", "-eo", "pid=,ppid=,args="],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        output = completed.stdout or ""
-    except Exception:
-        output = ""
-    rows = []
-    for raw_line in output.splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-        parts = line.split(None, 2)
-        if len(parts) < 3:
-            continue
-        try:
-            pid = int(parts[0])
-            ppid = int(parts[1])
-        except Exception:
-            continue
-        rows.append({"pid": pid, "ppid": ppid, "args": parts[2]})
-    return rows
-
-
-def _collect_descendant_pids(root_pid):
-    if not root_pid:
-        return set()
-    rows = _read_process_rows()
-    child_map = {}
-    for row in rows:
-        child_map.setdefault(int(row["ppid"]), set()).add(int(row["pid"]))
-    found = set()
-    pending = [int(root_pid)]
-    while pending:
-        parent = pending.pop()
-        for child_pid in child_map.get(parent, set()):
-            if child_pid in found:
-                continue
-            found.add(child_pid)
-            pending.append(child_pid)
-    return found
-
-
-def _collect_matching_projectm_pids():
-    rows = _read_process_rows()
-    matches = set()
-    for row in rows:
-        args = str(row.get("args", "") or "").lower()
-        if any(term in args for term in PROJECTM_PROCESS_MATCH_TERMS):
-            matches.add(int(row["pid"]))
-    return matches
-
-
-def _collect_projectm_runtime_pids(proc, command):
-    known = set()
-    if proc is not None:
-        try:
-            known.add(int(proc.pid))
-        except Exception:
-            pass
-    launcher_pid = int(proc.pid) if proc is not None else 0
-    if launcher_pid:
-        known.update(_collect_descendant_pids(launcher_pid))
-    if _is_flatpak_projectm_command(command):
-        known.update(_collect_matching_projectm_pids())
-    return {pid for pid in known if int(pid) > 0}
-
-
-def _signal_pid(pid, sig):
-    try:
-        os.kill(int(pid), sig)
-        return True
-    except Exception:
-        return False
 
 
 def _parse_apt_policy_output(text):
@@ -667,6 +573,7 @@ def probe_projectm_package_candidates(app=None, refresh=False):
             check=False,
             capture_output=True,
             text=True,
+            timeout=10,
         )
         output = completed.stdout or completed.stderr or ""
     except Exception:
@@ -724,7 +631,7 @@ def get_projectm_sidecar_status(app=None):
         if resolved:
             binary_command = [resolved]
             break
-    probe = probe_projectm_package_candidates(app=app, refresh=not binary_command)
+    probe = probe_projectm_package_candidates(app=app)
     flatpak_command = (
         [str(probe.get("flatpak_path") or "").strip(), "run", PROJECTM_FLATPAK_APP_ID]
         if probe.get("flatpak_projectm_installed") and probe.get("flatpak_path")
@@ -773,264 +680,540 @@ def get_projectm_sidecar_status(app=None):
     )
 
 
+class _ProjectMRequest:
+    """One generation of asynchronous start; only its worker touches capsules."""
+
+    def __init__(
+        self,
+        app,
+        playback,
+        preset_dir,
+        previous=None,
+        *,
+        resolution="640x480",
+        preset_name=None,
+        cpu_profile="standard",
+        backend="cpu",
+        visual_eq=None,
+    ):
+        from netmon.core.projectm_profile import (
+            NEUTRAL_EQ,
+            resolve,
+            resolve_backend,
+            resolve_cpu,
+            validate_visual_eq,
+        )
+
+        self._visual_eq = validate_visual_eq(
+            NEUTRAL_EQ if visual_eq is None else visual_eq
+        )
+        self._visual_eq_pending = False
+        self.resolution = resolve(resolution).key
+        self.cpu_profile = resolve_cpu(cpu_profile).key
+        self.backend = resolve_backend(backend)
+        self._actual_backend = "pending"
+        self._gpu_error = ""
+        self._preset_name = preset_name
+        self.app, self.playback, self.preset_dir = app, playback, preset_dir
+        self.previous = previous
+        self.cancelled = threading.Event()
+        self.done = threading.Event()
+        self._lock = threading.Lock()
+        self.phase, self.message = "starting", "projectM: Start wird vorbereitet."
+        self.pid = 0
+        self.returncode = None
+        self._presets = ()
+        self._selected_preset = None
+        self._preset_pending = False
+        from netmon.core.projectm_pixels import FrameMailbox
+
+        self.frames = FrameMailbox(self.resolution)
+        self.thread = threading.Thread(
+            target=self._run, name="projectm-owner", daemon=True
+        )
+
+    def snapshot(self):
+        with self._lock:
+            return self.phase, self.message, self.pid, self.returncode
+
+    def poll(self):
+        return self.snapshot()[3]
+
+    def preset_state(self):
+        with self._lock:
+            return self._presets, self._selected_preset
+
+    def render_state(self):
+        with self._lock:
+            return self._actual_backend, self._gpu_error
+
+    @property
+    def visual_eq(self):
+        with self._lock:
+            return self._visual_eq
+
+    def set_visual_eq(self, eq):
+        """Tk only queues the newest EQ; the owner thread writes it."""
+        from netmon.core.projectm_profile import validate_visual_eq
+
+        try:
+            validate_visual_eq(eq)
+        except ValueError:
+            return False
+        if self._invalid():
+            return False
+        with self._lock:
+            self._visual_eq = eq
+            self._visual_eq_pending = True
+        return True
+
+    def select_preset(self, index):
+        """Tk only queues the newest choice; the owner writes to the renderer."""
+        if self._invalid():
+            return False
+        with self._lock:
+            if self.phase != "running" or (
+                index is not None
+                and (type(index) is not int or not 0 <= index < len(self._presets))
+            ):
+                return False
+            self._selected_preset = index
+            self._preset_name = None if index is None else self._presets[index]
+            self._preset_pending = True
+        return True
+
+    def selected_preset_name(self):
+        with self._lock:
+            return self._preset_name
+
+    def stop(self):
+        self.cancelled.set()
+        with self._lock:
+            if self.returncode is None:
+                self.phase, self.message = "stopping", "projectM: wird beendet."
+        return True
+
+    def _invalid(self):
+        with _PROCESS_LOCK:
+            state = vars(self.app)
+            return (
+                self.cancelled.is_set()
+                or state.get("radio_projectm_proc") is not self
+                or state.get("radio_proc") is not self.playback
+                or state.get("radio_stop_requested", False)
+                or state.get("_radio_panel_destroying", False)
+                or state.get("_projectm_closing", False)
+            )
+
+    def _run(self):
+        session = None
+        code, message = 0, "projectM: gestoppt."
+        try:
+            # A rapid stop/start waits for the older owner to finish cleanup.
+            older = self.previous
+            while older is not None:
+                while not older.done.wait(0.05):
+                    if self._invalid():
+                        return
+                older = older.previous
+            self.previous = None
+            if self._invalid():
+                return
+            backend_options = {} if self.backend == "cpu" else {"backend": self.backend}
+            with self._lock:
+                start_eq, self._visual_eq_pending = self._visual_eq, False
+            if start_eq != NEUTRAL_EQ:
+                backend_options["visual_eq"] = start_eq
+            session = projectm_frontend.start(
+                self.playback,
+                self.preset_dir,
+                cancelled=self._invalid,
+                resolution=self.resolution,
+                preset_name=self._preset_name,
+                cpu_profile=self.cpu_profile,
+                **backend_options,
+            )
+            if not isinstance(session, projectm_frontend.FrontendSession):
+                raise RuntimeError("Unbekanntes projectM-Startresultat abgelehnt.")
+            if session.pixels is None:
+                raise RuntimeError("projectM ohne privaten Pixelstrom abgelehnt.")
+            if getattr(session, "resolution", "640x480") != self.resolution:
+                raise RuntimeError("projectM mit falschem Auflösungsprofil abgelehnt.")
+            if getattr(session, "cpu_profile", "standard") != self.cpu_profile:
+                raise RuntimeError("projectM mit falschem CPU-Profil abgelehnt.")
+            actual_backend = getattr(session, "backend", "cpu")
+            if actual_backend not in {"cpu", "gpu"} or (
+                self.backend != "auto" and self.backend != actual_backend
+            ):
+                raise RuntimeError("projectM mit falschem Renderweg abgelehnt.")
+            self.frames = session.pixels.frames
+            if self._invalid():
+                return
+            if session.poll() is not None:
+                raise RuntimeError(
+                    "Privater projectM-Verbund wurde vor der Statusuebernahme beendet."
+                )
+            with _PROCESS_LOCK:
+                if self._invalid():
+                    return
+                with self._lock:
+                    self._presets = getattr(session, "presets", ())
+                    self._selected_preset = getattr(session, "selected_preset", None)
+                    self._preset_name = (
+                        self._presets[self._selected_preset]
+                        if self._selected_preset is not None
+                        else None
+                    )
+                    self.pid = session.pid
+                    self._actual_backend = actual_backend
+                    self._gpu_error = getattr(session, "gpu_error", "")
+                    self.phase, self.message = (
+                        "running",
+                        "projectM: gestartet ("
+                        + ("GPU" if actual_backend == "gpu" else "CPU")
+                        + ("; GPU nicht verfügbar" if self._gpu_error else "")
+                        + ").",
+                    )
+            # Keep the Popen creator alive: Bubblewrap's parent is this thread.
+            while not self.cancelled.wait(0.05):
+                if self._invalid():
+                    break
+                with self._lock:
+                    pending, selected = self._preset_pending, self._selected_preset
+                    self._preset_pending = False
+                    eq_pending, eq = self._visual_eq_pending, self._visual_eq
+                    self._visual_eq_pending = False
+                if pending:
+                    session.select_preset(selected)
+                if eq_pending:
+                    session.set_visual_eq(eq)
+                result = session.poll()
+                if result is not None:
+                    code = result
+                    message = (
+                        "projectM: beendet."
+                        if result == 0
+                        else "projectM: privater Verbund wurde beendet (Fehler)."
+                    )
+                    break
+        except Exception as exc:
+            if not self._invalid():
+                code, message = 2, f"projectM: geschuetzter Start fehlgeschlagen: {exc}"
+        finally:
+            try:
+                if isinstance(session, projectm_frontend.FrontendSession):
+                    session.stop()
+            except Exception as exc:
+                code, message = 2, f"projectM: Bereinigung fehlgeschlagen: {exc}"
+            if self.cancelled.is_set() and not code:
+                message = "projectM: gestoppt."
+            with self._lock:
+                self.pid = 0
+                self.returncode = code
+                self.phase, self.message = ("error" if code else "stopped"), message
+            self.done.set()
+
+
 def launch_projectm_sidecar(app=None):
-    status = get_projectm_sidecar_status(app=app)
-    logger = getattr(app, "log_safe", None)
-    if not status.installed or not status.command:
-        if callable(logger):
-            try:
-                logger(f"projectM: {status.message}")
-            except Exception:
-                pass
-        return status
-    proc = getattr(app, "radio_projectm_proc", None)
-    if proc is not None and proc.poll() is None:
+    if app is None:
         return ProjectMSidecarStatus(
-            available=True,
-            installed=True,
-            installable=status.installable,
-            backend_id="projectm_external",
-            message="projectM läuft bereits.",
-            launched=True,
-            command=status.command,
-            install_command=status.install_command,
+            False,
+            False,
+            False,
+            "projectm_private",
+            "projectM-Start ohne Besitzer abgelehnt.",
+        )
+    with _PROCESS_LOCK:
+        state = vars(app)
+        playback = state.get("radio_proc")
+        from netmon.core.radio_sandbox import SandboxProcess
+
+        if (
+            not isinstance(playback, SandboxProcess)
+            or state.get("_projectm_closing", False)
+            or state.get("_radio_panel_destroying", False)
+        ):
+            return ProjectMSidecarStatus(
+                False,
+                False,
+                False,
+                "projectm_private",
+                "projectM benoetigt aktive geschuetzte NetMon-Wiedergabe.",
+            )
+        previous = state.get("radio_projectm_proc")
+        if (
+            isinstance(previous, _ProjectMRequest)
+            and not previous.done.is_set()
+            and not previous.cancelled.is_set()
+            and previous.playback is playback
+        ):
+            running = previous.snapshot()[0] == "running"
+            return ProjectMSidecarStatus(
+                True,
+                running,
+                False,
+                "projectm_private",
+                (
+                    "projectM laeuft bereits."
+                    if running
+                    else "projectM-Start laeuft bereits."
+                ),
+                launched=running,
+                starting=not running,
+            )
+        if previous is not None and not isinstance(previous, _ProjectMRequest):
+            # Old/foreign objects cannot be adopted as protected sessions.
+            return ProjectMSidecarStatus(
+                False,
+                False,
+                False,
+                "projectm_private",
+                "projectM: vorhandenen alten Prozess zuerst beenden.",
+            )
+        if isinstance(previous, _ProjectMRequest):
+            previous.stop()
+        request = _ProjectMRequest(
+            app,
+            playback,
+            get_projectm_preset_dir(app),
+            previous,
+            resolution=state.get("_projectm_resolution", "640x480"),
+            cpu_profile=state.get("_projectm_cpu_profile", "standard"),
+            backend=state.get("_projectm_backend", "auto"),
+            visual_eq=state.get("_projectm_visual_eq"),
+        )
+        app.radio_projectm_proc = request
+        app.radio_projectm_command = []
+        try:
+            request.thread.start()
+        except Exception:
+            request.returncode = 2
+            request.phase, request.message = (
+                "error",
+                "projectM: Start-Worker konnte nicht gestartet werden.",
+            )
+            request.done.set()
+            return ProjectMSidecarStatus(
+                False, False, False, "projectm_private", request.message
+            )
+        return ProjectMSidecarStatus(
+            True,
+            False,
+            False,
+            "projectm_private",
+            "projectM-Start wird vorbereitet.",
+            starting=True,
         )
 
-    launch_command = _build_projectm_launch_command(status, app=app)
-    log_path = _log_path(app)
-    os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    _append_log(log_path, "projectM launch requested")
-    _append_log(log_path, "Command: " + " ".join(launch_command))
-    log_handle = open(log_path, "a", encoding="utf-8")
-    try:
-        proc = subprocess.Popen(
-            launch_command,
-            cwd=_repo_root(),
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=log_handle,
-            start_new_session=True,
-        )
-    except Exception as exc:
-        try:
-            log_handle.close()
-        except Exception:
-            pass
-        _append_log(log_path, f"projectM launch failed: {exc}")
-        failed = ProjectMSidecarStatus(
-            available=True,
-            installed=True,
-            installable=status.installable,
-            backend_id="projectm_external",
-            message=f"projectM konnte nicht gestartet werden: {exc}",
-            launched=False,
-            command=launch_command,
-            install_command=status.install_command,
-        )
-        if callable(logger):
-            try:
-                logger(f"projectM: {failed.message}")
-            except Exception:
-                pass
-        return failed
 
-    time.sleep(0.25)
-    if proc.poll() is not None:
-        exit_code = proc.returncode
-        try:
-            log_handle.close()
-        except Exception:
-            pass
-        _append_log(log_path, f"projectM exited immediately with code {exit_code}")
-        failed = ProjectMSidecarStatus(
-            available=True,
-            installed=True,
-            installable=status.installable,
-            backend_id="projectm_external",
-            message=f"projectM wurde sofort beendet (Code {exit_code}).",
-            launched=False,
-            command=launch_command,
-            install_command=status.install_command,
-        )
-        if callable(logger):
-            try:
-                logger(f"projectM: {failed.message}")
-            except Exception:
-                pass
-        return failed
+def change_projectm_resolution(app, current, resolution):
+    from netmon.core.projectm_profile import resolve
 
-    if app is not None:
-        app.radio_projectm_proc = proc
-        app.radio_projectm_command = list(launch_command)
-        app.radio_projectm_log_handle = log_handle
-        app.radio_projectm_log_path = log_path
-        app.radio_projectm_known_pids = set()
-    time.sleep(0.2)
-    known_pids = _collect_projectm_runtime_pids(proc, launch_command)
-    if app is not None:
-        app.radio_projectm_known_pids = set(known_pids)
-    if known_pids:
-        _append_log(
-            log_path,
-            "projectM runtime PIDs: " + ", ".join(map(str, sorted(known_pids))),
-        )
-    _append_log(log_path, f"projectM started with PID {proc.pid}")
-    if callable(logger):
-        try:
-            logger(f"projectM: gestartet (PID {proc.pid}).")
-        except Exception:
-            pass
-    return ProjectMSidecarStatus(
-        available=True,
-        installed=True,
-        installable=status.installable,
-        backend_id="projectm_external",
-        message="projectM läuft.",
-        launched=True,
-        command=launch_command,
-        install_command=status.install_command,
+    return _change_projectm_profile(app, current, resolution=resolve(resolution).key)
+
+
+def change_projectm_cpu_profile(app, current, cpu_profile):
+    from netmon.core.projectm_profile import resolve_cpu
+
+    return _change_projectm_profile(
+        app, current, cpu_profile=resolve_cpu(cpu_profile).key
     )
+
+
+def change_projectm_backend(app, current, backend):
+    from netmon.core.projectm_profile import resolve_backend
+
+    return _change_projectm_profile(app, current, backend=resolve_backend(backend))
+
+
+def _change_projectm_profile(
+    app, current, *, resolution=None, cpu_profile=None, backend=None
+):
+    """Replace only the visualizer owner; its successor waits for complete cleanup."""
+    with _PROCESS_LOCK:
+        if (
+            not isinstance(current, _ProjectMRequest)
+            or current._invalid()
+            or current.done.is_set()
+        ):
+            return None
+        resolution = current.resolution if resolution is None else resolution
+        cpu_profile = current.cpu_profile if cpu_profile is None else cpu_profile
+        backend = current.backend if backend is None else backend
+        if (
+            current.resolution == resolution
+            and current.cpu_profile == cpu_profile
+            and current.backend == backend
+        ):
+            return current
+        request = _ProjectMRequest(
+            app,
+            current.playback,
+            current.preset_dir,
+            current,
+            resolution=resolution,
+            cpu_profile=cpu_profile,
+            backend=backend,
+            preset_name=current.selected_preset_name(),
+            visual_eq=current.visual_eq,
+        )
+        current.stop()
+        app.radio_projectm_proc = request
+        app._projectm_resolution = resolution
+        app._projectm_cpu_profile = cpu_profile
+        app._projectm_backend = backend
+        try:
+            request.thread.start()
+        except Exception:
+            request.returncode = 2
+            request.phase, request.message = (
+                "error",
+                "projectM: Profilwechsel fehlgeschlagen.",
+            )
+            request.done.set()
+        return request
+
+
+def invalidate_projectm_playback(app, playback=None):
+    """Revoke before teardown; an old EOF may not cancel a newer playback."""
+    with _PROCESS_LOCK:
+        request = vars(app).get("radio_projectm_proc")
+        if isinstance(request, _ProjectMRequest) and (
+            playback is None or request.playback is playback
+        ):
+            request.stop()
+            return True
+    return False
 
 
 def stop_projectm_sidecar(app):
-    proc = getattr(app, "radio_projectm_proc", None)
-    log_handle = getattr(app, "radio_projectm_log_handle", None)
-    command = list(getattr(app, "radio_projectm_command", []) or [])
-    known_pids = set(getattr(app, "radio_projectm_known_pids", set()) or set())
-    log_path = str(
-        getattr(app, "radio_projectm_log_path", "") or _log_path(app)
-    ).strip()
-    if proc is None:
+    with _PROCESS_LOCK:
+        proc = getattr(app, "radio_projectm_proc", None)
+        if proc is None:
+            return False
+        if isinstance(proc, _ProjectMRequest):
+            return proc.stop()
+        # Old PID lists and command names confer no authority to signal.
+        if not isinstance(proc, projectm_process.OwnedProcess):
+            return False
+        if not proc.stop():
+            return False
+        log_path = str(getattr(app, "radio_projectm_log_path", "") or "").strip()
+        app.radio_projectm_proc = None
+        app.radio_projectm_command = []
+        app.radio_projectm_known_pids = set()
+        log_handle = getattr(app, "radio_projectm_log_handle", None)
         if log_handle is not None:
             try:
                 log_handle.close()
-            except Exception:
+            except OSError:
                 pass
-            app.radio_projectm_log_handle = None
-        app.radio_projectm_known_pids = set()
-        return False
-    terminated = False
-    try:
-        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
-        terminated = True
-        proc.wait(timeout=2.0)
-    except Exception:
-        terminated = False
-    if proc.poll() is None and _is_flatpak_projectm_command(command):
-        flatpak_path = shutil.which("flatpak")
-        if flatpak_path:
+        app.radio_projectm_log_handle = None
+        if log_path:
             try:
-                subprocess.run(
-                    [flatpak_path, "kill", PROJECTM_FLATPAK_APP_ID],
-                    check=False,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
+                _append_log(log_path, "projectM owned processes stopped")
+            except OSError:
+                pass
+        return True
+
+
+def _detected_status(app):
+    """Package discovery runs off Tk; the UI only receives cached metadata."""
+    with _PROCESS_LOCK:
+        data = vars(app)
+        cached = data.get("_projectm_detected_status")
+        if not data.get("_projectm_probe_pending") and (
+            cached is None
+            or time.monotonic() - data.get("_projectm_probe_time", 0) > 60
+        ):
+            data["_projectm_probe_pending"] = True
+
+            def probe():
+                try:
+                    probe_projectm_package_candidates(app=app, refresh=True)
+                    result = get_projectm_sidecar_status(app=app)
+                except Exception:
+                    result = ProjectMSidecarStatus(
+                        False,
+                        False,
+                        False,
+                        "projectm_private",
+                        "projectM: Paketerkennung fehlgeschlagen.",
+                    )
+                try:
+                    with _PROCESS_LOCK:
+                        data["_projectm_detected_status"] = result
+                        data["_projectm_probe_time"] = time.monotonic()
+                finally:
+                    with _PROCESS_LOCK:
+                        data["_projectm_probe_pending"] = False
+
+            try:
+                threading.Thread(
+                    target=probe, name="projectm-detect", daemon=True
+                ).start()
+            except RuntimeError:
+                cached = ProjectMSidecarStatus(
+                    False,
+                    False,
+                    False,
+                    "projectm_private",
+                    "projectM: Paketerkennung konnte nicht gestartet werden.",
                 )
-                terminated = True
-            except Exception:
-                pass
-            try:
-                proc.wait(timeout=1.5)
-            except Exception:
-                pass
-    if proc is not None:
-        known_pids.update(_collect_projectm_runtime_pids(proc, command))
-    known_pids.update(_collect_matching_projectm_pids())
-    for pid in sorted({pid for pid in known_pids if pid and pid != os.getpid()}):
-        if _signal_pid(pid, signal.SIGTERM):
-            terminated = True
-    time.sleep(0.3)
-    for pid in sorted({pid for pid in known_pids if pid and pid != os.getpid()}):
-        _signal_pid(pid, signal.SIGKILL)
-    if proc.poll() is None:
-        try:
-            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-            terminated = True
-            proc.wait(timeout=1.0)
-        except Exception:
-            pass
-    if log_path:
-        _append_log(
-            log_path, "projectM stopped" if terminated else "projectM stop requested"
-        )
-    app.radio_projectm_proc = None
-    app.radio_projectm_command = []
-    app.radio_projectm_known_pids = set()
-    if log_handle is not None:
-        try:
-            log_handle.close()
-        except Exception:
-            pass
-    app.radio_projectm_log_handle = None
-    return True
+                data["_projectm_detected_status"] = cached
+                data["_projectm_probe_time"] = time.monotonic()
+                data["_projectm_probe_pending"] = False
+        return cached
 
 
 def describe_projectm_sidecar_runtime(app):
-    proc = getattr(app, "radio_projectm_proc", None)
-    log_path = str(
-        getattr(app, "radio_projectm_log_path", "") or _log_path(app)
-    ).strip()
-    if proc is not None and proc.poll() is not None:
-        try:
-            if getattr(app, "radio_projectm_log_handle", None) is not None:
-                app.radio_projectm_log_handle.close()
-        except Exception:
-            pass
-        app.radio_projectm_proc = None
-        app.radio_projectm_log_handle = None
-        proc = None
-    status = get_projectm_sidecar_status(app=app)
-    running = proc is not None and proc.poll() is None
-    pid = int(proc.pid) if running else 0
-    command = " ".join(
-        getattr(app, "radio_projectm_command", []) or status.command or []
-    )
-    if running:
-        status_text = "projectM: läuft"
-    elif status.installed:
-        status_text = "projectM: gestoppt"
-    else:
-        status_text = status.message
-    backend_label = str(status.backend_label or "").strip()
-    preset_dir = ensure_projectm_preset_dir(app)
-    preset_mounts = _collect_projectm_host_preset_mounts(app)
-    if status.installed and backend_label == "Flatpak":
-        preset_access_text = (
-            "Flatpak nutzt Dokumente/NetMon mit heruntergeladenen Preset-Packs und eigenen Imports."
-            if preset_dir
-            else "Kein freigegebener projectM-Preset-Ordner verfuegbar."
-        )
-    elif status.installed and backend_label == "Binary":
-        preset_access_text = "System-Binary nutzt Dokumente/NetMon mit heruntergeladenen Preset-Packs und eigenen Imports."
-    else:
-        preset_access_text = "Preset-Zugriff nach Installation ueber Dokumente/NetMon verfuegbar. Externe Packs koennen spaeter geladen werden."
-    if status.installed and backend_label:
-        install_text = f"projectM Backend: {backend_label}"
-    elif status.install_strategy == "apt":
-        install_text = "projectM nicht installiert"
-    elif status.install_strategy == "flatpak":
-        install_text = (
-            "projectM nicht als Paket gefunden. Flatpak-Installation optional."
-        )
-    elif status.install_strategy == "install_flatpak":
-        install_text = (
-            "projectM nicht gefunden. Flatpak kann optional installiert werden."
-        )
-    else:
-        install_text = "projectM ist in deinen Paketquellen nicht verfügbar."
-    return {
-        "running": running,
-        "installed": status.installed,
-        "installable": status.installable,
-        "pid": pid,
-        "command": command,
-        "log_path": log_path,
-        "status_text": status_text,
-        "install_text": install_text,
-        "install_command": status.install_command,
-        "backend_label": backend_label,
-        "install_strategy": status.install_strategy,
-        "preset_dir": preset_dir,
-        "preset_mount_count": len(preset_mounts),
-        "preset_access_text": preset_access_text,
-    }
+    status = _detected_status(app)
+    with _PROCESS_LOCK:
+        data = vars(app)
+        proc = data.get("radio_projectm_proc")
+        phase, message, pid = "stopped", "projectM: gestoppt", 0
+        if isinstance(proc, _ProjectMRequest):
+            phase, message, pid, _ = proc.snapshot()
+        elif proc is not None:
+            # Legacy ownership objects remain stoppable, never a protected state.
+            message = "projectM: alter Prozess; zuerst beenden."
+        running = phase == "running"
+        installed = bool(status and status.installed) or running
+        if proc is None and status is None:
+            message = "projectM: Verfuegbarkeit wird geprueft."
+        elif proc is None and status and not status.installed:
+            message = status.message
+        return {
+            "running": running,
+            "starting": phase == "starting",
+            "phase": phase,
+            "polling": bool(data.get("_projectm_probe_pending"))
+            or phase in {"starting", "running", "stopping"},
+            "installed": installed,
+            "installable": bool(status and status.installable),
+            "pid": pid,
+            "command": (
+                "projectM-pulseaudio (privates Profil)"
+                if isinstance(proc, _ProjectMRequest)
+                else ""
+            ),
+            "log_path": data.get("radio_projectm_log_path", ""),
+            "status_text": message,
+            "install_text": (
+                "projectM-Paket erkannt; privates Profil wird beim Start geprueft."
+                if installed
+                else "Paketerkennung laeuft." if status is None else status.message
+            ),
+            "install_command": status.install_command if status else "",
+            "backend_label": (
+                "Privates Qt5-Profil"
+                if isinstance(proc, _ProjectMRequest)
+                else status.backend_label if status else ""
+            ),
+            "install_strategy": status.install_strategy if status else "skip",
+            "preset_dir": get_projectm_preset_dir(app),
+            "preset_mount_count": 0,
+            "preset_access_text": "Private lesende Kopie aus heruntergeladenen Preset-Packs und eigenen Imports; kein Benutzerordner im Renderer.",
+            "sandbox_state": "started" if running else phase,
+            "runtime_verified": False,
+        }

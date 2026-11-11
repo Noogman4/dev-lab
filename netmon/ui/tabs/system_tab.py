@@ -5,6 +5,8 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
+from ..widgets.scrollable_form import ScrollableForm
+
 
 def build_system_tab(app):
     app.tab_system = ttk.Frame(app.system_nb, padding=10)
@@ -17,7 +19,8 @@ def build_system_tab(app):
 
 def build_system_monitor(app) -> None:
     """Build the system monitor controls and information panels."""
-    top = ttk.Frame(app.tab_system)
+    form = app.system_monitor_form = ScrollableForm(app.tab_system, padding=0)
+    top = ttk.Frame(form.content)
     top.pack(fill="x", pady=(0, 3))
     ttk.Label(
         top,
@@ -32,7 +35,7 @@ def build_system_monitor(app) -> None:
         command=app.system_monitor_refresh,
     )
     app.btn_system_monitor_refresh.pack(side="right")
-    body = ttk.Frame(app.tab_system)
+    body = ttk.Frame(form.content)
     body.pack(fill="both", expand=True)
     body.columnconfigure(0, weight=1)
     body.columnconfigure(1, weight=0)
@@ -134,3 +137,4 @@ def build_system_monitor(app) -> None:
     ttk.Frame(body).grid(row=8, column=0, columnspan=2, sticky="nsew")
     app._load_sysinfo_static()
     app._update_sysinfo_dynamic()
+    form.bind_controls()

@@ -5,6 +5,8 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
+from ..widgets.scrollable_form import ScrollableForm
+
 
 def build_download_scan_header(app, frame) -> None:
     """Build the static Download Scan introduction panel."""
@@ -308,6 +310,11 @@ def build_download_scan_result_panel(app, frame) -> None:
         borderwidth=1,
     )
     app.download_scan_result_text.grid(row=0, column=0, sticky="nsew")
+    result_scroll = ttk.Scrollbar(
+        result_group, orient="vertical", command=app.download_scan_result_text.yview
+    )
+    result_scroll.grid(row=0, column=1, sticky="ns")
+    app.download_scan_result_text.configure(yscrollcommand=result_scroll.set)
     app.download_scan_result_text.insert(
         "1.0",
         app.tr("download_scan_result_text_default", "No scan executed yet."),
@@ -319,8 +326,8 @@ def build_download_scan_result_panel(app, frame) -> None:
 
 def build_download_scan_content(app) -> None:
     """Build the complete Download Scan content from focused UI sections."""
-    frame = ttk.Frame(app.tab_download_scan, padding=12)
-    frame.pack(fill="both", expand=True)
+    form = app.download_scan_form = ScrollableForm(app.tab_download_scan)
+    frame = form.content
     build_download_scan_header(app, frame)
     temp_group = build_download_scan_prequarantine_summary(app, frame)
     build_download_scan_prequarantine_actions(app, temp_group)
@@ -328,6 +335,7 @@ def build_download_scan_content(app) -> None:
     build_download_scan_actions(app, frame)
     build_download_scan_post_scan_options(app, frame)
     build_download_scan_result_panel(app, frame)
+    form.bind_controls()
 
 
 def build_download_scan_tab(app):

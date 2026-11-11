@@ -1,3 +1,5 @@
+import pytest
+
 from netmon.features import firewall_controller
 from tools import netmon
 
@@ -372,3 +374,105 @@ def test_collect_firewall_transparency_snapshot_marks_auth_pending_without_sudo(
     snapshot = app._collect_firewall_transparency_snapshot()
 
     assert snapshot["status_label"] == "Autorisierung ausstehend"
+
+
+@pytest.mark.parametrize("ports", ["80,443", "6000:6007", "80,443,6000:6007"])
+@pytest.mark.parametrize("endpoint", [False, True])
+def test_multiport_display_consumers_preserve_the_expression(ports, endpoint):
+    target = ("198.51.100.77 " if endpoint else "") + ports
+    proto = "udp" if endpoint else "tcp"
+    rule = firewall_controller.parse_ufw_structured_rule(
+        f"{target}/{proto} ALLOW IN Anywhere"
+    )
+    assert rule["port"] == ports
+    assert ports in "\n".join(firewall_controller.format_ufw_rule_lines([rule]))
+    assert ports in firewall_controller.format_ufw_status_grouped(
+        "active", "deny", "allow", [rule]
+    )
+
+
+@pytest.mark.parametrize("endpoint", [False, True])
+def test_multiport_display_sorts_by_first_port_number(endpoint):
+    prefix = "198.51.100.77 " if endpoint else ""
+    proto = "udp" if endpoint else "tcp"
+    expressions = ["6000:6007", "80,443", "22", "100,200:300"]
+    rules = [
+        firewall_controller.parse_ufw_structured_rule(
+            f"{prefix}{p}/{proto} ALLOW IN Anywhere"
+        )
+        for p in expressions
+    ]
+    lines = firewall_controller.format_ufw_rule_lines(rules)
+    assert [next(p for p in expressions if p in row) for row in lines] == [
+        "22",
+        "80,443",
+        "100,200:300",
+        "6000:6007",
+    ]
+
+
+@pytest.mark.parametrize("value", [None, "", "invalid"])
+@pytest.mark.parametrize("category", ["standard_port", "vpn_endpoint"])
+def test_port_sort_key_has_a_safe_fallback(value, category):
+    rule = {"category": category, "port": value, "ip": "198.51.100.77"}
+    key = firewall_controller.ufw_rule_sort_key(rule)
+    assert key[0 if category == "standard_port" else 1] == 0
+
+
+@pytest.mark.parametrize("mode", ["log", "log-all"])
+@pytest.mark.parametrize("ipv6", [False, True])
+@pytest.mark.parametrize("position", ["target", "source"])
+def test_logging_suffix_keeps_interface_and_display_identity(mode, ipv6, position):
+    suffix = " (v6)" if ipv6 else ""
+    if position == "target":
+        row = f"Anywhere{suffix} on wg0 ({mode}) ALLOW OUT Anywhere{suffix}"
+    else:
+        row = f"443/tcp{suffix} ALLOW OUT Anywhere{suffix} on wg0 ({mode})"
+    rule = firewall_controller.parse_ufw_structured_rule(row)
+    assert rule["interface"] == "wg0"
+    assert rule["is_ipv6"] is ipv6
+    assert rule["to"] == ("Anywhere" if position == "target" else "443/tcp")
+    assert rule["from"] == "Anywhere"
+    assert rule["raw"] == row
+    assert rule["display"].endswith(f"({mode})")
+    assert f"({mode})" in firewall_controller.format_ufw_rule_lines([rule])[0]
+
+
+@pytest.mark.parametrize("mode", ["log", "log-all"])
+@pytest.mark.parametrize("ipv6", [False, True])
+@pytest.mark.parametrize("direction", ["IN", "OUT"])
+def test_logged_global_block_has_clean_fields(mode, ipv6, direction):
+    suffix = " (v6)" if ipv6 else ""
+    rule = firewall_controller.parse_ufw_structured_rule(
+        f"Anywhere{suffix} ({mode}) DENY {direction} Anywhere{suffix}"
+    )
+    assert rule["interface"] is None
+    assert rule["to"] == rule["from"] == "Anywhere"
+    assert firewall_controller._is_global_block(rule)
+
+
+def test_logging_modes_remain_distinct_for_dedup_and_rule_selection():
+    plain = firewall_controller.parse_ufw_structured_rule(
+        "Anywhere on wg0 ALLOW OUT Anywhere"
+    )
+    logged = firewall_controller.parse_ufw_structured_rule(
+        "Anywhere on wg0 (log) ALLOW OUT Anywhere"
+    )
+    log_all = firewall_controller.parse_ufw_structured_rule(
+        "Anywhere on wg0 (log-all) ALLOW OUT Anywhere"
+    )
+    assert (
+        len(
+            {
+                firewall_controller.ufw_rule_identity_key(r)
+                for r in (plain, logged, log_all)
+            }
+        )
+        == 3
+    )
+    assert not firewall_controller._firewall_rule_matches_selected(plain, logged)
+    assert not firewall_controller._firewall_rule_matches_selected(logged, log_all)
+    rows = firewall_controller.format_ufw_rule_lines([plain, logged, log_all, logged])
+    assert len(rows) == 3
+    assert sum("DUP x2" in row for row in rows) == 1
+    assert any("(log)" in row and "DUP x2" in row for row in rows)

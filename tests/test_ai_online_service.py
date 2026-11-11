@@ -5,7 +5,7 @@ import pytest
 from netmon.services.ai_online_service import AiOnlineService
 
 
-def test_analyze_returns_only_api_error_message():
+def test_analyze_returns_api_error_message_with_status_and_codes():
     service = AiOnlineService()
     service.api_key = "demo"
     service._post_json = lambda *_args, **_kwargs: (
@@ -22,7 +22,7 @@ def test_analyze_returns_only_api_error_message():
     assert success is False
     assert (
         result
-        == "Fehler: You exceeded your current quota, please check your plan and billing details."
+        == "Fehler: You exceeded your current quota, please check your plan and billing details.\nHTTP-Status: 429\nAPI-Code: insufficient_quota\nAPI-Typ: insufficient_quota"
     )
 
 
@@ -34,7 +34,7 @@ def test_chat_returns_unknown_api_error_when_parsing_fails():
     success, result = service.chat([{"role": "user", "content": "Hallo"}])
 
     assert success is False
-    assert result == "Fehler: Unbekannter API-Fehler"
+    assert result == "Fehler: Unbekannter API-Fehler\nHTTP-Status: 500"
 
 
 def test_analyze_tracks_token_usage_from_response():
@@ -64,7 +64,10 @@ def test_image_to_data_url_accepts_image_inside_home(tmp_path, monkeypatch):
 
     result = AiOnlineService().image_to_data_url(str(image_path))
 
-    assert result == f"data:image/png;base64,{base64.b64encode(b'png-bytes').decode('ascii')}"
+    assert (
+        result
+        == f"data:image/png;base64,{base64.b64encode(b'png-bytes').decode('ascii')}"
+    )
 
 
 def test_image_to_data_url_rejects_path_outside_home(tmp_path, monkeypatch):

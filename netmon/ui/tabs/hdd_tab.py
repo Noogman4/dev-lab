@@ -15,6 +15,17 @@ def build_hdd_tab(app):
     app.tab_hdd = ttk.Frame(app.system_nb, padding=10)
     app.system_nb.add(app.tab_hdd, text=app.tr("system_tab_hdd", "HDD"))
 
+    app.hdd_action_status_var = tk.StringVar(
+        value=app.tr("hdd_action_idle", "No mount/unmount request yet.")
+    )
+    app.hdd_action_status_label = ttk.Label(
+        app.tab_hdd,
+        textvariable=app.hdd_action_status_var,
+        wraplength=700,
+        justify="left",
+    )
+    app.hdd_action_status_label.pack(fill="x", pady=(0, 8))
+
     hdd_manage = ttk.LabelFrame(
         app.tab_hdd,
         text=app.tr("hdd_group_manage", "HDD Verwaltung"),
@@ -78,9 +89,7 @@ def build_hdd_tab(app):
         text=app.tr("btn_clear_assignment", "Zuordnung aufheben"),
         command=lambda: app.clear_slot_assignment(confirm=True),
     )
-    app.btn_hdd_clear_assign.grid(
-        row=1, column=5, sticky="e", padx=(8, 0), pady=(6, 0)
-    )
+    app.btn_hdd_clear_assign.grid(row=1, column=5, sticky="e", padx=(8, 0), pady=(6, 0))
     app.add_tooltip(
         app.btn_hdd_clear_assign,
         app.tr(
@@ -89,8 +98,12 @@ def build_hdd_tab(app):
         ),
     )
 
+    hdd_table_frame = ttk.Frame(hdd_manage)
+    hdd_table_frame.pack(fill="x", pady=(8, 0))
+    hdd_table_scroll = ttk.Scrollbar(hdd_table_frame, orient="vertical")
+    hdd_table_scroll.pack(side="right", fill="y")
     app.hdd_table = ttk.Treeview(
-        hdd_manage,
+        hdd_table_frame,
         columns=(
             "device",
             "label",
@@ -102,6 +115,7 @@ def build_hdd_tab(app):
         ),
         show="headings",
         height=7,
+        yscrollcommand=hdd_table_scroll.set,
     )
     for col, title, width, anchor in [
         ("device", "Device", 150, "w"),
@@ -114,7 +128,8 @@ def build_hdd_tab(app):
     ]:
         app.hdd_table.heading(col, text=title)
         app.hdd_table.column(col, width=width, anchor=anchor)
-    app.hdd_table.pack(fill="x", pady=(8, 0))
+    app.hdd_table.pack(side="left", fill="both", expand=True)
+    hdd_table_scroll.configure(command=app.hdd_table.yview)
     app.hdd_table.bind("<<TreeviewSelect>>", app.on_hdd_table_select)
     app.hdd_usage_canvas = tk.Canvas(
         app.tab_hdd, height=34, highlightthickness=1, highlightbackground="#bbb"
@@ -140,5 +155,12 @@ def build_hdd_tab(app):
         foreground="#8a6d3b",
     )
     app.hdd_info_auto_mount_hint_label.pack(side="left", padx=(10, 0))
-    app.hdd_info_text = tk.Text(app.tab_hdd, wrap="word", height=12)
-    app.hdd_info_text.pack(fill="both", expand=True)
+    hdd_info_frame = ttk.Frame(app.tab_hdd)
+    hdd_info_frame.pack(fill="both", expand=True)
+    hdd_info_scroll = ttk.Scrollbar(hdd_info_frame, orient="vertical")
+    hdd_info_scroll.pack(side="right", fill="y")
+    app.hdd_info_text = tk.Text(
+        hdd_info_frame, wrap="word", height=12, yscrollcommand=hdd_info_scroll.set
+    )
+    app.hdd_info_text.pack(side="left", fill="both", expand=True)
+    hdd_info_scroll.configure(command=app.hdd_info_text.yview)

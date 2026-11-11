@@ -61,6 +61,9 @@ def reset_status_environment(monkeypatch, passive_dns_service, passive_dns_statu
         if args == ["ip", "route", "show", "default"]:
             calls.append(list(args))
             return 0, "default via 192.0.2.1 dev eth0 proto dhcp\n"
+        if args == ["nmcli", "-g", "IP4.DNS", "dev", "show", "eth0"]:
+            calls.append(list(args))
+            return 0, "192.0.2.53\n"
         if args == ["systemctl", "is-active", "systemd-resolved"]:
             calls.append(list(args))
             return 0, "active\n"
@@ -103,6 +106,8 @@ def reset_status_environment(monkeypatch, passive_dns_service, passive_dns_statu
     "command",
     [
         ["sudo", "-n", "true"],
+        ["nmcli", "connection", "modify", "eth0", "ipv4.ignore-auto-dns", "no"],
+        ["nmcli", "-g", "IP4.DNS", "dev", "show", "other0"],
         ["resolvectl", "status", "--no-pager"],
         ["systemctl", "is-active", "ssh"],
         ["ip", "route", "get", "198.51.100.1"],

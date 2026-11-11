@@ -40,10 +40,11 @@ def _with_ufw_status_locale(args):
     return tokens[:ufw_index] + ["env", "LANG=C", "LC_ALL=C"] + tokens[ufw_index:]
 
 
-def run_cmd(args, timeout=15, text=True, input_text=None):
+def run_cmd(args, timeout=15, text=True, input_text=None, *, preserve_output=False):
     """
     args: list[str]
     returns (returncode, combined_output_str)
+    preserve_output keeps whitespace for structured output with empty fields.
     """
     try:
         exec_args = _with_ufw_status_locale(args)
@@ -69,7 +70,9 @@ def run_cmd(args, timeout=15, text=True, input_text=None):
                 "success" if p.returncode == 0 else "error",
                 return_code=p.returncode,
             )
-        out = (p.stdout or "").strip()
+        out = p.stdout or ""
+        if not preserve_output:
+            out = out.strip()
         return p.returncode, out
     except subprocess.TimeoutExpired:
         return 124, "Command timed out"

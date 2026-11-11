@@ -2,7 +2,6 @@
 set -euo pipefail
 
 NETMON_PACKAGE="${NETMON_PACKAGE:-netmon}"
-NETMON_DOT_DROPIN="/etc/systemd/resolved.conf.d/netmon-dot.conf"
 NETMON_LANG_CODE="${NETMON_LANG_CODE:-}"
 
 OPTIONAL_PACKAGES=(
@@ -83,6 +82,8 @@ tr_msg() {
     de:no_wireguard_dir|*:no_wireguard_dir) printf '%s' "Kein WireGuard-Verzeichnis gefunden: %s" ;;
     en:no_wireguard_profiles) printf '%s' "No WireGuard profiles found under %s." ;;
     de:no_wireguard_profiles|*:no_wireguard_profiles) printf '%s' "Keine WireGuard-Profile unter %s gefunden." ;;
+    en:dns_reset_blocked) printf '%s' "DHCP/ISP DNS release is temporarily blocked (F6). DNS configuration is preserved." ;;
+    de:dns_reset_blocked|*:dns_reset_blocked) printf '%s' "DHCP-/ISP-DNS-Freigabe vorläufig gesperrt (F6). Die DNS-Konfiguration bleibt erhalten." ;;
     en:removed_dot_dropin) printf '%s' "Removed NetMon DoT drop-in: %s" ;;
     de:removed_dot_dropin|*:removed_dot_dropin) printf '%s' "Entferntes NetMon DoT-Drop-in: %s" ;;
     en:no_dot_dropin) printf '%s' "No NetMon DoT drop-in found." ;;
@@ -559,53 +560,46 @@ remove_all_wireguard_conf_files() {
 }
 
 reset_netmon_dns_changes() {
-  if [[ -f "$NETMON_DOT_DROPIN" ]]; then
-    rm -f -- "$NETMON_DOT_DROPIN"
-    say "$(format_msg "$(tr_msg removed_dot_dropin)" "$NETMON_DOT_DROPIN")"
-  else
-    say "$(tr_msg no_dot_dropin)"
-  fi
+  warn "$(tr_msg dns_reset_blocked)"
+  return 1
+}
 
-  if command -v nmcli >/dev/null 2>&1; then
-    local line=""
-    while IFS= read -r line; do
-      [[ -n "$line" ]] || continue
-      local conn_name="${line%%:*}"
-      local device="${line#*:}"
-      [[ -n "$conn_name" && -n "$device" ]] || continue
-      case "${device,,}" in
-        lo|wg*|tun*|tap*|ppp*)
-          continue
-          ;;
-      esac
-      nmcli connection modify "$conn_name" \
-        ipv4.dns "" \
-        ipv4.ignore-auto-dns no \
-        ipv6.dns "" \
-        ipv6.ignore-auto-dns no >/dev/null 2>&1 || true
-      say "$(format_msg "$(tr_msg nm_dns_override_removed)" "$conn_name" "$device")"
-      nmcli connection up "$conn_name" >/dev/null 2>&1 || true
-    done < <(nmcli -t -f NAME,DEVICE connection show --active 2>/dev/null)
-  else
-    say "$(tr_msg nmcli_missing_dns_reset)"
-  fi
-
-  if command -v resolvectl >/dev/null 2>&1; then
-    local iface=""
-    while IFS= read -r iface; do
-      [[ -n "$iface" ]] || continue
-      resolvectl revert "$iface" >/dev/null 2>&1 || true
-    done < <(ip -o link show 2>/dev/null | awk -F': ' '{print $2}')
-    resolvectl flush-caches >/dev/null 2>&1 || true
-  fi
-
-  if command -v systemctl >/dev/null 2>&1; then
-    systemctl restart systemd-resolved >/dev/null 2>&1 || true
-    systemctl restart NetworkManager >/dev/null 2>&1 || true
+check_firewall_transaction() {
+  # The installed, root-owned helper is authoritative. Check before cleanup,
+  # not only in dpkg's prerm after the optional reset has already happened.
+  if [[ -e /var/lib/netmon/ufw-snapshot || -L /var/lib/netmon/ufw-snapshot ]]; then
+    if ! /usr/bin/python3 -I -c '
+import os, stat, sys
+path = "/usr/lib/netmon/netmon/core/ufw_snapshot.py"
+current = "/"
+for part in [""] + path.strip("/").split("/"):
+    current = os.path.join(current, part)
+    info = os.lstat(current)
+    if info.st_uid != 0 or info.st_mode & 0o022:
+        sys.exit("Unprotected removal helper")
+    if current == path:
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            sys.exit("Unsafe removal helper")
+    elif not stat.S_ISDIR(info.st_mode):
+        sys.exit("Unsafe helper directory")
+os.execv("/usr/bin/python3", ["/usr/bin/python3", "-I", path, "removal"])
+' >/dev/null <<'JSON'
+{}
+JSON
+    then
+      warn "NetMon: aktive oder ungeklärte Firewall-Transaktion. Bereinigung abgebrochen; zuerst verifiziert wiederherstellen."
+      return 1
+    fi
   fi
 }
 
+run_checked_cleanup() {
+  check_firewall_transaction || exit 1
+  "$@"
+}
+
 reset_ufw() {
+  check_firewall_transaction || return 1
   if ! command -v ufw >/dev/null 2>&1; then
     say "$(tr_msg ufw_missing_reset)"
     return 0
@@ -649,6 +643,7 @@ print_summary() {
 main() {
   ensure_root "$@"
   detect_netmon_language
+  check_firewall_transaction || return 1
 
   local remove_package="ja"
   local remove_launchers="ja"
@@ -657,7 +652,7 @@ main() {
   local remove_wireguard_artifacts="nein"
   local remove_all_wireguard_confs="nein"
   local remove_nm_vpn_connections="nein"
-  local reset_dns_nm="ja"
+  local reset_dns_nm="nein"
   local reset_firewall="nein"
   local purge_optional="nein"
 
@@ -676,7 +671,7 @@ main() {
   prompt_yes_no "$(tr_msg prompt_remove_wireguard_artifacts)" "n" && remove_wireguard_artifacts="ja" || remove_wireguard_artifacts="nein"
   prompt_yes_no "$(tr_msg prompt_remove_all_wireguard_confs)" "n" && remove_all_wireguard_confs="ja" || remove_all_wireguard_confs="nein"
   prompt_yes_no "$(tr_msg prompt_remove_nm_connections)" "n" && remove_nm_vpn_connections="ja" || remove_nm_vpn_connections="nein"
-  prompt_yes_no "$(tr_msg prompt_reset_dns_nm)" "y" && reset_dns_nm="ja" || reset_dns_nm="nein"
+  say "$(tr_msg dns_reset_blocked)"
   prompt_yes_no "$(tr_msg prompt_reset_firewall)" "n" && reset_firewall="ja" || reset_firewall="nein"
   prompt_yes_no "$(tr_msg prompt_purge_optional)" "n" && purge_optional="ja" || purge_optional="nein"
 
@@ -699,21 +694,22 @@ main() {
   }
 
   ensure_netmon_not_running
+  check_firewall_transaction || return 1
 
-  [[ "$remove_launchers" == "ja" ]] && remove_user_launchers
-  [[ "$remove_nm_vpn_connections" == "ja" ]] && remove_netmon_nm_connections
-  [[ "$remove_wireguard_artifacts" == "ja" ]] && remove_netmon_wireguard_artifacts
-  [[ "$remove_all_wireguard_confs" == "ja" ]] && remove_all_wireguard_conf_files
-  [[ "$remove_secure_browsers" == "ja" ]] && remove_secure_browsers
+  [[ "$remove_launchers" == "ja" ]] && run_checked_cleanup remove_user_launchers
+  [[ "$remove_nm_vpn_connections" == "ja" ]] && run_checked_cleanup remove_netmon_nm_connections
+  [[ "$remove_wireguard_artifacts" == "ja" ]] && run_checked_cleanup remove_netmon_wireguard_artifacts
+  [[ "$remove_all_wireguard_confs" == "ja" ]] && run_checked_cleanup remove_all_wireguard_conf_files
+  [[ "$remove_secure_browsers" == "ja" ]] && run_checked_cleanup remove_secure_browsers
   if [[ "$remove_user_files" == "ja" ]]; then
     local preserve_secure_browsers="ja"
     [[ "$remove_secure_browsers" == "ja" ]] && preserve_secure_browsers="nein"
-    remove_user_data "$preserve_secure_browsers"
+    run_checked_cleanup remove_user_data "$preserve_secure_browsers"
   fi
-  [[ "$reset_dns_nm" == "ja" ]] && reset_netmon_dns_changes
-  [[ "$reset_firewall" == "ja" ]] && reset_ufw
-  [[ "$purge_optional" == "ja" ]] && purge_optional_packages
-  [[ "$remove_package" == "ja" ]] && purge_netmon_package
+  [[ "$reset_dns_nm" == "ja" ]] && run_checked_cleanup reset_netmon_dns_changes
+  [[ "$reset_firewall" == "ja" ]] && run_checked_cleanup reset_ufw
+  [[ "$purge_optional" == "ja" ]] && run_checked_cleanup purge_optional_packages
+  [[ "$remove_package" == "ja" ]] && run_checked_cleanup purge_netmon_package
 
   say ""
   say "$(tr_msg finished)"

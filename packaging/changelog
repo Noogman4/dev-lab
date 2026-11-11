@@ -1,3 +1,13 @@
+netmon (1.1.22) unstable; urgency=medium
+
+  * Prepare the local 1.1.22 test package from the frozen V52 candidate.
+  * Integrate DNS/DoT profile synchronization and protected firewall workflows.
+  * Add the Chad analysis workspace, dockable VTE terminal and context menu.
+  * Complete tab scrolling, dependency diagnostics and support contact display.
+  * Preserve documented review and test limits; no production release approval.
+
+ -- Mr. Happy <netmon.proglab@protonmail.ch>  Sat, 07 Nov 2026 19:00:00 +0100
+
 netmon (1.1.21) unstable; urgency=medium
 
   * Delegate large tab UI builders into their dedicated tab modules.

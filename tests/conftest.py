@@ -9,12 +9,15 @@ subprocess-Ebene ab, bevor sie das System erreichen: subprocess.run/
 call/check_output laufen alle über Popen.
 """
 
+from functools import wraps
+import gc
 import ipaddress
 import os
 from pathlib import Path
 import shlex
 import socket
 import subprocess
+import threading
 import traceback
 
 import pytest
@@ -120,6 +123,38 @@ def pytest_addoption(parser):
 def pytest_configure(config):
     global _continue_audit
     _continue_audit = config.getoption("--netmon-audit-continue")
+
+
+@pytest.hookimpl(wrapper=True, tryfirst=True)
+def pytest_runtest_protocol(item, nextitem):
+    try:
+        import tkinter
+    except ImportError:
+        return (yield)
+    tk_class = tkinter.Tk
+    original_init = tk_class.__init__
+    created = False
+
+    @wraps(original_init)
+    def track_init(self, *args, **kwargs):
+        nonlocal created
+        created = True
+        return original_init(self, *args, **kwargs)
+
+    tk_class.__init__ = track_init
+    try:
+        return (yield)
+    finally:
+        tk_class.__init__ = original_init
+        # destroy() closes Tk windows, but Python cycles may still own the Tcl
+        # interpreter. Reclaim test leftovers here, after all fixture teardown,
+        # before the next test can trigger collection in a worker thread.
+        # Keep automatic GC enabled and leave Tk finalizers unchanged.
+        # Pure logic tests need no full-heap scan. Track construction only;
+        # retain no interpreter and restore the constructor even on failure.
+        if created:
+            assert threading.current_thread() is threading.main_thread()
+            gc.collect()
 
 
 @pytest.fixture(autouse=True)

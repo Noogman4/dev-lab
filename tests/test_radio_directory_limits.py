@@ -1,8 +1,14 @@
-"""Bounded downloads and parser regressions without external network access."""
+"""Legacy urllib directory helper regressions without external network access.
+
+The current controller uses radio_sandbox.fetch_catalog instead. Its protected
+source/parser limits are tested in test_radio_fetch/test_radio_catalog_boundary.
+These cases continue to exercise the retained radio_directory helper directly.
+"""
 
 import io
 import json
 from email.message import Message
+from urllib.request import Request
 
 import pytest
 
@@ -67,11 +73,30 @@ def serve(transport):
     return install
 
 
+def legacy_download(url, *, post=False, kind="json"):
+    request = Request(url, data=b"" if post else None)
+    text = directory.fetch_directory_text(request)
+    if kind == "xml":
+        return radio._parse_icecast_entries_from_xml(text)
+    return radio._filter_radio_db_rows(directory.parse_directory_json(text))
+
+
+def legacy_database():
+    return legacy_download(radio.RADIO_DB_ENDPOINT, post=True)
+
+
+def legacy_source(source):
+    url = radio.RADIO_BROWSER_SOURCE_ENDPOINTS.get(source)
+    if url:
+        return legacy_download(url, post=url.endswith(("/search", "/stations")))
+    return legacy_download(radio.ICECAST_SOURCE_ENDPOINTS[source], kind="xml")
+
+
 DOWNLOADS = [
-    radio._download_radio_db_payload,
-    lambda: radio._download_radio_source_payload("radio_browser_api"),
-    lambda: radio._download_radio_source_payload("radio_browser_top"),
-    lambda: radio._download_radio_source_payload("icecast_json"),
+    legacy_database,
+    lambda: legacy_source("radio_browser_api"),
+    lambda: legacy_source("radio_browser_top"),
+    lambda: legacy_source("icecast_json"),
 ]
 
 
@@ -90,7 +115,7 @@ def test_all_download_paths_reject_oversize(download, length, monkeypatch, serve
 def test_exact_limit_and_short_reads_succeed(monkeypatch, serve):
     monkeypatch.setattr(directory, "MAX_RESPONSE_BYTES", 128)
     response = serve(b" " * 126 + b"[]", [("Content-Length", "128")], True)
-    assert radio._download_radio_db_payload() == []
+    assert legacy_database() == []
     assert response.bytes_read == 128
     assert response.closed
 
@@ -108,7 +133,7 @@ def test_normal_xml_download_keeps_station_fields(serve):
         b"<directory><entry><server_name>Radio</server_name>"
         b"<listen_url>https://example.com/live</listen_url></entry></directory>"
     )
-    rows = radio._download_radio_source_payload("icecast_json")
+    rows = legacy_source("icecast_json")
     assert rows[0]["name"] == "Radio"
     assert rows[0]["url"] == "https://example.com/live"
 
@@ -145,13 +170,13 @@ def test_parser_item_budget(kind, monkeypatch):
 def test_xml_nesting_rejected(serve):
     serve(b"<d>" * (directory.MAX_DEPTH + 1) + b"</d>" * (directory.MAX_DEPTH + 1))
     with pytest.raises(ValueError, match="Strukturlimit"):
-        radio._download_radio_source_payload("icecast_json")
+        legacy_source("icecast_json")
 
 
 def test_xml_entity_declarations_rejected(serve):
     serve(b'<!DOCTYPE d [<!ENTITY x "expanded">]><d>&x;</d>')
     with pytest.raises(ValueError, match="DTD"):
-        radio._download_radio_source_payload("icecast_json")
+        legacy_source("icecast_json")
 
 
 def test_decoded_text_budget(monkeypatch, serve):
@@ -167,7 +192,7 @@ def test_decoded_text_budget(monkeypatch, serve):
 def test_compression_rejected_without_reading(encoding, serve):
     response = serve(b"compressed", [("Content-Encoding", encoding)])
     with pytest.raises(ValueError, match="Komprimierte"):
-        radio._download_radio_db_payload()
+        legacy_database()
     assert response.bytes_read == 0
     assert response.closed
 
@@ -177,7 +202,7 @@ def test_total_download_deadline(monkeypatch, serve):
     ticks = iter([0, 0, directory.DOWNLOAD_SECONDS + 1])
     monkeypatch.setattr(directory.time, "monotonic", lambda: next(ticks))
     with pytest.raises(ValueError, match="Zeitlimit"):
-        radio._download_radio_db_payload()
+        legacy_database()
     assert response.closed
 
 
@@ -236,7 +261,7 @@ def test_redirect_uses_remaining_timeout(transport, monkeypatch):
         [SlowClose(b"", [("Location", "/next")], status=302), Response(b"[]")]
     )
     monkeypatch.setattr(directory.time, "monotonic", lambda: clock[0])
-    assert radio._download_radio_db_payload() == []
+    assert legacy_database() == []
     assert [request.timeout for request in calls] == [30, 18]
 
 
@@ -248,7 +273,7 @@ def test_redirect_count_is_bounded(transport):
     ]
     responses.extend(redirects)
     with pytest.raises(ValueError, match="Zu viele"):
-        radio._download_radio_db_payload()
+        legacy_database()
     assert len(calls) == directory.MAX_REDIRECTS + 1
     assert all(response.closed for response in redirects)
 
@@ -270,7 +295,7 @@ def test_invalid_redirect_closes_without_followup(headers, transport):
     response = Response(b"ignored", headers, status=302)
     responses.append(response)
     with pytest.raises(ValueError):
-        radio._download_radio_db_payload()
+        legacy_database()
     assert response.closed
     assert len(calls) == 1
 
@@ -280,7 +305,7 @@ def test_redirect_loop_closes_without_followup(transport):
     response = Response(b"", [("Location", radio.RADIO_DB_ENDPOINT)], status=302)
     responses.append(response)
     with pytest.raises(ValueError, match="Schleife"):
-        radio._download_radio_db_payload()
+        legacy_database()
     assert response.closed
     assert len(calls) == 1
 
@@ -290,6 +315,6 @@ def test_error_body_is_not_read(transport):
     response = Response(b"oversized error body", status=500)
     responses.append(response)
     with pytest.raises(ValueError, match="HTTP 500"):
-        radio._download_radio_db_payload()
+        legacy_database()
     assert response.closed and response.bytes_read == 0
     assert len(calls) == 1

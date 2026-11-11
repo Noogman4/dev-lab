@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import zipfile
 
 import pytest
 
@@ -129,12 +130,24 @@ def test_run_cmd_logs_safe_command_name_when_enabled(monkeypatch, tmp_path):
 def test_create_support_package_logs_file_count_only(monkeypatch, tmp_path):
     log_path = tmp_path / "performance.jsonl"
     docs_dir = tmp_path / "docs"
-    report_path = tmp_path / "report.json"
+    reports_dir = tmp_path / "diagnostics"
+    reports_dir.mkdir(mode=0o700)
+    report_path = reports_dir / "netmon-report.json"
     report_path.write_text("{}", encoding="utf-8")
+    report_path.chmod(0o600)
     monkeypatch.setenv("NETMON_PERFORMANCE_MONITORING", "basic")
     monkeypatch.setenv("NETMON_PERFORMANCE_LOG_PATH", str(log_path))
     monkeypatch.setattr(
         support_bundle, "get_netmon_documents_dir", lambda: str(docs_dir)
+    )
+    monkeypatch.setattr(
+        support_bundle, "diagnostic_reports_dir", lambda: str(reports_dir)
+    )
+    monkeypatch.setattr(
+        support_bundle, "get_netmon_documents_subdir", lambda *_: str(tmp_path / "logs")
+    )
+    monkeypatch.setattr(
+        support_bundle, "get_netmon_state_dir", lambda: str(tmp_path / "state")
     )
     monkeypatch.setattr(
         support_bundle, "support_bundle_inputs", lambda: [str(report_path)]
@@ -148,6 +161,10 @@ def test_create_support_package_logs_file_count_only(monkeypatch, tmp_path):
     assert record["operation"] == "create_support_package"
     assert record["metadata"] == {"file_count": 1}
     assert "secret" not in json.dumps(record)
+    with zipfile.ZipFile(package_path) as archive:
+        assert archive.read("files/netmon-report.json") == b"{}"
+        manifest = json.loads(archive.read("manifest.json"))
+        assert manifest["files"] == [str(report_path)]
 
 
 # ── Runde-11-Haertungen ──────────────────────────────────────────────────────

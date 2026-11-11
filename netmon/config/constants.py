@@ -1,6 +1,6 @@
 """Pure constants shared across NetMon modules."""
 
-NETMON_APP_VERSION = "1.1.21"
+NETMON_APP_VERSION = "1.1.22"
 NETMON_SUPPORT_EMAIL = "support@netmonroots.com"
 
 VPN_CH = "proton"

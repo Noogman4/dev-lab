@@ -4,12 +4,19 @@ from __future__ import annotations
 
 import json
 import os
+import fcntl
 import shutil
 import shlex
 import subprocess
 import sys
 import time
 from dataclasses import dataclass
+from contextlib import contextmanager
+
+try:
+    from netmon.core.utils import safe_write_json
+except ModuleNotFoundError:
+    from core.utils import safe_write_json
 
 try:
     from netmon.config.constants import (
@@ -55,6 +62,7 @@ class RadioPathSet:
     radio_detached_state_path: str
     radio_handover_request_path: str
     radio_handover_ack_path: str
+    netmon_host_state_path: str
 
 
 def repo_root() -> str:
@@ -174,6 +182,7 @@ def build_radio_paths() -> RadioPathSet:
             state_dir, "radio_handover_request.json"
         ),
         radio_handover_ack_path=os.path.join(state_dir, "radio_handover_ack.json"),
+        netmon_host_state_path=os.path.join(state_dir, "netmon_host_state.json"),
     )
 
 
@@ -284,32 +293,73 @@ def _process_exists(pid: int) -> bool:
         return False
 
 
+def _process_identity(pid: int) -> tuple[str, int] | None:
+    """Linux liveness hint, including PID reuse/reboot protection, not authentication."""
+    if type(pid) is not int or pid <= 0:
+        return None
+    try:
+        with open(f"/proc/{pid}/stat", encoding="utf-8") as handle:
+            # comm can itself contain spaces and parentheses; fields after its
+            # final ')' start with field 3 (state), then field 22 (starttime).
+            fields = handle.read(65536).rsplit(")", 1)[1].split()
+        if fields[0] in {"Z", "X", "x"}:
+            return None
+        start_ticks = int(fields[19])
+        with open("/proc/sys/kernel/random/boot_id", encoding="ascii") as handle:
+            boot_id = handle.read(128).strip()
+        return (boot_id, start_ticks) if boot_id and start_ticks > 0 else None
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+@contextmanager
+def _netmon_host_state_lock(path):
+    # Only local host registration/cleanup uses this lock. It is unrelated to
+    # the network coordinator and prevents a late old host removing a new one.
+    with open(path + ".lock", "a", encoding="ascii") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
 def write_netmon_host_state(pid: int) -> bool:
-    return _write_radio_host_state_payload(
-        {
-            "pid": int(pid),
-            "owner_pid": int(pid),
-            "launcher_state": "embedded_active",
-            "mode": "embedded",
-            "attached": True,
-            "started_from": "netmon",
-            "session_id": _build_session_id("embedded", int(pid)),
-            "transition_state": "",
-            "transition_target": "",
-        },
-    )
+    identity = _process_identity(pid)
+    if identity is None:
+        return False
+    payload = {
+        "schema_version": 1,
+        "role": "netmon",
+        "pid": pid,
+        "boot_id": identity[0],
+        "start_ticks": identity[1],
+    }
+    try:
+        path = build_radio_paths().netmon_host_state_path
+        with _netmon_host_state_lock(path):
+            ok, _error = safe_write_json(path, payload, indent=2)
+        return ok
+    except OSError:
+        return False
 
 
 def clear_netmon_host_state(pid: int | None = None) -> bool:
-    paths = build_radio_paths()
-    if not os.path.exists(paths.radio_host_state_path):
-        return True
-    if pid is not None:
-        state = _safe_read_json(paths.radio_host_state_path)
-        if int(state.get("pid") or 0) != int(pid):
-            return False
     try:
-        os.remove(paths.radio_host_state_path)
+        path = build_radio_paths().netmon_host_state_path
+        with _netmon_host_state_lock(path):
+            if not os.path.exists(path):
+                return True
+            if pid is not None:
+                state = _safe_read_json(path)
+                if type(pid) is not int or state.get("pid") != pid:
+                    return False
+                if _process_identity(pid) != (
+                    state.get("boot_id"),
+                    state.get("start_ticks"),
+                ):
+                    return False
+            os.remove(path)
         return True
     except FileNotFoundError:
         return True
@@ -318,11 +368,30 @@ def clear_netmon_host_state(pid: int | None = None) -> bool:
 
 
 def read_netmon_host_state() -> dict:
-    return _safe_read_json(build_radio_paths().radio_host_state_path)
+    return _safe_read_json(build_radio_paths().netmon_host_state_path)
+
+
+def clear_radio_host_state(pid: int) -> bool:
+    """Clear only this radio owner; never unregister a separate NetMon host."""
+    path = build_radio_paths().radio_host_state_path
+    if not os.path.exists(path):
+        return True
+    state = _safe_read_json(path)
+    if type(pid) is not int or state.get("owner_pid", state.get("pid")) != pid:
+        return False
+    try:
+        os.remove(path)
+        return True
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
 
 
 def read_radio_host_state() -> dict:
-    state = _normalize_radio_host_state(read_netmon_host_state())
+    state = _normalize_radio_host_state(
+        _safe_read_json(build_radio_paths().radio_host_state_path)
+    )
     if "owner_pid" not in state and "pid" in state:
         state["owner_pid"] = int(state.get("pid") or 0)
     if "session_id" not in state and state.get("owner_pid"):
@@ -409,8 +478,21 @@ def set_radio_mode(
 
 def netmon_host_is_available() -> bool:
     state = read_netmon_host_state()
-    pid = int(state.get("pid") or 0)
-    return pid > 0 and _process_exists(pid)
+    pid = state.get("pid")
+    ticks = state.get("start_ticks")
+    if (
+        type(state.get("schema_version")) is not int
+        or state["schema_version"] != 1
+        or state.get("role") != "netmon"
+        or type(pid) is not int
+        or pid <= 0
+        or type(ticks) is not int
+        or ticks <= 0
+        or not isinstance(state.get("boot_id"), str)
+        or not state["boot_id"]
+    ):
+        return False
+    return _process_identity(pid) == (state["boot_id"], ticks)
 
 
 def radio_host_is_running(mode: str | None = None) -> bool:

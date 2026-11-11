@@ -62,6 +62,7 @@ def tunnel(monkeypatch):
         "log_network_debug",
         "log",
         "prepare_dns_for_vpn_profile_switch",
+        "_recover_firewall_preserving_killswitch",
         "refresh_wg_profiles",
         "update_primary_vpn_form_controls",
         "sync_primary_vpn_form_selection",

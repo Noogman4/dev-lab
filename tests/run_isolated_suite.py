@@ -12,17 +12,194 @@ import subprocess
 import sys
 import tempfile
 
+sys.pycache_prefix = "/nonexistent"
+os.environ["PYTHONPYCACHEPREFIX"] = "/nonexistent"
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--probe", action="store_true")
+    parser.add_argument("--radio-sandbox-probe", action="store_true")
+    parser.add_argument("--radio-output-gate-probe", action="store_true")
+    parser.add_argument("--radio-output-link-probe", action="store_true")
+    parser.add_argument("--radio-stream-probe", action="store_true")
+    parser.add_argument("--radio-gui-probe", action="store_true")
+    parser.add_argument("--radio-projectm-handover-probe", action="store_true")
+    parser.add_argument("--radio-security-probe", action="store_true")
+    parser.add_argument("--projectm-audio-probe", action="store_true")
+    parser.add_argument("--projectm-display-probe", action="store_true")
+    parser.add_argument("--projectm-frontend-probe", action="store_true")
+    parser.add_argument("--projectm-ui-probe", action="store_true")
+    parser.add_argument("--projectm-pixel-probe", action="store_true")
+    parser.add_argument("--projectm-pixel-benchmark", action="store_true")
+    parser.add_argument("--projectm-pixel-ui-probe", action="store_true")
     parser.add_argument("--php", type=Path)
+    parser.add_argument("--output-dir", type=Path)
     options, pytest_args = parser.parse_known_args()
     root = Path(__file__).resolve().parents[1]
     for program in ("bwrap", "xvfb-run"):
         if shutil.which(program) is None:
             parser.error(f"Required existing tool missing: {program}")
-    output = Path(tempfile.mkdtemp(prefix="netmon-isolation-"))
+    if options.output_dir:
+        output = options.output_dir.resolve()
+        output.mkdir(mode=0o700, parents=True, exist_ok=False)
+    else:
+        output = Path(tempfile.mkdtemp(prefix="netmon-isolation-"))
+    if options.radio_output_gate_probe or options.radio_output_link_probe:
+        if (
+            pytest_args
+            or any(
+                value
+                for key, value in vars(options).items()
+                if key
+                not in {
+                    "radio_output_gate_probe",
+                    "radio_output_link_probe",
+                    "output_dir",
+                }
+            )
+            or (options.radio_output_gate_probe and options.radio_output_link_probe)
+        ):
+            parser.error("Radio output probes accept no other test options")
+        if options.radio_output_gate_probe:
+            from radio_output_gate_probe import run
+        else:
+            from radio_output_link_probe import run
+
+        return run(root, output)
+    if (
+        options.projectm_pixel_probe
+        or options.projectm_pixel_benchmark
+        or options.projectm_pixel_ui_probe
+    ):
+        if any(
+            (
+                options.probe,
+                options.radio_sandbox_probe,
+                options.radio_stream_probe,
+                options.radio_gui_probe,
+                options.radio_projectm_handover_probe,
+                options.radio_security_probe,
+                options.projectm_audio_probe,
+                options.projectm_display_probe,
+                options.projectm_frontend_probe,
+                options.projectm_ui_probe,
+                options.php,
+                pytest_args,
+                sum(
+                    (
+                        options.projectm_pixel_probe,
+                        options.projectm_pixel_benchmark,
+                        options.projectm_pixel_ui_probe,
+                    )
+                )
+                != 1,
+            )
+        ):
+            parser.error("Pixel prototype does not accept other test options")
+        if options.projectm_pixel_ui_probe:
+            from projectm_pixel_ui_probe import run
+        elif options.projectm_pixel_benchmark:
+            from projectm_pixel_benchmark import run
+        else:
+            from projectm_pixel_probe import run
+
+        return run(root, output)
+    if options.projectm_ui_probe:
+        if any(
+            (
+                options.probe,
+                options.radio_sandbox_probe,
+                options.radio_stream_probe,
+                options.radio_gui_probe,
+                options.radio_projectm_handover_probe,
+                options.radio_security_probe,
+                options.projectm_audio_probe,
+                options.projectm_display_probe,
+                options.projectm_frontend_probe,
+                options.php,
+                pytest_args,
+            )
+        ):
+            parser.error("Private projectM UI probe does not accept other test options")
+        from projectm_ui_probe import run
+
+        return run(root, output)
+    if options.projectm_display_probe or options.projectm_frontend_probe:
+        if any(
+            (
+                options.probe,
+                options.radio_sandbox_probe,
+                options.radio_stream_probe,
+                options.radio_gui_probe,
+                options.radio_projectm_handover_probe,
+                options.radio_security_probe,
+                options.projectm_audio_probe,
+                options.projectm_display_probe and options.projectm_frontend_probe,
+                options.php,
+                pytest_args,
+            )
+        ):
+            parser.error("Private display probe does not accept other test options")
+        from projectm_display_probe import run
+
+        return run(root, output, frontend=options.projectm_frontend_probe)
+    if options.projectm_audio_probe:
+        if any(
+            (
+                options.probe,
+                options.radio_sandbox_probe,
+                options.radio_stream_probe,
+                options.radio_gui_probe,
+                options.radio_projectm_handover_probe,
+                options.radio_security_probe,
+                options.php,
+                pytest_args,
+            )
+        ):
+            parser.error("Private audio probe does not accept other test options")
+        from projectm_audio_probe import run
+
+        return run(root, output)
+    if (
+        options.radio_stream_probe
+        or options.radio_gui_probe
+        or options.radio_projectm_handover_probe
+        or options.radio_security_probe
+    ):
+        if options.probe or options.radio_sandbox_probe or options.php or pytest_args:
+            parser.error("Radio stream probe does not accept other test options")
+        if (
+            sum(
+                (
+                    options.radio_stream_probe,
+                    options.radio_gui_probe,
+                    options.radio_projectm_handover_probe,
+                    options.radio_security_probe,
+                )
+            )
+            != 1
+        ):
+            parser.error("Choose one radio integration probe")
+        from radio_stream_probe import run
+
+        return run(
+            root,
+            output,
+            gui=options.radio_gui_probe or options.radio_projectm_handover_probe,
+            projectm=options.radio_projectm_handover_probe,
+            security=options.radio_security_probe,
+        )
+    if options.radio_sandbox_probe:
+        if options.probe or options.php or pytest_args:
+            parser.error(
+                "Radio probe does not accept pytest, PHP or other probe options"
+            )
+        # Each subject runs in the playback policy itself, offline/null audio.
+        # No unisolated pytest or nested user namespace is needed here.
+        from radio_sandbox_probe import run
+
+        return run(root, output)
     for name in ("home", "tmp", "runtime", "config", "cache", "data"):
         (output / name).mkdir(mode=0o700)
     # Certificate fixtures need req settings, not the host's OpenSSL config.
@@ -108,6 +285,8 @@ def main():
         "XDG_DATA_HOME": "/work/data",
         "OPENSSL_CONF": "/work/config/openssl.cnf",
         "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONPYCACHEPREFIX": "/nonexistent",
+        "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
         "PYTHONUNBUFFERED": "1",
         "LC_ALL": "C.UTF-8",
         "TZ": "Europe/Berlin",
@@ -152,7 +331,15 @@ def main():
             ),
         ]
     print(f"Isolated output: {output}", flush=True)
-    result = subprocess.run(command, check=False)
+    result = subprocess.run(
+        command,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    (output / "console.log").write_text(result.stdout)
+    print(result.stdout, end="", flush=True)
     return result.returncode
 
 

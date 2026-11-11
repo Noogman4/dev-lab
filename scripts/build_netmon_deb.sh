@@ -8,9 +8,43 @@ DOCS_VERSION="$PKG_VERSION"
 PKG_ARCH="all"
 MAINTAINER="Mr. Happy <netmon.proglab@protonmail.ch>"
 
+TEST_BUILD=0
+PACKAGE_SUMMARY="Linux-Netzwerkmonitor mit Security-, VPN- und Radio-Funktionen"
+PYTHON_DEPENDS="python3 (>= 3.11), python3-tk, python3-psutil, python3-pil, python3-pil.imagetk"
+FEATURE_TOOLS="network-manager, systemd-resolved, dnsutils, wireguard-tools, ufw, traceroute, mtr, nmap, iproute2, iftop, htop, lynis, rkhunter, clamav, clamav-freshclam, speedtest-cli, mpv, pipewire-bin, whois, python3-keyring, python3-gi, gir1.2-vte-2.91"
+EXTRA_TOOLS="wireshark, tshark, projectm, projectm-pulseaudio, python3-pypdf2, python3-docx, python3-openpyxl, python3-pygame, python3-pgzero, sudo, gnome-keyring"
+DEPENDENCIES="$PYTHON_DEPENDS, udisks2, cryptsetup"
+RELATIONSHIPS="Recommends: $FEATURE_TOOLS
+Suggests: $EXTRA_TOOLS"
+if (( $# )); then
+  if [[ "$1" == "--help" && $# == 1 ]]; then
+    echo "Usage: $0 [--test-version ${DOCS_VERSION}~v4dnstestYYYYMMDD.N]"
+    exit 0
+  fi
+  if [[ "$1" != "--test-version" || $# != 2 ]]; then
+    echo "Unsupported build arguments; use --help." >&2
+    exit 2
+  fi
+  version_suffix="${2#"$DOCS_VERSION"~v4dnstest}"
+  if [[ "$2" != "$DOCS_VERSION"~v4dnstest* || ! "$version_suffix" =~ ^[0-9]{8}\.[0-9]+$ ]]; then
+    echo "Test version must be ${DOCS_VERSION}~v4dnstestYYYYMMDD.N" >&2
+    exit 2
+  fi
+  dpkg --validate-version "$2"
+  PKG_VERSION="$2"
+  TEST_BUILD=1
+  PACKAGE_SUMMARY="TESTBUILD NetMon V4 DNS (DHCP/ISP-Freigabe gesperrt)"
+  DEPENDENCIES="$PYTHON_DEPENDS"
+  RELATIONSHIPS="Suggests: $FEATURE_TOOLS, $EXTRA_TOOLS, udisks2, cryptsetup"
+fi
+
 BUILD_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/netmon-debbuild.XXXXXX")"
 PKG_DIR="$BUILD_ROOT/${PKG_NAME}_${PKG_VERSION}_${PKG_ARCH}"
 OUT_DEB="$ROOT_DIR/dist/${PKG_NAME}_${PKG_VERSION}_${PKG_ARCH}.deb"
+if [[ -e "$OUT_DEB" || -L "$OUT_DEB" ]]; then
+  echo "Refusing to overwrite existing package: $OUT_DEB" >&2
+  exit 1
+fi
 APP_ROOT="$PKG_DIR/usr/lib/netmon"
 APP_PY_ROOT="$APP_ROOT/netmon"
 TOOLS_ROOT="$APP_ROOT/tools"
@@ -97,6 +131,7 @@ copy_tree "$ROOT_DIR/netmon/services" "$APP_PY_ROOT/services"
 copy_tree "$ROOT_DIR/netmon/ui" "$APP_PY_ROOT/ui"
 
 # Runtime tool assets referenced by the application via repo-relative paths.
+copy_file "$ROOT_DIR/tools/__init__.py" "$TOOLS_ROOT/__init__.py"
 copy_file "$ROOT_DIR/tools/netmon.png" "$TOOLS_ROOT/netmon.png"
 copy_file_if_exists "$ROOT_DIR/tools/netmon-radio.png" "$TOOLS_ROOT/netmon-radio.png"
 copy_file_if_exists "$ROOT_DIR/tools/it_lexikon_linux_hilfe.json" "$TOOLS_ROOT/it_lexikon_linux_hilfe.json"
@@ -133,8 +168,25 @@ copy_file_if_exists \
   "$DOCS_ROOT/netmon_dokumentation.html"
 copy_file_if_exists "$ROOT_DIR/THIRD_PARTY_NOTICES.md" "$DOCS_ROOT/THIRD_PARTY_NOTICES.md"
 copy_file "$ROOT_DIR/packaging/copyright" "$DOCS_ROOT/copyright"
-copy_file "$ROOT_DIR/packaging/netmon.doc-base" "$PKG_DIR/usr/share/doc-base/netmon.netmon"
-gzip -9n -c "$ROOT_DIR/packaging/changelog" > "$DOCS_ROOT/changelog.gz"
+if [[ -f "$DOCS_ROOT/netmon_dokumentation.html" && -f "$DOCS_ROOT/netmon_dokumentation.pdf" ]]; then
+  copy_file "$ROOT_DIR/packaging/netmon.doc-base" "$PKG_DIR/usr/share/doc-base/netmon.netmon"
+fi
+if (( TEST_BUILD )); then
+  {
+    printf '%s\n\n' "netmon ($PKG_VERSION) unstable; urgency=low"
+    printf '  * Isolated DNS integration test build; not an official release.\n'
+    printf '  * DHCP/ISP release remains disabled; maintainer scripts do not restore DNS.\n\n'
+    printf ' -- %s  %s\n\n' "$MAINTAINER" "$(date -u -R)"
+    cat "$ROOT_DIR/packaging/changelog"
+  } | gzip -9n > "$DOCS_ROOT/changelog.gz"
+  {
+    printf '# NetMon V4 DNS TESTBUILD\n\nPaketversion: %s\n\n' "$PKG_VERSION"
+    cat "$ROOT_DIR/README-DNS-INTEGRATION.md"
+  } > "$DOCS_ROOT/TEST-BUILD.md"
+  copy_file "$ROOT_DIR/docs/DNS-F1-F6-REPORT.md" "$DOCS_ROOT/DNS-F1-F6-REPORT.md"
+else
+  gzip -9n -c "$ROOT_DIR/packaging/changelog" > "$DOCS_ROOT/changelog.gz"
+fi
 gzip -9n -c "$ROOT_DIR/packaging/netmon.1" > "$MAN_ROOT/netmon.1.gz"
 gzip -9n -c "$ROOT_DIR/packaging/netmon-uninstall.1" > "$MAN_ROOT/netmon-uninstall.1.gz"
 
@@ -184,6 +236,10 @@ StartupNotify=true
 Keywords=uninstall;remove;NetMon;
 EOF
 
+if (( TEST_BUILD )); then
+  sed -i 's/^Name=NetMon$/Name=NetMon V4 DNS Test/' "$PKG_DIR/usr/share/applications/netmon.desktop"
+fi
+
 copy_file \
   "$ROOT_DIR/packaging/netmon.metainfo.xml" \
   "$PKG_DIR/usr/share/metainfo/netmon.metainfo.xml"
@@ -207,10 +263,9 @@ Section: net
 Priority: optional
 Architecture: ${PKG_ARCH}
 Maintainer: ${MAINTAINER}
-Depends: python3, python3-tk, python3-psutil, python3-pil, python3-pil.imagetk, udisks2, cryptsetup
-Recommends: network-manager, systemd-resolved, dnsutils, wireguard-tools, ufw, traceroute, mtr, nmap, iproute2, iftop, htop, lynis, rkhunter, clamav, clamav-freshclam, speedtest-cli, mpv, whois
-Suggests: wireshark, tshark, projectm, projectm-pulseaudio, python3-pypdf2, python3-docx, python3-pygame, python3-pgzero
-Description: Linux-Netzwerkmonitor mit Security-, VPN- und Radio-Funktionen
+Depends: ${DEPENDENCIES}
+${RELATIONSHIPS}
+Description: ${PACKAGE_SUMMARY}
  Die Anwendung bietet Netzwerkdiagnose, DNS- und Firewall-Steuerung,
  Security-Checks, VPN-Slots, Radio-Funktionen und weitere Linux-Werkzeuge
  in einer grafischen Oberflaeche.
@@ -224,9 +279,10 @@ if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
 fi
 
+ASSET_DIR="/usr/share/netmon/assets/log-pics"
+
 NETMON_STATE_DIR="/var/lib/netmon"
 NETMON_INSTALL_DNS_STATE="$NETMON_STATE_DIR/install-dns-nm.state"
-ASSET_DIR="/usr/share/netmon/assets/log-pics"
 
 restore_legacy_install_dns() {
   [ -f "$NETMON_INSTALL_DNS_STATE" ] || return 0
@@ -364,6 +420,8 @@ PYDNS
   # Keep the directory inode as the shared lock anchor.
 }
 
+restore_legacy_install_dns
+
 seed_log_pics_dir() {
   TARGET_DIR="$1"
   [ -n "$TARGET_DIR" ] || return 0
@@ -401,7 +459,6 @@ seed_netmon_log_pics_for_home() {
 }
 
 seed_netmon_log_pics_for_home "/etc/skel"
-restore_legacy_install_dns
 
 exit 0
 EOF
@@ -552,6 +609,37 @@ PYDNS
 }
 
 restore_netmon_install_dns "${1:-}"
+# Package removal never restores or reactivates legacy DNS profiles.
+case "${1:-}" in
+  remove|deconfigure)
+    # Preserve the protected receipt. Never remove the recovery helper while
+    # an activation/rollback still depends on it. No firewall write is allowed.
+    if [ -e /var/lib/netmon/ufw-snapshot/state.json ] || [ -L /var/lib/netmon/ufw-snapshot/state.json ]; then
+      if ! /usr/bin/python3 -I -c '
+import os, stat, sys
+path = "/usr/lib/netmon/netmon/core/ufw_snapshot.py"
+current = "/"
+for part in [""] + path.strip("/").split("/"):
+    current = os.path.join(current, part)
+    info = os.lstat(current)
+    if info.st_uid != 0 or info.st_mode & 0o022:
+        sys.exit("Unprotected removal helper")
+    if current == path:
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            sys.exit("Unsafe removal helper")
+    elif not stat.S_ISDIR(info.st_mode):
+        sys.exit("Unsafe helper directory")
+os.execv("/usr/bin/python3", ["/usr/bin/python3", "-I", path, "removal"])
+' <<'JSON'
+{}
+JSON
+      then
+        echo "NetMon: aktive oder ungeklärte Firewall-Transaktion. Erst ausdrücklich wiederherstellen oder manuell geprüft abschließen; Paket bleibt erhalten." >&2
+        exit 1
+      fi
+    fi
+    ;;
+esac
 exit 0
 EOF
 chmod 755 "$PKG_DIR/DEBIAN/prerm"
@@ -577,7 +665,6 @@ chmod 0755 \
 )
 
 # Build
-rm -f "$OUT_DEB"
 dpkg-deb --root-owner-group --build "$PKG_DIR" "$OUT_DEB"
 
 echo "Built: $OUT_DEB"

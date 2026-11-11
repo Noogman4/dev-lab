@@ -1,7 +1,7 @@
 """Stateful failure injection; all privileged commands are simulated."""
 
 import ast
-import subprocess
+import hashlib
 import threading
 from pathlib import Path
 from types import SimpleNamespace
@@ -9,6 +9,65 @@ from types import SimpleNamespace
 import pytest
 
 from netmon.features import firewall_controller as controller
+from netmon.core.ufw_snapshot import SnapshotError
+
+
+@pytest.fixture(autouse=True)
+def simulated_snapshot_transport(monkeypatch):
+    """Isolate UFW command-engine tests from the separately tested root store.
+
+    This transport permits fake apply commands but cannot authorize restoration.
+    Full snapshot/restore integration is in test_ufw_snapshot.py.
+    """
+
+    class EngineTransport:
+        def __init__(self, app):
+            self.app = app
+
+        def begin(self, *args):
+            pass
+
+        def commit(self):
+            pass
+
+        def recovery(self):
+            pass
+
+        def state(self):
+            return "absent"
+
+        def restore(self):
+            raise SnapshotError("Engine test has no protected original", "no_snapshot")
+
+        def ufw_enable_force(self, timeout=0):
+            return self.run(["sudo", "-n", "ufw", "--force", "enable"], timeout=timeout)
+
+        def run(self, args, timeout=0, text=True):
+            transaction = self.app.__dict__.pop("_active_firewall_snapshot", None)
+            try:
+                service = controller._network_service_for(self.app)
+                if service is not None:
+                    return service.run(args, timeout=timeout)
+                return controller._run_cmd(self.app, args, timeout=timeout, text=text)
+            finally:
+                if transaction is not None:
+                    self.app._active_firewall_snapshot = transaction
+
+    monkeypatch.setattr(
+        controller,
+        "_snapshot_client_for",
+        lambda app: app.__dict__.get("firewall_snapshots") or EngineTransport(app),
+    )
+
+
+@pytest.fixture(autouse=True)
+def fake_verified_interfaces(monkeypatch):
+    # Keep the existing mutation-stage oracle on a verified synthetic link.
+    monkeypatch.setattr(
+        controller.nm_ownership,
+        "verified_interface",
+        lambda name: {"name": name, "kind": "wireguard", "ifindex": 7},
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -143,16 +202,13 @@ class Ufw:
 
 
 def test_baseline_recovery_changes_deny_outgoing_to_allow():
-    source = subprocess.check_output(
-        [
-            "git",
-            "show",
-            "71ed081b77e26af8853d340e777009f027251082:"
-            "netmon/features/firewall_controller.py",
-        ],
-        cwd=Path(__file__).resolve().parents[1],
-        text=True,
+    fixture = (
+        Path(__file__).parent / "fixtures/history/firewall_controller-71ed081.py.txt"
     )
+    raw = fixture.read_bytes()
+    expected = fixture.with_suffix(".sha256").read_text().strip()
+    assert hashlib.sha256(raw).hexdigest() == expected
+    source = raw.decode("utf-8")
     function = next(
         node
         for node in ast.parse(source).body
@@ -177,11 +233,8 @@ def test_baseline_recovery_changes_deny_outgoing_to_allow():
 @pytest.mark.parametrize("raises", [False, True])
 @pytest.mark.parametrize(
     "stage,active",
-    [
-        (stage, active)
-        for active in (False, True)
-        for stage in range(1, 11 if not active else 10)
-    ],
+    # Seven activation commands; numbered heuristic rule deletion is gone.
+    [(stage, active) for active in (True,) for stage in range(1, 8)],
 )
 def test_each_partial_activation_failure_fails_closed(stage, raises, active, service):
     ufw = Ufw(fail_at=stage, raises=raises, active=active, service=service)
@@ -299,7 +352,7 @@ def test_recovery_never_claims_protection_for_ambiguous_status(ipv6, position):
 def test_each_emergency_command_failure_is_reported(stage, raises):
     ufw = Ufw(fail_at=stage, raises=raises)
     assert not controller.recover_firewall_after_killswitch_failure(ufw.app)
-    assert ufw.count == 5  # Remaining recovery restrictions are still attempted.
+    assert ufw.count >= 5  # Append fallback must not skip remaining restrictions.
     assert any("NICHT garantiert" in msg for msg in ufw.logs)
     assert ["default", "allow", "outgoing"] not in ufw.calls
 

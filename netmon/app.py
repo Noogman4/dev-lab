@@ -2397,6 +2397,8 @@ class App(TkBase):
 
         # ----- Locks gegen "Schaltchaos" -----
         self.ufw_lock = threading.Lock()
+        self.killswitch_journal = firewall_controller.KillswitchJournal()
+        self.firewall_snapshots = firewall_controller.UfwSnapshotClient()
         self.network_ops_lock = threading.RLock()
         self.network_active_operation = ""
         self._network_op_owner = None
@@ -2790,6 +2792,7 @@ class App(TkBase):
             pass
         if netmon_radio_core is not None:
             try:
+                netmon_radio_core.write_netmon_host_state(os.getpid())
                 if netmon_radio_core.standalone_radio_is_running():
                     netmon_radio_core.set_radio_detached_state(True)
                 else:
@@ -4360,16 +4363,7 @@ class App(TkBase):
                 "Shows how your connection appears to the outside on the internet.",
             ),
         )
-        btn_terminal = ttk.Button(
-            vpn_row,
-            text=self.tr("btn_terminal", "Terminal"),
-            command=self.open_external_terminal,
-        )
-        btn_terminal.pack(side="right", padx=(0, 8))
-        self.add_tooltip(
-            btn_terminal,
-            self.tr("tooltip_terminal", "Opens an external system terminal."),
-        )
+        self._build_terminal_launcher(vpn_row)
         self.l_inet = (inet_canvas, inet_dot)
         # UI Cleanup inventory (Ampel):
         # Kernstatus: Firewall, VPN (WireGuard), DNS Guard, Startup Guard, DoT
@@ -6189,6 +6183,9 @@ class App(TkBase):
                 pass
             return
         self._netmon_closing = True
+        terminal_dock = self.__dict__.get("terminal_dock")
+        if terminal_dock is not None:
+            terminal_dock.close()
         try:
             guided_tour = self.__dict__.get("guided_tour")
             if guided_tour is not None:
@@ -6221,6 +6218,10 @@ class App(TkBase):
                 panel = self.__dict__.get("radio_embedded_panel")
                 if panel is not None and not (detached_radio or standalone_transition):
                     try:
+                        panel.stop_radio_recording()
+                    except Exception:
+                        pass
+                    try:
                         panel.close_projectm_visualizer_test()
                     except Exception:
                         pass
@@ -6231,6 +6232,8 @@ class App(TkBase):
                 if netmon_radio_core is not None:
                     try:
                         netmon_radio_core.clear_netmon_host_state(os.getpid())
+                        if not (detached_radio or standalone_transition):
+                            netmon_radio_core.clear_radio_host_state(os.getpid())
                     except Exception:
                         pass
                 clock_after_id = self.__dict__.get("_clock_after_id")
@@ -11355,6 +11358,13 @@ class App(TkBase):
             label="Killswitch AUS",
             command=self.killswitch_off,
         )
+        menu.add_separator()
+        menu.add_command(
+            label="Wiederherstellung manuell geprüft …",
+            command=lambda: firewall_controller.acknowledge_manual_firewall_review(
+                self
+            ),
+        )
         return self._show_context_menu(menu, event)
 
     def show_dns_guard_menu(self, event):
@@ -11826,9 +11836,13 @@ class App(TkBase):
         cmd = ["sudo", "-n", "ufw", "logging", level]
 
         def worker():
-            rc, out = run_cmd(cmd, timeout=10)
+            rc, out = firewall_controller.guarded_ufw_command(
+                self, cmd, timeout=10, runner=run_cmd
+            )
             if rc != 0:
-                rc, out = run_cmd(["ufw", "logging", level], timeout=10)
+                rc, out = firewall_controller.guarded_ufw_command(
+                    self, ["ufw", "logging", level], timeout=10, runner=run_cmd
+                )
 
             if rc == 0:
                 self.log_safe(f"Security: UFW Logging auf {level.upper()} gesetzt")
@@ -12601,19 +12615,9 @@ class App(TkBase):
         )
 
     def is_vpn_active_for_dns_ui(self):
-        service = self._dns_control_service()
-        if service is not None:
-            code, out = service.read_resolvectl_status(timeout=6)
-            if code != 0:
-                return False
-            return service.detect_vpn_active(out)
-        code, out = run_cmd(["resolvectl", "status"], timeout=6)
-        if code != 0:
-            return False
-        text = (out or "").lower()
-        return any(
-            token in text for token in ("proton", "wireguard", "wg", "tun", "vpn")
-        )
+        # Unknown is not permission to apply a global DNS profile during a VPN.
+        state = self.is_vpn_active()
+        return state is not False
 
     def _dns_controls_locked(self):
         if self.is_vpn_active_for_dns_ui():
@@ -13543,25 +13547,27 @@ class App(TkBase):
         return "+DNSOverTLS" in out or "DNSOverTLS=yes" in out
 
     def normalize_dns_value(self, value: str) -> str:
-        normalized = str(value or "").strip()
-        if not normalized:
-            return ""
-        if "#" in normalized:
-            normalized = normalized.split("#", 1)[0].strip()
-        return normalized
+        value = str(value or "").strip().split("#", 1)[0].strip().strip("[]")
+        try:
+            return str(ipaddress.ip_address(value))
+        except ValueError:
+            return value.lower()
 
-    def rebuild_dns_guard_whitelist(self):
-        if self.is_vpn_active():
-            allowed = self.get_active_vpn_dns()
-        elif self.is_dot_active():
+    def rebuild_dns_guard_whitelist(self, snapshot=None):
+        service = self._dns_control_service()
+        if service is None:
+            self.dns_guard_allowed_dns = []
+            return []
+        snapshot = snapshot if snapshot is not None else service.read_dns_snapshot()
+        if snapshot["vpn_state"] == "unknown":
+            allowed = []
+        elif snapshot["vpn_state"] == "active":
+            allowed = service.vpn_dns_routing(snapshot)["vpn_dns"]
+        elif bool(self.__dict__.get("dot_enabled", False)) or snapshot["dot_active"]:
             allowed = self.get_selected_dot_dns()
         else:
-            allowed = self.get_selected_user_dns()
-            if not allowed:
-                allowed = self.get_current_dns()
-        self.dns_guard_allowed_dns = [
-            str(dns).strip() for dns in (allowed or []) if str(dns).strip()
-        ]
+            allowed = self.get_selected_user_dns() or snapshot["active_dns"]
+        self.dns_guard_allowed_dns = sorted(set(self._normalized_dns_values(allowed)))
         return list(self.dns_guard_allowed_dns)
 
     def _normalized_dns_values(self, values):
@@ -13598,6 +13604,9 @@ class App(TkBase):
         guard_enabled = bool(guard_var.get()) if guard_var is not None else False
         if not guard_enabled:
             return "off"
+
+        if self.__dict__.get("_manual_dns_guard_running", False):
+            return "transition"
 
         if time.time() < float(self.__dict__.get("dns_guard_transition_until", 0.0)):
             return "transition"
@@ -13670,13 +13679,17 @@ class App(TkBase):
             self.after(3000, self.dns_guard_ui_loop)
 
     def _set_dns_guard_status(self, status: str, last_action: str | None = None):
-        self.dns_guard_status_var.set(
-            self.tr("dns_guard_status_value", "DNS Guard: {status}").format(
-                status=status
+        # Status refresh can run before the DNS tab has created its Tk vars.
+        status_var = self.__dict__.get("dns_guard_status_var")
+        if status_var is not None:
+            status_var.set(
+                self.tr("dns_guard_status_value", "DNS Guard: {status}").format(
+                    status=status
+                )
             )
-        )
-        if last_action is not None:
-            self.dns_guard_last_action_var.set(last_action)
+        action_var = self.__dict__.get("dns_guard_last_action_var")
+        if last_action is not None and action_var is not None:
+            action_var.set(last_action)
 
     def _start_dns_guard_transition(self, delay_ms=2000):
         self.dns_guard_transition_until = time.time() + max(1.0, delay_ms / 1000.0)
@@ -13726,6 +13739,9 @@ class App(TkBase):
         return actions
 
     def prepare_dns_for_vpn_profile_switch(self):
+        # A new transition supersedes any queued completion of an older one.
+        self._dns_finalize_token = int(self.__dict__.get("_dns_finalize_token", 0)) + 1
+        self.__dict__.pop("_vpn_dns_resume_token", None)
         actions = []
         cleanup_failed = False
         sudo_failed = False
@@ -13784,6 +13800,9 @@ class App(TkBase):
             except Exception:
                 pass
 
+        if not self.__dict__.get("_vpn_firewall_sync_pending"):
+            self._vpn_dns_completion_deferred = False
+        self._vpn_dns_prepare_deferred = False
         return actions
 
     def _isp_dns_restore_choice_after_vpn(self):
@@ -13805,7 +13824,7 @@ class App(TkBase):
             return False
 
         try:
-            if self.is_vpn_active():
+            if self.is_vpn_active() is not False:
                 return False
         except Exception:
             return False
@@ -13832,23 +13851,21 @@ class App(TkBase):
 
     def _apply_automatic_dns_restore_choice(self, choice):
         try:
-            if self._dns_runtime_transition_active():
-                self._set_dns_choice_safe(choice)
-                result = self._apply_dns_profile_choice_via_control(choice)
-                try:
-                    self.refresh_dns_policy_status()
-                except Exception:
-                    pass
-                return bool(result.get("success"))
-
-            return bool(
-                self.apply_dns(
-                    choice=choice,
-                    refresh_ui=False,
-                    update_choice_var=True,
-                    confirm_dnssec=False,
-                )
-            )
+            service = self._dns_control_service()
+            if service is None:
+                return False
+            with service.dns_mutation_lock:
+                # The earlier disconnect check may predate another worker.
+                if (
+                    self.is_vpn_active() is not False
+                    or not self._auto_dns_control_available()
+                    or self.__dict__.get("internet_vpn_restore_active", False)
+                ):
+                    return False
+                # A previous inactive observation cannot authorize ISP release
+                # across an external VPN transition, even for a static fallback.
+                self.log_safe(service.AUTO_DNS_RELEASE_BLOCK_REASON)
+                return False
         except Exception as exc:
             try:
                 self.log_safe(f"DNS nach VPN-Aus fehlgeschlagen: {exc}")
@@ -13858,7 +13875,7 @@ class App(TkBase):
 
     def _restore_isp_dns_on_startup_if_needed(self):
         try:
-            if self.is_vpn_active():
+            if self.is_vpn_active() is not False:
                 return False
         except Exception:
             return False
@@ -13899,6 +13916,28 @@ class App(TkBase):
     def finalize_dns_after_vpn_profile_switch(self):
         self.dns_guard_transition_until = 0.0
         self.__dict__.pop("_dns_finalize_scheduled_token", None)
+        if (
+            self.__dict__.get("_vpn_firewall_sync_pending", False)
+            or self.__dict__.get("network_active_operation")
+            or firewall_controller.firewall_recovery_pending(self)
+        ):
+            self._vpn_dns_completion_deferred = True
+            self._dns_finalize_token = (
+                int(self.__dict__.get("_dns_finalize_token", 0)) + 1
+            )
+            self.__dict__.pop("_vpn_dns_resume_token", None)
+            pause_reason = (
+                "Netzoperation läuft; erneute Prüfung nach deren Abschluss."
+                if self.__dict__.get("network_active_operation")
+                and not self.__dict__.get("_vpn_firewall_sync_pending", False)
+                else "Firewall-Wiederherstellung ungeklärt."
+            )
+            self.log_safe(f"DNS-Abschluss pausiert: {pause_reason}")
+            return False
+
+        self._vpn_dns_completion_deferred = False
+        self._dns_finalize_token = int(self.__dict__.get("_dns_finalize_token", 0)) + 1
+        self.__dict__.pop("_vpn_dns_resume_token", None)
 
         try:
             status = self._collect_dot_status(run_test=False)
@@ -13940,6 +13979,18 @@ class App(TkBase):
             pass
 
     def _schedule_dns_finalize_after_vpn_profile_switch(self, delay_ms=2500):
+        if self.__dict__.get("_vpn_firewall_sync_pending", False):
+            self._vpn_dns_completion_deferred = True
+            self._dns_finalize_token = (
+                int(self.__dict__.get("_dns_finalize_token", 0)) + 1
+            )
+            self.__dict__.pop("_vpn_dns_resume_token", None)
+            return
+        if self.__dict__.get("_vpn_dns_completion_deferred"):
+            self._resume_deferred_vpn_dns()
+            return
+        self._vpn_dns_completion_deferred = False
+        self.__dict__.pop("_vpn_dns_resume_token", None)
         callback = self.finalize_dns_after_vpn_profile_switch
         token = int(self.__dict__.get("_dns_finalize_token", 0)) + 1
         self.__dict__["_dns_finalize_token"] = token
@@ -13964,6 +14015,63 @@ class App(TkBase):
             guarded_callback()
         except Exception:
             pass
+
+    def _resume_deferred_vpn_dns(self):
+        if self.__dict__.get("_vpn_loss_firewall_pending"):
+            self._queue_vpn_loss_firewall_sync()
+            return
+        if (
+            not self.__dict__.get("_vpn_dns_completion_deferred")
+            or self.__dict__.get("_vpn_firewall_sync_pending")
+            or self.__dict__.get("network_active_operation")
+            or self.__dict__.get("_vpn_dns_resume_token") is not None
+        ):
+            return
+        generation = int(self.__dict__.get("_dns_finalize_token", 0))
+        self._vpn_dns_resume_token = generation
+
+        def resume():
+            if self.__dict__.get("_vpn_dns_resume_token") != generation:
+                return
+            self.__dict__.pop("_vpn_dns_resume_token", None)
+            if (
+                generation != int(self.__dict__.get("_dns_finalize_token", 0))
+                or not self.__dict__.get("_vpn_dns_completion_deferred")
+                or self.__dict__.get("_vpn_firewall_sync_pending")
+                or self.__dict__.get("network_active_operation")
+            ):
+                return
+            if firewall_controller.firewall_recovery_pending(self):
+                return
+            if not self._try_begin_network_operation(
+                "DNS-Abschluss fortsetzen", log_busy=False
+            ):
+                return
+            try:
+                if self.__dict__.get(
+                    "_vpn_firewall_sync_pending"
+                ) or firewall_controller.firewall_recovery_pending(self):
+                    return
+                if self.__dict__.get("_vpn_dns_prepare_deferred"):
+                    # Preparation belongs before tunnel startup. A new live
+                    # tunnel supersedes old cleanup, never revert its DNS.
+                    if not self.get_wg_interfaces(strict=True):
+                        self.prepare_dns_for_vpn_profile_switch()
+                    self._vpn_dns_prepare_deferred = False
+                self._vpn_dns_completion_deferred = False
+                self._schedule_dns_finalize_after_vpn_profile_switch()
+            except Exception as exc:
+                self._vpn_dns_completion_deferred = False
+                self.log_safe(
+                    f"Zurückgestellter DNS-Abschluss fehlgeschlagen: {type(exc).__name__}"
+                )
+            finally:
+                self._end_network_operation()
+
+        try:
+            self.after(0, resume)
+        except Exception:
+            self.__dict__.pop("_vpn_dns_resume_token", None)
 
     def set_dns_guard_state(
         self,
@@ -13996,143 +14104,179 @@ class App(TkBase):
 
         self.update_dns_guard_indicator()
 
+    def _dns_guard_observation(self, snapshot):
+        service = self._dns_control_service()
+        allowed = self.rebuild_dns_guard_whitelist(snapshot)
+        if snapshot["vpn_state"] == "unknown" or snapshot.get("parse_errors"):
+            return "unknown", "aktiv / VPN-/DNS-Status unklar"
+        if snapshot["vpn_state"] == "active":
+            policy = service.evaluate_dns_snapshot(snapshot)
+            if policy["policy_unknown"]:
+                return "unknown", "aktiv / VPN-DNS unklar"
+            if policy["conflict"]:
+                return "problem", "Problem erkannt"
+            return "ok", "aktiv / VPN-DNS OK"
+        if not snapshot["active_dns"] or not allowed:
+            return "unknown", "aktiv / DNS-Ziel unklar"
+        dot_active = (
+            bool(self.__dict__.get("dot_enabled", False)) or snapshot["dot_active"]
+        )
+        clean = self.dns_is_clean(snapshot["active_dns"], allowed)
+        if clean:
+            return "ok", "aktiv (DoT-Resolver OK)" if dot_active else "aktiv / sauber"
+        return "problem", (
+            "Problem (DoT-DNS abweichend)" if dot_active else "Problem erkannt"
+        )
+
     def run_dns_guard_check_once(self, auto_repair=False):
+        if self.__dict__.get("_manual_dns_guard_running", False):
+            self.set_dns_guard_state("transition")
+            return
         if self.__dict__.get("dns_guard_check_running", False):
             return
-
+        generation = self.__dict__.get("_manual_dns_guard_generation", 0)
         now = time.time()
         if now < float(self.__dict__.get("dns_guard_transition_until", 0.0)):
             self.set_dns_guard_state("transition")
             return
-
         self.dns_guard_check_running = True
         try:
             self.last_dns_guard_check_ts = now
-            guard_var = self.__dict__.get("dns_guard_enabled_var")
-            guard_enabled = bool(guard_var.get()) if guard_var is not None else False
-            if not guard_enabled:
+            guard = self.__dict__.get("dns_guard_enabled_var")
+            if guard is None or not guard.get():
                 self.set_dns_guard_state("off")
                 return
-
-            allowed = self.rebuild_dns_guard_whitelist()
-            current = self.get_current_dns()
-            normalized_allowed = self._normalized_dns_values(allowed)
-
-            if not current:
+            service = self._dns_control_service()
+            if service is None:
                 self.set_dns_guard_state("unknown")
                 return
-
-            if not normalized_allowed:
-                if self.is_vpn_active():
-                    status_text = self.tr(
-                        "dns_guard_status_vpn_dns_unclear", "aktiv / VPN-DNS unklar"
-                    )
-                elif self.is_dot_active():
-                    status_text = self.tr(
-                        "dns_guard_status_dot_target_unclear",
-                        "aktiv / DoT-Ziel unklar",
-                    )
-                else:
-                    status_text = self.tr(
-                        "dns_guard_status_dns_target_unclear",
-                        "aktiv / DNS-Ziel unklar",
-                    )
+            snapshot = service.read_dns_snapshot()
+            state, label = self._dns_guard_observation(snapshot)
+            if generation != self.__dict__.get("_manual_dns_guard_generation", 0):
+                return
+            if self.__dict__.get("_manual_dns_guard_running", False):
+                return
+            self.set_dns_guard_state(
+                state,
+                status_text=label,
+                log_message=self.tr(
+                    (
+                        "dns_guard_log_ok"
+                        if state == "ok"
+                        else (
+                            "dns_guard_log_problem_detected"
+                            if state == "problem"
+                            else "dns_guard_log_target_unclear"
+                        )
+                    ),
+                    (
+                        "DNS Guard: OK"
+                        if state == "ok"
+                        else (
+                            "DNS Guard: Abweichung erkannt"
+                            if state == "problem"
+                            else "DNS Guard: DNS-Ziel unklar"
+                        )
+                    ),
+                ),
+            )
+            if state == "ok":
+                service.clear_vpn_repair_backoff()
+                self.__dict__.pop("_dns_guard_unresolved_key", None)
+            if state != "problem" or not auto_repair:
+                return
+            if self.__dict__.get(
+                "_vpn_firewall_sync_pending"
+            ) or firewall_controller.firewall_recovery_pending(self):
                 self.set_dns_guard_state(
                     "unknown",
-                    status_text=status_text,
-                    log_message=self.tr(
-                        "dns_guard_log_target_unclear",
-                        "DNS Guard: DNS-Ziel unklar",
-                    ),
+                    status_text="DNS Guard: automatische Korrektur pausiert; "
+                    "Firewall-Wiederherstellung ungeklärt.",
                 )
                 return
-
-            if self.dns_is_clean(current, allowed):
-                if self.is_vpn_active():
-                    status_text = self.tr(
-                        "dns_guard_status_vpn_dns_ok", "aktiv / VPN-DNS OK"
-                    )
-                elif self.is_dot_active():
-                    status_text = self.tr(
-                        "dns_guard_status_dot_resolver_ok",
-                        "aktiv (DoT-Resolver OK)",
-                    )
-                else:
-                    status_text = self.tr("dns_guard_status_ok_clean", "aktiv / sauber")
-                self.set_dns_guard_state(
-                    "ok",
-                    status_text=status_text,
-                    log_message=self.tr("dns_guard_log_ok", "DNS Guard: OK"),
-                )
+            if now - float(self.__dict__.get("last_dns_guard_repair_ts", 0.0)) < 30:
                 return
-
-            if self.is_dot_active() and not self.is_vpn_active():
-                problem_text = self.tr(
-                    "dns_guard_status_problem_dot_mismatch",
-                    "Problem (DoT-DNS abweichend)",
+            if not self._auto_dns_control_available():
+                return
+            if snapshot["vpn_state"] == "active":
+                success, text = service.apply_vpn_dns_policy(
+                    targets=self._active_nm_dns_targets(),
+                    automatic=True,
+                    snapshot=snapshot,
                 )
             else:
-                problem_text = self.tr("dns_guard_status_problem", "Problem erkannt")
-            self.set_dns_guard_state(
-                "problem",
-                status_text=problem_text,
-                log_message=self.tr(
-                    "dns_guard_log_problem_detected",
-                    "DNS Guard: Abweichung erkannt",
-                ),
-            )
-            if not auto_repair:
-                return
-
-            repair_last = float(self.__dict__.get("last_dns_guard_repair_ts", 0.0))
-            if (now - repair_last) < 30:
-                return
-
-            success, text = self.enforce_dns_clean()
+                with service.dns_mutation_lock:
+                    if generation != self.__dict__.get(
+                        "_manual_dns_guard_generation", 0
+                    ):
+                        return
+                    fresh = service.read_dns_snapshot()
+                    if (
+                        fresh["vpn_state"] != "inactive"
+                        or fresh.get("parse_errors")
+                        or service._snapshot_key(fresh)
+                        != service._snapshot_key(snapshot)
+                    ):
+                        self.set_dns_guard_state("unknown")
+                        return
+                    targets = self._active_nm_dns_targets()
+                    key = service.non_vpn_guard_repair_key(
+                        snapshot, self.dns_guard_allowed_dns, targets
+                    )
+                    if self.__dict__.get("_dns_guard_unresolved_key") == key:
+                        return
+                    success, text = self.enforce_dns_clean()
+                    after = service.read_dns_snapshot()
+                    verified, _label = self._dns_guard_observation(after)
+                    success = (
+                        success
+                        and after["vpn_state"] == "inactive"
+                        and verified == "ok"
+                    )
+                    if not success:
+                        self._dns_guard_unresolved_key = (
+                            service.non_vpn_guard_repair_key(
+                                after,
+                                self.dns_guard_allowed_dns,
+                                self._active_nm_dns_targets(),
+                            )
+                        )
             self.last_dns_guard_repair_ts = time.time()
             self.dns_guard_last_fix_ts = self.last_dns_guard_repair_ts
-            ts_text = datetime.fromtimestamp(self.last_dns_guard_repair_ts).strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
             self.update_dns_output(text, append=True)
+            # Even a successful command sequence is not a policy proof.
+            after = service.read_dns_snapshot()
+            verified, label = self._dns_guard_observation(after)
+            if generation != self.__dict__.get("_manual_dns_guard_generation", 0):
+                return
+            repaired = success and verified == "ok"
             self.set_dns_guard_state(
-                "ok" if success else "problem",
-                status_text=(
-                    self.tr("dns_guard_status_corrected", "aktiv / korrigiert")
-                    if success
-                    else self.tr("dns_guard_status_problem", "Problem erkannt")
+                "ok" if repaired else "unknown" if verified == "unknown" else "problem",
+                status_text=label,
+                last_action="Letzter Reparaturversuch: "
+                + datetime.fromtimestamp(self.last_dns_guard_repair_ts).strftime(
+                    "%Y-%m-%d %H:%M:%S"
                 ),
-                last_action=self.tr(
-                    "dns_guard_last_action_value",
-                    "Letzte Korrektur: {timestamp}",
-                ).format(timestamp=ts_text),
                 log_message=(
-                    self.tr(
-                        "dns_guard_log_autorepair_success",
-                        "DNS Guard: Inkonsistenz erkannt → Auto-Korrektur",
-                    )
-                    if success
-                    else self.tr(
-                        "dns_guard_log_autorepair_failed",
-                        "DNS Guard: Auto-Korrektur fehlgeschlagen",
-                    )
+                    "DNS Guard: automatische Korrektur nachgeprüft"
+                    if repaired
+                    else "DNS Guard: automatische Korrektur ungeklärt/fehlgeschlagen"
                 ),
             )
-            self.rebuild_dns_guard_whitelist()
         except Exception as exc:
-            self.set_dns_guard_state(
-                "error",
-                last_action=self.dns_guard_last_action_var.get(),
-                log_message=self.tr(
-                    "dns_guard_log_error_detected",
-                    "DNS Guard: Fehler erkannt",
-                ),
-            )
+            self.set_dns_guard_state("error")
             self.log_debug_safe(f"DNS Guard Fehler: {exc}")
         finally:
             self.dns_guard_check_running = False
 
     def enforce_dns_clean(self):
+        if self.__dict__.get(
+            "_vpn_firewall_sync_pending"
+        ) or firewall_controller.firewall_recovery_pending(self):
+            return (
+                False,
+                "DNS Guard: automatische DNS-Korrektur pausiert, bis die Firewall-Wiederherstellung geklärt ist.",
+            )
         if not self._auto_dns_control_available():
             return (
                 False,
@@ -14142,8 +14286,15 @@ class App(TkBase):
                 ),
             )
 
-        if self.is_vpn_active():
+        vpn = self.is_vpn_active()
+        if vpn is None:
+            return False, "DNS Guard: VPN-Status unbekannt; keine Änderung."
+        if vpn:
             return self.use_vpn_dns()
+
+        dot_block_reason = dot_controller.plain_dns_repair_block_reason(self)
+        if dot_block_reason:
+            return False, dot_block_reason
 
         selected = self.get_selected_user_dns()
         if selected:
@@ -14199,26 +14350,9 @@ class App(TkBase):
                 self.run_dns_guard_check_once()
                 self.update_dns_controls_state_safe()
             return
-        rc, out = run_cmd(
-            ["sudo", "-n", "systemctl", "restart", "systemd-resolved"],
-            timeout=15,
+        self.log_safe(
+            "DNS-Startprüfung: keine Konfigurationsänderung, kein Resolver-Neustart."
         )
-        if rc == 0:
-            self.log_safe(
-                self.tr(
-                    "dns_startup_cleanup_resolved_restarted",
-                    "DNS-Startbereinigung: systemd-resolved neu gestartet",
-                )
-            )
-        else:
-            self.log_safe(
-                self.tr(
-                    "dns_startup_cleanup_failed",
-                    "DNS-Startbereinigung fehlgeschlagen",
-                )
-            )
-            if out:
-                self.log_debug_safe(out)
         if defer_followup:
             return
         self.rebuild_dns_guard_whitelist()
@@ -14349,7 +14483,50 @@ class App(TkBase):
             self.update_dns_controls_state()
         except Exception:
             pass
+        if not vpn_active:
+            vpn_controller.pause_dns_for_firewall_sync(self)
+            self._vpn_loss_firewall_pending = True
+            self._queue_vpn_loss_firewall_sync()
+            return
         self._schedule_dns_finalize_after_vpn_profile_switch(delay_ms=2500)
+
+    def _queue_vpn_loss_firewall_sync(self):
+        if (
+            not self.__dict__.get("_vpn_loss_firewall_pending")
+            or self.__dict__.get("network_active_operation")
+            or self.__dict__.get("_vpn_loss_firewall_queued")
+        ):
+            return
+        self._vpn_loss_firewall_queued = True
+
+        def worker():
+            started = False
+            try:
+                started = self._try_begin_network_operation(
+                    "VPN-Verlust abgleichen", log_busy=False
+                )
+                if not started:
+                    return  # The monitor/operation-end hook retries after contention.
+                if not self.__dict__.get("_vpn_loss_firewall_pending"):
+                    return
+                self._vpn_loss_firewall_pending = False
+                if vpn_controller.sync_killswitch_after_tunnel_change(self):
+                    if not self.get_wg_interfaces() and self.killswitch_is_on():
+                        self.log_safe(
+                            "VPN-Verbindung getrennt; Killswitch bleibt aktiv. Ohne VPN ist der normale Internetverkehr gesperrt."
+                        )
+            except Exception as exc:
+                self._vpn_loss_firewall_pending = False
+                vpn_controller.pause_dns_for_firewall_sync(self)
+                self.log_safe(
+                    f"VPN-Verlust: Firewall-Abgleich fehlgeschlagen; DNS bleibt pausiert ({type(exc).__name__})."
+                )
+            finally:
+                self._vpn_loss_firewall_queued = False
+                if started:
+                    self._end_network_operation()
+
+        self.run_async(worker, job_name="VPN-Verlust abgleichen")
 
     def on_vpn_connected(self):
         self.log_safe(
@@ -14427,8 +14604,14 @@ class App(TkBase):
                     ignore_auto_dns=False,
                     targets=self._active_nm_dns_targets(),
                 )
-                rm_ok, rm_detail = service.remove_dropin()
-                restart_ok, restart_detail = service.restart_resolved()
+                if nm_ok:
+                    rm_ok, rm_detail = service.remove_dropin()
+                    restart_ok, restart_detail = service.restart_resolved()
+                else:
+                    rm_ok = restart_ok = False
+                    rm_detail = restart_detail = (
+                        "Nach verweigerter DNS-Freigabe nicht ausgeführt."
+                    )
                 success = nm_ok and rm_ok and restart_ok
                 lines = [
                     self.tr("dns_control_report_title", "=== DNS Control ==="),
@@ -14503,10 +14686,16 @@ class App(TkBase):
             if self._dns_runtime_transition_active():
                 self.update_dns_controls_state()
                 return
-            current = bool(self.get_vpn_state())
+            state = self.get_vpn_state()
+            if state is None:
+                self.set_dns_guard_state("unknown")
+                return
+            current = bool(state)
             if current != bool(self.last_vpn_state):
                 self.on_vpn_state_changed(current)
                 self.last_vpn_state = current
+            if self.__dict__.get("_vpn_loss_firewall_pending"):
+                self._queue_vpn_loss_firewall_sync()
             self.update_dns_controls_state()
         except Exception as exc:
             self.log_debug_safe(f"VPN-State-Monitor Fehler: {exc}")
@@ -14602,8 +14791,8 @@ class App(TkBase):
             dot_dropin_path=DOT_DROPIN_PATH,
             dot_dropin_dir=DOT_DROPIN_DIR,
         )
-        self.dns_control_service = service
-        return service
+        # Concurrent DNS workers must publish and use the same service/lock.
+        return self.__dict__.setdefault("dns_control_service", service)
 
     def _new_rollback_transaction(self, name):
         if RollbackTransaction is None:
@@ -14713,6 +14902,9 @@ class App(TkBase):
         if coordinator is not None:
             coordinator.end()
             self._sync_network_operation_state_from_coordinator()
+            resume = getattr(type(self), "_resume_deferred_vpn_dns", None)
+            if callable(resume):
+                resume(self)
             return
 
         lock = self.__dict__.get("network_ops_lock")
@@ -14729,6 +14921,10 @@ class App(TkBase):
             self._network_op_owner = None
             self.network_active_operation = ""
         lock.release()
+        if depth == 0:
+            resume = getattr(type(self), "_resume_deferred_vpn_dns", None)
+            if callable(resume):
+                resume(self)
 
     def _refresh_security_table_safe(self):
         if threading.current_thread() is threading.main_thread():
@@ -15133,6 +15329,10 @@ class App(TkBase):
         if not hasattr(self, "log_overlay_label"):
             return
 
+        dock = self.__dict__.get("terminal_dock")
+        workspace = getattr(dock, "workspace", None)
+        fit_image = workspace is not None and workspace.active
+
         if (
             self.log_overlay_source_image is None
             and self.log_overlay_source_photo is None
@@ -15166,9 +15366,9 @@ class App(TkBase):
                 self.log_overlay_photo = None
                 return
 
-            # cover: Bereich vollständig füllen, Seitenverhältnis erhalten,
-            # bei Bedarf zentriert beschneiden.
-            scale = max(width / src_w, height / src_h)
+            # Analysemodus: ganzes Bild einpassen; das Label zentriert es.
+            # Normale Ansicht: Bereich weiterhin zentriert ausfüllen.
+            scale = (min if fit_image else max)(width / src_w, height / src_h)
             new_w = max(1, int(round(src_w * scale)))
             new_h = max(1, int(round(src_h * scale)))
 
@@ -15180,18 +15380,27 @@ class App(TkBase):
             if resized.mode != "RGB":
                 resized = resized.convert("RGB")
 
-            left = max(0, (new_w - width) // 2)
-            top = max(0, (new_h - height) // 2)
-            right = left + width
-            bottom = top + height
-            cover_img = resized.crop((left, top, right, bottom))
+            if not fit_image:
+                left = max(0, (new_w - width) // 2)
+                top = max(0, (new_h - height) // 2)
+                resized = resized.crop((left, top, left + width, top + height))
 
-            self.log_overlay_photo = ImageTk.PhotoImage(cover_img)
+            self.log_overlay_photo = ImageTk.PhotoImage(resized)
             self.log_overlay_label.configure(image=self.log_overlay_photo, text="")
             return
 
         if self.log_overlay_source_photo is not None:
             self.log_overlay_photo = self.log_overlay_source_photo
+            if fit_image:
+                width = max(1, self.log_view_frame.winfo_width())
+                height = max(1, self.log_view_frame.winfo_height())
+                factor = max(
+                    1,
+                    (self.log_overlay_photo.width() + width - 1) // width,
+                    (self.log_overlay_photo.height() + height - 1) // height,
+                )
+                if factor > 1:
+                    self.log_overlay_photo = self.log_overlay_photo.subsample(factor)
             self.log_overlay_label.configure(image=self.log_overlay_photo, text="")
             return
 
@@ -15876,6 +16085,27 @@ class App(TkBase):
         ):
             self.register_notebook_tab_tooltip(notebook, tab, text)
 
+    def _build_terminal_launcher(self, parent):
+        try:
+            from netmon.features.terminal_dock import build_launcher
+        except ModuleNotFoundError:
+            from features.terminal_dock import build_launcher
+        return build_launcher(self, parent)
+
+    def toggle_docked_terminal(self):
+        try:
+            from netmon.features.terminal_dock import toggle
+        except ModuleNotFoundError:
+            from features.terminal_dock import toggle
+        return toggle(self)
+
+    def show_terminal_menu(self, event):
+        try:
+            from netmon.features.terminal_dock import external_menu
+        except ModuleNotFoundError:
+            from features.terminal_dock import external_menu
+        return external_menu(self, event)
+
     def open_external_terminal(self):
         """Öffnet ein externes System-Terminal."""
         candidates = [
@@ -15892,7 +16122,7 @@ class App(TkBase):
                 try:
                     subprocess.Popen(cmd, start_new_session=True)
                     self.log(f"Externes Terminal gestartet: {cmd[0]}")
-                    return
+                    return True
                 except Exception as e:
                     self.log(f"Start fehlgeschlagen ({cmd[0]}): {e}")
         messagebox.showerror(
@@ -15900,6 +16130,7 @@ class App(TkBase):
             "Kein unterstütztes Terminal-Programm gefunden.",
             parent=self,
         )
+        return False
 
     def on_tooltip_toggle(self):
         tooltips_var = self.__dict__.get("tooltips_enabled")
@@ -16441,16 +16672,21 @@ class App(TkBase):
         return info
 
     def _read_cpu_model(self):
+        candidates = {}
         try:
             with open("/proc/cpuinfo", "r", encoding="utf-8") as fh:
                 for line in fh:
                     if ":" not in line:
                         continue
                     key, val = line.split(":", 1)
-                    if key.strip().lower() in {"model name", "hardware", "processor"}:
-                        model = val.strip()
-                        if model:
-                            return model
+                    key, model = key.strip().lower(), val.strip()
+                    if key in {"model name", "hardware", "processor"} and model:
+                        if key == "processor" and model.isdecimal():
+                            continue
+                        candidates.setdefault(key, model)
+            for key in ("model name", "hardware", "processor"):
+                if key in candidates:
+                    return candidates[key]
         except Exception:
             pass
         rc, out = run_cmd(["lscpu"], timeout=5)
@@ -16771,7 +17007,9 @@ class App(TkBase):
         return value
 
     def _read_gpu_temp(self):
-        if has_cmd("nvidia-smi"):
+        # A failing nvidia-smi (no NVIDIA device) is not retried every 1.5 s.
+        retry_at = float(self.__dict__.get("_nvidia_smi_retry_at", 0.0))
+        if has_cmd("nvidia-smi") and time.monotonic() >= retry_at:
             rc, out = run_cmd(
                 [
                     "nvidia-smi",
@@ -16789,6 +17027,8 @@ class App(TkBase):
                         return "nvidia-smi", float(raw)
                     except Exception:
                         continue
+            if rc != 0:
+                self.__dict__["_nvidia_smi_retry_at"] = time.monotonic() + 300.0
 
         temps = {}
         try:
@@ -17400,26 +17640,16 @@ class App(TkBase):
 
     def emergency_stop_radio_mpv(self):
         try:
-            self.stop_radio_playback(async_mode=False, clear_current=True)
-        except Exception:
-            pass
-        pattern = r"mpv.*--input-ipc-server=.*netmon-radio-.*\.sock"
-        try:
-            proc = subprocess.run(
-                ["pkill", "-f", pattern],
-                capture_output=True,
-                text=True,
-                check=False,
+            accepted = bool(
+                self.stop_radio_playback(async_mode=True, clear_current=True)
             )
-            if proc.returncode == 0:
-                self.log_safe("Radio-Not-Aus: hängende mpv-Radio-Prozesse beendet.")
-            elif proc.returncode == 1:
+            if accepted:
                 self.log_safe(
-                    "Radio-Not-Aus: keine zusätzlichen mpv-Radio-Prozesse gefunden."
+                    "Radio-Not-Aus: Stopp der eigenen Wiedergabe angefordert."
                 )
             else:
-                self.log_safe(f"Radio-Not-Aus: pkill meldete rc={proc.returncode}.")
-            return proc.returncode in {0, 1}
+                self.log_safe("Radio-Not-Aus: Stoppauftrag nicht angenommen.")
+            return accepted
         except Exception as exc:
             self.log_safe(f"Radio-Not-Aus fehlgeschlagen: {exc}")
             return False
@@ -17731,14 +17961,17 @@ class App(TkBase):
         iface = self.get_default_iface()
         dns_servers = []
 
-        nm_dns_list = self.__dict__.get("nm_get_dns_list")
-        if callable(nm_dns_list):
+        dns_source = f"NM DNS ({iface})"
+        nm_dns_list = getattr(self, "nm_get_dns_list", None)
+        if iface and callable(nm_dns_list):
             try:
                 dns_servers = list(nm_dns_list(iface) or [])
             except Exception:
                 dns_servers = []
 
         if not dns_servers:
+            # Aggregate resolver data has no single NetworkManager owner.
+            dns_source = "Resolver DNS"
             try:
                 dns_servers = list(self.get_active_dns_servers() or [])
             except Exception:
@@ -17752,7 +17985,7 @@ class App(TkBase):
 
         public_ip = str(self.__dict__.get("public_ip", "-") or "-").strip()
         country = str(self.__dict__.get("country", "-") or "-").strip()
-        text = f"NM DNS ({iface}): {dns_text} | IP: {public_ip} | Land: {country}"
+        text = f"{dns_source}: {dns_text} | IP: {public_ip} | Land: {country}"
         self.nm_dns_header_text = text
 
         header_var = self.__dict__.get("nm_dns_header_var")
@@ -17765,14 +17998,9 @@ class App(TkBase):
     def is_vpn_active(self):
         service = self._dns_control_service()
         if service is None:
-            code, out = run_cmd(["resolvectl", "status"], timeout=6)
-            if code != 0:
-                return False
-            return self.detect_vpn_active(out)
-        code, out = service.read_resolvectl_status(timeout=6)
-        if code != 0:
-            return False
-        return service.detect_vpn_active(out)
+            return None
+        state = service.read_dns_snapshot(timeout=6)["vpn_state"]
+        return {"active": True, "inactive": False, "unknown": None}[state]
 
     def update_vpn_status_text(self):
         tr = getattr(self, "tr", None)
@@ -17784,7 +18012,7 @@ class App(TkBase):
         try:
             vpn_active = self.is_vpn_active()
         except Exception:
-            vpn_active = False
+            vpn_active = None
 
         ip = getattr(self, "public_ip", "-") or "-"
         country = getattr(self, "country", "-") or "-"
@@ -17792,7 +18020,11 @@ class App(TkBase):
         if status_var is None:
             return
 
-        if vpn_active:
+        if vpn_active is None:
+            status_var.set(
+                tr("vpn_status_unknown", "VPN: Status unbekannt | IP: - | Land: -")
+            )
+        elif vpn_active:
             status_var.set(
                 tr(
                     "vpn_status_active", "VPN: aktiv | IP: {ip} | Land: {country}"
@@ -18025,6 +18257,8 @@ class App(TkBase):
             [
                 "# Managed by NetMon",
                 "[Resolve]",
+                # DNS= is a list: replace earlier drop-in values for this profile.
+                "DNS=",
                 f"DNS={' '.join(servers)}",
                 "DNSOverTLS=no",
                 f"DNSSEC={dnssec_mode}",
@@ -19212,6 +19446,35 @@ class App(TkBase):
         self.wait_window(win)
         return result["ok"]
 
+    def _get_about_display_version(self):
+        fallback = NETMON_APP_VERSION or "folgt"
+        # A checkout must not borrow the version of another installed copy.
+        if os.path.realpath(__file__) != "/usr/lib/netmon/netmon/app.py":
+            return fallback
+        try:
+            code, output = run_cmd(
+                [
+                    "/usr/bin/dpkg-query",
+                    "--admindir=/var/lib/dpkg",
+                    "-W",
+                    "-f=${Status}\t${Version}\n",
+                    "netmon",
+                ],
+                timeout=3,
+            )
+            status, separator, version = output.strip().partition("\t")
+            if (
+                code == 0
+                and separator
+                and status == "install ok installed"
+                and len(version) <= 128
+                and re.fullmatch(r"[0-9][0-9A-Za-z.+:~\-]*", version)
+            ):
+                return version
+        except Exception:
+            pass
+        return fallback
+
     def _get_about_program_system_info(self):
         distro_name = "folgt"
         try:
@@ -19225,7 +19488,7 @@ class App(TkBase):
             "distribution": distro_name,
             "kernel": platform.release() or "folgt",
             "python": platform.python_version() or "folgt",
-            "netmon": NETMON_APP_VERSION or "folgt",
+            "netmon": self._get_about_display_version(),
         }
 
     def _language_choice_values(self):
@@ -19291,7 +19554,9 @@ class App(TkBase):
                         continue
                     if not (lowered.endswith(".pdf") or lowered.endswith(".html")):
                         continue
-                    fallback_matches.append(os.path.join(normalized_dir, name))
+                    path = os.path.join(normalized_dir, name)
+                    if os.path.isfile(path):
+                        fallback_matches.append(path)
             except Exception:
                 continue
         if not fallback_matches:
@@ -19440,7 +19705,7 @@ class App(TkBase):
                 self.tr(
                     "about_fallback_summary",
                     "NetMon\nVersion: {version}\n\nProgrammübersicht, Dokumentation und Support.",
-                ).format(version=NETMON_APP_VERSION)
+                ).format(version=self._get_about_display_version())
                 + "\n\n"
                 + support_contact,
                 parent=self,
@@ -19607,31 +19872,43 @@ class App(TkBase):
             command=self.open_netmon_roots_donation,
         ).pack(anchor="w", pady=(6, 0))
         docs_path = self._get_available_program_documentation_path()
-        docs_section = _add_about_section(
-            self.tr("about_section_docs", "3. Dokumentation"),
-            [
+        docs_lines = [
+            (
                 self.tr(
                     "about_docs_summary",
                     "Dokumentation: Gebuendelte NetMon-Dokumentation als PDF oder HTML aus dem Projekt bzw. Paket.",
-                ),
-                self.tr(
-                    "about_docs_detected",
-                    "Gefundene Doku: {value}",
-                ).format(value=os.path.basename(docs_path) if docs_path else "–"),
+                )
+                if docs_path
+                else self.tr(
+                    "about_docs_unavailable",
+                    "Optionale PDF-/HTML-Dokumentation ist nicht vorhanden.",
+                )
+            ),
+            self.tr("about_docs_detected", "Gefundene Doku: {value}").format(
+                value=os.path.basename(docs_path) if docs_path else "–"
+            ),
+        ]
+        if docs_path:
+            docs_lines.append(
                 self.tr(
                     "about_docs_troubleshooting",
                     "Troubleshooting: Enthalten in der gebuendelten Doku sowie in den Docs-Dateien des Projekts.",
-                ),
-                self.tr(
-                    "about_docs_video",
-                    "Erklaervideo: Optionaler Platzhalter fuer spaetere Video-Hilfe.",
-                ),
-            ],
+                )
+            )
+        docs_lines.append(
+            self.tr(
+                "about_docs_video",
+                "Erklaervideo: Optionaler Platzhalter fuer spaetere Video-Hilfe.",
+            )
+        )
+        docs_section = _add_about_section(
+            self.tr("about_section_docs", "3. Dokumentation"), docs_lines
         )
         ttk.Button(
             docs_section,
             text=self.tr("about_docs_open_title", "Dokumentation öffnen"),
             command=self.open_program_documentation,
+            state="normal" if docs_path else "disabled",
         ).pack(anchor="w", pady=(6, 0))
         _add_about_section(
             self.tr("about_section_system", "4. Systeminformationen"),
@@ -19814,6 +20091,8 @@ class App(TkBase):
             f"icon_applied={info['icon_applied']} | "
             f"icon_path={info['icon_path'] or '-'}"
         )
+        if stage == "startup":
+            self.log_safe(firewall_controller.firewall_implementation_identity())
 
     def _autostart_exec_command(self) -> str:
         if shutil.which("netmon"):
@@ -20389,6 +20668,7 @@ class App(TkBase):
     def _default_settings_payload(self) -> dict:
         return {
             "language": "de",
+            "terminal_start_mode": "docked",
             "startup_guard_autorun": True,
             "process_guard_autorun": False,
             "path_guard_autorun": False,
@@ -23069,11 +23349,13 @@ class App(TkBase):
                     "Startup: UFW-Logging-Default übersprungen (sudo -n nicht verfügbar)."
                 )
 
-    def _vpn_runtime_active_for_startup_killswitch(self) -> bool:
+    def _vpn_runtime_active_for_startup_killswitch(self) -> bool | None:
+        unknown = False
         try:
             if self.get_wg_interfaces():
                 return True
         except Exception as exc:
+            unknown = True
             self.log_debug_safe(f"Startup-Killswitch: WG-Prüfung fehlgeschlagen: {exc}")
 
         for provider in (
@@ -23081,20 +23363,29 @@ class App(TkBase):
             vpn_controller.get_active_nm_vpn_connections,
         ):
             try:
-                if provider(self):
+                result = provider(self, strict=True)
+                if result:
                     return True
+                if result is None:
+                    unknown = True
             except Exception as exc:
+                unknown = True
                 self.log_debug_safe(
                     f"Startup-Killswitch: NetworkManager-Prüfung fehlgeschlagen: {exc}"
                 )
 
         try:
-            return bool(self.is_vpn_active())
+            state = self.is_vpn_active()
+            return (
+                True
+                if state is True
+                else False if state is False and not unknown else None
+            )
         except Exception as exc:
             self.log_debug_safe(
                 f"Startup-Killswitch: VPN-Prüfung fehlgeschlagen: {exc}"
             )
-            return False
+            return None
 
     def repair_orphaned_killswitch_on_startup(self) -> bool:
         if self._stealth_startup_enabled() or bool(
@@ -23106,31 +23397,18 @@ class App(TkBase):
                 "Startup-Killswitch: Bereinigung wegen laufender Netzwerkaktion übersprungen."
             )
             return False
+        if firewall_controller._journal_phase(self) in firewall_controller.PENDING:
+            self.log_safe(
+                "Startup: Killswitch-Wiederherstellung ungeklärt; keine automatische Firewalländerung."
+            )
+            return False
         if not self.killswitch_is_on():
             return False
-        if self._vpn_runtime_active_for_startup_killswitch():
-            self.log_safe(
-                "Startup: Killswitch bleibt aktiv, weil ein VPN-Tunnel erkannt wurde."
-            )
-            return False
-        if not check_sudo_nopasswd():
-            self.log_safe(
-                "Startup: Verwaister Killswitch erkannt, automatische Deaktivierung "
-                "ohne gültige Sudo-Sitzung nicht möglich."
-            )
-            return False
-
         self.log_safe(
-            "Startup: Killswitch ohne aktives VPN erkannt - normales Routing wird wiederhergestellt."
+            "Startup: Killswitch bleibt aktiv. Eine Deaktivierung ist nur nach "
+            "ausdrücklicher manueller Bestätigung zulässig."
         )
-        return bool(
-            self.killswitch_off(
-                async_mode=False,
-                ensure_sudo=False,
-                refresh_ui=True,
-                interactive_guard=False,
-            )
-        )
+        return False
 
     def schedule_startup_killswitch_repair(self):
         if self._stealth_startup_enabled():
@@ -26723,7 +27001,9 @@ class App(TkBase):
 
         last_out = ""
         for cmd in attempts:
-            rc, out = run_cmd(cmd, timeout=12)
+            rc, out = firewall_controller.guarded_ufw_command(
+                self, cmd, timeout=12, runner=run_cmd
+            )
             last_out = str(out or "").strip()
             if rc == 0:
                 context = f" ({log_context})" if str(log_context or "").strip() else ""
@@ -27276,9 +27556,11 @@ class App(TkBase):
                 or proto not in {"tcp", "udp"}
             ):
                 return False, added_rules, "ungueltige Spielmodus-UFW-Regel"
-            rc_cmd, out_cmd = run_cmd(
+            rc_cmd, out_cmd = firewall_controller.guarded_ufw_command(
+                self,
                 ["sudo", "-n", "ufw", "allow", direction, f"{port}/{proto}"],
                 timeout=20,
+                runner=run_cmd,
             )
             if rc_cmd != 0:
                 return (
@@ -27306,9 +27588,11 @@ class App(TkBase):
                 or proto not in {"tcp", "udp"}
             ):
                 continue
-            rc_cmd, out_cmd = run_cmd(
+            rc_cmd, out_cmd = firewall_controller.guarded_ufw_command(
+                self,
                 ["sudo", "-n", "ufw", "delete", "allow", direction, f"{port}/{proto}"],
                 timeout=20,
+                runner=run_cmd,
             )
             if rc_cmd != 0:
                 errors.append(
@@ -27451,6 +27735,12 @@ class App(TkBase):
         guard_var = self.__dict__.get("dns_guard_enabled_var")
         dns_guard_enabled = bool(guard_var.get()) if guard_var is not None else False
         killswitch_active = bool(self.killswitch_is_on())
+        if pause_killswitch and killswitch_active:
+            self.log_safe(
+                "Spielmodus nicht gestartet: Dieses Profil verlangt eine Killswitch-Pause. "
+                "Den Killswitch bei Bedarf ausdrücklich ausschalten oder ein Profil ohne Pause wählen."
+            )
+            return False
         ufw_logging_level = str(self._security_query_log_level() or "").strip().upper()
         if ufw_logging_level not in {"OFF", "LOW", "MEDIUM", "HIGH"}:
             ufw_logging_level = "UNKNOWN"
@@ -29842,10 +30132,13 @@ class App(TkBase):
         security_monitoring_controller.security_poll_async(self)
 
     def _security_query_log_level(self):
-        attempts = [
-            ["sudo", "-n", "ufw", "status", "verbose"],
-            ["ufw", "status", "verbose"],
-        ]
+        # Runs in the Tk refresh: no failing sudo during its backoff, and plain
+        # `ufw status` only as root (it is refused otherwise and only costs time).
+        attempts = []
+        if not firewall_controller.sudo_status_backoff_active(self):
+            attempts.append(["sudo", "-n", "ufw", "status", "verbose"])
+        if os.geteuid() == 0:
+            attempts.append(["ufw", "status", "verbose"])
 
         for cmd in attempts:
             try:
@@ -29855,6 +30148,8 @@ class App(TkBase):
                     f"Security: UFW-Level-Abfrage fehlgeschlagen (cmd={' '.join(cmd)}): {e}"
                 )
                 continue
+            if cmd[0] == "sudo":
+                firewall_controller.note_ufw_status_result(self, rc, out)
 
             if rc != 0 or not out:
                 continue
@@ -30924,7 +31219,9 @@ class App(TkBase):
     def active_wg_profile(self):
         return vpn_controller.active_wg_profile(self)
 
-    def get_wg_interfaces(self):
+    def get_wg_interfaces(self, *, strict=False):
+        if strict:
+            return vpn_controller.get_wg_interfaces(self, strict=True)
         return vpn_controller.get_wg_interfaces(self)
 
     def get_wg_iface(self):
@@ -31247,11 +31544,14 @@ class App(TkBase):
     def _collect_endpoint_rules_for_profiles(self, profiles):
         return vpn_controller.collect_endpoint_rules_for_profiles(self, profiles)
 
-    def resolve_profile_family_runtime(self, profile_name, log_missing=True):
+    def resolve_profile_family_runtime(
+        self, profile_name, log_missing=True, *, create_missing_ipv4=True
+    ):
         return vpn_controller.resolve_profile_family_runtime(
             self,
             profile_name,
             log_missing=log_missing,
+            create_missing_ipv4=create_missing_ipv4,
         )
 
     def resolve_runtime_vpn_profile(self, profile_name, log_missing=True):
@@ -31288,7 +31588,7 @@ class App(TkBase):
             refresh_ui=refresh_ui,
         )
 
-    def _remove_interface_rule(self, iface, direction):
+    def _remove_interface_rule(self, iface, direction, *, lock_held=False):
         direction = (direction or "").strip().lower()
         iface = (iface or "").strip()
         if direction not in {"in", "out"} or not iface:
@@ -31308,7 +31608,9 @@ class App(TkBase):
         removed_count = 0
         last_out = ""
         for _ in range(4):
-            rc, out = run_cmd(cmd, timeout=20)
+            rc, out = firewall_controller.guarded_ufw_command(
+                self, cmd, runner=run_cmd, lock_held=lock_held, timeout=20
+            )
             last_out = out or ""
             if rc == 0:
                 removed_count += 1
@@ -31328,7 +31630,7 @@ class App(TkBase):
 
         return "removed", removed_count, last_out
 
-    def _remove_udp_endpoint_rule(self, endpoint_ip, endpoint_port):
+    def _remove_udp_endpoint_rule(self, endpoint_ip, endpoint_port, *, lock_held=False):
         cmd = [
             "sudo",
             "-n",
@@ -31343,7 +31645,9 @@ class App(TkBase):
             "proto",
             "udp",
         ]
-        rc, out = run_cmd(cmd, timeout=20)
+        rc, out = firewall_controller.guarded_ufw_command(
+            self, cmd, runner=run_cmd, lock_held=lock_held, timeout=20
+        )
         if rc == 0:
             return "removed", out
 
@@ -31483,10 +31787,15 @@ class App(TkBase):
             failed_endpoints = []
 
             with self.ufw_lock:
+                if firewall_controller.unrelated_ufw_writes_blocked(self):
+                    self.log(
+                        "Firewall-Reconcile gesperrt: Killswitch aktiv oder Wiederherstellung ungeklärt."
+                    )
+                    return False
                 for iface in stale_ifaces:
                     for direction in ("out", "in"):
                         result, removed_count, detail = self._remove_interface_rule(
-                            iface, direction
+                            iface, direction, lock_held=True
                         )
                         rule_label = f"{direction} on {iface}"
                         if result == "removed":
@@ -31498,7 +31807,7 @@ class App(TkBase):
 
                 for endpoint_ip, endpoint_port in stale_endpoints:
                     result, detail = self._remove_udp_endpoint_rule(
-                        endpoint_ip, endpoint_port
+                        endpoint_ip, endpoint_port, lock_held=True
                     )
                     endpoint_label = f"{endpoint_ip}:{endpoint_port}"
                     if result == "removed":
@@ -32516,7 +32825,9 @@ class App(TkBase):
         )
 
     def _import_projectm_preset_pack_from_url(self, url, pack_name):
-        with projectm_archive.download_preset_archive(url, timeout=45) as temp_path:
+        with projectm_archive.download_protected_preset_archive(
+            url, timeout=45
+        ) as temp_path:
             result = netmon_projectm_sidecar.install_projectm_preset_archive(
                 self,
                 temp_path,
@@ -35078,11 +35389,7 @@ class App(TkBase):
         if vpn_was_active and profile_to_restore:
             self.__dict__["internet_vpn_restore_active"] = True
         restore_complete = True
-        vpn_restore_ok = False
-        killswitch_temporarily_disabled = False
-        killswitch_kept_active_for_restore = bool(
-            killswitch_was_active and vpn_was_active and profile_to_restore
-        )
+        killswitch_kept_active_for_restore = killswitch_was_active
         wg_cleanup_done = False
         wg_cleanup_ok = None
 
@@ -35107,36 +35414,15 @@ class App(TkBase):
             self.after(
                 0,
                 lambda: self.log(
-                    "Killswitch bleibt während der VPN-Wiederherstellung aktiv."
+                    "Internet AN deaktiviert den Killswitch nicht automatisch."
                 ),
             )
-        elif killswitch_was_active and self.killswitch_is_on():
-            if self.killswitch_off(
-                async_mode=False,
-                ensure_sudo=False,
-                refresh_ui=False,
-            ):
-                killswitch_temporarily_disabled = True
-                self.after(
-                    0,
-                    lambda: self.log(
-                        "Killswitch für Internet- und VPN-Wiederherstellung vorübergehend deaktiviert."
-                    ),
-                )
-            else:
-                restore_complete = False
-                self.after(
-                    0,
-                    lambda: self.log(
-                        "Killswitch konnte vor der VPN-Wiederherstellung nicht deaktiviert werden."
-                    ),
-                )
 
         if (
             vpn_was_active
             and profile_to_restore
             and not network_ready
-            and (wg_cleanup_done or killswitch_temporarily_disabled)
+            and wg_cleanup_done
         ):
             self.after(
                 0,
@@ -35197,7 +35483,6 @@ class App(TkBase):
                     )
                     ready_ok = self.wait_for_vpn_ready() if vpn_ok else False
                     if vpn_ok and ready_ok:
-                        vpn_restore_ok = True
                         restore_complete = True
                         self.internet_restore_retry_count = 0
                         self.internet_vpn_restore_active = False
@@ -35230,33 +35515,22 @@ class App(TkBase):
                     ),
                 )
 
-        if killswitch_was_active:
-            if killswitch_kept_active_for_restore and vpn_restore_ok:
-                pass
-            elif vpn_restore_ok or not vpn_was_active:
-                if self.killswitch_on(
-                    async_mode=False, ensure_sudo=False, refresh_ui=False
-                ):
-                    self.after(0, lambda: self.log("Killswitch wieder aktiviert."))
-                else:
-                    restore_complete = False
-                    self.after(
-                        0,
-                        lambda: self.log(
-                            "Killswitch konnte nach VPN-Wiederherstellung nicht wieder aktiviert werden."
-                        ),
-                    )
-            else:
+        if killswitch_was_active and not self.killswitch_is_on():
+            # Reconcile only existing protected authority. Explicit OFF wins;
+            # no fresh activation or temporary opening during Internet AN.
+            reconciled = vpn_controller.sync_killswitch_after_tunnel_change(self)
+            snapshots = self.__dict__.get("firewall_snapshots")
+            if not reconciled or (
+                not self.killswitch_is_on()
+                and (snapshots is None or snapshots.state() not in {"off", "reviewed"})
+            ):
                 restore_complete = False
-                if killswitch_kept_active_for_restore:
-                    pass
-                elif killswitch_temporarily_disabled or not self.killswitch_is_on():
-                    self.after(
-                        0,
-                        lambda: self.log(
-                            "Killswitch bleibt aus, damit Internetzugang nicht blockiert wird."
-                        ),
-                    )
+                self.after(
+                    0,
+                    lambda: self.log(
+                        "Killswitch-Abgleich nicht bestätigt; Internet-Wiederherstellung unvollständig."
+                    ),
+                )
 
         if state_coordinator is not None:
             self.internet_suspend_state = (
@@ -35278,7 +35552,7 @@ class App(TkBase):
                 ),
             )
         self._schedule_refresh_burst()
-        return True
+        return restore_complete
 
     def _internet_enable_button_restore_sequence(self):
         self._log_internet_toggle_state("Internet AN: Zustand vorher")
@@ -35398,6 +35672,7 @@ class App(TkBase):
         summary_label,
         killswitch_active,
         vpn_active,
+        dns_profile_detail="",
     ):
         lines = [
             self.tr("dns_consistency_heading", "=== DNS-Konsistenztest ==="),
@@ -35443,6 +35718,9 @@ class App(TkBase):
                         ),
                     )
                 )
+
+        if dns_profile_detail:
+            lines.extend(["", "[Resolver-Abgleich]", dns_profile_detail])
 
         lines.extend(
             [
@@ -35659,7 +35937,15 @@ class App(TkBase):
                     self.after(0, show_no_dns_result)
                     return
 
-                ok = sys_ok and any_explicit_ok
+                service = self._dns_control_service()
+                if service is None:
+                    profile_ok = False
+                    profile_detail = (
+                        "Resolver-Abgleich nicht verfügbar; Profil nicht bestätigt."
+                    )
+                else:
+                    profile_ok, profile_detail = service.verify_dns_profile(selected)
+                ok = sys_ok and any_explicit_ok and profile_ok
                 self.last_dns_consistency_ok = ok
                 self.last_dns_consistency_ts = time.time()
                 detail_text = self._build_dns_consistency_result_text(
@@ -35689,6 +35975,7 @@ class App(TkBase):
                     ),
                     killswitch_active=killswitch_active,
                     vpn_active=vpn_active,
+                    dns_profile_detail=profile_detail,
                 )
 
                 def show_result():
@@ -35811,6 +36098,8 @@ class App(TkBase):
         enabled,
         wg_ifaces=None,
         handshake_rules=None,
+        *,
+        allow_empty_plan=False,
     ):
         return firewall_controller.verify_killswitch_rules(
             self,
@@ -35818,6 +36107,7 @@ class App(TkBase):
             enabled,
             wg_ifaces,
             handshake_rules,
+            allow_empty_plan=allow_empty_plan,
         )
 
     def _format_ufw_rule_lines(self, rules):
@@ -36967,15 +37257,7 @@ class App(TkBase):
         return firewall_controller.recover_firewall_after_killswitch_failure(self)
 
     def _recover_firewall_preserving_killswitch(self):
-        # Fehlgeschlagener VPN-Slot-Wechsel: den Killswitch NICHT still oeffnen.
-        # War er bewusst aktiv, bleibt die deny-outgoing-Garantie erhalten
-        # (fail-closed, per idempotentem Re-Sync), statt Klartext-Traffic
-        # entweichen zu lassen. Ohne verifizierten Killswitch restriktive
-        # Notfallregeln setzen und manuelle Wiederherstellung anfordern.
-        if self.killswitch_is_on():
-            self._killswitch_on_sync(refresh_ui=False)
-        else:
-            self._recover_firewall_after_killswitch_failure()
+        return vpn_controller.sync_killswitch_after_tunnel_change(self)
 
     def killswitch_is_on(self):
         if "ufw_lock" not in self.__dict__:
@@ -40734,7 +41016,17 @@ class App(TkBase):
 
             self.after(0, show)
 
-        threading.Thread(target=job, daemon=True).start()
+        def serialized_job():
+            try:
+                service = self._dns_control_service()
+                if service is None:
+                    raise RuntimeError("DNS-Mutationssperre nicht verfügbar.")
+                with service.dns_mutation_lock:
+                    job()
+            except Exception as exc:
+                self.log_safe(f"DNSSEC-Mutation fehlgeschlagen: {exc}")
+
+        threading.Thread(target=serialized_job, daemon=True).start()
 
     def check_dnssec_status(self):
         if not has_cmd("resolvectl"):
@@ -41526,16 +41818,16 @@ class App(TkBase):
                 )
             if fallback_dns:
                 lines.append(
-                    self.tr("dns_status_fallback_dns", "✔ Fallback DNS: {dns}").format(
-                        dns=fallback_dns
-                    )
+                    self.tr(
+                        "dns_status_fallback_dns", "✔ Weiterer DNS-Server: {dns}"
+                    ).format(dns=fallback_dns)
                 )
             lines.append(
                 self.tr("dns_status_dot_active", "✔ DNS-over-TLS: aktiv")
                 if dot_active
                 else self.tr(
                     "dns_status_dot_inactive",
-                    "✖ DNS-over-TLS nicht aktiv",
+                    "○ DNS-over-TLS: ausgeschaltet",
                 )
             )
             lines.append(
@@ -41545,7 +41837,7 @@ class App(TkBase):
                     else (
                         self.tr(
                             "dns_status_dnssec_fallback",
-                            "○ DNSSEC: aktiv (Fallback möglich)",
+                            "○ DNSSEC: optional (allow-downgrade)",
                         )
                         if dnssec_mode == "allow-downgrade"
                         else (
@@ -41569,6 +41861,22 @@ class App(TkBase):
             if resolved_active and primary_dns and dot_active and dnssec_active:
                 lines.append(
                     self.tr("dns_status_system_stable", "✔ DNS-System läuft stabil")
+                )
+            elif (
+                resolved_active
+                and primary_dns
+                and not dot_active
+                and evaluation.get("vpn_state") == "inactive"
+                and not evaluation.get("policy_unknown", True)
+                and not evaluation.get("conflict")
+                and set(self._normalized_dns_values(evaluation.get("active_dns")))
+                == set(self._normalized_dns_values(self.get_selected_user_dns()))
+            ):
+                lines.append(
+                    self.tr(
+                        "dns_status_plain_configured",
+                        "○ DNS konfiguriert – DNS-over-TLS ausgeschaltet",
+                    )
                 )
             else:
                 lines.append(
@@ -41908,6 +42216,15 @@ class App(TkBase):
         self.after(0, self.update_dns_guard_indicator)
 
     def refresh(self):
+        # One ufw status snapshot per cycle, owned by this thread only; other
+        # threads and explicit operations keep reading live (refresh_scope).
+        firewall_controller.begin_refresh_scope(self)
+        try:
+            self._refresh_lights()
+        finally:
+            firewall_controller.end_refresh_scope(self)
+
+    def _refresh_lights(self):
         inet = self.check_internet()
         inet_state = self._internet_suspend_indicator_override()
         if inet_state is None:
@@ -41927,7 +42244,8 @@ class App(TkBase):
             if fw_readable:
                 fw = self._ufw_status_is_active(out_fw)
         ssh_rule = self.check_ssh_rule_active() if fw_readable and fw else None
-        ks = self.killswitch_is_on() if fw_readable else None
+        ks_state = firewall_controller.cached_killswitch_state(self)
+        ks = True if ks_state == "on" else False if ks_state == "off" else None
 
         self.update_ipv6_controls_state()
         if hasattr(self, "vpn_profile_combo"):
@@ -41961,7 +42279,9 @@ class App(TkBase):
         else:
             self.set_light(self.l_ssh, "gray")
         self.update_ufw_logging_light()
-        if ks is True:
+        if ks_state in {"recovery", "transition"}:
+            self.set_light(self.l_ks, "yellow")
+        elif ks is True:
             self.set_light(self.l_ks, "green")
         elif ks is False:
             self.set_light(self.l_ks, "red")
@@ -42045,11 +42365,7 @@ class App(TkBase):
                 if fw
                 else self.tr("header_ufw_off", "UFW: off")
             ),
-            (
-                self.tr("header_killswitch_on", "Killswitch: ON")
-                if ks
-                else self.tr("header_killswitch_off", "Killswitch: OFF")
-            ),
+            firewall_controller.killswitch_status_label(self, ks_state),
             v6txt,
             self.tr("header_traffic_value", "Traffic: {value}").format(value=route_txt),
             f"RX {human_rate(self.wg_rx_rate)} / TX {human_rate(self.wg_tx_rate)}",

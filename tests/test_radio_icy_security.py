@@ -92,7 +92,10 @@ def test_fragmented_valid_title():
             time.sleep(0.0001)
 
     with server(handler) as url:
-        assert radio._fetch_icy_stream_title(url) == "Artist - Track"
+        assert (
+            radio._parse_icy_stream_title(icy.fetch_icy_metadata(url).decode("utf-8"))
+            == "Artist - Track"
+        )
 
 
 @pytest.mark.parametrize("payload", [b"a", b"a\x02StreamTitle='cut", b"a\x00"])

@@ -2,6 +2,15 @@
 
 Automatisch aus der Git-Historie des Repositories erzeugt.
 
+## 2026-11-07 - Version 1.1.22 (Teststand)
+
+- Gemeinsamen V52-Kandidaten in den Test-Release-Branch übernommen.
+- DNS-/DoT-Profilwechsel, Guard-Rückmeldungen und geschützte Firewall-Abläufe integriert.
+- Chad-Workflow mit Markdown, kopierbaren Befehlen und abkoppelbarem Terminal ergänzt.
+- Analysemodus, rechte Scrollbalken und prominente Supportadresse vervollständigt.
+- Terminal-Kontextmenü für Auswahl, Verlauf, Einfügen, Abbrechen und Schriftgröße ergänzt.
+- Lokales Testpaket; öffentliche Releaseangaben, Signaturgates und Prüflimits bleiben gesondert.
+
 ## 2026-09-19 - Version 1.1.21
 
 - Umfangreiche Tab-UI-Builder wurden in ihre jeweiligen Tab-Module ausgelagert. Die Oberflaeche bleibt funktional gleich, waehrend die Codebasis klarer strukturiert und besser wartbar wird.

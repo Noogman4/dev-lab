@@ -1312,18 +1312,130 @@ def _inspect_hdd_request_device(request, runner):
     return identity
 
 
+def _hdd_action_feedback(app, message, *, select_tab=True):
+    """Keep request results visible without changing device authority."""
+
+    def show():
+        app.log(message)
+        status = app.__dict__.get("hdd_action_status_var")
+        if status is not None:
+            status.set(message)
+        tab = app.__dict__.get("tab_hdd")
+        if select_tab and tab is not None:
+            select = getattr(app, "_select_system_tab", None)
+            if callable(select):
+                select(tab)
+                canvas = app.__dict__.get("page_canvas")
+                if canvas is not None:
+                    canvas.yview_moveto(0)
+
+    call_in_ui_thread(app, show)
+
+
+def _hdd_action_error(app, error):
+    detail = str(error).strip()
+    cause = getattr(error, "__cause__", None)
+    if isinstance(error, hdd_mount_service.MountPolicyError) and cause is not None:
+        detail = f"{detail} ({cause})"
+    if not detail:
+        detail = app.tr("hdd_action_empty_error", "No error details available.")
+    if "fstab" in detail.lower():
+        hint = app.tr(
+            "hdd_action_fstab_hint",
+            "System fstab verification refused this mount. No safety check was bypassed.",
+        )
+        return f"{hint} {detail}"
+    if any(
+        token in detail.lower()
+        for token in ("notauthorized", "not authorized", "permission denied")
+    ):
+        hint = app.tr(
+            "hdd_action_permission_hint",
+            "The action was not authorized. Check system permissions; no authorization bypass was attempted.",
+        )
+        return f"{hint} {detail}"
+    if "busy" in detail.lower():
+        hint = app.tr(
+            "hdd_action_busy_hint",
+            "The drive is in use. Close files and programs using it, then retry. No forced unmount was attempted.",
+        )
+        return f"{hint} {detail}"
+    return detail
+
+
+def _hdd_busy_details(app, request, identity, target, runner):
+    warning = app.tr(
+        "hdd_busy_partial",
+        "Read-only snapshot; incomplete due to permissions, changing processes and scan limits. No automatic termination or forced unmount.",
+    )
+    try:
+        _assert_hdd_request_device(request)
+        processes, children = hdd_mount_service.busy_mount_diagnostics(
+            identity, target, runner
+        )
+        _assert_hdd_request_device(request)
+    except (hdd_mount_service.MountPolicyError, OSError, ValueError) as exc:
+        return (
+            app.tr(
+                "hdd_busy_unavailable", "Busy diagnostics unavailable: {error}"
+            ).format(error=exc)
+            + " "
+            + warning
+        )
+    evidence = []
+    if processes:
+        evidence.append(
+            app.tr(
+                "hdd_busy_processes",
+                "Observed process references (PID/name/type): {items}",
+            ).format(
+                items="; ".join(f"{pid}/{name}/{kind}" for pid, name, kind in processes)
+            )
+        )
+    if children:
+        evidence.append(
+            app.tr("hdd_busy_children", "Dependent mounts: {items}").format(
+                items="; ".join(children)
+            )
+        )
+    if not evidence:
+        evidence.append(
+            app.tr(
+                "hdd_busy_no_evidence",
+                "No readable process references or dependent mounts found; this does not prove the drive is unused.",
+            )
+        )
+    return " ".join([*evidence, warning])
+
+
 def hdd_mount_async(app, idx, select_tab=True, *, allow_unlock=True):
     runner = hdd_mount_service.run_hdd_command
-    if idx < 0 or idx >= len(app.hdd_slots):
+    if type(idx) is not int or idx < 0 or idx >= len(app.hdd_slots):
+        _hdd_action_feedback(
+            app,
+            app.tr(
+                "hdd_mount_invalid_slot", "HDD mount rejected: invalid slot selection."
+            ),
+            select_tab=select_tab,
+        )
         return
     # Freeze the selection before any dialogs or worker execution.
     slot = dict(app.hdd_slots[idx])
     device, disk = hdd_resolve_slot_device(app, slot)
     label = slot_display_name(app, idx)
 
-    def report_failure(error):
-        message = f"HDD mount rejected for {label}: {error}"
-        call_in_ui_thread(app, lambda: app.log(message))
+    def report_failure(error, *, luks_open=False):
+        message = app.tr(
+            "hdd_mount_request_rejected", "HDD mount rejected for {label}: {error}"
+        ).format(label=label, error=_hdd_action_error(app, error))
+        if luks_open:
+            message += " " + app.tr(
+                "hdd_luks_mount_unconfirmed",
+                "LUKS remains unlocked; the mount was not confirmed. Refresh the drive status.",
+            )
+        _hdd_action_feedback(app, message, select_tab=select_tab)
+        if luks_open:
+            call_in_ui_thread(app, app.hdd_refresh_async)
 
     if not device or not disk:
         report_failure("Device is not detected or its UUID no longer matches.")
@@ -1337,10 +1449,22 @@ def hdd_mount_async(app, idx, select_tab=True, *, allow_unlock=True):
         report_failure(exc)
         return
 
+    _hdd_action_feedback(
+        app,
+        app.tr(
+            "hdd_mount_pending",
+            "HDD mount requested for {label}: checking device and authorization.",
+        ).format(label=label),
+        select_tab=select_tab,
+    )
+
     def job():
         passphrase = None
+        luks_open = False
+        system_mount = None
         try:
             current = _inspect_hdd_request_device(request, runner)
+            luks_open = current.is_luks and current.source is not None
             if current.is_luks and not allow_unlock:
                 raise hdd_mount_service.MountPolicyError("LUKS automount is disabled.")
             if current.is_luks and current.source is None:
@@ -1353,31 +1477,68 @@ def hdd_mount_async(app, idx, select_tab=True, *, allow_unlock=True):
                     ).format(device=device),
                 )
                 if not passphrase:
+                    _hdd_action_feedback(
+                        app,
+                        app.tr(
+                            "hdd_mount_cancelled", "HDD mount cancelled for {label}."
+                        ).format(label=label),
+                        select_tab=select_tab,
+                    )
                     return
             if passphrase is not None:
                 _assert_hdd_request_device(request)
                 current = hdd_mount_service.unlock_device(current, passphrase, runner)
+                luks_open = True
+                passphrase = None
             _assert_hdd_request_device(request)
-            rc, out = hdd_mount_service.mount_device(current, runner)
+            system_mount = hdd_mount_service.prepare_system_mount(current, runner)
+            if system_mount is not None:
+                _assert_hdd_request_device(request)
+                rc, out = hdd_mount_service.mount_device(
+                    current, runner, system_mount=system_mount
+                )
+            else:
+                rc, out = hdd_mount_service.mount_device(current, runner)
         except (hdd_mount_service.MountPolicyError, OSError, TclError) as exc:
-            report_failure(exc)
+            report_failure(exc, luks_open=luks_open)
             return
         finally:
             passphrase = None
 
         def done():
             if rc == 0:
-                app.log(
-                    app.tr(
-                        "hdd_mounted_desktop_integrated",
-                        "HDD desktop-integriert gemountet: {label} ({source}).",
-                    ).format(label=label, source=current.source.path)
+                success_key = (
+                    "hdd_mounted_system"
+                    if system_mount
+                    else "hdd_mounted_desktop_integrated"
+                )
+                success_text = (
+                    "HDD system-mounted: {label} ({source}); system options: {options}."
+                    if system_mount
+                    else "HDD desktop-integriert gemountet: {label} ({source})."
+                )
+                _hdd_action_feedback(
+                    app,
+                    app.tr(success_key, success_text).format(
+                        label=label,
+                        source=current.source.path,
+                        options=system_mount.options if system_mount else "",
+                    ),
+                    select_tab=select_tab,
                 )
             else:
-                app.log(
+                output = _hdd_action_error(app, out)
+                if luks_open:
+                    output += " " + app.tr(
+                        "hdd_luks_mount_unconfirmed",
+                        "LUKS remains unlocked; the mount was not confirmed. Refresh the drive status.",
+                    )
+                _hdd_action_feedback(
+                    app,
                     app.tr(
                         "hdd_mount_failed", "HDD mount failed for {label}: {output}."
-                    ).format(label=label, output=out)
+                    ).format(label=label, output=output),
+                    select_tab=select_tab,
                 )
             app.hdd_refresh_async()
             _call_with_optional_select_tab(
@@ -1386,7 +1547,10 @@ def hdd_mount_async(app, idx, select_tab=True, *, allow_unlock=True):
 
         call_in_ui_thread(app, done)
 
-    threading.Thread(target=job, daemon=True).start()
+    try:
+        threading.Thread(target=job, daemon=True).start()
+    except RuntimeError as exc:
+        report_failure(exc)
 
 
 def _ask_hdd_secret(app, title, prompt):
@@ -1434,25 +1598,35 @@ def _authorize_hdd_unmount(app, runner):
 
 def hdd_unmount_async(app, idx, select_tab=True):
     runner = hdd_mount_service.run_hdd_command
-    if idx < 0 or idx >= len(app.hdd_slots):
+    if type(idx) is not int or idx < 0 or idx >= len(app.hdd_slots):
+        _hdd_action_feedback(
+            app,
+            app.tr(
+                "hdd_unmount_invalid_slot",
+                "HDD unmount refused: invalid slot selection.",
+            ),
+            select_tab=select_tab,
+        )
         return
     slot = dict(app.hdd_slots[idx])
     label = slot_display_name(app, idx)
     device, disk = hdd_resolve_slot_device(app, slot)
     if not hdd_slot_configured(slot):
-        app.log(
+        _hdd_action_feedback(
+            app,
             app.tr(
                 "hdd_slot_not_configured",
                 "HDD slot not configured: {label}.",
-            ).format(label=label)
+            ).format(label=label),
+            select_tab=select_tab,
         )
         return
 
     def rejected(error):
-        call_in_ui_thread(
-            app,
-            lambda: app.log(f"HDD unmount refused for {label}: {error}"),
-        )
+        message = app.tr(
+            "hdd_unmount_request_rejected", "HDD unmount refused for {label}: {error}"
+        ).format(label=label, error=_hdd_action_error(app, error))
+        _hdd_action_feedback(app, message, select_tab=select_tab)
 
     if not device or not disk or not slot.get("device_uuid"):
         rejected("No confirmed slot device.")
@@ -1463,14 +1637,31 @@ def hdd_unmount_async(app, idx, select_tab=True):
         rejected(str(exc))
         return
 
+    _hdd_action_feedback(
+        app,
+        app.tr(
+            "hdd_unmount_pending",
+            "HDD unmount requested for {label}: checking device and authorization.",
+        ).format(label=label),
+        select_tab=select_tab,
+    )
+
     def job():
         try:
             identity = _inspect_hdd_request_device(request, runner)
             expected_target = hdd_mount_service.verified_mount_target(identity, runner)
             if not _authorize_hdd_unmount(app, runner):
+                _hdd_action_feedback(
+                    app,
+                    app.tr(
+                        "hdd_unmount_auth_cancelled",
+                        "HDD unmount authorization failed or cancelled for {label}.",
+                    ).format(label=label),
+                    select_tab=select_tab,
+                )
                 return
         except (hdd_mount_service.MountPolicyError, OSError, TclError) as exc:
-            rejected(str(exc))
+            rejected(exc)
             return
         mount_source = identity.source.path
         # Only the verified live crypt child can authorize closing a mapper.
@@ -1505,14 +1696,15 @@ def hdd_unmount_async(app, idx, select_tab=True):
                 )
 
             if rc != 0:
-                app.after(
-                    0,
-                    lambda: app.log(
-                        app.tr(
-                            "hdd_unmount_failed",
-                            "HDD unmount failed for {label}: {output}",
-                        ).format(label=label, output=out)
-                    ),
+                if "busy" in str(out).lower():
+                    out = f"{out}\n{_hdd_busy_details(app, request, identity, active_target, runner)}"
+                _hdd_action_feedback(
+                    app,
+                    app.tr(
+                        "hdd_unmount_failed",
+                        "HDD unmount failed for {label}: {output}",
+                    ).format(label=label, output=_hdd_action_error(app, out)),
+                    select_tab=select_tab,
                 )
                 call_in_ui_thread(app, lambda: app.hdd_refresh_async())
                 app.after(
@@ -1523,7 +1715,7 @@ def hdd_unmount_async(app, idx, select_tab=True):
                 )
                 return
         except (hdd_mount_service.MountPolicyError, OSError) as exc:
-            rejected(str(exc))
+            rejected(exc)
             return
 
         closed = False
@@ -1556,29 +1748,35 @@ def hdd_unmount_async(app, idx, select_tab=True):
                 close_out = str(exc)
 
         def done():
-            app.log(
+            _hdd_action_feedback(
+                app,
                 app.tr(
                     "hdd_unmount_success",
                     "HDD unmount successful: {label}.",
-                ).format(label=label)
+                ).format(label=label),
+                select_tab=select_tab,
             )
             if current_luks.get("is_luks"):
                 if closed:
-                    app.log(
+                    _hdd_action_feedback(
+                        app,
                         app.tr(
                             "hdd_luks_closed",
                             "LUKS closed: {mapper}.",
-                        ).format(mapper=current_luks.get("mapper_name"))
+                        ).format(mapper=current_luks.get("mapper_name")),
+                        select_tab=select_tab,
                     )
                 elif close_out:
-                    app.log(
+                    _hdd_action_feedback(
+                        app,
                         app.tr(
                             "hdd_luks_close_failed",
                             "LUKS close failed ({mapper}): {output}",
                         ).format(
                             mapper=current_luks.get("mapper_name"),
-                            output=close_out,
-                        )
+                            output=_hdd_action_error(app, close_out),
+                        ),
+                        select_tab=select_tab,
                     )
             app.hdd_refresh_async()
             _call_with_optional_select_tab(
@@ -1587,4 +1785,7 @@ def hdd_unmount_async(app, idx, select_tab=True):
 
         call_in_ui_thread(app, done)
 
-    threading.Thread(target=job, daemon=True).start()
+    try:
+        threading.Thread(target=job, daemon=True).start()
+    except RuntimeError as exc:
+        rejected(exc)

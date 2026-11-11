@@ -14,6 +14,7 @@ import pytest
 from netmon.core import icon_http as web
 from netmon.core import icon_payload as icons
 from netmon import netmon_radio_app as radio
+from netmon.core import radio_logo, radio_sandbox
 from tools.secure_browser_manager import browser_container_builder as builder
 
 
@@ -332,9 +333,16 @@ def test_builder_invalid_image_does_not_modify_existing_icon(tmp_path, monkeypat
     assert list(existing.parent.iterdir()) == [existing]
 
 
+def radio_pixels():
+    return radio_logo.MAGIC + b"".join(
+        struct.pack(">HH", 1, 1) + b"\xff\0\0\xff" for _ in radio_logo.SIZES
+    )
+
+
 def radio_stub(tmp_path):
     app = SimpleNamespace(
         radio_logo_cache_dir=str(tmp_path),
+        radio_embedded_mode=False,
         _radio_logo_request_key="station",
         placeholders=[],
         rendered=[],
@@ -356,13 +364,9 @@ def test_radio_failure_preserves_cache_and_cleans_temporary(
     def fetch(*_a, **_kwargs):
         if failure == "network":
             raise OSError("offline")
-        return web.Download(
-            b"bad" if failure == "payload" else png(),
-            "image/png",
-            "https://icons.example.com/",
-        )
+        return b"bad" if failure == "payload" else radio_pixels()
 
-    monkeypatch.setattr(web, "fetch", fetch)
+    monkeypatch.setattr(radio_sandbox, "fetch_logo", fetch)
     if failure == "write":
         monkeypatch.setattr(
             radio.tempfile,
@@ -383,16 +387,21 @@ def test_radio_failure_preserves_cache_and_cleans_temporary(
     assert app.placeholders and not app.rendered
 
 
-def test_rejected_radio_address_never_decoded(tmp_path, monkeypatch):
+def test_failed_protected_logo_never_decoded_or_retried_directly(tmp_path, monkeypatch):
     app = radio_stub(tmp_path)
     monkeypatch.setattr(
-        radio.Image, "open", lambda *_a: pytest.fail("Rejected response decoded")
+        radio.Image, "open", lambda *_a: pytest.fail("Parent image codec")
     )
     monkeypatch.setattr(
-        web, "_connect", lambda *_a: pytest.fail("Private target connected")
+        web, "fetch", lambda *_a, **_k: pytest.fail("Direct network fallback")
+    )
+    monkeypatch.setattr(
+        radio_sandbox,
+        "fetch_logo",
+        lambda *_a: (_ for _ in ()).throw(ValueError("refused")),
     )
     radio.NetMonRadioApp._download_station_logo(
-        app, "http://127.0.0.1/", str(tmp_path / "cache.png"), "station"
+        app, "http://127.0.0.1/", str(tmp_path / "cache.pixels"), "station"
     )
     assert app.placeholders and not list(tmp_path.iterdir())
 
@@ -404,16 +413,16 @@ def test_radio_download_atomically_caches_valid_image(tmp_path, monkeypatch):
 
     def fetch(url, **kwargs):
         calls.append(kwargs)
-        return web.Download(png(), "image/png", url)
+        return radio_pixels()
 
-    monkeypatch.setattr(web, "fetch", fetch)
+    monkeypatch.setattr(radio_sandbox, "fetch_logo", fetch)
     radio.NetMonRadioApp._download_station_logo(
         app, "https://icons.example.com/", str(cache), "station"
     )
-    assert cache.read_bytes() == png() and not app.placeholders
+    assert cache.read_bytes() == radio_pixels() and not app.placeholders
     assert app.rendered == [(str(cache), "station")]
     assert cache.stat().st_mode & 0o777 == 0o600
-    assert calls[0]["budget"].seconds == calls[0]["timeout"] == 8
+    assert calls == [{}]
 
 
 @pytest.mark.parametrize("kind", ["symlink", "fifo", "oversized", "invalid"])
@@ -478,7 +487,9 @@ def test_radio_refresh_bounds_background_workers(tmp_path, monkeypatch):
 def test_stale_network_failure_does_not_replace_current_logo(tmp_path, monkeypatch):
     app = radio_stub(tmp_path)
     monkeypatch.setattr(
-        web, "fetch", lambda *_a, **_kw: (_ for _ in ()).throw(OSError("offline"))
+        radio_sandbox,
+        "fetch_logo",
+        lambda *_a, **_kw: (_ for _ in ()).throw(OSError("offline")),
     )
     radio.NetMonRadioApp._download_station_logo(
         app, "https://icons.example.com/", str(tmp_path / "cache.png"), "old-request"
@@ -515,30 +526,32 @@ def test_png_does_not_require_optional_pillow(monkeypatch):
     assert icons.sanitize_icon(payload) == (".png", payload)
 
 
-def test_radio_cached_png_works_without_pillow(tmp_path, monkeypatch):
+def test_radio_raw_cache_works_without_parent_pillow(tmp_path, monkeypatch):
     app = radio_stub(tmp_path)
-    cache = tmp_path / "cache.png"
-    cache.write_bytes(png())
+    cache = tmp_path / "cache.pixels"
+    cache.write_bytes(radio_pixels())
     monkeypatch.setattr(radio, "Image", None)
     monkeypatch.setattr(radio, "ImageTk", None)
     photos = []
-    monkeypatch.setattr(
-        radio.tk, "PhotoImage", lambda **kw: photos.append(kw) or "photo"
-    )
-    app._fit_tk_photoimage = lambda image, **_kw: image
-    app._radio_logo_size = lambda _variant: (16, 16)
+
+    def photo(**kwargs):
+        photos.append(kwargs)
+        return SimpleNamespace(
+            put=lambda value: photos.append(value), transparency_set=lambda *_a: None
+        )
+
+    monkeypatch.setattr(radio.tk, "PhotoImage", photo)
     radio.NetMonRadioApp._render_station_logo_file(app, str(cache), "station")
     assert app._radio_logo_loaded_key == "station" and not app.placeholders
-    assert list(photos[0]) == ["data"]
+    assert photos[0] == {"width": 1, "height": 1}
+    assert photos[1] == "{#ff0000}"
 
 
 def test_partial_cache_write_rolls_back(tmp_path, monkeypatch):
     app = radio_stub(tmp_path)
     cache = tmp_path / "cache.png"
     cache.write_bytes(png())
-    monkeypatch.setattr(
-        web, "fetch", lambda url, **_kw: web.Download(png(), "image/png", url)
-    )
+    monkeypatch.setattr(radio_sandbox, "fetch_logo", lambda url, **_kw: radio_pixels())
     original = radio.tempfile.NamedTemporaryFile
 
     class PartialFile:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from tkinter import messagebox
+import ipaddress
 import os
 import re
 import shutil
@@ -98,6 +99,35 @@ def _confirm_dot_activation(app, action_label):
     return bool(callback(action_label))
 
 
+def _start_serialized_dns_mutation(app, job, *, require_vpn_inactive=False):
+    def run():
+        try:
+            service_getter = _app_callback(app, "_dns_control_service")
+            if service_getter is None:
+                job()
+                return
+            service = service_getter()
+            if service is None:
+                raise RuntimeError("DNS-Mutationssperre nicht verfügbar.")
+            with service.dns_mutation_lock:
+                vpn_state = app.is_vpn_active()
+                if vpn_state is None or (
+                    require_vpn_inactive and vpn_state is not False
+                ):
+                    raise RuntimeError(
+                        "VPN-Status aktiv oder unbekannt; DNS-Mutation blockiert."
+                    )
+                job()
+        except Exception as exc:
+            app.dot_running = False
+            try:
+                app.log_safe(f"DNS-Mutation blockiert/fehlgeschlagen: {exc}")
+            except Exception:
+                pass
+
+    threading.Thread(target=run, daemon=True).start()
+
+
 def _dot_status_text(app, ok):
     if _app_value(app, "dot_vpn_conflict"):
         return _tr(
@@ -187,12 +217,12 @@ def update_dot_light(app):
         app.set_light(app.l_dot, "red")
     elif app.dot_last_test_ok is True:
         app.set_light(app.l_dot, "green")
-    elif app.dot_enabled:
-        app.set_light(app.l_dot, "green")
-    elif _app_value(app, "dot_vpn_dns_active"):
-        app.set_light(app.l_dot, "yellow")
     elif app.dot_last_test_ok is False:
         app.set_light(app.l_dot, "red")
+    elif app.dot_enabled:
+        app.set_light(app.l_dot, "yellow")
+    elif _app_value(app, "dot_vpn_dns_active"):
+        app.set_light(app.l_dot, "yellow")
     else:
         app.set_light(app.l_dot, "gray")
 
@@ -273,6 +303,7 @@ def build_dot_dropin_content(app, profile_name=None):
     lines = [
         "# Managed by NetMon",
         "[Resolve]",
+        "DNS=",
         f"DNS={' '.join(dns_entries)}",
         "DNSOverTLS=yes",
         f"DNSSEC={dnssec_mode}",
@@ -523,6 +554,88 @@ def _is_timeout_result(text: str) -> bool:
     return "timed out" in lowered or "timeout" in lowered
 
 
+def plain_dns_repair_block_reason(app):
+    """Never replace intended, active or unconfirmed TLS with plain DNS."""
+    blocked = (
+        "DNS Guard: DoT-Konfiguration bleibt erhalten. "
+        "Keine automatische Umstellung auf normales DNS; DoT erneut anwenden."
+    )
+    if _app_value(app, "dot_enabled", False) or _app_value(app, "dot_running", False):
+        return blocked
+    try:
+        if parse_dot_dropin(read_dot_dropin(app, strict=True))["enabled"]:
+            return blocked
+        service = app._dns_control_service()
+        if service is None:
+            return "DNS Guard: DoT-Zustand unklar; keine automatische DNS-Änderung."
+        rc, text = service.read_resolvectl_status()
+        if rc or parse_dot_status_from_resolvectl(text) != "inactive":
+            return "DNS Guard: DoT aktiv oder unklar; keine automatische Umstellung auf normales DNS."
+    except Exception:
+        return "DNS Guard: DoT-Konfiguration nicht lesbar; keine automatische DNS-Änderung."
+    return ""
+
+
+def verify_effective_dot_profile(dropin_text, status_text, dns_text):
+    """Check global TLS mode and exact IP/SNI entries from resolver readback."""
+    try:
+
+        def endpoint(token):
+            address, _, hostname = token.partition("#")
+            return (
+                str(ipaddress.ip_address(address.strip("[]"))) + "#" + hostname.lower()
+            )
+
+        expected = set()
+        in_resolve = False
+        for raw in dropin_text.splitlines():
+            line = raw.strip()
+            if line.startswith("["):
+                in_resolve = line.lower() == "[resolve]"
+            if in_resolve and line.startswith("DNS="):
+                values = line.partition("=")[2].split()
+                if not values:
+                    expected.clear()
+                expected.update(endpoint(token) for token in values)
+        if not expected:
+            return None, "DoT-Profil ohne bestätigte Zielserver."
+        # Per-link TLS flags cannot establish the global resolver mode.
+        global_status = status_text.split("\nLink ", 1)[0]
+        mode = parse_dot_resolvectl_status(global_status)["mode"].lower()
+        if mode == "–":
+            return None, "Globaler DoT-Modus nicht lesbar."
+        if mode != "yes":
+            return False, "Globaler DoT-Modus ist nicht strikt eingeschaltet."
+        actual = set()
+        global_entries = None
+        for raw in dns_text.splitlines():
+            if not raw.strip():
+                continue
+            label, sep, values = raw.partition(":")
+            if not sep or not (
+                label.strip() == "Global"
+                or re.fullmatch(r"Link \d+ \([^)]*\)", label.strip())
+            ):
+                return None, "Resolver-DNS-Liste nicht vollständig lesbar."
+            entries = {endpoint(token) for token in values.split()}
+            if label.strip() == "Global":
+                global_entries = entries
+            actual.update(entries)
+        if global_entries is None:
+            return None, "Globale Resolver-DNS-Liste fehlt."
+        if global_entries != expected or actual != expected:
+            return (
+                False,
+                "Wirksame DoT-Server oder TLS-Hostnamen weichen vom Profil ab.",
+            )
+        return (
+            True,
+            "Wirksame DoT-Server, TLS-Hostnamen und globaler TLS-Modus bestätigt.",
+        )
+    except (ValueError, TypeError):
+        return None, "DoT-Profil oder Resolver-DNS-Liste nicht prüfbar."
+
+
 def collect_dot_status(app, run_test=False):
     preflight = dot_preflight()
     dropin_text = read_dot_dropin(app)
@@ -533,11 +646,12 @@ def collect_dot_status(app, run_test=False):
     query_ok = None
     tls_ok = None
     tls_detail = ""
+    rc_dns = rc_status = 1
     dropin_conflict, _dropin_conflict_content = detect_netmon_dot_dropin_conflict(app)
 
     if preflight["checks"].get("resolvectl"):
-        _, resolvectl_dns = run_cmd(["resolvectl", "dns"], timeout=6)
-        _, resolvectl_status = run_cmd(["resolvectl", "status"], timeout=10)
+        rc_dns, resolvectl_dns = run_cmd(["resolvectl", "dns"], timeout=6)
+        rc_status, resolvectl_status = run_cmd(["resolvectl", "status"], timeout=10)
 
     vpn_active = app.detect_vpn_active(resolvectl_status)
     vpn_conflict = bool(dropin_conflict and vpn_active)
@@ -680,6 +794,12 @@ def collect_dot_status(app, run_test=False):
             "text": "\n".join(summary_lines),
         }
 
+    verified, verification_detail = (
+        verify_effective_dot_profile(dropin_text, resolvectl_status, resolvectl_dns)
+        if rc_dns == 0 and rc_status == 0
+        else (None, "Resolver-Abgleich fehlgeschlagen; DoT nicht bestätigt.")
+    )
+    summary_lines.extend(["", "[Resolver-Abgleich]", verification_detail])
     if run_test:
         rc_query, query_out = run_cmd(["resolvectl", "query", "example.com"], timeout=8)
         query_ok = rc_query == 0 and bool((query_out or "").strip())
@@ -693,14 +813,16 @@ def collect_dot_status(app, run_test=False):
             tls_ok, tls_detail = dot_tls_probe(servers[0], hostname)
         tls_timeout = _is_timeout_result(tls_detail)
         config_ok = enabled and mode.lower() in {"yes", "opportunistic"}
-        if config_ok and query_ok and tls_ok is not False:
+        if config_ok and query_ok and tls_ok is True:
             final_ok = True
-        elif config_ok and (query_timeout or tls_timeout):
+        elif config_ok and (query_timeout or tls_timeout or tls_ok is None):
             final_ok = None
         elif config_ok:
             final_ok = False
         else:
             final_ok = False
+        if verified is not True:
+            final_ok = verified
         if vpn_conflict:
             final_ok = None
         if final_ok is True:
@@ -743,7 +865,7 @@ def collect_dot_status(app, run_test=False):
             )
     else:
         if enabled and preflight["resolved_active"]:
-            final_ok = True
+            final_ok = verified
         elif resolvectl_dot_state == "inactive" or not enabled:
             final_ok = False
         else:
@@ -952,6 +1074,8 @@ def enable_dot_async(app):
     if not app.ensure_sudo_session("DoT aktivieren"):
         return
     app.dot_running = True
+    app.dot_last_test_ok = None
+    update_dot_light(app)
     app.nb.select(app.tab_dns)
     app.update_dns_output(
         "=== DNS over TLS ===\nStatus: Aktivierung läuft\n",
@@ -1059,7 +1183,7 @@ def enable_dot_async(app):
         finally:
             app.dot_running = False
 
-    threading.Thread(target=job, daemon=True).start()
+    _start_serialized_dns_mutation(app, job, require_vpn_inactive=True)
 
 
 def disable_dot_async(app):
@@ -1160,7 +1284,7 @@ def disable_dot_async(app):
         finally:
             app.dot_running = False
 
-    threading.Thread(target=job, daemon=True).start()
+    _start_serialized_dns_mutation(app, job)
 
 
 def test_dot_async(app):

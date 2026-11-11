@@ -291,6 +291,13 @@ def build_dns_tab(app):
         command=app.clear_dns_output,
     ).pack(side="right")
 
-    app.dns_text = tk.Text(app.tab_dns, wrap="word")
-    app.dns_text.pack(fill="both", expand=True)
+    dns_output_frame = ttk.Frame(app.tab_dns)
+    dns_output_frame.pack(fill="both", expand=True)
+    app.dns_output_scrollbar = ttk.Scrollbar(dns_output_frame, orient="vertical")
+    app.dns_output_scrollbar.pack(side="right", fill="y")
+    app.dns_text = tk.Text(
+        dns_output_frame, wrap="word", yscrollcommand=app.dns_output_scrollbar.set
+    )
+    app.dns_text.pack(side="left", fill="both", expand=True)
+    app.dns_output_scrollbar.configure(command=app.dns_text.yview)
     app.attach_chad_context_menu(app.dns_text, "DNS-Analyse")

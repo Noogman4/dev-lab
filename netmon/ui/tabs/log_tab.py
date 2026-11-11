@@ -10,7 +10,14 @@ def build_log_tab(app):
     app.tab_log = ttk.Frame(app.nb, padding=10)
     app.nb.add(app.tab_log, text=app.tr("tab_log", "Log"))
 
-    log_bar = ttk.Frame(app.tab_log)
+    # Two sub-tabs: NetMon's own log (unchanged) and read-only system logs.
+    app.log_subtabs = ttk.Notebook(app.tab_log)
+    app.log_subtabs.pack(fill="both", expand=True)
+    app.tab_log_netmon = ttk.Frame(app.log_subtabs)
+    app.log_subtabs.add(app.tab_log_netmon, text=app.tr("tab_log_netmon", "NetMon"))
+    page = app.tab_log_netmon
+
+    log_bar = ttk.Frame(page)
     log_bar.pack(fill="x", pady=(0, 8))
     app.btn_log_clear = ttk.Button(
         log_bar,
@@ -87,7 +94,7 @@ def build_log_tab(app):
     )
     app.btn_dependency_installer.pack(side="right", padx=(0, 8))
 
-    app.log_view_frame = tk.Frame(app.tab_log, bg="#ffffff", highlightthickness=0)
+    app.log_view_frame = tk.Frame(page, bg="#ffffff", highlightthickness=0)
     app.log_view_frame.pack(fill="both", expand=True)
     app.log_view_frame.grid_rowconfigure(0, weight=1)
     app.log_view_frame.grid_columnconfigure(0, weight=1)
@@ -156,8 +163,12 @@ def build_log_tab(app):
     )
     app.log_overlay_picker_title.pack(fill="x", padx=8, pady=(6, 4))
 
+    picker_list_frame = tk.Frame(app.log_overlay_picker_frame, bg="#0f0f0f")
+    picker_list_frame.pack(fill="both", expand=True, padx=8)
+    picker_list_scroll = ttk.Scrollbar(picker_list_frame, orient="vertical")
+    picker_list_scroll.pack(side="right", fill="y")
     app.log_overlay_picker_list = tk.Listbox(
-        app.log_overlay_picker_frame,
+        picker_list_frame,
         height=8,
         exportselection=False,
         activestyle="none",
@@ -168,8 +179,10 @@ def build_log_tab(app):
         relief="flat",
         highlightthickness=1,
         highlightbackground="#3a3a3a",
+        yscrollcommand=picker_list_scroll.set,
     )
-    app.log_overlay_picker_list.pack(fill="both", expand=True, padx=8)
+    app.log_overlay_picker_list.pack(side="left", fill="both", expand=True)
+    picker_list_scroll.configure(command=app.log_overlay_picker_list.yview)
     app.log_overlay_picker_list.bind(
         "<<ListboxSelect>>", app._on_log_overlay_picker_select
     )
@@ -214,14 +227,12 @@ def build_log_tab(app):
     app.log_view_frame.bind("<Configure>", app._on_log_overlay_resize)
     app._restore_log_overlay_from_config()
 
-    log_footer = ttk.Frame(app.tab_log)
+    log_footer = ttk.Frame(page)
     log_footer.pack(fill="x", pady=(8, 0))
 
     app.chk_log_auto_clear = ttk.Checkbutton(
         log_footer,
-        text=app.tr(
-            "settings_auto_log_clear", "Clear log automatically on startup"
-        ),
+        text=app.tr("settings_auto_log_clear", "Clear log automatically on startup"),
         variable=app.var_auto_log_clear,
     )
     app.chk_log_auto_clear.pack(side="right")
@@ -232,3 +243,23 @@ def build_log_tab(app):
             "Uses the same setting as in Setup and clears the runtime log on startup.",
         ),
     )
+
+    try:
+        from netmon.ui.tabs.system_logs_view import build_system_logs_view
+    except ModuleNotFoundError:  # legacy flat layout
+        from ui.tabs.system_logs_view import build_system_logs_view
+
+    view = build_system_logs_view(app, app.log_subtabs)
+    app.tab_log_system = view.frame
+    app.log_subtabs.add(
+        app.tab_log_system, text=app.tr("tab_log_system", "System-Logs")
+    )
+
+    def _subtab_changed(_event=None):
+        try:
+            if app.log_subtabs.select() == str(app.tab_log_system):
+                view.on_shown()
+        except tk.TclError:
+            pass
+
+    app.log_subtabs.bind("<<NotebookTabChanged>>", _subtab_changed, add="+")

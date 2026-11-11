@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 from tkinter import messagebox
+
+try:
+    from netmon.services.dns_control_service import DNSControlService
+except ModuleNotFoundError:
+    from services.dns_control_service import DNSControlService
 import os
+import threading
 
 try:
     from netmon.config.constants import DNS_PROFILES, DOT_DROPIN_PATH
@@ -94,9 +100,11 @@ def use_vpn_dns(app):
                 "dns_control_result_value",
                 "Result: {value}",
             ).format(
-                value=app.tr("dns_result_successful", "successful")
-                if success
-                else app.tr("dns_result_failed", "failed")
+                value=(
+                    app.tr("dns_result_successful", "successful")
+                    if success
+                    else app.tr("dns_result_failed", "failed")
+                )
             ),
             "",
             app.tr("dns_section_system", "[System]"),
@@ -120,9 +128,7 @@ def use_vpn_dns(app):
                 else app.tr(
                     "dns_resolved_restart_failed",
                     "✖ Error restarting systemd-resolved: {detail}",
-                ).format(
-                    detail=restart_detail or app.tr("dns_result_failed", "failed")
-                )
+                ).format(detail=restart_detail or app.tr("dns_result_failed", "failed"))
             ),
             "",
             app.tr("dns_section_networkmanager", "[NetworkManager]"),
@@ -147,7 +153,104 @@ def normalize_dns_profile_choice(app, choice=None):
     return app.tr("dns_profile_system_auto", "System (DHCP/auto)")
 
 
-def apply_dns_profile_choice_via_control(app, choice):
+def _manual_dns_mutation_block_reason(app):
+    try:
+        vpn_active = app.is_vpn_active()
+    except Exception:
+        vpn_active = None
+    if vpn_active is not False:
+        return "VPN-Status aktiv oder unbekannt; keine manuelle DNS-Änderung."
+    transition = _app_callback(app, "_dns_runtime_transition_active")
+    if transition is not None:
+        try:
+            if transition():
+                return "VPN-/DNS-Übergang läuft; keine manuelle DNS-Änderung."
+        except Exception:
+            return "VPN-/DNS-Übergang unklar; keine manuelle DNS-Änderung."
+    return ""
+
+
+def apply_dns_profile_choice_via_control(app, choice, *, manual=False):
+    service = app._dns_control_service()
+    if manual and service is None:
+        return {
+            "choice": choice,
+            "servers": [],
+            "success": False,
+            "nm_details": [],
+            "dropin_ok": False,
+            "dropin_detail": "DNS-Mutationssperre nicht verfügbar; keine Änderung.",
+            "dropin_state": "unverändert",
+            "restart_ok": False,
+            "restart_detail": "Nicht ausgeführt.",
+        }
+    lock = service.dns_mutation_lock if service is not None else None
+    if lock is None:
+        return _apply_dns_profile_choice_via_control_locked(app, choice)
+    with lock:
+        if manual:
+            block_reason = (
+                "DNS-Profilwechsel läuft; keine weitere manuelle DNS-Änderung."
+                if _app_value(app, "_manual_dns_guard_running", False)
+                else _manual_dns_mutation_block_reason(app)
+            )
+            if block_reason:
+                return {
+                    "choice": choice,
+                    "servers": [],
+                    "success": False,
+                    "nm_details": [block_reason],
+                    "dropin_ok": False,
+                    "dropin_detail": "Nach erneuter VPN-Prüfung nicht geändert.",
+                    "dropin_state": "unverändert",
+                    "restart_ok": False,
+                    "restart_detail": "Nach erneuter VPN-Prüfung nicht ausgeführt.",
+                }
+        if manual:
+            return _apply_manual_dns_profile_with_guard(app, choice)
+        return _apply_dns_profile_choice_via_control_locked(app, choice, manual=False)
+
+
+def _apply_manual_dns_profile_with_guard(app, choice):
+    # This marks observation only. The VPN/DNS transition timer would also
+    # block this operation's own repeated manual-mutation safety checks.
+    app._manual_dns_guard_generation = (
+        int(_app_value(app, "_manual_dns_guard_generation", 0)) + 1
+    )
+    app._manual_dns_guard_running = True
+    setter = _app_callback(app, "set_dns_guard_state")
+    checker = _app_callback(app, "run_dns_guard_check_once")
+    result = None
+    try:
+        if setter is not None:
+            setter("transition")
+        # Repaint before the synchronous commands, without processing button
+        # events or adding a nested full Tk event loop.
+        repaint = _app_callback(app, "update_idletasks")
+        if (
+            repaint is not None
+            and threading.current_thread() is threading.main_thread()
+        ):
+            try:
+                repaint()
+            except Exception:
+                pass
+        result = _apply_dns_profile_choice_via_control_locked(app, choice, manual=True)
+        return result
+    finally:
+        app._manual_dns_guard_running = False
+        if setter is not None:
+            setter("unknown")
+        try:
+            if result and result.get("success") and checker is not None:
+                checker(auto_repair=False)
+        except Exception:
+            if setter is not None:
+                setter("unknown")
+        # Failed/aborted applies stay unknown until a later independent check.
+
+
+def _apply_dns_profile_choice_via_control_locked(app, choice, *, manual=False):
     normalized_choice = normalize_dns_profile_choice(app, choice)
     resolve_servers = _app_callback(app, "_dns_servers_for_choice")
     if resolve_servers is not None:
@@ -156,24 +259,77 @@ def apply_dns_profile_choice_via_control(app, choice):
         servers = DNS_PROFILES.get(normalized_choice)
 
     if normalized_choice == "System (DHCP/auto)":
-        nm_ok, nm_details = app._apply_nm_dns_policy_to_targets(ignore_auto_dns=False)
-        dropin_ok, dropin_detail = app._remove_manual_dns_dropin()
-        restart_ok, restart_detail = app._restart_resolved_for_dns_policy()
         return {
             "choice": normalized_choice,
             "servers": [],
-            "success": nm_ok and dropin_ok and restart_ok,
-            "nm_details": list(nm_details),
-            "dropin_ok": dropin_ok,
-            "dropin_detail": dropin_detail,
-            "dropin_state": "entfernt",
-            "restart_ok": restart_ok,
-            "restart_detail": restart_detail,
+            "success": False,
+            "nm_details": [DNSControlService.AUTO_DNS_RELEASE_BLOCK_REASON],
+            "dropin_ok": False,
+            "dropin_detail": "Nach verweigerter DNS-Freigabe nicht geändert.",
+            "dropin_state": "unverändert",
+            "restart_ok": False,
+            "restart_detail": "Nach verweigerter DNS-Freigabe nicht ausgeführt.",
         }
+    nm_ok, nm_details = app._apply_nm_dns_policy_to_targets(ignore_auto_dns=True)
+    if not nm_ok:
+        return {
+            "choice": normalized_choice,
+            "servers": list(servers or []),
+            "success": False,
+            "nm_details": list(nm_details),
+            "dropin_ok": False,
+            "dropin_detail": "Nach NetworkManager-Fehler nicht geändert; mögliche Teiländerungen prüfen.",
+            "dropin_state": "unverändert",
+            "restart_ok": False,
+            "restart_detail": "Nach NetworkManager-Fehler nicht ausgeführt.",
+        }
+    if manual:
+        block_reason = _manual_dns_mutation_block_reason(app)
+        if block_reason:
+            return {
+                "choice": normalized_choice,
+                "servers": list(servers or []),
+                "success": False,
+                "nm_details": list(nm_details) + [block_reason],
+                "dropin_ok": False,
+                "dropin_detail": "Nach NetworkManager-Aktion nicht geändert.",
+                "dropin_state": "unverändert",
+                "restart_ok": False,
+                "restart_detail": "Nach erneuter VPN-Prüfung nicht ausgeführt.",
+            }
 
     previous_dropin = app._read_dot_dropin()
-    nm_ok, nm_details = app._apply_nm_dns_policy_to_targets(ignore_auto_dns=True)
+    if manual:
+        block_reason = _manual_dns_mutation_block_reason(app)
+        if block_reason:
+            return {
+                "choice": normalized_choice,
+                "servers": [
+                    str(server).strip() for server in servers if str(server).strip()
+                ],
+                "success": False,
+                "nm_details": list(nm_details) + [block_reason],
+                "dropin_ok": False,
+                "dropin_detail": "VPN aktiv/unklar; Drop-in nicht geschrieben.",
+                "dropin_state": "unverändert",
+                "restart_ok": False,
+                "restart_detail": "Nicht ausgeführt.",
+            }
     dropin_ok, dropin_detail = app._write_manual_dns_dropin(normalized_choice)
+    if manual and _manual_dns_mutation_block_reason(app):
+        return {
+            "choice": normalized_choice,
+            "servers": [
+                str(server).strip() for server in servers if str(server).strip()
+            ],
+            "success": False,
+            "nm_details": list(nm_details),
+            "dropin_ok": dropin_ok,
+            "dropin_detail": "VPN-Zustand änderte sich vor Resolver-Neustart.",
+            "dropin_state": "geschrieben" if dropin_ok else "unverändert",
+            "restart_ok": False,
+            "restart_detail": "VPN aktiv/unklar; Resolver-Neustart unterdrückt.",
+        }
     restart_ok, restart_detail = app._restart_resolved_for_dns_policy()
     if dropin_ok and not restart_ok:
         restore_ok, restore_detail = app._restore_dot_dropin_backup(previous_dropin)
@@ -185,16 +341,33 @@ def apply_dns_profile_choice_via_control(app, choice):
                 restore_detail
                 or "vorherige Konfiguration konnte nicht wiederhergestellt werden."
             )
+    verification_ok = False
+    verification_detail = (
+        "Resolver-Abgleich nach fehlgeschlagener Änderung nicht ausgeführt."
+    )
+    if nm_ok and dropin_ok and restart_ok:
+        block_reason = _manual_dns_mutation_block_reason(app) if manual else ""
+        service = app._dns_control_service()
+        if block_reason:
+            verification_detail = block_reason
+        elif service is None:
+            verification_detail = (
+                "Resolver-Abgleich nicht verfügbar; Profil nicht bestätigt."
+            )
+        else:
+            verification_ok, verification_detail = service.verify_dns_profile(servers)
     return {
         "choice": normalized_choice,
         "servers": [str(server).strip() for server in servers if str(server).strip()],
-        "success": nm_ok and dropin_ok and restart_ok,
+        "success": nm_ok and dropin_ok and restart_ok and verification_ok,
         "nm_details": list(nm_details),
         "dropin_ok": dropin_ok,
         "dropin_detail": dropin_detail,
         "dropin_state": "geschrieben",
         "restart_ok": restart_ok,
         "restart_detail": restart_detail,
+        "verification_ok": verification_ok,
+        "verification_detail": verification_detail,
     }
 
 
@@ -204,7 +377,9 @@ def format_dns_profile_control_result(app, result, *, heading, action):
         "written": app.tr("dns_value_written", "written"),
         "removed": app.tr("dns_value_removed", "removed"),
         "updated": app.tr("dns_value_updated", "updated"),
-    }.get(dropin_state, result.get("dropin_state", app.tr("dns_value_updated", "updated")))
+    }.get(
+        dropin_state, result.get("dropin_state", app.tr("dns_value_updated", "updated"))
+    )
     lines = [
         heading,
         _tr(app, "dns_action_value", "Aktion: {value}").format(value=action),
@@ -226,9 +401,11 @@ def format_dns_profile_control_result(app, result, *, heading, action):
     lines.extend(
         [
             _tr(app, "dns_result_value", "Ergebnis: {value}").format(
-                value=_tr(app, "dns_result_successful", "erfolgreich")
-                if result.get("success")
-                else _tr(app, "dns_result_failed", "fehlgeschlagen")
+                value=(
+                    _tr(app, "dns_result_successful", "erfolgreich")
+                    if result.get("success")
+                    else _tr(app, "dns_result_failed", "fehlgeschlagen")
+                )
             ),
             "",
             _tr(app, "dns_section_networkmanager", "[NetworkManager]"),
@@ -243,9 +420,7 @@ def format_dns_profile_control_result(app, result, *, heading, action):
                     app,
                     "dns_dot_dropin_state_value",
                     "✔ NetMon-DoT-Konfiguration {value}",
-                ).format(
-                    value=dropin_state_label
-                )
+                ).format(value=dropin_state_label)
                 if result.get("dropin_ok")
                 else _tr(
                     app,
@@ -274,26 +449,42 @@ def format_dns_profile_control_result(app, result, *, heading, action):
             ),
         ]
     )
+    if "verification_ok" in result:
+        lines.extend(
+            [
+                "",
+                "[Resolver-Abgleich]",
+                ("✔ " if result["verification_ok"] else "✖ ")
+                + result["verification_detail"],
+            ]
+        )
     return "\n".join(lines).strip()
 
 
 def use_user_dns(app):
-    if app.is_vpn_active():
+    vpn_active = app.is_vpn_active()
+    if vpn_active is None:
+        return False, "DNS Control: VPN-Status unbekannt; keine Änderung."
+    if vpn_active:
         return app.warn_manual_dns_with_vpn()
 
     dns_choice = normalize_dns_profile_choice(app, app._manual_dns_choice())
     app._set_dns_choice_safe(dns_choice)
-    result = apply_dns_profile_choice_via_control(app, dns_choice)
+    result = apply_dns_profile_choice_via_control(app, dns_choice, manual=True)
     return result["success"], format_dns_profile_control_result(
         app,
         result,
         heading=_tr(app, "dns_control_report_title", "=== DNS-Steuerung ==="),
-        action=_tr(app, "dns_control_action_enable_user_dns", "Benutzer-DNS aktivieren"),
+        action=_tr(
+            app, "dns_control_action_enable_user_dns", "Benutzer-DNS aktivieren"
+        ),
     )
 
 
 def enforce_dns_policy(app):
     vpn_active = app.is_vpn_active()
+    if vpn_active is None:
+        return False, "DNS Control: VPN-Status unbekannt; keine Änderung."
     return use_vpn_dns(app) if vpn_active else use_user_dns(app)
 
 
@@ -481,7 +672,7 @@ def apply_dns(
     _select_dns_tab(app)
     app.log_safe("DNS-Profil wird angewendet...")
 
-    result = apply_dns_profile_choice_via_control(app, choice)
+    result = apply_dns_profile_choice_via_control(app, choice, manual=True)
     app.update_dns_output(
         format_dns_profile_control_result(
             app,

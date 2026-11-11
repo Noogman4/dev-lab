@@ -20,7 +20,7 @@ MAX_DIRECTORY_BYTES = 16 * 1024 * 1024
 
 @contextmanager
 def download_preset_archive(url, *, timeout=30):
-    """Both projectM URL entry points use the same budgets and private cleanup."""
+    """Legacy transport primitive; product entry points use the protected API."""
     with tempfile.TemporaryDirectory(prefix="netmon-projectm-pack-") as temp_dir:
         path = os.path.join(temp_dir, "pack.zip")
         with open(path, "xb") as destination:
@@ -30,6 +30,26 @@ def download_preset_archive(url, *, timeout=30):
                 copy_response_limited(
                     response, destination, MAX_DOWNLOAD_BYTES, require_complete=True
                 )
+        yield path
+
+
+@contextmanager
+def download_protected_preset_archive(url, *, timeout=30):
+    """Both UI entry points use the isolated source, then the existing importer."""
+    from netmon.core import radio_sandbox
+
+    url = projectm_transport._validated_url(url)
+    with tempfile.TemporaryDirectory(prefix="netmon-projectm-pack-") as temp_dir:
+        path = os.path.join(temp_dir, "pack.zip")
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "wb") as destination:
+            radio_sandbox.fetch_preset_archive(
+                url,
+                destination,
+                timeout=timeout,
+                total_timeout=projectm_transport.MAX_DOWNLOAD_SECONDS,
+                limit=MAX_DOWNLOAD_BYTES,
+            )
         yield path
 
 

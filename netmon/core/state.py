@@ -1,11 +1,45 @@
 """State and configuration path helpers for NetMon."""
 
 import os
+import shlex
 
 
-def _ensure_dir(path: str) -> str:
+def _documents_path(value: str) -> str:
+    """Expand only the HOME forms supported by user-dirs.dirs; never run shell."""
+    home = os.path.expanduser("~")
+    for prefix in ("$HOME", "${HOME}"):
+        if value == prefix or value.startswith(prefix + "/"):
+            value = home + value[len(prefix) :]
+            break
+    value = os.path.expanduser(value)
+    if not os.path.isabs(value) or any(c in value for c in ("$", "`", "\x00", "\n")):
+        return ""
+    return os.path.normpath(value)
+
+
+def _configured_documents_dir() -> str:
+    override = _documents_path((os.environ.get("XDG_DOCUMENTS_DIR") or "").strip())
+    if override:
+        return override
+    config_home = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
     try:
-        os.makedirs(path, exist_ok=True)
+        with open(os.path.join(config_home, "user-dirs.dirs"), encoding="utf-8") as f:
+            content = f.read(65537)
+        if len(content) > 65536:
+            return ""
+        for line in content.splitlines():
+            key, sep, value = line.partition("=")
+            if sep and key.strip() == "XDG_DOCUMENTS_DIR":
+                parts = shlex.split(value, comments=True)
+                return _documents_path(parts[0]) if len(parts) == 1 else ""
+    except (OSError, UnicodeError, ValueError):
+        pass
+    return ""
+
+
+def _ensure_dir(path: str, *, mode=0o777) -> str:
+    try:
+        os.makedirs(path, mode=mode, exist_ok=True)
     except Exception:
         pass
     return path
@@ -49,6 +83,15 @@ def get_netmon_documents_dir() -> str:
     return _ensure_dir(fallback)
 
 
+def get_netmon_wireguard_dir() -> str:
+    """Use the system profile folder without relocating existing settings/logs."""
+    configured = _configured_documents_dir()
+    base = (
+        os.path.join(configured, "NetMon") if configured else get_netmon_documents_dir()
+    )
+    return _ensure_dir(os.path.join(base, "WireGuard"), mode=0o700)
+
+
 def get_netmon_documents_subdir(*parts: str) -> str:
     path = os.path.join(
         get_netmon_documents_dir(),
@@ -61,5 +104,6 @@ __all__ = [
     "get_netmon_config_dir",
     "get_netmon_documents_dir",
     "get_netmon_documents_subdir",
+    "get_netmon_wireguard_dir",
     "get_netmon_state_dir",
 ]

@@ -192,7 +192,7 @@ def test_main_tabs_and_security_sections_use_translation_keys():
     )
     assert 'text=app.tr("chad_title", "Chad Analyse")' in chad_source
     assert 'text=app.tr("chad_check_enabled", "Chad-Anbindung aktiv")' in chad_source
-    assert '"<Return>"' in chad_source
+    assert 'text=app.tr("chad_btn_send", "Senden")' in chad_source
     chad_settings_connection_source = inspect.getsource(build_chad_settings_connection)
     chad_settings_status_source = inspect.getsource(build_chad_settings_status)
     chad_settings_profiles_source = inspect.getsource(build_chad_settings_profiles)

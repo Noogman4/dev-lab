@@ -1,8 +1,35 @@
 import threading
+from types import SimpleNamespace
 
 import pytest
 
 from tools import netmon
+from test_killswitch_failure_recovery import (
+    simulated_snapshot_transport as simulated_snapshot_transport,
+)
+
+
+@pytest.fixture(autouse=True)
+def fake_verified_interfaces(monkeypatch):
+    # This suite models already authenticated synthetic WG links. The dedicated
+    # interface-security suite exercises the real verifier and closed gate.
+    monkeypatch.setattr(
+        netmon.firewall_controller.nm_ownership,
+        "verified_interface",
+        lambda name: {"name": name, "kind": "wireguard", "ifindex": 7},
+    )
+
+
+@pytest.fixture(autouse=True)
+def synthetic_profile_inventory(monkeypatch):
+    # These controller unit tests do not enumerate host profile stores. The
+    # native integration cases exercise the real App inventory on private files.
+    for name in (
+        "list_wg_profile_files",
+        "list_netmon_wg_profile_files",
+        "get_nm_wireguard_profiles",
+    ):
+        monkeypatch.setattr(netmon.vpn_controller, name, lambda *_a, **_k: [])
 
 
 def _fake_activation_links(monkeypatch, name, *, active=False):
@@ -104,54 +131,108 @@ Endpoint = any:51820
     assert warnings == [("proton", "any")]
 
 
-def test_startup_repair_disables_killswitch_without_active_vpn(monkeypatch):
+def test_startup_keeps_enabled_killswitch_without_vpn_until_manual_confirmation(
+    monkeypatch,
+):
     app = netmon.App.__new__(netmon.App)
-    calls = []
+    forbidden_calls = []
+    logs = []
+
+    def forbidden(operation):
+        def reject(*_args, **_kwargs):
+            forbidden_calls.append(operation)
+            raise AssertionError(f"Startup must not perform {operation}")
+
+        return reject
+
     app.privacy_config = {}
     app.isp_stealth_running = False
     app._network_operation_active_elsewhere = lambda: False
     app.killswitch_is_on = lambda: True
-    app.get_wg_interfaces = lambda: []
-    app.is_vpn_active = lambda: False
-    app.log_safe = lambda message: calls.append(("log", message))
-    app.log_debug_safe = lambda message: calls.append(("debug", message))
-    app.killswitch_off = lambda **kwargs: calls.append(("off", kwargs)) or True
+
+    def inactive_vpn():
+        forbidden_calls.append("VPN detection")
+        return False
+
+    app.is_vpn_active = inactive_vpn
+    app.get_wg_interfaces = forbidden("WG inventory")
+    app._vpn_runtime_active_for_startup_killswitch = forbidden("VPN runtime probe")
+    app.log_safe = logs.append
+    app.log_debug_safe = logs.append
+    app.killswitch_off = forbidden("killswitch off")
+    app._killswitch_off_sync = forbidden("synchronous killswitch off")
     monkeypatch.setattr(
-        netmon.vpn_controller, "get_active_nm_wireguard_connections", lambda _app: []
+        netmon.vpn_controller,
+        "get_active_nm_wireguard_connections",
+        forbidden("NM WireGuard inventory"),
     )
     monkeypatch.setattr(
-        netmon.vpn_controller, "get_active_nm_vpn_connections", lambda _app: []
+        netmon.vpn_controller,
+        "get_active_nm_vpn_connections",
+        forbidden("NM VPN inventory"),
     )
-    monkeypatch.setattr(netmon, "check_sudo_nopasswd", lambda: True)
-
-    assert app.repair_orphaned_killswitch_on_startup() is True
-    assert (
-        "off",
-        {
-            "async_mode": False,
-            "ensure_sudo": False,
-            "refresh_ui": True,
-            "interactive_guard": False,
-        },
-    ) in calls
-
-
-def test_startup_repair_keeps_killswitch_with_active_vpn(monkeypatch):
-    app = netmon.App.__new__(netmon.App)
-    calls = []
-    app.privacy_config = {}
-    app.isp_stealth_running = False
-    app._network_operation_active_elsewhere = lambda: False
-    app.killswitch_is_on = lambda: True
-    app.get_wg_interfaces = lambda: ["wg0"]
-    app.is_vpn_active = lambda: False
-    app.log_safe = lambda message: calls.append(("log", message))
-    app.log_debug_safe = lambda message: calls.append(("debug", message))
-    app.killswitch_off = lambda **kwargs: calls.append(("off", kwargs)) or True
-    monkeypatch.setattr(netmon, "check_sudo_nopasswd", lambda: True)
+    monkeypatch.setattr(netmon, "check_sudo_nopasswd", forbidden("sudo check"))
+    for module in (netmon, netmon.vpn_controller, netmon.firewall_controller):
+        monkeypatch.setattr(module, "run_cmd", forbidden("system command"))
 
     assert app.repair_orphaned_killswitch_on_startup() is False
-    assert not any(kind == "off" for kind, _value in calls)
+    assert forbidden_calls == []
+    assert logs == [
+        "Startup: Killswitch bleibt aktiv. Eine Deaktivierung ist nur nach "
+        "ausdrücklicher manueller Bestätigung zulässig."
+    ]
+
+
+def test_startup_keeps_enabled_killswitch_with_vpn_without_detection_or_sudo(
+    monkeypatch,
+):
+    app = netmon.App.__new__(netmon.App)
+    forbidden_calls = []
+    logs = []
+
+    def forbidden(operation):
+        def reject(*_args, **_kwargs):
+            forbidden_calls.append(operation)
+            raise AssertionError(f"Startup must not perform {operation}")
+
+        return reject
+
+    app.privacy_config = {}
+    app.isp_stealth_running = False
+    app._network_operation_active_elsewhere = lambda: False
+    app.killswitch_is_on = lambda: True
+
+    def active_vpn():
+        forbidden_calls.append("VPN detection")
+        return True
+
+    app.is_vpn_active = active_vpn
+    app.get_wg_interfaces = forbidden("WG inventory")
+    app._vpn_runtime_active_for_startup_killswitch = forbidden("VPN runtime probe")
+    app.log_safe = logs.append
+    app.log_debug_safe = logs.append
+    app.killswitch_off = forbidden("killswitch off")
+    app._killswitch_off_sync = forbidden("synchronous killswitch off")
+    monkeypatch.setattr(
+        netmon.vpn_controller,
+        "get_active_nm_wireguard_connections",
+        forbidden("NM WireGuard inventory"),
+    )
+    monkeypatch.setattr(
+        netmon.vpn_controller,
+        "get_active_nm_vpn_connections",
+        forbidden("NM VPN inventory"),
+    )
+    monkeypatch.setattr(netmon, "check_sudo_nopasswd", forbidden("sudo check"))
+    for module in (netmon, netmon.vpn_controller, netmon.firewall_controller):
+        monkeypatch.setattr(module, "run_cmd", forbidden("system command"))
+
+    assert app.repair_orphaned_killswitch_on_startup() is False
+    assert forbidden_calls == []
+    assert logs == [
+        "Startup: Killswitch bleibt aktiv. Eine Deaktivierung ist nur nach "
+        "ausdrücklicher manueller Bestätigung zulässig."
+    ]
 
 
 def test_startup_repair_skips_stealth_autostart():
@@ -164,6 +245,69 @@ def test_startup_repair_skips_stealth_autostart():
     )
 
     assert app.repair_orphaned_killswitch_on_startup() is False
+
+
+def test_startup_status_exception_is_logged_by_async_path_without_firewall_mutation(
+    monkeypatch,
+):
+    app = netmon.App.__new__(netmon.App)
+    forbidden_calls = []
+    events = []
+    errors = []
+
+    def forbidden(operation):
+        def reject(*_args, **_kwargs):
+            forbidden_calls.append(operation)
+            raise AssertionError(f"Startup error must not perform {operation}")
+
+        return reject
+
+    def unreadable_killswitch():
+        events.append("status error")
+        raise RuntimeError("synthetic unreadable killswitch status")
+
+    class ImmediateThread:
+        def __init__(self, *, target, daemon):
+            assert daemon is True
+            self.target = target
+            events.append("fake thread created")
+
+        def start(self):
+            events.append("fake thread started synchronously")
+            self.target()
+
+    app.privacy_config = {}
+    app.isp_stealth_running = False
+    app._network_operation_active_elsewhere = lambda: False
+    app.killswitch_is_on = unreadable_killswitch
+    app.killswitch_off = forbidden("killswitch off")
+    app._killswitch_off_sync = forbidden("synchronous killswitch off")
+    app._vpn_runtime_active_for_startup_killswitch = forbidden("VPN runtime probe")
+    app.get_wg_interfaces = forbidden("WG inventory")
+    app.is_vpn_active = forbidden("VPN detection")
+    app.log_safe = forbidden("success log for unknown status")
+    app.log_debug_safe = errors.append
+    monkeypatch.setattr(netmon.threading, "Thread", ImmediateThread)
+    monkeypatch.setattr(netmon, "check_sudo_nopasswd", forbidden("sudo check"))
+    for module in (netmon, netmon.vpn_controller, netmon.firewall_controller):
+        monkeypatch.setattr(module, "run_cmd", forbidden("system command"))
+
+    # Keep the actual scheduler, run_async, and async error logger. Only the
+    # thread's execution mechanism is fake; no OS thread or Tk loop starts.
+    assert app.schedule_startup_killswitch_repair() is None
+    assert events == [
+        "fake thread created",
+        "fake thread started synchronously",
+        "status error",
+    ]
+    assert forbidden_calls == []
+    assert errors[0] == (
+        "Async-Job Fehler [Startup-Killswitch prüfen]: "
+        "synthetic unreadable killswitch status"
+    )
+    assert len(errors) == 2
+    assert "Traceback" in errors[1]
+    assert "RuntimeError: synthetic unreadable killswitch status" in errors[1]
 
 
 def test_killswitch_on_allows_wireguard_handshake_without_active_tunnel(monkeypatch):
@@ -245,218 +389,48 @@ def test_killswitch_on_allows_wireguard_handshake_without_active_tunnel(monkeypa
     assert refreshes == [True]
 
 
-def test_killswitch_on_removes_residual_global_web_and_dns_rules_before_verify(
+def test_killswitch_on_refuses_incompatible_user_grants_without_deleting_them(
     monkeypatch,
 ):
+    from netmon.core.ufw_snapshot import SnapshotError
+    from types import SimpleNamespace
+
     app = netmon.App.__new__(netmon.App)
     app.ufw_lock = threading.Lock()
     app.log_safe = lambda _message: None
     app.refresh_safe = lambda: None
     app.get_wg_interfaces = lambda: []
     app.get_killswitch_vpn_endpoints = lambda: [("66.234.146.66", "51820")]
-
     calls = []
 
-    def fake_run_cmd(args, timeout=0, text=True):
+    def refuse(*args, **kwargs):
+        raise SnapshotError("Incompatible outbound user rules", "preflight")
+
+    app.firewall_snapshots = SimpleNamespace(begin=refuse)
+
+    def fake_run_cmd(args, **kwargs):
         calls.append(args)
-        if args == ["sudo", "-n", "ufw", "status"]:
-            return 0, "Status: active"
-        if args == ["sudo", "-n", "ufw", "status", "numbered"]:
-            return (
-                0,
-                "\n".join(
-                    [
-                        "[ 1] 53/udp ALLOW OUT Anywhere",
-                        "[ 2] 53/tcp ALLOW OUT Anywhere",
-                        "[ 3] 80/tcp ALLOW OUT Anywhere",
-                        "[ 4] 443/tcp ALLOW OUT Anywhere",
-                    ]
-                ),
-            )
-        if args == ["sudo", "-n", "ufw", "status", "verbose"]:
-            return 0, _ufw_verbose_killswitch_on_status(
-                handshake_rules=[("66.234.146.66", "51820")]
-            )
-        return 0, "ok"
+        assert args == ["sudo", "-n", "ufw", "status"]
+        return 0, "Status: active\n443/tcp ALLOW OUT Anywhere"
 
     monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
-
-    assert app._killswitch_on_sync(refresh_ui=False) is True
-    assert ["sudo", "-n", "ufw", "--force", "delete", "4"] in calls
-    assert ["sudo", "-n", "ufw", "--force", "delete", "3"] in calls
-    assert ["sudo", "-n", "ufw", "--force", "delete", "2"] in calls
-    assert ["sudo", "-n", "ufw", "--force", "delete", "1"] in calls
+    assert app._killswitch_on_sync(refresh_ui=False) is False
+    assert calls == [["sudo", "-n", "ufw", "status"]]
 
 
-def test_killswitch_off_keeps_ufw_active_and_restores_default_routing(monkeypatch):
+def test_killswitch_off_without_protected_original_never_uses_legacy_cleanup():
     app = netmon.App.__new__(netmon.App)
     app.ufw_lock = threading.Lock()
     logs = []
-    refreshes = []
     app.log_safe = logs.append
-    app.log_network_debug = lambda _message: None
-    app.refresh_safe = lambda: refreshes.append(True)
-    app.get_wg_interfaces = lambda: ["wg0", "wg-slot"]
-    app.get_wg_iface = lambda: "wg0"
-    app.list_wg_profiles = lambda: ["proton", "proton-de", "wg-slot"]
-    app.get_killswitch_vpn_profiles = lambda: ["proton", "proton-de"]
-
-    endpoints = {
-        "proton": ("66.234.146.66", "51820"),
-        "proton-de": ("77.88.99.11", "443"),
-    }
-    app.parse_vpn_endpoint = lambda profile: endpoints[profile]
-
-    calls = []
-
-    def fake_run_cmd(args, timeout=0, text=True):
-        calls.append(args)
-        if args == ["sudo", "-n", "ufw", "status"]:
-            return 0, "Status: active"
-        if args == ["sudo", "-n", "ufw", "status", "verbose"]:
-            return 0, _ufw_verbose_killswitch_off_status()
-        return 0, "ok"
-
-    monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
-    monkeypatch.setattr(netmon.vpn_controller, "run_cmd", fake_run_cmd)
-    monkeypatch.setattr(netmon.vpn_controller, "run_cmd", fake_run_cmd)
-
-    assert app._killswitch_off_sync(refresh_ui=True) is True
-    assert ["sudo", "-n", "ufw", "disable"] not in calls
-    assert ["sudo", "-n", "ufw", "default", "allow", "outgoing"] in calls
-    assert ["sudo", "-n", "ufw", "default", "deny", "incoming"] in calls
-    assert ["sudo", "-n", "ufw", "status", "numbered"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "in", "on", "lo"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "on", "lo"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "53/udp"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "53/tcp"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "443/tcp"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "80/tcp"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "on", "wg0"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "on", "wg-slot"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "in", "on", "wg0"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "in", "on", "wg-slot"] in calls
-    assert [
-        "sudo",
-        "-n",
-        "ufw",
-        "delete",
-        "allow",
-        "out",
-        "to",
-        "66.234.146.66",
-        "port",
-        "51820",
-        "proto",
-        "udp",
-    ] in calls
-    assert [
-        "sudo",
-        "-n",
-        "ufw",
-        "delete",
-        "allow",
-        "out",
-        "to",
-        "77.88.99.11",
-        "port",
-        "443",
-        "proto",
-        "udp",
-    ] in calls
-    assert any(
-        entry == "Killswitch AUS – UFW bleibt aktiv, normales Routing wieder erlaubt."
-        for entry in logs
+    app.refresh_safe = lambda: None
+    app.run_cmd = lambda *a, **kw: pytest.fail(
+        "Unproven cleanup must not issue UFW commands"
     )
-    assert refreshes == [True]
 
-
-def test_killswitch_off_enables_ufw_if_needed(monkeypatch):
-    app = netmon.App.__new__(netmon.App)
-    app.ufw_lock = threading.Lock()
-    app.log_safe = lambda message: None
-    app.refresh_safe = lambda: None
-    app.get_wg_interfaces = lambda: []
-    app.get_wg_iface = lambda: None
-    app.list_wg_profiles = lambda: []
-    app.get_killswitch_vpn_profiles = lambda: []
-    app.parse_vpn_endpoint = lambda profile: (None, None)
-
-    calls = []
-
-    def fake_run_cmd(args, timeout=0, text=True):
-        calls.append(args)
-        if args == ["sudo", "-n", "ufw", "status"]:
-            return 0, "Status: inactive"
-        if args == ["sudo", "-n", "ufw", "status", "verbose"]:
-            return 0, _ufw_verbose_killswitch_off_status()
-        return 0, "ok"
-
-    monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
-    monkeypatch.setattr(netmon.vpn_controller, "run_cmd", fake_run_cmd)
-    monkeypatch.setattr(netmon.vpn_controller, "run_cmd", fake_run_cmd)
-
-    assert app._killswitch_off_sync(refresh_ui=False) is True
-    assert ["sudo", "-n", "ufw", "--force", "enable"] in calls
-    assert ["sudo", "-n", "ufw", "default", "allow", "outgoing"] in calls
-    assert ["sudo", "-n", "ufw", "default", "deny", "incoming"] in calls
-
-
-def test_killswitch_off_cleans_up_all_known_vpn_interface_rules(monkeypatch):
-    app = netmon.App.__new__(netmon.App)
-    app.ufw_lock = threading.Lock()
-    app.log_safe = lambda message: None
-    app.refresh_safe = lambda: None
-    app.get_wg_interfaces = lambda: []
-    app.list_wg_profiles = lambda: []
-    app.wg_profiles = ["USA__ipv4", "Irland", "NL", "proton-de"]
-    app.vpn_slots = []
-    app.primary_vpn_slots = []
-    app.parse_vpn_endpoint = lambda profile: (None, None)
-
-    calls = []
-
-    def fake_run_cmd(args, timeout=0, text=True):
-        calls.append(args)
-        if args == ["sudo", "-n", "ufw", "status"]:
-            return 0, "Status: active"
-        if args == ["sudo", "-n", "ufw", "status", "verbose"]:
-            return 0, _ufw_verbose_killswitch_off_status()
-        if args == ["sudo", "-n", "ufw", "status", "numbered"]:
-            return (
-                0,
-                "\n".join(
-                    [
-                        "[ 1] Anywhere ALLOW OUT Anywhere on USA__ipv4",
-                        "[ 2] Anywhere on USA__ipv4 ALLOW IN Anywhere",
-                        "[ 3] Anywhere ALLOW OUT Anywhere on Irland",
-                        "[ 4] Anywhere on Irland ALLOW IN Anywhere",
-                        "[ 5] Anywhere ALLOW OUT Anywhere on NL",
-                        "[ 6] Anywhere on NL ALLOW IN Anywhere",
-                        "[ 7] Anywhere ALLOW OUT Anywhere on proton-de",
-                        "[ 8] Anywhere on proton-de ALLOW IN Anywhere",
-                    ]
-                ),
-            )
-        return 0, "ok"
-
-    monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
-
-    assert app._killswitch_off_sync(refresh_ui=False) is True
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "on", "USA__ipv4"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "in", "on", "USA__ipv4"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "on", "Irland"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "in", "on", "Irland"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "on", "NL"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "in", "on", "NL"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "out", "on", "proton-de"] in calls
-    assert ["sudo", "-n", "ufw", "delete", "allow", "in", "on", "proton-de"] in calls
-    numbered_deletes = [
-        cmd for cmd in calls if cmd[:5] == ["sudo", "-n", "ufw", "--force", "delete"]
-    ]
-    assert numbered_deletes
-    delete_numbers = [int(cmd[5]) for cmd in numbered_deletes]
-    assert delete_numbers == sorted(delete_numbers, reverse=True)
+    assert app._killswitch_off_sync(refresh_ui=False) is False
+    assert not app.__dict__.get("killswitch_recovery_required", False)
+    assert not any("Killswitch AUS" in entry for entry in logs)
 
 
 @pytest.mark.parametrize("kind", ["wireguard", "ether"])
@@ -477,6 +451,16 @@ def test_killswitch_on_allows_only_verified_active_interfaces(monkeypatch, kind)
     )
     app.log_safe = logs.append
     app.refresh_safe = lambda: None
+    # This uninitialized Tk App uses synthetic profile data in this unit test.
+    app.resolve_profile_family_runtime = lambda name, **_k: {
+        "effective_ipv4_interface": name,
+        "effective_ipv6_interface": None,
+    }
+    app.log_debug = lambda *_a: None
+    app._read_wg_profile_text = lambda _name: (
+        0,
+        "[Peer]\nEndpoint=198.51.100.10:51820\n",
+    )
 
     calls = []
 
@@ -1100,7 +1084,7 @@ def test_internet_on_sync_forces_reconnect_and_keeps_killswitch_active(monkeypat
     ]
     assert killswitch_off_calls == []
     assert killswitch_on_calls == []
-    assert "Killswitch bleibt während der VPN-Wiederherstellung aktiv." in logs
+    assert "Internet AN deaktiviert den Killswitch nicht automatisch." in logs
     assert "VPN-Wiederherstellung gestartet (Profil: proton)." in logs
     assert "VPN-Tunnel ist bereit." in logs
     assert 1500 in scheduled and 3000 in scheduled
@@ -1277,11 +1261,11 @@ def test_internet_on_sync_keeps_killswitch_active_when_vpn_not_ready(monkeypatch
 
     monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
 
-    assert app._internet_on_sync() is True
+    assert app._internet_on_sync() is False
     assert killswitch_calls == []
     assert app.internet_suspend_state["vpn_profile"] == "proton"
     assert "VPN-Wiederherstellung fehlgeschlagen." in logs
-    assert "Killswitch bleibt während der VPN-Wiederherstellung aktiv." in logs
+    assert "Internet AN deaktiviert den Killswitch nicht automatisch." in logs
     assert (
         "Killswitch bleibt aus, damit Internetzugang nicht blockiert wird." not in logs
     )
@@ -1698,7 +1682,7 @@ def test_internet_enable_temporarily_disables_killswitch_before_vpn_restore(
     assert killswitch_off_calls == []
     assert vpn_calls == []
     assert killswitch_on_calls == []
-    assert "Killswitch bleibt während der VPN-Wiederherstellung aktiv." in logs
+    assert "Internet AN deaktiviert den Killswitch nicht automatisch." in logs
     assert (
         "VPN-Wiederherstellung wird nach Abschluss von Internet AN erneut versucht."
         in logs
@@ -2085,6 +2069,16 @@ def test_killswitch_on_sync_fails_when_postcondition_verification_fails(monkeypa
     app.get_killswitch_vpn_endpoints = lambda: [("66.234.146.66", "51820")]
     app.log_safe = logs.append
     app.refresh_safe = lambda: None
+    # This uninitialized Tk App uses synthetic profile data in this unit test.
+    app.resolve_profile_family_runtime = lambda name, **_k: {
+        "effective_ipv4_interface": name,
+        "effective_ipv6_interface": None,
+    }
+    app.log_debug = lambda *_a: None
+    app._read_wg_profile_text = lambda _name: (
+        0,
+        "[Peer]\nEndpoint=198.51.100.10:51820\n",
+    )
 
     def fake_run_cmd(args, timeout=0, text=True):
         if args == ["sudo", "-n", "ufw", "status"]:
@@ -2122,15 +2116,18 @@ def test_killswitch_off_sync_fails_when_rules_remain_present(monkeypatch):
     monkeypatch.setattr(netmon, "run_cmd", fake_run_cmd)
 
     assert app._killswitch_off_sync(refresh_ui=False) is False
-    assert any("Deaktivierung unvollstaendig" in entry for entry in logs)
+    assert any("Deaktivierung fehlgeschlagen" in entry for entry in logs)
 
 
-def test_recover_preserving_killswitch_reasserts_when_killswitch_active():
+def test_recover_preserving_killswitch_reasserts_when_killswitch_active(monkeypatch):
     app = netmon.App.__new__(netmon.App)
     events = []
-    app.killswitch_is_on = lambda: True
-    app._killswitch_on_sync = (
-        lambda refresh_ui=True: events.append(("sync", refresh_ui)) or True
+    app.firewall_snapshots = SimpleNamespace(state=lambda: "on")
+    app.killswitch_is_on = lambda: False  # Stale after teardown: not authority.
+    monkeypatch.setattr(
+        netmon.firewall_controller,
+        "killswitch_on_sync",
+        lambda _app, **kw: events.append(("sync", kw)) or True,
     )
     app._recover_firewall_after_killswitch_failure = lambda: events.append("open")
 
@@ -2138,23 +2135,21 @@ def test_recover_preserving_killswitch_reasserts_when_killswitch_active():
 
     # Aktiver Killswitch: deny-outgoing wird per Re-Sync erhalten,
     # NICHT auf allow-outgoing geoeffnet.
-    assert events == [("sync", False)]
+    assert events == [("sync", {"refresh_ui": False, "require_active": True})]
 
 
-def test_recover_preserving_killswitch_opens_when_killswitch_inactive():
+def test_recover_preserving_killswitch_does_not_close_unverified_firewall():
     app = netmon.App.__new__(netmon.App)
     events = []
     app.killswitch_is_on = lambda: False
     app._killswitch_on_sync = (
         lambda refresh_ui=True: events.append(("sync", refresh_ui)) or True
     )
-    app._recover_firewall_after_killswitch_failure = lambda: events.append("open")
+    app._recover_firewall_after_killswitch_failure = lambda: events.append("recovery")
 
     app._recover_firewall_preserving_killswitch()
 
-    # Ohne aktiven Killswitch wird wie bisher auf allow-outgoing zurueckgesetzt,
-    # damit sich der Nutzer nicht selbst aussperrt.
-    assert events == ["open"]
+    assert events == []
 
 
 def test_vpn_switch_empty_target_preserves_active_killswitch(monkeypatch):
@@ -2173,7 +2168,5 @@ def test_vpn_switch_empty_target_preserves_active_killswitch(monkeypatch):
     app._recover_firewall_after_killswitch_failure = lambda: events.append("open")
 
     assert app.vpn_switch("", ensure_sudo=False, refresh_ui=True) is False
-    # Fehlgeschlagener Slot-Wechsel bei aktivem Killswitch darf die
-    # Firewall nicht still oeffnen.
-    assert events == [("sync", False)]
-    assert "open" not in events
+    # An invalid selection must neither open nor reconfigure an active guard.
+    assert events == []

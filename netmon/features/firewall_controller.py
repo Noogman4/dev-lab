@@ -3,14 +3,30 @@
 from __future__ import annotations
 
 import importlib
+import hashlib
 import ipaddress
 import re
 import threading
+import time
 import tkinter as tk
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
+from functools import wraps
 from tkinter import messagebox, ttk
 
 from . import vpn_controller
+
+try:
+    from netmon.core import nm_ownership
+    from netmon.core.killswitch_journal import KillswitchJournal as KillswitchJournal
+    from netmon.core.killswitch_journal import PENDING
+    from netmon.core.ufw_snapshot import UfwSnapshotClient as UfwSnapshotClient
+    from netmon.core.ufw_snapshot import SnapshotError, valid_interface_name
+except ModuleNotFoundError:
+    from core import nm_ownership
+    from core.killswitch_journal import KillswitchJournal as KillswitchJournal
+    from core.killswitch_journal import PENDING
+    from core.ufw_snapshot import UfwSnapshotClient as UfwSnapshotClient
+    from core.ufw_snapshot import SnapshotError, valid_interface_name
 
 try:
     from netmon.core.utils import call_in_ui_thread
@@ -25,6 +41,26 @@ except ModuleNotFoundError:
 
 def _app_value(app, name, default=None):
     return app.__dict__.get(name, default)
+
+
+def firewall_implementation_identity():
+    """Record file identities at startup to distinguish same-version installs."""
+    paths = {
+        "controller": __file__,
+        "snapshot": importlib.import_module(UfwSnapshotClient.__module__).__file__,
+        "executed_helper": importlib.import_module(UfwSnapshotClient.__module__).HELPER,
+        "app": importlib.import_module("netmon.app").__file__,
+        "vpn": importlib.import_module("netmon.features.vpn_controller").__file__,
+    }
+    parts = []
+    for label, path in paths.items():
+        try:
+            with open(path, "rb") as stream:
+                digest = hashlib.sha256(stream.read()).hexdigest()
+        except OSError:
+            digest = "unreadable"
+        parts.append(f"{label}={path} file_sha256={digest}")
+    return "[FirewallDiag] " + " | ".join(parts)
 
 
 def _app_var_get(app, name, default=""):
@@ -158,12 +194,19 @@ def extract_ip_port_proto_from_ufw_to(to_text):
     port_val = None
     proto_val = ""
 
-    m = re.search(r"(?P<port>\d{1,5})/(?P<proto>tcp|udp)\b", text, re.IGNORECASE)
+    ports = r"\d{1,5}(?::\d{1,5})?(?:,\d{1,5}(?::\d{1,5})?)*"
+    m = re.search(
+        rf"(?:^|\s)(?P<port>{ports})/(?P<proto>tcp|udp)(?=\s|$)", text, re.IGNORECASE
+    )
     if m:
         port_val = m.group("port")
         proto_val = m.group("proto").lower()
     else:
-        m_port = re.search(r"\bport\s+(?P<port>\d{1,5})\b", text, re.IGNORECASE)
+        m_port = re.search(rf"\bport\s+(?P<port>{ports})(?=\s|$)", text, re.IGNORECASE)
+        if not m_port:
+            # Without /proto UFW renders a standalone destination port.
+            # Restrict this to the destination field, never address octets.
+            m_port = re.search(rf"(?:^|\s)(?P<port>{ports})(?=\s|$)", text)
         if m_port:
             port_val = m_port.group("port")
 
@@ -232,20 +275,20 @@ def is_ufw_non_rule_line(line):
     if set(compact.split()) <= header_tokens and len(compact.split()) >= 2:
         return True
 
-    if re.fullmatch(r"[-=]{3,}.*", text):
+    if re.fullmatch(r"[-=\s]+", text):
         return True
 
     return False
 
 
 def parse_ufw_structured_rule(raw_line):
-    line = str(raw_line or "").strip()
+    line = str(raw_line or "").split("#", 1)[0].strip()
     if is_ufw_non_rule_line(line):
         return None
 
     line_norm = re.sub(r"\s+", " ", line).strip()
     action_match = re.search(
-        r"\b(ALLOW|DENY|REJECT)\b(?:\s+(IN|OUT))?\b",
+        r"\b(ALLOW|DENY|REJECT|LIMIT)\b(?:\s+(IN|OUT|FWD))?\b",
         line_norm,
         re.IGNORECASE,
     )
@@ -261,12 +304,18 @@ def parse_ufw_structured_rule(raw_line):
         return None
 
     is_ipv6 = "(v6)" in line.lower()
-    to_clean = re.sub(
-        r"\s+", " ", re.sub(r"\(v6\)", " ", to_field, flags=re.IGNORECASE)
-    ).strip()
-    from_clean = re.sub(
-        r"\s+", " ", re.sub(r"\(v6\)", " ", from_field, flags=re.IGNORECASE)
-    ).strip()
+    fields = []
+    logtype = ""
+    for value in (to_field, from_field):
+        value = re.sub(
+            r"\s+", " ", re.sub(r"\(v6\)", " ", value, flags=re.IGNORECASE)
+        ).strip()
+        marker = re.search(r"\s+\((log(?:-all)?)\)$", value, re.IGNORECASE)
+        if marker:
+            logtype = marker[1].lower()
+            value = value[: marker.start()].rstrip()
+        fields.append(value)
+    to_clean, from_clean = fields
 
     target_base, target_interface = split_ufw_interface_clause(to_clean)
     source_base, source_interface = split_ufw_interface_clause(from_clean)
@@ -293,6 +342,8 @@ def parse_ufw_structured_rule(raw_line):
         port_val=port_val,
         proto_val=proto_val,
     )
+    if logtype:
+        display = f"{display} ({logtype})"
 
     return {
         "direction": direction,
@@ -371,16 +422,17 @@ def ufw_rule_sort_key(rule):
     category = rule.get("category")
     policy = rule.get("policy") or ""
     direction = rule.get("direction") or ""
+    first_port = re.match(r"[0-9]+", str(rule.get("port") or ""))
+    port = int(first_port[0]) if first_port else 0
     if category == "interface":
         return ((rule.get("interface") or ""), direction, policy)
     if category == "standard_port":
-        port = int(rule.get("port") or 0)
         proto = rule.get("proto") or ""
         return (port, proto, direction, policy, rule.get("display") or "")
     if category == "vpn_endpoint":
         return (
             ip_sort_key(rule.get("ip")),
-            int(rule.get("port") or 0),
+            port,
             direction,
             policy,
         )
@@ -635,7 +687,22 @@ def _instance_override(app, name):
     return (getattr(app, "__dict__", {}) or {}).get(name)
 
 
+def _network_operation_method(app, name):
+    try:
+        method = object.__getattribute__(app, name)
+    except AttributeError:
+        return None
+    return method if callable(method) else None
+
+
 def _run_cmd(app, args, timeout=0, text=True):
+    transaction = _instance_override(app, "_active_firewall_snapshot")
+    if (
+        transaction is not None
+        and list(args[:3]) == ["sudo", "-n", "ufw"]
+        and list(args[3:4]) != ["status"]
+    ):
+        return transaction.run(args, timeout=timeout, text=text)
     override = _instance_override(app, "run_cmd")
     if callable(override):
         return override(args, timeout=timeout, text=text)
@@ -652,6 +719,9 @@ def _run_cmd(app, args, timeout=0, text=True):
 
 
 def _network_service_for(app):
+    transaction = _instance_override(app, "_active_firewall_snapshot")
+    if transaction is not None:
+        return transaction
     override = _instance_override(app, "_network_service")
     if callable(override):
         try:
@@ -665,6 +735,10 @@ def _network_service_for(app):
         except Exception:
             return None
     return None
+
+
+def _snapshot_client_for(app):
+    return _instance_override(app, "firewall_snapshots") or UfwSnapshotClient()
 
 
 def get_killswitch_vpn_profiles(app):
@@ -707,12 +781,55 @@ def get_killswitch_vpn_endpoints(app):
     return endpoints
 
 
+def select_killswitch_vpn_endpoints(app, status_text, *, referenced_profiles=None):
+    """Use the same selected endpoints for apply and diagnostic verification."""
+    provider = _network_operation_method(app, "get_killswitch_vpn_endpoints")
+    candidates = (
+        list(provider()) if callable(provider) else get_killswitch_vpn_endpoints(app)
+    )
+    if callable(_instance_override(app, "get_killswitch_vpn_endpoints")):
+        return candidates  # Explicit injected providers supply a selected plan.
+    profile_provider = _instance_override(app, "get_killswitch_vpn_profiles")
+    if callable(profile_provider):
+        referenced_profiles = profile_provider()
+    elif referenced_profiles is None:
+        collect = _network_operation_method(app, "_collect_referenced_vpn_profiles")
+        referenced_profiles = (
+            collect(include_active=True)
+            if callable(collect)
+            else get_killswitch_vpn_profiles(app)
+        )
+    selected = {
+        _endpoint_key(*app.parse_vpn_endpoint(profile))
+        for profile in referenced_profiles
+    }
+    for line in (status_text or "").splitlines():
+        rule = parse_ufw_structured_rule(line)
+        if (
+            rule
+            and rule["policy"] == "ALLOW"
+            and rule["direction"] == "OUT"
+            and rule["proto"] == "udp"
+            and not rule["interface"]
+            and rule["from"].lower() in {"anywhere", "any", "0.0.0.0/0", "::/0"}
+            and rule["ip"]
+        ):
+            selected.add(_endpoint_key(rule["ip"], rule["port"]))
+    return [
+        endpoint
+        for endpoint in candidates
+        if _endpoint_key(*endpoint) is not None and _endpoint_key(*endpoint) in selected
+    ]
+
+
 def verify_killswitch_rules(
     app,
     status_text,
     enabled,
     wg_ifaces=None,
     handshake_rules=None,
+    *,
+    allow_empty_plan=False,
 ):
     wg_ifaces = sorted(
         {str(iface).strip() for iface in (wg_ifaces or []) if str(iface).strip()}
@@ -730,14 +847,14 @@ def verify_killswitch_rules(
         issues.append("UFW ist nicht aktiv.")
         return False, issues
 
+    first_interface_out = {}
     for line in status_text.splitlines():
         rule = parse_ufw_structured_rule(line)
-        if rule and (
-            rule["policy"] in {"DENY", "REJECT"}
-            and not rule["interface"]
-            and rule["to"] == "Anywhere"
-            and rule["from"] == "Anywhere"
-        ):
+        if rule and rule["direction"] == "OUT" and rule["interface"]:
+            first_interface_out.setdefault((rule["is_ipv6"], rule["interface"]), rule)
+        if rule is None and not is_ufw_non_rule_line(line):
+            issues.append("UFW-Regel konnte nicht sicher ausgewertet werden.")
+        if _is_global_block(rule):
             issues.append(
                 "Globale Sperrregel vorhanden; manuelle UFW-Pruefung erforderlich."
             )
@@ -754,7 +871,7 @@ def verify_killswitch_rules(
             issues.append("Loopback-IN-Regel fehlt.")
         if not app._ufw_has_interface_rule(status_text, "lo", "out"):
             issues.append("Loopback-OUT-Regel fehlt.")
-        if not wg_ifaces and not handshake_rules:
+        if not wg_ifaces and not handshake_rules and not allow_empty_plan:
             issues.append("Weder WireGuard-Interface noch Handshake-Regel vorhanden.")
         for wg_if in wg_ifaces:
             if not app._ufw_has_interface_rule(status_text, wg_if, "in"):
@@ -770,13 +887,33 @@ def verify_killswitch_rules(
                 issues.append(
                     f"Handshake-Regel fehlt fuer {endpoint_ip}:{endpoint_port}/udp."
                 )
+        # Interface-bound rules on the active tunnels are not global grants.
+        # A blocked interface must have an unrestricted leading DENY in both
+        # families before its service rules receive the same treatment.
+        safe_bound_interfaces = {"lo", *wg_ifaces}
+        anywhere = {"anywhere", "any", "0.0.0.0/0", "::/0"}
+        for iface in {key[1] for key in first_interface_out}:
+            if all(
+                (rule := first_interface_out.get((ipv6, iface)))
+                and rule["policy"] == "DENY"
+                and rule["to"].lower() in anywhere
+                and rule["from"].lower() in anywhere
+                for ipv6 in (False, True)
+            ):
+                safe_bound_interfaces.add(iface)
         for port, proto in (
             ("53", "udp"),
             ("53", "tcp"),
             ("80", "tcp"),
             ("443", "tcp"),
         ):
-            if ufw_has_outgoing_port_rule(status_text, port, proto):
+            if ufw_has_outgoing_port_rule(
+                status_text,
+                port,
+                proto,
+                handshake_rules=handshake_rules,
+                ignore_interfaces=safe_bound_interfaces,
+            ):
                 issues.append(
                     f"Globale OUT-Regel {port}/{proto} hebt den Killswitch auf."
                 )
@@ -806,21 +943,325 @@ def verify_killswitch_rules(
     return not issues, issues
 
 
+def _is_global_block(rule):
+    anywhere = {"anywhere", "0.0.0.0/0", "::/0"}
+    return bool(
+        rule
+        and rule["policy"] in {"DENY", "REJECT"}
+        and rule["direction"] in {"IN", "OUT"}
+        and not rule["interface"]
+        and rule["to"].lower() in anywhere
+        and rule["from"].lower() in anywhere
+    )
+
+
+def _journal_phase(app):
+    journal = _instance_override(app, "killswitch_journal")
+    return journal.phase() if journal is not None else "absent"
+
+
+def _journal_mark(app, phase):
+    journal = _instance_override(app, "killswitch_journal")
+    try:
+        if journal is not None:
+            journal.mark(phase)
+        return True
+    except (OSError, ValueError):
+        app.killswitch_recovery_required = True
+        app.log_safe(
+            "Killswitch-Zustand konnte nicht dauerhaft gespeichert werden; manuelle Prüfung erforderlich."
+        )
+        return False
+
+
+def _protected_closed_plan(app):
+    snapshots = _instance_override(app, "firewall_snapshots")
+    if snapshots is None:
+        return False
+    try:
+        result = snapshots.request("state", {})
+        return result.get("state") == "on" and result.get("closed") is True
+    except Exception:
+        return False
+
+
+def classify_killswitch_state(app, status_text, *, phase="absent"):
+    """Diagnostic state only; never establishes ownership or authorizes cleanup."""
+    if phase in PENDING or _app_value(app, "killswitch_recovery_required", False):
+        return "recovery"
+    if any(
+        _is_global_block(parse_ufw_structured_rule(line))
+        for line in status_text.splitlines()
+    ):
+        return "recovery"
+    try:
+        ifaces = sorted(set(app.get_wg_interfaces()))
+        endpoints = select_killswitch_vpn_endpoints(app, status_text)
+        enabled, _ = verify_killswitch_rules(
+            app,
+            status_text,
+            True,
+            ifaces,
+            endpoints,
+            allow_empty_plan=not ifaces
+            and not endpoints
+            and _protected_closed_plan(app),
+        )
+        if enabled:
+            return "on"
+        disabled, _ = verify_killswitch_rules(
+            app, status_text, False, ifaces, endpoints
+        )
+        return "off" if disabled else "unknown"
+    except Exception:
+        return "unknown"
+
+
+def killswitch_state(app):
+    phase = _journal_phase(app)
+    if _app_value(app, "_killswitch_transition_running", False) and phase not in {
+        "recovery_required",
+        "unreadable",
+    }:
+        return "transition"
+    if phase in PENDING or _app_value(app, "killswitch_recovery_required", False):
+        return "recovery"
+    snapshots = _instance_override(app, "firewall_snapshots")
+    protected_state = "absent"
+    if snapshots is not None:
+        protected_state = snapshots.state()
+        if protected_state not in {"absent", "off", "reviewed"}:
+            return protected_state
+    try:
+        with app.ufw_lock:
+            rc, out = app._read_ufw_status(verbose=True)
+        if (phase == "manual_reviewed" or protected_state == "reviewed") and rc == 0:
+            return (
+                "recovery"
+                if any(
+                    _is_global_block(parse_ufw_structured_rule(line))
+                    for line in out.splitlines()
+                )
+                else "reviewed"
+            )
+        if protected_state == "off" and rc == 0:
+            return (
+                "recovery"
+                if any(
+                    _is_global_block(parse_ufw_structured_rule(line))
+                    for line in out.splitlines()
+                )
+                else "off"
+            )
+        return (
+            classify_killswitch_state(app, out, phase=phase) if rc == 0 else "unknown"
+        )
+    except Exception:
+        return "unknown"
+
+
+def cached_killswitch_state(app):
+    """Never wait for a sudo/root RPC in Tk refresh; publish a bounded-age sample."""
+    if _app_value(app, "_killswitch_transition_running", False):
+        return "transition"
+    if _journal_phase(app) in PENDING or _app_value(
+        app, "killswitch_recovery_required", False
+    ):
+        return "recovery"
+    lock = app.__dict__.setdefault("_killswitch_status_lock", threading.Lock())
+    with lock:
+        sample = app.__dict__.get("_killswitch_cached_state", (0, "unknown"))
+        if time.monotonic() - sample[0] > 3 and not app.__dict__.get(
+            "_killswitch_status_worker"
+        ):
+            app._killswitch_status_worker = True
+            generation = app.__dict__.get("_killswitch_status_generation", 0)
+
+            def observe():
+                try:
+                    state = killswitch_state(app)
+                    with lock:
+                        if generation == app.__dict__.get(
+                            "_killswitch_status_generation", 0
+                        ):
+                            app._killswitch_cached_state = (time.monotonic(), state)
+                finally:
+                    app._killswitch_status_worker = False
+
+            threading.Thread(target=observe, daemon=True).start()
+        return sample[1] if time.monotonic() - sample[0] < 10 else "unknown"
+
+
+def _invalidate_killswitch_cache(app):
+    app._killswitch_status_generation = (
+        app.__dict__.get("_killswitch_status_generation", 0) + 1
+    )
+    app.__dict__.pop("_killswitch_cached_state", None)
+
+
+def unrelated_ufw_writes_blocked(app):
+    if _instance_override(
+        app, "_active_firewall_snapshot"
+    ) is not None or firewall_recovery_pending(app):
+        return True
+    snapshots = _instance_override(app, "firewall_snapshots")
+    if snapshots is None:
+        return False
+    state = snapshots.state()
+    if state == "on":
+        return True
+    # An old installed Killswitch may predate protected snapshots.
+    rc, text = app._read_ufw_status(verbose=True)
+    if rc != 0:
+        return True
+    if any(
+        _is_global_block(parse_ufw_structured_rule(row)) for row in text.splitlines()
+    ):
+        return True
+    # Ordinary VPN allowances after OFF must not become pending restoration.
+    # Retain the recognizable legacy Killswitch fence without assuming ownership.
+    return ufw_default_policy_matches(text, outgoing="deny") and all(
+        ufw_has_interface_rule(text, "lo", direction) for direction in ("in", "out")
+    )
+
+
+def guarded_ufw_command(app, args, *, runner=None, lock_held=False, **kwargs):
+    runner = runner or run_cmd
+    tokens = list(args)
+    indices = [
+        i for i, token in enumerate(tokens) if str(token).rsplit("/", 1)[-1] == "ufw"
+    ]
+    if not indices or tokens[indices[0] + 1 : indices[0] + 2] in (
+        ["status"],
+        ["show"],
+        ["version"],
+    ):
+        return runner(tokens, **kwargs)
+    lock = app.__dict__.setdefault("ufw_lock", threading.Lock())
+    with nullcontext() if lock_held else lock:
+        if unrelated_ufw_writes_blocked(app):
+            return (
+                1,
+                "UFW-Schreibzugriff gesperrt: Killswitch aktiv oder Wiederherstellung ungeklärt.",
+            )
+        return runner(tokens, **kwargs)
+
+
+def unrelated_ufw_operation(function):
+    """Hold the shared operation coordinator across multi-step UFW changes."""
+
+    @wraps(function)
+    def guarded(app, *args, **kwargs):
+        begin = _network_operation_method(app, "_try_begin_network_operation")
+        if begin is not None and not begin("UFW-Einstellungen ändern"):
+            return False
+        try:
+            if unrelated_ufw_writes_blocked(app):
+                app.log_safe(
+                    "UFW-Einstellungen gesperrt: Killswitch aktiv oder Wiederherstellung ungeklärt."
+                )
+                return False
+            return function(app, *args, **kwargs)
+        finally:
+            if begin is not None:
+                end = _network_operation_method(app, "_end_network_operation")
+                if end is not None:
+                    end()
+
+    return guarded
+
+
+def acknowledge_manual_firewall_review(app):
+    if not app._confirm_danger_action(
+        "killswitch:manual-review",
+        title="Firewall manuell geprüft",
+        prompt="Nur nach eigener Prüfung beider Adressfamilien bestätigen. "
+        "Diese Aktion beendet die Wiederherstellungsmarkierung, verändert keine "
+        "UFW-Regeln und stellt keine frühere Konfiguration wieder her. "
+        "Eine noch aktive Sicherung wird geschützt archiviert und für weitere "
+        "automatische Rollbacks stillgelegt. Zuvor müssen die ursprünglichen "
+        "Policies wiederhergestellt und alle zusätzlichen Schnittstellen-DROP-Regeln "
+        "zurückgenommen sein. Andere bewusst beibehaltene Admin-Regeln bleiben erhalten.",
+        cooldown_s=0,
+        require_phrase="MANUELL GEPRUEFT",
+    ):
+        return False
+
+    def finish():
+        begin = _network_operation_method(app, "_try_begin_network_operation")
+        if begin is not None and not begin("Firewallprüfung abschließen"):
+            return False
+        try:
+            with app.ufw_lock:
+                _snapshot_client_for(app).acknowledge()
+                if not _journal_mark(app, "manual_reviewed"):
+                    return False
+                app.killswitch_recovery_required = False
+                _invalidate_killswitch_cache(app)
+            app.log_safe(
+                "Manuelle Firewallprüfung bestätigt; nur die Wiederherstellungsmarkierung beendet. Keine Firewallregeln geändert und kein automatisches Rollback ausgeführt."
+            )
+            return True
+        except Exception as exc:
+            detail = str(exc) if isinstance(exc, SnapshotError) else type(exc).__name__
+            app.log_safe(f"Manuelle Firewallprüfung nicht abgeschlossen: {detail}.")
+            return False
+        finally:
+            end = _network_operation_method(app, "_end_network_operation")
+            if end is not None:
+                end()
+
+    app.run_async(finish, job_name="Firewallprüfung abschließen")
+    return True
+
+
+def firewall_recovery_pending(app):
+    if (
+        _app_value(app, "killswitch_recovery_required", False)
+        or _journal_phase(app) in PENDING
+    ):
+        return True
+    snapshots = _instance_override(app, "firewall_snapshots")
+    return snapshots is not None and snapshots.state() in {"recovery", "unknown"}
+
+
+def killswitch_status_label(app, state):
+    labels = {
+        "reviewed": (
+            "header_killswitch_reviewed",
+            "Killswitch: manuell geprüft; kein automatisches Rollback",
+        ),
+        "on": ("header_killswitch_on", "Killswitch: ON"),
+        "off": ("header_killswitch_off", "Killswitch: OFF"),
+        "recovery": (
+            "header_killswitch_recovery",
+            "Killswitch: WIEDERHERSTELLUNG NÖTIG",
+        ),
+        "unknown": ("header_killswitch_unknown", "Killswitch: UNBEKANNT"),
+        "transition": ("header_killswitch_transition", "Killswitch: WIRD GEÄNDERT"),
+    }
+    key, fallback = labels.get(state, labels["unknown"])
+    return app.tr(key, fallback)
+
+
 def killswitch_is_on(app):
     wg_ifaces = sorted(set(app.get_wg_interfaces()))
-    handshake_rules = get_killswitch_vpn_endpoints(app)
     with app.ufw_lock:
         rc, out = app._read_ufw_status(verbose=True)
 
     if rc != 0:
         return False
 
+    handshake_rules = select_killswitch_vpn_endpoints(app, out)
     verified, _issues = verify_killswitch_rules(
         app,
         out,
         enabled=True,
         wg_ifaces=wg_ifaces,
         handshake_rules=handshake_rules,
+        allow_empty_plan=not wg_ifaces
+        and not handshake_rules
+        and _protected_closed_plan(app),
     )
     return verified
 
@@ -864,6 +1305,53 @@ def _recover_killswitch_failure_locked(app):
     manual recovery instead of guessing the previous policy. Never delete rules
     here: their ownership/pre-existence is unknown.
     """
+    snapshots = _snapshot_client_for(app)
+    owns_transaction = _instance_override(app, "_active_firewall_snapshot") is None
+    try:
+        if owns_transaction:
+            snapshots.begin()
+            app._active_firewall_snapshot = snapshots
+        abort = getattr(snapshots, "abort_unmodified", None)
+        if callable(abort) and abort():
+            app.killswitch_recovery_required = False
+            _journal_mark(app, "off_verified")
+            if owns_transaction:
+                app.__dict__.pop("_active_firewall_snapshot", None)
+            app.log_safe(
+                "Killswitch-Vorgang vor einer verbleibenden Firewalländerung abgebrochen; keine Notfallsperre gesetzt."
+            )
+            return False
+        snapshots.recovery()
+    except Exception:
+        if owns_transaction:
+            app.__dict__.pop("_active_firewall_snapshot", None)
+        retired_off = False
+        if not owns_transaction:
+            try:
+                state = snapshots.request("state", {})
+                retired_off = (
+                    isinstance(state, dict)
+                    and state.get("state") == "off"
+                    and state.get("retired") is True
+                )
+            except Exception:
+                pass
+        if retired_off:
+            app.log_safe(
+                "Killswitch-Abgleich durch zwischenzeitlich bestätigtes AUS abgebrochen. "
+                "Aktuelle Firewall-Regeln müssen geprüft werden. Eine verbleibende "
+                "Wiederherstellungsmarkierung kann nach eigener Prüfung beider "
+                "Adressfamilien im Killswitch-Menü über "
+                "„Wiederherstellung manuell geprüft …“ abgeschlossen werden."
+            )
+            return False
+        app.log_safe(
+            "UFW-Notfallsperre nicht verifiziert: geschützter Snapshotpfad nicht verfügbar; manuelle Wiederherstellung erforderlich."
+        )
+        return False
+    # A protected transaction must exist before a recovery marker can persist.
+    app.killswitch_recovery_required = True
+    _journal_mark(app, "recovery_required")
     network_service = _network_service_for(app)
     commands = [
         ["insert", "1", "deny", "out", "from", "any", "to", "any"],
@@ -880,10 +1368,18 @@ def _recover_killswitch_failure_locked(app):
                 rc, _out = network_service.run(args, timeout=20)
             else:
                 rc, _out = _run_cmd(app, args, timeout=20)
-            failures |= rc != 0
         except Exception:  # noqa: BLE001 - recovery must continue after runner errors
-            # Try the remaining restrictions even if one runner call raises.
-            failures = True
+            rc = 1
+        if rc and command[:2] == ["insert", "1"]:
+            fallback = ["sudo", "-n", "ufw", *command[2:]]
+            try:
+                if network_service is not None:
+                    rc, _out = network_service.run(fallback, timeout=20)
+                else:
+                    rc, _out = _run_cmd(app, fallback, timeout=20)
+            except Exception:
+                rc = 1
+        failures |= rc != 0
     try:
         rc, status = app._read_ufw_status(verbose=True)
         verified = rc == 0 and _killswitch_failure_is_closed(status)
@@ -901,6 +1397,8 @@ def _recover_killswitch_failure_locked(app):
             "verifiziert werden; Netzwerkschutz ist NICHT garantiert."
         )
     )
+    if owns_transaction:
+        app.__dict__.pop("_active_firewall_snapshot", None)
     return verified and not failures
 
 
@@ -921,7 +1419,12 @@ def recover_firewall_after_killswitch_failure(app):
         lock = threading.Lock()
         app.ufw_lock = lock
     with lock:
-        return _recover_killswitch_failure_locked(app)
+        prior_transaction = _instance_override(app, "_active_firewall_snapshot")
+        try:
+            return _recover_killswitch_failure_locked(app)
+        finally:
+            if prior_transaction is None:
+                app.__dict__.pop("_active_firewall_snapshot", None)
 
 
 def _read_ufw_status_numbered(app):
@@ -1054,8 +1557,8 @@ def _remove_residual_killswitch_rules(app, wg_ifaces, handshake_rules, *, strict
     return removed
 
 
-def killswitch_on_sync(app, refresh_ui=True):
-    begin_op = _instance_override(app, "_try_begin_network_operation")
+def killswitch_on_sync(app, refresh_ui=True, *, require_active=False):
+    begin_op = _network_operation_method(app, "_try_begin_network_operation")
     if callable(begin_op):
         started = begin_op("Killswitch aktivieren")
     else:
@@ -1066,53 +1569,87 @@ def killswitch_on_sync(app, refresh_ui=True):
         return False
     refresh_after_failure = False
     try:
-        collect_profiles = _instance_override(app, "_collect_referenced_vpn_profiles")
+        app._killswitch_transition_running = True
+        _invalidate_killswitch_cache(app)
+        collect_profiles = _network_operation_method(
+            app, "_collect_referenced_vpn_profiles"
+        )
         if callable(collect_profiles):
             referenced_profiles = collect_profiles(include_active=True)
         else:
-            profile_provider = _instance_override(app, "get_killswitch_vpn_profiles")
+            profile_provider = _network_operation_method(
+                app, "get_killswitch_vpn_profiles"
+            )
             referenced_profiles = (
                 list(profile_provider()) if callable(profile_provider) else []
             )
-        collect_ifaces = _instance_override(
-            app, "_collect_interface_rules_for_profiles"
+        catalog = _network_operation_method(app, "list_wg_profiles")
+        known_profiles = set(referenced_profiles) | (
+            set(catalog()) if catalog else set()
         )
-        if callable(collect_ifaces):
-            wg_ifaces = sorted(set(collect_ifaces(referenced_profiles)))
+        profile_ifaces = set(known_profiles)
+        resolver = _network_operation_method(app, "resolve_profile_family_runtime")
+        resolved_profiles = {}
+        if resolver is not None:
+            for profile in sorted(known_profiles):
+                resolved = resolver(
+                    profile, log_missing=False, create_missing_ipv4=False
+                )
+                resolved_profiles[profile] = resolved
+                # Configuration determines what must be fenced; only the
+                # protected live identity check may authorize a grant.
+                profile_ifaces.update(
+                    str(resolved.get(key) or "").strip()
+                    for key in ("effective_ipv4_interface", "effective_ipv6_interface")
+                    if str(resolved.get(key) or "").strip()
+                )
+                # Existing family variants can have grants left from a prior
+                # IPv6 setting, even when they are not the effective interface.
+                profile_ifaces.update(
+                    str(name).strip()
+                    for name in resolved.get("endpoint_profiles", [])
+                    if str(name).strip()
+                )
         else:
-            wg_ifaces = []
+            collect_ifaces = _network_operation_method(
+                app, "_collect_interface_rules_for_profiles"
+            )
+            if collect_ifaces:
+                profile_ifaces.update(collect_ifaces(referenced_profiles))
+        known_ifaces = profile_ifaces | set(app.get_wg_interfaces())
+        invalid_ifaces = {
+            name for name in known_ifaces if not valid_interface_name(name)
+        }
+        for name in sorted(invalid_ifaces):
+            app.log_safe(
+                f"Killswitch: Profil-/Interface-Name {name!r} ist kein zulässiger Interface-Name; keine Interface-Regel dafür geplant."
+            )
+        profile_ifaces -= invalid_ifaces
+        known_ifaces -= invalid_ifaces
         wg_ifaces = sorted(
             vpn_controller._verified_firewall_interfaces(
-                app, set(wg_ifaces) | set(app.get_wg_interfaces())
+                app,
+                {
+                    iface
+                    for iface in known_ifaces
+                    if nm_ownership.verified_interface(iface)
+                },
             )
         )
-        endpoint_provider = _instance_override(app, "get_killswitch_vpn_endpoints")
-        if callable(endpoint_provider):
-            handshake_rules = sorted(set(endpoint_provider()))
-        else:
-            handshake_rules = sorted(set(get_killswitch_vpn_endpoints(app)))
-        log_debug = _instance_override(app, "log_debug")
-        resolver = _instance_override(app, "resolve_profile_family_runtime")
+        blocked_ifaces = sorted(profile_ifaces - set(wg_ifaces) - {"lo"})
+        log_debug = _network_operation_method(app, "log_debug")
+        resolver = _network_operation_method(app, "resolve_profile_family_runtime")
         for profile in referenced_profiles:
             if not callable(log_debug) or not callable(resolver):
                 break
-            resolved = resolver(profile, log_missing=False)
+            resolved = resolved_profiles[profile]
             log_debug(
                 f"[DEBUG] UFW-Regeln für {profile} basieren auf "
                 f"IPv4={resolved.get('effective_ipv4_interface') or '-'}, "
                 f"IPv6={resolved.get('effective_ipv6_interface') or 'None'}"
             )
-        if not wg_ifaces and not handshake_rules:
-            app.log_safe(
-                app.tr(
-                    "killswitch_log_no_profile_with_endpoint",
-                    "Kein WireGuard-Profil mit Endpoint gefunden – Killswitch kann nicht aktiviert werden.",
-                )
-            )
-            return False
-
         non_ip_endpoints = []
-        collector = _instance_override(app, "collect_non_ip_endpoint_profiles")
+        collector = _network_operation_method(app, "collect_non_ip_endpoint_profiles")
         if callable(collector):
             try:
                 non_ip_endpoints = list(collector(referenced_profiles) or [])
@@ -1131,18 +1668,16 @@ def killswitch_on_sync(app, refresh_ui=True):
                 "Betroffene Profile:\n{details}\n\n"
                 "Empfehlung: feste Endpoint-IP verwenden, wenn der Killswitch diese Verbindung absichern soll.",
             ).format(details="\n".join(detail_lines) or "-")
-            try:
-                messagebox.showwarning(
-                    app.tr(
-                        "killswitch_warn_non_ip_endpoints_title",
-                        "Killswitch-Hinweis zu WireGuard-Endpoints",
-                    ),
-                    warning_text,
-                    parent=app,
+            notice = tuple(
+                sorted(
+                    (item.get("profile"), item.get("host"))
+                    for item in non_ip_endpoints
+                    if item.get("profile") and item.get("host")
                 )
-            except Exception:
-                pass
-            app.log_safe(warning_text)
+            )
+            if app.__dict__.get("_killswitch_non_ip_notice") != notice:
+                app.__dict__["_killswitch_non_ip_notice"] = notice
+                app.log_safe(warning_text)
 
         network_service = _network_service_for(app)
         with app.ufw_lock, _killswitch_apply_guard(app) as mutation:
@@ -1152,34 +1687,66 @@ def killswitch_on_sync(app, refresh_ui=True):
                     "Killswitch-Aktivierung abgebrochen: UFW-Status nicht lesbar."
                 )
                 return False
-            ufw_on = app._ufw_status_is_active(out_s)
-            mutation[0] = True
-            if not ufw_on:
-                if network_service is not None:
-                    rc_enable, out_enable = network_service.ufw_enable_force(timeout=20)
-                else:
-                    rc_enable, out_enable = _run_cmd(
-                        app,
-                        ["sudo", "-n", "ufw", "--force", "enable"],
-                        timeout=20,
+            if _journal_phase(app) in PENDING or _app_value(
+                app, "killswitch_recovery_required", False
+            ):
+                app.log_safe(
+                    "Killswitch-Aktivierung gesperrt: ungeklärte Wiederherstellung; bestehende Regeln bleiben erhalten."
+                )
+                return False
+            if any(
+                _is_global_block(parse_ufw_structured_rule(line))
+                for line in out_s.splitlines()
+            ):
+                app.log_safe(
+                    "Killswitch-Aktivierung gesperrt: globale Sperrregeln müssen zuerst manuell geprüft werden."
+                )
+                return False
+            # Only interfaces with existing rules need a fence. A large catalog
+            # of unused profiles must not create redundant DROP rules or exceed
+            # the protected plan's bounded size.
+            existing_ifaces = {
+                rule["interface"]
+                for line in out_s.splitlines()
+                if (rule := parse_ufw_structured_rule(line)) and rule["interface"]
+            }
+            blocked_ifaces = sorted(set(blocked_ifaces) & existing_ifaces)
+            handshake_rules = sorted(
+                set(
+                    select_killswitch_vpn_endpoints(
+                        app, out_s, referenced_profiles=referenced_profiles
                     )
-                if rc_enable != 0:
-                    app.log_safe(
-                        app.tr(
-                            "killswitch_log_enable_failed_ufw",
-                            "Killswitch-Aktivierung fehlgeschlagen: UFW konnte nicht aktiviert werden.",
-                        )
-                    )
-                    if out_enable:
-                        app.log_safe(out_enable)
-                    _recover_killswitch_failure_locked(app)
-                    return False
-
-            _remove_residual_killswitch_rules(
-                app, wg_ifaces, handshake_rules, strict=True
+                )
             )
+            closed_plan = not wg_ifaces and not handshake_rules
+            if closed_plan and not require_active:
+                app.log_safe(
+                    app.tr(
+                        "killswitch_log_no_selected_endpoint",
+                        "Kein nutzbarer Killswitch-Plan: kein ausgewähltes/aktives Profil mit IP-Endpoint, kein bestätigter Tunnel und keine passende bestehende Endpoint-Freigabe. Ungenutzte Katalogprofile allein reichen nicht.",
+                    )
+                )
+                return False
+            snapshots = _snapshot_client_for(app)
+            begin_options = {}
+            if blocked_ifaces:
+                begin_options["blocked_interfaces"] = blocked_ifaces
+            if require_active:
+                begin_options["require_active"] = True
+            snapshots.begin(wg_ifaces, handshake_rules, **begin_options)
+            app._active_firewall_snapshot = snapshots
+            network_service = snapshots
+            if not _journal_mark(app, "applying"):
+                return False
+            mutation[0] = True
 
+            # Keep existing grants; names alone do not prove NetMon ownership.
+            # Inactive/unverified profile interfaces receive a leading fence.
             cmds = [
+                ["sudo", "-n", "ufw", "insert", "1", "deny", direction, "on", iface]
+                for iface in blocked_ifaces
+                for direction in ("in", "out")
+            ] + [
                 ["sudo", "-n", "ufw", "default", "deny", "outgoing"],
                 ["sudo", "-n", "ufw", "default", "deny", "incoming"],
                 ["sudo", "-n", "ufw", "allow", "in", "on", "lo"],
@@ -1211,6 +1778,17 @@ def killswitch_on_sync(app, refresh_ui=True):
 
             command_failures = []
             for cmd in cmds:
+                if (
+                    cmd[3:5] in (["allow", "in"], ["allow", "out"])
+                    and len(cmd) == 7
+                    and cmd[5] == "on"
+                    and cmd[6] != "lo"
+                    and not nm_ownership.verified_interface(cmd[6])
+                ):
+                    command_failures.append(
+                        (cmd, "WireGuard-Identitaet nicht bestaetigt")
+                    )
+                    break
                 if network_service is not None:
                     rc_cmd, out_cmd = network_service.run(cmd, timeout=20)
                 else:
@@ -1254,6 +1832,7 @@ def killswitch_on_sync(app, refresh_ui=True):
                 enabled=True,
                 wg_ifaces=wg_ifaces,
                 handshake_rules=handshake_rules,
+                **({"allow_empty_plan": True} if closed_plan else {}),
             )
             if not verified:
                 app.log_safe(
@@ -1268,6 +1847,16 @@ def killswitch_on_sync(app, refresh_ui=True):
                 _recover_killswitch_failure_locked(app)
                 refresh_after_failure = refresh_ui
                 return False
+
+            if not _journal_mark(app, "active"):
+                _recover_killswitch_failure_locked(app)
+                return False
+            try:
+                snapshots.commit()
+            except Exception:
+                _recover_killswitch_failure_locked(app)
+                return False
+            app.__dict__.pop("_vpn_firewall_sync_pending", None)
 
         for endpoint_ip, endpoint_port in handshake_rules:
             app.log_safe(
@@ -1284,6 +1873,10 @@ def killswitch_on_sync(app, refresh_ui=True):
                     "Killswitch AN – nur Traffic über {ifaces}, Loopback und WireGuard-Handshake erlaubt.",
                 ).format(ifaces=allowed_ifaces)
             )
+        elif closed_plan:
+            app.log_safe(
+                "Killswitch AN – kein Tunnel oder Handshake-Ziel freigegeben; nur Loopback erlaubt."
+            )
         else:
             app.log_safe(
                 app.tr(
@@ -1295,12 +1888,16 @@ def killswitch_on_sync(app, refresh_ui=True):
             app.refresh_safe()
         return True
     except Exception as exc:  # noqa: BLE001 - expose activation failure after recovery
-        app.log_safe(f"Killswitch-Aktivierung fehlgeschlagen: {type(exc).__name__}")
+        detail = str(exc) if isinstance(exc, SnapshotError) else type(exc).__name__
+        app.log_safe(f"Killswitch-Aktivierung fehlgeschlagen: {detail}")
         if refresh_ui:
             app.refresh_safe()
         return False
     finally:
-        end_op = _instance_override(app, "_end_network_operation")
+        app._killswitch_transition_running = False
+        _invalidate_killswitch_cache(app)
+        app.__dict__.pop("_active_firewall_snapshot", None)
+        end_op = _network_operation_method(app, "_end_network_operation")
         if callable(end_op):
             end_op()
         if refresh_after_failure:
@@ -1353,199 +1950,46 @@ def killswitch_on(
 
 
 def killswitch_off_sync(app, refresh_ui=True):
-    begin_op = _instance_override(app, "_try_begin_network_operation")
-    if callable(begin_op):
-        started = begin_op("Killswitch deaktivieren")
-    else:
-        started = True
-    if not started:
+    begin_op = _network_operation_method(app, "_try_begin_network_operation")
+    if callable(begin_op) and not begin_op("Killswitch deaktivieren"):
         if refresh_ui:
             app.refresh_safe()
         return False
     try:
-        network_service = _network_service_for(app)
+        app._killswitch_transition_running = True
+        _invalidate_killswitch_cache(app)
+        snapshots = _snapshot_client_for(app)
         with app.ufw_lock:
-            rc_s, out_s = app._read_ufw_status()
-            ufw_on = (rc_s == 0) and app._ufw_status_is_active(out_s)
-            if not ufw_on:
-                if network_service is not None:
-                    rc_enable, out_enable = network_service.ufw_enable_force(timeout=20)
-                else:
-                    rc_enable, out_enable = _run_cmd(
-                        app,
-                        ["sudo", "-n", "ufw", "--force", "enable"],
-                        timeout=20,
-                    )
-                if rc_enable != 0:
-                    app.log_safe(
-                        app.tr(
-                            "killswitch_log_disable_failed_ufw",
-                            "Killswitch-Deaktivierung fehlgeschlagen: UFW konnte nicht aktiviert werden.",
-                        )
-                    )
-                    if out_enable:
-                        app.log_safe(out_enable)
-                    return False
-
-            collect_profiles = _instance_override(
-                app, "_collect_referenced_vpn_profiles"
-            )
-            if callable(collect_profiles):
-                referenced_profiles = collect_profiles(include_active=True)
-            else:
-                list_profiles = _instance_override(app, "list_wg_profiles")
-                referenced_profiles = (
-                    list(list_profiles()) if callable(list_profiles) else []
-                )
-            collect_ifaces = _instance_override(
-                app, "_collect_interface_rules_for_profiles"
-            )
-            if callable(collect_ifaces):
-                configured_real_ifaces = set(collect_ifaces(referenced_profiles))
-            else:
-                configured_real_ifaces = set()
-            active_ifaces = {
-                str(iface).strip()
-                for iface in app.get_wg_interfaces()
-                if str(iface).strip()
-            }
-            wg_ifaces = sorted(configured_real_ifaces | active_ifaces)
-            wg_ifaces = sorted({w for w in wg_ifaces if w})
-            known_wg_ifaces = _known_killswitch_wg_ifaces(app, referenced_profiles)
-            endpoint_provider = _instance_override(app, "get_killswitch_vpn_endpoints")
-            if callable(endpoint_provider):
-                handshake_rules = sorted(set(endpoint_provider()))
-            else:
-                handshake_rules = sorted(set(get_killswitch_vpn_endpoints(app)))
-
-            _log_killswitch_numbered_debug(app, "vor Killswitch AUS")
-
-            cleanup_cmds = [
-                ["sudo", "-n", "ufw", "delete", "allow", "in", "on", "lo"],
-                ["sudo", "-n", "ufw", "delete", "allow", "out", "on", "lo"],
-                ["sudo", "-n", "ufw", "delete", "allow", "out", "53/udp"],
-                ["sudo", "-n", "ufw", "delete", "allow", "out", "53/tcp"],
-                ["sudo", "-n", "ufw", "delete", "allow", "out", "443/tcp"],
-                ["sudo", "-n", "ufw", "delete", "allow", "out", "80/tcp"],
-            ]
-            for wg_if in known_wg_ifaces:
-                cleanup_cmds.extend(
-                    [
-                        [
-                            "sudo",
-                            "-n",
-                            "ufw",
-                            "delete",
-                            "allow",
-                            "out",
-                            "on",
-                            wg_if,
-                        ],
-                        ["sudo", "-n", "ufw", "delete", "allow", "in", "on", wg_if],
-                    ]
-                )
-            for endpoint_ip, endpoint_port in handshake_rules:
-                cleanup_cmds.append(
-                    [
-                        "sudo",
-                        "-n",
-                        "ufw",
-                        "delete",
-                        "allow",
-                        "out",
-                        "to",
-                        endpoint_ip,
-                        "port",
-                        endpoint_port,
-                        "proto",
-                        "udp",
-                    ]
-                )
-
-            for cmd in cleanup_cmds:
-                if network_service is not None:
-                    network_service.run(cmd, timeout=20)
-                else:
-                    _run_cmd(app, cmd, timeout=20)
-
-            _remove_residual_killswitch_rules(app, known_wg_ifaces, handshake_rules)
-
-            default_cmds = [
-                ["sudo", "-n", "ufw", "default", "allow", "outgoing"],
-                ["sudo", "-n", "ufw", "default", "deny", "incoming"],
-            ]
-            command_failures = []
-            for cmd in default_cmds:
-                if network_service is not None:
-                    rc_cmd, out_cmd = network_service.run(cmd, timeout=20)
-                else:
-                    rc_cmd, out_cmd = _run_cmd(app, cmd, timeout=20)
-                if rc_cmd != 0:
-                    command_failures.append((cmd, out_cmd))
-
-            rc_v, out_v = app._read_ufw_status(verbose=True)
-
-        _log_killswitch_numbered_debug(app, "nach Killswitch AUS")
-
-        if command_failures:
-            failed_cmd = " ".join(command_failures[0][0][3:])
-            app.log_safe(
-                app.tr(
-                    "killswitch_log_disable_failed_command",
-                    "Killswitch-Deaktivierung fehlgeschlagen: UFW-Befehl fehlgeschlagen ({command}).",
-                ).format(command=failed_cmd)
-            )
-            failure_out = command_failures[0][1]
-            if failure_out:
-                app.log_safe(failure_out)
-            if refresh_ui:
-                app.refresh_safe()
-            return False
-
-        if rc_v != 0:
-            app.log_safe(
-                app.tr(
-                    "killswitch_log_disable_failed_verify",
-                    "Killswitch-Deaktivierung fehlgeschlagen: UFW-Status konnte nicht verifiziert werden.",
-                )
-            )
-            if out_v:
-                app.log_safe(out_v)
-            if refresh_ui:
-                app.refresh_safe()
-            return False
-
-        verified, issues = app._verify_killswitch_rules(
-            out_v,
-            enabled=False,
-            wg_ifaces=known_wg_ifaces,
-            handshake_rules=handshake_rules,
-        )
-        if not verified:
-            app.log_safe(
-                app.tr(
-                    "killswitch_log_disable_incomplete",
-                    "Killswitch-Deaktivierung unvollstaendig: UFW-Regeln entsprechen nicht dem erwarteten Endzustand.",
-                )
-            )
-            app.log_safe(
-                app.tr("label_details_prefix", "Details: ") + "; ".join(issues[:3])
-            )
-            if refresh_ui:
-                app.refresh_safe()
-            return False
-
+            # The protected helper persists restoring before its first write.
+            # Do not invent a pending mutation when sudo/helper/snapshot is absent.
+            snapshots.restore()
+            if snapshots.state() != "off":
+                raise RuntimeError("UFW snapshot restoration is not verified")
+            if not _journal_mark(app, "off_verified"):
+                return False
+            app.killswitch_recovery_required = False
+            app.__dict__.pop("_vpn_firewall_sync_pending", None)
         app.log_safe(
-            app.tr(
-                "killswitch_log_disabled",
-                "Killswitch AUS – UFW bleibt aktiv, normales Routing wieder erlaubt.",
-            )
+            "Killswitch AUS – vorheriger UFW-Zustand verifiziert wiederhergestellt; UFW bleibt aktiv."
         )
         if refresh_ui:
             app.refresh_safe()
         return True
+    except Exception as exc:
+        # A rejected request (including missing helper/snapshot) is not evidence
+        # that this OFF attempt changed the firewall. Root state stays authoritative.
+        if isinstance(exc, SnapshotError) and exc.code == "rollback_failed":
+            app.killswitch_recovery_required = True
+            _journal_mark(app, "recovery_required")
+        detail = str(exc) if isinstance(exc, SnapshotError) else type(exc).__name__
+        app.log_safe(
+            f"Killswitch-Deaktivierung fehlgeschlagen: {detail}; manuelle Prüfung erforderlich."
+        )
+        return False
     finally:
-        end_op = _instance_override(app, "_end_network_operation")
+        app._killswitch_transition_running = False
+        _invalidate_killswitch_cache(app)
+        end_op = _network_operation_method(app, "_end_network_operation")
         if callable(end_op):
             end_op()
 
@@ -1596,13 +2040,89 @@ def killswitch_off(
     return True
 
 
+SUDO_STATUS_BACKOFF_SECONDS = 30.0
+_SUDO_PASSWORD_REQUIRED = re.compile(
+    r"^sudo: .*(password|passwort)", re.IGNORECASE | re.MULTILINE
+)
+
+
+def begin_refresh_scope(app) -> dict:
+    """Passive display snapshot owned by the calling (refresh) thread only."""
+    scope = {}
+    app.__dict__["_ufw_status_scope"] = (threading.get_ident(), scope)
+    return scope
+
+
+def end_refresh_scope(app) -> None:
+    current = app.__dict__.get("_ufw_status_scope")
+    if isinstance(current, tuple) and current[0] == threading.get_ident():
+        app.__dict__.pop("_ufw_status_scope", None)
+
+
+def refresh_scope(app):
+    """The snapshot dict if the caller is the refresh that owns it, else None.
+
+    Other threads and every explicit operation (reconcile, switches, kill
+    switch, repairs) always read live and never see the sudo backoff.
+    """
+    if app is None:
+        return None
+    current = app.__dict__.get("_ufw_status_scope")
+    if (
+        isinstance(current, tuple)
+        and len(current) == 2
+        and current[0] == threading.get_ident()
+        and isinstance(current[1], dict)
+    ):
+        return current[1]
+    return None
+
+
+def sudo_status_backoff_active(app) -> bool:
+    """True only for passive refresh reads after a recent sudo password failure."""
+    if refresh_scope(app) is None:
+        return False
+    return time.monotonic() < float(app.__dict__.get("_ufw_sudo_backoff_until", 0.0))
+
+
+def note_ufw_status_result(app, rc, out) -> None:
+    """Remember a sudo password failure briefly; any success clears it.
+
+    Without this, the Tk refresh paid ~35 ms for a failing sudo three times
+    every 3 s (measured stall source in the visualizer window).
+    """
+    if app is None:
+        return
+    if rc == 0:
+        app.__dict__.pop("_ufw_sudo_backoff_until", None)
+    elif _SUDO_PASSWORD_REQUIRED.search(str(out or "")):
+        app.__dict__["_ufw_sudo_backoff_until"] = (
+            time.monotonic() + SUDO_STATUS_BACKOFF_SECONDS
+        )
+
+
 def read_ufw_status(app=None, verbose=False):
     cmd = ["sudo", "-n", "ufw", "status"]
     if verbose:
         cmd.append("verbose")
-    if app is not None:
-        return _run_cmd(app, cmd, timeout=12 if verbose else 8)
-    return run_cmd(cmd, timeout=12 if verbose else 8)
+    if app is None:
+        return run_cmd(cmd, timeout=12 if verbose else 8)
+    # One refresh cycle shares a single status snapshot per flavour; only the
+    # refresh thread itself uses it (see refresh_scope).
+    scope = refresh_scope(app)
+    if isinstance(scope, dict) and verbose in scope:
+        return scope[verbose]
+    if sudo_status_backoff_active(app):
+        result = (1, "")
+    else:
+        result = _run_cmd(app, cmd, timeout=12 if verbose else 8)
+        try:
+            note_ufw_status_result(app, result[0], result[1])
+        except Exception:
+            pass
+    if isinstance(scope, dict):
+        scope[verbose] = result
+    return result
 
 
 def ufw_status_state(status_text):
@@ -1622,7 +2142,7 @@ def ufw_status_is_active(status_text):
 def ufw_rule_lines(status_text):
     lines = []
     for line in (status_text or "").splitlines():
-        line_l = line.strip().lower()
+        line_l = line.split("#", 1)[0].strip().lower()
         if not line_l:
             continue
         if line_l.startswith(("status:", "to", "--", "action", "from")):
@@ -1676,14 +2196,22 @@ def ufw_has_endpoint_rule(status_text, endpoint_ip, endpoint_port):
     endpoint_port = str(endpoint_port or "").strip().lower()
     if not endpoint_ip or not endpoint_port:
         return False
-    for line in ufw_rule_lines(status_text):
-        if "allow" not in line and "zulassen" not in line:
+    try:
+        address = ipaddress.ip_address(endpoint_ip)
+        port = str(int(endpoint_port))
+    except ValueError:
+        return False
+    for line in status_text.splitlines():
+        rule = parse_ufw_structured_rule(line)
+        if (
+            not rule
+            or rule["policy"] != "ALLOW"
+            or rule["direction"] != "OUT"
+            or rule["proto"] != "udp"
+            or not rule["ip"]
+        ):
             continue
-        if endpoint_ip not in line or endpoint_port not in line:
-            continue
-        if "udp" not in line:
-            continue
-        if re.search(r"\bout\b", line):
+        if _endpoint_key(rule["ip"], rule["port"]) == (str(address), port):
             return True
     return False
 
@@ -1720,6 +2248,8 @@ def ensure_ufw_rule_exists(rule, *, network_service=None, known_keys=None):
         direction = str((rule or {}).get("direction") or "").strip().lower()
         if not iface or direction not in {"in", "out"}:
             return False, False, "ungültige Interface-Regel", known_keys
+        if not nm_ownership.verified_interface(iface):
+            return False, False, "WireGuard-Identitaet nicht bestaetigt", known_keys
         key = ("iface", direction, iface.lower())
         if key in known_keys:
             return True, False, "exists", known_keys
@@ -1834,20 +2364,64 @@ def dedupe_vpn_ufw_rules():
     return removed
 
 
-def ufw_has_outgoing_port_rule(status_text, port, proto):
+def _endpoint_key(address, port):
+    try:
+        number = int(port)
+        if not 1 <= number <= 65535:
+            return None
+        return str(ipaddress.ip_address(address)), str(number)
+    except (ValueError, TypeError):
+        return None
+
+
+def _port_expression_contains(expression, port):
+    """Match bounded UFW port lists/ranges without expanding all port numbers."""
+    try:
+        wanted = int(port)
+        spans = [part.split(":") for part in str(expression).split(",")]
+        if not 1 <= wanted <= 65535 or any(
+            len(span) not in {1, 2} or not all(item.isdigit() for item in span)
+            for span in spans
+        ):
+            return False
+        bounds = [(int(span[0]), int(span[-1])) for span in spans]
+        if any(not 1 <= lower <= upper <= 65535 for lower, upper in bounds):
+            return False
+        return any(lower <= wanted <= upper for lower, upper in bounds)
+    except (ValueError, TypeError):
+        return False
+
+
+def ufw_has_outgoing_port_rule(
+    status_text, port, proto, *, handshake_rules=None, ignore_interfaces=()
+):
     port = str(port or "").strip()
     proto = str(proto or "").strip().lower()
     if not port or not proto:
         return False
-    for line in ufw_rule_lines(status_text):
-        if "allow" not in line and "zulassen" not in line:
+    approved = {_endpoint_key(*endpoint) for endpoint in handshake_rules or []}
+    ignored = set(ignore_interfaces)
+    for line in (status_text or "").splitlines():
+        rule = parse_ufw_structured_rule(line)
+        if not rule or rule["policy"] != "ALLOW" or rule["direction"] != "OUT":
             continue
-        if not re.search(r"\bout\b", line):
+        if rule["interface"] in ignored:
             continue
-        if proto not in line:
+        # A destination port without /proto applies to both TCP and UDP.
+        rule_port = str(rule["port"] or "")
+        if not _port_expression_contains(rule_port, port) or rule["proto"] not in {
+            "",
+            proto,
+        }:
             continue
-        if re.search(rf"\b{re.escape(port)}(?:/{re.escape(proto)})?\b", line):
-            return True
+        if (
+            rule["proto"] == "udp"
+            and not rule["interface"]
+            and rule["ip"]
+            and _endpoint_key(rule["ip"], rule_port) in approved
+        ):
+            continue
+        return True
     return False
 
 
@@ -1916,7 +2490,9 @@ def fw_enable(app, interactive_guard=True):
             )
             return
 
-        rc, out = run_cmd(["sudo", "-n", "ufw", "--force", "enable"], timeout=40)
+        rc, out = guarded_ufw_command(
+            app, ["sudo", "-n", "ufw", "--force", "enable"], timeout=40, runner=run_cmd
+        )
 
         if rc != 0:
             app.after(
@@ -2055,7 +2631,9 @@ def fw_disable(app, interactive_guard=True):
             )
             return
 
-        rc, out = run_cmd(["sudo", "-n", "ufw", "disable"], timeout=40)
+        rc, out = guarded_ufw_command(
+            app, ["sudo", "-n", "ufw", "disable"], timeout=40, runner=run_cmd
+        )
 
         if rc != 0:
             app.after(
@@ -2087,14 +2665,22 @@ def security_set_ufw_logging_high(app):
         return
     logger = _firewall_logger(app)
     debug_logger = _firewall_debug_logger(app)
-    rc_before, out_before = run_cmd(["ufw", "status", "verbose"], timeout=5)
+    rc_before, out_before = guarded_ufw_command(
+        app, ["ufw", "status", "verbose"], timeout=5, runner=run_cmd
+    )
     debug_logger(f"[DEBUG BEFORE] ufw status verbose rc={rc_before}")
     debug_logger(f"[DEBUG BEFORE] {out_before}")
-    rc, out = run_cmd(["sudo", "-n", "ufw", "logging", "high"], timeout=12)
+    rc, out = guarded_ufw_command(
+        app, ["sudo", "-n", "ufw", "logging", "high"], timeout=12, runner=run_cmd
+    )
     if rc != 0:
-        rc, out = run_cmd(["ufw", "logging", "high"], timeout=12)
+        rc, out = guarded_ufw_command(
+            app, ["ufw", "logging", "high"], timeout=12, runner=run_cmd
+        )
     if rc == 0:
-        rc_after, out_after = run_cmd(["ufw", "status", "verbose"], timeout=5)
+        rc_after, out_after = guarded_ufw_command(
+            app, ["ufw", "status", "verbose"], timeout=5, runner=run_cmd
+        )
         debug_logger(f"[DEBUG AFTER] ufw status verbose rc={rc_after}")
         debug_logger(f"[DEBUG AFTER] {out_after}")
         app.security_log_level = app._security_query_log_level()
@@ -2111,8 +2697,12 @@ def allow_ssh_rule_async(app):
 
     def job():
         with app.ufw_lock:
-            _, status_out = run_cmd(
-                ["sudo", "-n", "ufw", "status", "numbered"], timeout=12
+            _, status_out = guarded_ufw_command(
+                app,
+                ["sudo", "-n", "ufw", "status", "numbered"],
+                timeout=12,
+                runner=run_cmd,
+                lock_held=True,
             )
         if status_out.strip():
             for line in status_out.splitlines():
@@ -2134,7 +2724,13 @@ def allow_ssh_rule_async(app):
                     return
 
         with app.ufw_lock:
-            rc, out = run_cmd(["sudo", "-n", "ufw", "allow", "22/tcp"], timeout=15)
+            rc, out = guarded_ufw_command(
+                app,
+                ["sudo", "-n", "ufw", "allow", "22/tcp"],
+                timeout=15,
+                runner=run_cmd,
+                lock_held=True,
+            )
         if rc == 0:
             msg = (out or "").strip() or app.tr("ssh_rule_set", "Regel gesetzt.")
             app.after(
@@ -2184,7 +2780,13 @@ def remove_ssh_rule_async(app, auto=False):
 
     def job():
         with app.ufw_lock:
-            _, out = run_cmd(["sudo", "-n", "ufw", "status", "numbered"], timeout=12)
+            _, out = guarded_ufw_command(
+                app,
+                ["sudo", "-n", "ufw", "status", "numbered"],
+                timeout=12,
+                runner=run_cmd,
+                lock_held=True,
+            )
         if not out.strip():
             app.after(
                 0,
@@ -2222,9 +2824,12 @@ def remove_ssh_rule_async(app, auto=False):
         matches.sort(key=lambda x: x[0], reverse=True)
         for num, rest in matches:
             with app.ufw_lock:
-                rc2, del_out = run_cmd(
+                rc2, del_out = guarded_ufw_command(
+                    app,
                     ["sudo", "-n", "ufw", "--force", "delete", str(num)],
                     timeout=12,
+                    runner=run_cmd,
+                    lock_held=True,
                 )
             if rc2 == 0:
                 app.after(
@@ -2459,7 +3064,9 @@ def apply_add_firewall_rule(app):
         failed = []
         with app.ufw_lock:
             for command in commands:
-                rc, out = run_cmd(command, timeout=20)
+                rc, out = guarded_ufw_command(
+                    app, command, timeout=20, runner=run_cmd, lock_held=True
+                )
                 outputs.append((command, rc, out))
                 if rc != 0:
                     failed.append((command, out))
@@ -2617,9 +3224,12 @@ def remove_selected_firewall_rule(app):
 
     def job():
         with app.ufw_lock:
-            rc_status, out_status = run_cmd(
+            rc_status, out_status = guarded_ufw_command(
+                app,
                 ["sudo", "-n", "ufw", "status", "numbered"],
                 timeout=20,
+                runner=run_cmd,
+                lock_held=True,
             )
 
         if rc_status != 0 or not str(out_status or "").strip():
@@ -2689,9 +3299,12 @@ def remove_selected_firewall_rule(app):
 
         match = matches[0]
         with app.ufw_lock:
-            rc_delete, out_delete = run_cmd(
+            rc_delete, out_delete = guarded_ufw_command(
+                app,
                 ["sudo", "-n", "ufw", "--force", "delete", str(match["number"])],
                 timeout=20,
+                runner=run_cmd,
+                lock_held=True,
             )
 
         def done():

@@ -1,3 +1,6 @@
+import threading
+from types import SimpleNamespace
+
 from netmon.app import App
 from netmon.features import chad_controller
 
@@ -931,7 +934,7 @@ def test_update_chad_controls_state_updates_dev_filter_status_hint():
     assert "Dev-Umgebungsfilter aktiv" in app.chad_dev_filter_status_var.get()
 
 
-def test_refresh_chad_runtime_status_marks_connected_model_and_tokens():
+def test_refresh_chad_runtime_status_marks_key_present_model_and_tokens():
     app = App.__new__(App)
     app.ai_online_service = type(
         "DummyService",
@@ -946,12 +949,12 @@ def test_refresh_chad_runtime_status_marks_connected_model_and_tokens():
 
     chad_controller.refresh_chad_runtime_status(app)
 
-    assert app.chad_settings_api_status_var.get() == "Verbunden"
+    assert app.chad_settings_api_status_var.get() == "API-Key vorhanden"
     assert app.chad_settings_model_var.get() == "gpt-4.1-mini"
     assert app.chad_settings_tokens_var.get() == "Noch nicht verfügbar"
 
 
-def test_run_chad_online_analysis_updates_ki_status_on_success():
+def test_run_chad_online_analysis_updates_ki_status_on_success(monkeypatch):
     app = App.__new__(App)
 
     class DummyText:
@@ -1000,9 +1003,26 @@ def test_run_chad_online_analysis_updates_ki_status_on_success():
         },
     )()
 
-    app.run_chad_online_analysis()
+    workers = []
 
-    assert app.chad_settings_api_status_var.get() == "Verbunden"
+    def start_worker(*args, **kwargs):
+        worker = threading.Thread(*args, **kwargs)
+        workers.append(worker)
+        return worker
+
+    # Keep a real asynchronous worker, but own it until its assertions/UI work
+    # finish. Patch only the controller's reference, not global threading.Thread.
+    monkeypatch.setattr(
+        chad_controller, "threading", SimpleNamespace(Thread=start_worker)
+    )
+    try:
+        app.run_chad_online_analysis()
+    finally:
+        for worker in workers:
+            worker.join(5)
+    assert len(workers) == 1 and not workers[0].is_alive()
+
+    assert app.chad_settings_api_status_var.get() == "API-Key vorhanden"
     assert app.chad_settings_model_var.get() == "gpt-4.1-mini"
     assert (
         app.chad_settings_last_analysis_var.get() == "Abgeschlossen: PATH Guard Analyse"

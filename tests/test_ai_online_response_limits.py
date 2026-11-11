@@ -17,7 +17,7 @@ import threading
 import time
 import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -252,13 +252,13 @@ def test_public_functions_unchanged(backend, endpoint, monkeypatch, method, stat
     )
     value = "Hallo" if method == "analyze" else [{"role": "user", "content": "Hallo"}]
     assert getattr(service, method)(value) == (
-        (True, "Hallo") if status == 200 else (False, "Fehler: quota")
+        (True, "Hallo") if status == 200 else (False, "Fehler: quota\nHTTP-Status: 429")
     )
     _, headers, body = state["requests"][0]
     payload = json.loads(body)
     assert headers["Authorization"] == "Bearer test-placeholder"
     assert payload["model"] == "gpt-4.1-mini"
-    assert payload["max_output_tokens"] == (1400 if method == "analyze" else 900)
+    assert payload["max_output_tokens"] == (4096 if method == "analyze" else 900)
     if status == 200:
         assert service.last_usage_text == "Gesamt: 5 | Input: 3 | Output: 2"
 
@@ -772,8 +772,17 @@ def socks_provider(request, monkeypatch):
         # This does NOT claim to qualify an absent PySocks installation.
         if not os.path.isfile("/usr/lib/python3/dist-packages/yt_dlp/socks.py"):
             pytest.skip("Existing SOCKS protocol adapter unavailable")
-        monkeypatch.syspath_prepend("/usr/lib/python3/dist-packages")
-        legacy = importlib.import_module("yt_dlp.socks")
+        # Load only the distro SOCKS implementation and its compatibility helpers.
+        # Importing yt_dlp itself initializes unrelated optional crypto plugins.
+        package_name = "_netmon_test_ytdlp"
+        package = ModuleType(package_name)
+        package.__path__ = ["/usr/lib/python3/dist-packages/yt_dlp"]
+        monkeypatch.setitem(sys.modules, package_name, package)
+        legacy = importlib.import_module(f"{package_name}.socks")
+        for name in tuple(sys.modules):
+            if name.startswith(package_name + "."):
+                module = sys.modules.pop(name)
+                monkeypatch.setitem(sys.modules, name, module)
 
         class AdapterSocket(legacy.sockssocket):
             def set_proxy(self, version, host, port, rdns, username, password):

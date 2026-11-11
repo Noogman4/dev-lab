@@ -3,12 +3,20 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 
 from read_netmon_version import ROOT, read_netmon_version
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--package-only",
+        action="store_true",
+        help="Check a local test package without advancing published website metadata.",
+    )
+    options = parser.parse_args()
     version = read_netmon_version()
     errors: list[str] = []
 
@@ -26,13 +34,14 @@ def main() -> int:
         public_key_id = public_key_lines[0].rsplit(" ", 1)[-1]
         public_key = public_key_lines[1]
 
-    latest_path = ROOT / "site" / "latest-version.json"
-    latest = json.loads(latest_path.read_text(encoding="utf-8"))
-    if latest.get("version") != version:
-        errors.append(
-            f"{latest_path.relative_to(ROOT)}: erwartet Version {version}, "
-            f"gefunden {latest.get('version')!r}"
-        )
+    if not options.package_only:
+        latest_path = ROOT / "site" / "latest-version.json"
+        latest = json.loads(latest_path.read_text(encoding="utf-8"))
+        if latest.get("version") != version:
+            errors.append(
+                f"{latest_path.relative_to(ROOT)}: erwartet Version {version}, "
+                f"gefunden {latest.get('version')!r}"
+            )
 
     required_snippets = {
         "README.md": [f"netmon_{version}_all.deb"],
@@ -71,7 +80,19 @@ def main() -> int:
             "Round 12",
         ],
     }
+    package_paths = {
+        "README.md",
+        "docs/README.md",
+        "docs/CONFIGURATION.md",
+        "docs/DEB_PACKAGING_PLAN.md",
+        "docs/CHANGELOG.md",
+        "packaging/changelog",
+        "packaging/netmon.1",
+        "packaging/netmon-uninstall.1",
+    }
     for relative_path, snippets in required_snippets.items():
+        if options.package_only and relative_path not in package_paths:
+            continue
         path = ROOT / relative_path
         content = path.read_text(encoding="utf-8")
         for snippet in snippets:
@@ -84,7 +105,8 @@ def main() -> int:
             print(f"- {error}")
         return 1
 
-    print(f"Release-Metadaten konsistent: {version}")
+    scope = "Paket-Metadaten" if options.package_only else "Release-Metadaten"
+    print(f"{scope} konsistent: {version}")
     return 0
 
 

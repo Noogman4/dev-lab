@@ -87,7 +87,6 @@ def _simulate_postinst(package, tmp_path, home, *, skel_documents="Documents"):
     translated = translated.replace(original_assets, str(assets))
     translated = translated.replace('"/etc/skel"', f'"{skel}"')
     if name == "main":
-        assert translated.count('NETMON_STATE_DIR="/var/lib/netmon"') == 1
         translated = translated.replace('"/var/lib/netmon"', f'"{state}"')
     script = tmp_path / "simulated-postinst.sh"
     script.write_text(translated)
@@ -262,3 +261,70 @@ def test_skeleton_seed_and_desktop_refresh_remain_functional(
     assert (skeleton / "new.png").read_bytes() == b"synthetic new image"
     assert (skeleton / "keep.jpg").read_bytes() == b"existing skeleton image"
     assert _manifest(home) == before
+
+
+@pytest.mark.parametrize(
+    "phase,argument",
+    [("postinst", "configure"), ("prerm", "remove"), ("prerm", "deconfigure")],
+)
+def test_main_scripts_restore_legacy_dns_state_with_only_nmcli(
+    tmp_path, phase, argument
+):
+    source = (ROOT / "scripts/build_netmon_deb.sh").read_text()
+    pattern = rf"^cat > \"\$PKG_DIR/DEBIAN/{phase}\" <<'([A-Z]+)'\n(.*?)^\1$"
+    match = re.search(pattern, source, re.M | re.S)
+    assert match is not None
+    state = tmp_path / "legacy-state"
+    state.mkdir()
+    legacy = state / "install-dns-nm.state"
+    legacy.write_text("12345678-1234-5678-9012-123456789abc|192.0.2.53|no\n")
+    sentinel = state / "unrelated-state"
+    sentinel.write_bytes(b"preserve unrelated state")
+    before = _manifest(state)["unrelated-state"]
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    skel = tmp_path / "skel"
+    skel.mkdir()
+    text = (
+        match[2]
+        .replace("/var/lib/netmon", str(state))
+        .replace("/etc/skel", str(skel))
+        .replace("/usr/share/netmon/assets/log-pics", str(assets))
+    )
+    script = tmp_path / "maintainer.sh"
+    script.write_text(text)
+    commands = tmp_path / "bin"
+    commands.mkdir()
+    calls = tmp_path / "commands.log"
+    for command in (
+        "nmcli",
+        "resolvectl",
+        "systemctl",
+        "ufw",
+        "ip",
+        "nft",
+        "sudo",
+        "update-desktop-database",
+    ):
+        fake = commands / command
+        fake.write_text(
+            f'#!/bin/sh\nprintf "%s\\n" "{command}" >> "$TEST_CALLS"\nexit 0\n'
+        )
+        fake.chmod(0o700)
+    env = dict(os.environ, PATH=f"{commands}:/usr/bin:/bin", TEST_CALLS=str(calls))
+    result = subprocess.run(
+        ["/bin/sh", str(script), argument],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+    assert not legacy.exists()
+    assert _manifest(state)["unrelated-state"] == before
+    assert set(_manifest(state)) == {".", "unrelated-state"}
+    recorded = calls.read_text().splitlines() if calls.exists() else []
+    assert (
+        recorded
+        == (["update-desktop-database"] if phase == "postinst" else []) + ["nmcli"] * 3
+    )
