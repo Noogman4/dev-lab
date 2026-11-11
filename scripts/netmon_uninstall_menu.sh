@@ -1,8 +1,11 @@
-#!/usr/bin/env bash
+#!/bin/bash -p
 set -euo pipefail
 
-NETMON_PACKAGE="${NETMON_PACKAGE:-netmon}"
+# No caller-selected package, executable search path or user-data authority.
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+readonly NETMON_PACKAGE=netmon
 NETMON_LANG_CODE="${NETMON_LANG_CODE:-}"
+USER_CLEANUP_MODE=execute
 
 OPTIONAL_PACKAGES=(
   bind9-dnsutils
@@ -32,12 +35,6 @@ OPTIONAL_PACKAGES=(
   wireguard-tools
 )
 
-DEFAULT_CONFIG_DIR="$HOME/.config/netmon"
-DEFAULT_STATE_DIR="$HOME/.local/state/netmon"
-DEFAULT_CACHE_DIR="$HOME/.cache/netmon"
-DEFAULT_CACHE_DIR_ALT="$HOME/.cache/netmon_roots"
-DEFAULT_LOCAL_SHARE_DIR="$HOME/.local/share/netmon"
-DEFAULT_APP_ENTRY_DIR="$HOME/.local/share/applications"
 VPN_SLOT_CONFIG_FILE="netmon_vpn_slots.json"
 PRIMARY_VPN_SLOT_CONFIG_FILE="netmon_primary_vpn_slots.json"
 PRIVACY_CONFIG_FILE="netmon_privacy.json"
@@ -255,37 +252,54 @@ ensure_netmon_not_running() {
   exit 1
 }
 
+is_root() {
+  [[ "$EUID" -eq 0 ]]
+}
+
 ensure_root() {
-  if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+  if is_root; then
     return 0
   fi
-  if command -v sudo >/dev/null 2>&1; then
+  if [[ -x /usr/bin/sudo ]]; then
     say "$(tr_msg requesting_sudo)"
-    exec sudo --preserve-env=NETMON_PACKAGE,HOME,XDG_DOCUMENTS_DIR "$0" "$@"
+    # sudo supplies the caller identity. The protected bootstrap carries only
+    # that identity into a clean environment and executes the installed script.
+    exec /usr/bin/sudo -- /bin/bash -p -c '
+exec /usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin LANG=C.UTF-8 \
+  SUDO_USER="${SUDO_USER:?}" SUDO_UID="${SUDO_UID:?}" \
+  /bin/bash -p /usr/bin/netmon-uninstall "$@"
+' netmon-uninstall "$@"
   fi
   warn "$(tr_msg start_as_root)"
   exit 1
 }
 
 target_user() {
-  if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
-    printf '%s\n' "$SUDO_USER"
-    return
+  if [[ -n "${SUDO_USER:-}" || -n "${SUDO_UID:-}" ]]; then
+    [[ "${SUDO_UID:-}" =~ ^[0-9]+$ && -n "${SUDO_USER:-}" ]] || return 1
+    local record name _password uid _rest
+    record="$(getent passwd "$SUDO_UID")" || return 1
+    [[ "$record" != *$'\n'* ]] || return 1
+    IFS=: read -r name _password uid _rest <<< "$record"
+    [[ "$name" == "$SUDO_USER" && "$uid" == "$SUDO_UID" ]] || return 1
+    printf '%s\n' "$name"
+  else
+    id -un
   fi
-  id -un
 }
 
 target_home() {
   local user_name
-  user_name="$(target_user)"
-  local home_dir=""
-  if [[ -n "${SUDO_USER:-}" && -n "${HOME:-}" && "${SUDO_USER}" != "root" ]]; then
-    home_dir="$HOME"
-  fi
-  if [[ -z "$home_dir" ]]; then
-    home_dir="$(getent passwd "$user_name" | cut -d: -f6)"
-  fi
-  printf '%s\n' "${home_dir:-/root}"
+  user_name="$(target_user)" || return 1
+  local record name _password _uid _gid _description home_dir _shell canonical
+  record="$(getent passwd "$user_name")" || return 1
+  [[ "$record" != *$'\n'* ]] || return 1
+  IFS=: read -r name _password _uid _gid _description home_dir _shell <<< "$record"
+  [[ "$name" == "$user_name" && "$home_dir" == /* && "$home_dir" != / ]] || return 1
+  [[ "$home_dir" != *[[:cntrl:]]* ]] || return 1
+  canonical="$(realpath -e -- "$home_dir")" || return 1
+  [[ "$canonical" == "$home_dir" && -d "$canonical" ]] || return 1
+  printf '%s\n' "$canonical"
 }
 
 collect_document_dirs() {
@@ -307,11 +321,8 @@ collect_document_dirs() {
 collect_document_root_dirs() {
   local docs_dirs=()
   local user_home
-  user_home="$(target_home)"
-  local xdg_docs="${XDG_DOCUMENTS_DIR:-}"
-  if [[ -n "$xdg_docs" ]]; then
-    docs_dirs+=("${xdg_docs/#\~/$user_home}")
-  fi
+  user_home="$(target_home)" || return 1
+  # Never turn an inherited XDG override into a privileged deletion target.
   docs_dirs+=("$user_home/Documents" "$user_home/Dokumente")
 
   local unique=()
@@ -334,6 +345,20 @@ collect_document_root_dirs() {
 
 remove_path_if_exists() {
   local target="$1"
+  [[ "$target" != *[[:cntrl:]]* ]] || { warn "Ungültiger Dateiname im Bereinigungsziel."; return 1; }
+  if ! is_root; then
+    local home_dir canonical
+    home_dir="$(target_home)" || return 1
+    canonical="$(realpath -m -- "$target")" || return 1
+    if [[ "$canonical" != "$home_dir/"* || "$canonical" != "$target" ]]; then
+      warn "Unsicheres Benutzerziel; keine automatische Bereinigung: $target"
+      return 1
+    fi
+  fi
+  if [[ "$USER_CLEANUP_MODE" == preview ]]; then
+    printf '  %s\n' "$target"
+    return 0
+  fi
   if [[ -e "$target" || -L "$target" ]]; then
     rm -rf -- "$target"
     say "$(format_msg "$(tr_msg removed)" "$target")"
@@ -344,7 +369,7 @@ remove_path_if_exists() {
 
 detect_netmon_language() {
   local user_home
-  user_home="$(target_home)"
+  user_home="$(target_home)" || return 1
   local paths=(
     "$user_home/.config/netmon/config.json"
   )
@@ -395,7 +420,7 @@ choice_label() {
 
 remove_user_launchers() {
   local user_home
-  user_home="$(target_home)"
+  user_home="$(target_home)" || return 1
   local app_entry_dir="$user_home/.local/share/applications"
   local targets=(
     "$app_entry_dir/netmon-radio.desktop"
@@ -404,9 +429,9 @@ remove_user_launchers() {
   )
   local target=""
   for target in "${targets[@]}"; do
-    remove_path_if_exists "$target"
+    remove_path_if_exists "$target" || return 1
   done
-  if command -v update-desktop-database >/dev/null 2>&1; then
+  if [[ "$USER_CLEANUP_MODE" != preview ]] && command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database "$app_entry_dir" >/dev/null 2>&1 || true
   fi
 }
@@ -414,7 +439,7 @@ remove_user_launchers() {
 remove_user_data() {
   local preserve_secure_browsers="${1:-ja}"
   local user_home
-  user_home="$(target_home)"
+  user_home="$(target_home)" || return 1
   local targets=(
     "$user_home/.config/netmon"
     "$user_home/.local/state/netmon"
@@ -424,7 +449,7 @@ remove_user_data() {
   )
   local target=""
   for target in "${targets[@]}"; do
-    remove_path_if_exists "$target"
+    remove_path_if_exists "$target" || return 1
   done
 
   local doc_root=""
@@ -436,29 +461,29 @@ remove_user_data() {
       local child=""
       while IFS= read -r -d '' child; do
         [[ "$child" == "$secure_browser_dir" ]] && continue
-        remove_path_if_exists "$child"
+        remove_path_if_exists "$child" || return 1
       done < <(find "$netmon_docs" -mindepth 1 -maxdepth 1 -print0 2>/dev/null)
     else
-      remove_path_if_exists "$netmon_docs"
+      remove_path_if_exists "$netmon_docs" || return 1
     fi
-    remove_path_if_exists "$doc_root/Log-Pics"
+    remove_path_if_exists "$doc_root/Log-Pics" || return 1
   done < <(collect_document_root_dirs)
 }
 
 remove_secure_browser_menu_entries() {
   local user_home
-  user_home="$(target_home)"
+  user_home="$(target_home)" || return 1
   local app_entry_dir="$user_home/.local/share/applications"
   [[ -d "$app_entry_dir" ]] || return 0
 
   local entry=""
   while IFS= read -r -d '' entry; do
     if grep -Eq '^(Name=NetMon Secure Browser|Comment=NetMon Secure Browser)' "$entry" 2>/dev/null; then
-      remove_path_if_exists "$entry"
+      remove_path_if_exists "$entry" || return 1
     fi
   done < <(find "$app_entry_dir" -maxdepth 1 -type f -name '*.desktop' -print0 2>/dev/null)
 
-  if command -v update-desktop-database >/dev/null 2>&1; then
+  if [[ "$USER_CLEANUP_MODE" != preview ]] && command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database "$app_entry_dir" >/dev/null 2>&1 || true
   fi
 }
@@ -467,7 +492,7 @@ remove_secure_browsers() {
   local doc_root=""
   while IFS= read -r doc_root; do
     [[ -n "$doc_root" ]] || continue
-    remove_path_if_exists "$doc_root/NetMon/Secure Browser"
+    remove_path_if_exists "$doc_root/NetMon/Secure Browser" || return 1
   done < <(collect_document_root_dirs)
 
   remove_secure_browser_menu_entries
@@ -475,7 +500,7 @@ remove_secure_browsers() {
 
 collect_netmon_vpn_json_paths() {
   local user_home
-  user_home="$(target_home)"
+  user_home="$(target_home)" || return 1
   local paths=(
     "$user_home/.config/netmon/$VPN_SLOT_CONFIG_FILE"
     "$user_home/.config/netmon/$PRIMARY_VPN_SLOT_CONFIG_FILE"
@@ -532,7 +557,7 @@ remove_netmon_wireguard_artifacts() {
   local target=""
   while IFS= read -r target; do
     [[ -n "$target" ]] || continue
-    remove_path_if_exists "$target"
+    remove_path_if_exists "$target" || return 1
   done < <(collect_netmon_vpn_json_paths)
 
   # User labels cannot prove ownership of /etc/wireguard/*.conf. Keep all
@@ -551,7 +576,7 @@ remove_all_wireguard_conf_files() {
   while IFS= read -r wg_path; do
     [[ -n "$wg_path" ]] || continue
     found=1
-    remove_path_if_exists "$wg_path"
+    remove_path_if_exists "$wg_path" || return 1
   done < <(find "$NETMON_WIREGUARD_ROOT" -maxdepth 1 -type f -name '*.conf' 2>/dev/null | sort)
 
   if [[ "$found" -eq 0 ]]; then
@@ -595,7 +620,36 @@ JSON
 
 run_checked_cleanup() {
   check_firewall_transaction || exit 1
-  "$@"
+  case "$1" in
+    remove_user_launchers|remove_user_data|remove_secure_browsers|remove_netmon_wireguard_artifacts)
+      run_user_cleanup execute "$@" ;;
+    *) "$@" ;;
+  esac
+}
+
+run_user_cleanup() {
+  local mode="$1" operation="$2"
+  shift 2
+  [[ "$mode" == preview || "$mode" == execute ]] || return 1
+  case "$operation" in
+    remove_user_launchers|remove_user_data|remove_secure_browsers|remove_netmon_wireguard_artifacts) ;;
+    *) return 1 ;;
+  esac
+  if is_root; then
+    local user_name user_home
+    user_name="$(target_user)" || return 1
+    user_home="$(target_home)" || return 1
+    if [[ "$(id -u "$user_name")" == 0 ]]; then
+      warn "Keine automatische Benutzerdatei-Bereinigung für root."
+      return 0
+    fi
+    /usr/sbin/runuser -u "$user_name" -- /usr/bin/env -i \
+      PATH=/usr/sbin:/usr/bin:/sbin:/bin LANG=C.UTF-8 \
+      HOME="$user_home" USER="$user_name" LOGNAME="$user_name" \
+      /bin/bash -p /usr/bin/netmon-uninstall --user-cleanup "$mode" "$operation" "$@"
+  else
+    USER_CLEANUP_MODE="$mode" "$operation" "$@"
+  fi
 }
 
 reset_ufw() {
@@ -624,6 +678,9 @@ purge_netmon_package() {
 }
 
 print_summary() {
+  local user_name user_home
+  user_name="$(target_user)" || return 1
+  user_home="$(target_home)" || return 1
   say ""
   say "$(tr_msg summary_title)"
   say "============================="
@@ -638,10 +695,36 @@ print_summary() {
   printf '%-32s %s\n' "$(tr_msg summary_reset_firewall)" "$(choice_label "$9")"
   printf '%-32s %s\n' "$(tr_msg summary_purge_optional)" "$(choice_label "${10}")"
   say ""
+  say "Paket / package: $NETMON_PACKAGE"
+  say "Benutzer / user: $user_name"
+  say "Home: $user_home"
+  say "Dateiziele / file targets:"
+  [[ "$2" != ja ]] || run_user_cleanup preview remove_user_launchers || return 1
+  if [[ "$3" == ja ]]; then
+    local preserve=ja
+    [[ "$4" != ja ]] || preserve=nein
+    run_user_cleanup preview remove_user_data "$preserve" || return 1
+  fi
+  [[ "$4" != ja ]] || run_user_cleanup preview remove_secure_browsers || return 1
+  [[ "$5" != ja ]] || run_user_cleanup preview remove_netmon_wireguard_artifacts || return 1
+  if [[ "$6" == ja ]]; then
+    find "$NETMON_WIREGUARD_ROOT" -maxdepth 1 -type f -name '*.conf' -print 2>/dev/null || true
+  fi
+  [[ "${10}" != ja ]] || printf 'Optionale Pakete / optional packages: %s\n' "${OPTIONAL_PACKAGES[*]}"
+  say ""
 }
 
 main() {
+  if [[ "${1:-}" == --user-cleanup ]]; then
+    # This private entry can only perform allowlisted, unprivileged file work.
+    ! is_root || return 1
+    [[ $# -ge 3 ]] || return 1
+    shift
+    run_user_cleanup "$@"
+    return
+  fi
   ensure_root "$@"
+  target_home >/dev/null || { warn "Benutzer-Home konnte nicht sicher ermittelt werden."; return 1; }
   detect_netmon_language
   check_firewall_transaction || return 1
 
@@ -685,7 +768,7 @@ main() {
     "$remove_nm_vpn_connections" \
     "$reset_dns_nm" \
     "$reset_firewall" \
-    "$purge_optional"
+    "$purge_optional" || return 1
 
   prompt_yes_no "$(tr_msg prompt_execute_now)" "n" || {
     say "$(tr_msg cancelled)"
