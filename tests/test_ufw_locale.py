@@ -1,5 +1,12 @@
-from netmon.core import command
+import pytest
+
+from netmon.core import command, trusted_sudo
 from netmon.features import firewall_controller
+
+
+@pytest.fixture(autouse=True)
+def trusted_system_sudo(monkeypatch):
+    monkeypatch.setattr(trusted_sudo, "trusted_sudo_path", lambda: "/usr/bin/sudo")
 
 
 class DummyCompletedProcess:
@@ -21,7 +28,7 @@ def test_run_cmd_forces_c_locale_for_ufw_status(monkeypatch):
     assert rc == 0
     assert out == "Status: active"
     assert calls[0][0] == [
-        "sudo",
+        "/usr/bin/sudo",
         "-n",
         "env",
         "LANG=C",
@@ -45,7 +52,7 @@ def test_run_cmd_keeps_ufw_rule_commands_without_locale_override(monkeypatch):
 
     command.run_cmd(["sudo", "-n", "ufw", "allow", "22/tcp"], timeout=8)
 
-    assert calls[0][1]["env"] is None
+    assert calls[0][1]["env"] == trusted_sudo.sudo_environment()
 
 
 def test_firewall_ufw_status_is_active_uses_english_status_only():

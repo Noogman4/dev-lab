@@ -3,13 +3,22 @@
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 
 try:
     from netmon.core.performance_monitor import measure, safe_command_name
+    from netmon.core.trusted_sudo import (
+        sudo_environment,
+        trusted_command_args,
+        trusted_sudo_path,
+    )
 except ModuleNotFoundError:
     from core.performance_monitor import measure, safe_command_name
+    from core.trusted_sudo import (
+        sudo_environment,
+        trusted_command_args,
+        trusted_sudo_path,
+    )
 
 
 def _is_ufw_status_command(args) -> bool:
@@ -22,6 +31,8 @@ def _is_ufw_status_command(args) -> bool:
 
 
 def _command_env(args):
+    if args and os.path.basename(os.fsdecode(args[0])) == "sudo":
+        return sudo_environment()
     if not _is_ufw_status_command(args):
         return None
     env = os.environ.copy()
@@ -47,7 +58,7 @@ def run_cmd(args, timeout=15, text=True, input_text=None, *, preserve_output=Fal
     preserve_output keeps whitespace for structured output with empty fields.
     """
     try:
-        exec_args = _with_ufw_status_locale(args)
+        exec_args = trusted_command_args(_with_ufw_status_locale(args))
 
         with measure(
             area="system_command",
@@ -83,7 +94,7 @@ def run_cmd(args, timeout=15, text=True, input_text=None, *, preserve_output=Fal
 def run_cmd_with_input(args, input_text="", timeout=20):
     """Safe command runner with optional stdin payload (e.g. cryptsetup passphrase)."""
     try:
-        exec_args = list(args)
+        exec_args = trusted_command_args(args)
         payload = input_text or ""
 
         with measure(
@@ -100,6 +111,7 @@ def run_cmd_with_input(args, input_text="", timeout=20):
                 timeout=timeout,
                 check=False,
                 input=payload,
+                env=_command_env(exec_args),
             )
             measurement.set_status(
                 "success" if p.returncode == 0 else "error",
@@ -116,7 +128,8 @@ def run_cmd_with_input(args, input_text="", timeout=20):
 def check_sudo_nopasswd() -> bool:
     try:
         p = subprocess.run(
-            ["sudo", "-n", "true"],
+            [trusted_sudo_path(), "-n", "/usr/bin/true"],
+            env=sudo_environment(),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -145,7 +158,9 @@ def _safe_messagebox_showerror(messagebox, title, message, *, parent=None):
 
 def renew_sudo_timestamp(parent=None):
     """Request sudo password only to refresh system sudo timestamp; do not store it."""
-    if shutil.which("sudo") is None:
+    try:
+        trusted_sudo_path()
+    except OSError:
         return False
     if check_sudo_nopasswd():
         return True
@@ -167,7 +182,8 @@ def renew_sudo_timestamp(parent=None):
             return False
         try:
             p = subprocess.run(
-                ["sudo", "-S", "-v"],
+                [trusted_sudo_path(), "-S", "-v"],
+                env=sudo_environment(),
                 input=pw + "\n",
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,

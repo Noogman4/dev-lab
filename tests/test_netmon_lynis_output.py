@@ -5,6 +5,7 @@ import sys
 
 from netmon import app as netmon_app
 from netmon.core import command as command_module
+from netmon.core import trusted_sudo
 from netmon.features import security_audit_controller
 from netmon.ui.tabs import security_tabs
 from netmon.ui.tabs.settings_tab import build_settings_backup
@@ -124,6 +125,8 @@ def synthetic_sudo_probe(monkeypatch, request):
     available = getattr(request, "param", False)
     assert type(available) is bool
     assert security_audit_controller.os.geteuid() != 0
+    monkeypatch.setattr(command_module, "trusted_sudo_path", lambda: "/usr/bin/sudo")
+    monkeypatch.setattr(trusted_sudo, "trusted_sudo_path", lambda: "/usr/bin/sudo")
     original = command_module.subprocess
     calls = []
     probe_options = {
@@ -131,6 +134,7 @@ def synthetic_sudo_probe(monkeypatch, request):
         "stderr": original.STDOUT,
         "text": True,
         "timeout": 3,
+        "env": trusted_sudo.sudo_environment(),
         "check": False,
     }
 
@@ -140,7 +144,7 @@ def synthetic_sudo_probe(monkeypatch, request):
 
         def run(self, args, *positional, **kwargs):
             if (
-                args == ["sudo", "-n", "true"]
+                args == ["/usr/bin/sudo", "-n", "/usr/bin/true"]
                 and not positional
                 and kwargs == probe_options
             ):
@@ -1507,7 +1511,7 @@ def test_run_security_baseline_checks_evaluates_special_cases(
             "Security Baseline im Lynis-Tab lesend aktualisiert."
             " Privilegkontext: sudo -n true."
         )
-    assert synthetic_sudo_probe["calls"] == [["sudo", "-n", "true"]]
+    assert synthetic_sudo_probe["calls"] == [["/usr/bin/sudo", "-n", "/usr/bin/true"]]
     assert (
         any(cmd[:2] == ["sudo", "-n"] for cmd in executed_commands)
         is synthetic_sudo_probe["available"]

@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from netmon.core import command
+from netmon.core import command, trusted_sudo
 from netmon.features import dns_controller
 from netmon.services.dns_control_service import DNSControlService
 
@@ -20,6 +20,7 @@ PROPS = ("ipv4.ignore-auto-dns", "ipv6.ignore-auto-dns", "ipv4.dns", "ipv6.dns")
 
 @pytest.fixture
 def network(monkeypatch, tmp_path):
+    monkeypatch.setattr(trusted_sudo, "trusted_sudo_path", lambda: "/usr/bin/sudo")
     state = SimpleNamespace(
         fields=[UUID, "", "802-3-ethernet", "no", "no", "", ""],
         active_uuid=UUID,
@@ -44,12 +45,12 @@ def network(monkeypatch, tmp_path):
             )
         if args == ["nmcli", "-g", "GENERAL.CON-UUID", "device", "show", TARGET[0]]:
             return subprocess.CompletedProcess(args, 0, state.active_uuid + "\n")
-        if args[:7] == ["sudo", "-n", "nmcli", "con", "mod", "uuid", UUID]:
+        if args[:7] == ["/usr/bin/sudo", "-n", "nmcli", "con", "mod", "uuid", UUID]:
             props = dict(zip(PROPS, state.fields[3:]))
             props.update(zip(args[7::2], args[8::2]))
             state.fields[3:] = [props[key] for key in PROPS]
             return subprocess.CompletedProcess(args, 0, "")
-        if args == ["sudo", "-n", "nmcli", "con", "up", "uuid", UUID]:
+        if args == ["/usr/bin/sudo", "-n", "nmcli", "con", "up", "uuid", UUID]:
             return subprocess.CompletedProcess(
                 args,
                 int(state.fail_activation),
@@ -89,7 +90,7 @@ def test_profile_preserves_empty_fields_with_real_command_helper(
             "properties": dict(zip(PROPS, ("no", "no", dns4, dns6))),
         }
     ]
-    assert not any(args[0] == "sudo" for args in state.commands)
+    assert not any(args[0] == "/usr/bin/sudo" for args in state.commands)
 
 
 @pytest.mark.parametrize("preserve_output", [False, True])
@@ -144,7 +145,7 @@ def test_invalid_profiles_still_abort_before_mutation(network, defect):
     )
 
     assert not ok and details
-    assert not any(args[0] == "sudo" for args in state.commands)
+    assert not any(args[0] == "/usr/bin/sudo" for args in state.commands)
 
 
 @pytest.mark.parametrize("fail_activation", [False, True])
@@ -178,11 +179,15 @@ def test_manual_google_choice_with_empty_dns_fields(network, fail_activation):
     )
     assert (
         sum(
-            args[:5] == ["sudo", "-n", "nmcli", "con", "mod"] for args in state.commands
+            args[:5] == ["/usr/bin/sudo", "-n", "nmcli", "con", "mod"]
+            for args in state.commands
         )
         == 1
     )
     assert (
-        sum(args[:5] == ["sudo", "-n", "nmcli", "con", "up"] for args in state.commands)
+        sum(
+            args[:5] == ["/usr/bin/sudo", "-n", "nmcli", "con", "up"]
+            for args in state.commands
+        )
         == 1
     )

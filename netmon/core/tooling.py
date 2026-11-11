@@ -7,12 +7,22 @@ import os
 import shutil
 import subprocess
 
+try:
+    from netmon.core.trusted_sudo import trusted_sudo_path
+except ModuleNotFoundError:
+    from core.trusted_sudo import trusted_sudo_path
+
 
 def has_cmd(name: str) -> bool:
-    return shutil.which(name) is not None
+    return bool(get_cmd_path(name))
 
 
 def get_cmd_path(name: str) -> str:
+    if name == "sudo":
+        try:
+            return trusted_sudo_path()
+        except OSError:
+            return ""
     return shutil.which(name) or ""
 
 
