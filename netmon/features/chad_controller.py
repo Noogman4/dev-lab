@@ -12,8 +12,10 @@ from datetime import datetime
 from . import chad_code_blocks, chad_prompt_display
 
 try:
+    from netmon.core.docx_archive import open_validated_docx
     from netmon.core.utils import call_in_ui_thread
 except ModuleNotFoundError:
+    from core.docx_archive import open_validated_docx
     from core.utils import call_in_ui_thread
 
 try:
@@ -1685,7 +1687,8 @@ def extract_docx_text_for_chad(app, path: str) -> str:
         )
 
     try:
-        document = docx.Document(path)
+        with open_validated_docx(path) as package:
+            document = docx.Document(package)
         parts = []
 
         for paragraph in document.paragraphs:
