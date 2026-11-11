@@ -2476,28 +2476,40 @@ def send_linux_help_command_to_terminal(app):
         )
         return False
 
-    risk = str(item.get("risk") or "").strip().lower()
-    requires_confirmation = bool(item.get("root_required")) or risk in {
-        "caution",
-        "danger",
-    }
-    if requires_confirmation and messagebox is not None:
+    # Catalog metadata is descriptive, never authorization to execute shell text.
+    # Confirm every command, including legacy saved entries without provenance.
+    try:
+        if messagebox is None:
+            raise RuntimeError("Confirmation dialog unavailable")
         confirmed = messagebox.askyesno(
             app.tr("linux_help_confirm_send_title", "Send command to terminal"),
             app.tr(
-                "linux_help_confirm_send_prompt",
-                "This command may change system state.\n\nSend it to the terminal anyway?",
-            ),
-            parent=app,
-        )
-        if not confirmed:
-            app.linux_help_status_var.set(
-                app.tr(
-                    "linux_help_status_terminal_cancelled",
-                    "Linux help: terminal send canceled.",
-                )
+                "linux_help_confirm_execute_prompt",
+                "The following command will run immediately in a shell with your "
+                "user permissions. Catalog safety labels are not a security check."
+                "\n\nRun this command?",
             )
-            return False
+            + "\n\n"
+            + cmd,
+            parent=app,
+            default="no",
+        )
+    except Exception:
+        app.linux_help_status_var.set(
+            app.tr(
+                "linux_help_status_confirmation_unavailable",
+                "Linux help: confirmation unavailable; command was not run.",
+            )
+        )
+        return False
+    if confirmed is not True:
+        app.linux_help_status_var.set(
+            app.tr(
+                "linux_help_status_terminal_cancelled",
+                "Linux help: terminal send canceled.",
+            )
+        )
+        return False
 
     terminal_name = app._open_command_in_external_terminal(cmd)
     if not terminal_name:

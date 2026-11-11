@@ -3210,6 +3210,8 @@
     "linux_help_log_disabled_not_sent": "Linux-Hilfe: Deaktivierter Eintrag nicht gesendet",
     "linux_help_status_terminal_not_possible": "Linux Hilfe: Terminalversand nicht möglich ({reason})",
     "linux_help_log_terminal_cancelled": "Linux-Hilfe: Terminalversand abgebrochen",
+    "linux_help_confirm_execute_prompt": "Der folgende Befehl wird sofort in einer Shell mit deinen Benutzerrechten ausgeführt. Sicherheitsangaben im Katalog sind keine Sicherheitsprüfung.\n\nDiesen Befehl ausführen?",
+    "linux_help_status_confirmation_unavailable": "Linux-Hilfe: Bestätigung nicht verfügbar; Befehl wurde nicht ausgeführt.",
     "linux_help_confirm_send_title": "Befehl an Terminal senden",
     "linux_help_confirm_send_prompt": "Dieser Befehl verändert möglicherweise Systemzustände.\n\nTrotzdem ins Terminal senden?",
     "linux_help_confirm_danger_title": "Gefährlichen Befehl senden",

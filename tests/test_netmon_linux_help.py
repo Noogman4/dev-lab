@@ -218,7 +218,15 @@ def test_validate_linux_help_command_for_terminal_rejects_multiline():
     assert "Mehrzeilige" in reason
 
 
-def test_send_linux_help_command_to_terminal_sends_safe_selected_command():
+def test_send_linux_help_command_to_terminal_sends_safe_selected_command(monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        linux_help_controller,
+        "messagebox",
+        SimpleNamespace(askyesno=lambda *args, **kwargs: True),
+    )
+
     class DummyText:
         def __init__(self):
             self.value = ""

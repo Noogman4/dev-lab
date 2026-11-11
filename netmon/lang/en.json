@@ -3210,6 +3210,8 @@
     "linux_help_log_disabled_not_sent": "Linux help: disabled entry not sent",
     "linux_help_status_terminal_not_possible": "Linux help: terminal send not possible ({reason})",
     "linux_help_log_terminal_cancelled": "Linux help: terminal send canceled",
+    "linux_help_confirm_execute_prompt": "The following command will run immediately in a shell with your user permissions. Catalog safety labels are not a security check.\n\nRun this command?",
+    "linux_help_status_confirmation_unavailable": "Linux help: confirmation unavailable; command was not run.",
     "linux_help_confirm_send_title": "Send command to terminal",
     "linux_help_confirm_send_prompt": "This command may change system state.\n\nSend it to the terminal anyway?",
     "linux_help_confirm_danger_title": "Send dangerous command",
