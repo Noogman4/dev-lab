@@ -1,4 +1,19 @@
+import pytest
+
 from netmon.services.repository_guard_service import RepositoryGuardService
+
+
+@pytest.fixture(autouse=True)
+def private_flatpak_defaults(monkeypatch):
+    # APT fixtures must not depend on the machine's installed Flatpak/remotes.
+    # Model installed Flatpak with no remotes; explicit per-test injections for
+    # missing Flatpak, actual remote data and query failures still take priority.
+    monkeypatch.setattr(
+        RepositoryGuardService, "_flatpak_is_available", lambda self: True
+    )
+    monkeypatch.setattr(
+        RepositoryGuardService, "_run_flatpak_command", lambda self, scope: ""
+    )
 
 
 def test_collect_sources_parses_valid_and_disabled_entries(tmp_path):
@@ -596,6 +611,11 @@ def test_scan_reports_flatpak_query_error(tmp_path):
 
     assert result["status"] == "error"
     assert "repo_flatpak_query_failed" in codes
+    assert {
+        error["file_path"]
+        for error in result["errors"]
+        if error["code"] == "repo_flatpak_query_failed"
+    } == {"flatpak:system", "flatpak:user"}
 
 
 def test_repository_guard_baseline_roundtrip_and_compare(tmp_path):

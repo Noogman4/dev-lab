@@ -427,7 +427,7 @@ def test_validate_config_payload_normalizes_url_like_allowed_domains() -> None:
     assert specs[0].allowed_domains == ["proton.me", "account.proton.me"]
 
 
-def test_build_menu_launcher_content_uses_menu_fields() -> None:
+def test_build_menu_launcher_content_uses_menu_fields(monkeypatch, tmp_path) -> None:
     spec = builder.ContainerSpec(
         name="firefox-GitHub",
         path=Path("/tmp/firefox-GitHub"),
@@ -436,6 +436,9 @@ def test_build_menu_launcher_content_uses_menu_fields() -> None:
         menu_name="NetMon Secure Browser – GitHub",
     )
 
+    applications_dir = tmp_path / "applications"
+    monkeypatch.setattr(builder, "DEFAULT_APPLICATIONS_DIR", applications_dir)
+    desktop_entry = applications_dir / "netmon-secure-browser-firefox-github.desktop"
     content = builder.build_menu_launcher_content(spec)
 
     assert "Type=Application" in content
@@ -443,13 +446,12 @@ def test_build_menu_launcher_content_uses_menu_fields() -> None:
     assert "Categories=Network;Security;" in content
     assert "StartupWMClass=netmon-secure-browser-firefox-github" in content
     assert "Name=NetMon Secure Browser – GitHub" in content
-    assert (
-        'Exec=env BAMF_DESKTOP_FILE_HINT="/home/happy/.local/share/applications/'
-        'netmon-secure-browser-firefox-github.desktop" '
-        'GIO_LAUNCHED_DESKTOP_FILE="/home/happy/.local/share/applications/'
-        'netmon-secure-browser-firefox-github.desktop" '
+    exec_line = next(line for line in content.splitlines() if line.startswith("Exec="))
+    assert exec_line == (
+        f'Exec=env BAMF_DESKTOP_FILE_HINT="{desktop_entry}" '
+        f'GIO_LAUNCHED_DESKTOP_FILE="{desktop_entry}" '
         'MOZ_DESKTOP_FILE="netmon-secure-browser-firefox-github.desktop" '
-        '"/tmp/firefox-GitHub/start.sh"' in content
+        '"/tmp/firefox-GitHub/start.sh"'
     )
 
 
