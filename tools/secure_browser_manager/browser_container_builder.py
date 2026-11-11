@@ -28,6 +28,11 @@ from urllib.parse import quote, urljoin, urlparse
 if not __package__:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from netmon.core import icon_http
+from netmon.core.browser_domains import (
+    normalize_allowed_domain,
+    require_allowed_domains,
+    validate_website_filter,
+)
 from netmon.core.icon_payload import sanitize_icon
 
 
@@ -877,20 +882,6 @@ def get_register_existing_candidates(
 def normalize_container_key(name: str) -> str:
     normalized = name.lower().removeprefix("firefox-")
     return re.sub(r"[^a-z0-9]+", "", normalized)
-
-
-def normalize_allowed_domain(value: str) -> str | None:
-    raw = value.strip()
-    if not raw:
-        return None
-    candidate = raw if "://" in raw else f"https://{raw}"
-    parsed = urlparse(candidate)
-    host = parsed.hostname.lower() if parsed.hostname else ""
-    if not host:
-        return None
-    if parsed.port is not None:
-        return f"{host}:{parsed.port}"
-    return host
 
 
 def normalize_allowed_domains(values: list[str]) -> list[str]:
@@ -1766,7 +1757,7 @@ def find_container_by_name(
 def build_policies_payload(spec: ContainerSpec) -> dict[str, Any]:
     security = resolve_security_profile(spec)
     exceptions: list[str] = []
-    for domain in spec.allowed_domains:
+    for domain in require_allowed_domains(spec.allowed_domains):
         for pattern in make_match_patterns(domain):
             if pattern not in exceptions:
                 exceptions.append(pattern)
@@ -1796,7 +1787,7 @@ def build_policies_payload(spec: ContainerSpec) -> dict[str, Any]:
             "Block": [WEBSITE_FILTER_BLOCK_PATTERN],
             "Exceptions": exceptions,
         }
-    return {
+    payload = {
         "policies": policies,
         "_builder_metadata": {
             "allowed_domains": spec.allowed_domains,
@@ -1809,6 +1800,8 @@ def build_policies_payload(spec: ContainerSpec) -> dict[str, Any]:
             "generated_at": datetime.now().isoformat(timespec="seconds"),
         },
     }
+    validate_website_filter(payload)
+    return payload
 
 
 def build_user_js_content(spec: ContainerSpec) -> str:
@@ -2339,12 +2332,7 @@ def validate_config_payload(
                 f"Container '{name}' requires a non-empty string list in "
                 "'allowed_domains'."
             )
-        normalized_allowed_domains = normalize_allowed_domains(allowed_domains)
-        if not normalized_allowed_domains:
-            raise ValueError(
-                f"Container '{name}' requires at least one valid domain in "
-                "'allowed_domains'."
-            )
+        normalized_allowed_domains = require_allowed_domains(allowed_domains)
         path_raw = entry.get("path")
         path = ensure_path(path_raw) if isinstance(path_raw, str) else base_dir / name
         source_raw = entry.get("source_firefox_dir")
@@ -3128,13 +3116,13 @@ def remove_menu_entries(
 
 
 def create_container(spec: ContainerSpec, applications_dir: Path) -> Path:
+    policies_payload = build_policies_payload(spec)
     # mkdir limits access at creation; the umask may only tighten these rights.
     # Do not chmod the pathname afterwards: it can have been replaced by a link.
     spec.path.mkdir(parents=True, exist_ok=False, mode=0o700)
     firefox_target = spec.path / "firefox"
     shutil.copytree(spec.source_firefox_dir, firefox_target, symlinks=True)
     (spec.path / "profile").mkdir(mode=0o700)
-    policies_payload = build_policies_payload(spec)
     write_json(spec.path / "policies.json", policies_payload)
     distribution_dir = firefox_target / "distribution"
     maintenance_mkdir(distribution_dir)

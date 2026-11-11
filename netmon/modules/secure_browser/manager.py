@@ -9,6 +9,12 @@ import re
 import secrets
 from urllib.parse import urlparse
 
+from netmon.core.browser_domains import (
+    normalize_allowed_domain,
+    require_allowed_domains,
+    validate_website_filter,
+)
+
 from .models import BrowserContainer
 
 from .service import SecureBrowserService
@@ -194,9 +200,7 @@ class SecureBrowserManager:
 
     @staticmethod
     def is_protected_firefox_base_name(container_name: str | None) -> bool:
-        normalized = re.sub(
-            r"[-_.\s]+", "", str(container_name or "").strip().lower()
-        )
+        normalized = re.sub(r"[-_.\s]+", "", str(container_name or "").strip().lower())
         return normalized == "firefoxbase"
 
     def render_preflight_text(self) -> str:
@@ -316,17 +320,7 @@ class SecureBrowserManager:
 
     @classmethod
     def normalize_allowed_domain(cls, value: str) -> str | None:
-        raw = (value or "").strip()
-        if not raw:
-            return None
-        candidate = raw if "://" in raw else f"https://{raw}"
-        parsed = urlparse(candidate)
-        host = parsed.hostname.lower() if parsed.hostname else ""
-        if not host:
-            return None
-        if parsed.port is not None:
-            return f"{host}:{parsed.port}"
-        return host
+        return normalize_allowed_domain(value)
 
     @classmethod
     def normalize_allowed_domains(cls, values: list[str]) -> list[str]:
@@ -519,11 +513,7 @@ class SecureBrowserManager:
         ]
         if not allowed_domains:
             allowed_domains = list(defaults["allowed_domains"])
-        allowed_domains = self.normalize_allowed_domains(allowed_domains)
-        if not allowed_domains:
-            allowed_domains = self.normalize_allowed_domains(
-                list(defaults["allowed_domains"])
-            )
+        allowed_domains = require_allowed_domains(allowed_domains)
         return {
             "name": normalized_name,
             "homepage": homepage,
@@ -1744,12 +1734,13 @@ class SecureBrowserManager:
 
     @staticmethod
     def _make_policy_exception_patterns(url_or_domain: str) -> list[str]:
-        raw = str(url_or_domain or "").strip()
-        if not raw:
-            raise ValueError("Keine URL angegeben.")
+        normalized = normalize_allowed_domain(url_or_domain)
+        if normalized is None:
+            raise ValueError("Ungültige URL oder Domain für die Ausnahme.")
+        raw = url_or_domain.strip()
         parsed = urlparse(raw if "://" in raw else f"https://{raw}")
-        host = (parsed.hostname or "").strip().lower()
-        if not host or "." not in host:
+        host = normalized.partition(":")[0]
+        if "." not in host:
             raise ValueError("Ungültige URL oder Domain für die Ausnahme.")
         port = parsed.port
         path = parsed.path or "/"
@@ -1804,6 +1795,7 @@ class SecureBrowserManager:
         for pattern in self._make_policy_exception_patterns(url_or_domain):
             if pattern not in exceptions:
                 exceptions.append(pattern)
+        validate_website_filter(payload)
         return json.dumps(payload, indent=2, ensure_ascii=True) + "\n"
 
     def get_copy_payload(

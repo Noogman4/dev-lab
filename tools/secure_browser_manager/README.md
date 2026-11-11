@@ -110,6 +110,15 @@ konfigurierten Ausnahmen zu erlauben. Port-genaue Freigaben wie
 `netmonroots.com:2083` lassen sich damit nicht exakt nach Port modellieren; der
 Builder dokumentiert dieses Risiko in den generierten Container-README-Dateien.
 
+`allowed_domains` akzeptiert konkrete DNS-/IPv4-Hosts, optional mit Port oder als
+HTTP(S)-URL. Wildcards wie `*` und `*.example.com` sowie ungueltige Hosts werden
+abgewiesen; ein ungueltiger Eintrag bricht die gesamte Eingabe ab. Der Builder
+erzeugt Subdomain-Muster selbst. Generierte Policies und der Policy-Editor
+verweigern globale Ausnahmen wie `*://*/*` und `<all_urls>`. Das ausdruecklich
+ungefilterte Profil `compatible` bleibt verfuegbar. Bereits erzeugte Container
+werden durch ein Code-Update nicht automatisch umgeschrieben; ihre Ausnahmen
+muessen bei Bedarf korrigiert und die Policies neu gespeichert werden.
+
 ## Nutzung
 
 Dry-Run:

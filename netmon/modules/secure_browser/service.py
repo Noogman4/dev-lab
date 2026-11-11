@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from types import ModuleType
 
+from netmon.core.browser_domains import validate_website_filter
 from netmon.core.state import get_netmon_documents_subdir
 from tools.secure_browser_manager.browser_container_builder import (
     backup_existing_file,
@@ -948,6 +949,7 @@ class SecureBrowserService:
             raise ValueError(f"Ungültiges JSON: {exc}") from exc
         if not isinstance(payload, dict):
             raise ValueError("policies.json muss ein JSON-Objekt enthalten.")
+        validate_website_filter(payload)
         rendered = json.dumps(payload, indent=2, ensure_ascii=True) + "\n"
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         backup_dir = container.path / "backups" / self.POLICY_BACKUP_DIRNAME / stamp
