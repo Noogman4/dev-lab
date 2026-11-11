@@ -178,8 +178,8 @@ def setup_transfers(monkeypatch, responses):
         response = responses[len(connections)]
         record = {"host": host, "scheme": scheme, "closed": False}
 
-        def request(method, path, headers):
-            record.update(method=method, path=path, headers=headers)
+        def request(method, path, headers, body=None):
+            record.update(method=method, path=path, headers=headers, body=body)
 
         def close():
             record["closed"] = True
@@ -378,3 +378,81 @@ def test_fetch_main_applies_limits_before_any_network_call():
     ]
     assert names[0] == "apply_process_limits"
     assert names.index("apply_process_limits") < names.index("transfer")
+
+
+class FragmentedCatalogResponse(Response):
+    def __init__(self, body, length):
+        super().__init__(body=body, length=length)
+        self.read_bytes = 0
+
+    def read1(self, size):
+        assert 0 < size <= 16384
+        chunk = self.body.read(min(2, size))
+        self.read_bytes += len(chunk)
+        if self.length is not None:
+            self.length -= len(chunk)
+        return chunk
+
+
+@pytest.mark.parametrize("mode", ["catalog-json", "catalog-xml", "catalog-post"])
+@pytest.mark.parametrize(
+    "body,length,refused,read_bytes",
+    [
+        (b"1234", None, False, 4),
+        (b"12345", None, True, 5),
+        (b"12345", 5, True, 0),
+        (b"123", 4, True, 3),
+    ],
+    ids=["exact-limit", "overflow-without-length", "oversized-header", "truncated"],
+)
+def test_catalog_source_budget_and_partial_reads(
+    monkeypatch, mode, body, length, refused, read_bytes
+):
+    monkeypatch.setattr(fetch, "MAX_CATALOG_BODY_BYTES", 4)
+    response = FragmentedCatalogResponse(body, length)
+    connections, _ = setup_transfers(monkeypatch, [response])
+    output = io.BytesIO()
+    if refused:
+        with pytest.raises(fetch.SourceError):
+            fetch.transfer("https://radio.example/catalog", output, mode=mode)
+        assert output.getvalue() == b""
+    else:
+        fetch.transfer("https://radio.example/catalog", output, mode=mode)
+        assert output.getvalue() == body
+    assert response.read_bytes == read_bytes
+    assert response.closed and connections[0]["closed"]
+
+
+@pytest.mark.parametrize("mode", ["catalog-json", "catalog-xml", "catalog-post"])
+@pytest.mark.parametrize("status", [301, 302, 303, 307, 308])
+def test_catalog_redirects_never_read_intermediate_bodies(monkeypatch, mode, status):
+    class Redirect(Response):
+        def read1(self, _size):
+            pytest.fail("Catalog redirect body must never be read")
+
+    redirect = Redirect(
+        status, {"Location": "https://cdn.example/catalog", "Set-Cookie": "synthetic=x"}
+    )
+    body = b"<directory/>" if mode == "catalog-xml" else b"[]"
+    final = FragmentedCatalogResponse(body, None)
+    connections, _ = setup_transfers(monkeypatch, [redirect, final])
+    output = io.BytesIO()
+    if mode == "catalog-post" and status == 303:
+        with pytest.raises(fetch.SourceError, match="POST redirect"):
+            fetch.transfer("https://radio.example/catalog", output, mode=mode)
+        assert len(connections) == 1 and output.getvalue() == b""
+    else:
+        fetch.transfer("https://radio.example/catalog", output, mode=mode)
+        assert len(connections) == 2 and output.getvalue() == body
+        assert final.closed
+    assert redirect.closed and all(c["closed"] for c in connections)
+    assert all(
+        "Cookie" not in c["headers"] and "Authorization" not in c["headers"]
+        for c in connections
+    )
+    if mode == "catalog-post":
+        assert all(c["method"] == "POST" for c in connections)
+        assert all(
+            c["body"] == b'{"hidebroken":true,"limit":5000,"offset":0}'
+            for c in connections
+        )
