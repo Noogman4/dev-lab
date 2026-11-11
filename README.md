@@ -71,6 +71,11 @@ Designed for Linux users who want to monitor, diagnose, and secure their systems
 
 ## Installation
 
+Packages built from this source do not change DNS settings or reactivate network
+profiles during installation or removal. Legacy DNS state files remain untouched.
+Removal still refuses active or unresolved firewall transactions. This source policy
+does not change previously built or installed packages.
+
 Download the latest Debian package from:
 
 **[https://netmonroots.com/downloads.html](https://netmonroots.com/downloads.html)**

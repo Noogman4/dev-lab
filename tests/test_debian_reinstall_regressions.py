@@ -1,209 +1,264 @@
-"""Reinstall recovery with synthetic NetworkManager and private GUI settings."""
+"""Passive package lifecycle with synthetic legacy state and private GUI settings."""
 
+import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import pytest
 
 ROOT = Path(
     os.environ.get("NETMON_REINSTALL_TEST_ROOT", Path(__file__).resolve().parents[1])
 )
+PHASES = [
+    ("postinst", "configure"),
+    ("postinst", "abort-upgrade"),
+    ("prerm", "remove"),
+    ("prerm", "deconfigure"),
+    ("prerm", "upgrade"),
+    ("prerm", "failed-upgrade"),
+]
+UUID = "12345678-1234-5678-9012-123456789abc"
 
 
-@pytest.fixture(params=["postinst", "prerm"])
+def _state_manifest(root):
+    """Compare bytes, links and metadata without opening special/link targets."""
+    result = {}
+    for base, dirs, files in os.walk(root, followlinks=False):
+        for path in [Path(base), *(Path(base) / name for name in dirs + files)]:
+            info = path.lstat()
+            content = None
+            if stat.S_ISLNK(info.st_mode):
+                content = os.readlink(path)
+            elif stat.S_ISREG(info.st_mode):
+                try:
+                    content = hashlib.sha256(path.read_bytes()).hexdigest()
+                except PermissionError:
+                    content = "unreadable"
+            result[str(path.relative_to(root))] = (
+                info.st_ino,
+                info.st_mode,
+                info.st_uid,
+                info.st_gid,
+                info.st_nlink,
+                info.st_mtime_ns,
+                info.st_ctime_ns,
+                content,
+            )
+    return result
+
+
+@pytest.fixture(params=PHASES, ids=["-".join(p) for p in PHASES])
 def lifecycle(request, tmp_path):
+    phase, argument = request.param
     source = (ROOT / "scripts/build_netmon_deb.sh").read_text()
     match = re.search(
-        rf'^cat > "\$PKG_DIR/DEBIAN/{request.param}" <<\'EOF\'\n(.*?)^EOF$',
+        rf'^cat > "\$PKG_DIR/DEBIAN/{phase}" <<\'EOF\'\n(.*?)^EOF$',
         source,
         re.M | re.S,
     )
     assert match
     state = tmp_path / "state"
-    state.mkdir()
+    state.mkdir(mode=0o700)
     snapshot = state / "install-dns-nm.state"
-    contents = "11111111-1111-4111-8111-111111111111|192.0.2.53|yes\n22222222-2222-4222-8222-222222222222||\n"
-    snapshot.write_text(contents)
-    text = match[1].replace('"/var/lib/netmon"', f'"{state}"')
-    text = text.replace('"/etc/skel"', f'"{tmp_path / "skel"}"')
-    text = text.replace(
-        '"/usr/share/netmon/assets/log-pics"', f'"{tmp_path / "no-assets"}"'
+    snapshot.write_text(f"{UUID}|192.0.2.53|no\n")
+    snapshot.chmod(0o600)
+    (state / "unrelated-state").write_bytes(b"preserve unrelated state")
+    for name in ("skel", "assets"):
+        (tmp_path / name).mkdir()
+    text = (
+        match[1]
+        .replace("/var/lib/netmon", str(state))
+        .replace("/etc/skel", str(tmp_path / "skel"))
+        .replace("/usr/share/netmon/assets/log-pics", str(tmp_path / "assets"))
     )
-    script = tmp_path / request.param
+    script = tmp_path / phase
     script.write_text(text)
     commands = tmp_path / "commands"
     commands.mkdir()
-    fake = commands / "nmcli"
-    fake.write_text(
-        f"#!{sys.executable}\n"
-        "import json,os,sys\n"
-        "with open(os.environ['CALLS'],'a') as f: f.write(json.dumps(sys.argv[1:])+'\\n')\n"
-        "from pathlib import Path\n"
-        "state = Path(os.environ['RECOVERY_STATE'])\n"
-        "if os.environ.get('CLEANUP_FAILURE'): state.parent.chmod(0o500)\n"
-        "marker = Path(os.environ['MUTATION_MARKER'])\n"
-        "if os.environ.get('MUTATE') and not marker.exists():\n"
-        "    payload = bytes.fromhex(os.environ['MUTATE'])\n"
-        "    if os.environ.get('REPLACE_STATE'):\n"
-        "        changed = state.with_name('replacement.state'); changed.write_bytes(payload); changed.replace(state)\n"
-        "    else: state.write_bytes(payload)\n"
-        "    marker.write_text('changed')\n"
-        "fail = os.environ.get('FAIL')\n"
-        "sys.exit(91 if fail and fail in sys.argv and '22222222-2222-4222-8222-222222222222' in sys.argv else 0)\n"
-    )
-    fake.chmod(0o700)
-    desktop = commands / "update-desktop-database"
-    desktop.write_text("#!/bin/sh\nexit 0\n")
-    desktop.chmod(0o700)
-    for tool in ("mkdir", "find", "basename", "cp", "rm", "rmdir"):
-        (commands / tool).symlink_to(Path("/usr/bin") / tool)
     calls = tmp_path / "calls"
-
-    def run(fail="", action=None, cleanup_failure=False, mutation=None, replace=False):
-        env = dict(
-            os.environ,
-            PATH=str(commands),
-            FAIL=fail,
-            CALLS=str(calls),
-            RECOVERY_STATE=str(snapshot),
-            MUTATION_MARKER=str(tmp_path / "mutated"),
-            CLEANUP_FAILURE="1" if cleanup_failure else "",
-            MUTATE=mutation.hex() if mutation is not None else "",
-            REPLACE_STATE="1" if replace else "",
+    for command in (
+        "nmcli",
+        "resolvectl",
+        "systemctl",
+        "ufw",
+        "ip",
+        "nft",
+        "sudo",
+        "service",
+        "wg",
+        "wg-quick",
+        "update-desktop-database",
+    ):
+        fake = commands / command
+        fake.write_text(
+            f'#!/bin/sh\nprintf "%s %s\\n" "{command}" "$*" >> "$TEST_CALLS"\nexit 0\n'
         )
-        old_mode = snapshot.parent.stat().st_mode & 0o777
+        fake.chmod(0o700)
+    for tool in ("mkdir", "find", "basename", "cp"):
+        (commands / tool).symlink_to(Path("/usr/bin") / tool)
+
+    def run():
+        before = calls.read_text().splitlines() if calls.exists() else []
         result = subprocess.run(
-            [
-                "/bin/sh",
-                str(script),
-                action or ("configure" if request.param == "postinst" else "remove"),
-            ],
+            ["/bin/sh", str(script), argument],
             capture_output=True,
             text=True,
-            env=env,
-            timeout=10,
+            timeout=3,
+            env=dict(os.environ, PATH=str(commands), TEST_CALLS=str(calls)),
         )
-        snapshot.parent.chmod(old_mode)
-        recorded = (
-            [json.loads(line) for line in calls.read_text().splitlines()]
-            if calls.exists()
-            else []
-        )
-        return result, recorded
+        recorded = calls.read_text().splitlines() if calls.exists() else []
+        return result, recorded[len(before) :]
 
-    return run, snapshot, contents, fake, request.param
+    return SimpleNamespace(
+        run=run,
+        snapshot=snapshot,
+        state=state,
+        tmp=tmp_path,
+        fake_nmcli=commands / "nmcli",
+        phase=phase,
+    )
 
 
-def test_dns_restore_success_removes_only_recovery_state(lifecycle):
-    run, snapshot, _contents, _fake, _name = lifecycle
-    unrelated = snapshot.parent / "unrelated-state"
-    unrelated.write_text("keep")
-    result, calls = run()
+def _assert_passive_success(case, before):
+    result, calls = case.run()
     assert result.returncode == 0, result.stderr
-    assert not snapshot.exists()
-    assert unrelated.read_text() == "keep"
-    assert [
-        "connection",
-        "modify",
-        "uuid",
-        "11111111-1111-4111-8111-111111111111",
-        "ipv4.dns",
-        "192.0.2.53",
-        "ipv4.ignore-auto-dns",
-        "yes",
-    ] in calls
-    assert [
-        "connection",
-        "modify",
-        "uuid",
-        "22222222-2222-4222-8222-222222222222",
-        "ipv4.dns",
-        "",
-        "ipv4.ignore-auto-dns",
-        "no",
-    ] in calls
-    assert ["connection", "up", "uuid", "22222222-2222-4222-8222-222222222222"] in calls
+    assert calls == (
+        ["update-desktop-database /usr/share/applications"]
+        if case.phase == "postinst"
+        else []
+    )
+    assert _state_manifest(case.state) == before
 
 
-@pytest.mark.parametrize("failure", ["show", "modify", "up"])
-def test_dns_restore_failure_keeps_entire_snapshot_and_reports(lifecycle, failure):
-    run, snapshot, contents, _fake, _name = lifecycle
-    result, calls = run(failure)
-    assert result.returncode != 0
-    assert snapshot.read_text() == contents
-    assert str(snapshot) in result.stderr
-    assert "DNS" in result.stderr
-    if failure == "modify":
-        assert [
-            "connection",
-            "up",
-            "uuid",
-            "22222222-2222-4222-8222-222222222222",
-        ] not in calls
-    # A later successful invocation can retry using the original full snapshot.
-    result, _calls = run()
-    assert result.returncode == 0, result.stderr
-    assert not snapshot.exists()
+@pytest.mark.parametrize(
+    "contents",
+    [
+        f"{UUID}|192.0.2.53|no\n".encode(),
+        f"{UUID}|192.0.2.53|yes\n".encode(),
+        f"{UUID}||\n".encode(),
+        f"{UUID}|192.0.2.53|no".encode(),
+        b"",
+        b"not a recovery record",
+        b"|192.0.2.1|yes\n",
+        f"{UUID}|192.0.2.1|yes|extra\n".encode(),
+        f"{UUID}|192.0.2.1|yes\n{UUID}|192.0.2.2|no\n".encode(),
+        b"legacy\x00state\xff\r\n",
+        b"x" * 65537,
+    ],
+    ids=[
+        "auto-dns-no",
+        "auto-dns-yes",
+        "empty-fields",
+        "no-final-lf",
+        "empty",
+        "invalid-record",
+        "missing-uuid",
+        "extra-fields",
+        "duplicate-uuid",
+        "binary",
+        "large",
+    ],
+)
+def test_legacy_state_is_preserved_without_interpretation(lifecycle, contents):
+    lifecycle.snapshot.write_bytes(contents)
+    _assert_passive_success(lifecycle, _state_manifest(lifecycle.state))
 
 
-def test_dns_without_nmcli_keeps_snapshot_and_reports(lifecycle):
-    run, snapshot, contents, fake, _name = lifecycle
-    fake.unlink()
-    result, calls = run()
-    assert result.returncode != 0
-    assert snapshot.read_text() == contents
-    assert str(snapshot) in result.stderr
-    assert "nmcli" in result.stderr
+def test_missing_legacy_state_remains_absent(lifecycle):
+    lifecycle.snapshot.unlink()
+    _assert_passive_success(lifecycle, _state_manifest(lifecycle.state))
+
+
+def test_package_lifecycle_needs_no_nmcli(lifecycle):
+    lifecycle.fake_nmcli.rename(lifecycle.tmp / "disabled-nmcli")
+    _assert_passive_success(lifecycle, _state_manifest(lifecycle.state))
+
+
+@pytest.mark.parametrize(
+    "kind", ["symlink", "dangling", "hardlink", "fifo", "directory", "unreadable"]
+)
+def test_legacy_path_types_are_untouched(lifecycle, kind):
+    path = lifecycle.snapshot
+    path.unlink()
+    victim = lifecycle.tmp / "outside-state"
+    victim.write_bytes(b"private external sentinel")
+    if kind == "symlink":
+        path.symlink_to(victim)
+    elif kind == "dangling":
+        path.symlink_to(lifecycle.tmp / "missing-target")
+    elif kind == "hardlink":
+        os.link(victim, path)
+    elif kind == "fifo":
+        os.mkfifo(path, 0o600)
+    elif kind == "directory":
+        path.mkdir()
+        (path / "sentinel").write_bytes(b"keep")
+    else:
+        path.write_bytes(b"unreadable legacy state")
+        path.chmod(0)
+    victim_info = victim.stat()
+    _assert_passive_success(lifecycle, _state_manifest(lifecycle.state))
+    assert victim.read_bytes() == b"private external sentinel"
+    assert victim.stat().st_ino == victim_info.st_ino
+    assert victim.stat().st_ctime_ns == victim_info.st_ctime_ns
+    if kind == "unreadable":
+        path.chmod(0o600)
+        assert path.read_bytes() == b"unreadable legacy state"
+
+
+def test_package_lifecycle_does_not_wait_for_legacy_directory_lock(lifecycle):
+    before = _state_manifest(lifecycle.state)
+    descriptor = os.open(lifecycle.state, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        _assert_passive_success(lifecycle, before)
+    finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+
+def test_repeated_package_callbacks_leave_legacy_state_unchanged(lifecycle):
+    before = _state_manifest(lifecycle.state)
+    _assert_passive_success(lifecycle, before)
+    _assert_passive_success(lifecycle, before)
+
+
+@pytest.mark.parametrize(
+    "lifecycle", [("prerm", "remove"), ("prerm", "deconfigure")], indirect=True
+)
+@pytest.mark.parametrize("receipt", ["regular", "symlink"])
+def test_refused_removal_preserves_dns_and_firewall_state(lifecycle, receipt):
+    folder = lifecycle.state / "ufw-snapshot"
+    folder.mkdir()
+    path = folder / "state.json"
+    victim = lifecycle.tmp / "firewall-receipt"
+    victim.write_bytes(b"{}")
+    if receipt == "symlink":
+        path.symlink_to(victim)
+    else:
+        path.write_bytes(b"{}")
+    before = _state_manifest(lifecycle.state)
+    result, calls = lifecycle.run()
+    assert result.returncode == 1
+    assert "Firewall-Transaktion" in result.stderr
     assert calls == []
+    assert _state_manifest(lifecycle.state) == before
+    assert victim.read_bytes() == b"{}"
 
 
-def test_dns_state_cleanup_failure_is_reported(lifecycle):
-    run, snapshot, contents, _fake, _name = lifecycle
-    result, _calls = run(cleanup_failure=True)
-    assert result.returncode != 0
-    assert snapshot.read_text() == contents
-    assert str(snapshot) in result.stderr
-
-
-def test_dns_last_record_without_newline_is_restored(lifecycle):
-    run, snapshot, contents, _fake, _name = lifecycle
-    snapshot.write_text(contents.rstrip("\n"))
-    result, calls = run()
-    assert result.returncode == 0, result.stderr
-    assert ["connection", "up", "uuid", "22222222-2222-4222-8222-222222222222"] in calls
-    assert not snapshot.exists()
-
-
-def test_dns_without_snapshot_does_not_touch_network(lifecycle):
-    run, snapshot, _contents, _fake, _name = lifecycle
-    snapshot.unlink()
-    result, calls = run()
-    assert result.returncode == 0, result.stderr
-    assert calls == []
-
-
-@pytest.mark.parametrize("lifecycle", ["prerm"], indirect=True)
-def test_prerm_upgrade_does_not_restore(lifecycle):
-    run, snapshot, contents, _fake, _name = lifecycle
-    result, calls = run(action="upgrade")
-    assert result.returncode == 0, result.stderr
-    assert calls == []
-    assert snapshot.read_text() == contents
-
-
-@pytest.mark.parametrize("lifecycle", ["prerm"], indirect=True)
-def test_prerm_deconfigure_keeps_snapshot_on_failure(lifecycle):
-    run, snapshot, contents, _fake, _name = lifecycle
-    result, _calls = run("up", action="deconfigure")
-    assert result.returncode != 0
-    assert snapshot.read_text() == contents
-    result, _calls = run(action="deconfigure")
-    assert result.returncode == 0, result.stderr
-    assert not snapshot.exists()
+@pytest.mark.parametrize("lifecycle", [("postinst", "configure")], indirect=True)
+def test_postinst_with_firewall_receipt_keeps_dns_unchanged(lifecycle):
+    receipt = lifecycle.state / "ufw-snapshot"
+    receipt.mkdir()
+    (receipt / "state.json").write_bytes(b"{}")
+    _assert_passive_success(lifecycle, _state_manifest(lifecycle.state))
 
 
 GUI_DRIVER = r"""
@@ -339,225 +394,3 @@ def test_first_seen_initialization_is_saved_once_after_preferences_load(
             timeout=60,
         )
         assert result.returncode == 0, result.stdout + result.stderr
-
-
-# Exact three inputs from the independent review, for both maintainer scripts.
-@pytest.mark.parametrize(
-    "damaged",
-    [
-        b"|203.0.113.99|yes\n22222222-2222-4222-8222-222222222222|198.51.100.53|yes\n",
-        b"11111111-1111-4111-8111-111111111111\n22222222-2222-4222-8222-222222222222|198.51.100.53|yes\n",
-        b"11111111-1111-4111-8111-111111111111",
-    ],
-)
-def test_independent_corruption_reproductions_are_rejected(lifecycle, damaged):
-    run, snapshot, _contents, _fake, _name = lifecycle
-    snapshot.write_bytes(damaged)
-    result, calls = run()
-    assert result.returncode != 0
-    assert snapshot.read_bytes() == damaged
-    assert str(snapshot) in result.stderr
-    assert calls == []
-
-
-@pytest.mark.parametrize(
-    "damaged",
-    [
-        b"11111111-1111-4111-8111-111111111111",
-        b"|192.0.2.1|yes",
-        b"11111111-1111-4111-8111-111111111111|192.0.2.1",
-        b"11111111-1111-4111-8111-111111111111|192.0.2.1|yes|extra",
-        b"11111111-1111-4111-8111-111111111111|||",
-        b"",
-        b"  |192.0.2.1|yes",
-        b"11111111-1111-4111-8111-111111111111|192.0.2.1\0|yes",
-        b"11111111-1111-4111-8111-111111111111|\xff|yes",
-        b"11111111-1111-4111-8111-111111111111|192.0.2.1|yes\r",
-    ],
-)
-def test_entire_snapshot_is_validated_before_any_connection_change(lifecycle, damaged):
-    run, snapshot, _contents, _fake, _name = lifecycle
-    contents = (
-        b"11111111-1111-4111-8111-111111111111|192.0.2.53|yes\n"
-        + damaged
-        + b"\n22222222-2222-4222-8222-222222222222||\n"
-    )
-    snapshot.write_bytes(contents)
-    result, calls = run()
-    assert result.returncode != 0
-    assert snapshot.read_bytes() == contents
-    assert str(snapshot) in result.stderr
-    assert calls == [], "Even the valid first record must not reach nmcli"
-
-
-@pytest.mark.parametrize(
-    "dns,ignore",
-    [
-        ("", ""),
-        ("", "no"),
-        ("192.0.2.1", ""),
-        ("192.0.2.1", "yes"),
-        ("192.0.2.1,198.51.100.53", "yes"),
-        ("192.0.2.1 198.51.100.53", "no"),
-    ],
-)
-def test_complete_legacy_record_preserves_explicit_empty_values(lifecycle, dns, ignore):
-    run, snapshot, _contents, _fake, _name = lifecycle
-    snapshot.write_text(
-        f"11111111-1111-4111-8111-111111111111|{dns}|{ignore}"
-    )  # Complete record, no final LF.
-    result, calls = run()
-    assert result.returncode == 0, result.stderr
-    assert calls == [
-        ["connection", "show", "uuid", "11111111-1111-4111-8111-111111111111"],
-        [
-            "connection",
-            "modify",
-            "uuid",
-            "11111111-1111-4111-8111-111111111111",
-            "ipv4.dns",
-            dns,
-            "ipv4.ignore-auto-dns",
-            ignore or "no",
-        ],
-        ["connection", "up", "uuid", "11111111-1111-4111-8111-111111111111"],
-    ]
-    assert not snapshot.exists()
-
-
-def test_empty_legacy_snapshot_contains_no_connections(lifecycle):
-    # The old installer used touch before enumerating active connections.
-    run, snapshot, _contents, _fake, _name = lifecycle
-    snapshot.write_bytes(b"")
-    result, calls = run()
-    assert result.returncode == 0, result.stderr
-    assert calls == []
-    assert not snapshot.exists()
-
-
-A = "11111111-1111-4111-8111-111111111111"
-C = "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA"
-
-
-@pytest.mark.parametrize(
-    "identifier",
-    [
-        "",
-        "lab-uplink",
-        A.replace("-", ""),
-        "{" + A + "}",
-        "urn:uuid:" + A,
-        A[:-1],
-        A + "f",
-        A[:-1] + "g",
-        " " + A,
-        A + " ",
-    ],
-)
-def test_v3_invalid_uuid_rejects_entire_snapshot(lifecycle, identifier):
-    run, snapshot, _contents, _fake, _name = lifecycle
-    original = f"{A}|192.0.2.1|yes\n{identifier}|192.0.2.2|no\n".encode()
-    snapshot.write_bytes(original)
-    result, calls = run()
-    assert result.returncode != 0
-    assert snapshot.read_bytes() == original
-    assert calls == []
-
-
-@pytest.mark.parametrize(
-    "first,second,dns",
-    [(A, A, "192.0.2.1"), (A, A, "192.0.2.2"), (C, C.lower(), "192.0.2.1")],
-)
-def test_v3_identical_conflicting_and_case_duplicates_are_rejected(
-    lifecycle, first, second, dns
-):
-    run, snapshot, _contents, _fake, _name = lifecycle
-    original = f"{first}|192.0.2.1|yes\n{second}|{dns}|yes\n".encode()
-    snapshot.write_bytes(original)
-    result, calls = run()
-    assert result.returncode != 0
-    assert "duplicate UUID" in result.stderr
-    assert snapshot.read_bytes() == original
-    assert calls == []
-
-
-@pytest.mark.parametrize("identifier", [A, C])
-def test_v3_every_nm_call_uses_uuid_selector(lifecycle, identifier):
-    run, snapshot, _contents, _fake, _name = lifecycle
-    snapshot.write_text(f"{identifier}|192.0.2.1|yes\n")
-    result, calls = run()
-    assert result.returncode == 0, result.stderr
-    assert [c[1] for c in calls] == ["show", "modify", "up"]
-    assert all(c[2:4] == ["uuid", identifier.lower()] for c in calls)
-    assert not snapshot.exists()
-
-
-@pytest.mark.parametrize("replace", [False, True])
-@pytest.mark.parametrize(
-    "changed",
-    [
-        f"{A}|192.0.2.1|yes\n",
-        f"{A}|192.0.2.2|no\n",
-        "22222222-2222-4222-8222-222222222222|192.0.2.3|yes\n",
-    ],
-)
-def test_v3_changed_or_replaced_state_is_retained(lifecycle, replace, changed):
-    run, snapshot, _contents, _fake, _name = lifecycle
-    snapshot.write_text(f"{A}|192.0.2.1|yes\n")
-    result, calls = run(mutation=changed.encode(), replace=replace)
-    assert result.returncode != 0
-    assert "recovery state changed" in result.stderr
-    assert snapshot.read_bytes() == changed.encode()
-    assert all(c[3] == A for c in calls), "Only the validated snapshot may reach nmcli"
-
-
-def test_v3_missing_uuid_cannot_fall_back_to_profile_name(lifecycle):
-    run, snapshot, _contents, fake, _name = lifecycle
-    # Model a NAME equal to A, but no connection with UUID A.
-    fake.write_text(
-        f"#!{sys.executable}\n"
-        "import json,os,sys\n"
-        "with open(os.environ['CALLS'],'a') as f:f.write(json.dumps(sys.argv[1:])+'\\n')\n"
-        "sys.exit(10 if sys.argv[3:4]==['uuid'] else 0)\n"
-    )
-    original = f"{A}|192.0.2.1|yes\n"
-    snapshot.write_text(original)
-    result, calls = run()
-    assert result.returncode != 0
-    assert snapshot.read_text() == original
-    assert calls == [["connection", "show", "uuid", A]]
-
-
-def test_v3_directory_lock_serializes_cooperating_access(lifecycle):
-    import concurrent.futures
-    import fcntl
-    import time
-
-    run, snapshot, _contents, fake, name = lifecycle
-    script = fake.parent.parent / name
-    ready = fake.parent.parent / "lock-ready"
-    text = script.read_text()
-    hook = "        fcntl.flock(directory_fd, fcntl.LOCK_EX)"
-    assert text.count(hook) == 1
-    script.write_text(
-        text.replace(hook, f"        open({str(ready)!r}, 'w').close()\n" + hook)
-    )
-    descriptor = os.open(snapshot.parent, os.O_RDONLY | os.O_DIRECTORY)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        fcntl.flock(descriptor, fcntl.LOCK_EX)
-        worker = executor.submit(run)
-        try:
-            deadline = time.monotonic() + 10
-            while not ready.exists():
-                assert time.monotonic() < deadline, "Worker did not reach lock"
-                time.sleep(0.01)
-            assert not worker.done()
-            assert not (fake.parent.parent / "calls").exists()
-        finally:
-            fcntl.flock(descriptor, fcntl.LOCK_UN)
-            os.close(descriptor)
-        result, calls = worker.result(timeout=10)
-    assert result.returncode == 0, result.stderr
-    assert len([c for c in calls if c[1] == "modify"]) == 2
-    assert not snapshot.exists()
-    assert snapshot.parent.is_dir(), "The shared lock directory must remain stable"

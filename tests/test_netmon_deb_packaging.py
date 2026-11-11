@@ -44,21 +44,25 @@ def test_main_deb_builder_generates_required_policy_artifacts():
     assert 'find "$PKG_DIR" -type f -exec chmod 0644' in source
 
 
-def test_main_deb_builder_only_restores_legacy_install_dns():
+def test_main_deb_builder_never_restores_legacy_install_dns():
+    import re
 
     source = (PROJECT_ROOT / "scripts/build_netmon_deb.sh").read_text()
-    assert 'NETMON_INSTALL_DNS_STATE="$NETMON_STATE_DIR/install-dns-nm.state"' in source
-    assert "restore_legacy_install_dns" in source
-    assert "apply_netmon_install_dns" not in source
-    assert "NETMON_INSTALL_DNS_SERVER" not in source
-    assert "8.8.8.8" not in source
-    assert 'cat > "$PKG_DIR/DEBIAN/prerm"' in source
-    assert "restore_netmon_install_dns" in source
-    # DNS restoration and cleanup are exercised with fake nmcli in
-    # test_debian_reinstall_regressions, independently of shell/Python syntax.
-    assert '"$PKG_DIR/DEBIAN/prerm"' in source
-    assert "ufw-snapshot/state.json" in source
-    assert '"-I", path, "removal"' in source
+    for phase in ("postinst", "prerm"):
+        match = re.search(
+            rf"^cat > \"\$PKG_DIR/DEBIAN/{phase}\" <<'([A-Z]+)'\n(.*?)^\1$",
+            source,
+            re.M | re.S,
+        )
+        assert match is not None
+        assert not re.search(r"\b(nmcli|resolvectl|systemctl|nft|sudo)\b", match[2])
+        assert not re.search(r"^\s*(?:/usr/sbin/)?ufw\s", match[2], re.M)
+        if phase == "prerm":
+            assert "ufw-snapshot/state.json" in match[2]
+            assert '"-I", path, "removal"' in match[2]
+    assert "restore_legacy_install_dns" not in source
+    assert "restore_netmon_install_dns" not in source
+    assert "install-dns-nm.state" not in source
 
 
 def test_deb_test_version_rejects_non_test_versions_without_building():

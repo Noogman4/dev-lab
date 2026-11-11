@@ -267,7 +267,7 @@ def test_skeleton_seed_and_desktop_refresh_remain_functional(
     "phase,argument",
     [("postinst", "configure"), ("prerm", "remove"), ("prerm", "deconfigure")],
 )
-def test_main_scripts_restore_legacy_dns_state_with_only_nmcli(
+def test_main_scripts_preserve_legacy_dns_state_without_network_commands(
     tmp_path, phase, argument
 ):
     source = (ROOT / "scripts/build_netmon_deb.sh").read_text()
@@ -278,9 +278,7 @@ def test_main_scripts_restore_legacy_dns_state_with_only_nmcli(
     state.mkdir()
     legacy = state / "install-dns-nm.state"
     legacy.write_text("12345678-1234-5678-9012-123456789abc|192.0.2.53|no\n")
-    sentinel = state / "unrelated-state"
-    sentinel.write_bytes(b"preserve unrelated state")
-    before = _manifest(state)["unrelated-state"]
+    before = _manifest(state)
     assets = tmp_path / "assets"
     assets.mkdir()
     skel = tmp_path / "skel"
@@ -320,11 +318,6 @@ def test_main_scripts_restore_legacy_dns_state_with_only_nmcli(
         timeout=10,
     )
     assert result.returncode == 0, result.stderr
-    assert not legacy.exists()
-    assert _manifest(state)["unrelated-state"] == before
-    assert set(_manifest(state)) == {".", "unrelated-state"}
+    assert _manifest(state) == before
     recorded = calls.read_text().splitlines() if calls.exists() else []
-    assert (
-        recorded
-        == (["update-desktop-database"] if phase == "postinst" else []) + ["nmcli"] * 3
-    )
+    assert recorded == (["update-desktop-database"] if phase == "postinst" else [])
