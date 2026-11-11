@@ -24,6 +24,33 @@ TERMINAL_MENU_LABELS = {
 }
 
 
+class ControlReader:
+    """Bounded raw-pipe framing; no invisible TextIO read-ahead or blocking lines."""
+
+    MAX_LINE = 1024
+    CHUNK = 8192
+
+    def __init__(self, fd):
+        self.fd = fd
+        self.pending = b""
+        os.set_blocking(fd, False)
+
+    def read(self):
+        try:
+            chunk = os.read(self.fd, self.CHUNK)
+        except BlockingIOError:
+            return []
+        if not chunk:
+            return None
+        lines = (self.pending + chunk).split(b"\n")
+        self.pending = lines.pop()
+        if len(self.pending) > self.MAX_LINE or any(
+            len(line) > self.MAX_LINE for line in lines
+        ):
+            raise ValueError("Terminal control line exceeds limit")
+        return lines
+
+
 def create_terminal_context_menu(terminal, focus, labels=None):
     """Build actions in the VTE process; clipboard contents stay out of IPC."""
     from gi.repository import Gdk, Gio, GLib, Gtk, Vte
@@ -332,41 +359,45 @@ def main():
             return True
         return False
 
-    def read_control(_source, condition):
-        if condition & GLib.IO_HUP:
-            quit_loop()
-            return False
-        line = sys.stdin.readline(1024)
-        if not line:
-            quit_loop()
-            return False
+    control_reader = ControlReader(sys.stdin.fileno())
+
+    def read_control(_source, _condition):
         try:
-            message = json.loads(line)
-            action = message.get("action")
-            if action == "resize":
-                resize(message["width"], message["height"])
-            elif action == "focus":
-                focus()
-            elif action == "blur":
-                if detached_window is None:
-                    embed_focus.blur(plug.get_id())
-            elif action in {"detach", "attach"}:
-                try:
-                    move(action == "detach")
-                except Exception:
-                    report("move-failed")
-            elif action == "copy":
-                copy()
-            elif action == "paste":
-                paste()
-            elif action == "interrupt":
-                terminal.feed_child(b"\x03")
-                focus()
-            elif action == "close":
-                quit_loop()
-                return False
-        except (ValueError, TypeError, KeyError, AttributeError):
-            pass
+            lines = control_reader.read()
+        except (OSError, ValueError):
+            quit_loop()
+            return False
+        if lines is None:
+            quit_loop()
+            return False
+        for line in lines:
+            try:
+                message = json.loads(line)
+                action = message.get("action")
+                if action == "resize":
+                    resize(message["width"], message["height"])
+                elif action == "focus":
+                    focus()
+                elif action == "blur":
+                    if detached_window is None:
+                        embed_focus.blur(plug.get_id())
+                elif action in {"detach", "attach"}:
+                    try:
+                        move(action == "detach")
+                    except Exception:
+                        report("move-failed")
+                elif action == "copy":
+                    copy()
+                elif action == "paste":
+                    paste()
+                elif action == "interrupt":
+                    terminal.feed_child(b"\x03")
+                    focus()
+                elif action == "close":
+                    quit_loop()
+                    return False
+            except (ValueError, TypeError, KeyError, AttributeError):
+                pass
         return True
 
     def spawned(_terminal, pid, error, _data):
@@ -393,7 +424,7 @@ def main():
     # container has no GtkSocket, so explicitly map our own child Gdk window.
     plug.get_window().show()
     resize(args.width, args.height)
-    GLib.io_add_watch(sys.stdin, GLib.IO_IN | GLib.IO_HUP, read_control)
+    GLib.io_add_watch(control_reader.fd, GLib.IO_IN | GLib.IO_HUP, read_control)
     # Start a fresh interactive Bash; no command is inserted or sent from Chad.
     terminal.spawn_async(
         Vte.PtyFlags.DEFAULT,
