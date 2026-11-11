@@ -3,6 +3,7 @@
 import os
 import re
 import shutil
+import stat
 import subprocess
 
 try:
@@ -20,16 +21,38 @@ REPAIR_TARGETS = {
     "MIRRORS_MODE": "0",
 }
 
-TRUSTED_WEB_CMD_PREFIXES = ("/usr/bin/", "/bin/", "/usr/local/bin/")
+TRUSTED_WEB_COMMANDS = ("/usr/bin/wget", "/usr/bin/curl")
+
+
+def _trusted_web_cmd(path):
+    """Accept only protected, link-free system downloaders on Debian layouts.
+
+    Root-owned, non-writable ancestry prevents an unprivileged caller from
+    replacing the checked file before rkhunter later consumes WEB_CMD.
+    Administrator changes to these system files remain trusted.
+    """
+    if path not in TRUSTED_WEB_COMMANDS:
+        return False
+    try:
+        for component in ("/", "/usr", "/usr/bin", path):
+            info = os.lstat(component)
+            expected_type = stat.S_ISREG if component == path else stat.S_ISDIR
+            if (
+                info.st_uid != 0
+                or info.st_mode & 0o022
+                or not expected_type(info.st_mode)
+                or (component == path and not info.st_mode & 0o111)
+            ):
+                return False
+    except OSError:
+        return False
+    return True
 
 
 def _preferred_web_cmd():
-    for candidate in ("wget", "curl"):
-        resolved = shutil.which(candidate)
-        if resolved and any(
-            str(resolved).startswith(prefix) for prefix in TRUSTED_WEB_CMD_PREFIXES
-        ):
-            return resolved
+    for candidate in TRUSTED_WEB_COMMANDS:
+        if _trusted_web_cmd(candidate):
+            return candidate
     return ""
 
 
@@ -209,8 +232,21 @@ def repair_config(config_path=RKHUNTER_CONFIG_PATH):
     if rc != 0:
         return rc, out or "rkhunter-Konfiguration konnte nicht gelesen werden."
 
+    web_cmd = _preferred_web_cmd()
+    if not web_cmd:
+        # Never delegate downloader selection through an empty WEB_CMD.
+        # Leave the configuration untouched and prevent the automatic retry.
+        return (
+            1,
+            (
+                "Kein vertrauenswürdiger System-Downloader verfügbar. "
+                "Bitte /usr/bin/wget oder /usr/bin/curl und deren Verzeichnisse "
+                "auf Root-Eigentum, sichere Rechte und Symlinks prüfen. "
+                "Die rkhunter-Konfiguration wurde nicht geändert."
+            ),
+        )
     repair_targets = dict(REPAIR_TARGETS)
-    repair_targets["WEB_CMD"] = _preferred_web_cmd()
+    repair_targets["WEB_CMD"] = web_cmd
 
     new_content = _repair_config_content(out, repair_targets)
     return _write_config(new_content, config_path)

@@ -442,3 +442,43 @@ def test_show_rkhunter_log_does_not_read_while_scan_is_running(monkeypatch):
 
     assert calls == []
     assert app.logs == ["rkhunter is already running."]
+
+
+def test_no_safe_downloader_prevents_repair_update_retry(monkeypatch):
+    from netmon.core import rkhunter_manager
+
+    app = _app()
+    app.rkhunter_updating = True
+    repair_available = []
+    app._set_rkhunter_repair_available = repair_available.append
+    app._rkhunter_update_worker = lambda: None
+    writes = []
+    threads = []
+    monkeypatch.setattr(
+        rkhunter_manager, "_read_config", lambda path: (0, "WEB_CMD=/tmp/wget\n")
+    )
+    monkeypatch.setattr(rkhunter_manager, "_preferred_web_cmd", lambda: "")
+    monkeypatch.setattr(
+        rkhunter_manager, "_write_config", lambda *args: writes.append(args) or (0, "")
+    )
+    monkeypatch.setattr(
+        controller.threading, "Thread", lambda *a, **k: threads.append(k)
+    )
+
+    repair_rc, repair_out = rkhunter_manager.repair_config()
+    controller.finish_rkhunter_repair(
+        app,
+        0,
+        "backup",
+        repair_rc,
+        repair_out,
+        backup_path=rkhunter_manager.RKHUNTER_BACKUP_PATH,
+    )
+
+    assert repair_rc != 0
+    assert writes == []
+    assert threads == []
+    assert app.rkhunter_updating is False
+    assert app.rkhunter_active_process is None
+    assert repair_available == [True]
+    assert repair_out in app.output[-1][0]
