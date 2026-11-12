@@ -24,8 +24,11 @@ try:
     from netmon.core.import_limits import (
         bounded_list,
         load_bounded_json,
+        read_bounded_bytes,
         read_bounded_text,
     )
+    from netmon.core.pdf_process import parse_pdf_snapshot
+    from netmon.core.pdf_worker import MAX_INPUT_BYTES as MAX_PDF_INPUT_BYTES
     from netmon.core.utils import call_in_ui_thread
 except ModuleNotFoundError:
     from core.image_snapshot import (
@@ -37,7 +40,14 @@ except ModuleNotFoundError:
     from core.docx_archive import open_validated_docx
     from core.docx_process import parse_docx_snapshot
     from core.docx_worker import MAX_TEXT_CHARS
-    from core.import_limits import bounded_list, load_bounded_json, read_bounded_text
+    from core.import_limits import (
+        bounded_list,
+        load_bounded_json,
+        read_bounded_bytes,
+        read_bounded_text,
+    )
+    from core.pdf_process import parse_pdf_snapshot
+    from core.pdf_worker import MAX_INPUT_BYTES as MAX_PDF_INPUT_BYTES
     from core.utils import call_in_ui_thread
 
 # Saved analyses (JSON/TXT) chosen by the user; bounded before parsing.
@@ -1695,6 +1705,12 @@ def run_chad_online_analysis(app):
 
 
 def extract_pdf_text_for_chad(app, path: str) -> str:
+    """Bounded PDF text: snapshot <= 5 MiB, parsed only in a limited child.
+
+    PyPDF2 never runs in the NetMon process. Decompression bombs, deep object
+    graphs or huge content streams hit the worker's memory/CPU/time limits,
+    and at most 30 pages / MAX_TEXT_CHARS characters ever come back.
+    """
     if PyPDF2 is None:
         return app.tr(
             "chad_pdf_support_missing",
@@ -1702,19 +1718,16 @@ def extract_pdf_text_for_chad(app, path: str) -> str:
         )
 
     try:
-        parts = []
-        with open(path, "rb") as f:
-            reader = PyPDF2.PdfReader(f)
-            for idx, page in enumerate(reader.pages[:30], start=1):
-                text = page.extract_text() or ""
-                if text.strip():
-                    parts.append(
-                        app.tr(
-                            "chad_pdf_page_header",
-                            "--- Page {idx} ---\n",
-                        ).format(idx=idx)
-                        + text.strip()
-                    )
+        payload = read_bounded_bytes(path, MAX_PDF_INPUT_BYTES, label="PDF")
+        pages, truncated = parse_pdf_snapshot(payload)
+        parts = [
+            app.tr(
+                "chad_pdf_page_header",
+                "--- Page {idx} ---\n",
+            ).format(idx=idx)
+            + text
+            for idx, text in pages
+        ]
 
         if not parts:
             return app.tr(
@@ -1722,7 +1735,13 @@ def extract_pdf_text_for_chad(app, path: str) -> str:
                 "PDF read successfully, but no extractable text was found.",
             )
 
-        return "\n\n".join(parts)
+        text = "\n\n".join(parts)
+        if truncated:
+            marker = app.tr(
+                "chad_content_truncated_marker", "\n\n--- (truncated) ---\n\n"
+            )
+            text += marker
+        return text
     except Exception as e:
         return app.tr(
             "chad_pdf_read_error",
@@ -1847,12 +1866,19 @@ def _finish_chad_text_import(app, path, ext, size, content):
         )
 
 
-def _start_chad_docx_import(app, path, size):
+def _start_chad_docx_import(app, path, size, ext=".docx"):
+    """Run a bounded document parser (DOCX or PDF) off the Tk thread."""
     token = object()
     app._chad_docx_import_token = token
     app._chad_docx_import_running = True
     app.chad_chat_status_var.set(
         _tr(
+            app,
+            "chad_pdf_import_running",
+            "Reading PDF in a bounded parser process...",
+        )
+        if ext == ".pdf"
+        else _tr(
             app,
             "chad_docx_import_running",
             "Reading DOCX in a bounded parser process...",
@@ -1862,7 +1888,12 @@ def _start_chad_docx_import(app, path, size):
     def job():
         content, error = "", None
         try:
-            content = extract_docx_text_for_chad(app, path)
+            extract = (
+                extract_pdf_text_for_chad
+                if ext == ".pdf"
+                else extract_docx_text_for_chad
+            )
+            content = extract(app, path)
         except Exception as exc:
             error = str(exc)[:300]
 
@@ -1878,7 +1909,7 @@ def _start_chad_docx_import(app, path, size):
                         ).format(error=error)
                     )
                 else:
-                    _finish_chad_text_import(app, path, ".docx", size, content)
+                    _finish_chad_text_import(app, path, ext, size, content)
 
         try:
             call_in_ui_thread(app, finish)
@@ -1997,10 +2028,9 @@ def import_file_to_chad_chat(app):
                 )
                 return
 
-        if ext == ".pdf":
-            content = extract_pdf_text_for_chad(app, path)
-        elif ext == ".docx":
-            _start_chad_docx_import(app, path, size)
+        if ext in (".pdf", ".docx"):
+            # Both parsers run in a limited child process, off the Tk thread.
+            _start_chad_docx_import(app, path, size, ext)
             return
         elif image_snapshot is not None:
             item = {
