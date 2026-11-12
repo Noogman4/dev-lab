@@ -1292,9 +1292,9 @@ except (ImportError, ModuleNotFoundError):
     )
 
 try:
-    from netmon.core import prequarantine_mount
+    from netmon.core import download_scan_fs, prequarantine_mount
 except (ImportError, ModuleNotFoundError):
-    from core import prequarantine_mount
+    from core import download_scan_fs, prequarantine_mount
 
 try:
     from netmon.core.crash import CRASH_LOG_PATH, _append_crash_dump
@@ -20358,9 +20358,9 @@ class App(TkBase):
                 os.path.join(runtime_dir, "netmon_roots", "download_scan")
             )
         if os.path.isdir("/dev/shm"):
-            candidates.append("/dev/shm/netmon_roots/download_scan")
+            candidates.append(f"/dev/shm/netmon_roots-{os.getuid()}/download_scan")
         if os.path.isdir("/tmp"):
-            candidates.append("/tmp/netmon_roots/download_scan")
+            candidates.append(f"/tmp/netmon_roots-{os.getuid()}/download_scan")
         candidates.append(os.path.expanduser("~/.cache/netmon_roots/download_scan"))
 
         for candidate in candidates:
@@ -21525,11 +21525,7 @@ class App(TkBase):
     def prepare_download_scan_workspace(self, *, startup: bool = False):
         target = self._normalized_download_scan_temp_dir()
         try:
-            os.makedirs(target, exist_ok=True)
-            try:
-                os.chmod(target, 0o700)
-            except Exception:
-                pass
+            download_scan_fs.prepare_directory(target)
             secure_ready = self._ensure_download_scan_secure_mount(
                 interactive=not startup
             )
@@ -21705,11 +21701,7 @@ class App(TkBase):
     def create_download_scan_temp_folder(self):
         target = self._normalized_download_scan_temp_dir()
         try:
-            os.makedirs(target, exist_ok=True)
-            try:
-                os.chmod(target, 0o700)
-            except Exception:
-                pass
+            download_scan_fs.prepare_directory(target)
             self.download_scan_temp_dir_var.set(target)
             secure_ready = self._ensure_download_scan_secure_mount(interactive=True)
             actual_target = self._normalized_download_scan_temp_dir()
@@ -22908,50 +22900,21 @@ class App(TkBase):
         return bool(decision["value"])
 
     def _download_scan_unique_destination(self, source_path: str) -> str:
-        target_dir = self._normalized_download_scan_target_dir()
-        os.makedirs(target_dir, exist_ok=True)
-        base_name = os.path.basename(source_path.rstrip(os.sep)) or "download"
-        stem, ext = os.path.splitext(base_name)
-        candidate = os.path.join(target_dir, base_name)
-        counter = 1
-        while os.path.exists(candidate):
-            candidate = os.path.join(target_dir, f"{stem}_{counter}{ext}")
-            counter += 1
-        return candidate
-
-    def _download_scan_unique_temp_file_path(self, source_path: str) -> str:
-        temp_dir = self._normalized_download_scan_temp_dir()
-        os.makedirs(temp_dir, exist_ok=True)
-        base_name = os.path.basename(source_path.rstrip(os.sep)) or "download"
-        stem, ext = os.path.splitext(base_name)
-        candidate = os.path.join(temp_dir, base_name)
-        counter = 1
-        while os.path.exists(candidate):
-            candidate = os.path.join(temp_dir, f"{stem}_{counter}{ext}")
-            counter += 1
-        return candidate
+        return download_scan_fs.suggest_destination(
+            source_path, self._normalized_download_scan_target_dir()
+        )
 
     def _download_scan_import_file_to_temp(self, source_path: str) -> tuple[str, str]:
         normalized = os.path.abspath(os.path.expanduser(source_path or ""))
-        temp_root = os.path.realpath(self._normalized_download_scan_temp_dir())
-        source_real = os.path.realpath(normalized)
-        if source_real == temp_root or source_real.startswith(temp_root + os.sep):
-            return normalized, ""
+        return download_scan_fs.import_file(
+            normalized, self._normalized_download_scan_temp_dir()
+        )
 
-        destination = self._download_scan_unique_temp_file_path(normalized)
-        shutil.copy2(normalized, destination)
-        try:
-            os.chmod(destination, 0o600)
-        except Exception:
-            pass
-        return destination, normalized
-
-    def _download_scan_maybe_move_clean_file(self, source_path: str) -> str:
-        if not source_path or not os.path.isfile(source_path):
-            return ""
-        temp_root = os.path.realpath(self._normalized_download_scan_temp_dir())
-        source_real = os.path.realpath(source_path)
-        if not source_real.startswith(temp_root + os.sep) and source_real != temp_root:
+    def _download_scan_maybe_move_clean_file(
+        self, source_path: str, scanned_file
+    ) -> str:
+        temp_root = self._normalized_download_scan_temp_dir()
+        if not download_scan_fs.is_within(source_path, temp_root):
             self.log_safe(
                 "Download scan: file remains in place because it is not in the temporary folder."
             )
@@ -22968,7 +22931,12 @@ class App(TkBase):
         if not should_move:
             return ""
 
-        shutil.move(source_path, destination)
+        # Refuse legacy/shared or redirected staging directories even if the
+        # current filesystem happens to have noexec/nosuid/nodev flags.
+        download_scan_fs.prepare_directory(temp_root)
+        destination = download_scan_fs.release_file(
+            scanned_file, self._normalized_download_scan_target_dir()
+        )
         self.log_safe(f"Download scan: file moved to {destination}")
         return destination
 
@@ -23025,12 +22993,13 @@ class App(TkBase):
             )
             return
 
+        scan_is_directory = os.path.isdir(normalized)
         scan_label = (
             self.tr(
                 "download_scan_target_folder",
                 "Ordner",
             )
-            if os.path.isdir(normalized)
+            if scan_is_directory
             else self.tr(
                 "download_scan_target_file",
                 "Datei",
@@ -23054,15 +23023,16 @@ class App(TkBase):
             ).format(target_type=scan_label.lower(), target=normalized)
         )
 
-        if os.path.isdir(normalized):
+        if scan_is_directory:
             self._clamav_progress_start()
         else:
             self._clamav_progress_start(expected_files=1)
 
         def job():
             moved_to = ""
+            scanned_file = None
             try:
-                if os.path.isdir(normalized):
+                if scan_is_directory:
                     cmd = [
                         "clamscan",
                         *self._clamav_database_args(),
@@ -23080,15 +23050,21 @@ class App(TkBase):
                     if scanned:
                         self._clamav_progress_update_safe(scanned)
                 else:
+                    scanned_file = download_scan_fs.open_scan_file(normalized)
                     cmd = [
                         "clamscan",
                         *self._clamav_database_args(),
                         "--infected",
-                        normalized,
+                        "-",
                     ]
                     rc, out, cancelled = self._run_clamscan_with_cancel(
                         cmd,
                         timeout=900,
+                        stdin_fd=scanned_file.fd,
+                    )
+                    out = "".join(
+                        normalized + line[5:] if line.startswith("stdin:") else line
+                        for line in out.splitlines(keepends=True)
                     )
                     timed_out = rc == 124
                     self._clamav_progress_update_safe(1)
@@ -23138,7 +23114,7 @@ class App(TkBase):
                 infected_count = self._clamav_parse_infected_count(out)
                 scanned_files = self._clamav_parse_scanned_files(out)
                 if not isinstance(scanned_files, int):
-                    scanned_files = scanned if os.path.isdir(normalized) else 1
+                    scanned_files = scanned if scan_is_directory else 1
                 if isinstance(scanned_files, int) and scanned_files >= 0:
                     self._clamav_progress_update_safe(scanned_files)
 
@@ -23173,6 +23149,9 @@ class App(TkBase):
                         )
                     )
                     return
+
+                if scanned_file is not None:
+                    scanned_file.verify()
 
                 findings = self._clamav_extract_findings(
                     out,
@@ -23253,13 +23232,19 @@ class App(TkBase):
                     "\n".join(report_lines),
                 )
 
-                if infected_count == 0 and os.path.isfile(normalized):
+                if infected_count == 0 and scanned_file is not None:
                     try:
-                        moved_to = self._download_scan_maybe_move_clean_file(normalized)
+                        moved_to = self._download_scan_maybe_move_clean_file(
+                            normalized, scanned_file
+                        )
+                    except download_scan_fs.UnsafePath:
+                        raise
                     except Exception as exc:
                         self.log_safe(
                             f"Download scan: move after clean scan failed: {exc}"
                         )
+                    if not moved_to:
+                        scanned_file.verify()
 
                 status_icon = (
                     "🟢 clean" if infected_count == 0 else "🔴 finding / suspicious"
@@ -23340,7 +23325,16 @@ class App(TkBase):
                     log_message=f"Download scan completed: {normalized} | {summary}",
                 )
                 self._update_download_scan_result_text("\n".join(result_lines))
+            except (download_scan_fs.UnsafePath, OSError) as exc:
+                self._set_download_scan_status(
+                    status="🔴 finding / suspicious",
+                    result=self.tr("download_scan_result_error", "ClamAV-Fehler"),
+                    log_message=f"Download scan: unsafe or changed file: {exc}",
+                )
+                self._update_download_scan_result_text(str(exc))
             finally:
+                if scanned_file is not None:
+                    scanned_file.close()
                 self.security_clamav_running = False
                 self._clamav_progress_finish_safe()
 
@@ -30859,11 +30853,12 @@ class App(TkBase):
     def _set_clamav_abort_button_state(self, enabled):
         clamav_controller.set_clamav_abort_button_state(self, enabled)
 
-    def _run_clamscan_with_cancel(self, cmd, timeout=900):
+    def _run_clamscan_with_cancel(self, cmd, timeout=900, *, stdin_fd=None):
         return clamav_controller.run_clamscan_with_cancel(
             self,
             cmd,
             timeout=timeout,
+            stdin_fd=stdin_fd,
         )
 
     def _load_clamav_findings(self):

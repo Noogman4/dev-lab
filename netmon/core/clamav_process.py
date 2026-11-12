@@ -101,7 +101,7 @@ def _stop_group(process):
     process.wait(timeout=KILL_WAIT_SECONDS)
 
 
-def run_scan(command, *, timeout, cancelled, started, progress=None):
+def run_scan(command, *, timeout, cancelled, started, progress=None, stdin_fd=None):
     timeout = float(timeout)
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("Invalid ClamAV scan deadline")
@@ -111,7 +111,7 @@ def run_scan(command, *, timeout, cancelled, started, progress=None):
     failure = ""
     process = subprocess.Popen(
         command,
-        stdin=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL if stdin_fd is None else stdin_fd,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         start_new_session=True,

@@ -576,7 +576,7 @@ def set_clamav_abort_button_state(app, enabled):
     call_in_ui_thread(app, lambda s=state: btn.configure(state=s))
 
 
-def _run_clamscan(app, cmd, *, timeout, progress_cb=None):
+def _run_clamscan(app, cmd, *, timeout, progress_cb=None, stdin_fd=None):
     app.clamav_cancel_requested = False
     app._set_clamav_abort_button_state(True)
 
@@ -590,6 +590,7 @@ def _run_clamscan(app, cmd, *, timeout, progress_cb=None):
             cancelled=lambda: bool(app.clamav_cancel_requested),
             started=started,
             progress=progress_cb,
+            stdin_fd=stdin_fd,
         )
     finally:
         app.clamav_active_process = None
@@ -608,8 +609,8 @@ def run_clamscan_with_progress(app, cmd, timeout=3600, progress_cb=None):
     )
 
 
-def run_clamscan_with_cancel(app, cmd, timeout=900):
-    result = _run_clamscan(app, cmd, timeout=timeout)
+def run_clamscan_with_cancel(app, cmd, timeout=900, *, stdin_fd=None):
+    result = _run_clamscan(app, cmd, timeout=timeout, stdin_fd=stdin_fd)
     return result.returncode, result.output, result.cancelled
 
 

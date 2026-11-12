@@ -81,7 +81,7 @@ def is_within(path: str, root: str) -> bool:
     return path_parts[: len(root_parts)] == root_parts
 
 
-def open_directory(path: str, *, create: bool = False) -> int:
+def open_directory(path: str, *, create: bool = False, private: bool = False) -> int:
     """Open a directory from ``/`` without following any symlink."""
     fd = os.open("/", _DIR_FLAGS)
     try:
@@ -102,8 +102,21 @@ def open_directory(path: str, *, create: bool = False) -> int:
                 raise
             os.close(fd)
             fd = child
-            if not stat.S_ISDIR(os.fstat(fd).st_mode):
+            entry = os.fstat(fd)
+            if not stat.S_ISDIR(entry.st_mode):
                 raise UnsafePath(f"kein Ordner: {part}")
+            if private:
+                # Shared ancestors such as /tmp are safe only when root-owned
+                # and sticky. Another user's directory must never host ours.
+                sticky_root = entry.st_uid == 0 and entry.st_mode & stat.S_ISVTX
+                if entry.st_uid not in {0, os.getuid()} or (
+                    entry.st_mode & 0o022 and not sticky_root
+                ):
+                    raise UnsafePath(f"unsicherer Vor-Quarantäne-Pfad: {path}")
+        if private:
+            entry = os.fstat(fd)
+            if entry.st_uid != os.getuid() or stat.S_IMODE(entry.st_mode) & 0o077:
+                raise UnsafePath(f"Vor-Quarantäne-Ordner nicht privat: {path}")
         return fd
     except BaseException:
         os.close(fd)
