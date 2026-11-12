@@ -10,12 +10,15 @@ import time
 from urllib import error, request
 from urllib.parse import urljoin, urlsplit
 
+from netmon.core.icon_http import public_address
+
 MAX_BYTES = 64 * 1024
 MAX_SECONDS = 15
 MAX_REDIRECTS = 4
 MAX_JSON_DEPTH = 16
 MAX_JSON_TOKENS = 1024
 _REDIRECTS = {301, 302, 303, 307, 308}
+_RELEASE_HOST = "netmonroots.com"
 
 
 class _NoRedirect(request.HTTPRedirectHandler):
@@ -32,15 +35,59 @@ def _remaining(deadline, cancelled):
 
 
 def _validate_url(url):
-    parsed = urlsplit(url)
     if (
-        parsed.scheme not in {"http", "https"}
-        or not parsed.hostname
-        or parsed.username is not None
-        or parsed.password is not None
-        or any(ord(c) < 33 or ord(c) == 127 for c in url)
+        not isinstance(url, str)
+        or not url
+        or len(url) > 4096
+        or any(ord(c) < 33 or ord(c) == 127 or c == "\\" for c in url)
     ):
         raise ValueError("Ungültige URL für Versionsdownload.")
+    parsed = urlsplit(url)
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname != _RELEASE_HOST
+        or parsed.netloc.lower() not in {_RELEASE_HOST, f"{_RELEASE_HOST}:443"}
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        raise ValueError("Versionsdownload nur von https://netmonroots.com erlaubt.")
+
+
+def _approved_addresses(addresses, port):
+    # Check the whole answer before creating even the first socket. A mixed
+    # public/private response must not trigger a partial outbound request.
+    if not addresses or len(addresses) > 32:
+        raise ValueError("Ungültige DNS-Antwort für Versionsdownload.")
+    approved = []
+    for family, kind, protocol, _name, endpoint in addresses:
+        if (
+            family not in {socket.AF_INET, socket.AF_INET6}
+            or kind != socket.SOCK_STREAM
+            or protocol != socket.IPPROTO_TCP
+            or len(endpoint) != (2 if family == socket.AF_INET else 4)
+            or endpoint[1] != port
+            or (family == socket.AF_INET6 and (endpoint[2] or endpoint[3]))
+            or "%" in endpoint[0]
+        ):
+            raise ValueError("Ungültige DNS-Adresse für Versionsdownload.")
+        address = public_address(endpoint[0])
+        if address.version != (4 if family == socket.AF_INET else 6):
+            raise ValueError("Ungültige DNS-Adressfamilie für Versionsdownload.")
+        # Only validated numeric sockaddrs are passed to connect(), never names.
+        target = (
+            (str(address), port)
+            if family == socket.AF_INET
+            else (str(address), port, 0, 0)
+        )
+        item = (family, kind, protocol, _name, target)
+        if item not in approved:
+            approved.append(item)
+    return approved
+
+
+def _check_peer(peer, target):
+    if public_address(peer[0]) != public_address(target[0]) or peer[1] != target[1]:
+        raise ValueError("Versionsverbindung weicht von der geprüften Adresse ab.")
 
 
 def _read_payload(response, deadline, cancelled):
@@ -136,8 +183,12 @@ def _deadline_opener(deadline, cancelled):
     def connect_with_budget(address, timeout=None, source_address=None):
         remaining()
         host, port = address
-        addresses = socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM)
+        _validate_url(f"https://{host}:{port}/")
+        addresses = socket.getaddrinfo(
+            host, port, socket.AF_UNSPEC, socket.SOCK_STREAM, socket.IPPROTO_TCP
+        )
         remaining()  # A running system resolver is not reliably cancellable.
+        addresses = _approved_addresses(addresses, port)
         last_error = None
         for family, kind, proto, _name, target in addresses:
             remaining()
@@ -153,6 +204,7 @@ def _deadline_opener(deadline, cancelled):
                     remaining()
                 sock.connect(target)
                 remaining()
+                _check_peer(sock.getpeername(), target)
                 sock.settimeout(remaining())
                 connected = True
                 return sock
@@ -204,7 +256,9 @@ def _deadline_opener(deadline, cancelled):
             state[1] = response
 
     remaining()
-    opener = request.build_opener(_NoRedirect(), HTTPHandler(), HTTPSHandler())
+    opener = request.build_opener(
+        request.ProxyHandler({}), _NoRedirect(), HTTPHandler(), HTTPSHandler()
+    )
     watcher = threading.Thread(target=watch, daemon=True)
     watcher.start()
     try:
@@ -221,6 +275,7 @@ def _deadline_opener(deadline, cancelled):
 
 
 def _download(url, deadline, cancelled):
+    _validate_url(url)
     with _deadline_opener(deadline, cancelled) as (opener, remember):
         seen = set()
         for hop in range(MAX_REDIRECTS + 1):
@@ -249,11 +304,6 @@ def _download(url, deadline, cancelled):
                         )
                     target = urljoin(url, location)
                     _validate_url(target)
-                    if (
-                        urlsplit(url).scheme == "https"
-                        and urlsplit(target).scheme != "https"
-                    ):
-                        raise ValueError("Unsicherer Versions-Redirect.")
                     url = target
                     continue
                 if status != 200:

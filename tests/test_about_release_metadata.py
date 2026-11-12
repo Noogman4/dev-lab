@@ -52,10 +52,10 @@ def test_actual_urllib_redirect_does_not_read_intermediate_body(monkeypatch, cod
     bodies = []
     urls = []
 
-    class SyntheticHTTP(request.HTTPHandler):
+    class SyntheticHTTP(request.HTTPSHandler):
         handler_order = 499  # Serve synthetic IO before the production handler.
 
-        def http_open(self, req):
+        def https_open(self, req):
             urls.append(req.full_url)
             first = len(urls) == 1
             body = Response(b"x" * 512 if first else b'{"version":"1.2.3"}')
@@ -73,10 +73,10 @@ def test_actual_urllib_redirect_does_not_read_intermediate_body(monkeypatch, cod
         lambda *handlers: real_builder(*handlers, SyntheticHTTP()),
     )
     assert (
-        metadata.fetch_release_metadata("http://metadata.invalid/start")["version"]
+        metadata.fetch_release_metadata("https://netmonroots.com/start")["version"]
         == "1.2.3"
     )
-    assert urls == ["http://metadata.invalid/start", "http://metadata.invalid/final"]
+    assert urls == ["https://netmonroots.com/start", "https://netmonroots.com/final"]
     assert bodies[0].read_sizes == [] and bodies[0].closed
     assert bodies[1].read_sizes and bodies[1].closed
 
@@ -88,7 +88,7 @@ def test_size_limit_with_missing_or_dishonest_content_length(monkeypatch, declar
     response = Response(b"x" * 512, headers=headers)
     transport(monkeypatch, [response])
     with pytest.raises(ValueError):
-        metadata.fetch_release_metadata("https://metadata.invalid/version")
+        metadata.fetch_release_metadata("https://netmonroots.com/version")
     assert sum(response.read_sizes) <= 129
     assert response.closed
 
@@ -100,7 +100,7 @@ def test_exact_size_limit_and_identity_encoding_work(monkeypatch):
     )
     calls = transport(monkeypatch, [response])
     assert (
-        metadata.fetch_release_metadata("https://metadata.invalid/version")["version"]
+        metadata.fetch_release_metadata("https://netmonroots.com/version")["version"]
         == "1.2.3"
     )
     assert calls[0][0].get_header("Accept-encoding") == "identity"
@@ -111,7 +111,7 @@ def test_compressed_reply_rejected_before_read(monkeypatch, encoding):
     response = Response(headers={"Content-Encoding": encoding})
     transport(monkeypatch, [response])
     with pytest.raises(ValueError, match="Komprimierte"):
-        metadata.fetch_release_metadata("https://metadata.invalid/version")
+        metadata.fetch_release_metadata("https://netmonroots.com/version")
     assert not response.read_sizes
 
 
@@ -129,16 +129,14 @@ def test_json_limits_and_invalid_payloads(monkeypatch, payload):
     response = Response(payload)
     transport(monkeypatch, [response])
     with pytest.raises(ValueError):
-        metadata.fetch_release_metadata("https://metadata.invalid/version")
+        metadata.fetch_release_metadata("https://netmonroots.com/version")
     assert response.closed
 
 
 def test_structure_characters_inside_json_strings_are_not_counted(monkeypatch):
     payload = {"version": "1.2.3", "note": '[{,:\\"' * 1200}
     transport(monkeypatch, [Response(json.dumps(payload).encode())])
-    assert (
-        metadata.fetch_release_metadata("https://metadata.invalid/version") == payload
-    )
+    assert metadata.fetch_release_metadata("https://netmonroots.com/version") == payload
 
 
 @pytest.mark.parametrize("kind", ["loop", "hops", "missing", "scheme", "downgrade"])
@@ -152,7 +150,7 @@ def test_redirect_bounds(monkeypatch, kind):
     elif kind == "scheme":
         locations = ["file:///synthetic/metadata"]
     else:
-        locations = ["http://metadata.invalid/final"]
+        locations = ["http://netmonroots.com/final"]
     responses = [
         Response(code=302, headers={} if location is None else {"Location": location})
         for location in locations
@@ -160,7 +158,7 @@ def test_redirect_bounds(monkeypatch, kind):
     all_responses = list(responses)
     calls = transport(monkeypatch, responses)
     with pytest.raises(ValueError):
-        metadata.fetch_release_metadata("https://metadata.invalid/start")
+        metadata.fetch_release_metadata("https://netmonroots.com/start")
     assert len(calls) <= metadata.MAX_REDIRECTS + 1
     assert not any(response.read_sizes for response in all_responses)
     assert all(response.closed for response in all_responses[: len(calls)])
@@ -181,7 +179,7 @@ def test_expired_redirect_never_opens_followup(monkeypatch):
         metadata.request, "build_opener", lambda *_h: SimpleNamespace(open=open_request)
     )
     with pytest.raises(TimeoutError):
-        metadata.fetch_release_metadata("https://metadata.invalid/start")
+        metadata.fetch_release_metadata("https://netmonroots.com/start")
     assert len(calls) == 1 and response.closed and not response.read_sizes
 
 
@@ -201,7 +199,7 @@ def test_next_hop_uses_remaining_time(monkeypatch):
         metadata.request, "build_opener", lambda *_h: SimpleNamespace(open=open_request)
     )
     assert (
-        metadata.fetch_release_metadata("https://metadata.invalid/start")["version"]
+        metadata.fetch_release_metadata("https://netmonroots.com/start")["version"]
         == "1.2.3"
     )
     assert calls == [8, 3]
@@ -223,7 +221,7 @@ def test_stalled_connect_has_caller_deadline_and_no_later_read(monkeypatch):
     )
     try:
         with pytest.raises(TimeoutError) as caught:
-            metadata.fetch_release_metadata("https://metadata.invalid/start")
+            metadata.fetch_release_metadata("https://netmonroots.com/start")
         assert entered.is_set()
         assert not caught.value.transport_finished.is_set()
     finally:
@@ -375,7 +373,7 @@ def test_read_deadline_is_checked_between_bounded_reads(monkeypatch):
     response.read1 = slow_read
     calls = transport(monkeypatch, [response])
     with pytest.raises(TimeoutError):
-        metadata.fetch_release_metadata("https://metadata.invalid/version")
+        metadata.fetch_release_metadata("https://netmonroots.com/version")
     assert len(calls) == 1 and response.closed
     assert timeouts == [8, 7]
     assert len(reads) == 2

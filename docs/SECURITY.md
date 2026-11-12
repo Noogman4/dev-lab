@@ -9,6 +9,7 @@ Im Code wurden folgende Arten von Netzwerkzugriffen gefunden:
 - Onlinezugriffe fuer Chad/OpenAI ueber `AiOnlineService` (`https://api.openai.com/v1/responses`).
 - Radio-HTTP-Zugriffe in `netmon_radio_app.py` auf Radio-Browser-Endpunkte und Logo-/DB-Downloads.
 - Repository-Guard-Pruefungen fuer APT-/Flatpak-Quellen.
+- Die automatische Versionsabfrage im About-Dialog erlaubt ausschliesslich HTTPS auf `netmonroots.com` mit Port 443, auch nach Weiterleitungen. Jede DNS-Antwort wird vollstaendig auf oeffentliche Adressen geprueft; gemischte oeffentliche/private Antworten und Sondernetze werden abgewiesen. Verbindungen verwenden nur die geprueften numerischen Adressen und kontrollieren die Gegenstelle vor TLS/HTTP. TLS-Zertifikat und Hostname werden weiterhin geprueft. Umgebungs-Proxys werden fuer diese Abfrage ignoriert; die bisherigen Zeit-, Groessen-, Redirect- und JSON-Limits bleiben erhalten.
 
 ## DNS-Aenderungen
 

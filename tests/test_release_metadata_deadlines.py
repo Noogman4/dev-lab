@@ -9,6 +9,21 @@ import pytest
 from netmon.core import release_metadata as metadata
 
 
+@pytest.fixture(autouse=True)
+def isolated_transport_policy(monkeypatch):
+    # These are transport/deadline tests against owned loopback servers. The
+    # separate SSRF suite exercises production origin/IP guards without overrides.
+    monkeypatch.setattr(metadata, "_validate_url", lambda _url: None)
+    monkeypatch.setattr(
+        metadata, "_approved_addresses", lambda addresses, _port: addresses
+    )
+
+    def check_test_peer(peer, target):
+        assert peer[:2] == target[:2]
+
+    monkeypatch.setattr(metadata, "_check_peer", check_test_peer)
+
+
 @contextlib.contextmanager
 def local_server(*, trickle_headers=False):
     contacted = threading.Event()
@@ -447,17 +462,23 @@ def test_real_https_preserves_certificate_and_hostname_verification(
                 metadata.fetch_release_metadata(url)
 
 
-def test_normal_http_proxy_configuration_still_works(monkeypatch):
+def test_ambient_proxy_configuration_is_ignored(monkeypatch):
     with response_server(lambda handler, stop: send_json(handler)) as (port, requests):
         monkeypatch.setenv("http_proxy", f"http://127.0.0.1:{port}")
         monkeypatch.setenv("no_proxy", "")
-        assert (
+        attempts = []
+
+        def direct_dns(host, *_args, **_kwargs):
+            attempts.append(host)
+            raise socket.gaierror("synthetic direct DNS failure")
+
+        monkeypatch.setattr(socket, "getaddrinfo", direct_dns)
+        with pytest.raises(OSError):
             metadata.fetch_release_metadata(
                 "http://metadata-proxy-review.invalid/version"
-            )["version"]
-            == "1.2.3"
-        )
-        assert requests[0][0] == "http://metadata-proxy-review.invalid/version"
+            )
+        assert attempts == ["metadata-proxy-review.invalid"]
+        assert requests == []
 
 
 def test_redirect_requests_do_not_copy_response_secrets():
@@ -466,9 +487,7 @@ def test_redirect_requests_do_not_copy_response_secrets():
             send_json(handler)
             return
         handler.send_response(302)
-        handler.send_header(
-            "Location", f"http://localhost:{handler.server.server_port}/final"
-        )
+        handler.send_header("Location", "/final")
         handler.send_header("Set-Cookie", "private-test-token=value")
         handler.send_header("Authorization", "Bearer private-test-token")
         handler.end_headers()
