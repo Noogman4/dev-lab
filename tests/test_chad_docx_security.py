@@ -33,7 +33,7 @@ def rejects_before_reader(monkeypatch, app, path):
     def forbidden(*args, **kwargs):
         pytest.fail("Unvalidated DOCX reached python-docx")
 
-    monkeypatch.setattr(chad.docx, "Document", forbidden)
+    monkeypatch.setattr(chad, "parse_docx_snapshot", forbidden)
     result = chad.extract_docx_text_for_chad(app, str(path))
     assert result.startswith("Error while reading DOCX:")
 
@@ -64,18 +64,18 @@ def test_reader_receives_checked_snapshot_even_after_source_replacement(
     document = docx.Document()
     document.add_paragraph("Checked snapshot")
     document.save(path)
-    original = docx.Document
+    original = chad.parse_docx_snapshot
     streams = []
 
-    def read_snapshot(stream):
-        assert not isinstance(stream, (str, bytes))
+    def read_snapshot(payload):
+        assert isinstance(payload, bytes)
         path.write_bytes(b"attacker replacement")
-        streams.append(stream)
-        return original(stream)
+        streams.append(payload)
+        return original(payload)
 
-    monkeypatch.setattr(chad.docx, "Document", read_snapshot)
+    monkeypatch.setattr(chad, "parse_docx_snapshot", read_snapshot)
     assert chad.extract_docx_text_for_chad(app, str(path)) == "Checked snapshot"
-    assert streams[0].closed
+    assert len(streams) == 1
 
 
 @pytest.mark.parametrize(
@@ -294,6 +294,15 @@ def test_actual_import_adds_only_valid_documents_to_chat_context(
             compression=zipfile.ZIP_DEFLATED,
         )
     notices, statuses = [], []
+
+    class Immediate:
+        def __init__(self, target, **_kwargs):
+            self.target = target
+
+        def start(self):
+            self.target()
+
+    monkeypatch.setattr(chad, "threading", SimpleNamespace(Thread=Immediate))
     app.chad_chat_history = []
     app.chad_chat_status_var = SimpleNamespace(set=statuses.append)
     monkeypatch.setattr(chad, "ensure_chad_enabled", lambda app: True)

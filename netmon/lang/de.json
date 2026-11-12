@@ -4104,6 +4104,7 @@
     "chad_pdf_read_error": "Fehler beim PDF-Lesen: {error}",
     "chad_pdf_read_error_prefix": "Fehler beim PDF-Lesen:",
     "chad_docx_support_missing": "DOCX-Unterstützung fehlt: bitte python3-docx installieren.",
+    "chad_docx_import_running": "DOCX wird in einem ressourcenbegrenzten Prozess eingelesen...",
     "chad_docx_no_text": "DOCX gelesen, aber kein Text gefunden.",
     "chad_docx_read_error": "Fehler beim DOCX-Lesen: {error}",
     "chad_docx_read_error_prefix": "Fehler beim DOCX-Lesen:",

@@ -4104,6 +4104,7 @@
     "chad_pdf_read_error": "Error reading PDF: {error}",
     "chad_pdf_read_error_prefix": "Error reading PDF:",
     "chad_docx_support_missing": "DOCX support missing: please install python3-docx.",
+    "chad_docx_import_running": "Reading DOCX in a bounded parser process...",
     "chad_docx_no_text": "DOCX was read, but no text was found.",
     "chad_docx_read_error": "Error reading DOCX: {error}",
     "chad_docx_read_error_prefix": "Error reading DOCX:",

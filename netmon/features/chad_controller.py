@@ -19,6 +19,8 @@ try:
         snapshot_image,
     )
     from netmon.core.docx_archive import open_validated_docx
+    from netmon.core.docx_process import parse_docx_snapshot
+    from netmon.core.docx_worker import MAX_TEXT_CHARS
     from netmon.core.import_limits import (
         bounded_list,
         load_bounded_json,
@@ -33,6 +35,8 @@ except ModuleNotFoundError:
         snapshot_image,
     )
     from core.docx_archive import open_validated_docx
+    from core.docx_process import parse_docx_snapshot
+    from core.docx_worker import MAX_TEXT_CHARS
     from core.import_limits import bounded_list, load_bounded_json, read_bounded_text
     from core.utils import call_in_ui_thread
 
@@ -1358,6 +1362,7 @@ def clear_chad_analysis(app):
     app.chad_online_result = ""
     app.chad_chat_history = []
     app.chad_pending_files = []
+    app._chad_docx_import_token = None
     app.chad_analysis_source_var.set(
         f"{_tr(app, 'chad_label_source_prefix', 'Quelle')}: –"
     )
@@ -1729,27 +1734,18 @@ def extract_docx_text_for_chad(app, path: str) -> str:
 
     try:
         with open_validated_docx(path) as package:
-            document = docx.Document(package)
-        parts = []
-
-        for paragraph in document.paragraphs:
-            text = (paragraph.text or "").strip()
-            if text:
-                parts.append(text)
-
-        for table in document.tables:
-            for row in table.rows:
-                cells = [cell.text.strip() for cell in row.cells]
-                if any(cells):
-                    parts.append(" | ".join(cells))
-
-        if not parts:
+            text, truncated = parse_docx_snapshot(package.getvalue())
+        if not text:
             return app.tr(
                 "chad_docx_no_text",
                 "DOCX read successfully, but no text was found.",
             )
-
-        return "\n".join(parts)
+        if truncated:
+            marker = app.tr(
+                "chad_content_truncated_marker", "\n\n--- (truncated) ---\n\n"
+            )[:MAX_TEXT_CHARS]
+            return text[: MAX_TEXT_CHARS - len(marker)] + marker
+        return text
     except Exception as e:
         return app.tr(
             "chad_docx_read_error",
@@ -1757,8 +1753,152 @@ def extract_docx_text_for_chad(app, path: str) -> str:
         ).format(error=e)
 
 
+def _finish_chad_text_import(app, path, ext, size, content):
+    filename = os.path.basename(path)
+    try:
+        if content == app.tr(
+            "chad_pdf_support_missing",
+            "PDF support missing: please install python3-pypdf2.",
+        ) or content == app.tr(
+            "chad_docx_support_missing",
+            "DOCX support missing: please install python3-docx.",
+        ):
+            append_to_chad_output(
+                app,
+                app.tr("chad_output_import_notice", "Import notice"),
+                content,
+            )
+            app.chad_chat_status_var.set(content)
+            return
+
+        if content.startswith(
+            app.tr("chad_pdf_read_error_prefix", "Error while reading PDF:")
+        ) or content.startswith(
+            app.tr("chad_docx_read_error_prefix", "Error while reading DOCX:")
+        ):
+            append_to_chad_output(
+                app,
+                app.tr("chad_output_import_error", "Import error"),
+                content,
+            )
+            app.chad_chat_status_var.set(content)
+            return
+
+        max_chars = 120_000
+        if len(content) > max_chars:
+            content = (
+                content[:60000]
+                + app.tr("chad_content_truncated_marker", "\n\n--- (truncated) ---\n\n")
+                + content[-60000:]
+            )
+
+        text = app.tr(
+            "chad_imported_file_body",
+            "File imported: {filename}\n"
+            "Path: {path}\n"
+            "Type: {file_type}\n\n"
+            "{content}",
+        ).format(
+            filename=filename,
+            path=path,
+            file_type=ext or app.tr("label_unknown", "unknown"),
+            content=content,
+        )
+
+        app.chad_chat_history.append(
+            {
+                "role": "user",
+                "content": app.tr(
+                    "chad_context_from_import_prefix",
+                    "Please use this imported file as context:\n\n",
+                )
+                + text,
+            }
+        )
+        if size > 500_000:
+            append_to_chad_output(
+                app,
+                app.tr("chad_output_notice", "Notice"),
+                app.tr(
+                    "chad_large_file_loaded_notice",
+                    "Large file loaded ({size_mb} MB). Content may be truncated for better processing.",
+                ).format(size_mb=round(size / 1024 / 1024, 2)),
+            )
+        append_to_chad_output(
+            app,
+            app.tr("chad_output_imported_file", "Imported file"),
+            text,
+        )
+        app.chad_chat_status_var.set(
+            app.tr("chad_status_file_imported", "File imported: {filename}").format(
+                filename=filename
+            )
+        )
+    except Exception as exc:
+        app.chad_chat_status_var.set(
+            app.tr(
+                "chad_status_file_import_error", "Error during file import: {error}"
+            ).format(error=exc)
+        )
+
+
+def _start_chad_docx_import(app, path, size):
+    token = object()
+    app._chad_docx_import_token = token
+    app._chad_docx_import_running = True
+    app.chad_chat_status_var.set(
+        _tr(
+            app,
+            "chad_docx_import_running",
+            "Reading DOCX in a bounded parser process...",
+        )
+    )
+
+    def job():
+        content, error = "", None
+        try:
+            content = extract_docx_text_for_chad(app, path)
+        except Exception as exc:
+            error = str(exc)[:300]
+
+        def finish():
+            app._chad_docx_import_running = False
+            if app.__dict__.get("_chad_docx_import_token") is token:
+                if error is not None:
+                    app.chad_chat_status_var.set(
+                        _tr(
+                            app,
+                            "chad_status_file_import_error",
+                            "Error during file import: {error}",
+                        ).format(error=error)
+                    )
+                else:
+                    _finish_chad_text_import(app, path, ".docx", size, content)
+
+        try:
+            call_in_ui_thread(app, finish)
+        except Exception:
+            app._chad_docx_import_running = False
+
+    try:
+        threading.Thread(target=job, daemon=True).start()
+    except Exception:
+        app._chad_docx_import_running = False
+        app._chad_docx_import_token = None
+        raise
+
+
 def import_file_to_chad_chat(app):
     if not ensure_chad_enabled(app):
+        return
+    if app.__dict__.get("_chad_docx_import_running"):
+        app.chad_chat_status_var.set(
+            _tr(
+                app,
+                "chad_docx_import_running",
+                "Reading DOCX in a bounded parser process...",
+            )
+        )
         return
     path = filedialog.askopenfilename(
         title=app.tr(
@@ -1855,7 +1995,8 @@ def import_file_to_chad_chat(app):
         if ext == ".pdf":
             content = extract_pdf_text_for_chad(app, path)
         elif ext == ".docx":
-            content = extract_docx_text_for_chad(app, path)
+            _start_chad_docx_import(app, path, size)
+            return
         elif image_snapshot is not None:
             item = {
                 "type": "image",
@@ -1914,84 +2055,7 @@ def import_file_to_chad_chat(app):
                 )
                 return
 
-        if content == app.tr(
-            "chad_pdf_support_missing",
-            "PDF support missing: please install python3-pypdf2.",
-        ) or content == app.tr(
-            "chad_docx_support_missing",
-            "DOCX support missing: please install python3-docx.",
-        ):
-            append_to_chad_output(
-                app,
-                app.tr("chad_output_import_notice", "Import notice"),
-                content,
-            )
-            app.chad_chat_status_var.set(content)
-            return
-
-        if content.startswith(
-            app.tr("chad_pdf_read_error_prefix", "Error while reading PDF:")
-        ) or content.startswith(
-            app.tr("chad_docx_read_error_prefix", "Error while reading DOCX:")
-        ):
-            append_to_chad_output(
-                app,
-                app.tr("chad_output_import_error", "Import error"),
-                content,
-            )
-            app.chad_chat_status_var.set(content)
-            return
-
-        max_chars = 120_000
-        if len(content) > max_chars:
-            content = (
-                content[:60000]
-                + app.tr("chad_content_truncated_marker", "\n\n--- (truncated) ---\n\n")
-                + content[-60000:]
-            )
-
-        text = app.tr(
-            "chad_imported_file_body",
-            "File imported: {filename}\n"
-            "Path: {path}\n"
-            "Type: {file_type}\n\n"
-            "{content}",
-        ).format(
-            filename=filename,
-            path=path,
-            file_type=ext or app.tr("label_unknown", "unknown"),
-            content=content,
-        )
-
-        app.chad_chat_history.append(
-            {
-                "role": "user",
-                "content": app.tr(
-                    "chad_context_from_import_prefix",
-                    "Please use this imported file as context:\n\n",
-                )
-                + text,
-            }
-        )
-        if size > 500_000:
-            append_to_chad_output(
-                app,
-                app.tr("chad_output_notice", "Notice"),
-                app.tr(
-                    "chad_large_file_loaded_notice",
-                    "Large file loaded ({size_mb} MB). Content may be truncated for better processing.",
-                ).format(size_mb=round(size / 1024 / 1024, 2)),
-            )
-        append_to_chad_output(
-            app,
-            app.tr("chad_output_imported_file", "Imported file"),
-            text,
-        )
-        app.chad_chat_status_var.set(
-            app.tr("chad_status_file_imported", "File imported: {filename}").format(
-                filename=filename
-            )
-        )
+        _finish_chad_text_import(app, path, ext, size, content)
     except Exception as e:
         app.chad_chat_status_var.set(
             app.tr(
