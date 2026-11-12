@@ -168,3 +168,70 @@ def test_identity_parses_comm_parentheses_and_excludes_zombies(
     assert core._process_identity(101) == (
         ("boot-a", 9876) if process_state == "S" else None
     )
+
+
+def _write_legacy_standalone_state(paths, pid):
+    import json
+
+    Path(paths.radio_host_state_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(paths.radio_host_state_path).write_text(
+        json.dumps(
+            {"pid": pid, "owner_pid": pid, "launcher_state": "standalone_active"}
+        )
+    )
+
+
+@pytest.mark.parametrize("is_netmon", [False, True])
+def test_legacy_state_without_identity_needs_a_netmon_process(
+    states, monkeypatch, is_netmon
+):
+    # A state from before the reboot: the PID now belongs to anything else.
+    paths, _identities = states
+    _write_legacy_standalone_state(paths, 202)
+    monkeypatch.setattr(core, "_is_netmon_process_leader", lambda pid: is_netmon)
+    assert core.standalone_radio_is_running() is is_netmon
+    assert core.radio_host_is_running() is is_netmon
+
+
+def test_reused_pid_with_other_identity_is_not_running(states):
+    paths, identities = states
+    assert core.write_radio_host_state(mode="standalone", owner_pid=202)
+    assert core.standalone_radio_is_running()
+    identities[202] = ("boot-b", 2000)  # same PID after a reboot
+    assert not core.standalone_radio_is_running()
+    identities[202] = ("boot-a", 2001)  # same boot, PID reused later
+    assert not core.standalone_radio_is_running()
+
+
+def test_identity_is_recomputed_and_not_taken_from_extras(states):
+    import json
+
+    paths, _identities = states
+    assert core.write_radio_launcher_state(
+        launcher_state="standalone_active",
+        owner_pid=202,
+        extras={"boot_id": "forged", "start_ticks": 1},
+    )
+    state = json.loads(Path(paths.radio_host_state_path).read_text())
+    assert (state["boot_id"], state["start_ticks"]) == ("boot-a", 2000)
+    assert core.standalone_radio_is_running()
+
+
+def test_thread_id_is_not_a_process_leader():
+    ready, release = threading.Event(), threading.Event()
+    ids = []
+
+    def worker():
+        ids.append(threading.get_native_id())
+        ready.set()
+        release.wait(5)
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    try:
+        assert ready.wait(5)
+        assert ids[0] != __import__("os").getpid()
+        assert not core._is_netmon_process_leader(ids[0])
+    finally:
+        release.set()
+        thread.join(5)

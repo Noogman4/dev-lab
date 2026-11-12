@@ -429,6 +429,13 @@ def write_radio_launcher_state(
     }
     if isinstance(extras, dict):
         payload.update(extras)
+    # Owner identity guards against PID reuse (e.g. after a reboot); it is
+    # recomputed for every owner and never taken over from extras.
+    payload.pop("boot_id", None)
+    payload.pop("start_ticks", None)
+    identity = _process_identity(int(owner_pid))
+    if identity is not None:
+        payload["boot_id"], payload["start_ticks"] = identity
     return _write_radio_host_state_payload(payload)
 
 
@@ -495,10 +502,38 @@ def netmon_host_is_available() -> bool:
     return _process_identity(pid) == (state["boot_id"], ticks)
 
 
+def _is_netmon_process_leader(pid: int) -> bool:
+    """Legacy fallback: a whole NetMon/radio process, not a reused thread ID."""
+    try:
+        with open(f"/proc/{pid}/status", encoding="utf-8") as handle:
+            tgid = next(
+                (line.split()[1] for line in handle if line.startswith("Tgid:")), ""
+            )
+        if tgid != str(pid):
+            return False
+        with open(f"/proc/{pid}/cmdline", "rb") as handle:
+            return b"netmon" in handle.read(65536)
+    except (OSError, IndexError):
+        return False
+
+
+def _radio_owner_alive(state: dict, owner_pid: int) -> bool:
+    if not _process_exists(owner_pid):
+        return False
+    if "boot_id" in state or "start_ticks" in state:
+        return _process_identity(owner_pid) == (
+            state.get("boot_id"),
+            state.get("start_ticks"),
+        )
+    # States written before the identity fields existed (e.g. left over from
+    # the previous boot): the PID alone may belong to an unrelated process.
+    return _is_netmon_process_leader(owner_pid)
+
+
 def radio_host_is_running(mode: str | None = None) -> bool:
     state = read_radio_host_state()
     owner_pid = int(state.get("owner_pid") or state.get("pid") or 0)
-    if owner_pid <= 0 or not _process_exists(owner_pid):
+    if owner_pid <= 0 or not _radio_owner_alive(state, owner_pid):
         return False
     expected_mode = str(mode or "").strip().lower()
     if expected_mode:
