@@ -36,6 +36,8 @@ except ModuleNotFoundError:
 
 CLAMAV_DATABASE_EXTENSIONS = (".cvd", ".cld")
 CLAMAV_PROGRESS_TICK_MS = 500
+FRESHCLAM_SYSTEM_BINARY = "/usr/bin/freshclam"
+FRESHCLAM_SYSTEM_CONFIG = "/etc/clamav/freshclam.conf"
 CLAMAV_QUICK_TARGET_IDS = (
     "downloads",
     "desktop",
@@ -84,14 +86,45 @@ def _tr(app, key: str, default: str) -> str:
     return default
 
 
+def _clamav_validate_path_text(path: str) -> str:
+    if any(ord(char) < 32 or ord(char) == 127 for char in path):
+        raise ValueError("ClamAV-Pfade dürfen keine Steuerzeichen enthalten.")
+    return path
+
+
 def clamav_user_database_dir() -> str:
-    xdg_data_home = str(os.environ.get("XDG_DATA_HOME", "") or "").strip()
+    xdg_data_home = _clamav_validate_path_text(
+        str(os.environ.get("XDG_DATA_HOME", "") or "")
+    ).strip()
     if xdg_data_home:
         base_dir = os.path.abspath(os.path.expanduser(xdg_data_home))
     else:
         user_home = os.path.expanduser(f"~{getpass.getuser()}")
         base_dir = os.path.join(user_home, ".local", "share")
-    return os.path.join(base_dir, "netmon", "clamav-db")
+    return _clamav_validate_path_text(os.path.join(base_dir, "netmon", "clamav-db"))
+
+
+def _clamav_check_system_update_paths() -> None:
+    """Only root-controlled Debian paths may feed a privileged FreshClam."""
+    for path in (
+        "/",
+        "/usr",
+        "/usr/bin",
+        FRESHCLAM_SYSTEM_BINARY,
+        "/etc",
+        "/etc/clamav",
+        FRESHCLAM_SYSTEM_CONFIG,
+    ):
+        entry = os.lstat(path)
+        is_file = path in {FRESHCLAM_SYSTEM_BINARY, FRESHCLAM_SYSTEM_CONFIG}
+        expected_type = stat.S_ISREG if is_file else stat.S_ISDIR
+        if (
+            entry.st_uid != 0
+            or entry.st_mode & 0o022
+            or not expected_type(entry.st_mode)
+            or (path == FRESHCLAM_SYSTEM_BINARY and not entry.st_mode & 0o111)
+        ):
+            raise PermissionError(f"Unsicherer FreshClam-Systempfad: {path}")
 
 
 def _clamav_database_dir_is_secure(path: str) -> bool:
@@ -1557,6 +1590,10 @@ def clamav_abort_scan(app):
 
 
 def security_clamav_update_async(app):
+    if os.geteuid() == 0:
+        update_clamav_panel(app, status="Fehler", signatures="Update blockiert")
+        app.log("ClamAV-Benutzerupdate: NetMon bitte ohne Root-Rechte starten.")
+        return
     if not has_cmd("freshclam"):
         update_clamav_panel(
             app, status="nicht installiert", signatures="nicht aktualisierbar"
@@ -1575,13 +1612,10 @@ def security_clamav_update_async(app):
         try:
             app.log_safe("ClamAV-Update gestartet...")
 
+            # Reject malformed environment paths before any command or mkdir.
+            user_db_dir = clamav_user_database_dir()
+            user_config_ready = False
             try:
-                user_db_dir = clamav_user_database_dir()
-                user_tag = re.sub(r"[^a-zA-Z0-9_.-]", "_", getpass.getuser())
-                user_log_file = os.path.join(
-                    tempfile.gettempdir(),
-                    f"netmon-freshclam-{user_tag}.log",
-                )
                 _safe_makedirs_no_symlink(user_db_dir)
                 with tempfile.NamedTemporaryFile(
                     "w",
@@ -1589,52 +1623,45 @@ def security_clamav_update_async(app):
                     prefix="netmon-freshclam-",
                     suffix=".conf",
                 ) as cfg:
-                    cfg.write(f"DatabaseDirectory {user_db_dir}\n")
+                    temp_cfg_path = cfg.name
                     cfg.write("DatabaseMirror database.clamav.net\n")
-                    cfg.write(f"UpdateLogFile {user_log_file}\n")
                     cfg.write("Foreground true\n")
                     cfg.write("CompressLocalDatabase no\n")
-                    temp_cfg_path = cfg.name
+                user_config_ready = True
             except Exception as cfg_exc:
-                temp_cfg_path = ""
                 app.log_debug_safe(
                     f"ClamAV-Update: Temp-Config konnte nicht erstellt werden: {cfg_exc}"
                 )
 
             attempts = []
-            if temp_cfg_path:
+            if user_config_ready:
                 attempts.append(
                     (
-                        "freshclam --stdout --config-file <temp>",
+                        "freshclam --stdout --config-file <temp> --datadir <user>",
                         [
                             "freshclam",
                             "--stdout",
                             "--config-file",
                             temp_cfg_path,
+                            "--datadir",
+                            user_db_dir,
                         ],
                     )
                 )
-                if has_cmd("sudo"):
-                    attempts.append(
-                        (
-                            "sudo -n freshclam --stdout --config-file <temp>",
-                            [
-                                "sudo",
-                                "-n",
-                                "freshclam",
-                                "--stdout",
-                                "--config-file",
-                                temp_cfg_path,
-                            ],
-                        )
-                    )
-
-            attempts.append(("freshclam --stdout", ["freshclam", "--stdout"]))
+            # User configuration must never cross the sudo boundary. System
+            # updates use only fixed distribution paths, checked before sudo.
+            system_cmd = [
+                FRESHCLAM_SYSTEM_BINARY,
+                "--stdout",
+                "--config-file",
+                FRESHCLAM_SYSTEM_CONFIG,
+            ]
+            attempts.append(("freshclam --stdout --config-file <system>", system_cmd))
             if has_cmd("sudo"):
                 attempts.append(
                     (
-                        "sudo -n freshclam --stdout",
-                        ["sudo", "-n", "freshclam", "--stdout"],
+                        "sudo -n freshclam --stdout --config-file <system>",
+                        ["sudo", "-n", "--", *system_cmd],
                     )
                 )
 
@@ -1642,6 +1669,12 @@ def security_clamav_update_async(app):
             used_sudo = False
             all_outputs = []
             for label, cmd in attempts:
+                if label.startswith("sudo "):
+                    try:
+                        _clamav_check_system_update_paths()
+                    except OSError as exc:
+                        all_outputs.append(f"[{label}]\nSystemupdate blockiert: {exc}")
+                        continue
                 rc, cmd_out = run_cmd(cmd, timeout=900)
                 if cmd_out:
                     all_outputs.append(f"[{label}]\n{cmd_out}")
@@ -1650,7 +1683,7 @@ def security_clamav_update_async(app):
                     break
 
             if rc == 0:
-                if used_sudo:
+                if "--datadir" not in cmd:
                     app.clamav_database_dir = ""
                 elif clamav_database_dir_has_signatures(user_db_dir):
                     app.clamav_database_dir = user_db_dir
@@ -1707,6 +1740,11 @@ def security_clamav_update_async(app):
                 app.log_debug_safe(
                     "ClamAV update raw: " + "\n\n".join(all_outputs)[:3000]
                 )
+        except (OSError, ValueError, RuntimeError) as exc:
+            update_clamav_panel_safe(
+                app, status="Fehler", signatures="Update fehlgeschlagen"
+            )
+            app.log_safe(f"ClamAV-Update fehlgeschlagen: {exc}")
         finally:
             if temp_cfg_path:
                 try:

@@ -37,6 +37,8 @@ Im Code wurden folgende Arten von Netzwerkzugriffen gefunden:
 ### ClamAV-Signaturdatenbank
 
 - Ein benutzerbezogenes `freshclam`-Update schreibt Signaturen nach `XDG_DATA_HOME/netmon/clamav-db` oder ersatzweise `~/.local/share/netmon/clamav-db`, nicht in einen vorhersagbaren gemeinsamen `/tmp`-Ordner.
+- Benutzer-Konfigurationen werden ausschliesslich ohne erhoehte Rechte verwendet. Der Datenbankpfad wird separat als `--datadir`-Argument uebergeben; Pfade mit Steuerzeichen werden vor Dateizugriffen und Update-Versuchen abgewiesen. Die temporaere Konfiguration enthaelt keine interpolierten Pfade und kein `UpdateLogFile`; Ausgaben werden ueber stdout erfasst.
+- Der sudo-Fallback verwendet nur `/usr/bin/freshclam` mit `/etc/clamav/freshclam.conf`. Vor dem privilegierten Aufruf werden beide Dateien und alle uebergeordneten Verzeichnisse auf Root-Eigentuemerschaft, passenden Dateityp und fehlende Gruppen-/Fremdschreibrechte geprueft; Symlinks werden abgewiesen. Eine als Root gestartete NetMon-GUI fuehrt das Benutzerupdate nicht aus.
 - NetMon erstellt den Ordner ohne Symlink-Folgen und mit Benutzerrechten. Vor `clamscan --database` werden Eigentuemerschaft, Verzeichnistyp und fehlende Gruppen-/Fremdrechte geprueft.
 - Als benutzerbezogene Datenbank werden nur Verzeichnisse mit vorhandenen `.cvd`- oder `.cld`-Signaturen akzeptiert. Andernfalls wird auf eine gueltige Systemdatenbank unter `/var/lib/clamav` beziehungsweise auf die ClamAV-Standardsuche zurueckgefallen.
 - Schnellscan-Pfade werden vom Benutzer ausgewaehlt und als normalisierte absolute Pfade gespeichert. Nicht mehr vorhandene Ordner werden beim Scan uebersprungen.
