@@ -4119,6 +4119,7 @@
     "chad_large_file_title": "Große Datei",
     "chad_large_file_body": "Die Datei ist {size_mb} MB groß.\n\nDas kann die Analyse verlangsamen.\n\nTrotzdem laden?",
     "chad_imported_image_body": "Bild importiert: {filename}\nPfad: {path}\nGröße: {size_mb} MB\n\nHinweis: Das Bild wurde für die nächste Online-Analyse vorgemerkt.",
+    "chad_image_snapshot_note": "Gesendet wird die beim Import erfasste Bildkopie. Spätere Änderungen an der Originaldatei werden nicht übernommen.",
     "chad_binary_file_notice": "Die Datei {filename} wirkt wie eine Binärdatei und wurde nicht als Text übernommen.",
     "chad_content_truncated_marker": "\n\n--- (gekürzt) ---\n\n",
     "chad_imported_file_body": "Datei importiert: {filename}\nPfad: {path}\nTyp: {file_type}\n\n{content}",

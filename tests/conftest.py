@@ -22,6 +22,21 @@ import traceback
 
 import pytest
 
+
+@pytest.fixture
+def chad_image_snapshot():
+    """A valid, tiny synthetic image; no filesystem or network access."""
+    import io
+
+    from PIL import Image
+
+    from netmon.core.image_snapshot import ImageSnapshot
+
+    stream = io.BytesIO()
+    Image.new("RGB", (2, 2), "red").save(stream, format="PNG")
+    return ImageSnapshot("/synthetic/fixture.png", stream.getvalue())
+
+
 _HOST_COMMANDS = {
     "sudo",
     "pkexec",

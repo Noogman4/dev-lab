@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import http.client
 import json
-import mimetypes
 import os
 import queue
 import socket
@@ -15,7 +14,12 @@ import re
 import urllib.error
 import urllib.request
 import zlib
-from pathlib import Path
+
+from netmon.core.image_snapshot import (
+    ImageSnapshot,
+    attachment_snapshots,
+    snapshot_image,
+)
 
 from .ai_analysis_service import CHAD_COMMAND_GUIDANCE
 
@@ -310,28 +314,22 @@ class AiOnlineService:
     def is_available(self):
         return bool(self.api_key)
 
-    def image_to_data_url(self, path: str) -> str:
-        resolved = Path(path).expanduser().resolve(strict=True)
-        allowed_suffixes = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
-        if resolved.suffix.lower() not in allowed_suffixes:
-            raise ValueError("Unsupported image file type.")
+    def image_to_data_url(self, image: ImageSnapshot | str) -> str:
+        # Direct callers still get a bounded, no-follow read. Queued attachments
+        # must already be snapshots; the payload builders never reopen paths.
+        snapshot = image if isinstance(image, ImageSnapshot) else snapshot_image(image)
+        data = base64.b64encode(snapshot.data).decode("ascii")
+        return f"data:{snapshot.mime_type};base64,{data}"
 
-        home_dir = Path.home().resolve()
-        try:
-            resolved.relative_to(home_dir)
-        except ValueError as exc:
-            raise ValueError(
-                "Image path must be inside the user home directory."
-            ) from exc
-
-        mime, _ = mimetypes.guess_type(str(resolved))
-        if not mime:
-            mime = "image/png"
-
-        with open(resolved, "rb") as f:
-            data = base64.b64encode(f.read()).decode("ascii")
-
-        return f"data:{mime};base64,{data}"
+    def _image_content_items(self, files: list[dict]) -> list[dict]:
+        return [
+            {
+                "type": "input_image",
+                "image_url": self.image_to_data_url(snapshot),
+                "detail": "auto",
+            }
+            for snapshot in attachment_snapshots(files)
+        ]
 
     def _post_json(self, url: str, headers: dict, payload: dict, timeout: int):
         deadline = time.monotonic() + timeout
@@ -633,15 +631,7 @@ class AiOnlineService:
             timeout_seconds = self._analysis_timeout_seconds(prompt, files)
             if files:
                 content_items = [{"type": "input_text", "text": prompt}]
-                for file_item in files:
-                    if file_item.get("type") == "image" and file_item.get("path"):
-                        content_items.append(
-                            {
-                                "type": "input_image",
-                                "image_url": self.image_to_data_url(file_item["path"]),
-                                "detail": "auto",
-                            }
-                        )
+                content_items.extend(self._image_content_items(files))
                 payload = {
                     "model": self.default_model,
                     "input": [{"role": "user", "content": content_items}],
@@ -706,6 +696,7 @@ class AiOnlineService:
 
             recent_messages = (messages or [])[-12:]
             files = files or []
+            image_items = self._image_content_items(files)
             last_user_index = -1
             for idx, msg in enumerate(recent_messages):
                 if msg.get("role", "user") == "user":
@@ -730,19 +721,7 @@ class AiOnlineService:
 
                     content_items = [{"type": "input_text", "text": text}]
                     if role == "user" and idx == last_user_index:
-                        for file_item in files:
-                            if file_item.get("type") == "image" and file_item.get(
-                                "path"
-                            ):
-                                content_items.append(
-                                    {
-                                        "type": "input_image",
-                                        "image_url": self.image_to_data_url(
-                                            file_item["path"]
-                                        ),
-                                        "detail": "auto",
-                                    }
-                                )
+                        content_items.extend(image_items)
 
                     input_items.append(
                         {

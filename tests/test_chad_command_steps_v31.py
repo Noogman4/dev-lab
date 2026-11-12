@@ -63,7 +63,7 @@ def test_exported_prompts_request_individual_steps_and_keep_sanitization(title):
 @pytest.mark.parametrize("method", ["analyze", "chat"])
 @pytest.mark.parametrize("with_image", [False, True])
 def test_transport_gets_guidance_even_for_direct_prompts_and_followups(
-    monkeypatch, method, with_image
+    monkeypatch, method, with_image, chad_image_snapshot
 ):
     service = AiOnlineService()
     service.api_key = "private-fake-key"
@@ -76,7 +76,7 @@ def test_transport_gets_guidance_even_for_direct_prompts_and_followups(
         return 200, json.dumps({"status": "completed", "output_text": STEP_RESPONSE})
 
     monkeypatch.setattr(service, "_post_json", transport)
-    files = [{"type": "image", "path": "private-fixture.png"}] if with_image else []
+    files = [{"type": "image", "snapshot": chad_image_snapshot}] if with_image else []
     direct_prompt = "Nur diese Beobachtung prüfen."
     history = [
         {"role": "user", "content": "DNS prüfen"},

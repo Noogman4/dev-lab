@@ -4119,6 +4119,7 @@
     "chad_large_file_title": "Large file",
     "chad_large_file_body": "The file is {size_mb} MB in size.\n\nThis may slow down the analysis.\n\nLoad it anyway?",
     "chad_imported_image_body": "Image imported: {filename}\nPath: {path}\nSize: {size_mb} MB\n\nNote: The image has been queued for the next online analysis.",
+    "chad_image_snapshot_note": "The captured image copy will be sent. Later changes to the original file are ignored.",
     "chad_binary_file_notice": "The file {filename} appears to be binary and was not imported as text.",
     "chad_content_truncated_marker": "\n\n--- (truncated) ---\n\n",
     "chad_imported_file_body": "File imported: {filename}\nPath: {path}\nType: {file_type}\n\n{content}",

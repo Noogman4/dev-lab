@@ -399,7 +399,9 @@ def test_malformed_payload_rejected(backend, endpoint, mode):
 
 
 @pytest.mark.parametrize("method", ["analyze", "chat"])
-def test_image_attachment_preserved(backend, endpoint, monkeypatch, method):
+def test_image_attachment_preserved(
+    backend, endpoint, monkeypatch, method, chad_image_snapshot
+):
     service = online.AiOnlineService()
     service.api_key = "test-placeholder"
     monkeypatch.setattr(
@@ -415,7 +417,7 @@ def test_image_attachment_preserved(backend, endpoint, monkeypatch, method):
     )
     value = "image" if method == "analyze" else [{"role": "user", "content": "image"}]
     assert getattr(service, method)(
-        value, files=[{"type": "image", "path": "synthetic.png"}]
+        value, files=[{"type": "image", "snapshot": chad_image_snapshot}]
     ) == (True, "ok")
     payload = json.loads(endpoint[1]["requests"][0][2])
     assert payload["input"][-1]["content"][-1] == {

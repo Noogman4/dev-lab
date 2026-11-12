@@ -57,16 +57,18 @@ def test_analyze_tracks_token_usage_from_response():
     assert service.last_usage_text == "Gesamt: 20 | Input: 12 | Output: 8"
 
 
-def test_image_to_data_url_accepts_image_inside_home(tmp_path, monkeypatch):
+def test_image_to_data_url_accepts_image_inside_home(
+    tmp_path, monkeypatch, chad_image_snapshot
+):
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     image_path = tmp_path / "demo.png"
-    image_path.write_bytes(b"png-bytes")
+    image_path.write_bytes(chad_image_snapshot.data)
 
     result = AiOnlineService().image_to_data_url(str(image_path))
 
     assert (
         result
-        == f"data:image/png;base64,{base64.b64encode(b'png-bytes').decode('ascii')}"
+        == f"data:image/png;base64,{base64.b64encode(chad_image_snapshot.data).decode('ascii')}"
     )
 
 

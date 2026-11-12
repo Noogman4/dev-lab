@@ -55,6 +55,7 @@ Im Code wurden folgende Arten von Netzwerkzugriffen gefunden:
 
 ## Datenschutz
 
+- Chad-Bilder werden beim Import als unveraenderliche Bildkopien im Speicher erfasst. Die Pfadkomponenten und die Datei werden ohne Symlink-Folgen geoeffnet; nur regulaere Dateien innerhalb des Home-Verzeichnisses bis 5 MiB werden gelesen. Bildformat und Dimensionen werden geprueft. Maximal vier Bilder mit zusammen 20 MiB koennen vorgemerkt werden. Beide API-Sendewege verwenden ausschliesslich diese Kopien und oeffnen die urspruenglichen Pfade nicht erneut. Alte Anhaenge ohne Bildkopie muessen erneut importiert werden.
 - `AiAnalysisService` redigiert inhaltlich mehrere sensible Muster (Bearer-Token, API Keys, E-Mail-Adressen, Home-Pfade, Passphrasen), bevor Inhalte in Prompts fliessen.
 - `AiOnlineService` verwendet `OPENAI_API_KEY` aus der Umgebung und sendet Inhalte an die OpenAI-Responses-API.
 - Diagnose- und Supportberichte verwenden Redaction-Helfer fuer typische sensible Werte, ersetzen aber keine manuelle Sichtpruefung vor dem Versand.

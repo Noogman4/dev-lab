@@ -12,6 +12,12 @@ from datetime import datetime
 from . import chad_code_blocks, chad_prompt_display
 
 try:
+    from netmon.core.image_snapshot import (
+        MAX_IMAGE_ATTACHMENTS,
+        MAX_IMAGE_BYTES,
+        attachment_snapshots,
+        snapshot_image,
+    )
     from netmon.core.docx_archive import open_validated_docx
     from netmon.core.import_limits import (
         bounded_list,
@@ -20,6 +26,12 @@ try:
     )
     from netmon.core.utils import call_in_ui_thread
 except ModuleNotFoundError:
+    from core.image_snapshot import (
+        MAX_IMAGE_ATTACHMENTS,
+        MAX_IMAGE_BYTES,
+        attachment_snapshots,
+        snapshot_image,
+    )
     from core.docx_archive import open_validated_docx
     from core.import_limits import bounded_list, load_bounded_json, read_bounded_text
     from core.utils import call_in_ui_thread
@@ -1792,10 +1804,19 @@ def import_file_to_chad_chat(app):
         return
 
     try:
-        max_size = 5 * 1024 * 1024
-        size = os.path.getsize(path)
+        max_size = MAX_IMAGE_BYTES
         filename = os.path.basename(path)
         ext = os.path.splitext(path)[1].lower()
+        image_snapshot = None
+        if ext in (".png", ".jpg", ".jpeg", ".webp"):
+            existing = attachment_snapshots(app.chad_pending_files)
+            if len(existing) >= MAX_IMAGE_ATTACHMENTS:
+                raise ValueError("Image attachment limit exceeded (four images).")
+            image_snapshot = snapshot_image(path)
+            size = len(image_snapshot.data)
+            path = image_snapshot.source_path
+        else:
+            size = os.path.getsize(path)
         if size > max_size:
             messagebox.showwarning(
                 app.tr("chad_file_too_large_title", "File too large"),
@@ -1835,13 +1856,15 @@ def import_file_to_chad_chat(app):
             content = extract_pdf_text_for_chad(app, path)
         elif ext == ".docx":
             content = extract_docx_text_for_chad(app, path)
-        elif ext in (".png", ".jpg", ".jpeg", ".webp"):
+        elif image_snapshot is not None:
             item = {
                 "type": "image",
                 "path": path,
                 "filename": filename,
                 "size": size,
+                "snapshot": image_snapshot,
             }
+            attachment_snapshots([*app.chad_pending_files, item])
             app.chad_pending_files.append(item)
             text = app.tr(
                 "chad_imported_image_body",
@@ -1853,6 +1876,11 @@ def import_file_to_chad_chat(app):
                 filename=filename,
                 path=path,
                 size_mb=round(size / 1024 / 1024, 2),
+            )
+            text += "\n\n" + _tr(
+                app,
+                "chad_image_snapshot_note",
+                "The captured image copy will be sent. Later changes to the original file are ignored.",
             )
             append_to_chad_output(
                 app,
