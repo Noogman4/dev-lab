@@ -2,6 +2,8 @@
 
 import io
 import json
+import shutil
+import subprocess
 from email.message import Message
 import threading
 from types import SimpleNamespace
@@ -13,6 +15,48 @@ import pytest
 from netmon.core import release_metadata as metadata
 from netmon.app import App
 from netmon import app as app_module
+
+
+UNSAFE_UPDATE_URLS = [
+    "http://attacker.invalid\\@netmonroots.com/update",
+    "https://attacker.invalid\\@netmonroots.com/update",
+    "http://127.0.0.1\\@netmonroots.com/update",
+    "https://10.0.0.1\\@netmonroots.com/update",
+    "https://[::1]\\@netmonroots.com/update",
+    "http://netmonroots.com/update",
+    "https://cdn.netmonroots.com/update",
+    "https://netmonroots.com.evil.invalid/update",
+    "https://netmonroots.com@evil.invalid/update",
+    "https://user:password@netmonroots.com/update",
+    "https://user@netmonroots.com/update",
+    "https://netmonroots.com:444/update",
+    "https://netmonroots.com:0443/update",
+    "https://netmonroots.com:/update",
+    "https://netmonroots.com./update",
+    "https://netmonroots%2ecom/update",
+    "https://netmonroots.com\\update",
+    "https://netmonroots.com/\nupdate",
+    "https://netmonroots.com\t.evil.invalid/update",
+    "\nhttps://netmonroots.com/update",
+    "https://netmonroots.com/update\r",
+    "https://netmonroots.com/\x00update",
+    "https://netmonroots.com/\x7fupdate",
+    "https://evil.invalid\uff20netmonroots.com/update",
+    "https://[broken/update",
+    "https://netmonroots.com/" + "x" * 4096,
+    "//netmonroots.com/update",
+    "file:///tmp/update",
+    "javascript:alert(1)",
+    "",
+]
+SAFE_UPDATE_URLS = [
+    "https://netmonroots.com",
+    "https://netmonroots.com/downloads.html",
+    "https://netmonroots.com:443/dist/netmon.deb",
+    "HTTPS://NETMONROOTS.COM:443/downloads.html",
+    "https://netmonroots.com/downloads?lang=de#release",
+    "https://netmonroots.com/docs/%C3%BCbersicht.html",
+]
 
 
 class Response(io.BytesIO):
@@ -234,6 +278,10 @@ def test_stalled_connect_has_caller_deadline_and_no_later_read(monkeypatch):
     "download_url, expected",
     [
         ("https://netmonroots.com/downloads", "https://netmonroots.com/downloads"),
+        (
+            "http://attacker.invalid\\@netmonroots.com/update",
+            "https://netmonroots.com/fallback",
+        ),
         ("https://evil.invalid/file", "https://netmonroots.com/fallback"),
         ("file:///tmp/payload", "https://netmonroots.com/fallback"),
     ],
@@ -255,6 +303,103 @@ def test_app_uses_bounded_transport_and_preserves_link_policy(
         "version": "1.2.3",
         "download_url": expected,
     }
+
+
+@pytest.mark.parametrize("url", UNSAFE_UPDATE_URLS + [None, 42, [], {}])
+def test_update_origin_rejects_ambiguous_or_untrusted_urls(url):
+    assert App._is_trusted_update_url(url) is False
+
+
+def test_accepted_urls_have_pinned_origin_in_independent_whatwg_parser():
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js WHATWG URL parser unavailable")
+    for url in SAFE_UPDATE_URLS:
+        assert App._is_trusted_update_url(url) is True
+    parsed = subprocess.run(
+        [
+            node,
+            "-e",
+            "const fs = require('node:fs'); const urls = JSON.parse(fs.readFileSync(0, 'utf8')); "
+            "process.stdout.write(JSON.stringify(urls.map(u => new URL(u).origin)));",
+        ],
+        input=json.dumps([UNSAFE_UPDATE_URLS[0], *SAFE_UPDATE_URLS]),
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=5,
+    )
+    origins = json.loads(parsed.stdout)
+    assert origins[0] == "http://attacker.invalid"
+    assert origins[1:] == ["https://netmonroots.com"] * len(SAFE_UPDATE_URLS)
+
+
+@pytest.fixture
+def about_update_handoff(monkeypatch):
+    app = App.__new__(App)
+    app.tr = lambda _key, fallback: fallback
+    app._about_update_redirect_done = False
+    app.netmon_roots_latest_version_url = "https://netmonroots.com/latest-version.json"
+    app.netmon_roots_downloads_url = "https://netmonroots.com/fallback"
+    app._set_about_version_status = lambda _status: None
+    app.after = lambda _delay, callback: callback()
+    links, logs = [], []
+    app.log_safe = logs.append
+    monkeypatch.setattr(app_module.shutil, "which", lambda _tool: "/usr/bin/xdg-open")
+    monkeypatch.setattr(
+        app_module.subprocess,
+        "Popen",
+        lambda argv, **_kw: links.append(argv) or object(),
+    )
+
+    class Immediate:
+        def __init__(self, target, **_kwargs):
+            self.target = target
+
+        def start(self):
+            self.target()
+
+    monkeypatch.setattr(app_module.threading, "Thread", Immediate)
+    return app, links, logs
+
+
+@pytest.mark.parametrize("url", UNSAFE_UPDATE_URLS)
+@pytest.mark.parametrize("field", ["download_url", "downloads_url"])
+def test_remote_update_url_cannot_reach_browser_with_different_origin(
+    about_update_handoff, monkeypatch, url, field
+):
+    app, links, _logs = about_update_handoff
+    monkeypatch.setattr(
+        app_module,
+        "fetch_release_metadata",
+        lambda _url: {"version": "9999.0", field: url},
+    )
+    app.check_about_latest_version()
+    assert links == [["xdg-open", "https://netmonroots.com/fallback"]]
+
+
+@pytest.mark.parametrize("url", UNSAFE_UPDATE_URLS)
+def test_invalid_fallback_cannot_reach_browser(about_update_handoff, monkeypatch, url):
+    app, links, _logs = about_update_handoff
+    app.netmon_roots_downloads_url = url
+    monkeypatch.setattr(
+        app_module,
+        "fetch_release_metadata",
+        lambda _url: {"version": "9999.0", "download_url": "https://evil.invalid/"},
+    )
+    app.check_about_latest_version()
+    assert links == []
+    assert not app._about_update_redirect_done
+
+
+@pytest.mark.parametrize("url", UNSAFE_UPDATE_URLS)
+def test_update_target_is_rechecked_at_browser_handoff(about_update_handoff, url):
+    app, links, _logs = about_update_handoff
+    app._fetch_latest_release_info = lambda: {"version": "9999.0", "download_url": url}
+    app.netmon_roots_downloads_url = url
+    app.check_about_latest_version()
+    assert links == []
+    assert not app._about_update_redirect_done
 
 
 @pytest.mark.parametrize(

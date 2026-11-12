@@ -45,6 +45,7 @@ from netmon.core.import_limits import load_bounded_json  # noqa: E402
 from netmon.core.tk_input_method import x_input_method_bypass  # noqa: E402
 from netmon.core.release_metadata import (  # noqa: E402
     fetch_release_metadata,
+    is_trusted_release_url,
 )
 
 try:
@@ -6460,19 +6461,16 @@ class App(TkBase):
         version = str(data.get("version", "") or "").strip()
         if not version:
             raise ValueError("Versionsdatei enthält keine Version.")
-        fallback_url = str(
-            getattr(self, "netmon_roots_downloads_url", "")
-            or getattr(self, "netmon_roots_homepage", "")
-        ).strip()
-        download_url = str(
-            data.get("download_url") or data.get("downloads_url") or ""
-        ).strip()
-        # Die Update-URL stammt aus einer Remote-Versionsdatei. Nur eine
-        # http/https-URL auf die netmonroots.com-Domain automatisch oeffnen;
-        # andernfalls auf die fest konfigurierte Download-Seite zurueckfallen,
-        # damit ein kompromittiertes CDN nicht off-site umleiten kann.
+        fallback_url = getattr(self, "netmon_roots_downloads_url", "") or getattr(
+            self, "netmon_roots_homepage", ""
+        )
+        download_url = data.get("download_url") or data.get("downloads_url") or ""
+        # Remote links and the local fallback use the exact pinned HTTPS
+        # origin. Preserve the checked string: never trim parser controls first.
         if not self._is_trusted_update_url(download_url):
             download_url = fallback_url
+        if not self._is_trusted_update_url(download_url):
+            raise ValueError("Keine vertrauenswürdige Update-Seite konfiguriert.")
         return {
             "version": version,
             "download_url": download_url,
@@ -6480,11 +6478,7 @@ class App(TkBase):
 
     @staticmethod
     def _is_trusted_update_url(url):
-        parsed = urlparse(str(url or "").strip())
-        if parsed.scheme.lower() not in ("http", "https"):
-            return False
-        host = (parsed.hostname or "").lower()
-        return host == "netmonroots.com" or host.endswith(".netmonroots.com")
+        return is_trusted_release_url(url)
 
     def _set_about_version_status(self, text):
         var = getattr(self, "about_version_status_var", None)
@@ -6515,7 +6509,7 @@ class App(TkBase):
             try:
                 info = self._fetch_latest_release_info()
                 latest_version = str(info.get("version", "") or "").strip()
-                download_url = str(info.get("download_url", "") or "").strip()
+                download_url = info.get("download_url") or ""
                 cmp_result = self._compare_version_strings(
                     current_version, latest_version
                 )
@@ -6528,10 +6522,17 @@ class App(TkBase):
                     def handle_newer():
                         self._set_about_version_status(status_text)
                         if auto_open and not self._about_update_redirect_done:
+                            target = download_url or getattr(
+                                self, "netmon_roots_downloads_url", ""
+                            )
+                            if not self._is_trusted_update_url(target):
+                                self.log_safe(
+                                    "Versionsprüfung: unzulässige Update-URL nicht geöffnet."
+                                )
+                                return
                             self._about_update_redirect_done = True
                             self._open_url_with_xdg_open(
-                                download_url
-                                or getattr(self, "netmon_roots_downloads_url", ""),
+                                target,
                                 label="NetMon Update-Seite",
                             )
 

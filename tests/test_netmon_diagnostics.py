@@ -1088,9 +1088,10 @@ def test_export_netmon_documents_backup_copies_selected_folders(monkeypatch, tmp
 def test_is_trusted_update_url_accepts_only_netmonroots_https():
     accept = App._is_trusted_update_url
     assert accept("https://netmonroots.com/downloads.html") is True
-    assert accept("http://netmonroots.com/downloads.html") is True
-    assert accept("https://cdn.netmonroots.com/dist/x.deb") is True
+    assert accept("https://netmonroots.com:443/downloads.html") is True
     for bad in (
+        "http://netmonroots.com/downloads.html",
+        "https://cdn.netmonroots.com/dist/x.deb",
         "https://evil.example.com/x",
         "https://netmonroots.com.evil.com/x",
         "file:///etc/passwd",

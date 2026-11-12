@@ -53,6 +53,15 @@ def _validate_url(url):
         raise ValueError("Versionsdownload nur von https://netmonroots.com erlaubt.")
 
 
+def is_trusted_release_url(url):
+    """Use the same unambiguous HTTPS origin for metadata and browser handoff."""
+    try:
+        _validate_url(url)
+    except ValueError:
+        return False
+    return True
+
+
 def _approved_addresses(addresses, port):
     # Check the whole answer before creating even the first socket. A mixed
     # public/private response must not trigger a partial outbound request.
