@@ -332,16 +332,130 @@ def test_atomic_io_guarantees_survive_source_compaction(php, limited_app, fault)
 
 def test_lock_contention_is_time_bounded_and_never_resets_data(php, limited_app):
     lock_path = Path(str(limited_app[1]) + ".lock")
+    pending = Path(str(limited_app[1]) + ".pending")
     original = limited_app[1].read_bytes()
     with lock_path.open("a+") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         start = time.monotonic()
         result = limits_call(php, limited_app, skip_load=True)
         elapsed = time.monotonic() - start
-        assert result["failures"] == 1 and 0.8 < elapsed < 3
+        # The public redirect path queues the hit instead of waiting.
+        assert result["successes"] == 1 and result["record_seconds"] < 0.5
+        assert elapsed < 3
         fcntl.flock(lock, fcntl.LOCK_UN)
     assert limited_app[1].read_bytes() == original
-    assert limits_call(php, limited_app)["successes"] == 1
+    assert pending.stat().st_mode & 0o777 == 0o600
+    result = limits_call(php, limited_app)
+    assert result["successes"] == 1
+    assert result["stats"]["total_downloads"] == 7 + 2
+    assert not pending.exists()
+
+
+def _queued_event(**overrides):
+    event = {
+        "timestamp": "2026-11-12T10:00:00+00:00",
+        "day": "2026-11-12",
+        "id": "artifact",
+        "label": "Test artifact",
+        "target": "/artifact.bin",
+        "source": "queued",
+        "lang": "",
+        "referrer": "",
+        "ip_hash": "",
+    }
+    event.update(overrides)
+    return json.dumps(event)
+
+
+def test_contended_download_hits_do_not_occupy_workers(php, limited_app):
+    """Scan 4852934e #4: each hit used to wait up to 1 s for the global lock."""
+    lock_path = Path(str(limited_app[1]) + ".lock")
+    original = limited_app[1].read_bytes()
+    with lock_path.open("a+") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        result = limits_call(php, limited_app, iterations=20, skip_load=True)
+        fcntl.flock(lock, fcntl.LOCK_UN)
+    assert result["successes"] == 20
+    # 20 contended hits previously took about 20 s of worker time.
+    assert result["record_seconds"] < 2.5
+    assert limited_app[1].read_bytes() == original
+    stats = limits_call(php, limited_app, action="read")["stats"]
+    assert stats["total_downloads"] == stats["files"]["artifact"]["count"] == 27
+    assert not Path(str(limited_app[1]) + ".pending").exists()
+
+
+def test_contention_queue_is_bounded(php, limited_app):
+    pending = Path(str(limited_app[1]) + ".pending")
+    line = (_queued_event() + "\n").encode()
+    filler = line * (256 * 1024 // len(line))
+    filler += b"x" * (256 * 1024 - len(filler) - 1) + b"\n"  # exactly at the cap
+    pending.write_bytes(filler)
+    pending.chmod(0o600)
+    lock_path = Path(str(limited_app[1]) + ".lock")
+    with lock_path.open("a+") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        result = limits_call(php, limited_app, iterations=5, skip_load=True)
+        fcntl.flock(lock, fcntl.LOCK_UN)
+    assert result["failures"] == 5
+    assert pending.read_bytes() == filler
+
+
+def test_invalid_queue_lines_are_dropped_once(php, limited_app):
+    pending = Path(str(limited_app[1]) + ".pending")
+    lines = [
+        _queued_event(),
+        "{broken",
+        _queued_event(day="../../etc"),
+        _queued_event(id=""),
+        json.dumps({"id": "artifact"}),
+        _queued_event(source=7),
+        "x" * 9000,
+        _queued_event(source="second"),
+    ]
+    pending.write_text("\n".join(lines) + "\n")
+    pending.chmod(0o600)
+    stats = limits_call(php, limited_app, action="read")["stats"]
+    assert stats["total_downloads"] == 7 + 2
+    assert stats["sources"]["queued"] == 1 and stats["sources"]["second"] == 1
+    assert not pending.exists()
+    stats = limits_call(php, limited_app, action="read")["stats"]
+    assert stats["total_downloads"] == 7 + 2
+
+
+def test_leftover_batch_is_applied_exactly_once(php, limited_app):
+    draining = Path(str(limited_app[1]) + ".draining")
+    draining.write_text(_queued_event() + "\n" + _queued_event() + "\n")
+    draining.chmod(0o600)
+    result = limits_call(php, limited_app)
+    assert result["stats"]["total_downloads"] == 7 + 3
+    assert not draining.exists()
+    assert limits_call(php, limited_app)["stats"]["total_downloads"] == 7 + 4
+
+
+def test_planted_queue_symlink_is_never_written(php, limited_app, tmp_path):
+    victim = tmp_path / "victim"
+    victim.write_text("keep")
+    pending = Path(str(limited_app[1]) + ".pending")
+    pending.symlink_to(victim)
+    lock_path = Path(str(limited_app[1]) + ".lock")
+    with lock_path.open("a+") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        result = limits_call(php, limited_app, skip_load=True)
+        fcntl.flock(lock, fcntl.LOCK_UN)
+    assert result["failures"] == 1
+    assert victim.read_text() == "keep"
+
+
+def test_non_public_updates_keep_the_bounded_lock_wait(php, limited_app):
+    lock_path = Path(str(limited_app[1]) + ".lock")
+    with lock_path.open("a+") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        result = limits_call(
+            php, limited_app, action="output-budget", kind="bytes", skip_load=True
+        )
+        fcntl.flock(lock, fcntl.LOCK_UN)
+    assert result["failures"] == 1
+    assert 0.8 < result["record_seconds"] < 3
 
 
 def test_config_cannot_raise_event_budget(php, limited_app):

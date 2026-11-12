@@ -15,6 +15,11 @@ const NETMON_JSON_MAX_BYTES = 4 * 1024 * 1024;
 const NETMON_JSON_MAX_TOKENS = 65536;
 const NETMON_JSON_MAX_DEPTH = 16;
 const NETMON_JSON_LOCK_WAIT_MS = 1000;
+// Public redirects must not queue behind each other: at most one request
+// records telemetry at a time, contenders skip the hit after this short wait.
+const NETMON_DOWNLOAD_LOCK_WAIT_MS = 50;
+const NETMON_STATS_SPOOL_MAX_BYTES = 256 * 1024;
+const NETMON_STATS_SPOOL_MAX_LINE = 8192;
 
 function netmon_download_config(): array
 {
@@ -129,9 +134,9 @@ function netmon_json_check_budget(string $raw): void
     }
 }
 
-function netmon_json_acquire_lock($handle, int $operation): bool
+function netmon_json_acquire_lock($handle, int $operation, int $waitMs = NETMON_JSON_LOCK_WAIT_MS): bool
 {
-    $deadline = hrtime(true) + NETMON_JSON_LOCK_WAIT_MS * 1000000;
+    $deadline = hrtime(true) + max(0, min($waitMs, NETMON_JSON_LOCK_WAIT_MS)) * 1000000;
     do {
         if (@flock($handle, $operation | LOCK_NB)) {
             return true;
@@ -182,8 +187,14 @@ function netmon_json_storage_path(string $path): string
     return rtrim($directory, "/") . "/" . $name;
 }
 
-function netmon_json_with_lock(string $path, int $operation, callable $action)
-{
+function netmon_json_with_lock(
+    string $path,
+    int $operation,
+    callable $action,
+    int $waitMs = NETMON_JSON_LOCK_WAIT_MS,
+    ?bool &$contended = null
+) {
+    $contended = false;
     $lock = null;
     $locked = false;
     try {
@@ -209,8 +220,11 @@ function netmon_json_with_lock(string $path, int $operation, callable $action)
             }
             $lock = @fopen($lockPath, "r+b");
         }
-        if (!is_resource($lock) || !netmon_json_same_file($info, fstat($lock))
-            || !netmon_json_acquire_lock($lock, $operation)) {
+        if (!is_resource($lock) || !netmon_json_same_file($info, fstat($lock))) {
+            return false;
+        }
+        if (!netmon_json_acquire_lock($lock, $operation, $waitMs)) {
+            $contended = true;
             return false;
         }
         $locked = true;
@@ -332,8 +346,12 @@ function netmon_json_replace(string $path, string $encoded): bool
     }
 }
 
-function netmon_json_update(string $path, callable $update, array $default = []): bool
-{
+function netmon_json_update(
+    string $path,
+    callable $update,
+    array $default = [],
+    int $waitMs = NETMON_JSON_LOCK_WAIT_MS
+): bool {
     return netmon_json_with_lock($path, LOCK_EX, static function (string $safePath) use ($update, $default): bool {
         $next = $update(netmon_json_read($safePath, $default));
         if (!is_array($next)) {
@@ -346,7 +364,7 @@ function netmon_json_update(string $path, callable $update, array $default = [])
         );
         netmon_json_check_budget($encoded);
         return netmon_json_replace($safePath, $encoded);
-    }) === true;
+    }, $waitMs) === true;
 }
 
 function netmon_default_stats(): array
@@ -470,11 +488,254 @@ function netmon_prepare_stats(array $stored): array
 function netmon_load_stats(array $config, ?bool &$available = null): array
 {
     $path = (string) ($config["stats_path"] ?? "");
+    // The authenticated view folds hits that were queued under contention.
+    if ($path !== "") {
+        netmon_stats_commit($config, null, NETMON_JSON_LOCK_WAIT_MS);
+    }
     $stats = netmon_json_with_lock($path, LOCK_SH, static function (string $safePath): array {
         return netmon_prepare_stats(netmon_json_read($safePath, []));
     });
     $available = is_array($stats);
     return $available ? $stats : netmon_default_stats();
+}
+
+function netmon_download_event(string $downloadId, string $label, string $target, string $source): array
+{
+    $now = gmdate("c");
+    return [
+        "timestamp" => $now,
+        "day" => gmdate("Y-m-d"),
+        "id" => $downloadId,
+        "label" => $label,
+        "target" => $target,
+        "source" => $source,
+        "lang" => netmon_guess_language(),
+        "referrer" => netmon_telemetry_text($_SERVER["HTTP_REFERER"] ?? "", 2048),
+        "ip_hash" => netmon_client_ip_hash(),
+    ];
+}
+
+function netmon_stats_apply_event(array &$stats, array $event, array $config): void
+{
+    $downloadId = $event["id"];
+    $label = $event["label"];
+    $target = $event["target"];
+    $source = $event["source"];
+    $now = $event["timestamp"];
+    $day = $event["day"];
+
+    $stats["updated_at"] = $now;
+    $stats["total_downloads"] = netmon_stats_add($stats["total_downloads"], 1);
+    netmon_stats_add_day($stats["days"], $day);
+    if ($source !== "") {
+        netmon_stats_add_source($stats["sources"], $source, 1, NETMON_STATS_GLOBAL_SOURCES);
+    }
+
+    if (!isset($stats["files"][$downloadId]) || !is_array($stats["files"][$downloadId])) {
+        if (count($stats["files"]) >= NETMON_STATS_MAX_FILES) {
+            throw new \RuntimeException("Statistics file budget exceeded.");
+        }
+        $stats["files"][$downloadId] = [
+            "label" => $label,
+            "target" => $target,
+            "count" => 0,
+            "last_download_at" => "",
+            "sources" => [],
+            "days" => [],
+        ];
+    }
+
+    $stats["files"][$downloadId]["label"] = $label;
+    $stats["files"][$downloadId]["target"] = $target;
+    $stats["files"][$downloadId]["count"] = netmon_stats_add($stats["files"][$downloadId]["count"], 1);
+    $stats["files"][$downloadId]["last_download_at"] = $now;
+    netmon_stats_add_day($stats["files"][$downloadId]["days"], $day);
+    if ($source !== "") {
+        netmon_stats_add_source($stats["files"][$downloadId]["sources"], $source, 1, NETMON_STATS_FILE_SOURCES);
+    }
+
+    $recentEvents = $stats["recent_events"];
+    if (!is_array($recentEvents)) {
+        $recentEvents = [];
+    }
+    array_unshift($recentEvents, $event);
+    $maxEvents = min(NETMON_STATS_MAX_EVENTS, max(20, (int) ($config["max_recent_events"] ?? 200)));
+    $stats["recent_events"] = array_slice($recentEvents, 0, $maxEvents);
+}
+
+function netmon_spool_handle(string $spoolPath, bool $create)
+{
+    $info = netmon_json_file_stat($spoolPath);
+    if ($info === null) {
+        if (!$create) {
+            return null;
+        }
+        // Exclusive creation never follows a planted link.
+        $created = @fopen($spoolPath, "xb");
+        if (is_resource($created)) {
+            $createdInfo = fstat($created);
+            fclose($created);
+            $info = netmon_json_file_stat($spoolPath);
+            if ($info === null || !netmon_json_same_file($info, $createdInfo) || !@chmod($spoolPath, 0600)) {
+                return null;
+            }
+        } else {
+            $info = netmon_json_file_stat($spoolPath);
+            if ($info === null) {
+                return null;
+            }
+        }
+    }
+    $handle = @fopen($spoolPath, $create ? "ab" : "r+b");
+    if (!is_resource($handle)) {
+        return null;
+    }
+    if (!netmon_json_same_file($info, fstat($handle))) {
+        fclose($handle);
+        return null;
+    }
+    return $handle;
+}
+
+function netmon_spool_append(string $safePath, array $event): bool
+{
+    $line = json_encode($event, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE) . "\n";
+    if (strlen($line) > NETMON_STATS_SPOOL_MAX_LINE) {
+        return false;
+    }
+    $spoolPath = $safePath . ".pending";
+    for ($attempt = 0; $attempt < 2; $attempt++) {
+        $handle = netmon_spool_handle($spoolPath, true);
+        if (!is_resource($handle)) {
+            return false;
+        }
+        try {
+            // Appenders share the lock; a drain only waits for in-flight lines.
+            if (!netmon_json_acquire_lock($handle, LOCK_SH, NETMON_DOWNLOAD_LOCK_WAIT_MS)) {
+                return false;
+            }
+            try {
+                $opened = fstat($handle);
+                $current = netmon_json_file_stat($spoolPath);
+                if ($current === null || !netmon_json_same_file($current, $opened)) {
+                    continue; // A drain took this file; append to the new queue.
+                }
+                if ($opened["size"] + strlen($line) > NETMON_STATS_SPOOL_MAX_BYTES) {
+                    return false; // Bounded queue: excess hits are dropped, not stored.
+                }
+                return @fwrite($handle, $line) === strlen($line);
+            } finally {
+                @flock($handle, LOCK_UN);
+            }
+        } finally {
+            fclose($handle);
+        }
+    }
+    return false;
+}
+
+function netmon_spool_event($value): ?array
+{
+    if (!is_array($value)) {
+        return null;
+    }
+    $limits = ["timestamp" => 64, "day" => 10, "id" => 128, "label" => 256, "target" => 2048,
+        "source" => NETMON_STATS_SOURCE_BYTES, "lang" => 8, "referrer" => 2048, "ip_hash" => 16];
+    $event = [];
+    foreach ($limits as $key => $limit) {
+        if (!array_key_exists($key, $value) || !is_string($value[$key])) {
+            return null;
+        }
+        $event[$key] = netmon_telemetry_text($value[$key], $limit);
+    }
+    if ($event["id"] === "" || preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/D', $event["day"]) !== 1) {
+        return null;
+    }
+    return $event;
+}
+
+function netmon_spool_events($handle): array
+{
+    $raw = stream_get_contents($handle, NETMON_STATS_SPOOL_MAX_BYTES + NETMON_STATS_SPOOL_MAX_LINE, 0);
+    if (!is_string($raw)) {
+        throw new \RuntimeException("Cannot read statistics queue.");
+    }
+    $events = [];
+    foreach (explode("\n", $raw) as $line) {
+        if ($line === "" || strlen($line) > NETMON_STATS_SPOOL_MAX_LINE) {
+            continue;
+        }
+        try {
+            $event = netmon_spool_event(json_decode($line, true, 2, JSON_THROW_ON_ERROR));
+        } catch (\JsonException $error) {
+            $event = null;
+        }
+        if ($event !== null) {
+            $events[] = $event;
+        }
+    }
+    return $events;
+}
+
+function netmon_stats_commit(array $config, ?callable $makeEvent, int $waitMs, ?bool &$contended = null): bool
+{
+    $path = (string) ($config["stats_path"] ?? "");
+    return netmon_json_with_lock($path, LOCK_EX, static function (string $safePath) use ($config, $makeEvent): bool {
+        $draining = $safePath . ".draining";
+        // A previous failed commit leaves its batch; otherwise take the queue.
+        if (netmon_json_file_stat($draining) === null && netmon_json_file_stat($safePath . ".pending") !== null) {
+            if (!@rename($safePath . ".pending", $draining)) {
+                throw new \RuntimeException("Cannot take statistics queue.");
+            }
+        }
+        $queued = [];
+        $spool = netmon_spool_handle($draining, false);
+        $hadQueue = is_resource($spool);
+        if ($hadQueue) {
+            try {
+                // Waits only for appenders that already hold the old file.
+                if (!netmon_json_acquire_lock($spool, LOCK_EX)) {
+                    throw new \RuntimeException("Statistics queue is busy.");
+                }
+                $queued = netmon_spool_events($spool);
+                @flock($spool, LOCK_UN);
+            } finally {
+                fclose($spool);
+            }
+        }
+        if ($makeEvent === null && $queued === []) {
+            if ($hadQueue && !@unlink($draining)) {
+                throw new \RuntimeException("Cannot clear statistics queue.");
+            }
+            return true;
+        }
+        $stats = netmon_prepare_stats(netmon_json_read($safePath, netmon_default_stats()));
+        // A queued event that cannot be applied is dropped, never retried forever.
+        foreach ($queued as $item) {
+            $candidate = $stats;
+            try {
+                netmon_stats_apply_event($candidate, $item, $config);
+                $stats = $candidate;
+            } catch (\RuntimeException $error) {
+            }
+        }
+        if ($makeEvent !== null) {
+            netmon_stats_apply_event($stats, $makeEvent(), $config);
+        }
+        $encoded = json_encode(
+            $stats,
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE
+        );
+        netmon_json_check_budget($encoded);
+        if (!netmon_json_replace($safePath, $encoded)) {
+            return false;
+        }
+        // The state now holds the batch; never apply it twice.
+        if ($hadQueue && !@unlink($draining)) {
+            throw new \RuntimeException("Cannot clear statistics queue.");
+        }
+        return true;
+    }, $waitMs, $contended) === true;
 }
 
 function netmon_record_download(
@@ -495,64 +756,22 @@ function netmon_record_download(
     $source = netmon_telemetry_text($source, NETMON_STATS_SOURCE_BYTES);
     $label = netmon_telemetry_text($label, 256);
     $target = netmon_telemetry_text($target, 2048);
-    return netmon_json_update($path, static function (array $stored) use ($config, $downloadId, $label, $target, $source): array {
-        $stats = netmon_prepare_stats($stored);
-        $now = gmdate("c");
-        $day = gmdate("Y-m-d");
-        $lang = netmon_guess_language();
-        $referrer = netmon_telemetry_text($_SERVER["HTTP_REFERER"] ?? "", 2048);
-        $event = [
-            "timestamp" => $now,
-            "day" => $day,
-            "id" => $downloadId,
-            "label" => $label,
-            "target" => $target,
-            "source" => $source,
-            "lang" => $lang,
-            "referrer" => $referrer,
-            "ip_hash" => netmon_client_ip_hash(),
-        ];
-
-        $stats["updated_at"] = $now;
-        $stats["total_downloads"] = netmon_stats_add($stats["total_downloads"], 1);
-        netmon_stats_add_day($stats["days"], $day);
-        if ($source !== "") {
-            netmon_stats_add_source($stats["sources"], $source, 1, NETMON_STATS_GLOBAL_SOURCES);
-        }
-
-        if (!isset($stats["files"][$downloadId]) || !is_array($stats["files"][$downloadId])) {
-            if (count($stats["files"]) >= NETMON_STATS_MAX_FILES) {
-                throw new \RuntimeException("Statistics file budget exceeded.");
-            }
-            $stats["files"][$downloadId] = [
-                "label" => $label,
-                "target" => $target,
-                "count" => 0,
-                "last_download_at" => "",
-                "sources" => [],
-                "days" => [],
-            ];
-        }
-
-        $stats["files"][$downloadId]["label"] = $label;
-        $stats["files"][$downloadId]["target"] = $target;
-        $stats["files"][$downloadId]["count"] = netmon_stats_add($stats["files"][$downloadId]["count"], 1);
-        $stats["files"][$downloadId]["last_download_at"] = $now;
-        netmon_stats_add_day($stats["files"][$downloadId]["days"], $day);
-        if ($source !== "") {
-            netmon_stats_add_source($stats["files"][$downloadId]["sources"], $source, 1, NETMON_STATS_FILE_SOURCES);
-        }
-
-        $recentEvents = $stats["recent_events"];
-        if (!is_array($recentEvents)) {
-            $recentEvents = [];
-        }
-        array_unshift($recentEvents, $event);
-        $maxEvents = min(NETMON_STATS_MAX_EVENTS, max(20, (int) ($config["max_recent_events"] ?? 200)));
-        $stats["recent_events"] = array_slice($recentEvents, 0, $maxEvents);
-
-        return $stats;
-    }, netmon_default_stats());
+    $makeEvent = static function () use ($downloadId, $label, $target, $source): array {
+        return netmon_download_event($downloadId, $label, $target, $source);
+    };
+    $contended = false;
+    if (netmon_stats_commit($config, $makeEvent, NETMON_DOWNLOAD_LOCK_WAIT_MS, $contended)) {
+        return true;
+    }
+    if (!$contended) {
+        return false;
+    }
+    // The redirect never waits for the state writer: queue the hit instead.
+    try {
+        return netmon_spool_append(netmon_json_storage_path($path), $makeEvent());
+    } catch (\Throwable $error) {
+        return false;
+    }
 }
 
 function netmon_stats_token_valid($token): bool
