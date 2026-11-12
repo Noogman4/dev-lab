@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
 import stat
 import tempfile
 import threading
@@ -17,9 +16,9 @@ from tkinter import filedialog, messagebox, ttk
 import getpass
 
 try:
-    from netmon.core import clamav_process
+    from netmon.core import clamav_process, quarantine_fs
 except ModuleNotFoundError:
-    from core import clamav_process
+    from core import clamav_process, quarantine_fs
 
 try:
     from netmon.core.utils import safe_write_json, call_in_ui_thread
@@ -848,6 +847,13 @@ def load_clamav_findings(app):
                     ).strip(),
                 }
             )
+            for key, keys in (
+                ("identity", ("dev", "ino", "size", "mtime_ns")),
+                ("quarantine_origin", ("dev", "ino")),
+            ):
+                value = quarantine_fs.clean_identity(item.get(key), keys=keys)
+                if value is not None:
+                    cleaned[-1][key] = value
         app.clamav_findings = cleaned[-300:]
     except Exception as exc:
         app.log_debug(f"ClamAV-Fundliste laden fehlgeschlagen: {exc}")
@@ -879,15 +885,18 @@ def clamav_extract_findings(output, scan_type, timestamp):
         signature = (match.group(2) or "-").strip() or "-"
         if not file_path:
             continue
-        findings.append(
-            {
-                "path": file_path,
-                "signature": signature,
-                "timestamp": timestamp,
-                "scan_type": scan_type,
-                "status": "found",
-            }
-        )
+        finding = {
+            "path": file_path,
+            "signature": signature,
+            "timestamp": timestamp,
+            "scan_type": scan_type,
+            "status": "found",
+        }
+        # Bind later quarantine to the object ClamAV reported, not to its name.
+        identity = quarantine_fs.record_identity(file_path)
+        if identity is not None:
+            finding["identity"] = identity
+        findings.append(finding)
     return findings
 
 
@@ -983,6 +992,88 @@ def clamav_safe_restore_source(original_path):
         return original
     base = os.path.basename((original_path or "").strip()) or "restored_file"
     return os.path.join(home_root, base)
+
+
+def _clamav_home_root() -> str:
+    return os.path.realpath(os.path.expanduser("~"))
+
+
+def clamav_restore_fallback_dir() -> str:
+    return os.path.join(_clamav_home_root(), "NetMon-Restored")
+
+
+def _clamav_quarantine_dir_real(app) -> str:
+    configured = os.path.abspath(os.path.expanduser(app.clamav_quarantine_dir))
+    parent, name = os.path.split(configured)
+    return os.path.join(os.path.realpath(parent), name)
+
+
+def _clamav_now() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def clamav_quarantine_item(app, item) -> str:
+    """Quarantine exactly the scanned object; 'moved', 'missing' or a reason."""
+    src = os.path.normpath((item.get("path") or "").strip())
+    try:
+        if not quarantine_fs.is_within(src, _clamav_home_root()):
+            return "außerhalb des Home-Verzeichnisses"
+        dest_name = os.path.basename(app._clamav_next_quarantine_path(src))
+        qpath, origin = quarantine_fs.quarantine_file(
+            src,
+            _clamav_quarantine_dir_real(app),
+            dest_name,
+            quarantine_fs.clean_identity(item.get("identity")),
+        )
+    except FileNotFoundError:
+        item["status"] = "missing"
+        item["quarantine_timestamp"] = _clamav_now()
+        return "missing"
+    except (quarantine_fs.UnsafePath, OSError) as exc:
+        return str(exc) or exc.__class__.__name__
+    item["status"] = "quarantine"
+    item["quarantine_path"] = qpath
+    item["quarantine_origin"] = origin
+    item["quarantine_timestamp"] = _clamav_now()
+    return "moved"
+
+
+def clamav_restore_item(app, item) -> str:
+    """Restore without following links or overwriting; 'restored', 'missing' or a reason."""
+    stored = os.path.normpath((item.get("quarantine_path") or "").strip())
+    original = os.path.normpath((item.get("path") or "").strip())
+    if not (item.get("quarantine_path") or "").strip() or not original:
+        return "Pfadangaben fehlen"
+    qdir = _clamav_quarantine_dir_real(app)
+    if os.path.realpath(os.path.dirname(stored)) != qdir:
+        return "außerhalb des Quarantäne-Ordners"
+    try:
+        restored, fallback = quarantine_fs.restore_file(
+            os.path.join(qdir, os.path.basename(stored)),
+            qdir,
+            original,
+            home_root=_clamav_home_root(),
+            fallback_dir=clamav_restore_fallback_dir(),
+            origin=quarantine_fs.clean_identity(
+                item.get("quarantine_origin"), keys=("dev", "ino")
+            ),
+            stamp=datetime.now().strftime("%Y-%m-%d_%H%M%S"),
+        )
+    except FileNotFoundError:
+        item["status"] = "quarantine_missing"
+        item["restore_timestamp"] = _clamav_now()
+        return "missing"
+    except (quarantine_fs.UnsafePath, OSError) as exc:
+        return str(exc) or exc.__class__.__name__
+    item["status"] = "restored"
+    item["restore_path"] = restored
+    item["restore_timestamp"] = _clamav_now()
+    if fallback:
+        app.log_safe(
+            "Originalordner fehlt, liegt außerhalb des Home-Verzeichnisses oder "
+            f"wurde ersetzt. Wiederhergestellt nach: {restored}"
+        )
+    return "restored"
 
 
 def clamav_quick_targets():
@@ -2617,49 +2708,18 @@ def quarantine_clamav_findings_async(app):
                 src_raw = os.path.normpath((item.get("path") or "").strip())
                 if not src_raw:
                     continue
-                src, src_error = app._clamav_validate_source_for_quarantine(src_raw)
-                if src is None:
-                    item["status"] = "missing"
-                    item["quarantine_timestamp"] = datetime.now().strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
-                    if src_error == "nicht vorhanden":
-                        missing += 1
-                        app.log_safe(f"Datei nicht mehr vorhanden: {src_raw}")
-                    else:
-                        failed += 1
-                        app.log_safe(f"Datei übersprungen (unsicherer Pfad): {src_raw}")
-                        app.log_debug_safe(
-                            "ClamAV-Quarantäne Pfadprüfung fehlgeschlagen: "
-                            f"{src_raw} ({src_error})"
-                        )
-                    continue
-
-                dest = app._clamav_next_quarantine_path(src)
-                if not app._clamav_path_is_within(dest, app.clamav_quarantine_dir):
-                    failed += 1
-                    app.log_safe(
-                        f"Datei übersprungen (unsicheres Quarantäne-Ziel): {src}"
-                    )
-                    app.log_debug_safe(
-                        "ClamAV-Quarantäne Ziel außerhalb Quarantäne-Ordner: " f"{dest}"
-                    )
-                    continue
-                try:
-                    shutil.move(src, dest)
+                outcome = clamav_quarantine_item(app, item)
+                if outcome == "moved":
                     moved += 1
-                    item["status"] = "quarantine"
-                    item["quarantine_path"] = dest
-                    item["quarantine_timestamp"] = datetime.now().strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
-                except Exception as exc:
+                elif outcome == "missing":
+                    missing += 1
+                    app.log_safe(f"Datei nicht mehr vorhanden: {src_raw}")
+                else:
                     failed += 1
-                    app.log_safe(
-                        f"Datei konnte nicht in Quarantäne verschoben werden: {src}"
-                    )
+                    app.log_safe(f"Datei übersprungen (unsicherer Pfad): {src_raw}")
                     app.log_debug_safe(
-                        f"ClamAV-Quarantäne Move-Fehler ({src} -> {dest}): {exc}"
+                        "ClamAV-Quarantäne Prüfung fehlgeschlagen: "
+                        f"{src_raw} ({outcome})"
                     )
 
             app._save_clamav_findings()
@@ -2764,50 +2824,18 @@ def quarantine_selected_clamav_findings_async(app):
                 src_raw = os.path.normpath((item.get("path") or "").strip())
                 if not src_raw:
                     continue
-                src, src_error = app._clamav_validate_source_for_quarantine(src_raw)
-                if src is None:
-                    item["status"] = "missing"
-                    item["quarantine_timestamp"] = datetime.now().strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
-                    if src_error == "nicht vorhanden":
-                        missing += 1
-                        app.log_safe(f"Datei nicht mehr vorhanden: {src_raw}")
-                    else:
-                        failed += 1
-                        app.log_safe(f"Datei übersprungen (unsicherer Pfad): {src_raw}")
-                        app.log_debug_safe(
-                            "ClamAV-Quarantäne-Auswahl Pfadprüfung fehlgeschlagen: "
-                            f"{src_raw} ({src_error})"
-                        )
-                    continue
-
-                dest = app._clamav_next_quarantine_path(src)
-                if not app._clamav_path_is_within(dest, app.clamav_quarantine_dir):
-                    failed += 1
-                    app.log_safe(
-                        f"Datei übersprungen (unsicheres Quarantäne-Ziel): {src}"
-                    )
-                    app.log_debug_safe(
-                        "ClamAV-Quarantäne-Auswahl Ziel außerhalb "
-                        f"Quarantäne-Ordner: {dest}"
-                    )
-                    continue
-                try:
-                    shutil.move(src, dest)
+                outcome = clamav_quarantine_item(app, item)
+                if outcome == "moved":
                     moved += 1
-                    item["status"] = "quarantine"
-                    item["quarantine_path"] = dest
-                    item["quarantine_timestamp"] = datetime.now().strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
-                except Exception as exc:
+                elif outcome == "missing":
+                    missing += 1
+                    app.log_safe(f"Datei nicht mehr vorhanden: {src_raw}")
+                else:
                     failed += 1
-                    app.log_safe(
-                        f"Datei konnte nicht in Quarantäne verschoben werden: {src}"
-                    )
+                    app.log_safe(f"Datei übersprungen (unsicherer Pfad): {src_raw}")
                     app.log_debug_safe(
-                        f"ClamAV-Quarantäne-Auswahl Move-Fehler ({src} -> {dest}): {exc}"
+                        "ClamAV-Quarantäne-Auswahl Prüfung fehlgeschlagen: "
+                        f"{src_raw} ({outcome})"
                     )
 
             app._save_clamav_findings()
@@ -2889,73 +2917,23 @@ def restore_clamav_quarantine_async(app):
         try:
             app.log_safe("ClamAV-Wiederherstellung gestartet...")
             for item in quarantined:
-                qpath_raw = os.path.normpath(
-                    (item.get("quarantine_path") or "").strip()
-                )
                 original_path = os.path.normpath((item.get("path") or "").strip())
-                if not qpath_raw or not original_path:
-                    failed += 1
-                    continue
-                qpath, qpath_error = app._clamav_validate_quarantine_path(qpath_raw)
-                if qpath is None:
-                    item["status"] = "quarantine_missing"
-                    item["restore_timestamp"] = datetime.now().strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
-                    if qpath_error == "außerhalb des Quarantäne-Ordners":
-                        failed += 1
-                        app.log_safe(
-                            f"Quarantäne-Datei übersprungen (unsicherer Pfad): {qpath_raw}"
-                        )
-                        app.log_debug_safe(
-                            "ClamAV-Restore Quarantäne-Pfadprüfung fehlgeschlagen: "
-                            f"{qpath_raw} ({qpath_error})"
-                        )
-                    else:
-                        missing += 1
-                        app.log_safe(
-                            f"Quarantäne-Datei nicht mehr vorhanden: {qpath_raw}"
-                        )
-                    continue
-                if not os.path.exists(qpath):
-                    item["status"] = "quarantine_missing"
-                    item["restore_timestamp"] = datetime.now().strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
+                outcome = clamav_restore_item(app, item)
+                if outcome == "restored":
+                    restored += 1
+                elif outcome == "missing":
                     missing += 1
-                    app.log_safe(f"Quarantäne-Datei nicht mehr vorhanden: {qpath}")
-                    continue
-
-                safe_original = app._clamav_safe_restore_source(original_path)
-                restore_target = app._clamav_next_restore_path(safe_original)
-                home_root = os.path.realpath(os.path.expanduser("~"))
-                if not app._clamav_path_is_within(restore_target, home_root):
+                    app.log_safe(
+                        "Quarantäne-Datei nicht mehr vorhanden: "
+                        f"{item.get('quarantine_path') or '-'}"
+                    )
+                else:
                     failed += 1
                     app.log_safe(
                         f"Datei konnte nicht sicher wiederhergestellt werden: {original_path}"
                     )
                     app.log_debug_safe(
-                        f"ClamAV-Restore Ziel außerhalb Home-Verzeichnis: {restore_target}"
-                    )
-                    continue
-                restore_dir = os.path.dirname(restore_target)
-                try:
-                    if restore_dir and not os.path.isdir(restore_dir):
-                        os.makedirs(restore_dir, exist_ok=True)
-                    shutil.move(qpath, restore_target)
-                    item["status"] = "restored"
-                    item["restore_path"] = restore_target
-                    item["restore_timestamp"] = datetime.now().strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
-                    restored += 1
-                except Exception as exc:
-                    failed += 1
-                    app.log_safe(
-                        f"Datei konnte nicht wiederhergestellt werden: {original_path}"
-                    )
-                    app.log_debug_safe(
-                        f"ClamAV-Restore-Fehler ({qpath} -> {restore_target}): {exc}"
+                        "ClamAV-Restore fehlgeschlagen: " f"{original_path} ({outcome})"
                     )
 
             app._save_clamav_findings()
@@ -3052,74 +3030,24 @@ def restore_selected_clamav_quarantine_async(app):
         try:
             app.log_safe("ClamAV-Wiederherstellung (Auswahl) gestartet...")
             for item in selected:
-                qpath_raw = os.path.normpath(
-                    (item.get("quarantine_path") or "").strip()
-                )
                 original_path = os.path.normpath((item.get("path") or "").strip())
-                if not qpath_raw or not original_path:
-                    failed += 1
-                    continue
-                qpath, qpath_error = app._clamav_validate_quarantine_path(qpath_raw)
-                if qpath is None:
-                    item["status"] = "quarantine_missing"
-                    item["restore_timestamp"] = datetime.now().strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
-                    if qpath_error == "außerhalb des Quarantäne-Ordners":
-                        failed += 1
-                        app.log_safe(
-                            f"Quarantäne-Datei übersprungen (unsicherer Pfad): {qpath_raw}"
-                        )
-                        app.log_debug_safe(
-                            "ClamAV-Restore-Auswahl Quarantäne-Pfadprüfung fehlgeschlagen: "
-                            f"{qpath_raw} ({qpath_error})"
-                        )
-                    else:
-                        missing += 1
-                        app.log_safe(
-                            f"Quarantäne-Datei nicht mehr vorhanden: {qpath_raw}"
-                        )
-                    continue
-                if not os.path.exists(qpath):
-                    item["status"] = "quarantine_missing"
-                    item["restore_timestamp"] = datetime.now().strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
+                outcome = clamav_restore_item(app, item)
+                if outcome == "restored":
+                    restored += 1
+                elif outcome == "missing":
                     missing += 1
-                    app.log_safe(f"Quarantäne-Datei nicht mehr vorhanden: {qpath}")
-                    continue
-
-                safe_original = app._clamav_safe_restore_source(original_path)
-                restore_target = app._clamav_next_restore_path(safe_original)
-                home_root = os.path.realpath(os.path.expanduser("~"))
-                if not app._clamav_path_is_within(restore_target, home_root):
+                    app.log_safe(
+                        "Quarantäne-Datei nicht mehr vorhanden: "
+                        f"{item.get('quarantine_path') or '-'}"
+                    )
+                else:
                     failed += 1
                     app.log_safe(
                         f"Datei konnte nicht sicher wiederhergestellt werden: {original_path}"
                     )
                     app.log_debug_safe(
-                        "ClamAV-Restore-Auswahl Ziel außerhalb Home-Verzeichnis: "
-                        f"{restore_target}"
-                    )
-                    continue
-                restore_dir = os.path.dirname(restore_target)
-                try:
-                    if restore_dir and not os.path.isdir(restore_dir):
-                        os.makedirs(restore_dir, exist_ok=True)
-                    shutil.move(qpath, restore_target)
-                    item["status"] = "restored"
-                    item["restore_path"] = restore_target
-                    item["restore_timestamp"] = datetime.now().strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
-                    restored += 1
-                except Exception as exc:
-                    failed += 1
-                    app.log_safe(
-                        f"Datei konnte nicht wiederhergestellt werden: {original_path}"
-                    )
-                    app.log_debug_safe(
-                        f"ClamAV-Restore-Auswahl Fehler ({qpath} -> {restore_target}): {exc}"
+                        "ClamAV-Restore-Auswahl fehlgeschlagen: "
+                        f"{original_path} ({outcome})"
                     )
 
             app._save_clamav_findings()
