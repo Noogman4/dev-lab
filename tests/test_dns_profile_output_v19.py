@@ -21,6 +21,7 @@ PROPS = ("ipv4.ignore-auto-dns", "ipv6.ignore-auto-dns", "ipv4.dns", "ipv6.dns")
 @pytest.fixture
 def network(monkeypatch, tmp_path):
     monkeypatch.setattr(trusted_sudo, "trusted_sudo_path", lambda: "/usr/bin/sudo")
+    monkeypatch.setattr(trusted_sudo, "trusted_nmcli_path", lambda: "/usr/bin/nmcli")
     state = SimpleNamespace(
         fields=[UUID, "", "802-3-ethernet", "no", "no", "", ""],
         active_uuid=UUID,
@@ -39,18 +40,33 @@ def network(monkeypatch, tmp_path):
             return subprocess.CompletedProcess(
                 args, 0, "Global\n    DNS Servers: 8.8.8.8 8.8.4.4\n"
             )
-        if args == ["nmcli", "-g", FIELDS, "con", "show", "id", TARGET[1]]:
+        if args == ["/usr/bin/nmcli", "-g", FIELDS, "con", "show", "id", TARGET[1]]:
             return subprocess.CompletedProcess(
                 args, state.read_rc, "\n".join(state.fields) + "\n"
             )
-        if args == ["nmcli", "-g", "GENERAL.CON-UUID", "device", "show", TARGET[0]]:
+        if args == [
+            "/usr/bin/nmcli",
+            "-g",
+            "GENERAL.CON-UUID",
+            "device",
+            "show",
+            TARGET[0],
+        ]:
             return subprocess.CompletedProcess(args, 0, state.active_uuid + "\n")
-        if args[:7] == ["/usr/bin/sudo", "-n", "nmcli", "con", "mod", "uuid", UUID]:
+        if args[:7] == [
+            "/usr/bin/sudo",
+            "-n",
+            "/usr/bin/nmcli",
+            "con",
+            "mod",
+            "uuid",
+            UUID,
+        ]:
             props = dict(zip(PROPS, state.fields[3:]))
             props.update(zip(args[7::2], args[8::2]))
             state.fields[3:] = [props[key] for key in PROPS]
             return subprocess.CompletedProcess(args, 0, "")
-        if args == ["/usr/bin/sudo", "-n", "nmcli", "con", "up", "uuid", UUID]:
+        if args == ["/usr/bin/sudo", "-n", "/usr/bin/nmcli", "con", "up", "uuid", UUID]:
             return subprocess.CompletedProcess(
                 args,
                 int(state.fail_activation),
@@ -179,14 +195,14 @@ def test_manual_google_choice_with_empty_dns_fields(network, fail_activation):
     )
     assert (
         sum(
-            args[:5] == ["/usr/bin/sudo", "-n", "nmcli", "con", "mod"]
+            args[:5] == ["/usr/bin/sudo", "-n", "/usr/bin/nmcli", "con", "mod"]
             for args in state.commands
         )
         == 1
     )
     assert (
         sum(
-            args[:5] == ["/usr/bin/sudo", "-n", "nmcli", "con", "up"]
+            args[:5] == ["/usr/bin/sudo", "-n", "/usr/bin/nmcli", "con", "up"]
             for args in state.commands
         )
         == 1

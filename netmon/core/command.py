@@ -31,7 +31,7 @@ def _is_ufw_status_command(args) -> bool:
 
 
 def _command_env(args):
-    if args and os.path.basename(os.fsdecode(args[0])) == "sudo":
+    if args and os.path.basename(os.fsdecode(args[0])) in {"sudo", "nmcli"}:
         return sudo_environment()
     if not _is_ufw_status_command(args):
         return None

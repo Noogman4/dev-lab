@@ -8,9 +8,9 @@ import shutil
 import subprocess
 
 try:
-    from netmon.core.trusted_sudo import trusted_sudo_path
+    from netmon.core.trusted_sudo import trusted_nmcli_path, trusted_sudo_path
 except ModuleNotFoundError:
-    from core.trusted_sudo import trusted_sudo_path
+    from core.trusted_sudo import trusted_nmcli_path, trusted_sudo_path
 
 
 def has_cmd(name: str) -> bool:
@@ -18,9 +18,9 @@ def has_cmd(name: str) -> bool:
 
 
 def get_cmd_path(name: str) -> str:
-    if name == "sudo":
+    if name in {"sudo", "nmcli"}:
         try:
-            return trusted_sudo_path()
+            return trusted_sudo_path() if name == "sudo" else trusted_nmcli_path()
         except OSError:
             return ""
     return shutil.which(name) or ""
