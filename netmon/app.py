@@ -16481,6 +16481,21 @@ class App(TkBase):
             )
             return
 
+        from netmon.core import swap_resize
+
+        try:
+            swap_resize.precheck(swapfile)
+        except (swap_resize.SwapResizeError, OSError) as exc:
+            messagebox.showwarning(
+                self.tr(
+                    "system_swap_resize_unsupported_title", "Swap resize unavailable"
+                ),
+                f"{swapfile}: {exc}",
+                parent=self,
+            )
+            self.log_safe(f"Swap resize refused for {swapfile}: {exc}")
+            return
+
         current_bytes = self._read_swapfile_size_bytes(swapfile)
         if current_bytes:
             current_gib = max(1, int(round(float(current_bytes) / (1024**3))))
@@ -16615,78 +16630,21 @@ class App(TkBase):
             self.after(0, _done)
 
         def job():
-            commands = [["sudo", "-n", "swapoff", swapfile]]
-            if has_cmd("rm"):
-                commands.append(["sudo", "-n", "rm", "-f", swapfile])
-            if has_cmd("fallocate"):
-                commands.append(
-                    ["sudo", "-n", "fallocate", "-l", f"{target_gib}G", swapfile]
-                )
-            elif has_cmd("dd"):
-                commands.append(
-                    [
-                        "sudo",
-                        "-n",
-                        "dd",
-                        "if=/dev/zero",
-                        f"of={swapfile}",
-                        "bs=1M",
-                        f"count={target_gib * 1024}",
-                        "status=none",
-                    ]
-                )
-            commands.extend(
-                [
-                    ["sudo", "-n", "chmod", "600", swapfile],
-                    ["sudo", "-n", "mkswap", swapfile],
-                    ["sudo", "-n", "swapon", swapfile],
-                ]
+            # One root process pins the swap file's verified parent directory
+            # and never re-resolves the pathname between privileged steps.
+            rc, out = run_cmd(
+                swap_resize.root_command(swapfile, target_gib), timeout=300
             )
-            resize_written = False
-            for cmd in commands:
-                rc, out = run_cmd(cmd, timeout=60)
-                if rc != 0:
-                    if len(cmd) >= 3 and cmd[2] == "fallocate":
-                        if has_cmd("dd"):
-                            dd_cmd = [
-                                "sudo",
-                                "-n",
-                                "dd",
-                                "if=/dev/zero",
-                                f"of={swapfile}",
-                                "bs=1M",
-                                f"count={target_gib * 1024}",
-                                "status=none",
-                            ]
-                            rc, out = run_cmd(dd_cmd, timeout=120)
-                            if rc == 0:
-                                resize_written = True
-                                continue
-                        continue
-                    msg = (out or "").strip() or self.tr(
-                        "system_swap_clear_error_unknown",
-                        "Unknown error",
-                    )
-                    fail(
-                        self.tr(
-                            "system_swap_resize_failed",
-                            "Swap resize failed: {error}",
-                        ).format(error=msg)
-                    )
-                    return
-                if len(cmd) >= 3 and cmd[2] in {"fallocate", "dd"}:
-                    resize_written = True
-            if not resize_written:
+            if rc != 0:
+                msg = (out or "").strip() or self.tr(
+                    "system_swap_clear_error_unknown",
+                    "Unknown error",
+                )
                 fail(
                     self.tr(
                         "system_swap_resize_failed",
                         "Swap resize failed: {error}",
-                    ).format(
-                        error=self.tr(
-                            "system_swap_resize_missing_fallocate",
-                            "Swap resize failed: fallocate is missing.",
-                        )
-                    )
+                    ).format(error=msg)
                 )
                 return
             finish(
