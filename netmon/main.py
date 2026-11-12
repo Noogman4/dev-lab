@@ -23,6 +23,7 @@ try:
         _install_global_crash_hooks,
     )
     from netmon.core.diagnostics import current_os_label, write_diagnostic_report
+    from netmon.core.private_logs import ensure_private_log_directory, open_private_log
     from netmon.core.lock import (
         acquire_netmon_instance_lock,
         format_netmon_instance_lock_info,
@@ -39,6 +40,7 @@ except ModuleNotFoundError:
         _install_global_crash_hooks,
     )
     from core.diagnostics import current_os_label, write_diagnostic_report
+    from core.private_logs import ensure_private_log_directory, open_private_log
     from core.lock import (
         acquire_netmon_instance_lock,
         format_netmon_instance_lock_info,
@@ -52,7 +54,10 @@ except ModuleNotFoundError:
 
 def get_startup_error_log_path():
     diagnostics_dir = os.path.join(get_netmon_documents_dir(), "diagnostics")
-    os.makedirs(diagnostics_dir, exist_ok=True)
+    try:
+        ensure_private_log_directory(diagnostics_dir)
+    except OSError:
+        pass  # The checked writer will refuse an unsafe/unavailable directory.
     return os.path.join(diagnostics_dir, "startup_error.log")
 
 
@@ -76,7 +81,7 @@ def _write_startup_error_log(
         diagnostic_path = ""
 
     try:
-        with open(log_path, "a", encoding="utf-8") as fh:
+        with open_private_log(log_path) as fh:
             fh.write("\n" + "=" * 80 + "\n")
             fh.write(f"{title}\n\n")
             fh.write(f"argv={sys.argv!r}\n")

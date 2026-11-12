@@ -9,6 +9,7 @@ import traceback
 from datetime import datetime
 
 from netmon.config.constants import NETMON_APP_VERSION
+from netmon.core.private_logs import open_private_log
 from netmon.core.diagnostics import (
     current_os_label,
     diagnostic_reports_dir,
@@ -35,7 +36,7 @@ def _append_crash_dump(origin, exc_type, exc_value, exc_tb, *, context=None):
         diagnostic_path = ""
 
     try:
-        with open(CRASH_LOG_PATH, "a", encoding="utf-8") as f:
+        with open_private_log(CRASH_LOG_PATH) as f:
             f.write("\n" + "=" * 80 + "\n")
             f.write(f"{datetime.now().isoformat()} | origin={origin}\n")
             f.write(f"netmon_version={NETMON_APP_VERSION}\n")

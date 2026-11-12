@@ -47,6 +47,9 @@ Im Code wurden folgende Arten von Netzwerkzugriffen gefunden:
 
 ## Logging
 
+- Startfehler-, Crash-, Runtime-, Netzwerk- und Port-Debug-Logs werden ueber einen gemeinsamen geprueften Schreibhelfer mit Modus `0600` geschrieben. Eigene bestehende Logs werden vor Schreiben oder Leeren auf `0600` eingeschraenkt; Log-Verzeichnisse und die NetMon-State-/Dokumentwurzel erhalten `0700`. Uebergeordnete Benutzerverzeichnisse werden nicht umgestellt, und die Prozess-umask bleibt unveraendert.
+- Pfadkomponenten werden deskriptorrelativ ohne Symlink-Folgen geoeffnet. Fremde Eigentuemer, Hardlinks, Spezialdateien und unsichere Vorfahren verhindern den Log-Zugriff. Leeren erfolgt erst nach Identitaets-/Rechtepruefung. Unsichere Pfade werden nicht durch einen ungeprueften Schreib-Fallback umgangen.
+- Strukturierte Diagnoseberichte werden privat vorbereitet und ohne Ueberschreiben bestehender Namen atomar veroeffentlicht. Vorhandene Host-Logs werden durch die Entwicklungstests nicht veraendert; die Rechteanpassung erfolgt beim spaeteren Zugriff durch den korrigierten Code. Das Finding `acf_f5143e3319e9dbcaadd69a5e0b7ad782` wurde mit 186 bestandenen isolierten Tests geprueft. Ein bestehender realer chown-Test benoetigt eine zweite UID und bleibt in dieser Isolation uebersprungen; simulierte Fremdeigentuemer-Pruefungen sind bestanden.
 - Startfehler enthalten `argv`, `cwd`, `DISPLAY` und optional Stacktraces in `~/Documents/NetMon/diagnostics/startup_error.log` bzw. `~/Dokumente/NetMon/diagnostics/startup_error.log`.
 - Laufzeitfehler koennen zusaetzlich strukturierte Diagnoseberichte als `netmon-*.json` im Diagnoseordner erzeugen.
 - Ueber `Support / Diagnose` in den Einstellungen oder ueber den About-/Bugreport-Bereich kann der Benutzer ein Supportpaket als ZIP fuer den Versand an den Support erzeugen.

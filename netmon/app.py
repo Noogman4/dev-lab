@@ -1297,6 +1297,11 @@ except (ImportError, ModuleNotFoundError):
     from core.crash import CRASH_LOG_PATH, _append_crash_dump
 
 try:
+    from netmon.core.private_logs import open_private_log
+except (ImportError, ModuleNotFoundError):
+    from core.private_logs import open_private_log
+
+try:
     from netmon.core.diagnostics import (
         diagnostic_reports_dir,
         latest_diagnostic_report_path,
@@ -12089,8 +12094,7 @@ class App(TkBase):
         wrote = False
         for path in paths:
             try:
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-                with open(path, "a", encoding="utf-8") as fh:
+                with open_private_log(path) as fh:
                     fh.write(str(line or "").rstrip() + "\n")
                 wrote = True
             except Exception:
@@ -12104,8 +12108,7 @@ class App(TkBase):
         cleared = False
         for path in paths:
             try:
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-                with open(path, "w", encoding="utf-8") as fh:
+                with open_private_log(path, "w") as fh:
                     fh.write("")
                 cleared = True
             except Exception:
@@ -12158,8 +12161,7 @@ class App(TkBase):
             try:
                 log_path = self._network_debug_log_path()
                 if log_path:
-                    os.makedirs(os.path.dirname(log_path), exist_ok=True)
-                    with open(log_path, "a", encoding="utf-8") as fh:
+                    with open_private_log(log_path) as fh:
                         fh.write(line + "\n")
             except Exception:
                 pass
@@ -12229,8 +12231,7 @@ class App(TkBase):
                 pass
             return False
         try:
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, "w", encoding="utf-8") as fh:
+            with open_private_log(path, "w") as fh:
                 fh.write("")
             self.log_safe(
                 self.tr(
@@ -37437,11 +37438,10 @@ class App(TkBase):
     def _append_port_check_debug_log(self, payload):
         try:
             log_dir = os.path.join(self.netmon_state_dir, "logs")
-            os.makedirs(log_dir, exist_ok=True)
             log_path = os.path.join(log_dir, "port_check_debug.log")
             record = dict(payload or {})
             record["ts"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            with open(log_path, "a", encoding="utf-8") as fh:
+            with open_private_log(log_path) as fh:
                 fh.write(json.dumps(record, ensure_ascii=False) + "\n")
         except Exception as exc:
             self.log_debug_safe(

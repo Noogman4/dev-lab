@@ -3,6 +3,8 @@
 import os
 import shlex
 
+from netmon.core.private_logs import ensure_private_log_directory
+
 
 def _documents_path(value: str) -> str:
     """Expand only the HOME forms supported by user-dirs.dirs; never run shell."""
@@ -45,15 +47,24 @@ def _ensure_dir(path: str, *, mode=0o777) -> str:
     return path
 
 
-def _netmon_child_dir(base: str) -> str:
-    return _ensure_dir(os.path.join(base, "netmon"))
+def _netmon_child_dir(base: str, *, private: bool = False) -> str:
+    path = os.path.join(base, "netmon")
+    return _ensure_private_dir(path) if private else _ensure_dir(path)
 
 
-def _xdg_dir(env_name: str, default_suffix: str) -> str:
+def _ensure_private_dir(path: str) -> str:
+    try:
+        ensure_private_log_directory(path)
+    except OSError:
+        pass  # Sensitive writers independently reject unsafe paths.
+    return path
+
+
+def _xdg_dir(env_name: str, default_suffix: str, *, private: bool = False) -> str:
     base = (os.environ.get(env_name) or "").strip()
     if not base:
         base = os.path.expanduser(default_suffix)
-    return _netmon_child_dir(base)
+    return _netmon_child_dir(base, private=private)
 
 
 def get_netmon_config_dir() -> str:
@@ -61,14 +72,14 @@ def get_netmon_config_dir() -> str:
 
 
 def get_netmon_state_dir() -> str:
-    return _xdg_dir("XDG_STATE_HOME", "~/.local/state")
+    return _xdg_dir("XDG_STATE_HOME", "~/.local/state", private=True)
 
 
 def get_netmon_documents_dir() -> str:
     env_value = (os.environ.get("XDG_DOCUMENTS_DIR") or "").strip()
     if env_value:
         path = os.path.join(os.path.expanduser(env_value), "NetMon")
-        return _ensure_dir(path)
+        return _ensure_private_dir(path)
 
     candidates = [
         os.path.expanduser("~/Documents"),
@@ -77,10 +88,10 @@ def get_netmon_documents_dir() -> str:
     for base in candidates:
         if os.path.isdir(base):
             path = os.path.join(base, "NetMon")
-            return _ensure_dir(path)
+            return _ensure_private_dir(path)
 
     fallback = os.path.join(os.path.expanduser("~/Documents"), "NetMon")
-    return _ensure_dir(fallback)
+    return _ensure_private_dir(fallback)
 
 
 def get_netmon_wireguard_dir() -> str:

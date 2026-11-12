@@ -13,7 +13,10 @@ from uuid import uuid4
 
 from netmon.config.constants import NETMON_APP_VERSION
 from netmon.core.state import get_netmon_documents_dir
-from netmon.core.utils import safe_write_json
+from netmon.core.private_logs import (
+    ensure_private_log_directory,
+    write_private_diagnostic_json,
+)
 
 DIAGNOSTIC_SCHEMA_VERSION = 1
 
@@ -72,8 +75,8 @@ def redact_diagnostic_value(value):
 
 def _ensure_dir(path: str) -> str:
     try:
-        os.makedirs(path, exist_ok=True)
-    except Exception:
+        ensure_private_log_directory(path)
+    except OSError:
         pass
     return path
 
@@ -233,8 +236,11 @@ def write_diagnostic_report(
         context=context,
     )
     path = diagnostic_report_path(kind)
-    ok, _err = safe_write_json(path, payload, indent=2, ensure_ascii=False)
-    return path if ok else ""
+    try:
+        write_private_diagnostic_json(path, payload)
+        return path
+    except (OSError, ValueError, TypeError):
+        return ""
 
 
 __all__ = [

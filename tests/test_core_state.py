@@ -47,7 +47,7 @@ def test_documents_dir_uses_dokumente_when_documents_missing(monkeypatch, tmp_pa
 
 def test_documents_dir_falls_back_to_documents(monkeypatch, tmp_path):
     home = tmp_path / "home"
-    home.mkdir()
+    home.mkdir(mode=0o700)
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.delenv("XDG_DOCUMENTS_DIR", raising=False)
 
