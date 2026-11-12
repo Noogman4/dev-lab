@@ -7657,3 +7657,54 @@ def test_handover_payload_keeps_valid_station(monkeypatch):
     )
 
     assert target.radio_current_station["url"] == "https://example.invalid/stream"
+
+
+class _FakeMiniWindow:
+    def __init__(self, zoomed=False):
+        self.attrs = {"-zoomed": int(zoomed), "-fullscreen": 0}
+        self.geometries = []
+        self.scheduled = []
+
+    def attributes(self, name, value=None):
+        if value is None:
+            return self.attrs[name]
+        self.attrs[name] = int(bool(value))
+
+    def after(self, _delay, callback):
+        self.scheduled.append(callback)
+
+    def geometry(self, spec):
+        self.geometries.append(spec)
+
+
+def _fake_mini(last_height, zoomed=True):
+    mini = netmon_radio_app.RadioMiniPlayerWindow.__new__(
+        netmon_radio_app.RadioMiniPlayerWindow
+    )
+    mini.window = _FakeMiniWindow(zoomed=zoomed)
+    mini._compact_height, mini._full_height = 227, 364
+    mini._last_height = last_height
+    mini._zoom_toggle_pending = False
+    return mini
+
+
+@pytest.mark.parametrize("last_height,target", [(364, 227), (227, 364), (300, 364)])
+def test_miniplayer_maximize_toggles_compact_and_full_height(last_height, target):
+    mini = _fake_mini(last_height)
+    assert mini._take_over_window_zoom() is True
+    assert mini.window.attrs["-zoomed"] == 0  # never really maximized
+    # A second Configure while the toggle is pending must not toggle twice.
+    mini.window.attrs["-zoomed"] = 1
+    assert mini._take_over_window_zoom() is True
+    assert len(mini.window.scheduled) == 1
+    mini.window.scheduled[0]()
+    assert mini.window.geometries == [f"500x{target}"]
+
+
+def test_miniplayer_fullscreen_is_refused_and_plain_configure_is_ignored():
+    mini = _fake_mini(364, zoomed=False)
+    assert mini._take_over_window_zoom() is False
+    assert mini.window.scheduled == []
+    mini.window.attrs["-fullscreen"] = 1
+    assert mini._take_over_window_zoom() is True
+    assert mini.window.attrs["-fullscreen"] == 0

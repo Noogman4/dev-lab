@@ -6331,6 +6331,11 @@ class NetMonRadioApp(tk.Tk):
         return True
 
 
+MINIPLAYER_WIDTH = 500
+MINIPLAYER_FALLBACK_COMPACT_HEIGHT = 230
+MINIPLAYER_FALLBACK_FULL_HEIGHT = 364
+
+
 class RadioMiniPlayerWindow:
     def __init__(self, app, *, owner, embedded):
         self.app = app
@@ -6351,15 +6356,21 @@ class RadioMiniPlayerWindow:
         self._drag_origin = None
         self._resize_origin = None
         self._eq_visible = True
+        self._compact_height = MINIPLAYER_FALLBACK_COMPACT_HEIGHT
+        self._full_height = MINIPLAYER_FALLBACK_FULL_HEIGHT
+        self._last_height = 0
+        self._zoom_toggle_pending = False
         self._build_ui()
         self.apply_theme(self.theme)
         self.update_content(app._radio_miniplayer_snapshot())
         self.window.protocol("WM_DELETE_WINDOW", app.restore_from_radio_miniplayer)
         try:
-            self.window.update_idletasks()
-            self.window.geometry("500x330+24+24")
-            self.window.minsize(500, 230)
-            self.window.maxsize(500, 420)
+            self._measure_heights()
+            # Fixed width. Full: down to the projectM buttons. Compact: only the
+            # transport buttons and the volume slider stay visible.
+            self.window.geometry(f"{MINIPLAYER_WIDTH}x{self._full_height}+24+24")
+            self.window.minsize(MINIPLAYER_WIDTH, self._compact_height)
+            self.window.maxsize(MINIPLAYER_WIDTH, self._full_height)
         except Exception:
             pass
         self.window.bind("<Configure>", self._on_configure, add="+")
@@ -6753,15 +6764,63 @@ class RadioMiniPlayerWindow:
             pass
         return "break"
 
+    def _measure_heights(self):
+        self.window.update_idletasks()
+        full = int(self.window.winfo_reqheight() or 0)
+        self.bottom.grid_remove()
+        self.window.update_idletasks()
+        compact = int(self.window.winfo_reqheight() or 0)
+        self.bottom.grid()
+        self.window.update_idletasks()
+        if 0 < compact < full:
+            self._compact_height, self._full_height = compact, full
+
     def _on_configure(self, _event=None):
+        if self._take_over_window_zoom():
+            return
         try:
             height = int(self.window.winfo_height() or 0)
         except Exception:
             return
+        if height > 1:
+            self._last_height = height
         self._sync_layout_for_height(height)
 
+    def _take_over_window_zoom(self):
+        # GNOME/mutter maximizes (maximize button, title-bar double-click) to
+        # the full screen despite maxsize. Undo that and use the request as a
+        # toggle between the full and the compact height instead.
+        zoomed = False
+        for attribute in ("-zoomed", "-fullscreen"):
+            try:
+                if int(self.window.attributes(attribute)):
+                    self.window.attributes(attribute, False)
+                    zoomed = True
+            except Exception:
+                pass
+        if not zoomed or self._zoom_toggle_pending:
+            return zoomed
+        self._zoom_toggle_pending = True
+        expanded = self._last_height >= self._full_height - 2
+        target = self._compact_height if expanded else self._full_height
+
+        def apply_toggle():
+            self._zoom_toggle_pending = False
+            try:
+                self.window.geometry(f"{MINIPLAYER_WIDTH}x{target}")
+            except Exception:
+                pass
+
+        try:
+            # Let the WM finish restoring the old size before resizing.
+            self.window.after(80, apply_toggle)
+        except Exception:
+            self._zoom_toggle_pending = False
+        return True
+
     def _sync_layout_for_height(self, height):
-        show_eq = int(height or 0) >= 300
+        midpoint = (self._compact_height + self._full_height) // 2
+        show_eq = int(height or 0) >= midpoint
         if show_eq == self._eq_visible:
             return
         self._eq_visible = show_eq
