@@ -39,6 +39,7 @@ from netmon.core.archive_limits import (  # noqa: E402 - needs the repo path abo
     copy_limited,
 )
 from netmon.core import projectm_archive  # noqa: E402 - needs the repo path above
+from netmon.core.import_limits import load_bounded_json  # noqa: E402
 from netmon.core.release_metadata import (  # noqa: E402
     fetch_release_metadata,
 )
@@ -25049,8 +25050,10 @@ class App(TkBase):
         if not file_path:
             return False
         try:
-            with open(file_path, "r", encoding="utf-8") as handle:
-                payload = json.load(handle)
+            # A theme holds a handful of fields; bound the selected file first.
+            payload = load_bounded_json(
+                file_path, 256 * 1024, max_containers=1024, label="Theme"
+            )
         except Exception as exc:
             self.theme_studio_status_var.set(
                 self.tr(

@@ -1,4 +1,4 @@
-"""Bound the selected OOXML ZIP before handing an immutable snapshot to python-docx."""
+"""Bound a selected OOXML ZIP (DOCX/XLSX) before handing an immutable snapshot on."""
 
 from contextlib import contextmanager
 import io
@@ -22,10 +22,10 @@ class _Discard:
         return len(data)
 
 
-def _members(archive, count, size):
+def _members(archive, count, size, label):
     members = archive.infolist()
     if len(members) != count:
-        raise ValueError("Inconsistent DOCX member count.")
+        raise ValueError(f"Inconsistent {label} member count.")
     names = set()
     declared = ByteBudget(MAX_TOTAL_BYTES)
     for member in members:
@@ -42,7 +42,7 @@ def _members(archive, count, size):
             or any(part in {"", ".", ".."} for part in parts)
             or normalized in names
         ):
-            raise ValueError("Unsafe or duplicate DOCX member path.")
+            raise ValueError(f"Unsafe or duplicate {label} member path.")
         names.add(normalized)
         kind = stat.S_IFMT(member.external_attr >> 16)
         if (
@@ -52,7 +52,7 @@ def _members(archive, count, size):
             or member.flag_bits & (0x01 | 0x20 | 0x40 | 0x2000)
             or member.compress_type not in {zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED}
         ):
-            raise ValueError("Unsupported DOCX member type or encryption.")
+            raise ValueError(f"Unsupported {label} member type or encryption.")
         if (
             not 0 <= member.file_size <= MAX_MEMBER_BYTES
             or not 0 <= member.compress_size <= size
@@ -63,13 +63,13 @@ def _members(archive, count, size):
                 and member.file_size != member.compress_size
             )
         ):
-            raise ValueError("DOCX member exceeds decompression limits.")
+            raise ValueError(f"{label} member exceeds decompression limits.")
         declared.consume(member.file_size)
     return members
 
 
 @contextmanager
-def open_validated_docx(path):
+def open_validated_ooxml(path, *, label="DOCX"):
     """Never re-open the caller's pathname after checking the bounded snapshot.
 
     The shared envelope checker rejects forged counts and ZIP64/parser-switch
@@ -81,7 +81,7 @@ def open_validated_docx(path):
     with os.fdopen(descriptor, "rb") as source:
         before = os.fstat(source.fileno())
         if not stat.S_ISREG(before.st_mode) or before.st_size > MAX_ARCHIVE_BYTES:
-            raise ValueError("DOCX must be a regular file of at most 5 MiB.")
+            raise ValueError(f"{label} must be a regular file of at most 5 MiB.")
         payload = source.read(MAX_ARCHIVE_BYTES + 1)
         after = os.fstat(source.fileno())
         if len(payload) > MAX_ARCHIVE_BYTES or (
@@ -89,13 +89,13 @@ def open_validated_docx(path):
             before.st_mtime_ns,
             before.st_ctime_ns,
         ) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
-            raise ValueError("DOCX exceeds size limit or changed while reading.")
+            raise ValueError(f"{label} exceeds size limit or changed while reading.")
     with io.BytesIO(payload) as snapshot:
         size, count = check_zip_envelope(snapshot)
         if not 0 < count <= MAX_MEMBERS:
-            raise ValueError("DOCX has too many or no members.")
+            raise ValueError(f"{label} has too many or no members.")
         with zipfile.ZipFile(snapshot) as archive:
-            members = _members(archive, count, size)
+            members = _members(archive, count, size, label)
             budget = ByteBudget(MAX_TOTAL_BYTES)
             for member in members:
                 with archive.open(member) as source:
@@ -112,3 +112,11 @@ def open_validated_docx(path):
                     )
         snapshot.seek(0)
         yield snapshot
+
+
+def open_validated_docx(path):
+    return open_validated_ooxml(path, label="DOCX")
+
+
+def open_validated_xlsx(path):
+    return open_validated_ooxml(path, label="XLSX")

@@ -13,10 +13,20 @@ from . import chad_code_blocks, chad_prompt_display
 
 try:
     from netmon.core.docx_archive import open_validated_docx
+    from netmon.core.import_limits import (
+        bounded_list,
+        load_bounded_json,
+        read_bounded_text,
+    )
     from netmon.core.utils import call_in_ui_thread
 except ModuleNotFoundError:
     from core.docx_archive import open_validated_docx
+    from core.import_limits import bounded_list, load_bounded_json, read_bounded_text
     from core.utils import call_in_ui_thread
+
+# Saved analyses (JSON/TXT) chosen by the user; bounded before parsing.
+MAX_CHAD_ANALYSIS_BYTES = 8 * 1024 * 1024
+MAX_CHAD_ANALYSIS_ITEMS = 5000
 
 try:
     from netmon.services.ai_analysis_service import AiAnalysisService
@@ -1247,14 +1257,32 @@ def load_chad_analysis_from_file(app):
 
     try:
         if str(path).lower().endswith(".json"):
-            with open(path, "r", encoding="utf-8") as handle:
-                payload = json.load(handle)
+            payload = load_bounded_json(
+                path,
+                MAX_CHAD_ANALYSIS_BYTES,
+                max_containers=4 * MAX_CHAD_ANALYSIS_ITEMS,
+                label="Analyse",
+            )
+            if not isinstance(payload, dict):
+                raise ValueError("Analyse-Datei ist kein JSON-Objekt.")
             source_name = str(payload.get("source") or os.path.basename(path)).strip()
+            chat_history = bounded_list(
+                payload.get("chat_history") or [],
+                MAX_CHAD_ANALYSIS_ITEMS,
+                label="Analyse",
+                field="chat_history",
+            )
+            output_entries = bounded_list(
+                payload.get("output_entries") or [],
+                MAX_CHAD_ANALYSIS_ITEMS,
+                label="Analyse",
+                field="output_entries",
+            )
             app.chad_analysis_current_prompt = str(payload.get("current_prompt") or "")
             app.chad_online_result = str(payload.get("online_result") or "")
-            app.chad_chat_history = list(payload.get("chat_history") or [])
+            app.chad_chat_history = chat_history
             restored_entries = []
-            for item in list(payload.get("output_entries") or []):
+            for item in output_entries:
                 if not isinstance(item, dict):
                     continue
                 title = str(item.get("title") or "").strip()
@@ -1293,8 +1321,9 @@ def load_chad_analysis_from_file(app):
                 + f" {os.path.basename(path)}"
             )
         else:
-            with open(path, "r", encoding="utf-8") as handle:
-                loaded_text = handle.read().strip()
+            loaded_text = read_bounded_text(
+                path, MAX_CHAD_ANALYSIS_BYTES, label="Analyse"
+            ).strip()
             if not loaded_text:
                 app.chad_analysis_status_var.set("Analyse-Datei ist leer.")
                 return

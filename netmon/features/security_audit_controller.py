@@ -26,6 +26,16 @@ except ModuleNotFoundError:
     from core.privileged_config import write_privileged_config
 
 try:
+    from netmon.core.import_limits import bounded_list, load_bounded_json
+except ModuleNotFoundError:
+    from core.import_limits import bounded_list, load_bounded_json
+
+# Transfer packages are exchanged between hosts; bound them before parsing.
+MAX_BASELINE_TRANSFER_BYTES = 1024 * 1024
+MAX_BASELINE_TRANSFER_ITEMS = 1024
+_TRANSFER_LABEL = "Transferpaket"
+
+try:
     from netmon.core.utils import call_in_ui_thread
 except ModuleNotFoundError:
     from core.utils import call_in_ui_thread
@@ -2345,12 +2355,22 @@ def _write_security_baseline_transfer_package(
 
 
 def _read_security_baseline_transfer_package(path: str) -> dict:
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    return load_bounded_json(
+        path,
+        MAX_BASELINE_TRANSFER_BYTES,
+        max_containers=8 * MAX_BASELINE_TRANSFER_ITEMS,
+        label=_TRANSFER_LABEL,
+    )
 
 
 def _sanitize_transfer_sysctl_entries(entries) -> list[dict]:
     normalized = []
-    for raw in list(entries or []):
+    for raw in bounded_list(
+        entries or [],
+        MAX_BASELINE_TRANSFER_ITEMS,
+        label=_TRANSFER_LABEL,
+        field="sysctl.entries",
+    ):
         if not isinstance(raw, dict):
             continue
         key = str(raw.get("key") or "").strip()
@@ -2395,7 +2415,12 @@ def _sanitize_transfer_ufw_profile(profile: dict | None) -> dict | None:
     if default_outgoing not in {"allow", "deny", "reject"}:
         raise ValueError("UFW-Transferprofil enthaelt keine gueltige Outgoing-Policy.")
     rules = []
-    for raw_rule in list(profile.get("rules") or []):
+    for raw_rule in bounded_list(
+        profile.get("rules") or [],
+        MAX_BASELINE_TRANSFER_ITEMS,
+        label=_TRANSFER_LABEL,
+        field="ufw.rules",
+    ):
         if not isinstance(raw_rule, dict):
             continue
         candidate = dict(raw_rule)
@@ -2407,7 +2432,12 @@ def _sanitize_transfer_ufw_profile(profile: dict | None) -> dict | None:
     return {
         "id": str(profile.get("id") or "imported_ufw_profile").strip(),
         "name": str(profile.get("name") or "Imported UFW Profile").strip(),
-        "profile_targets": list(profile.get("profile_targets") or []),
+        "profile_targets": bounded_list(
+            profile.get("profile_targets") or [],
+            MAX_BASELINE_TRANSFER_ITEMS,
+            label=_TRANSFER_LABEL,
+            field="ufw.profile_targets",
+        ),
         "default_incoming": default_incoming,
         "default_outgoing": default_outgoing,
         "post_apply_note": str(profile.get("post_apply_note") or "").strip(),
@@ -2453,7 +2483,12 @@ def _validate_security_baseline_transfer_package(payload) -> dict:
             "os_family": str(baseline.get("os_family") or "").strip(),
             "distribution": str(baseline.get("distribution") or "").strip(),
             "base_distribution": str(baseline.get("base_distribution") or "").strip(),
-            "roles": list(baseline.get("roles") or []),
+            "roles": bounded_list(
+                baseline.get("roles") or [],
+                MAX_BASELINE_TRANSFER_ITEMS,
+                label=_TRANSFER_LABEL,
+                field="baseline.roles",
+            ),
             "apply_supported": baseline.get("apply_supported"),
         },
         "sysctl": {
@@ -2465,7 +2500,12 @@ def _validate_security_baseline_transfer_package(payload) -> dict:
         "ufw": ufw_profile,
         "notes": [
             str(item).strip()
-            for item in list(payload.get("notes") or [])
+            for item in bounded_list(
+                payload.get("notes") or [],
+                MAX_BASELINE_TRANSFER_ITEMS,
+                label=_TRANSFER_LABEL,
+                field="notes",
+            )
             if str(item).strip()
         ],
     }

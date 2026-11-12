@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import io
 import json
 import os
 import re
@@ -21,8 +22,19 @@ except Exception:
 
 try:
     from netmon.core.utils import safe_write_json
+    from netmon.core.docx_archive import open_validated_xlsx
+    from netmon.core.import_limits import ImportLimitError, read_bounded_text
 except ModuleNotFoundError:
     from core.utils import safe_write_json
+    from core.docx_archive import open_validated_xlsx
+    from core.import_limits import ImportLimitError, read_bounded_text
+
+# Bounds for user-selected CSV/XLSX command databases (shipped DB: ~180 KiB,
+# ~700 rows). XLSX archive bounds come from docx_archive (OOXML validator).
+MAX_SOURCE_CSV_BYTES = 8 * 1024 * 1024
+MAX_SOURCE_ROWS = 20_000
+MAX_SOURCE_COLUMNS = 64
+MAX_SOURCE_CELL_CHARS = 64 * 1024
 
 try:
     from netmon.services.linux_help_library_service import (
@@ -731,24 +743,58 @@ def _selected_linux_help_chad_payload(app):
     return item, _linux_help_chad_title(app, item), prompt
 
 
-def _iter_source_rows(path):
-    extension = os.path.splitext(str(path or ""))[1].lower()
-    if extension == ".xlsx":
-        if load_workbook is None:
-            raise RuntimeError("XLSX import requires openpyxl.")
-        workbook = load_workbook(path, read_only=True, data_only=True)
+def _check_source_row(row, count):
+    if count > MAX_SOURCE_ROWS + 1:
+        raise ImportLimitError(f"Import: mehr als {MAX_SOURCE_ROWS} Zeilen.")
+    if len(row) > MAX_SOURCE_COLUMNS:
+        raise ImportLimitError(f"Import: mehr als {MAX_SOURCE_COLUMNS} Spalten.")
+    for cell in row:
+        if isinstance(cell, str) and len(cell) > MAX_SOURCE_CELL_CHARS:
+            raise ImportLimitError("Import: Zelle überschreitet die Längengrenze.")
+    return row
+
+
+def _iter_xlsx_rows(path):
+    if load_workbook is None:
+        raise RuntimeError("XLSX import requires openpyxl.")
+    rows = []
+    with open_validated_xlsx(path) as snapshot:
+        workbook = load_workbook(snapshot, read_only=True, data_only=True)
         try:
             sheet = workbook.active
-            rows = list(sheet.iter_rows(values_only=True))
+            # max_col bounds padding even when the sheet's <dimension> is forged;
+            # read-only rows are padded to it, so later columns are ignored.
+            for row in sheet.iter_rows(max_col=MAX_SOURCE_COLUMNS, values_only=True):
+                rows.append(_check_source_row(tuple(row), len(rows) + 1))
         finally:
             workbook.close()
-        if not rows:
-            return []
-        headers = [str(cell or "").strip() for cell in rows[0]]
+    return rows
+
+
+def _iter_csv_rows(path):
+    text = read_bounded_text(
+        path, MAX_SOURCE_CSV_BYTES, label="CSV-Import", encoding="utf-8-sig"
+    )
+    rows = []
+    for row in csv.reader(io.StringIO(text, newline="")):
+        rows.append(_check_source_row(row, len(rows) + 1))
+    return rows
+
+
+def _iter_source_rows(path):
+    extension = os.path.splitext(str(path or ""))[1].lower()
+    rows = _iter_xlsx_rows(path) if extension == ".xlsx" else _iter_csv_rows(path)
+    if not rows:
+        return []
+    headers = [str(cell or "").strip() for cell in rows[0]]
+    if extension == ".xlsx":
         return [dict(zip(headers, row)) for row in rows[1:] if any(row)]
-    with open(path, "r", encoding="utf-8-sig", newline="") as handle:
-        reader = csv.DictReader(handle)
-        return [dict(row) for row in reader if row]
+    # Same shape as csv.DictReader: short rows padded with None, blank rows skipped.
+    return [
+        dict(zip(headers, list(row) + [None] * (len(headers) - len(row))))
+        for row in rows[1:]
+        if row
+    ]
 
 
 def normalize_linux_help_entry(app, raw, existing_ids=None):

@@ -35,8 +35,10 @@ _PLAYBACK_LOCK_INIT = threading.Lock()
 
 try:
     from netmon.core import radio_catalog, radio_sandbox, stall_log
+    from netmon.core.import_limits import read_bounded_text
 except ModuleNotFoundError:
     from core import radio_catalog, radio_sandbox, stall_log
+    from core.import_limits import read_bounded_text
 
 try:
     from netmon.core.tooling import has_cmd
@@ -434,17 +436,26 @@ def _load_json(path, fallback):
     return fallback
 
 
+MAX_M3U_BYTES = 1024 * 1024
+MAX_M3U_ENTRIES = 5000
+MAX_M3U_LINE_CHARS = 8192
+
+
 def _read_m3u_playlist(path):
+    """Bounded M3U read; any limit violation rejects the whole playlist."""
     try:
         if not os.path.isfile(path):
             return []
+        text = read_bounded_text(path, MAX_M3U_BYTES, label="Playlist")
         entries = []
-        with open(path, "r", encoding="utf-8") as handle:
-            for line in handle:
-                item = str(line or "").strip()
-                if not item or item.startswith("#"):
-                    continue
-                entries.append(item)
+        # Same line breaks as the previous text-mode read (universal newlines).
+        for line in re.split(r"\r\n|\r|\n", text):
+            item = line.strip()
+            if not item or item.startswith("#"):
+                continue
+            if len(item) > MAX_M3U_LINE_CHARS or len(entries) >= MAX_M3U_ENTRIES:
+                return []
+            entries.append(item)
         return entries
     except Exception:
         return []
