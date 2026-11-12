@@ -287,6 +287,9 @@ def main(argv=None):
     verify.add_argument("--version", required=True)
     verify.add_argument("--sha256-only", action="store_true")
     verify.add_argument("--commit")
+    identity = commands.add_parser("identity")
+    identity.add_argument("deb")
+    identity.add_argument("--version", required=True)
     docs = commands.add_parser("docs")
     docs.add_argument("staged_deb")
     docs.add_argument("documents", nargs="+")
@@ -300,6 +303,10 @@ def main(argv=None):
             print(
                 f"Release-Beleg: {write_receipt(options.deb, options.version, options.commit)}"
             )
+        elif options.command == "identity":
+            deb = Path(options.deb)
+            _require_release_identity(deb, options.version)
+            print(_sha256(deb))
         elif options.command == "docs":
             verify_docs(options.staged_deb, options.sha256, options.documents)
             print("Dokumentation an Release-DEB gebunden")

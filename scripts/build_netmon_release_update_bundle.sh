@@ -48,9 +48,6 @@ ensure_no_embedded_stats_token() {
   fi
 }
 
-require_file "$WORKSPACE_DIR/dist/netmon_${PKG_VERSION}_all.deb"
-require_file "$WORKSPACE_DIR/dist/docs/netmon_dokumentation_${DOCS_VERSION}.pdf"
-require_file "$WORKSPACE_DIR/dist/docs/netmon_dokumentation_${DOCS_VERSION}.html"
 require_file "$ROOT_DIR/site/latest-version.json"
 require_file "$ROOT_DIR/site/download-config.php"
 require_file "$ROOT_DIR/site/downloads.html"
@@ -85,7 +82,7 @@ copy_release_file "$ROOT_DIR/site/en/downloads.html" "$EN_DIR/downloads.html"
 copy_release_file "$ROOT_DIR/site/en/docs.html" "$EN_DIR/docs.html"
 copy_release_file "$ROOT_DIR/site/en/security-audit.html" "$EN_DIR/security-audit.html"
 
-stage_release_deb "$DIST_DIR"
+build_release_deb "$DIST_DIR"
 stage_release_docs "$DIST_DOCS_DIR"
 
 copy_release_file "$ROOT_DIR/scripts/verify_netmon_download.sh" "$VERIFY_DIR/"

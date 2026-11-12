@@ -1,0 +1,3 @@
+# Git-ignored package assets admitted into signed release builds only with this exact SHA-256.
+# Format: <sha256>  <repository-relative path>
+bc956860c35c444f9e728c68795e34731947183eeb47cc11c59a93c763fc4997  netmon/features/Code-the-Classics.zip

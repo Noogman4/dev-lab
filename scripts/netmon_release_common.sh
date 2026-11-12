@@ -90,34 +90,34 @@ copy_release_file() {
   fi
   # Open every source component with O_NOFOLLOW, then copy from that FD.
   # A preflight -L check alone would leave a check/use race before cp/convert.
-  # Committed content comes from the snapshot; only dist/ from the workspace.
-  local source_root="$ROOT_DIR"
-  if [[ "$source" == "$WORKSPACE_DIR/dist/"* ]]; then
-    source_root="$WORKSPACE_DIR"
-  fi
+  # Every signed input comes from the snapshot; the workspace only receives
+  # the private staging directory and the outputs.
   python3 "$ROOT_DIR/scripts/copy_netmon_release_input.py" \
-    --source-root "$source_root" --destination-root "$WORKSPACE_DIR" \
+    --source-root "$ROOT_DIR" --destination-root "$WORKSPACE_DIR" \
     "$BUILD_DIR" "$source" "$target"
 }
 
-stage_release_deb() {
-  # Copy first, then prove the private staged bytes: what gets signed is the
-  # receipt-bound DEB from build_netmon_deb.sh --release for the current HEAD.
-  local source="$WORKSPACE_DIR/dist/netmon_${PKG_VERSION}_all.deb" target="$1"
-  copy_release_file "$source" "$target/"
-  RELEASE_DEB_SHA256="$(python3 "$ROOT_DIR/scripts/netmon_release_deb_receipt.py" verify \
-    "$source" "$target/netmon_${PKG_VERSION}_all.deb" --version "$PKG_VERSION" \
-    --commit "$NETMON_RELEASE_COMMIT" --sha256-only)"
+build_release_deb() {
+  # Build documentation and DEB inside the private snapshot of the pinned
+  # commit and sign only that DEB. A DEB or receipt in the workspace dist/ is
+  # never read: nothing a writer of dist/ places there can be authenticated.
+  local target="$1" built
+  python3 "$ROOT_DIR/scripts/build_docs_pdf.py" >&2
+  bash "$ROOT_DIR/scripts/build_netmon_deb.sh" >&2
+  built="$ROOT_DIR/dist/netmon_${PKG_VERSION}_all.deb"
+  RELEASE_DEB_SHA256="$(python3 "$ROOT_DIR/scripts/netmon_release_deb_receipt.py" identity \
+    "$built" --version "$PKG_VERSION")"
   readonly RELEASE_DEB_SHA256
+  copy_release_file "$built" "$target/"
   RELEASE_STAGED_DEB="$target/netmon_${PKG_VERSION}_all.deb"
 }
 
 stage_release_docs() {
-  # dist/docs is generated, not committed. Accept it only byte-identical to
-  # the copies inside the receipt-approved DEB staged above.
+  # Publish the documentation built above, and only if it is byte-identical
+  # to the copies inside the DEB (whose staged hash is re-checked here).
   local target="$1" name
   for name in "netmon_dokumentation_${DOCS_VERSION}.pdf" "netmon_dokumentation_${DOCS_VERSION}.html"; do
-    copy_release_file "$WORKSPACE_DIR/dist/docs/$name" "$target/"
+    copy_release_file "$ROOT_DIR/dist/docs/$name" "$target/"
   done
   python3 "$ROOT_DIR/scripts/netmon_release_deb_receipt.py" docs \
     "$RELEASE_STAGED_DEB" --sha256 "$RELEASE_DEB_SHA256" \

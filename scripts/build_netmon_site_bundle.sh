@@ -118,9 +118,6 @@ require_file "$ROOT_DIR/site/screenshots/netmon-logs-diagnostics-insight.png"
 require_file "$ROOT_DIR/site/screenshots/netmon-theme-studio-insight.png"
 require_file "$ROOT_DIR/site/screenshots/netmon-table-details-insight.png"
 require_file "$ROOT_DIR/site/screenshots/netmon-guided-actions-insight.png"
-require_file "$WORKSPACE_DIR/dist/netmon_${PKG_VERSION}_all.deb"
-require_file "$WORKSPACE_DIR/dist/docs/netmon_dokumentation_${DOCS_VERSION}.pdf"
-require_file "$WORKSPACE_DIR/dist/docs/netmon_dokumentation_${DOCS_VERSION}.html"
 require_file "$ROOT_DIR/tools/Favicon.png"
 require_file "$ROOT_DIR/tools/bannericon.png"
 require_file "$ROOT_DIR/tools/netmon.png"
@@ -214,7 +211,7 @@ do
   copy_release_file "$ROOT_DIR/site/screenshots/$screenshot" "$SCREENSHOTS_DIR/"
 done
 
-stage_release_deb "$PUBLIC_DIR/dist"
+build_release_deb "$PUBLIC_DIR/dist"
 stage_release_docs "$DIST_DOCS_DIR"
 
 copy_release_file "$ROOT_DIR/tools/netmon.png" "$TOOLS_DIR/"

@@ -1,26 +1,32 @@
 #!/usr/bin/env python3
 """Run a signed production bundle build from one committed snapshot.
 
-Production bundle scripts used to read site files, assets, documentation and
-their own release tooling straight from the working tree, so a local edit or
-an untracked file could be signed as an official release. This launcher:
+Production bundle scripts used to read site files, assets, documentation,
+their own release tooling and a separately built DEB with a JSON "receipt"
+from the working tree. Anyone able to write ``dist/`` could place their own
+DEB next to a matching hand-written receipt, and uncommitted content could be
+signed as an official release. This launcher:
 
 * pins the current HEAD commit,
-* refuses to start while any signed input or release tool differs from that
-  commit (modified, staged, deleted or untracked),
+* refuses to start while any signed input, package source or release tool
+  differs from that commit (modified, staged, deleted or untracked),
 * exports exactly that commit with ``git archive`` into a private directory,
-* runs the bundle script from that snapshot. All web content and every tool
-  then comes from the commit; only the receipt-bound DEB (and documentation
-  that must match the copy inside that DEB) is taken from the workspace
-  ``dist/`` directory, and outputs are written there.
+* adds the few large git-ignored package assets only if their SHA-256 matches
+  the committed pin list ``packaging/release-assets.sha256``,
+* runs the bundle script from that snapshot. The bundle builds the
+  documentation and the DEB itself inside the snapshot and signs only those;
+  nothing from the workspace ``dist/`` directory is trusted, it only receives
+  the outputs.
 """
 
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -59,7 +65,25 @@ RELEASE_INPUTS = (
     "scripts/read_netmon_version.py",
     "scripts/verify_netmon_signature.sh",
     "scripts/verify_netmon_download.sh",
+    # Built inside the snapshot: documentation sources and the DEB builder.
+    "scripts/build_docs_pdf.py",
+    "docs/USER_GUIDE.md",
+    "docs/SECURITY.md",
+    "docs/ARCHITECTURE.md",
 )
+ASSET_MANIFEST = "packaging/release-assets.sha256"
+ASSET_LINE = re.compile(r"([0-9a-f]{64})  ([A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*)")
+DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+
+
+def _package_inputs():
+    # Single source of truth for what build_netmon_deb.sh reads.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        from netmon_release_deb_receipt import PACKAGE_INPUTS
+    finally:
+        sys.path.pop(0)
+    return tuple(PACKAGE_INPUTS)
 
 
 class ReleaseSourceError(Exception):
@@ -97,6 +121,7 @@ def require_clean_inputs():
         "--ignored=no",
         "--",
         *RELEASE_INPUTS,
+        *_package_inputs(),
     )
     if changes:
         paths = [e[3:].decode(errors="replace") for e in changes.split(b"\0") if e]
@@ -107,16 +132,68 @@ def require_clean_inputs():
 
 
 def export_commit(commit, destination):
-    """Extract the release inputs of exactly this commit, nothing else."""
-    listed = _git("ls-tree", "-r", "-z", "--name-only", commit, "--", *RELEASE_INPUTS)
-    files = [name.decode() for name in listed.split(b"\0") if name]
-    if not files:
-        raise ReleaseSourceError("Commit enthaelt keine Release-Eingaben")
+    """Extract every tracked file of exactly this commit, nothing else."""
     with tempfile.TemporaryFile(dir=destination.parent) as archive:
-        _git("archive", "--format=tar", commit, "--", *files, stdout=archive)
+        _git("archive", "--format=tar", commit, stdout=archive)
         archive.seek(0)
         with tarfile.open(fileobj=archive, mode="r:") as packed:
             packed.extractall(destination, filter="data")
+
+
+def _open_workspace_file(relative):
+    """Open ROOT/relative without following any link below ROOT."""
+    parts = relative.split("/")
+    descriptor = os.open(ROOT, DIRECTORY_FLAGS)
+    try:
+        for part in parts[:-1]:
+            child = os.open(part, DIRECTORY_FLAGS, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        return os.open(
+            parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=descriptor
+        )
+    finally:
+        os.close(descriptor)
+
+
+def import_pinned_assets(snapshot):
+    """Copy git-ignored package assets into the snapshot only if pinned."""
+    manifest = snapshot / ASSET_MANIFEST
+    if not manifest.is_file():
+        return []
+    imported = []
+    for line in manifest.read_text(encoding="ascii").splitlines():
+        if not line or line.startswith("#"):
+            continue
+        match = ASSET_LINE.fullmatch(line)
+        if not match or any(p in {".", ".."} for p in match[2].split("/")):
+            raise ReleaseSourceError(f"Ungueltige Zeile in {ASSET_MANIFEST}")
+        expected, relative = match[1], match[2]
+        target = snapshot / relative
+        if os.path.lexists(target):
+            raise ReleaseSourceError(f"Gepinnte Datei ist versioniert: {relative}")
+        try:
+            source = _open_workspace_file(relative)
+        except OSError as exc:
+            raise ReleaseSourceError(
+                f"Gepinnte Release-Datei fehlt oder ist unsicher: {relative}"
+            ) from exc
+        digest = hashlib.sha256()
+        with os.fdopen(source, "rb") as handle:
+            if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                raise ReleaseSourceError(f"Keine regulaere Datei: {relative}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with open(target, "xb") as output:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    digest.update(chunk)
+                    output.write(chunk)
+        if digest.hexdigest() != expected:
+            target.unlink()
+            raise ReleaseSourceError(
+                f"Gepinnte Release-Datei weicht vom committeten SHA-256 ab: {relative}"
+            )
+        imported.append(relative)
+    return imported
 
 
 def run(script, arguments):
@@ -131,6 +208,8 @@ def run(script, arguments):
         # Archive the pinned commit id, not "HEAD": a later checkout or
         # workspace edit cannot change what this build reads or runs.
         export_commit(commit, snapshot)
+        for relative in import_pinned_assets(snapshot):
+            print(f"Gepinnte Release-Datei geprueft: {relative}", file=sys.stderr)
         env = {
             **os.environ,
             "NETMON_RELEASE_SOURCE_DIR": str(snapshot),

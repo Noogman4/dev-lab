@@ -35,6 +35,52 @@ PROFILES = [
 ]
 
 
+PINNED_ASSET = b"pinned third-party asset\n" * 64
+FIXTURE_DOCS_BUILDER = """
+from pathlib import Path
+
+root = Path(__file__).resolve().parent.parent
+out = root / "dist/docs"
+out.mkdir(parents=True, exist_ok=True)
+changelog = (root / "docs/CHANGELOG.md").read_text()
+for ext in ("pdf", "html"):
+    (out / f"netmon_dokumentation_1.1.21.{ext}").write_text(ext + ":" + changelog)
+"""
+FIXTURE_DEB_BUILDER = """
+import json
+import shutil
+import subprocess
+from pathlib import Path
+
+root = Path(__file__).resolve().parent.parent
+identity = json.loads((root / "scripts/fixture_deb_identity.json").read_text())
+staging = root / "deb-staging"
+(staging / "DEBIAN").mkdir(parents=True)
+(staging / "DEBIAN").chmod(0o755)
+(staging / "DEBIAN/control").write_text(
+    f"Package: {identity['package']}\\nVersion: {identity['version']}\\n"
+    "Architecture: all\\nMaintainer: Release Test <release-test@invalid>\\n"
+    "Description: snapshot-built release fixture\\n"
+)
+docs = staging / "usr/share/doc/netmon"
+docs.mkdir(parents=True)
+(docs / "copyright").write_text((root / "netmon/config/constants.py").read_text())
+for generated in sorted((root / "dist/docs").glob("netmon_dokumentation_*")):
+    shutil.copyfile(generated, docs / generated.name)
+if identity["test_doc"]:
+    (docs / "TEST-BUILD.md").write_text("# TESTBUILD\\n")
+shutil.copyfile(root / "assets/pinned.bin", docs / "pinned.bin")
+out = root / "dist" / f"netmon_{identity['version']}_all.deb"
+subprocess.run(
+    ["dpkg-deb", "--root-owner-group", "--build", str(staging), str(out)],
+    check=True,
+    capture_output=True,
+)
+shutil.rmtree(staging)
+print(f"Built: {out}")
+"""
+
+
 def isolated_repo(root, sources=None):
     (root / "scripts").mkdir(parents=True)
     for name in [
@@ -73,6 +119,13 @@ def isolated_repo(root, sources=None):
         if not path.exists():
             path.write_text("synthetic input\n")
     (root / "site/latest-version.json").write_text('{"version":"1.1.21"}\n')
+    # Locally generated docs for the unsigned test bundle; production builds
+    # regenerate them from the commit instead.
+    (root / "dist/docs").mkdir(parents=True, exist_ok=True)
+    for ext in ("pdf", "html"):
+        (root / f"dist/docs/netmon_dokumentation_{VERSION}.{ext}").write_text(
+            "synthetic input\n"
+        )
     (root / "netmon/config").mkdir(parents=True)
     (root / "netmon/config/constants.py").write_text('NETMON_APP_VERSION = "1.1.21"\n')
     # Unrelated website metadata is synthetic; exercise the real release logic.
@@ -83,6 +136,23 @@ def isolated_repo(root, sources=None):
     shutil.copyfile(
         ROOT / "docs/security/netmonroots.minisign.pub",
         root / "docs/security/netmonroots.minisign.pub",
+    )
+    # Committed stand-ins for the documentation and DEB builders. The signed
+    # pipeline runs them inside the snapshot, exactly like the real ones.
+    (root / "scripts/build_docs_pdf.py").write_text(FIXTURE_DOCS_BUILDER)
+    (root / "scripts/build_netmon_deb.sh").write_text(
+        '#!/usr/bin/env bash\nexec python3 "$(dirname "$0")/fixture_build_deb.py"\n'
+    )
+    (root / "scripts/fixture_build_deb.py").write_text(FIXTURE_DEB_BUILDER)
+    (root / "scripts/fixture_deb_identity.json").write_text(
+        json.dumps({"package": "netmon", "version": VERSION, "test_doc": False})
+    )
+    # A large git-ignored package asset, admitted only through its pin.
+    (root / "assets").mkdir()
+    (root / "assets/pinned.bin").write_bytes(PINNED_ASSET)
+    (root / "packaging").mkdir(exist_ok=True)
+    (root / "packaging/release-assets.sha256").write_text(
+        f"{hashlib.sha256(PINNED_ASSET).hexdigest()}  assets/pinned.bin\n"
     )
     tools = root / "test-bin"
     tools.mkdir()
@@ -190,6 +260,7 @@ def build_deb(
     if test_doc:
         (docs / "TEST-BUILD.md").write_text("# TESTBUILD\n")
     deb = root / f"dist/netmon_{VERSION}_all.deb"
+    deb.parent.mkdir(parents=True, exist_ok=True)
     deb.unlink(missing_ok=True)
     subprocess.run(
         [shutil.which("dpkg-deb"), "--root-owner-group", "--build", staging, deb],
@@ -237,12 +308,13 @@ def repo(tmp_path):
     shutil.copyfile(public, root / "docs/security/netmonroots.minisign.pub")
     verifier = root / "scripts/verify_netmon_signature.sh"
     verifier.write_text(verifier.read_text().replace(PIN, key))
-    (root / ".gitignore").write_text("dist/\n*.key\n")
+    (root / ".gitignore").write_text("dist/\n*.key\nassets/\ntest-bin/\n")
     git(root, "init", "-q")
     git(root, "add", "-A")
     git(root, "commit", "-q", "-m", "release fixture")
-    written = write_receipt(root, build_deb(root))
-    assert written.returncode == 0, written.stdout + written.stderr
+    # A locally built DEB in dist/ (used by the unsigned test bundle). Signed
+    # production builds never read it; they build their own from the commit.
+    build_deb(root)
     return root, secret
 
 
@@ -546,7 +618,10 @@ def test_initial_input_failure_cleans_work_and_quarantines_old_release(repo, pro
     old = root / "dist" / profile[1]
     old.mkdir()
     (old / profile[2]).write_bytes(b"old output")
-    (root / f"dist/netmon_{VERSION}_all.deb").unlink()
+    # A required input is missing from the commit the release is built from.
+    (root / "site/latest-version.json").unlink()
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "-m", "drop a required release input")
     result = run_build(root, profile, NETMON_MINISIGN_SECRET_KEY=str(secret))
     assert result.returncode != 0
     no_production_output(root, profile)
@@ -583,10 +658,7 @@ def test_symlink_output_paths_are_rejected(repo, tmp_path, location):
         for source in [
             "site/downloads.html",
             "site/download-config.php",
-            f"dist/docs/netmon_dokumentation_{VERSION}.pdf",
-            f"dist/netmon_{VERSION}_all.deb",
             "site/en",
-            "dist/docs",
             "docs/security/netmonroots.minisign.pub",
             "scripts/verify_netmon_download.sh",
         ]
@@ -933,75 +1005,130 @@ def test_snapshot_promotion_failure_preserves_existing_output_and_cleans_work(
     assert not list(archive.parent.glob(".verified-release-*"))
 
 
+def _bundle_member(root, profile, name):
+    with zipfile.ZipFile(root / "dist" / profile[1] / profile[2]) as archive:
+        return archive.read(f"public_html/{name}")
+
+
+def _deb_member(deb_bytes, tmp_path, member):
+    deb = tmp_path / "inspect.deb"
+    deb.write_bytes(deb_bytes)
+    out = tmp_path / "inspect"
+    shutil.rmtree(out, ignore_errors=True)
+    subprocess.run([shutil.which("dpkg-deb"), "-x", deb, out], check=True)
+    return (out / member).read_bytes()
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+def test_workspace_deb_and_forged_receipt_are_ignored(repo, tmp_path, profile):
+    """Finding: a writer of dist/ planted a DEB and a matching receipt."""
+    root, secret = repo
+    attacker = build_deb(root, payload="attacker payload\n")
+    receipt = Path(str(attacker) + ".release.json")
+    receipt.write_text(
+        json.dumps(
+            {
+                "schema": "netmon-release-deb/1",
+                "kind": "release",
+                "package": "netmon",
+                "version": VERSION,
+                "filename": attacker.name,
+                "sha256": hashlib.sha256(attacker.read_bytes()).hexdigest(),
+                "commit": git(root, "rev-parse", "HEAD"),
+            }
+        )
+    )
+    docs = root / "dist/docs"
+    docs.mkdir(parents=True, exist_ok=True)
+    (docs / f"netmon_dokumentation_{VERSION}.pdf").write_text("attacker docs\n")
+
+    result = run_build(root, profile, NETMON_MINISIGN_SECRET_KEY=str(secret))
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    published = _bundle_member(root, profile, f"dist/netmon_{VERSION}_all.deb")
+    assert published != attacker.read_bytes()
+    constants = (root / "netmon/config/constants.py").read_bytes()
+    assert (
+        _deb_member(published, tmp_path, "usr/share/doc/netmon/copyright") == constants
+    )
+    assert (
+        _deb_member(published, tmp_path, "usr/share/doc/netmon/pinned.bin")
+        == PINNED_ASSET
+    )
+    pdf = _bundle_member(root, profile, f"dist/docs/netmon_dokumentation_{VERSION}.pdf")
+    assert pdf != b"attacker docs\n"
+    assert pdf == _deb_member(
+        published, tmp_path, f"usr/share/doc/netmon/netmon_dokumentation_{VERSION}.pdf"
+    )
+
+
 @pytest.mark.parametrize("profile", PROFILES)
 @pytest.mark.parametrize(
-    "case",
+    "identity",
     [
-        "no-receipt",
-        "older-commit",
-        "replaced-deb",
-        "test-version",
-        "test-build-doc",
-        "foreign-package",
-        "receipt-kind",
-        "receipt-symlink",
+        {"version": f"{VERSION}~v4dnstest20261111.1"},
+        {"test_doc": True},
+        {"package": "netmon-test"},
     ],
+    ids=["test-version", "test-build-doc", "foreign-package"],
 )
-def test_unproven_deb_is_never_signed_as_release(repo, profile, case):
+def test_snapshot_built_deb_without_release_identity_is_never_signed(
+    repo, profile, identity
+):
     root, secret = repo
-    deb = root / f"dist/netmon_{VERSION}_all.deb"
-    receipt = Path(str(deb) + ".release.json")
-    if case == "no-receipt":
-        # A plain local build under the official name, like the 1.1.22 test DEB.
-        receipt.unlink()
-    elif case == "older-commit":
-        (root / "netmon/config/later.py").write_text("CHANGED = True\n")
-        git(root, "add", "-A")
-        git(root, "commit", "-q", "-m", "later source change")
-    elif case == "replaced-deb":
-        build_deb(root, test_doc=True)
-    elif case in {"test-version", "test-build-doc", "foreign-package"}:
-        identity = {
-            "test-version": {"version": f"{VERSION}~v4dnstest20261111.1"},
-            "test-build-doc": {"test_doc": True},
-            "foreign-package": {"package": "netmon-test"},
-        }[case]
-        deb = build_deb(root, **identity)
-        # Even a hand-made receipt with the right hash must not help.
-        data = json.loads(receipt.read_text())
-        data["sha256"] = hashlib.sha256(deb.read_bytes()).hexdigest()
-        receipt.write_text(json.dumps(data))
-    elif case == "receipt-kind":
-        data = json.loads(receipt.read_text())
-        data["kind"] = "test"
-        receipt.write_text(json.dumps(data))
-    else:
-        moved = root / "elsewhere.json"
-        receipt.rename(moved)
-        receipt.symlink_to(moved)
+    path = root / "scripts/fixture_deb_identity.json"
+    path.write_text(json.dumps({**json.loads(path.read_text()), **identity}))
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "-m", "non-release package identity")
+    marker = _signing_marker(root)
     result = run_build(root, profile, NETMON_MINISIGN_SECRET_KEY=str(secret))
     assert result.returncode != 0, result.stdout + result.stderr
     assert "Release-Abbruch" in result.stderr
-    assert "Fertig:" not in result.stdout
+    assert not marker.exists()
     no_production_output(root, profile)
-    assert not list(root.glob("dist/**/SHA256SUMS.minisig"))
 
 
 @pytest.mark.parametrize("profile", PROFILES)
-@pytest.mark.parametrize("boundary", ["receipt", "manifest"])
-def test_deb_replaced_after_receipt_check_is_not_published(repo, profile, boundary):
+@pytest.mark.parametrize("fault", ["mismatch", "missing", "symlink", "tracked"])
+def test_pinned_package_assets_must_match_their_committed_hash(
+    repo, tmp_path, profile, fault
+):
     root, secret = repo
-    # Preserve the approved receipt, then prepare a different, valid DEB with
-    # the same release identity. Replace the staged bytes after real approval.
+    asset = root / "assets/pinned.bin"
+    if fault == "mismatch":
+        asset.write_bytes(b"swapped third-party asset\n")
+    elif fault == "missing":
+        asset.unlink()
+    elif fault == "symlink":
+        outside = tmp_path / "outside.bin"
+        outside.write_bytes(PINNED_ASSET)
+        asset.unlink()
+        asset.symlink_to(outside)
+    else:
+        (root / ".gitignore").write_text("dist/\n*.key\ntest-bin/\n")
+        git(root, "add", "-A")
+        git(root, "commit", "-q", "-m", "track the pinned asset")
+    marker = _signing_marker(root)
+    result = run_build(root, profile, NETMON_MINISIGN_SECRET_KEY=str(secret))
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "Gepinnte" in result.stderr
+    assert not marker.exists()
+    no_production_output(root, profile)
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+@pytest.mark.parametrize("boundary", ["identity", "manifest"])
+def test_deb_replaced_after_identity_check_is_not_published(repo, profile, boundary):
+    root, secret = repo
+    # A different, valid DEB with the same release identity replaces the
+    # snapshot-built bytes after their digest was approved.
     deb = root / f"dist/netmon_{VERSION}_all.deb"
-    approved = deb.read_bytes()
     replacement = root / "replacement.deb"
     shutil.copyfile(build_deb(root, payload="unapproved payload\n"), replacement)
-    deb.write_bytes(approved)
-    if boundary == "receipt":
+    if boundary == "identity":
         action = (
-            'case "$1:${2:-}" in */netmon_release_deb_receipt.py:verify)\n'
-            f'  cp "{replacement}" "$4";;\n'
+            'case "$1:${2:-}" in */netmon_release_deb_receipt.py:identity)\n'
+            f'  cp "{replacement}" "$3";;\n'
             "esac\n"
         )
     else:
@@ -1040,7 +1167,7 @@ def test_valid_signatures_do_not_override_expected_receipt_digest(repo, profile)
         "--release-deb-sha256",
     ]
     approved = hashlib.sha256(
-        (root / f"dist/netmon_{VERSION}_all.deb").read_bytes()
+        _bundle_member(root, profile, f"dist/netmon_{VERSION}_all.deb")
     ).hexdigest()
     for digest in (approved, "0" * 64):
         checked = subprocess.run(
@@ -1059,7 +1186,7 @@ def test_valid_signatures_do_not_override_expected_receipt_digest(repo, profile)
 
 def test_receipt_is_only_written_for_clean_committed_release_sources(repo):
     root, _ = repo
-    deb = root / f"dist/netmon_{VERSION}_all.deb"
+    deb = build_deb(root)
     (root / "netmon/config/constants.py").write_text(
         'NETMON_APP_VERSION = "1.1.21"\n# local edit\n'
     )
@@ -1126,6 +1253,9 @@ def _signing_marker(root):
         "modified-launcher",
         "modified-common",
         "modified-pubkey",
+        "untracked-package-module",
+        "modified-deb-builder",
+        "modified-asset-pins",
     ],
 )
 def test_uncommitted_inputs_or_tooling_are_never_signed(repo, profile, change):
@@ -1146,6 +1276,15 @@ def test_uncommitted_inputs_or_tooling_are_never_signed(repo, profile, change):
     elif change == "modified-common":
         path = root / "scripts/netmon_release_common.sh"
         path.write_text(path.read_text() + "\n# local edit\n")
+    elif change == "untracked-package-module":
+        (root / "netmon/unreviewed.py").write_text("UNREVIEWED = True\n")
+    elif change == "modified-deb-builder":
+        path = root / "scripts/build_netmon_deb.sh"
+        path.write_text(path.read_text() + "# local edit\n")
+    elif change == "modified-asset-pins":
+        (root / "packaging/release-assets.sha256").write_text(
+            f"{'0' * 64}  assets/pinned.bin\n"
+        )
     else:
         path = root / "docs/security/netmonroots.minisign.pub"
         path.write_text(path.read_text() + "\n")
@@ -1162,7 +1301,7 @@ def test_build_signs_the_commit_even_if_workspace_changes_mid_build(repo, profil
     root, secret = repo
     committed = (root / "site/docs.html").read_bytes()
     # Unrelated dirty files elsewhere do not block an official build.
-    (root / "netmon/config/unrelated.py").write_text("LOCAL = True\n")
+    (root / "unrelated-notes.md").write_text("local notes\n")
     # After the clean check and snapshot, edit a signed input and a tool in
     # the workspace while the build runs: neither may reach the bundle.
     wrapper = root / "test-bin/python3"
@@ -1186,10 +1325,21 @@ def test_build_signs_the_commit_even_if_workspace_changes_mid_build(repo, profil
 
 @pytest.mark.parametrize("profile", PROFILES)
 @pytest.mark.parametrize("document", ["pdf", "html"])
-def test_generated_docs_must_match_the_receipt_bound_deb(repo, profile, document):
+def test_published_docs_must_match_the_snapshot_built_deb(repo, profile, document):
     root, secret = repo
-    path = root / f"dist/docs/netmon_dokumentation_{VERSION}.{document}"
-    path.write_text("regenerated after the release DEB\n")
+    wrapper = root / "test-bin/python3"
+    wrapper.unlink()
+    wrapper.write_text(
+        "#!/bin/sh\n"
+        f'"{shutil.which("python3")}" "$@"\n'
+        "status=$?\n"
+        'case "$1:${2:-}" in */netmon_release_deb_receipt.py:identity)\n'
+        '  printf changed > "$(dirname "$3")/docs/'
+        f'netmon_dokumentation_{VERSION}.{document}";;\n'
+        "esac\n"
+        "exit $status\n"
+    )
+    wrapper.chmod(0o700)
     marker = _signing_marker(root)
     result = run_build(root, profile, NETMON_MINISIGN_SECRET_KEY=str(secret))
     assert result.returncode != 0, result.stdout + result.stderr
