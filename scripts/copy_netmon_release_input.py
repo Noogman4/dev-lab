@@ -32,9 +32,12 @@ def anchored_parent(root, path):
         os.close(descriptor)
 
 
-def copy_input(source_root, source, staging_root, destination):
+def copy_input(source_root, source, staging_root, destination, destination_root=None):
     # Keep the destination inside this build, but anchor its whole directory
     # walk at the repository so a swapped .release-work ancestor is rejected.
+    # Production builds read committed inputs from a snapshot and write into
+    # the workspace, so both walks may be anchored at different roots.
+    destination_root = source_root if destination_root is None else destination_root
     relative = destination.relative_to(staging_root)
     if not relative.parts or ".." in relative.parts:
         raise ValueError(f"Destination must be beneath {staging_root}")
@@ -45,7 +48,7 @@ def copy_input(source_root, source, staging_root, destination):
     with os.fdopen(descriptor, "rb") as handle:
         if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
             raise ValueError(f"Release input must be a regular file: {source}")
-        with anchored_parent(source_root, destination) as (parent, name):
+        with anchored_parent(destination_root, destination) as (parent, name):
             target = os.open(
                 name,
                 os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
@@ -58,12 +61,20 @@ def copy_input(source_root, source, staging_root, destination):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source-root", type=Path, default=ROOT)
+    parser.add_argument("--destination-root", type=Path, default=None)
     parser.add_argument("staging_root", type=Path)
     parser.add_argument("source", type=Path)
     parser.add_argument("destination", type=Path)
     args = parser.parse_args()
     try:
-        copy_input(ROOT, args.source, args.staging_root, args.destination)
+        copy_input(
+            args.source_root,
+            args.source,
+            args.staging_root,
+            args.destination,
+            args.destination_root,
+        )
     except (OSError, ValueError) as exc:
         parser.exit(1, f"Release-Abbruch: Unsichere Release-Eingabe: {exc}\n")
     return 0

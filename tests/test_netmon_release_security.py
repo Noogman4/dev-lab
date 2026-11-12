@@ -45,6 +45,7 @@ def isolated_repo(root, sources=None):
         (root / "scripts" / name).write_text(source)
     substitutions = {
         "$ROOT_DIR": str(root),
+        "$WORKSPACE_DIR": str(root),
         "${PKG_VERSION}": VERSION,
         "${DOCS_VERSION}": VERSION,
         "$CURRENT_AUDIT_HTML": "security-audit.html",
@@ -55,7 +56,7 @@ def isolated_repo(root, sources=None):
         source = (root / "scripts" / name).read_text()
         paths.update(
             re.findall(
-                r'(?:require_file|copy_release_file|convert) "(\$ROOT_DIR/[^"\n]+)"',
+                r'(?:require_file|copy_release_file|convert) "(\$(?:ROOT|WORKSPACE)_DIR/[^"\n]+)"',
                 source,
             )
         )
@@ -182,6 +183,10 @@ def build_deb(
     docs = staging / "usr/share/doc/netmon"
     docs.mkdir(parents=True)
     (docs / "copyright").write_text(payload)
+    # Like build_netmon_deb.sh: ship the generated documentation byte-for-byte.
+    for generated in sorted((root / "dist/docs").glob("netmon_dokumentation_*")):
+        if generated.is_file() and not generated.is_symlink():
+            shutil.copyfile(generated, docs / generated.name)
     if test_doc:
         (docs / "TEST-BUILD.md").write_text("# TESTBUILD\n")
     deb = root / f"dist/netmon_{VERSION}_all.deb"
@@ -1092,3 +1097,120 @@ def test_deb_builder_release_mode_is_exclusive_and_explicit():
     assert not (
         ROOT / "dist" / f"netmon_{VERSION}~v4dnstest20261111.1_all.deb"
     ).exists()
+
+
+# --- Production bundles sign only committed content and tooling ----------
+
+
+def _signing_marker(root):
+    marker = root / "signer-called"
+    signer = root / "test-bin/minisign"
+    signer.unlink()
+    signer.write_text(
+        '#!/bin/sh\nif [ "$1" = -S ]; then\n'
+        f'  printf called >> "{marker}"\nfi\n'
+        f'exec "{shutil.which("minisign")}" "$@"\n'
+    )
+    signer.chmod(0o700)
+    return marker
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+@pytest.mark.parametrize(
+    "change",
+    [
+        "modified-page",
+        "untracked-page",
+        "staged-page",
+        "modified-tool",
+        "modified-launcher",
+        "modified-common",
+        "modified-pubkey",
+    ],
+)
+def test_uncommitted_inputs_or_tooling_are_never_signed(repo, profile, change):
+    root, secret = repo
+    if change == "modified-page":
+        (root / "site/downloads.html").write_text("<p>unreviewed</p>\n")
+    elif change == "untracked-page":
+        (root / "site/en/unreviewed.html").write_text("<p>unreviewed</p>\n")
+    elif change == "staged-page":
+        (root / "site/docs.html").write_text("<p>staged only</p>\n")
+        git(root, "add", "site/docs.html")
+    elif change == "modified-tool":
+        path = root / "scripts/verify_netmon_release_bundle.py"
+        path.write_text(path.read_text() + "\n# local tooling edit\n")
+    elif change == "modified-launcher":
+        path = root / "scripts/netmon_release_source.py"
+        path.write_text(path.read_text() + "\n# local launcher edit\n")
+    elif change == "modified-common":
+        path = root / "scripts/netmon_release_common.sh"
+        path.write_text(path.read_text() + "\n# local edit\n")
+    else:
+        path = root / "docs/security/netmonroots.minisign.pub"
+        path.write_text(path.read_text() + "\n")
+    marker = _signing_marker(root)
+    result = run_build(root, profile, NETMON_MINISIGN_SECRET_KEY=str(secret))
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "committetem Stand" in result.stderr
+    assert not marker.exists(), "uncommitted release input reached signing"
+    no_production_output(root, profile)
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+def test_build_signs_the_commit_even_if_workspace_changes_mid_build(repo, profile):
+    root, secret = repo
+    committed = (root / "site/docs.html").read_bytes()
+    # Unrelated dirty files elsewhere do not block an official build.
+    (root / "netmon/config/unrelated.py").write_text("LOCAL = True\n")
+    # After the clean check and snapshot, edit a signed input and a tool in
+    # the workspace while the build runs: neither may reach the bundle.
+    wrapper = root / "test-bin/python3"
+    wrapper.unlink()
+    wrapper.write_text(
+        "#!/bin/sh\n"
+        'case "$1" in */check_release_consistency.py)\n'
+        f'  printf "<p>late edit</p>" > "{root}/site/docs.html"\n'
+        f'  printf "raise SystemExit(9)\\n" >> "{root}/scripts/verify_netmon_release_bundle.py"\n'
+        "esac\n"
+        f'exec "{shutil.which("python3")}" "$@"\n'
+    )
+    wrapper.chmod(0o700)
+    result = run_build(root, profile, NETMON_MINISIGN_SECRET_KEY=str(secret))
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Release-Quelle: Commit " + git(root, "rev-parse", "HEAD") in result.stderr
+    bundle = root / "dist" / profile[1] / profile[2]
+    with zipfile.ZipFile(bundle) as archive:
+        assert archive.read("public_html/docs.html") == committed
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+@pytest.mark.parametrize("document", ["pdf", "html"])
+def test_generated_docs_must_match_the_receipt_bound_deb(repo, profile, document):
+    root, secret = repo
+    path = root / f"dist/docs/netmon_dokumentation_{VERSION}.{document}"
+    path.write_text("regenerated after the release DEB\n")
+    marker = _signing_marker(root)
+    result = run_build(root, profile, NETMON_MINISIGN_SECRET_KEY=str(secret))
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "belegten Release-DEB" in result.stderr
+    assert not marker.exists()
+    no_production_output(root, profile)
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+def test_workspace_script_cannot_skip_the_snapshot(repo, profile):
+    root, secret = repo
+    marker = _signing_marker(root)
+    result = run_build(
+        root,
+        profile,
+        NETMON_MINISIGN_SECRET_KEY=str(secret),
+        NETMON_RELEASE_SOURCE_DIR=str(root),
+        NETMON_RELEASE_WORKSPACE=str(root),
+        NETMON_RELEASE_COMMIT=git(root, "rev-parse", "HEAD"),
+    )
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "Commit-Snapshot" in result.stderr
+    assert not marker.exists()
+    no_production_output(root, profile)

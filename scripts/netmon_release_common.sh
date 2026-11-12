@@ -1,9 +1,23 @@
 #!/usr/bin/env bash
 # Shared production-only lifecycle. Caller must enable set -euo pipefail.
 
+require_release_snapshot() {
+  # ROOT_DIR is the private git export of NETMON_RELEASE_COMMIT made by
+  # netmon_release_source.py; WORKSPACE_DIR only supplies dist/ artifacts.
+  WORKSPACE_DIR="${NETMON_RELEASE_WORKSPACE:-}"
+  if [[ ! "${NETMON_RELEASE_COMMIT:-}" =~ ^[0-9a-f]{40}$ \
+        || -z "$WORKSPACE_DIR" || "$WORKSPACE_DIR" == "$ROOT_DIR" \
+        || -e "$ROOT_DIR/.git" || ! -d "$WORKSPACE_DIR/.git" ]]; then
+    echo "Release-Abbruch: Produktions-Bundles nur ueber netmon_release_source.py aus einem Commit-Snapshot." >&2
+    return 1
+  fi
+  readonly WORKSPACE_DIR
+}
+
 begin_release_build() {
   local label="$1"
-  OUTPUT_DIR="$ROOT_DIR/dist/$label"
+  require_release_snapshot
+  OUTPUT_DIR="$WORKSPACE_DIR/dist/$label"
   RELEASE_WORK=""
   RELEASE_PREVIOUS=""
   trap 'release_cleanup "$?"' EXIT
@@ -11,14 +25,14 @@ begin_release_build() {
   trap 'exit 143' TERM
   umask 077
   local path
-  for path in "$ROOT_DIR/dist" "$ROOT_DIR/dist/.release-work" "$ROOT_DIR/dist/.release-history"; do
+  for path in "$WORKSPACE_DIR/dist" "$WORKSPACE_DIR/dist/.release-work" "$WORKSPACE_DIR/dist/.release-history"; do
     if [[ -L "$path" || ( -e "$path" && ! -d "$path" ) ]]; then
       echo "Release-Abbruch: Unsicherer Ausgabepfad: $path" >&2
       return 1
     fi
     mkdir -p -- "$path"
   done
-  local lock="$ROOT_DIR/dist/.$label.lock"
+  local lock="$WORKSPACE_DIR/dist/.$label.lock"
   if [[ -L "$lock" ]]; then
     echo "Release-Abbruch: Lock-Datei darf kein Symlink sein." >&2
     return 1
@@ -35,12 +49,12 @@ begin_release_build() {
     return 1
   fi
   if [[ -d "$OUTPUT_DIR" ]]; then
-    RELEASE_PREVIOUS="$(mktemp -d "$ROOT_DIR/dist/.release-history/$label.previous.XXXXXX")"
+    RELEASE_PREVIOUS="$(mktemp -d "$WORKSPACE_DIR/dist/.release-history/$label.previous.XXXXXX")"
     python3 -c 'import os, sys; os.rename(sys.argv[1], sys.argv[2])' \
       "$OUTPUT_DIR" "$RELEASE_PREVIOUS/previous-output"
     echo "Vorheriger Build archiviert (kein Ergebnis dieses Laufs): $RELEASE_PREVIOUS" >&2
   fi
-  RELEASE_WORK="$(mktemp -d "$ROOT_DIR/dist/.release-work/$label.XXXXXX")"
+  RELEASE_WORK="$(mktemp -d "$WORKSPACE_DIR/dist/.release-work/$label.XXXXXX")"
   BUILD_DIR="$RELEASE_WORK"
 }
 
@@ -76,18 +90,39 @@ copy_release_file() {
   fi
   # Open every source component with O_NOFOLLOW, then copy from that FD.
   # A preflight -L check alone would leave a check/use race before cp/convert.
+  # Committed content comes from the snapshot; only dist/ from the workspace.
+  local source_root="$ROOT_DIR"
+  if [[ "$source" == "$WORKSPACE_DIR/dist/"* ]]; then
+    source_root="$WORKSPACE_DIR"
+  fi
   python3 "$ROOT_DIR/scripts/copy_netmon_release_input.py" \
+    --source-root "$source_root" --destination-root "$WORKSPACE_DIR" \
     "$BUILD_DIR" "$source" "$target"
 }
 
 stage_release_deb() {
   # Copy first, then prove the private staged bytes: what gets signed is the
   # receipt-bound DEB from build_netmon_deb.sh --release for the current HEAD.
-  local source="$ROOT_DIR/dist/netmon_${PKG_VERSION}_all.deb" target="$1"
+  local source="$WORKSPACE_DIR/dist/netmon_${PKG_VERSION}_all.deb" target="$1"
   copy_release_file "$source" "$target/"
   RELEASE_DEB_SHA256="$(python3 "$ROOT_DIR/scripts/netmon_release_deb_receipt.py" verify \
-    "$source" "$target/netmon_${PKG_VERSION}_all.deb" --version "$PKG_VERSION" --sha256-only)"
+    "$source" "$target/netmon_${PKG_VERSION}_all.deb" --version "$PKG_VERSION" \
+    --commit "$NETMON_RELEASE_COMMIT" --sha256-only)"
   readonly RELEASE_DEB_SHA256
+  RELEASE_STAGED_DEB="$target/netmon_${PKG_VERSION}_all.deb"
+}
+
+stage_release_docs() {
+  # dist/docs is generated, not committed. Accept it only byte-identical to
+  # the copies inside the receipt-approved DEB staged above.
+  local target="$1" name
+  for name in "netmon_dokumentation_${DOCS_VERSION}.pdf" "netmon_dokumentation_${DOCS_VERSION}.html"; do
+    copy_release_file "$WORKSPACE_DIR/dist/docs/$name" "$target/"
+  done
+  python3 "$ROOT_DIR/scripts/netmon_release_deb_receipt.py" docs \
+    "$RELEASE_STAGED_DEB" --sha256 "$RELEASE_DEB_SHA256" \
+    "$target/netmon_dokumentation_${DOCS_VERSION}.pdf" \
+    "$target/netmon_dokumentation_${DOCS_VERSION}.html"
 }
 
 write_release_checksums() {

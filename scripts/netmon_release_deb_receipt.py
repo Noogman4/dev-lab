@@ -17,6 +17,7 @@ import re
 import stat
 import subprocess
 import sys
+import tarfile
 from pathlib import Path
 
 from read_netmon_version import ROOT
@@ -196,8 +197,12 @@ def _read_receipt(path):
     return receipt
 
 
-def verify_receipt(source_deb, staged_deb, version):
-    """Check the staged copy that is signed against the source DEB's receipt."""
+def verify_receipt(source_deb, staged_deb, version, commit=None):
+    """Check the staged copy that is signed against the source DEB's receipt.
+
+    ``commit`` is the snapshot commit a production bundle is built from; it
+    replaces the HEAD lookup, which a git-less snapshot cannot perform.
+    """
     source_deb, staged_deb = Path(source_deb), Path(staged_deb)
     receipt = _read_receipt(source_deb.with_name(source_deb.name + RECEIPT_SUFFIX))
     expected = {
@@ -212,7 +217,9 @@ def verify_receipt(source_deb, staged_deb, version):
             raise ReceiptError(f"Release receipt mismatch: {key}")
     if not COMMIT.fullmatch(str(receipt["commit"])):
         raise ReceiptError("Release receipt commit malformed")
-    if receipt["commit"] != head_commit():
+    if commit is not None and not COMMIT.fullmatch(commit):
+        raise ReceiptError("Expected release commit malformed")
+    if receipt["commit"] != (commit if commit is not None else head_commit()):
         raise ReceiptError(
             "Release-DEB wurde nicht aus dem aktuellen Commit gebaut "
             f"(Beleg {receipt['commit'][:12]})"
@@ -223,6 +230,47 @@ def verify_receipt(source_deb, staged_deb, version):
         raise ReceiptError("DEB-Hash stimmt nicht mit dem Release-Beleg ueberein")
     _require_release_identity(staged_deb, version)
     return receipt
+
+
+def verify_docs(staged_deb, deb_sha256, documents):
+    """Generated docs must equal the copies shipped in the approved DEB."""
+    staged_deb = Path(staged_deb)
+    if _sha256(staged_deb) != deb_sha256:
+        raise ReceiptError("DEB differs from receipt-approved SHA-256")
+    wanted = {}
+    for document in map(Path, documents):
+        wanted[f"./usr/share/doc/{PACKAGE}/{document.name}"] = _sha256(document)
+    found = {}
+    tar = subprocess.Popen(
+        ["dpkg-deb", "--fsys-tarfile", str(staged_deb)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        with tarfile.open(fileobj=tar.stdout, mode="r|") as members:
+            for member in members:
+                name = (
+                    member.name if member.name.startswith("./") else "./" + member.name
+                )
+                if name not in wanted:
+                    continue
+                if not member.isfile() or name in found:
+                    raise ReceiptError(f"Mehrdeutige Doku im DEB: {name}")
+                digest = hashlib.sha256()
+                handle = members.extractfile(member)
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    digest.update(chunk)
+                found[name] = digest.hexdigest()
+    finally:
+        tar.stdout.close()
+        if tar.wait(timeout=300) != 0:
+            raise ReceiptError("DEB-Inhalt nicht lesbar")
+    for name, digest in wanted.items():
+        if found.get(name) != digest:
+            raise ReceiptError(
+                f"Dokumentation {Path(name).name} stimmt nicht mit der Kopie im "
+                "belegten Release-DEB ueberein"
+            )
 
 
 def main(argv=None):
@@ -238,6 +286,11 @@ def main(argv=None):
     verify.add_argument("staged_deb")
     verify.add_argument("--version", required=True)
     verify.add_argument("--sha256-only", action="store_true")
+    verify.add_argument("--commit")
+    docs = commands.add_parser("docs")
+    docs.add_argument("staged_deb")
+    docs.add_argument("documents", nargs="+")
+    docs.add_argument("--sha256", required=True)
     options = parser.parse_args(argv)
     try:
         if options.command == "preflight":
@@ -247,9 +300,15 @@ def main(argv=None):
             print(
                 f"Release-Beleg: {write_receipt(options.deb, options.version, options.commit)}"
             )
+        elif options.command == "docs":
+            verify_docs(options.staged_deb, options.sha256, options.documents)
+            print("Dokumentation an Release-DEB gebunden")
         else:
             receipt = verify_receipt(
-                options.source_deb, options.staged_deb, options.version
+                options.source_deb,
+                options.staged_deb,
+                options.version,
+                options.commit,
             )
             if options.sha256_only:
                 print(receipt["sha256"])

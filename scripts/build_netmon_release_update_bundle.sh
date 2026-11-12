@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "${NETMON_RELEASE_SOURCE_DIR:-}" != "$(dirname "$SCRIPT_DIR")" ]]; then
+  # Production bundles are built only from a committed snapshot: re-run this
+  # script from a private git export of the pinned HEAD commit.
+  exec python3 -I "$SCRIPT_DIR/netmon_release_source.py" run "${BASH_SOURCE[0]##*/}" "$@"
+fi
+ROOT_DIR="$NETMON_RELEASE_SOURCE_DIR"
 # shellcheck source=scripts/netmon_release_common.sh
 source "$ROOT_DIR/scripts/netmon_release_common.sh"
 begin_release_build site-release-update
@@ -42,9 +48,9 @@ ensure_no_embedded_stats_token() {
   fi
 }
 
-require_file "$ROOT_DIR/dist/netmon_${PKG_VERSION}_all.deb"
-require_file "$ROOT_DIR/dist/docs/netmon_dokumentation_${DOCS_VERSION}.pdf"
-require_file "$ROOT_DIR/dist/docs/netmon_dokumentation_${DOCS_VERSION}.html"
+require_file "$WORKSPACE_DIR/dist/netmon_${PKG_VERSION}_all.deb"
+require_file "$WORKSPACE_DIR/dist/docs/netmon_dokumentation_${DOCS_VERSION}.pdf"
+require_file "$WORKSPACE_DIR/dist/docs/netmon_dokumentation_${DOCS_VERSION}.html"
 require_file "$ROOT_DIR/site/latest-version.json"
 require_file "$ROOT_DIR/site/download-config.php"
 require_file "$ROOT_DIR/site/downloads.html"
@@ -80,8 +86,7 @@ copy_release_file "$ROOT_DIR/site/en/docs.html" "$EN_DIR/docs.html"
 copy_release_file "$ROOT_DIR/site/en/security-audit.html" "$EN_DIR/security-audit.html"
 
 stage_release_deb "$DIST_DIR"
-copy_release_file "$ROOT_DIR/dist/docs/netmon_dokumentation_${DOCS_VERSION}.pdf" "$DIST_DOCS_DIR/"
-copy_release_file "$ROOT_DIR/dist/docs/netmon_dokumentation_${DOCS_VERSION}.html" "$DIST_DOCS_DIR/"
+stage_release_docs "$DIST_DOCS_DIR"
 
 copy_release_file "$ROOT_DIR/scripts/verify_netmon_download.sh" "$VERIFY_DIR/"
 copy_release_file "$ROOT_DIR/scripts/verify_netmon_signature.sh" "$MINISIGN_VERIFY_SCRIPT"
