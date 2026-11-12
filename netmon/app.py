@@ -33676,30 +33676,58 @@ class App(TkBase):
             dep_key for dep_key in selected_keys if dep_key not in file_feature_keys
         ]
 
-        imported_features = []
-        if file_feature_keys:
-            try:
-                imported_features = self._install_selected_file_features(
-                    file_feature_keys
-                )
-            except Exception as exc:
+        if not file_feature_keys:
+            self._continue_dependency_install(package_keys, [])
+            return
+        if self.__dict__.get("_dep_installer_file_import_running"):
+            self.dep_installer_status_var.set(
+                "Datei-Import läuft bereits. Bitte warten …"
+            )
+            return
+
+        # Downloads (Firefox runtime, projectM presets) can take minutes.
+        # Run them off the Tk thread so the GUI keeps responding, and continue
+        # on the Tk thread with the selection captured at click time.
+        self._dep_installer_file_import_running = True
+        self.dep_installer_status_var.set(
+            "Komponenten werden heruntergeladen und geprüft …"
+        )
+
+        def finish(imported_features, exc):
+            self._dep_installer_file_import_running = False
+            if exc is not None:
                 self.dep_installer_status_var.set(f"Datei-Import fehlgeschlagen: {exc}")
                 self.log_safe(f"Setup Datei-Import Fehler: {exc}")
                 return
             if imported_features is False:
                 return
-            if imported_features:
-                self.refresh_fun_games()
-                imported_messages = []
-                for dep_key, imported_result in imported_features:
-                    label = DEPENDENCIES.get(dep_key, {}).get("label", dep_key)
-                    if dep_key == "code_the_classics_files":
-                        imported_messages.append(f"{label} ({imported_result} Spiele)")
-                    elif dep_key == "projectm_presets_cream_crop":
-                        imported_messages.append(f"{label} ({imported_result} Presets)")
-                    else:
-                        imported_messages.append(f"{label} ({imported_result})")
-                self.log_safe("Setup importiert: " + ", ".join(imported_messages))
+            self._continue_dependency_install(package_keys, imported_features)
+
+        def import_worker():
+            try:
+                result = self._install_selected_file_features(file_feature_keys)
+            except Exception as exc:
+                self.after(0, lambda exc=exc: finish(None, exc))
+                return
+            self.after(0, lambda: finish(result, None))
+
+        threading.Thread(
+            target=import_worker, name="netmon-file-feature-import", daemon=True
+        ).start()
+
+    def _continue_dependency_install(self, package_keys, imported_features):
+        if imported_features:
+            self.refresh_fun_games()
+            imported_messages = []
+            for dep_key, imported_result in imported_features:
+                label = DEPENDENCIES.get(dep_key, {}).get("label", dep_key)
+                if dep_key == "code_the_classics_files":
+                    imported_messages.append(f"{label} ({imported_result} Spiele)")
+                elif dep_key == "projectm_presets_cream_crop":
+                    imported_messages.append(f"{label} ({imported_result} Presets)")
+                else:
+                    imported_messages.append(f"{label} ({imported_result})")
+            self.log_safe("Setup importiert: " + ", ".join(imported_messages))
 
         if not package_keys:
             self.dep_installer_status_var.set(

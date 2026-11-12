@@ -397,7 +397,9 @@ def test_dependency_installer_integration_hooks_are_present():
     )
     assert "self._log_dependency_installer_summary()" in preflight_source
     assert "self._update_dependency_installer_button()" in preflight_source
-    assert "self._build_external_terminal_command(script)" in install_source
+    assert "self._build_external_terminal_command(script)" in inspect.getsource(
+        App._continue_dependency_install
+    )
     assert "_install_selected_file_features(" in install_source
     assert "self._get_code_the_classics_zip_path()" in inspect.getsource(
         App._install_selected_file_features
@@ -580,3 +582,113 @@ def test_venv_python_modules_available_uses_project_venv_python(tmp_path, monkey
     assert app._venv_python_modules_available("PySide6") is True
     assert calls
     assert calls[0][0] == "/tmp/netmon-venv/bin/python"
+
+
+def test_file_feature_import_runs_off_the_tk_thread(monkeypatch):
+    """A slow Firefox runtime download must not block the Tk event loop."""
+    import netmon.app as app_module
+
+    class Var:
+        def __init__(self, value=None):
+            self.value = value
+
+        def get(self):
+            return self.value
+
+        def set(self, value):
+            self.value = value
+
+    app = App.__new__(App)
+    statuses = Var("")
+    scheduled = []
+    continued = []
+    started_threads = []
+    install_calls = []
+    app.__dict__.update(
+        dep_installer_vars={"secure_browser_firefox_source": Var(True)},
+        dep_installer_status_var=statuses,
+        log_safe=lambda _message: None,
+        after=lambda _delay, callback: scheduled.append(callback),
+        _install_selected_file_features=lambda keys: (
+            install_calls.append(list(keys)) or [(keys[0], "/x/firefox")]
+        ),
+        _continue_dependency_install=lambda packages, imported: continued.append(
+            (packages, imported)
+        ),
+    )
+
+    class RecordingThread:
+        def __init__(self, target=None, name=None, daemon=None):
+            self.target = target
+            self.daemon = daemon
+            started_threads.append(self)
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(app_module.threading, "Thread", RecordingThread)
+
+    App.install_selected_dependencies(app)
+
+    # The click handler returned without downloading anything itself.
+    assert install_calls == []
+    assert len(started_threads) == 1 and started_threads[0].daemon is True
+    assert "heruntergeladen" in statuses.get()
+
+    # A second click while the import runs does not start another one.
+    App.install_selected_dependencies(app)
+    assert len(started_threads) == 1
+    assert "läuft bereits" in statuses.get()
+
+    started_threads[0].target()
+    assert install_calls == [["secure_browser_firefox_source"]]
+    assert continued == []  # continuation is handed back to the Tk thread
+    assert len(scheduled) == 1
+    scheduled[0]()
+    assert continued == [([], [("secure_browser_firefox_source", "/x/firefox")])]
+    assert app.__dict__["_dep_installer_file_import_running"] is False
+
+
+def test_file_feature_import_failure_is_reported_on_tk_thread(monkeypatch):
+    import netmon.app as app_module
+
+    class Var:
+        def __init__(self, value=None):
+            self.value = value
+
+        def get(self):
+            return self.value
+
+        def set(self, value):
+            self.value = value
+
+    def failing_install(_keys):
+        raise TimeoutError("Firefox-Download-Zeitlimit erreicht")
+
+    app = App.__new__(App)
+    statuses = Var("")
+    scheduled = []
+    logged = []
+    threads = []
+    app.__dict__.update(
+        dep_installer_vars={"secure_browser_firefox_source": Var(True)},
+        dep_installer_status_var=statuses,
+        log_safe=logged.append,
+        after=lambda _delay, callback: scheduled.append(callback),
+        _install_selected_file_features=failing_install,
+        _continue_dependency_install=lambda *_args: pytest.fail("must not continue"),
+    )
+    monkeypatch.setattr(
+        app_module.threading,
+        "Thread",
+        lambda target=None, name=None, daemon=None: threads.append(target)
+        or type("T", (), {"start": lambda self: None})(),
+    )
+
+    App.install_selected_dependencies(app)
+    threads[0]()
+    scheduled[0]()
+
+    assert "Zeitlimit" in statuses.get()
+    assert logged and "Zeitlimit" in logged[0]
+    assert app.__dict__["_dep_installer_file_import_running"] is False

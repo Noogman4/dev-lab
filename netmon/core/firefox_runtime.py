@@ -12,10 +12,12 @@ import os
 from pathlib import Path
 import re
 import shutil
+import socket
 import stat
 import subprocess
 import tarfile
 import tempfile
+import threading
 import time
 from urllib.parse import urljoin, urlsplit
 
@@ -70,9 +72,129 @@ def _remaining(deadline):
     return min(SOCKET_SECONDS, remaining)
 
 
+class _DeadlineGuard:
+    """Hard total deadline for every socket a download opens.
+
+    Socket timeouts only bound a single recv/send; a peer that trickles one
+    byte per timeout through the TLS handshake, the response headers or chunk
+    framing would otherwise outlive TOTAL_SECONDS without limit. At the
+    deadline this watcher shuts the connections down, which wakes every
+    blocked operation immediately. It holds its own duplicated descriptors,
+    so the shutdown reaches the TCP connection even after ssl.wrap_socket has
+    taken over the original socket object, and no reused fd number is hit.
+    """
+
+    def __init__(self, deadline):
+        self._deadline = deadline
+        self._lock = threading.Lock()
+        self._sockets = []
+        self._done = threading.Event()
+        self.expired = False
+        self._thread = threading.Thread(
+            target=self._watch, name="netmon-firefox-deadline", daemon=True
+        )
+
+    def __enter__(self):
+        self._thread.start()
+        return self
+
+    def __exit__(self, *_exc):
+        self._done.set()
+        self._thread.join()
+        with self._lock:
+            sockets, self._sockets = self._sockets, []
+        for handle in sockets:
+            handle.close()
+        return False
+
+    def _watch(self):
+        if self._done.wait(max(0.0, self._deadline - time.monotonic())):
+            return
+        with self._lock:
+            self.expired = True
+            sockets = list(self._sockets)
+        for handle in sockets:
+            try:
+                handle.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+
+    def track(self, sock):
+        handle = sock.dup()
+        with self._lock:
+            if not self.expired:
+                self._sockets.append(handle)
+                return
+        handle.close()
+        raise TimeoutError("Firefox-Download-Zeitlimit erreicht")
+
+
+def _resolve(host, port, deadline):
+    """getaddrinfo cannot be cancelled; stop waiting for it at the deadline."""
+    result = {}
+
+    def lookup():
+        try:
+            result["addresses"] = socket.getaddrinfo(
+                host, port, 0, socket.SOCK_STREAM, socket.IPPROTO_TCP
+            )
+        except BaseException as exc:  # handed to the waiting thread
+            result["error"] = exc
+
+    resolver = threading.Thread(target=lookup, name="netmon-firefox-dns", daemon=True)
+    resolver.start()
+    resolver.join(max(0.0, deadline - time.monotonic()))
+    if resolver.is_alive():
+        raise TimeoutError("Firefox-Download-Zeitlimit erreicht (DNS)")
+    _remaining(deadline)
+    if "error" in result:
+        raise result["error"]
+    return result["addresses"]
+
+
+def _deadline_connector(deadline, guard):
+    """Replacement for HTTPConnection._create_connection bounded by deadline."""
+
+    def connect(address, timeout=None, source_address=None):
+        host, port = address
+        last_error = None
+        for family, kind, protocol, _name, endpoint in _resolve(host, port, deadline):
+            sock = socket.socket(family, kind, protocol)
+            try:
+                guard.track(sock)
+                sock.settimeout(_remaining(deadline))
+                if source_address:
+                    sock.bind(source_address)
+                sock.connect(endpoint)
+                return sock
+            except OSError as exc:
+                sock.close()
+                if guard.expired or time.monotonic() >= deadline:
+                    raise TimeoutError("Firefox-Download-Zeitlimit erreicht") from exc
+                last_error = exc
+        raise last_error or OSError("Keine Adresse fuer Firefox-Download")
+
+    return connect
+
+
 def download(url, destination, max_bytes, *, deadline=None):
-    """Stream HTTPS with explicit redirects; intermediate bodies are never read."""
+    """Stream HTTPS with explicit redirects; intermediate bodies are never read.
+
+    The whole call, including DNS, TCP/TLS setup, headers and body, ends no
+    later than deadline (default: TOTAL_SECONDS from now).
+    """
     deadline = deadline if deadline is not None else time.monotonic() + TOTAL_SECONDS
+    _remaining(deadline)
+    with _DeadlineGuard(deadline) as guard:
+        try:
+            return _download(url, destination, max_bytes, deadline, guard)
+        except Exception as exc:
+            if guard.expired and not isinstance(exc, TimeoutError):
+                raise TimeoutError("Firefox-Download-Zeitlimit erreicht") from exc
+            raise
+
+
+def _download(url, destination, max_bytes, deadline, guard):
     seen = set()
     created = False
     try:
@@ -84,6 +206,9 @@ def download(url, destination, max_bytes, *, deadline=None):
             connection = http.client.HTTPSConnection(
                 parts.hostname, timeout=_remaining(deadline)
             )
+            # DNS and every connect attempt share the total deadline, and each
+            # socket is registered with the guard before it is used.
+            connection._create_connection = _deadline_connector(deadline, guard)
             response = None
             try:
                 # No cookies, Authorization, environment proxies or ambient headers.

@@ -6,6 +6,7 @@ import io
 import http.server
 import http.client
 import threading
+import time
 from pathlib import Path
 import shutil
 import subprocess
@@ -688,3 +689,116 @@ def test_signed_manifest_allows_other_platform_paths_with_spaces(
     target = tmp_path / "runtime" / "firefox"
     import_app(target)
     assert (target / "firefox").read_bytes() == signed_package["payload"]
+
+
+# --- Hard total deadline (DNS, handshake/headers, chunk framing) ----------
+
+
+def _trickle_server(prefix, trickle_byte, stop):
+    """Loopback server: send prefix, then one byte every 50 ms until stop."""
+    import socket as socket_module
+
+    listener = socket_module.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+
+    def serve():
+        try:
+            conn, _ = listener.accept()
+        except OSError:
+            return
+        with conn:
+            try:
+                conn.recv(4096)
+                conn.sendall(prefix)
+                while not stop.wait(0.05):
+                    conn.sendall(trickle_byte)
+            except OSError:
+                pass
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    return listener, thread
+
+
+@pytest.mark.parametrize(
+    "prefix,trickle_byte",
+    [
+        # Status line arrives, then one header byte at a time forever.
+        (b"HTTP/1.1 200 OK\r\nX-Slow: ", b"a"),
+        # Headers complete, then the chunk-size line never ends.
+        (b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1;", b"x"),
+    ],
+    ids=["headers", "chunk-framing"],
+)
+def test_trickling_peer_cannot_outlive_total_deadline(
+    tmp_path, monkeypatch, prefix, trickle_byte
+):
+    stop = threading.Event()
+    listener, thread = _trickle_server(prefix, trickle_byte, stop)
+    port = listener.getsockname()[1]
+    real_http = http.client.HTTPConnection
+
+    def local_connection(host, timeout):
+        assert host in runtime.ALLOWED_HOSTS
+        # Per-operation timeout far above the total budget: only the hard
+        # deadline can end this download.
+        return real_http("127.0.0.1", port, timeout=timeout)
+
+    monkeypatch.setattr(runtime.http.client, "HTTPSConnection", local_connection)
+    monkeypatch.setattr(runtime, "SOCKET_SECONDS", 30)
+    output = tmp_path / "out"
+    started = time.monotonic()
+    try:
+        with pytest.raises(TimeoutError):
+            runtime.download(URL, output, 1024, deadline=started + 0.6)
+        elapsed = time.monotonic() - started
+    finally:
+        stop.set()
+        listener.close()
+        thread.join(timeout=2)
+    assert elapsed < 2.0
+    assert not output.exists()
+
+
+def test_hanging_dns_cannot_outlive_total_deadline(tmp_path, monkeypatch):
+    release = threading.Event()
+    calls = []
+
+    def hanging_getaddrinfo(*args, **_kwargs):
+        calls.append(args[:2])
+        release.wait(10)
+        raise OSError("released")
+
+    real_http = http.client.HTTPConnection
+    monkeypatch.setattr(
+        runtime.http.client,
+        "HTTPSConnection",
+        lambda host, timeout: real_http(host, 443, timeout=timeout),
+    )
+    monkeypatch.setattr(runtime.socket, "getaddrinfo", hanging_getaddrinfo)
+    started = time.monotonic()
+    try:
+        with pytest.raises(TimeoutError):
+            runtime.download(URL, tmp_path / "out", 10, deadline=started + 0.3)
+        elapsed = time.monotonic() - started
+    finally:
+        release.set()
+    assert calls == [("download.mozilla.org", 443)]
+    assert elapsed < 1.5
+    assert not list(tmp_path.iterdir())
+
+
+def test_deadline_guard_rejects_sockets_after_expiry():
+    import socket as socket_module
+
+    guard = runtime._DeadlineGuard(time.monotonic() - 1)
+    with guard:
+        guard._thread.join(timeout=2)
+        assert guard.expired
+        sock = socket_module.socket()
+        try:
+            with pytest.raises(TimeoutError):
+                guard.track(sock)
+        finally:
+            sock.close()
