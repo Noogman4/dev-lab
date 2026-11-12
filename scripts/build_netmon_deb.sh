@@ -16,9 +16,20 @@ EXTRA_TOOLS="wireshark, tshark, projectm, projectm-pulseaudio, python3-pypdf2, p
 DEPENDENCIES="$PYTHON_DEPENDS, udisks2, cryptsetup"
 RELATIONSHIPS="Recommends: $FEATURE_TOOLS
 Suggests: $EXTRA_TOOLS"
+RELEASE_BUILD=0
+RELEASE_COMMIT=""
+if [[ $# == 1 && "$1" == "--release" ]]; then
+  # Official lane: only a clean, committed package source gets a receipt that
+  # the signed production bundles accept. Plain local builds never get one.
+  RELEASE_BUILD=1
+  RELEASE_COMMIT="$(python3 "$ROOT_DIR/scripts/netmon_release_deb_receipt.py" preflight)"
+  shift
+fi
 if (( $# )); then
   if [[ "$1" == "--help" && $# == 1 ]]; then
-    echo "Usage: $0 [--test-version ${DOCS_VERSION}~v4dnstestYYYYMMDD.N]"
+    echo "Usage: $0 [--release | --test-version ${DOCS_VERSION}~v4dnstestYYYYMMDD.N]"
+    echo "  --release  official build from a clean commit, with release receipt"
+    echo "  (none)     local test build; never accepted by signed release bundles"
     exit 0
   fi
   if [[ "$1" != "--test-version" || $# != 2 ]]; then
@@ -41,8 +52,9 @@ fi
 BUILD_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/netmon-debbuild.XXXXXX")"
 PKG_DIR="$BUILD_ROOT/${PKG_NAME}_${PKG_VERSION}_${PKG_ARCH}"
 OUT_DEB="$ROOT_DIR/dist/${PKG_NAME}_${PKG_VERSION}_${PKG_ARCH}.deb"
-if [[ -e "$OUT_DEB" || -L "$OUT_DEB" ]]; then
-  echo "Refusing to overwrite existing package: $OUT_DEB" >&2
+OUT_RECEIPT="$OUT_DEB.release.json"
+if [[ -e "$OUT_DEB" || -L "$OUT_DEB" || -e "$OUT_RECEIPT" || -L "$OUT_RECEIPT" ]]; then
+  echo "Refusing to overwrite existing package or receipt: $OUT_DEB" >&2
   exit 1
 fi
 APP_ROOT="$PKG_DIR/usr/lib/netmon"
@@ -386,5 +398,16 @@ chmod 0755 \
 
 # Build
 dpkg-deb --root-owner-group --build "$PKG_DIR" "$OUT_DEB"
+
+if (( RELEASE_BUILD )); then
+  if ! python3 "$ROOT_DIR/scripts/netmon_release_deb_receipt.py" write "$OUT_DEB" \
+    --version "$PKG_VERSION" --commit "$RELEASE_COMMIT"; then
+    rm -f -- "$OUT_DEB"
+    echo "Release-DEB verworfen: Quellstand hat sich waehrend des Builds geaendert." >&2
+    exit 1
+  fi
+else
+  echo "Lokaler Testbuild ohne Release-Beleg; nicht fuer signierte Bundles." >&2
+fi
 
 echo "Built: $OUT_DEB"

@@ -55,6 +55,11 @@ NetMon kombiniert klassische Netzwerk-Werkzeuge, DNS-/DoT-Steuerung, Firewall- u
 
 - Aktueller Test-/Paketstand in diesem Repository: `1.1.21`
 - Build-Skript: `scripts/build_netmon_deb.sh`
+- Offizielles Release-DEB nur mit `scripts/build_netmon_deb.sh --release` aus einem
+  committeten, sauberen Paketquellstand. Dabei entsteht
+  `dist/netmon_<version>_all.deb.release.json` (Commit, SHA256, Paketidentitaet).
+  Die signierten Website-/Release-Bundles akzeptieren nur ein DEB mit diesem
+  Beleg fuer den aktuellen HEAD. Builds ohne `--release` sind lokale Testbuilds.
 - Ergebnisdatei: `dist/netmon_<version>_all.deb`
 - Harte Laufzeitabhaengigkeiten im Paket: `udisks2`, `cryptsetup`
 - Paket liefert derzeit unter anderem:

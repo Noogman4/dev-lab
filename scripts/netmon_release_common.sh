@@ -69,6 +69,15 @@ require_release_signing() {
   fi
 }
 
+stage_release_deb() {
+  # Copy first, then prove the private staged bytes: what gets signed is the
+  # receipt-bound DEB from build_netmon_deb.sh --release for the current HEAD.
+  local source="$ROOT_DIR/dist/netmon_${PKG_VERSION}_all.deb" target="$1"
+  cp -- "$source" "$target/"
+  python3 "$ROOT_DIR/scripts/netmon_release_deb_receipt.py" verify \
+    "$source" "$target/netmon_${PKG_VERSION}_all.deb" --version "$PKG_VERSION"
+}
+
 sign_release() {
   minisign -S -s "$NETMON_MINISIGN_SECRET_KEY" -m "$SUMS_FILE" -x "$PUBLIC_DIR/dist/SHA256SUMS.minisig"
   cp "$RELEASE_MINISIGN_PUBKEY" "$MINISIGN_PUBKEY_TARGET"

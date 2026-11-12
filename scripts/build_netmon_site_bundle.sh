@@ -206,7 +206,7 @@ do
   cp "$ROOT_DIR/site/screenshots/$screenshot" "$SCREENSHOTS_DIR/"
 done
 
-cp "$ROOT_DIR/dist/netmon_${PKG_VERSION}_all.deb" "$PUBLIC_DIR/dist/"
+stage_release_deb "$PUBLIC_DIR/dist"
 cp "$ROOT_DIR/dist/docs/netmon_dokumentation_${DOCS_VERSION}.pdf" "$DIST_DOCS_DIR/"
 cp "$ROOT_DIR/dist/docs/netmon_dokumentation_${DOCS_VERSION}.html" "$DIST_DOCS_DIR/"
 

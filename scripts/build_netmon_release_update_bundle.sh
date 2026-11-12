@@ -79,7 +79,7 @@ cp "$ROOT_DIR/site/en/downloads.html" "$EN_DIR/downloads.html"
 cp "$ROOT_DIR/site/en/docs.html" "$EN_DIR/docs.html"
 cp "$ROOT_DIR/site/en/security-audit.html" "$EN_DIR/security-audit.html"
 
-cp "$ROOT_DIR/dist/netmon_${PKG_VERSION}_all.deb" "$DIST_DIR/"
+stage_release_deb "$DIST_DIR"
 cp "$ROOT_DIR/dist/docs/netmon_dokumentation_${DOCS_VERSION}.pdf" "$DIST_DOCS_DIR/"
 cp "$ROOT_DIR/dist/docs/netmon_dokumentation_${DOCS_VERSION}.html" "$DIST_DOCS_DIR/"
 
