@@ -235,3 +235,31 @@ def test_thread_id_is_not_a_process_leader():
     finally:
         release.set()
         thread.join(5)
+
+
+def test_detached_only_while_the_standalone_owner_lives(states):
+    _paths, identities = states
+    assert core.write_radio_host_state(mode="standalone", owner_pid=202)
+    assert core.radio_is_detached()
+    identities[202] = ("boot-b", 2000)  # owner gone, PID reused after reboot
+    assert not core.radio_is_detached()
+    del identities[202]  # owner gone entirely
+    assert not core.radio_is_detached()
+
+
+def test_attaching_needs_a_live_owner_and_embedded_is_never_detached(states):
+    _paths, identities = states
+    assert core.write_radio_launcher_state(launcher_state="attaching", owner_pid=202)
+    assert core.radio_is_detached()
+    del identities[202]
+    assert not core.radio_is_detached()
+    assert core.write_radio_host_state(mode="embedded", owner_pid=101)
+    assert not core.radio_is_detached()
+
+
+@pytest.mark.parametrize("is_netmon", [False, True])
+def test_legacy_detached_state_needs_a_netmon_process(states, monkeypatch, is_netmon):
+    paths, _identities = states
+    _write_legacy_standalone_state(paths, 202)
+    monkeypatch.setattr(core, "_is_netmon_process_leader", lambda pid: is_netmon)
+    assert core.radio_is_detached() is is_netmon

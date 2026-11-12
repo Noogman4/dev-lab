@@ -665,7 +665,10 @@ def radio_is_detached() -> bool:
         return False
     launcher_state = str(state.get("launcher_state", "") or "").strip().lower()
     if launcher_state in {"standalone_active", "attaching"}:
-        return True
+        # A leftover entry (radio closed or crashed, reboot, PID reuse) must
+        # not keep NetMon in "detached" mode with its embedded radio hidden.
+        owner_pid = int(state.get("owner_pid") or state.get("pid") or 0)
+        return owner_pid > 0 and _radio_owner_alive(state, owner_pid)
     if launcher_state in {"embedded_active", "detaching"}:
         return False
     return False
