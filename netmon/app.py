@@ -23082,7 +23082,7 @@ class App(TkBase):
                         cmd,
                         timeout=900,
                     )
-                    timed_out = False
+                    timed_out = rc == 124
                     self._clamav_progress_update_safe(1)
 
                 timestamp = datetime.now()

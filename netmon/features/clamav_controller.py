@@ -5,10 +5,8 @@ from __future__ import annotations
 import json
 import os
 import re
-import signal
 import shutil
 import stat
-import subprocess
 import tempfile
 import threading
 import time
@@ -17,6 +15,11 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 import getpass
+
+try:
+    from netmon.core import clamav_process
+except ModuleNotFoundError:
+    from core import clamav_process
 
 try:
     from netmon.core.utils import safe_write_json, call_in_ui_thread
@@ -574,126 +577,41 @@ def set_clamav_abort_button_state(app, enabled):
     call_in_ui_thread(app, lambda s=state: btn.configure(state=s))
 
 
-def run_clamscan_with_progress(app, cmd, timeout=3600, progress_cb=None):
-    proc = None
-    cancelled = False
-    timed_out = False
-    out_lines = []
-    scanned = 0
-
+def _run_clamscan(app, cmd, *, timeout, progress_cb=None):
     app.clamav_cancel_requested = False
     app._set_clamav_abort_button_state(True)
+
+    def started(process):
+        app.clamav_active_process = process
+
     try:
-        proc = subprocess.Popen(
+        return clamav_process.run_scan(
             cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-            start_new_session=True,
+            timeout=timeout,
+            cancelled=lambda: bool(app.clamav_cancel_requested),
+            started=started,
+            progress=progress_cb,
         )
-        app.clamav_active_process = proc
-        started = time.time()
-
-        while True:
-            if app.clamav_cancel_requested and proc.poll() is None:
-                cancelled = True
-                try:
-                    os.killpg(proc.pid, signal.SIGTERM)
-                except Exception:
-                    try:
-                        proc.terminate()
-                    except Exception:
-                        pass
-
-            if (time.time() - started) > float(timeout) and proc.poll() is None:
-                timed_out = True
-                try:
-                    os.killpg(proc.pid, signal.SIGTERM)
-                except Exception:
-                    try:
-                        proc.terminate()
-                    except Exception:
-                        pass
-
-            line = proc.stdout.readline() if proc.stdout is not None else ""
-            if line:
-                out_lines.append(line)
-                text = line.strip()
-                if text.endswith(" OK") or text.endswith(" FOUND"):
-                    scanned += 1
-                    if callable(progress_cb):
-                        progress_cb(scanned)
-
-            if proc.poll() is not None:
-                try:
-                    rest = proc.stdout.read() if proc.stdout is not None else ""
-                except Exception:
-                    rest = ""
-                if rest:
-                    out_lines.append(rest)
-                break
-
-            if not line:
-                time.sleep(0.05)
-
-        rc = proc.returncode if proc.returncode is not None else 1
-        if timed_out:
-            rc = 124
-        elif rc < 0:
-            cancelled = True
-        elif cancelled and rc == 0:
-            rc = -15
-        return rc, "".join(out_lines), cancelled, timed_out, scanned
     finally:
         app.clamav_active_process = None
         app._set_clamav_abort_button_state(False)
         app.clamav_cancel_requested = False
+
+
+def run_clamscan_with_progress(app, cmd, timeout=3600, progress_cb=None):
+    result = _run_clamscan(app, cmd, timeout=timeout, progress_cb=progress_cb)
+    return (
+        result.returncode,
+        result.output,
+        result.cancelled,
+        result.timed_out,
+        result.scanned,
+    )
 
 
 def run_clamscan_with_cancel(app, cmd, timeout=900):
-    proc = None
-    cancelled = False
-    out = ""
-    rc = 1
-    app.clamav_cancel_requested = False
-    app._set_clamav_abort_button_state(True)
-    try:
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            start_new_session=True,
-        )
-        app.clamav_active_process = proc
-
-        while True:
-            if app.clamav_cancel_requested and proc.poll() is None:
-                cancelled = True
-                try:
-                    os.killpg(proc.pid, signal.SIGTERM)
-                except Exception:
-                    try:
-                        proc.terminate()
-                    except Exception:
-                        pass
-            try:
-                out, _ = proc.communicate(timeout=0.25)
-                rc = proc.returncode if proc.returncode is not None else 1
-                break
-            except subprocess.TimeoutExpired:
-                if app.clamav_cancel_requested:
-                    cancelled = True
-                    continue
-
-        if cancelled and rc not in (0,):
-            rc = -15
-        return rc, out or "", cancelled
-    finally:
-        app.clamav_active_process = None
-        app._set_clamav_abort_button_state(False)
-        app.clamav_cancel_requested = False
+    result = _run_clamscan(app, cmd, timeout=timeout)
+    return result.returncode, result.output, result.cancelled
 
 
 def write_clamav_output(app, lines, replace=True):
@@ -1577,15 +1495,6 @@ def clamav_abort_scan(app):
         app._set_clamav_abort_button_state(False)
         return
     app.clamav_cancel_requested = True
-    proc = app.clamav_active_process
-    if proc is not None and proc.poll() is None:
-        try:
-            os.killpg(proc.pid, signal.SIGTERM)
-        except Exception:
-            try:
-                proc.terminate()
-            except Exception:
-                pass
     app.log("ClamAV-Scan-Abbruch angefordert...")
 
 
@@ -2433,6 +2342,7 @@ def security_clamav_systemscan_async(app):
                 "clamscan",
                 *clamav_database_args(app),
                 "-r",
+                "--infected",
                 *exclude_args,
                 *targets,
             ]
