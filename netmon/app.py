@@ -167,14 +167,24 @@ def is_debian_package_installed(package_name: str) -> bool:
     return result.returncode == 0 and "ok installed" in str(result.stdout or "")
 
 
-def probe_nvidia_smi_package_candidates():
-    if not has_cmd("apt-cache"):
-        return {
-            "installable": False,
-            "preferred_package": "",
-            "available_packages": [],
-        }
+def _apt_cache_c_locale_env():
+    # apt-cache output is localized ("Installationskandidat:"); parse it in C.
+    env = dict(os.environ)
+    env["LC_ALL"] = "C"
+    env.pop("LANGUAGE", None)
+    return env
 
+
+def probe_nvidia_smi_package_candidates():
+    empty = {
+        "installable": False,
+        "preferred_package": "",
+        "available_packages": [],
+    }
+    if not has_cmd("apt-cache"):
+        return empty
+
+    env = _apt_cache_c_locale_env()
     try:
         result = subprocess.run(
             ["apt-cache", "search", "^nvidia-utils-[0-9]+$"],
@@ -183,13 +193,10 @@ def probe_nvidia_smi_package_candidates():
             text=True,
             timeout=8,
             check=False,
+            env=env,
         )
     except Exception:
-        return {
-            "installable": False,
-            "preferred_package": "",
-            "available_packages": [],
-        }
+        return empty
 
     package_candidates = []
     for raw_line in str(result.stdout or "").splitlines():
@@ -203,29 +210,38 @@ def probe_nvidia_smi_package_candidates():
         package_candidates.append((int(match.group(1)), package_name))
 
     package_candidates.sort(key=lambda item: item[0], reverse=True)
+    if not package_candidates:
+        return empty
 
-    available_packages = []
-    for _priority, package_name in package_candidates:
-        try:
-            policy = subprocess.run(
-                ["apt-cache", "policy", package_name],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-                text=True,
-                timeout=8,
-                check=False,
-            )
-        except Exception:
+    # One apt-cache call for all candidates instead of one per package (~0.7 s each).
+    names = [package_name for _priority, package_name in package_candidates]
+    try:
+        policy = subprocess.run(
+            ["apt-cache", "policy", "--", *names],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=15,
+            check=False,
+            env=env,
+        )
+    except Exception:
+        return empty
+    candidates = {}
+    current = ""
+    for raw_line in str(policy.stdout or "").splitlines():
+        if raw_line and not raw_line[0].isspace() and raw_line.rstrip().endswith(":"):
+            current = raw_line.rstrip()[:-1].strip()
             continue
-        candidate_value = ""
-        for raw_line in str(policy.stdout or "").splitlines():
-            line = str(raw_line or "").strip()
-            if line.lower().startswith("candidate:"):
-                candidate_value = line.split(":", 1)[1].strip()
-                break
-        if candidate_value and candidate_value.lower() != "(none)":
-            available_packages.append(package_name)
+        line = raw_line.strip()
+        if current and line.lower().startswith("candidate:"):
+            candidates.setdefault(current, line.split(":", 1)[1].strip())
 
+    available_packages = [
+        name
+        for name in names
+        if candidates.get(name) and candidates[name].lower() != "(none)"
+    ]
     return {
         "installable": bool(available_packages),
         "preferred_package": available_packages[0] if available_packages else "",
@@ -34090,10 +34106,10 @@ class App(TkBase):
         checks["projectm_visualizer_installable"] = bool(
             projectm_probe.get("installable", False)
         )
-        nvidia_smi_probe = probe_nvidia_smi_package_candidates()
+        # The apt probe only matters with an NVIDIA GPU; skip it otherwise.
         checks["nvidia_smi_installable"] = bool(
             checks.get("nvidia_gpu_present", False)
-            and nvidia_smi_probe.get("installable", False)
+            and probe_nvidia_smi_package_candidates().get("installable", False)
         )
         backup_preference = self._desktop_backup_preference()
         preferred_backup_dep = str(
