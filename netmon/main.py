@@ -453,7 +453,7 @@ def _center_geometry_on_primary_monitor(
     return width, height, pos_x, pos_y
 
 
-def _show_startup_splash(duration_ms: int = 5000):
+def _show_startup_splash(duration_ms: int = 4000):
     splash_path = _startup_splash_path()
     if not splash_path:
         return
@@ -745,7 +745,7 @@ def main(argv=None):
         return 1
 
     try:
-        _show_startup_splash(duration_ms=5000)
+        _show_startup_splash(duration_ms=4000)
         app = App(start_theme=args.theme)
         app.mainloop()
         return 0
