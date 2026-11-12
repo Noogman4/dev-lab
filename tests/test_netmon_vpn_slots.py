@@ -1209,35 +1209,26 @@ def test_wireguard_profile_hook_directives_detects_known_hooks(tmp_path):
     assert directives == ["PostUp", "PreDown"]
 
 
-def test_warn_wireguard_import_hooks_shows_warning_and_logs(tmp_path, monkeypatch):
+def test_prepare_wireguard_import_rejects_hooks_before_confirmation(
+    tmp_path, monkeypatch
+):
     profile_path = tmp_path / "wg-hooks.conf"
     profile_path.write_text(
         "[Peer]\nPostUp = echo demo\n",
         encoding="utf-8",
     )
     app = netmon.App.__new__(netmon.App)
-    logs = []
-    warnings = []
-    app.log_safe = logs.append
     app.tr = lambda _key, fallback: fallback
-
     monkeypatch.setattr(
         vpn_controller.messagebox,
-        "showwarning",
-        lambda title, text, parent=None: warnings.append((title, text, parent)),
+        "askyesno",
+        lambda *_a, **_kw: pytest.fail("Hook profile cannot reach confirmation"),
     )
-
-    assert vpn_controller._warn_wireguard_import_hooks(app, [str(profile_path)]) is True
-    assert warnings
-    assert warnings[0][0] == "WireGuard Hook-Hinweis"
-    assert "PostUp" in warnings[0][1]
-    assert logs
-    assert "Root-Rechten" in logs[0]
+    with pytest.raises(RuntimeError, match="Hooks abgelehnt"):
+        vpn_controller._prepare_wireguard_imports(app, [str(profile_path)])
 
 
-def test_import_wg_profiles_from_folder_warns_about_hook_directives(
-    monkeypatch, tmp_path
-):
+def test_import_wg_profiles_from_folder_rejects_hook_directives(monkeypatch, tmp_path):
     monkeypatch.setattr(vpn_controller, "_network_links", dict)
     profile_path = tmp_path / "wg-hooks.conf"
     profile_path.write_text(
@@ -1291,12 +1282,9 @@ def test_import_wg_profiles_from_folder_warns_about_hook_directives(
     monkeypatch.setattr(vpn_controller, "_owned_nm_command", lambda *a, **k: None)
     app.import_wg_profiles_from_folder()
 
-    assert warnings
-    assert "PostDown" in warnings[0][1]
-    assert (
-        "WireGuard-Import beendet: 1 importiert, 0 übersprungen, 0 fehlgeschlagen."
-        in logs
-    )
+    assert warnings and warnings[0][0] == "WireGuard-Hooks nicht erlaubt"
+    assert any("PostDown" in text and "abgelehnt" in text for text in logs)
+    assert not any("1 importiert" in text for text in logs)
 
 
 def test_base_wg_profile_name_strips_internal_ipv4_suffix():

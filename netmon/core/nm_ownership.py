@@ -177,7 +177,21 @@ def checked_import_payload(payload):
         or payload["hooks"] != list(wireguard_hooks(data))
     ):
         raise OwnershipError("Reviewed import bytes changed")
+    reject_wireguard_hooks(data)
     return name, content
+
+
+def reject_wireguard_hooks(data):
+    """No imported or legacy profile can authorize root-executed commands."""
+    hooks = wireguard_hooks(data)
+    if hooks:
+        # Directive names only: command values can contain secrets/control text.
+        raise WireGuardHooksError(
+            "WireGuard-Profil mit Hooks abgelehnt: "
+            + ", ".join(hooks)
+            + ". NetMon fuehrt keine Profil-Hook-Befehle aus. "
+            "Bitte ein Profil ohne PreUp/PostUp/PreDown/PostDown verwenden."
+        )
 
 
 @contextmanager
@@ -208,6 +222,10 @@ def _import_snapshot(parent, name, data, *, owner):
 
 class OwnershipError(RuntimeError):
     pass
+
+
+class WireGuardHooksError(OwnershipError):
+    """Safe fixed diagnostic with directive names only, never command content."""
 
 
 def canonical_uuid(value):
@@ -547,6 +565,7 @@ class OwnershipStore:
             raise OwnershipError("Invalid import name")
         if not isinstance(content, str) or not 0 < len(content.encode()) <= MAX_CONFIG:
             raise OwnershipError("Invalid import size")
+        reject_wireguard_hooks(content.encode("utf-8"))
         with self.locked(create=True) as directory:
             if len(os.listdir(directory)) >= MAX_ENTRIES:
                 raise OwnershipError("Ownership registry full")
@@ -799,6 +818,7 @@ class WireGuardStore(OwnershipStore):
                 data, _info = _read(profiles, name + ".conf", self.owner, MAX_CONFIG)
             finally:
                 os.close(profiles)
+            reject_wireguard_hooks(data)
             with _import_snapshot(
                 self.registry, name, data, owner=self.owner
             ) as source:
@@ -853,6 +873,9 @@ class WireGuardStore(OwnershipStore):
                     )
                     if hashlib.sha256(data).hexdigest() != receipt.get("sha256"):
                         raise OwnershipError("Changed teardown profile retained")
+                    # Older receipts can contain commands accepted by a previous
+                    # version. Preserve the link/evidence; never run those hooks.
+                    reject_wireguard_hooks(data)
                     with _import_snapshot(
                         self.registry, name, data, owner=self.owner
                     ) as source:
@@ -967,6 +990,9 @@ def main(arguments=None):
         else:
             raise OwnershipError("Unknown ownership operation")
         return 0
+    except WireGuardHooksError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
     except Exception:
         print(
             "Ownership verification failed; unproven connections retained. A failed import may require manual cleanup.",

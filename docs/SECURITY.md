@@ -19,6 +19,9 @@ Im Code wurden folgende Arten von Netzwerkzugriffen gefunden:
 
 ## Root-Rechte / sudo
 
+- WireGuard-Profile mit `PreUp`, `PostUp`, `PreDown` oder `PostDown` werden abgewiesen. Die gemeinsame Pruefung gilt fuer alle Importwege, den privilegierten Payload-Empfaenger, direkte NM-Erstellung/Installation und die Aktivierung bereits gespeicherter Profile. Ein Hash oder ein allgemeiner Importdialog erteilt keine Hook-Freigabe. Profile und Befehlsinhalte werden nicht automatisch bereinigt oder umgeschrieben.
+- Alte WireGuard-Teardown-Belege mit Hooks werden ebenfalls nicht ausgefuehrt. Betroffene Interfaces und Belege bleiben erhalten und erfordern eine bewusste administrative Bereinigung ausserhalb dieses NetMon-Ablaufs. Hookfreie Original-Belege bleiben fuer normales Teardown verwendbar, auch wenn eine spaeter geaenderte Profildatei Hooks enthaelt. Fehleranzeigen nennen nur die Direktiven, keine Befehlsinhalte oder Schluessel.
+- Finding `acf_e08a86c597b7355ed23fc8aa237462bd`: 731 isolierte WireGuard-/VPN-Tests bestanden. Die Tests verwenden synthetische Profile und simulierte NM-/WG-Befehle; kein echter Hook, sudo-, VPN- oder Firewall-Aufruf wurde ausgefuehrt. Diese Hook-Sperre ersetzt keine unabhaengige Bewertung anderer L-04-Autorisierungsfragen; aeltere Berichte unter `docs/security/L-04*` dokumentieren den damaligen Stand.
 - Der generische Command-Layer prueft `sudo -n true` und kann ueber `renew_sudo_timestamp()` eine frische `sudo`-Session anfordern.
 - UFW-/Firewall-, WireGuard-, DoT-, Packet-Capture-, RKHunter- und Cleanup-Funktionen enthalten `sudo`-nahe Systemkommandos.
 - Der Cleanup Assistant markiert eigene `run_sudo_command`-Pfade als bestaetigungspflichtig und nutzt einen separaten `ensure_sudo_session`-Flow.

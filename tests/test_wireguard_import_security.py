@@ -16,6 +16,7 @@ from netmon.features import vpn_controller as vpn
 from test_netmon_nm_ownership import store as store
 
 SAFE = b"[Interface]\nAddress=10.0.0.2/32\n"
+SAFE_OTHER = b"[Interface]\nAddress=10.0.0.3/32\n"
 HOOK = SAFE + b"PostUp = L04_SYNTHETIC_NEVER_EXECUTE\n"
 
 
@@ -173,21 +174,19 @@ def test_change_after_hook_inspection_never_imported(
 
 
 @pytest.mark.parametrize("route", ["folder", "dialog", "referenced", "direct"])
-def test_warning_confirmation_and_import_refer_to_exact_same_bytes(
+def test_hook_profile_is_rejected_before_confirmation_copy_or_import(
     app, tmp_path, monkeypatch, route
 ):
     source = profile(tmp_path, data=HOOK)
     enter(app, source, route, monkeypatch)
-    assert len(app.dialogs) == 1 and "PostUp" in app.dialogs[0]
-    assert hashlib.sha256(HOOK).hexdigest() in app.dialogs[0]
-    assert len(app.warnings) == 1 and "PostUp" in app.warnings[0]
+    assert not app.dialogs and len(app.warnings) == 1
     assert "L04_SYNTHETIC_NEVER_EXECUTE" not in " ".join(
         app.logs + app.warnings + app.dialogs
     )
-    if route == "folder":
-        assert (app.directory / "work.conf").read_bytes() == HOOK
-    else:
-        assert app.imported == [(HOOK, 0o600, 0o700)]
+    assert not app.operations and not app.imported
+    assert not app.managed_directory.exists()
+    assert any("PostUp" in text for text in app.logs)
+    assert source.read_bytes() == HOOK
     assert not list(app.directory.glob(".import-*"))
 
 
@@ -356,12 +355,13 @@ def test_stability_checked_during_descriptor_read(tmp_path, monkeypatch, mutatio
 
 
 def test_batch_independent_proofs_and_no_secret_persistence(app, store, tmp_path):
-    sources = [profile(tmp_path, "one"), profile(tmp_path, "two", HOOK)]
+    sources = [profile(tmp_path, "one"), profile(tmp_path, "two", SAFE_OTHER)]
     vpn.import_wireguard_paths_to_networkmanager(app, list(map(str, sources)))
-    assert [item[0] for item in app.imported] == [SAFE, HOOK]
+    assert [item[0] for item in app.imported] == [SAFE, SAFE_OTHER]
     assert len(app.dialogs) == 1
     assert all(
-        hashlib.sha256(data).hexdigest() in app.dialogs[0] for data in (SAFE, HOOK)
+        hashlib.sha256(data).hexdigest() in app.dialogs[0]
+        for data in (SAFE, SAFE_OTHER)
     )
     assert len(vpn.get_nm_last_import_state(app)["owned_connections"]) == 2
     assert "L04_SYNTHETIC_NEVER_EXECUTE" not in json.dumps(app.privacy_config)
@@ -393,7 +393,7 @@ def test_batch_limits_before_any_privileged_import(app, tmp_path, monkeypatch, l
 
 def test_root_snapshot_for_unreadable_protected_profile(app, tmp_path, monkeypatch):
     source = app.directory / "work.conf"
-    source.write_bytes(HOOK)
+    source.write_bytes(SAFE)
     source.chmod(0o600)
 
     def forbidden(*args):
@@ -404,7 +404,7 @@ def test_root_snapshot_for_unreadable_protected_profile(app, tmp_path, monkeypat
     monkeypatch.setattr(wg, "_read", forbidden)
     vpn.import_wireguard_paths_to_networkmanager(app, [str(source)])
     assert app.operations == ["snapshot-profile", "snapshot-profile", "import"]
-    assert app.imported[0][0] == HOOK
+    assert app.imported[0][0] == SAFE
 
 
 def test_protected_profile_changes_after_review_are_rejected(app, monkeypatch):
@@ -453,7 +453,7 @@ def test_privileged_destination_controls_preserved(app, tmp_path, kind):
         target.chmod(0o666)
     with pytest.raises((OSError, own.OwnershipError)):
         from_payload = wg.ProfileSnapshot.from_bytes(
-            "synthetic", "work", HOOK
+            "synthetic", "work", SAFE_OTHER
         ).payload()
         # Actual root-side storage, with isolated owner/anchor supplied by fixture.
         # The production CLI never accepts these overrides.
@@ -473,7 +473,7 @@ def test_staging_and_import_failures_cleanup_and_keep_existing(
     target = app.directory / "work.conf"
     target.write_bytes(SAFE)
     target.chmod(0o600)
-    payload = wg.ProfileSnapshot.from_bytes("synthetic", "work", HOOK).payload()
+    payload = wg.ProfileSnapshot.from_bytes("synthetic", "work", SAFE_OTHER).payload()
     if phase == "stage-write":
         monkeypatch.setattr(
             own.os,
@@ -486,7 +486,7 @@ def test_staging_and_import_failures_cleanup_and_keep_existing(
         def corrupt(directory, name, owner, limit):
             if name == "work.conf":
                 data, info = original_read(directory, name, owner, limit)
-                if data == HOOK:
+                if data == SAFE_OTHER:
                     return SAFE, info
                 return data, info
             return original_read(directory, name, owner, limit)
@@ -502,7 +502,7 @@ def test_staging_and_import_failures_cleanup_and_keep_existing(
         store.nm.fail = "create"
     with pytest.raises((OSError, own.OwnershipError)):
         if phase == "nm-create":
-            store.create("work", HOOK.decode())
+            store.create("work", SAFE_OTHER.decode())
         else:
             store.install_profile(payload)
     assert target.read_bytes() == SAFE
@@ -555,12 +555,11 @@ def test_cli_rejects_missing_or_invalid_proof_without_creating_state(
 
 
 @pytest.mark.parametrize("operation", ["import", "import-checked", "install-profile"])
-def test_authorized_helper_checks_bytes_but_cannot_attest_human_consent(
+def test_authorized_helper_rejects_self_consistent_hook_payload_without_ui(
     app, store, monkeypatch, capsys, operation
 ):
-    # Explicit remaining boundary: a caller already authorized to invoke sudo can
-    # generate a self-consistent digest/hooks record without using NetMon's UI.
-    # This is NOT a file-race bypass, and the test does not run real sudo/root.
+    # An internally consistent digest is no authorization to execute hooks.
+    # This fake privilege gate does not run real sudo/root.
     payload = wg.ProfileSnapshot.from_bytes(
         "synthetic-other-process", "unconfirmed", HOOK
     ).payload()
@@ -572,14 +571,11 @@ def test_authorized_helper_checks_bytes_but_cannot_attest_human_consent(
         "stdin",
         SimpleNamespace(buffer=io.BytesIO(json.dumps(payload).encode())),
     )
-    assert own.main([operation]) == 0
-    capsys.readouterr()
+    assert own.main([operation]) == 1
+    assert "L04_SYNTHETIC" not in capsys.readouterr().err
     assert not app.dialogs
-    if operation == "install-profile":
-        assert (app.directory / "unconfirmed.conf").read_bytes() == HOOK
-    else:
-        assert app.imported[0][0] == HOOK
-        assert len(store.candidates()) == 1
+    assert not (app.directory / "unconfirmed.conf").exists()
+    assert not app.imported and not store.registry.exists()
 
 
 @pytest.mark.parametrize("attack", ["payload", "hooks"])
@@ -628,16 +624,16 @@ def test_queued_jobs_keep_separate_reviewed_snapshots(
 
     monkeypatch.setattr(vpn.threading, "Thread", Queued)
     first = profile(tmp_path, "first")
-    second = profile(tmp_path, "second", HOOK)
+    second = profile(tmp_path, "second", SAFE_OTHER)
     enter(app, first, route, monkeypatch)
     enter(app, second, route, monkeypatch)
     queued[1]()
     queued[0]()
     if route == "folder":
         assert (app.directory / "first.conf").read_bytes() == SAFE
-        assert (app.directory / "second.conf").read_bytes() == HOOK
+        assert (app.directory / "second.conf").read_bytes() == SAFE_OTHER
     else:
-        assert [record[0] for record in app.imported] == [HOOK, SAFE]
+        assert [record[0] for record in app.imported] == [SAFE_OTHER, SAFE]
         assert set(vpn.get_nm_last_import_state(app)["connections"]) == {
             "first",
             "second",

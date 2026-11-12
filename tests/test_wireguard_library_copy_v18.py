@@ -22,12 +22,12 @@ from test_wireguard_import_security import (
 def test_confirmed_copy_imports_private_bytes_and_preserves_download(
     app, tmp_path, monkeypatch, mode, route
 ):
-    source = profile(tmp_path, data=HOOK)
+    source = profile(tmp_path, data=SAFE)
     source.chmod(mode)
     original = source.read_bytes(), source.stat().st_mode, source.stat().st_ino
     enter(app, source, route, monkeypatch)
     copied = app.managed_directory / "work.conf"
-    assert copied.read_bytes() == HOOK
+    assert copied.read_bytes() == SAFE
     assert copied.stat().st_mode & 0o777 == 0o600
     assert copied.stat().st_nlink == 1
     assert (
@@ -38,14 +38,14 @@ def test_confirmed_copy_imports_private_bytes_and_preserves_download(
     assert len(app.dialogs) == 1
     assert "Originaldateien bleiben unverändert" in app.dialogs[0]
     assert str(app.managed_directory) in app.dialogs[0]
-    assert "PostUp" in app.dialogs[0] and len(app.warnings) == 1
+    assert not app.warnings
     assert "L04_SYNTHETIC_NEVER_EXECUTE" not in " ".join(
         app.dialogs + app.logs + app.warnings
     )
     if route == "folder":
-        assert (app.directory / "work.conf").read_bytes() == HOOK
+        assert (app.directory / "work.conf").read_bytes() == SAFE
     else:
-        assert app.imported == [(HOOK, 0o600, 0o700)]
+        assert app.imported == [(SAFE, 0o600, 0o700)]
 
 
 @pytest.mark.parametrize("closed", [False, True])

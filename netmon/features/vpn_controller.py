@@ -113,47 +113,8 @@ def _vpn_user_log(app, message: str):
     app.log_safe(text)
 
 
-WIREGUARD_HOOK_DIRECTIVES = {"preup", "postup", "predown", "postdown"}
-
-
 def _wireguard_profile_hook_directives(path: str) -> list[str]:
     return list(wireguard_import.ProfileSnapshot.read(path).hooks)
-
-
-def _warn_wireguard_import_hooks(app, selected_files) -> bool:
-    findings = []
-    for src in list(selected_files or []):
-        snapshot = (
-            src
-            if isinstance(src, wireguard_import.ProfileSnapshot)
-            else wireguard_import.ProfileSnapshot.read(src)
-        )
-        directives = snapshot.hooks
-        if directives:
-            findings.append((snapshot.name, directives))
-    if not findings:
-        return False
-
-    details = "; ".join(
-        f"{name}: {', '.join(directives)}" for name, directives in findings
-    )
-    text = app.tr(
-        "wg_import_hooks_warning",
-        "Hinweis: Das ausgewählte WireGuard-Profil enthält Hook-Direktiven "
-        "wie PreUp/PostUp/PreDown/PostDown. Diese Befehle können bei der "
-        "Profil-Aktivierung mit Root-Rechten ausgeführt werden.\n\n"
-        "Gefundene Direktiven:\n{details}",
-    ).format(details=details)
-    try:
-        messagebox.showwarning(
-            app.tr("wg_import_hooks_warning_title", "WireGuard Hook-Hinweis"),
-            text,
-            parent=app,
-        )
-    except Exception:
-        pass
-    _vpn_user_log(app, _single_line(text))
-    return True
 
 
 def _prepare_wireguard_imports(app, paths):
@@ -174,18 +135,18 @@ def _prepare_wireguard_imports(app, paths):
             )
         else:
             snapshot = wireguard_import.ProfileSnapshot.read(path, for_copy=True)
+        nm_ownership.reject_wireguard_hooks(snapshot.data)
         total += len(snapshot.data)
         if total > wireguard_import.MAX_BATCH_BYTES:
             raise ValueError("WireGuard-Import-Batch ist zu gross")
         snapshots.append(snapshot)
     if not snapshots:
         return None
-    _warn_wireguard_import_hooks(app, snapshots)
     details = "\n".join(
         f"{s.name}: {', '.join(s.hooks) or '-'}\nSHA-256: {s.sha256}" for s in snapshots
     )
-    # Digest is of the reviewed bytes, not a mutable pathname. Never display keys
-    # or hook command values; an unavailable/closed GUI cannot approve the batch.
+    # Hooks have already been rejected. Never display keys; an unavailable or
+    # closed GUI cannot approve the exact immutable batch.
     directory = ensure_netmon_wireguard_profiles_dir()
     text = (
         "WireGuard-Profile übernehmen und importieren?\n\n"
@@ -448,7 +409,15 @@ def _wireguard_import_initialdir(app):
 
 
 def _log_wireguard_import_error(app, operation, error):
-    if isinstance(
+    if isinstance(error, nm_ownership.WireGuardHooksError):
+        app.log(f"{operation} abgebrochen: {error}")
+        try:
+            messagebox.showwarning(
+                "WireGuard-Hooks nicht erlaubt", str(error), parent=app
+            )
+        except Exception:
+            pass
+    elif isinstance(
         error,
         (wireguard_import.ProfilePermissionsError, wireguard_import.ProfileCopyError),
     ):
@@ -3986,6 +3955,13 @@ def import_wireguard_paths_to_networkmanager(
                     job,
                     "Sitzungsaktualisierung fehlgeschlagen; Importreferenz gesichert, Bereinigung separat bestätigen.",
                 )
+    except nm_ownership.WireGuardHooksError as exc:
+        failed += 1
+        _nm_job_error(session, job, str(exc))
+        call_in_ui_thread(
+            app,
+            lambda error=exc: _log_wireguard_import_error(app, operation_name, error),
+        )
     except Exception:
         failed += 1
         _nm_job_error(
