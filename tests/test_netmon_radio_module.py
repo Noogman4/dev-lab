@@ -15,6 +15,17 @@ from netmon.features import radio_controller
 from netmon.ui.tabs.radio_tab import build_radio_tab, _install_pane_drag_marker
 
 
+@pytest.fixture(autouse=True)
+def isolate_radio_desktop_entries(tmp_path, monkeypatch):
+    # Launch helpers rewrite ~/.local/share/applications/netmon-radio.desktop
+    # when it exists; never let a test touch the user's real launcher.
+    monkeypatch.setattr(
+        netmon_radio_core,
+        "radio_desktop_entry_dir",
+        lambda: str(tmp_path / "applications"),
+    )
+
+
 class DummyVar:
     def __init__(self, value):
         self.value = value

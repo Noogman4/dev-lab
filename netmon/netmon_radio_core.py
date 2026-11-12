@@ -923,7 +923,11 @@ def build_radio_desktop_entry(
     no_display: bool = False,
 ) -> str:
     entry_path = repo_root()
-    if entry_path == "/dev-lab/projects/dev-lab":
+    # Devcontainer mount of the host checkout; on the host itself that path does
+    # not exist and a desktop entry with a missing Path= cannot be launched.
+    if entry_path == "/dev-lab/projects/dev-lab" and os.path.isdir(
+        "/workspaces/dev-lab"
+    ):
         entry_path = "/workspaces/dev-lab"
     lines = [
         "[Desktop Entry]",
