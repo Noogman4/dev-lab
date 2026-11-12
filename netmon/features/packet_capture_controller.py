@@ -173,21 +173,137 @@ def _packet_capture_filter(app) -> str:
     return str(_app_var_get(app, "packet_capture_filter_var", "") or "").strip()
 
 
-def _packet_capture_start_command(app, interface: str, output_file: str):
+# Hard ceiling for a single capture file, independent of the free space.
+PACKET_CAPTURE_MAX_FILE_BYTES = 2 * 1024**3
+# Free space that a capture must never consume on the target filesystem.
+PACKET_CAPTURE_MIN_FREE_BYTES = 512 * 1024**2
+# Below this budget a capture is not worth starting.
+PACKET_CAPTURE_MIN_BUDGET_BYTES = 16 * 1024**2
+# Tolerated overshoot past the autostop limit (last packet / write buffer)
+# before the watchdog terminates the capture tool itself.
+PACKET_CAPTURE_LIMIT_SLACK_BYTES = 8 * 1024**2
+PACKET_CAPTURE_KILL_GRACE_SECONDS = 4.0
+
+_packet_capture_statvfs = os.statvfs
+
+
+def _packet_capture_free_bytes(path: str) -> int:
+    stats = _packet_capture_statvfs(path or ".")
+    return int(stats.f_bavail) * int(stats.f_frsize)
+
+
+def _packet_capture_size_budget(output_dir: str) -> tuple[int, int]:
+    """Return (budget, free) in bytes for a new capture below output_dir.
+
+    The budget never exceeds PACKET_CAPTURE_MAX_FILE_BYTES and always leaves
+    PACKET_CAPTURE_MIN_FREE_BYTES free. A budget of 0 means: do not start.
+    Errors from statvfs propagate so the caller fails closed.
+    """
+    free = _packet_capture_free_bytes(output_dir)
+    budget = min(PACKET_CAPTURE_MAX_FILE_BYTES, free - PACKET_CAPTURE_MIN_FREE_BYTES)
+    if budget < PACKET_CAPTURE_MIN_BUDGET_BYTES:
+        return 0, free
+    return int(budget), free
+
+
+def _packet_capture_autostop_args(size_limit_bytes: int) -> list[str]:
+    # dumpcap counts kB as 1000 bytes, tshark documents KB; flooring to 1024
+    # keeps the file at or below the byte budget under both readings.
+    limit_kb = max(1, int(size_limit_bytes) // 1024)
+    return ["-a", f"filesize:{limit_kb}"]
+
+
+def _packet_capture_start_command(
+    app,
+    interface: str,
+    output_file: str,
+    size_limit_bytes: int = PACKET_CAPTURE_MAX_FILE_BYTES,
+):
     capture_filter = _packet_capture_filter(app)
-    if _packet_capture_dep_enabled(app, "tshark"):
-        cmd = ["tshark", "-i", interface]
+    for tool in ("tshark", "dumpcap"):
+        if not _packet_capture_dep_enabled(app, tool):
+            continue
+        cmd = [tool, "-i", interface]
         if capture_filter:
             cmd.extend(["-f", capture_filter])
+        cmd.extend(_packet_capture_autostop_args(size_limit_bytes))
         cmd.extend(["-w", output_file])
-        return cmd, "tshark"
-    if _packet_capture_dep_enabled(app, "dumpcap"):
-        cmd = ["dumpcap", "-i", interface]
-        if capture_filter:
-            cmd.extend(["-f", capture_filter])
-        cmd.extend(["-w", output_file])
-        return cmd, "dumpcap"
+        return cmd, tool
     return None, ""
+
+
+def _packet_capture_limit_violation(
+    file_path: str, size_limit_bytes: int, output_dir: str
+) -> str:
+    """Return a reason text if a running capture must be stopped, else ''."""
+    if size_limit_bytes and file_path:
+        try:
+            size = os.path.getsize(file_path)
+        except OSError:
+            size = 0
+        if size > size_limit_bytes + PACKET_CAPTURE_LIMIT_SLACK_BYTES:
+            return (
+                f"Capture-Datei hat das Größenlimit {human_size(size_limit_bytes)} "
+                "überschritten."
+            )
+    try:
+        free = _packet_capture_free_bytes(output_dir)
+    except OSError:
+        return "Freier Speicher des Ziel-Dateisystems ist nicht mehr lesbar."
+    if free < PACKET_CAPTURE_MIN_FREE_BYTES // 2:
+        return (
+            f"Ziel-Dateisystem fast voll (frei: {human_size(free)}); "
+            "Capture zum Schutz des Systems beendet."
+        )
+    return ""
+
+
+def _packet_capture_budget_refusal_message(output_dir: str, free: int) -> str:
+    return (
+        "Capture nicht gestartet: zu wenig freier Speicher in "
+        f"{output_dir or '.'} (frei: {human_size(free)}, Reserve: "
+        f"{human_size(PACKET_CAPTURE_MIN_FREE_BYTES)})."
+    )
+
+
+def _packet_capture_limit_text(size_limit_bytes: int) -> str:
+    return (
+        f"Größenlimit: {human_size(size_limit_bytes)} "
+        f"(Reserve frei: {human_size(PACKET_CAPTURE_MIN_FREE_BYTES)})"
+    )
+
+
+def _packet_capture_enforce_limit(app, reason: str) -> None:
+    """Stop the capture tool without blocking the UI thread.
+
+    First violation: record the reason and send SIGTERM. A later tick that
+    still sees a violation after PACKET_CAPTURE_KILL_GRACE_SECONDS escalates
+    to SIGKILL.
+    """
+    proc = _app_value(app, "packet_capture_active_process")
+    already = bool(_app_value(app, "packet_capture_limit_reason"))
+    if not already:
+        app.packet_capture_limit_reason = reason
+        app.packet_capture_limit_stop_at = time.monotonic()
+    app.packet_capture_cancel_requested = True
+    if proc is None:
+        return
+    try:
+        if not already:
+            proc.terminate()
+        elif (
+            time.monotonic()
+            - float(_app_value(app, "packet_capture_limit_stop_at", 0.0) or 0.0)
+            >= PACKET_CAPTURE_KILL_GRACE_SECONDS
+        ):
+            proc.kill()
+    except Exception:
+        pass
+    if not already:
+        try:
+            app.log(f"Packet Capture gestoppt: {reason}")
+        except Exception:
+            pass
 
 
 def _packet_capture_capinfos_summary(output: str, default_size: str = "-") -> dict:
@@ -620,6 +736,14 @@ def packet_capture_update_runtime(app):
             )
         except Exception:
             pass
+    if file_path:
+        reason = _packet_capture_limit_violation(
+            file_path,
+            int(_app_value(app, "packet_capture_size_limit_bytes", 0) or 0),
+            os.path.dirname(file_path),
+        )
+        if reason:
+            _packet_capture_enforce_limit(app, reason)
     app.packet_capture_text_after_id = app.after(
         1000,
         lambda: packet_capture_update_runtime(app),
@@ -693,8 +817,28 @@ def packet_capture_start_async(app):
             os.makedirs(output_dir, exist_ok=True)
         except Exception:
             pass
+    try:
+        size_limit_bytes, free_bytes = _packet_capture_size_budget(output_dir)
+    except OSError as exc:
+        size_limit_bytes, free_bytes = 0, 0
+        budget_error = (
+            f"Capture nicht gestartet: Ziel-Dateisystem nicht prüfbar ({exc})."
+        )
+    else:
+        budget_error = (
+            ""
+            if size_limit_bytes
+            else _packet_capture_budget_refusal_message(output_dir, free_bytes)
+        )
+    if budget_error:
+        append_packet_capture_output(app, budget_error, replace=True)
+        _app_var_set(app, "packet_capture_status_var", "disk space low")
+        app.log(budget_error)
+        return
     capture_filter = _packet_capture_filter(app)
-    cmd, capture_tool = _packet_capture_start_command(app, interface, output_file)
+    cmd, capture_tool = _packet_capture_start_command(
+        app, interface, output_file, size_limit_bytes
+    )
     if not cmd or not capture_tool:
         append_packet_capture_output(
             app,
@@ -716,8 +860,11 @@ def packet_capture_start_async(app):
             capture_filter,
         ),
     )
+    append_packet_capture_output(app, _packet_capture_limit_text(size_limit_bytes))
     app.packet_capture_running = True
     app.packet_capture_cancel_requested = False
+    app.packet_capture_limit_reason = ""
+    app.packet_capture_size_limit_bytes = size_limit_bytes
     app.packet_capture_started_at = time.time()
     app.packet_capture_output_path = output_file
     _app_var_set(app, "packet_capture_status_var", "running")
@@ -772,6 +919,11 @@ def packet_capture_start_async(app):
                         return_code,
                     ),
                 )
+                limit_reason = str(
+                    _app_value(app, "packet_capture_limit_reason", "") or ""
+                )
+                if limit_reason:
+                    _app_var_set(app, "packet_capture_status_var", "Limit erreicht")
                 packet_capture_set_running_state(app, False)
                 if details:
                     append_packet_capture_output(
@@ -781,6 +933,14 @@ def packet_capture_start_async(app):
                             if permission_issue
                             else details
                         ),
+                    )
+                if limit_reason:
+                    append_packet_capture_output(app, limit_reason)
+                elif return_code == 0 and not app.packet_capture_cancel_requested:
+                    # Only the filesize autostop ends a capture with rc 0.
+                    append_packet_capture_output(
+                        app,
+                        "Größenlimit erreicht, Capture automatisch beendet.",
                     )
                 if return_code != 0 and not app.packet_capture_cancel_requested:
                     output_message, log_message = (

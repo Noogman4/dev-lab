@@ -50,6 +50,12 @@ class DummyText:
         return "1.0" if not self.value else "2.0"
 
 
+class FakeStatvfs:
+    def __init__(self, free_bytes, frsize=4096):
+        self.f_frsize = frsize
+        self.f_bavail = free_bytes // frsize
+
+
 class ImmediateThread:
     def __init__(self, target=None, daemon=None):
         self.target = target
@@ -310,6 +316,11 @@ def test_packet_capture_start_async_skips_file_info_for_permission_error_without
     monkeypatch.setattr(
         packet_capture_controller, "call_in_ui_thread", lambda _app, fn: fn()
     )
+    monkeypatch.setattr(
+        packet_capture_controller,
+        "_packet_capture_statvfs",
+        lambda _path: FakeStatvfs(64 * 1024**3),
+    )
 
     packet_capture_controller.packet_capture_start_async(app)
 
@@ -438,6 +449,8 @@ def test_packet_capture_start_command_prefers_tshark_with_filter():
         "eth0",
         "-f",
         "udp port 53",
+        "-a",
+        f"filesize:{packet_capture_controller.PACKET_CAPTURE_MAX_FILE_BYTES // 1024}",
         "-w",
         "/tmp/test.pcapng",
     ]
@@ -455,7 +468,15 @@ def test_packet_capture_start_command_falls_back_to_dumpcap_without_filter():
     )
 
     assert tool == "dumpcap"
-    assert cmd == ["dumpcap", "-i", "wlan0", "-w", "/tmp/test.pcapng"]
+    assert cmd == [
+        "dumpcap",
+        "-i",
+        "wlan0",
+        "-a",
+        f"filesize:{packet_capture_controller.PACKET_CAPTURE_MAX_FILE_BYTES // 1024}",
+        "-w",
+        "/tmp/test.pcapng",
+    ]
 
 
 def test_packet_capture_start_command_returns_empty_without_tools():
@@ -1125,3 +1146,257 @@ def test_packet_capture_initial_file_name_falls_back_to_generated_path():
         )
         == "default_capture.pcapng"
     )
+
+
+# --- Hard size limit / disk exhaustion protection -------------------------
+
+GIB = 1024**3
+MIB = 1024**2
+
+
+def _capture_app(capture_file, logged=None):
+    app = type("DummyApp", (), {})()
+    app.dep_status = {"tshark": False, "dumpcap": True}
+    app.packet_capture_running = False
+    app.packet_capture_cancel_requested = False
+    app.packet_capture_started_at = 0.0
+    app.packet_capture_output_path = ""
+    app.packet_capture_active_process = None
+    app.packet_capture_text_after_id = None
+    app.packet_capture_text = DummyText()
+    app.packet_capture_interface_var = DummyVar("eth0")
+    app.packet_capture_file_var = DummyVar(str(capture_file))
+    app.packet_capture_filter_var = DummyVar("")
+    app.packet_capture_status_var = DummyVar("")
+    app.packet_capture_runtime_var = DummyVar("")
+    app.packet_capture_packets_var = DummyVar("")
+    app.packet_capture_size_var = DummyVar("")
+    app.btn_packet_capture_start = DummyButton()
+    app.btn_packet_capture_stop = DummyButton()
+    app.tab_packet_capture = object()
+    app.logged = [] if logged is None else logged
+    app._select_security_tab = lambda _tab: None
+    app.log = lambda message: app.logged.append(message)
+    app.show_wireshark_install_hint = lambda: None
+    app.show_dumpcap_permission_hint = lambda: None
+    app.after = lambda _delay, _callback: "after-id"
+    app.after_cancel = lambda _after_id: None
+    return app
+
+
+def _set_free(monkeypatch, free_bytes):
+    def fake_statvfs(_path):
+        if isinstance(free_bytes, Exception):
+            raise free_bytes
+        return FakeStatvfs(free_bytes)
+
+    monkeypatch.setattr(
+        packet_capture_controller, "_packet_capture_statvfs", fake_statvfs
+    )
+
+
+def test_size_budget_is_capped_by_hard_maximum(monkeypatch):
+    _set_free(monkeypatch, 500 * GIB)
+
+    budget, free = packet_capture_controller._packet_capture_size_budget("/x")
+
+    assert budget == packet_capture_controller.PACKET_CAPTURE_MAX_FILE_BYTES
+    assert free == 500 * GIB
+
+
+def test_size_budget_keeps_free_space_reserve(monkeypatch):
+    reserve = packet_capture_controller.PACKET_CAPTURE_MIN_FREE_BYTES
+    _set_free(monkeypatch, reserve + 100 * MIB)
+
+    budget, _free = packet_capture_controller._packet_capture_size_budget("/x")
+
+    assert budget == 100 * MIB
+
+
+def test_size_budget_refuses_when_only_reserve_is_left(monkeypatch):
+    reserve = packet_capture_controller.PACKET_CAPTURE_MIN_FREE_BYTES
+    _set_free(monkeypatch, reserve + MIB)
+
+    budget, _free = packet_capture_controller._packet_capture_size_budget("/x")
+
+    assert budget == 0
+
+
+def test_autostop_args_floor_bytes_to_kib():
+    assert packet_capture_controller._packet_capture_autostop_args(10 * MIB + 5) == [
+        "-a",
+        "filesize:10240",
+    ]
+
+
+def test_start_async_passes_free_space_budget_to_capture_tool(monkeypatch, tmp_path):
+    reserve = packet_capture_controller.PACKET_CAPTURE_MIN_FREE_BYTES
+    _set_free(monkeypatch, reserve + 300 * MIB)
+    started = []
+
+    class FakeProc:
+        def __init__(self, cmd, **_kwargs):
+            started.append(list(cmd))
+            self.stdout = iter([])
+
+        def wait(self):
+            return 0
+
+    monkeypatch.setattr(packet_capture_controller.subprocess, "Popen", FakeProc)
+    monkeypatch.setattr(packet_capture_controller.threading, "Thread", ImmediateThread)
+    monkeypatch.setattr(
+        packet_capture_controller, "call_in_ui_thread", lambda _app, fn: fn()
+    )
+    app = _capture_app(tmp_path / "cap.pcapng")
+
+    packet_capture_controller.packet_capture_start_async(app)
+
+    assert len(started) == 1
+    cmd = started[0]
+    assert cmd[cmd.index("-a") + 1] == f"filesize:{300 * MIB // 1024}"
+    assert cmd.index("-a") < cmd.index("-w")
+    assert app.packet_capture_size_limit_bytes == 300 * MIB
+    assert "Größenlimit:" in app.packet_capture_text.value
+    # rc 0 without a stop request can only come from the filesize autostop.
+    assert "Größenlimit erreicht" in app.packet_capture_text.value
+
+
+def test_start_async_refuses_when_target_filesystem_is_nearly_full(
+    monkeypatch, tmp_path
+):
+    _set_free(monkeypatch, packet_capture_controller.PACKET_CAPTURE_MIN_FREE_BYTES)
+
+    def forbidden_popen(*_args, **_kwargs):
+        raise AssertionError("capture must not start")
+
+    monkeypatch.setattr(packet_capture_controller.subprocess, "Popen", forbidden_popen)
+    app = _capture_app(tmp_path / "cap.pcapng")
+
+    packet_capture_controller.packet_capture_start_async(app)
+
+    assert app.packet_capture_running is False
+    assert app.packet_capture_status_var.get() == "disk space low"
+    assert "zu wenig freier Speicher" in app.packet_capture_text.value
+
+
+def test_start_async_fails_closed_when_free_space_is_unreadable(monkeypatch, tmp_path):
+    _set_free(monkeypatch, OSError("statvfs kaputt"))
+
+    def forbidden_popen(*_args, **_kwargs):
+        raise AssertionError("capture must not start")
+
+    monkeypatch.setattr(packet_capture_controller.subprocess, "Popen", forbidden_popen)
+    app = _capture_app(tmp_path / "cap.pcapng")
+
+    packet_capture_controller.packet_capture_start_async(app)
+
+    assert app.packet_capture_running is False
+    assert "nicht prüfbar" in app.packet_capture_text.value
+
+
+class SignalProc:
+    def __init__(self):
+        self.signals = []
+
+    def terminate(self):
+        self.signals.append("TERM")
+
+    def kill(self):
+        self.signals.append("KILL")
+
+
+def _running_app(monkeypatch, capture_file, limit):
+    app = _capture_app(capture_file)
+    app.packet_capture_running = True
+    app.packet_capture_output_path = str(capture_file)
+    app.packet_capture_size_limit_bytes = limit
+    app.packet_capture_active_process = SignalProc()
+    return app
+
+
+def test_watchdog_terminates_capture_that_outgrows_limit(monkeypatch, tmp_path):
+    _set_free(monkeypatch, 100 * GIB)
+    capture_file = tmp_path / "cap.pcapng"
+    limit = 1024
+    with open(capture_file, "wb") as handle:
+        handle.truncate(
+            limit + packet_capture_controller.PACKET_CAPTURE_LIMIT_SLACK_BYTES + 1
+        )
+    app = _running_app(monkeypatch, capture_file, limit)
+
+    packet_capture_controller.packet_capture_update_runtime(app)
+
+    assert app.packet_capture_active_process.signals == ["TERM"]
+    assert app.packet_capture_cancel_requested is True
+    assert "Größenlimit" in app.packet_capture_limit_reason
+
+
+def test_watchdog_escalates_to_kill_after_grace(monkeypatch, tmp_path):
+    _set_free(monkeypatch, 100 * GIB)
+    capture_file = tmp_path / "cap.pcapng"
+    with open(capture_file, "wb") as handle:
+        handle.truncate(packet_capture_controller.PACKET_CAPTURE_LIMIT_SLACK_BYTES + 2)
+    app = _running_app(monkeypatch, capture_file, 1)
+    clock = [1000.0]
+    monkeypatch.setattr(packet_capture_controller.time, "monotonic", lambda: clock[0])
+
+    packet_capture_controller.packet_capture_update_runtime(app)
+    clock[0] += 1.0
+    packet_capture_controller.packet_capture_update_runtime(app)
+    assert app.packet_capture_active_process.signals == ["TERM"]
+
+    clock[0] += packet_capture_controller.PACKET_CAPTURE_KILL_GRACE_SECONDS
+    packet_capture_controller.packet_capture_update_runtime(app)
+    assert app.packet_capture_active_process.signals == ["TERM", "KILL"]
+
+
+def test_watchdog_stops_capture_when_filesystem_runs_low(monkeypatch, tmp_path):
+    capture_file = tmp_path / "cap.pcapng"
+    capture_file.write_bytes(b"x")
+    _set_free(monkeypatch, packet_capture_controller.PACKET_CAPTURE_MIN_FREE_BYTES // 4)
+    app = _running_app(monkeypatch, capture_file, GIB)
+
+    packet_capture_controller.packet_capture_update_runtime(app)
+
+    assert app.packet_capture_active_process.signals == ["TERM"]
+    assert "fast voll" in app.packet_capture_limit_reason
+
+
+def test_watchdog_leaves_capture_within_limits_alone(monkeypatch, tmp_path):
+    capture_file = tmp_path / "cap.pcapng"
+    capture_file.write_bytes(b"x" * 100)
+    _set_free(monkeypatch, 100 * GIB)
+    app = _running_app(monkeypatch, capture_file, GIB)
+
+    packet_capture_controller.packet_capture_update_runtime(app)
+
+    assert app.packet_capture_active_process.signals == []
+    assert app.packet_capture_cancel_requested is False
+
+
+def test_limit_stop_reports_limit_status_instead_of_error(monkeypatch, tmp_path):
+    reserve = packet_capture_controller.PACKET_CAPTURE_MIN_FREE_BYTES
+    _set_free(monkeypatch, reserve + GIB)
+    app = _capture_app(tmp_path / "cap.pcapng")
+
+    class FakeProc:
+        def __init__(self, *_args, **_kwargs):
+            self.stdout = iter([])
+
+        def wait(self):
+            # Simulates the watchdog firing while the tool is running.
+            app.packet_capture_limit_reason = "Ziel-Dateisystem fast voll"
+            app.packet_capture_cancel_requested = True
+            return -15
+
+    monkeypatch.setattr(packet_capture_controller.subprocess, "Popen", FakeProc)
+    monkeypatch.setattr(packet_capture_controller.threading, "Thread", ImmediateThread)
+    monkeypatch.setattr(
+        packet_capture_controller, "call_in_ui_thread", lambda _app, fn: fn()
+    )
+
+    packet_capture_controller.packet_capture_start_async(app)
+
+    assert app.packet_capture_status_var.get() == "Limit erreicht"
+    assert "Ziel-Dateisystem fast voll" in app.packet_capture_text.value
+    assert "Capture wurde mit Fehler beendet" not in app.packet_capture_text.value
