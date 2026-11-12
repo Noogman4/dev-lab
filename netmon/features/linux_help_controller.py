@@ -7,6 +7,7 @@ import io
 import json
 import os
 import re
+import threading
 import tkinter as tk
 from tkinter import ttk
 
@@ -21,11 +22,11 @@ except Exception:
     load_workbook = None
 
 try:
-    from netmon.core.utils import safe_write_json
+    from netmon.core.utils import safe_write_json, call_in_ui_thread
     from netmon.core.docx_archive import open_validated_xlsx
     from netmon.core.import_limits import ImportLimitError, read_bounded_text
 except ModuleNotFoundError:
-    from core.utils import safe_write_json
+    from core.utils import safe_write_json, call_in_ui_thread
     from core.docx_archive import open_validated_xlsx
     from core.import_limits import ImportLimitError, read_bounded_text
 
@@ -35,6 +36,8 @@ MAX_SOURCE_CSV_BYTES = 8 * 1024 * 1024
 MAX_SOURCE_ROWS = 20_000
 MAX_SOURCE_COLUMNS = 64
 MAX_SOURCE_CELL_CHARS = 64 * 1024
+MAX_SOURCE_CELLS = 200_000
+MAX_SOURCE_TEXT_CHARS = 8 * 1024 * 1024
 
 try:
     from netmon.services.linux_help_library_service import (
@@ -238,7 +241,7 @@ def linux_help_make_id(raw, existing_ids=None):
         or entry.get("category")
         or "linux_help"
     )
-    used = set(existing_ids or [])
+    used = existing_ids if isinstance(existing_ids, set) else set(existing_ids or [])
     candidate = base
     idx = 2
     while candidate in used:
@@ -754,47 +757,65 @@ def _check_source_row(row, count):
     return row
 
 
+class _SourceBudget:
+    def __init__(self):
+        self.rows = self.cells = self.text = 0
+
+    def check(self, row):
+        self.rows += 1
+        _check_source_row(row, self.rows)
+        self.cells += len(row)
+        self.text += sum(len(str(cell)) for cell in row if cell is not None)
+        if self.cells > MAX_SOURCE_CELLS:
+            raise ImportLimitError("Import: Gesamtgrenze fuer Zellen ueberschritten.")
+        if self.text > MAX_SOURCE_TEXT_CHARS:
+            raise ImportLimitError("Import: Gesamtgrenze fuer Text ueberschritten.")
+        return row
+
+
 def _iter_xlsx_rows(path):
     if load_workbook is None:
         raise RuntimeError("XLSX import requires openpyxl.")
-    rows = []
+    budget = _SourceBudget()
     with open_validated_xlsx(path) as snapshot:
-        workbook = load_workbook(snapshot, read_only=True, data_only=True)
+        workbook = load_workbook(
+            snapshot, read_only=True, data_only=True, keep_links=False
+        )
         try:
             sheet = workbook.active
-            # max_col bounds padding even when the sheet's <dimension> is forged;
-            # read-only rows are padded to it, so later columns are ignored.
+            if sheet.max_column and sheet.max_column > MAX_SOURCE_COLUMNS:
+                raise ImportLimitError("Import: zu viele Spalten.")
+            if sheet.max_row and sheet.max_row > MAX_SOURCE_ROWS + 1:
+                raise ImportLimitError("Import: zu viele Zeilen.")
             for row in sheet.iter_rows(max_col=MAX_SOURCE_COLUMNS, values_only=True):
-                rows.append(_check_source_row(tuple(row), len(rows) + 1))
+                yield budget.check(tuple(row))
         finally:
             workbook.close()
-    return rows
 
 
 def _iter_csv_rows(path):
     text = read_bounded_text(
         path, MAX_SOURCE_CSV_BYTES, label="CSV-Import", encoding="utf-8-sig"
     )
-    rows = []
+    budget = _SourceBudget()
     for row in csv.reader(io.StringIO(text, newline="")):
-        rows.append(_check_source_row(row, len(rows) + 1))
-    return rows
+        yield budget.check(row)
 
 
 def _iter_source_rows(path):
     extension = os.path.splitext(str(path or ""))[1].lower()
-    rows = _iter_xlsx_rows(path) if extension == ".xlsx" else _iter_csv_rows(path)
-    if not rows:
-        return []
-    headers = [str(cell or "").strip() for cell in rows[0]]
-    if extension == ".xlsx":
-        return [dict(zip(headers, row)) for row in rows[1:] if any(row)]
-    # Same shape as csv.DictReader: short rows padded with None, blank rows skipped.
-    return [
-        dict(zip(headers, list(row) + [None] * (len(headers) - len(row))))
-        for row in rows[1:]
-        if row
-    ]
+    rows = iter(_iter_xlsx_rows(path) if extension == ".xlsx" else _iter_csv_rows(path))
+    try:
+        headers = [str(cell or "").strip() for cell in next(rows)]
+    except StopIteration:
+        return
+    for row in rows:
+        if extension == ".xlsx":
+            if any(row):
+                yield dict(zip(headers, row))
+        elif row:
+            # Same short-row shape as csv.DictReader.
+            yield dict(zip(headers, list(row) + [None] * (len(headers) - len(row))))
 
 
 def normalize_linux_help_entry(app, raw, existing_ids=None):
@@ -1009,7 +1030,24 @@ def save_linux_help_glossary(app, update_status=True):
     return True
 
 
-def import_linux_help_csv(app, path):
+def _load_linux_help_commands(path, *, isolated=True):
+    if isolated:
+        from netmon.core.linux_help_process import parse_commands
+
+        return parse_commands(
+            path,
+            limits={
+                name: globals()[name]
+                for name in (
+                    "MAX_SOURCE_CSV_BYTES",
+                    "MAX_SOURCE_ROWS",
+                    "MAX_SOURCE_COLUMNS",
+                    "MAX_SOURCE_CELL_CHARS",
+                    "MAX_SOURCE_CELLS",
+                    "MAX_SOURCE_TEXT_CHARS",
+                )
+            },
+        )
     commands = []
     seen_ids = set()
     for row in _iter_source_rows(path):
@@ -1033,7 +1071,7 @@ def import_linux_help_csv(app, path):
             and str(reduced.get("cmd") or "").strip()
         ):
             continue
-        item = normalize_linux_help_entry(app, reduced, existing_ids=seen_ids)
+        item = normalize_linux_help_entry(None, reduced, existing_ids=seen_ids)
         seen_ids.add(item["id"])
         commands.append(item)
     commands.sort(
@@ -1042,6 +1080,11 @@ def import_linux_help_csv(app, path):
             item.get("name", "").lower(),
         )
     )
+    return commands
+
+
+def import_linux_help_csv(app, path):
+    commands = _load_linux_help_commands(path)
     app.linux_help_data = commands
     rebuild_linux_help_indexes(app)
     set_linux_help_dirty(app, True)
@@ -2071,7 +2114,7 @@ def show_linux_help_tree_menu(app, event):
 
 
 def linux_help_import_csv_dialog(app):
-    if filedialog is None:
+    if filedialog is None or _app_value(app, "linux_help_import_running", False):
         return
     path = filedialog.askopenfilename(
         parent=app,
@@ -2086,9 +2129,28 @@ def linux_help_import_csv_dialog(app):
     )
     if not path:
         return
-    app.linux_help_import_path = path
-    try:
-        commands = import_linux_help_csv(app, path)
+    app.linux_help_import_running = True
+    original = [dict(item) for item in _app_value(app, "linux_help_data", [])]
+    app.linux_help_status_var.set(
+        _tr(app, "linux_help_status_importing", "Linux help: importing...")
+    )
+
+    def finish(commands=None, error=None):
+        app.linux_help_import_running = False
+        if error is not None or app.linux_help_data != original:
+            app.linux_help_status_var.set(
+                app.tr("linux_help_status_import_failed", "Linux help: import failed.")
+            )
+            update_linux_help_notes(
+                app,
+                None,
+                extra_error=str(error or "Data changed during import; please retry."),
+            )
+            return
+        app.linux_help_import_path = path
+        app.linux_help_data = commands
+        rebuild_linux_help_indexes(app)
+        set_linux_help_dirty(app, True)
         sync_linux_help_form_categories(app)
         app.linux_help_category_var.set(_linux_help_all_categories_label(app))
         app.linux_help_source_var.set(_linux_help_all_sources_label(app))
@@ -2101,14 +2163,19 @@ def linux_help_import_csv_dialog(app):
                 "Linux help: {count} entries imported.",
             ).format(count=len(commands))
         )
+
+    def job():
+        try:
+            commands = _load_linux_help_commands(path)
+        except Exception as exc:
+            call_in_ui_thread(app, lambda error=exc: finish(error=error))
+        else:
+            call_in_ui_thread(app, lambda: finish(commands=commands))
+
+    try:
+        threading.Thread(target=job, daemon=True).start()
     except Exception as exc:
-        app.linux_help_status_var.set(
-            app.tr(
-                "linux_help_status_import_failed",
-                "Linux help: import failed.",
-            )
-        )
-        update_linux_help_notes(app, None, extra_error=str(exc))
+        finish(error=exc)
 
 
 def linux_help_export_csv_dialog(app):

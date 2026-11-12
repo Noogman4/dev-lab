@@ -205,7 +205,7 @@ def test_xlsx_decompression_bomb_never_reaches_openpyxl(tmp_path, monkeypatch):
         linux_help.import_linux_help_csv(linux_help_app(tmp_path), path)
 
 
-def test_xlsx_forged_dimension_stays_column_bounded(tmp_path):
+def test_xlsx_forged_dimension_is_rejected(tmp_path):
     raw = xlsx_bytes([("category", "name", "cmd"), ("System", "List", "ls")])
     forged = rewrite_member(
         raw,
@@ -215,11 +215,8 @@ def test_xlsx_forged_dimension_stays_column_bounded(tmp_path):
     assert forged != raw
     path = tmp_path / "forged.xlsx"
     path.write_bytes(forged)
-    rows = linux_help._iter_xlsx_rows(path)
-    assert len(rows) == 2
-    assert all(len(row) == linux_help.MAX_SOURCE_COLUMNS for row in rows)
-    entries = linux_help.import_linux_help_csv(linux_help_app(tmp_path), path)
-    assert [item["cmd"] for item in entries] == ["ls"]
+    with pytest.raises(limits.ImportLimitError):
+        linux_help.import_linux_help_csv(linux_help_app(tmp_path), path)
 
 
 def test_xlsx_row_limit(tmp_path, monkeypatch):
