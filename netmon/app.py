@@ -40,6 +40,7 @@ from netmon.core.archive_limits import (  # noqa: E402 - needs the repo path abo
 )
 from netmon.core import projectm_archive  # noqa: E402 - needs the repo path above
 from netmon.core.import_limits import load_bounded_json  # noqa: E402
+from netmon.core.tk_input_method import x_input_method_bypass  # noqa: E402
 from netmon.core.release_metadata import (  # noqa: E402
     fetch_release_metadata,
 )
@@ -2405,7 +2406,8 @@ class App(TkBase):
     def __init__(self, start_theme: str | None = None):
         if tk is None:
             raise RuntimeError("tkinter is not available")
-        super().__init__(className="NetMon")
+        with x_input_method_bypass():
+            super().__init__(className="NetMon")
         # Widget initialization must not persist partially loaded preferences.
         self._initializing_preferences = True
         self._apply_window_icon()

@@ -31,6 +31,7 @@ try:
     from netmon.core.performance_monitor import measure
     from netmon.core.state import get_netmon_documents_dir
     from netmon.core.support_bundle import create_support_package
+    from netmon.core.tk_input_method import x_input_method_bypass
 except ModuleNotFoundError:
     from core.crash import (
         CRASH_LOG_PATH,
@@ -46,6 +47,7 @@ except ModuleNotFoundError:
     from core.performance_monitor import measure
     from core.state import get_netmon_documents_dir
     from core.support_bundle import create_support_package
+    from core.tk_input_method import x_input_method_bypass
 
 
 def get_startup_error_log_path():
@@ -463,7 +465,8 @@ def _show_startup_splash(duration_ms: int = 5000):
 
     root = None
     try:
-        root = _tk.Tk()
+        with x_input_method_bypass():
+            root = _tk.Tk()
         root.overrideredirect(True)
         root.configure(bg="#05070d")
         try:
