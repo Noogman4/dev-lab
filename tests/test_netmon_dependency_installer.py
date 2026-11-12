@@ -254,12 +254,23 @@ def test_build_packet_capture_permission_repair_script_contains_required_steps()
     assert "TARGET_USER=happy" in script
 
 
-def test_build_packet_capture_permission_repair_terminal_command_wraps_script():
+def test_build_packet_capture_permission_repair_terminal_command_wraps_script(
+    monkeypatch,
+):
+    from netmon.core import privilege_launcher
+
+    monkeypatch.setattr(
+        privilege_launcher, "trusted_system_executable", lambda name: "/usr/bin/" + name
+    )
+    monkeypatch.setattr(
+        privilege_launcher, "trusted_sudo_path", lambda: "/usr/bin/sudo"
+    )
     app = App.__new__(App)
 
     cmd = app._build_packet_capture_permission_repair_terminal_command("happy")
 
-    assert cmd.startswith("sudo /bin/bash -lc ")
+    assert cmd.startswith("/usr/bin/sudo /usr/bin/env -i ")
+    assert "/usr/bin/bash --noprofile --norc -c " in cmd
     assert "dpkg-reconfigure -f noninteractive wireshark-common" in cmd
 
 

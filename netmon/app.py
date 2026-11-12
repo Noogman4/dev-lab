@@ -1279,6 +1279,19 @@ except (ImportError, ModuleNotFoundError):
     )
 
 try:
+    from netmon.core.privilege_launcher import (
+        maintenance_terminal_command,
+        packet_repair_command,
+        terminal_environment,
+    )
+except (ImportError, ModuleNotFoundError):
+    from core.privilege_launcher import (
+        maintenance_terminal_command,
+        packet_repair_command,
+        terminal_environment,
+    )
+
+try:
     from netmon.core.crash import CRASH_LOG_PATH, _append_crash_dump
 except (ImportError, ModuleNotFoundError):
     from core.crash import CRASH_LOG_PATH, _append_crash_dump
@@ -12519,7 +12532,7 @@ class App(TkBase):
         self, username: str
     ) -> str:
         script = self._build_packet_capture_permission_repair_script(username)
-        return f"sudo /bin/bash -lc {shlex.quote(script)}"
+        return shlex.join(packet_repair_command(script))
 
     def repair_packet_capture_permissions(self):
         username = (getpass.getuser() or "").strip()
@@ -12541,10 +12554,11 @@ class App(TkBase):
             return
 
         script = self._build_packet_capture_permission_repair_script(username)
-        if shutil.which("pkexec"):
+        if os.path.lexists("/usr/bin/pkexec"):
             try:
                 subprocess.Popen(
-                    ["pkexec", "/bin/bash", "-lc", script],
+                    packet_repair_command(script, polkit=True),
+                    env=terminal_environment(),
                     start_new_session=True,
                 )
                 self.log_safe(
@@ -12564,9 +12578,20 @@ class App(TkBase):
                     f"Packet-Capture-Rechte-Reparatur via pkexec fehlgeschlagen: {exc}"
                 )
 
+        try:
+            command = self._build_packet_capture_permission_repair_terminal_command(
+                username
+            )
+        except OSError as exc:
+            self.log_safe(f"Packet-Capture-Rechte-Reparatur verweigert: {exc}")
+            messagebox.showerror(
+                "Reparatur nicht gestartet",
+                "Ein vertrauenswürdiger Systemstarter fehlt oder hat unsichere Rechte.",
+                parent=self,
+            )
+            return
         self._run_system_maintenance_command_in_terminal(
-            "Capture-Rechte reparieren",
-            self._build_packet_capture_permission_repair_terminal_command(username),
+            "Capture-Rechte reparieren", command
         )
 
     def show_lynis_install_hint(self):
@@ -26388,32 +26413,18 @@ class App(TkBase):
         return True, ""
 
     def _build_external_terminal_command(self, script: str):
-        candidates = [
-            (
-                "x-terminal-emulator",
-                ["x-terminal-emulator", "-e", "bash", "-lc", script],
-            ),
-            ("gnome-terminal", ["gnome-terminal", "--", "bash", "-lc", script]),
-            ("konsole", ["konsole", "-e", "bash", "-lc", script]),
-            (
-                "xfce4-terminal",
-                ["xfce4-terminal", "--command", f"bash -lc {shlex.quote(script)}"],
-            ),
-            ("mate-terminal", ["mate-terminal", "--", "bash", "-lc", script]),
-            ("lxterminal", ["lxterminal", "-e", f"bash -lc {shlex.quote(script)}"]),
-            ("xterm", ["xterm", "-e", "bash", "-lc", script]),
-        ]
-        for binary, command in candidates:
-            if shutil.which(binary):
-                return command
-        return None
+        try:
+            return maintenance_terminal_command(script)
+        except OSError as exc:
+            self.log_safe(f"Unsicherer oder fehlender Systemstarter: {exc}")
+            return None
 
     def _open_command_in_external_terminal(self, cmd: str):
-        script = f"{cmd}; exec bash"
+        script = f"{cmd}; exec /usr/bin/bash --noprofile --norc"
         launch_cmd = self._build_external_terminal_command(script)
         if not launch_cmd:
             raise RuntimeError("Kein unterstütztes Terminal-Programm gefunden.")
-        subprocess.Popen(launch_cmd, start_new_session=True)
+        subprocess.Popen(launch_cmd, start_new_session=True, env=terminal_environment())
         return launch_cmd[0]
 
     def _run_system_maintenance_command_in_terminal(self, label: str, cmd: str):
@@ -26428,7 +26439,7 @@ class App(TkBase):
             self.log_safe(f"Systemwartung abgebrochen: {label}")
             return
 
-        script = f"{cmd}; echo; echo 'Befehl beendet. Shell bleibt offen.'; exec bash"
+        script = f"{cmd}; echo; echo 'Befehl beendet. Shell bleibt offen.'; exec /usr/bin/bash --noprofile --norc"
         launch_cmd = self._build_external_terminal_command(script)
         if not launch_cmd:
             self.log_safe(
@@ -26441,7 +26452,7 @@ class App(TkBase):
             )
             return
 
-        subprocess.Popen(launch_cmd, start_new_session=True)
+        subprocess.Popen(launch_cmd, start_new_session=True, env=terminal_environment())
         self.log_safe(f"Systemwartung gestartet: {label}")
         self.log_safe(cmd)
 
@@ -33720,7 +33731,7 @@ class App(TkBase):
             f"{install_cmd}; "
             "echo; "
             "echo 'Installer completed. Shell stays open.'; "
-            "exec bash"
+            "exec /usr/bin/bash --noprofile --norc"
         )
         launch_cmd = self._build_external_terminal_command(script)
         if not launch_cmd:
@@ -33733,7 +33744,9 @@ class App(TkBase):
             self.log_safe("Dependency installer: no supported terminal found.")
             return
 
-        proc = subprocess.Popen(launch_cmd, start_new_session=True)
+        proc = subprocess.Popen(
+            launch_cmd, start_new_session=True, env=terminal_environment()
+        )
         self.dep_installer_status_var.set(
             self.tr(
                 "dep_installer_status_install_started",
@@ -33866,9 +33879,7 @@ class App(TkBase):
             finish_refresh()
             return
 
-        script = (
-            f"{apt_cmd}; echo; echo 'Removal completed. Shell stays open.'; exec bash"
-        )
+        script = f"{apt_cmd}; echo; echo 'Removal completed. Shell stays open.'; exec /usr/bin/bash --noprofile --norc"
         launch_cmd = self._build_external_terminal_command(script)
         if not launch_cmd:
             self.dep_installer_remove_status_var.set(
@@ -33880,7 +33891,9 @@ class App(TkBase):
             self.log_safe("Setup removal: no supported terminal found.")
             return
 
-        proc = subprocess.Popen(launch_cmd, start_new_session=True)
+        proc = subprocess.Popen(
+            launch_cmd, start_new_session=True, env=terminal_environment()
+        )
         self.dep_installer_remove_status_var.set(
             self.tr(
                 "dep_installer_status_remove_started",

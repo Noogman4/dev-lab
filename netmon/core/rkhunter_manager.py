@@ -8,8 +8,10 @@ import subprocess
 
 try:
     from netmon.core.privileged_config import write_privileged_config
+    from netmon.core.trusted_sudo import sudo_environment, trusted_command_args
 except ModuleNotFoundError:
     from core.privileged_config import write_privileged_config
+    from core.trusted_sudo import sudo_environment, trusted_command_args
 
 RKHUNTER_CONFIG_PATH = "/etc/rkhunter.conf"
 RKHUNTER_BACKUP_PATH = "/etc/rkhunter.conf.netmon.bak"
@@ -75,8 +77,9 @@ def _normalize_allowed_path(path, *, allow_backup=False, allow_prop_db=False):
 
 def _run_cmd(args, timeout=15, input_text=None):
     try:
+        exec_args = trusted_command_args(args)
         proc = subprocess.run(
-            list(args),
+            exec_args,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -84,6 +87,11 @@ def _run_cmd(args, timeout=15, input_text=None):
             check=False,
             input=input_text,
             encoding="utf-8" if input_text is not None else None,
+            env=(
+                sudo_environment()
+                if exec_args and os.path.basename(exec_args[0]) == "sudo"
+                else None
+            ),
         )
         return proc.returncode, (proc.stdout or "").strip()
     except subprocess.TimeoutExpired:

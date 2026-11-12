@@ -14,8 +14,10 @@ from tkinter import ttk
 
 try:
     from netmon.core.utils import human_size
+    from netmon.core.trusted_sudo import sudo_environment, trusted_command_args
 except (ImportError, ModuleNotFoundError):
     from core.utils import human_size
+    from core.trusted_sudo import sudo_environment, trusted_command_args
 
 
 @dataclass(frozen=True)
@@ -2391,12 +2393,14 @@ class CleanupAssistantTab:
             return {"ok": False, "rc": 1, "out": "sudo session not available"}
         exec_cmd = ["sudo", "-n", *list(command or [])]
         try:
+            exec_cmd = trusted_command_args(exec_cmd)
             completed = subprocess.run(
                 exec_cmd,
                 capture_output=True,
                 text=True,
                 timeout=120,
                 check=False,
+                env=sudo_environment(),
             )
         except Exception as exc:
             return {"ok": False, "rc": 1, "out": str(exc)}
