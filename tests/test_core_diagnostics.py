@@ -59,6 +59,6 @@ def test_redact_diagnostic_value_converts_tuple_to_redacted_list():
     assert diagnostics.redact_diagnostic_value(value) == {
         "items": [
             "contact [EMAIL_REDACTED]",
-            {"path": "/home/[USER_REDACTED]/project", "secret": "token=[REDACTED]"},
+            {"path": "/home/[USER_REDACTED]/project", "secret": "[REDACTED]"},
         ]
     }

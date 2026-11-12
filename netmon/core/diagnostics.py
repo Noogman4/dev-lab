@@ -13,64 +13,13 @@ from uuid import uuid4
 
 from netmon.config.constants import NETMON_APP_VERSION
 from netmon.core.state import get_netmon_documents_dir
+from netmon.core.log_redaction import redact_sensitive_text, redact_diagnostic_value
 from netmon.core.private_logs import (
     ensure_private_log_directory,
     write_private_diagnostic_json,
 )
 
 DIAGNOSTIC_SCHEMA_VERSION = 1
-
-_REDACTION_PATTERNS = (
-    (
-        re.compile(r"(?i)\b(authorization\s*:\s*bearer)\s+[A-Za-z0-9._~+/=-]+"),
-        r"\1 [REDACTED]",
-    ),
-    (
-        re.compile(
-            r"(?i)\b(api[_-]?key|token|secret|password|passwd|pwd)\s*[:=]\s*"
-            r"['\"]?[^'\"\s;]+"
-        ),
-        r"\1=[REDACTED]",
-    ),
-    (
-        re.compile(
-            r"(?i)\b(private[_-]?key|client[_-]?secret|access[_-]?token)\s*[:=]\s*"
-            r"['\"]?[^'\"\s;]+"
-        ),
-        r"\1=[REDACTED]",
-    ),
-    (
-        re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),
-        "[EMAIL_REDACTED]",
-    ),
-    (
-        re.compile(r"(?<![A-Za-z0-9])/(home|Users)/[A-Za-z0-9._-]+"),
-        r"/\1/[USER_REDACTED]",
-    ),
-    (
-        re.compile(r"(?i)\b(passphrase|psk)\s*[:=]\s*['\"]?[^'\"\s;]+"),
-        r"\1=[REDACTED]",
-    ),
-)
-
-
-def redact_sensitive_text(value: str) -> str:
-    text = str(value or "")
-    for pattern, replacement in _REDACTION_PATTERNS:
-        text = pattern.sub(replacement, text)
-    return text
-
-
-def redact_diagnostic_value(value):
-    if isinstance(value, dict):
-        return {str(key): redact_diagnostic_value(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [redact_diagnostic_value(item) for item in value]
-    if isinstance(value, tuple):
-        return [redact_diagnostic_value(item) for item in value]
-    if isinstance(value, str):
-        return redact_sensitive_text(value)
-    return value
 
 
 def _ensure_dir(path: str) -> str:

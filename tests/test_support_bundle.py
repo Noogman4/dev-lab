@@ -73,7 +73,7 @@ def test_build_support_manifest_redacts_metadata(monkeypatch):
 
     assert manifest["os"] == "Test OS"
     assert manifest["system"]["home"] == "/home/[USER_REDACTED]/project"
-    assert manifest["system"]["token"] == "abc123"
+    assert manifest["system"]["token"] == "[REDACTED]"
     assert manifest["metadata"]["email"] == "[EMAIL_REDACTED]"
     assert manifest["metadata"]["detail"] == "api_key=[REDACTED]"
     assert manifest["files"] == ["/tmp/report.json"]

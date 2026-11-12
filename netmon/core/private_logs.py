@@ -11,6 +11,52 @@ from pathlib import Path
 import secrets
 import stat
 
+from .log_redaction import redact_diagnostic_value, redact_sensitive_text
+
+MAX_LOG_RECORD_CHARS = 64 * 1024
+
+
+class _RedactedLog:
+    """Redact one bounded record, including secrets split across write calls.
+
+    Publication happens when the context exits. flush() never publishes an
+    incomplete record that might split a credential or multiline private key.
+    """
+
+    def __init__(self, output):
+        self.output = output
+        self.parts = []
+        self.length = 0
+        self.truncated = False
+        self.encoding = "utf-8"
+
+    def write(self, text):
+        if not isinstance(text, str):
+            raise TypeError("Log text must be a string")
+        remaining = MAX_LOG_RECORD_CHARS - self.length
+        part = text[:remaining]
+        if part:
+            self.parts.append(part)
+        self.length += len(part)
+        self.truncated |= len(text) > remaining
+        return len(text)
+
+    def writelines(self, lines):
+        for line in lines:
+            self.write(line)
+
+    def flush(self):
+        self.output.flush()
+
+    def finish(self):
+        if self.truncated:
+            # A cut JSON/quoted value may no longer be parseable/redactable.
+            # Publish no partial source text in that case.
+            text = "[NetMon log record truncated]\n"
+        else:
+            text = redact_sensitive_text("".join(self.parts))
+        self.output.write(text)
+
 
 @contextmanager
 def _private_directory(path):
@@ -103,12 +149,16 @@ def open_private_log(path, mode="a"):
     with _private_directory(path.parent) as directory:
         fd = _open_file(directory, path.name, mode)
         with os.fdopen(fd, mode, encoding="utf-8") as output:
-            yield output
+            record = _RedactedLog(output)
+            try:
+                yield record
+            finally:
+                record.finish()
 
 
 def write_private_diagnostic_json(path, payload):
     """Publish a complete private report without replacing any existing name."""
-    content = json.dumps(payload, indent=2, ensure_ascii=False)
+    content = json.dumps(redact_diagnostic_value(payload), indent=2, ensure_ascii=False)
     path = Path(path)
     with _private_directory(path.parent) as directory:
         temporary = f".netmon-diagnostic-{secrets.token_hex(16)}.tmp"

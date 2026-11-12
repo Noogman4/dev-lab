@@ -16,9 +16,9 @@ from netmon.ui.tabs.settings_tab import (
 
 def test_redact_sensitive_text_masks_known_patterns():
     text = (
-        "Authorization: Bearer abc123 "
-        "api_key=secret123 "
-        "mail test@example.com "
+        "Authorization: Bearer abc123\n"
+        "api_key=secret123\n"
+        "mail test@example.com\n"
         "path /home/happy/project"
     )
 

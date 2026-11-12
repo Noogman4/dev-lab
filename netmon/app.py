@@ -1305,9 +1305,16 @@ try:
     from netmon.core.diagnostics import (
         diagnostic_reports_dir,
         latest_diagnostic_report_path,
+        redact_sensitive_text,
+        redact_diagnostic_value,
     )
 except (ImportError, ModuleNotFoundError):
-    from core.diagnostics import diagnostic_reports_dir, latest_diagnostic_report_path
+    from core.diagnostics import (
+        diagnostic_reports_dir,
+        latest_diagnostic_report_path,
+        redact_sensitive_text,
+        redact_diagnostic_value,
+    )
 
 try:
     from netmon.core.support_bundle import create_support_package, support_packages_dir
@@ -12045,7 +12052,7 @@ class App(TkBase):
         )
 
     def log(self, msg):
-        msg = self._translate_runtime_log_message(msg)
+        msg = redact_sensitive_text(self._translate_runtime_log_message(msg))
         line = f"[{runtime_log_timestamp()}] {msg}"
         try:
             self._append_runtime_log_line(line)
@@ -12134,7 +12141,7 @@ class App(TkBase):
         tail = lines[-2000:]
         try:
             text_widget.delete("1.0", "end")
-            text_widget.insert("1.0", "".join(tail))
+            text_widget.insert("1.0", redact_sensitive_text("".join(tail)))
             text_widget.see("end")
             return True
         except Exception:
@@ -12150,7 +12157,7 @@ class App(TkBase):
 
     def log_network_debug(self, msg):
         if self.__dict__.get("debug_network_logging", False):
-            text = str(msg or "").rstrip()
+            text = redact_sensitive_text(str(msg or "").rstrip())
             if not text:
                 return
             line = f"[{runtime_log_timestamp()}] {text}"
@@ -37442,7 +37449,10 @@ class App(TkBase):
             record = dict(payload or {})
             record["ts"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             with open_private_log(log_path) as fh:
-                fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+                fh.write(
+                    json.dumps(redact_diagnostic_value(record), ensure_ascii=False)
+                    + "\n"
+                )
         except Exception as exc:
             self.log_debug_safe(
                 f"Port-Reality-Debuglog konnte nicht geschrieben werden: {exc}"
@@ -42942,19 +42952,12 @@ if __name__ == "__main__":
     import traceback as _bootstrap_traceback
 
     def get_startup_error_log_path():
-        base = os.environ.get("XDG_STATE_HOME", "").strip()
-        if not base:
-            base = os.path.expanduser("~/.local/state")
-
-        state_dir = os.path.join(base, "netmon")
-        os.makedirs(state_dir, exist_ok=True)
-
-        return os.path.join(state_dir, "startup_error.log")
+        return os.path.join(get_netmon_state_dir(), "startup_error.log")
 
     def _report_bootstrap_failure(exc: BaseException):
         log_path = get_startup_error_log_path()
         try:
-            with open(log_path, "a", encoding="utf-8") as fh:
+            with open_private_log(log_path) as fh:
                 fh.write("\n" + "=" * 80 + "\n")
                 fh.write("NetMon app.py bootstrap failure\n\n")
                 _bootstrap_traceback.print_exc(file=fh)
