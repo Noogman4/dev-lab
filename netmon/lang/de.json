@@ -2292,6 +2292,7 @@
     "tour_start_dialog_intro": "NetMon kann dir beim Start direkt eine geführte Einführung anbieten.",
     "tour_start_dialog_modes": "Schneller Einstieg: kompakter Überblick über die wichtigsten Bereiche.\nVolle Tour: arbeitet die erfassten Bereiche im Tour-Tab der Reihe nach ab.",
     "tour_start_dialog_checkbox_hint": "Die Checkbox steuert, welche Tour mit dem Startbutton ausgelöst wird.",
+    "tour_start_dialog_dont_ask_again": "Tour beim Start nicht mehr anbieten",
     "tour_start_dialog_yesno": "Möchtest du eine Einführung durch NetMon starten?\n\nJa startet die vorausgewählte Tour, Nein überspringt den Dialog.",
     "tour_tab_overview_title": "{tab_title} im Überblick",
     "tour_tab_overview_body": "Diese Mini-Tour führt dich gezielt durch den Bereich {tab_title}. Sie erklärt kurz Zweck, Einordnung und den sinnvollsten Einstieg.",

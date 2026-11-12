@@ -6768,10 +6768,33 @@ class App(TkBase):
         manager = getattr(self, "guided_tour", None)
         if manager is not None and manager.is_active():
             return False
-        selected_tour = self._show_guided_tour_startup_dialog()
-        if not selected_tour:
-            return False
-        return self.start_guided_tour(selected_tour)
+        self._offer_guided_tour_when_visible()
+        return True
+
+    def _offer_guided_tour_when_visible(self, attempts_left=100):
+        # Never block startup: show the offer only above a visible main window
+        # (polls up to ~30 s) and let NetMon stay usable while it is open.
+        if bool(getattr(self, "_netmon_closing", False)):
+            return
+        try:
+            visible = bool(self.winfo_viewable())
+        except Exception:
+            return
+        if not visible and attempts_left > 0:
+            try:
+                self.after(
+                    300, lambda: self._offer_guided_tour_when_visible(attempts_left - 1)
+                )
+            except Exception:
+                pass
+            return
+        self._show_guided_tour_startup_dialog(
+            on_choice=self._on_guided_tour_offer_choice
+        )
+
+    def _on_guided_tour_offer_choice(self, selected_tour: str):
+        if selected_tour and not bool(getattr(self, "_netmon_closing", False)):
+            self.start_guided_tour(selected_tour)
 
     def _guided_tour_startup_mode(self) -> str:
         mode = (
@@ -6781,8 +6804,14 @@ class App(TkBase):
         )
         return "full-tour" if mode == "full-tour" else "quickstart"
 
-    def _show_guided_tour_startup_dialog(self) -> str:
+    def _show_guided_tour_startup_dialog(self, on_choice=None) -> str:
         default_full_tour = self._guided_tour_startup_mode() == "full-tour"
+
+        def deliver(selected_tour: str) -> str:
+            if callable(on_choice):
+                on_choice(selected_tour)
+            return selected_tour
+
         if tk is None or ttk is None:
             try:
                 start_now = messagebox.askyesno(
@@ -6794,15 +6823,13 @@ class App(TkBase):
                     parent=self,
                 )
             except Exception:
-                return ""
+                return deliver("")
             if not start_now:
-                return ""
-            return "full-tour" if default_full_tour else "quickstart"
+                return deliver("")
+            return deliver("full-tour" if default_full_tour else "quickstart")
         try:
-            result = {"tour": ""}
             win = tk.Toplevel(self)
             win.title(self.tr("tour_start_dialog_title", "NetMon-Tour starten"))
-            win.geometry("560x280")
             win.resizable(False, False)
             win.transient(self)
 
@@ -6849,10 +6876,24 @@ class App(TkBase):
                 wraplength=520,
             ).pack(anchor="w", pady=(6, 0))
 
+            dont_ask_var = tk.BooleanVar(value=False)
+            ttk.Checkbutton(
+                outer,
+                text=self.tr(
+                    "tour_start_dialog_dont_ask_again",
+                    "Don't offer the tour at startup again",
+                ),
+                variable=dont_ask_var,
+            ).pack(anchor="w", pady=(10, 0))
+
             btn_row = ttk.Frame(outer)
             btn_row.pack(fill="x", pady=(18, 0))
+            closed = {"done": False}
 
             def _close(selected_tour: str):
+                if closed["done"]:
+                    return
+                closed["done"] = True
                 mode = "full-tour" if bool(full_tour_var.get()) else "quickstart"
                 self.settings["guided_tour_startup_mode"] = mode
                 startup_mode_var = self.__dict__.get("var_guided_tour_full_on_startup")
@@ -6861,13 +6902,20 @@ class App(TkBase):
                         startup_mode_var.set(mode == "full-tour")
                     except Exception:
                         pass
+                if bool(dont_ask_var.get()):
+                    self.settings["guided_tour_offer_on_startup"] = False
+                    offer_var = self.__dict__.get("var_guided_tour_offer_on_startup")
+                    if offer_var is not None:
+                        try:
+                            offer_var.set(False)
+                        except Exception:
+                            pass
                 self.save_settings(log_success=False)
-                result["tour"] = selected_tour
                 try:
-                    win.grab_release()
+                    win.destroy()
                 except Exception:
                     pass
-                win.destroy()
+                deliver(selected_tour)
 
             ttk.Button(
                 btn_row,
@@ -6883,15 +6931,21 @@ class App(TkBase):
             ).pack(side="right", padx=(0, 8))
 
             win.protocol("WM_DELETE_WINDOW", lambda: _close(""))
+            # Non-modal: centered above NetMon, which stays usable meanwhile.
             try:
-                win.grab_set()
-                win.focus_force()
+                win.update_idletasks()
+                width = max(560, int(win.winfo_reqwidth()))
+                height = int(win.winfo_reqheight())
+                x = self.winfo_rootx() + max(0, (self.winfo_width() - width) // 2)
+                y = self.winfo_rooty() + max(0, (self.winfo_height() - height) // 3)
+                win.geometry(f"{width}x{height}+{x}+{y}")
+                win.lift()
+                win.focus_set()
             except Exception:
                 pass
-            self.wait_window(win)
-            return str(result.get("tour") or "")
-        except Exception:
             return ""
+        except Exception:
+            return deliver("")
 
     def on_guided_tour_offer_toggle(self):
         enabled = bool(self.var_guided_tour_offer_on_startup.get())

@@ -2291,6 +2291,7 @@
     "tour_start_dialog_intro": "NetMon can offer you a guided introduction right at startup.",
     "tour_start_dialog_modes": "Quick start: compact overview of the most important areas.\nFull tour: works through the recorded areas in the Tour tab one by one.",
     "tour_start_dialog_checkbox_hint": "The checkbox controls which tour is started by the start button.",
+    "tour_start_dialog_dont_ask_again": "Don't offer the tour at startup again",
     "tour_start_dialog_yesno": "Would you like to start an introduction to NetMon?\n\nYes starts the preselected tour, No skips the dialog.",
     "tour_tab_overview_title": "{tab_title} overview",
     "tour_tab_overview_body": "This mini tour guides you directly through the {tab_title} area. It briefly explains the purpose, context and the best starting point.",
