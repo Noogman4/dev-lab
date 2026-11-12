@@ -1596,6 +1596,54 @@ def _authorize_hdd_unmount(app, runner):
     return False
 
 
+def _confirm_hdd_unmount(app, identity, target):
+    """Only explicit confirmation of the live source/target authorizes teardown."""
+    ready = threading.Event()
+    result = {}
+
+    def visible(value):
+        return "".join(
+            char if char.isprintable() else f"\\u{ord(char):04x}" for char in str(value)
+        )
+
+    def ask():
+        try:
+            source = identity.source
+            message = app.tr(
+                "hdd_unmount_confirm_body",
+                "Unmount this verified filesystem?\n\n"
+                "Selected device: {device}\nFilesystem source: {source}\n"
+                "Filesystem UUID: {uuid}\nDevice number: {number}\nMount target: {target}\n\n"
+                "Files and programs using it may be affected. Continue?",
+            ).format(
+                device=visible(identity.device.path),
+                source=visible(source.path),
+                uuid=visible(source.uuid),
+                number=f"{os.major(source.number)}:{os.minor(source.number)}",
+                target=visible(target),
+            )
+            result["confirmed"] = (
+                messagebox.askyesno(
+                    app.tr("hdd_unmount_confirm_title", "Confirm filesystem unmount"),
+                    message,
+                    parent=app,
+                    default=messagebox.NO,
+                    icon=messagebox.WARNING,
+                )
+                is True
+            )
+        except (TclError, RuntimeError) as exc:
+            result["error"] = exc
+        finally:
+            ready.set()
+
+    call_in_ui_thread(app, ask)
+    ready.wait()
+    if "error" in result:
+        raise result["error"]
+    return result.get("confirmed", False)
+
+
 def hdd_unmount_async(app, idx, select_tab=True):
     runner = hdd_mount_service.run_hdd_command
     if type(idx) is not int or idx < 0 or idx >= len(app.hdd_slots):
@@ -1650,6 +1698,24 @@ def hdd_unmount_async(app, idx, select_tab=True):
         try:
             identity = _inspect_hdd_request_device(request, runner)
             expected_target = hdd_mount_service.verified_mount_target(identity, runner)
+            if not _confirm_hdd_unmount(app, identity, expected_target):
+                _hdd_action_feedback(
+                    app,
+                    app.tr(
+                        "hdd_unmount_cancelled",
+                        "HDD unmount cancelled; no changes made.",
+                    ),
+                    select_tab=select_tab,
+                )
+                return
+            _assert_hdd_request_device(request)
+            if (
+                hdd_mount_service.verified_mount_target(identity, runner)
+                != expected_target
+            ):
+                raise hdd_mount_service.MountPolicyError(
+                    "Mount target changed after confirmation."
+                )
             if not _authorize_hdd_unmount(app, runner):
                 _hdd_action_feedback(
                     app,
@@ -1660,7 +1726,12 @@ def hdd_unmount_async(app, idx, select_tab=True):
                     select_tab=select_tab,
                 )
                 return
-        except (hdd_mount_service.MountPolicyError, OSError, TclError) as exc:
+        except (
+            hdd_mount_service.MountPolicyError,
+            OSError,
+            TclError,
+            RuntimeError,
+        ) as exc:
             rejected(exc)
             return
         mount_source = identity.source.path

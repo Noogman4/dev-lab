@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import pwd
 import re
 import stat
 import subprocess
@@ -1202,6 +1203,53 @@ def confirm_mapper_closed(identity, runner):
     return False
 
 
+def _check_unmount_target_policy(target):
+    """Slot configuration cannot authorize teardown of critical system mounts.
+
+    Data mounts below /mnt, /media and /run/media remain usable. Their exact
+    identity/target still needs fresh confirmation in the controller.
+    """
+    protected_trees = (
+        "/boot",
+        "/dev",
+        "/etc",
+        "/proc",
+        "/root",
+        "/sys",
+        "/usr",
+        "/var",
+        "/opt",
+        "/srv",
+        "/bin",
+        "/sbin",
+        "/lib",
+        "/lib32",
+        "/lib64",
+        "/libx32",
+    )
+    if (
+        target in {"/", "/home", "/tmp", "/mnt", "/media", "/run", "/run/media"}
+        or any(
+            target == root or target.startswith(root + "/") for root in protected_trees
+        )
+        or (target.startswith("/run/") and not target.startswith("/run/media/"))
+    ):
+        raise MountPolicyError(
+            "Protected system mount; use system administration tools."
+        )
+    # Read the account database, not attacker-influenced HOME/XDG settings.
+    try:
+        home = os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir)
+        if not home.startswith("/") or home == "/":
+            raise ValueError("Invalid account home")
+    except (KeyError, OSError, ValueError) as exc:
+        raise MountPolicyError("Cannot verify the active account home.") from exc
+    if home == target or home.startswith(target.rstrip("/") + "/"):
+        raise MountPolicyError(
+            "Mount contains the active home; use system administration tools."
+        )
+
+
 def verified_mount_target(identity, runner):
     """Bind one exact live mount to the selected slot's verified filesystem."""
     revalidate(identity, runner)
@@ -1241,7 +1289,6 @@ def verified_mount_target(identity, runner):
                 != f"{os.major(source.number)}:{os.minor(source.number)}"
                 or not isinstance(target, str)
                 or not target.startswith("/")
-                or target == "/"
                 or os.path.realpath(target) != target
                 or os.path.normpath(target) != target
                 or any(ord(c) < 32 or ord(c) == 127 for c in target)
@@ -1252,6 +1299,7 @@ def verified_mount_target(identity, runner):
             raise MountPolicyError("Invalid live mount information.") from exc
 
     target = query("--source", source.path)
+    _check_unmount_target_policy(target)
     if query("--mountpoint", target) != target:
         raise MountPolicyError("Live mount changed during verification.")
     revalidate(identity, runner)

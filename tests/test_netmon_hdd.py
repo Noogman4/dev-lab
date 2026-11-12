@@ -757,6 +757,7 @@ def test_hdd_unmount_async_uses_resolved_mount_source_and_actual_target(monkeypa
     monkeypatch.setattr(hdd_controller.os, "stat", selected_node_stat)
 
     app.ensure_sudo_session = lambda _label: True
+    monkeypatch.setattr(hdd_controller, "_confirm_hdd_unmount", lambda *_args: True)
     monkeypatch.setattr(
         hdd_controller,
         "_authorize_hdd_unmount",
@@ -807,4 +808,4 @@ def test_hdd_unmount_async_uses_resolved_mount_source_and_actual_target(monkeypa
         ["umount", "/media/test/Media"],
         ["udisksctl", "unmount", "-b", "/dev/sdb1"],
     ]
-    assert len(checks) == 5  # initial binding plus each attempted unmount
+    assert len(checks) == 6  # initial, post-confirmation, and each attempted unmount

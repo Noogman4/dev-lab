@@ -1,5 +1,39 @@
 # HDD-Slot-Konfiguration und privilegierter Mount
 
+## Nachtrag: Unmount aus manipulierter Slot-Konfiguration, 12.11.2026
+
+Finding: **Manipulated HDD slot state can unmount unrelated internal filesystems**
+(`acf_30df04dcc9037f1d4d3e6774830ae016`).
+
+Die vorhandene Gerätebindung allein reichte nicht aus: Ein passend eingetragener
+interner Datenträger konnte ein echtes, aber nicht für diesen Slot beabsichtigtes
+Dateisystem auswählen. Der Unmount verweigert jetzt geschützte Systemziele
+(unter anderem `/`, `/boot`, `/usr`, `/var`, `/home` und `/run` außerhalb
+von `/run/media/`) sowie das aktive Benutzer-Home und dessen übergeordnete
+Mount-Ziele. Das Home stammt aus der Kontodatenbank, nicht aus `HOME`.
+
+Für zulässige Daten-Mounts verlangt NetMon vor jeder sudo-Autorisierung eine
+eigene Bestätigung mit dem frisch geprüften Gerät, der Dateisystemquelle,
+UUID, Major-/Minor-Gerätenummer und dem tatsächlichen Mount-Ziel. Slot-Namen,
+gespeicherte Mountpunkte und Anzeige-Caches autorisieren diese Entscheidung
+nicht. Der Dialog läuft im UI-Thread, ist standardmäßig auf „Nein“ gestellt
+und kann nicht über eine allgemeine Bestätigungseinstellung abgeschaltet
+werden. Abbruch oder Dialogfehler führen zu keinem sudo-/Unmount-Aufruf.
+
+Nach der Bestätigung und vor jedem Unmount-Versuch wird die Geräte-/Mount-
+Zuordnung erneut geprüft. Änderungen führen zum Abbruch. Bestehende LUKS-
+Mapper-Bindung und Fallback-Prüfungen bleiben erhalten. Es wird kein persistenter
+Mount-Beleg eingeführt; zulässige Daten-Mounts erhalten ihre Freigabe durch die
+explizite Bestätigung ihrer aktuellen Identität. Der Mount-Ablauf wird durch
+diesen Nachtrag nicht verändert.
+
+Validierung: **491 isolierte HDD-Tests bestanden**, einschließlich Systemziel-
+Sperren, manipuliertem `HOME`, Dialogabbruch/-fehlern, UI-Thread-Dispatch und
+Geräte-/Quell-/UUID-/Zielwechseln während der Bestätigung. Geräteinventar und
+verändernde Befehle wurden simuliert; kein echtes Dateisystem wurde ausgehängt.
+Die darunter dokumentierten früheren manuellen Nachtests gelten für deren
+damaligen Code-Stand und ersetzen keinen manuellen Nachtest dieser Änderung.
+
 Prüfdatum: 2026-10-19
 
 Repository: `Noogman4/dev-lab`

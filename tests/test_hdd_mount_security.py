@@ -771,6 +771,7 @@ def unmount_app(kernel, mount_app, monkeypatch, tmp_path):
     state = SimpleNamespace(
         app=mount_app,
         auth=[],
+        confirmations=[],
         effects=[],
         target=str(target),
         result=(0, "unmounted"),
@@ -808,6 +809,12 @@ def unmount_app(kernel, mount_app, monkeypatch, tmp_path):
         "mapper_name": "foreign",
     }
     monkeypatch.setattr(service, "run_hdd_command", runner)
+
+    def confirm(_app, identity, target):
+        state.confirmations.append((identity, target))
+        return True
+
+    monkeypatch.setattr(controller, "_confirm_hdd_unmount", confirm)
     monkeypatch.setattr(
         controller,
         "_authorize_hdd_unmount",
