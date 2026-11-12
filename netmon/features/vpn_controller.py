@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import hashlib
+import dataclasses
 import json
 import logging
 import os
@@ -117,8 +118,12 @@ def _wireguard_profile_hook_directives(path: str) -> list[str]:
     return list(wireguard_import.ProfileSnapshot.read(path).hooks)
 
 
-def _prepare_wireguard_imports(app, paths):
-    """Read and confirm one exact immutable batch on the caller/UI thread."""
+def _prepare_wireguard_imports(app, paths, *, install_to_root=False):
+    """Read and confirm one exact immutable batch on the caller/UI thread.
+
+    ``install_to_root`` marks the /etc/wireguard install route: same-named
+    root profiles are then shown and replaced only after explicit approval.
+    """
     snapshots = []
     total = 0
     if len(paths) > wireguard_import.MAX_PROFILES:
@@ -160,12 +165,76 @@ def _prepare_wireguard_imports(app, paths):
             "\n\nEinige Quelldateien sind auch für andere beschreibbar. "
             "Bitte nur Profile aus einer vertrauenswürdigen Quelle übernehmen."
         )
+    replacements = _existing_root_profiles(app, snapshots) if install_to_root else {}
+    if replacements:
+        text += (
+            "\n\nACHTUNG: Gleichnamige Profile in "
+            f"{nm_ownership.PROFILE_DIRECTORY} werden nur nach einer weiteren "
+            "Rückfrage ersetzt:\n"
+            + "\n".join(
+                f"{name} (bisher SHA-256: {digest})"
+                for name, digest in sorted(replacements.items())
+            )
+        )
     if not messagebox.askyesno("WireGuard-Import bestaetigen", text, parent=app):
         return None
+    if replacements and not _confirm_root_profile_replacement(app, replacements):
+        # Declined: colliding profiles are skipped, never silently replaced.
+        snapshots = [s for s in snapshots if s.name not in replacements]
+        for name in sorted(replacements):
+            app.log(f"Übersprungen (Profil existiert bereits): {name}")
+        replacements = {}
     prepared = []
     for snapshot in snapshots:
-        prepared.append(snapshot if snapshot.protected else snapshot.copy_to(directory))
+        ready = snapshot if snapshot.protected else snapshot.copy_to(directory)
+        if snapshot.name in replacements:
+            ready = dataclasses.replace(
+                ready, replace_sha256=replacements[snapshot.name]
+            )
+        prepared.append(ready)
     return tuple(prepared)
+
+
+def _existing_root_profiles(app, snapshots):
+    """Digests of known same-named /etc/wireguard profiles, read as root.
+
+    Only names NetMon already lists are probed. An unlisted or unreadable
+    existing profile is still protected: the root helper refuses to replace
+    any profile without an approved digest.
+    """
+    known = set(getattr(app, "__dict__", {}).get("wg_profiles") or ())
+    found = {}
+    for snapshot in snapshots:
+        if snapshot.protected:
+            # Re-importing the root profile itself: exactly these bytes.
+            found[snapshot.name] = snapshot.sha256
+            continue
+        if snapshot.name not in known:
+            continue
+        try:
+            current = _owned_nm_command(
+                "snapshot-profile", payload={"name": snapshot.name}
+            )
+            nm_ownership.checked_import_payload(current)
+        except Exception:
+            continue
+        found[snapshot.name] = current["sha256"]
+    return found
+
+
+def _confirm_root_profile_replacement(app, replacements):
+    names = "\n".join(f"- {name}" for name in sorted(replacements))
+    return bool(
+        messagebox.askyesno(
+            "Vorhandene WireGuard-Profile ersetzen?",
+            "Diese Profile existieren bereits in "
+            f"{nm_ownership.PROFILE_DIRECTORY} und würden ersetzt:\n\n{names}\n\n"
+            "Ersetzen? Bei Nein werden nur diese Profile übersprungen.",
+            icon="warning",
+            default="no",
+            parent=app,
+        )
+    )
 
 
 def _verify_import_snapshot(snapshot):
@@ -187,14 +256,20 @@ def _install_wireguard_snapshot(app, snapshot):
     target = app._wg_profile_path(snapshot.name)
     if target != os.path.join(nm_ownership.PROFILE_DIRECTORY, snapshot.name + ".conf"):
         raise ValueError("Unsicherer WireGuard-Zielpfad")
-    _owned_nm_command("install-profile", payload=_verify_import_snapshot(snapshot))
+    payload = _verify_import_snapshot(snapshot)
+    if snapshot.replace_sha256 is not None:
+        # Only an explicitly approved replacement of exactly these old bytes.
+        payload["replace_sha256"] = snapshot.replace_sha256
+    _owned_nm_command("install-profile", payload=payload)
     app.__dict__.get("_wg_activation_links", {}).pop(snapshot.name, None)
 
 
-def _write_generated_wireguard_profile(app, name, content):
+def _write_generated_wireguard_profile(app, name, content, replace_sha256=None):
     snapshot = wireguard_import.ProfileSnapshot.from_bytes(
         "generated", name, content.encode("utf-8")
     )
+    if replace_sha256 is not None:
+        snapshot = dataclasses.replace(snapshot, replace_sha256=replace_sha256)
     _install_wireguard_snapshot(app, snapshot)
 
 
@@ -1826,11 +1901,22 @@ def build_manual_wireguard_config_text(_app, payload):
     return text
 
 
-def write_manual_wg_profile(app, profile_name, config_text):
+def write_manual_wg_profile(app, profile_name, config_text, replace_sha256=None):
     try:
         manual_wireguard.validate_config(config_text)
-        _write_generated_wireguard_profile(app, profile_name, config_text)
+        if replace_sha256 is None:
+            _write_generated_wireguard_profile(app, profile_name, config_text)
+        else:
+            _write_generated_wireguard_profile(
+                app, profile_name, config_text, replace_sha256=replace_sha256
+            )
         return True, ""
+    except nm_ownership.ProfileExistsError:
+        return (
+            False,
+            "Ein gleichnamiges WireGuard-Profil existiert bereits und wurde "
+            "nicht ersetzt.",
+        )
     except Exception:
         return False, "WireGuard-Profil konnte nicht sicher installiert werden."
 
@@ -1911,6 +1997,22 @@ def apply_manual_wireguard_profile(app):
         )
         return
 
+    replace_sha256 = None
+    if profile in set(getattr(app, "__dict__", {}).get("wg_profiles") or ()):
+        try:
+            current = _owned_nm_command("snapshot-profile", payload={"name": profile})
+            nm_ownership.checked_import_payload(current)
+        except Exception:
+            current = None  # Root helper still refuses an unapproved replace.
+        if current is not None:
+            if not _confirm_root_profile_replacement(app, {profile: current["sha256"]}):
+                app._set_manual_wg_status(
+                    "Vorhandenes Profil wurde nicht ersetzt.", level="warn"
+                )
+                app.log(f"Manuelles WireGuard-Profil nicht ersetzt: {profile}")
+                return
+            replace_sha256 = current["sha256"]
+
     app._set_manual_wg_status(
         f"Profil wird angewendet: {profile}",
         level="info",
@@ -1918,7 +2020,12 @@ def apply_manual_wireguard_profile(app):
     app.log(f"Manuelle WireGuard-Konfiguration wird angewendet (Profil: {profile}).")
 
     def job():
-        ok_write, write_err = app._write_manual_wg_profile(profile, config_text)
+        if replace_sha256 is None:
+            ok_write, write_err = app._write_manual_wg_profile(profile, config_text)
+        else:
+            ok_write, write_err = app._write_manual_wg_profile(
+                profile, config_text, replace_sha256=replace_sha256
+            )
         if not ok_write:
             app.after(
                 0,
@@ -3625,7 +3732,11 @@ def import_wg_profiles_from_folder(app):
                 app.log(
                     f"Übersprungen (ungültiger Profilname): {_single_line(os.path.basename(path).removesuffix('.conf'))}"
                 )
-        snapshots = _prepare_wireguard_imports(app, valid) if valid else ()
+        snapshots = (
+            _prepare_wireguard_imports(app, valid, install_to_root=True)
+            if valid
+            else ()
+        )
         if snapshots is None:
             app.log("WireGuard-Import abgebrochen.")
             return
@@ -3646,6 +3757,11 @@ def import_wg_profiles_from_folder(app):
             try:
                 _install_wireguard_snapshot(app, snapshot)
                 rc_cp, out_cp = 0, ""
+            except nm_ownership.ProfileExistsError:
+                rc_cp, out_cp = 1, (
+                    "Gleichnamiges Profil existiert bereits und wurde nicht "
+                    "ersetzt (Profilliste aktualisieren und erneut importieren)."
+                )
             except Exception:
                 rc_cp, out_cp = 1, "Gepruefter WireGuard-Import fehlgeschlagen."
             if rc_cp == 0:
@@ -3764,6 +3880,10 @@ def _owned_nm_command(operation, *, payload=None, identity=None):
         input_text=json.dumps(payload) if payload is not None else "",
         timeout=180,
     )
+    if rc == 3 and operation == "install-profile":
+        raise nm_ownership.ProfileExistsError(
+            "WireGuard-Profil existiert bereits; Ersetzen nicht bestätigt"
+        )
     if rc != 0:
         raise nm_ownership.OwnershipError(
             "Eigentumsprüfung fehlgeschlagen; Verbindung bleibt erhalten"

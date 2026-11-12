@@ -181,6 +181,24 @@ def checked_import_payload(payload):
     return name, content
 
 
+def checked_install_payload(payload):
+    """Reviewed import bytes plus the approved digest of a replaced profile.
+
+    ``replace_sha256`` is present only when the user explicitly confirmed
+    replacing an existing /etc/wireguard profile with exactly that digest.
+    """
+    if not isinstance(payload, dict):
+        raise OwnershipError("Reviewed import proof required")
+    payload = dict(payload)
+    replace = payload.pop("replace_sha256", None)
+    if replace is not None and (
+        not isinstance(replace, str) or not re.fullmatch(r"[0-9a-f]{64}", replace)
+    ):
+        raise OwnershipError("Invalid replacement approval")
+    name, content = checked_import_payload(payload)
+    return name, content, replace
+
+
 def reject_wireguard_hooks(data):
     """No imported or legacy profile can authorize root-executed commands."""
     hooks = wireguard_hooks(data)
@@ -226,6 +244,10 @@ class OwnershipError(RuntimeError):
 
 class WireGuardHooksError(OwnershipError):
     """Safe fixed diagnostic with directive names only, never command content."""
+
+
+class ProfileExistsError(OwnershipError):
+    """A same-named root profile exists and its replacement was not approved."""
 
 
 def canonical_uuid(value):
@@ -651,7 +673,13 @@ class OwnershipStore:
             os.close(directory)
 
     def install_profile(self, payload):
-        name, content = checked_import_payload(payload)
+        """Create a profile, or replace one only with an approved digest.
+
+        Without ``replace_sha256`` an existing same-named profile is never
+        touched; publication uses link(), which cannot overwrite. With it, the
+        existing bytes must still match the digest the user confirmed.
+        """
+        name, content, replace_sha256 = checked_install_payload(payload)
         # Even a same-named WireGuard link must be stopped before replacement.
         # Recheck at the privileged installation boundary, not just in the UI.
         if name in {iface for _index, iface in socket.if_nameindex()}:
@@ -665,11 +693,20 @@ class OwnershipStore:
             )
             try:
                 try:
-                    _data, previous = _read(
+                    existing, previous = _read(
                         directory, name + ".conf", self.owner, MAX_CONFIG
                     )
                 except FileNotFoundError:
-                    previous = None
+                    existing, previous = None, None
+                if existing is not None:
+                    if replace_sha256 is None:
+                        raise ProfileExistsError(
+                            "WireGuard profile exists; replacement not approved"
+                        )
+                    if hashlib.sha256(existing).hexdigest() != replace_sha256:
+                        raise ProfileExistsError(
+                            "Existing WireGuard profile differs from the approved one"
+                        )
                 with _import_snapshot(
                     PROFILE_DIRECTORY, name, content.encode(), owner=self.owner
                 ) as source:
@@ -685,7 +722,17 @@ class OwnershipStore:
                         raise OwnershipError(
                             "Profile name collides with a live interface"
                         )
-                    os.replace(source, name + ".conf", dst_dir_fd=directory)
+                    if previous is None:
+                        # No-clobber publication: a concurrently created file
+                        # makes link() fail instead of being replaced.
+                        os.link(
+                            source,
+                            name + ".conf",
+                            dst_dir_fd=directory,
+                            follow_symlinks=False,
+                        )
+                    else:
+                        os.replace(source, name + ".conf", dst_dir_fd=directory)
                     os.fsync(directory)
             finally:
                 os.close(directory)
@@ -947,12 +994,11 @@ def main(arguments=None):
                     else store.verify_interface(payload["name"])
                 )
                 print(json.dumps(result))
-            else:
+            elif arguments in (["import"], ["import-checked"]):
                 name, content = checked_import_payload(payload)
-                if arguments in (["import"], ["import-checked"]):
-                    print(json.dumps(store.create(name, content)))
-                else:
-                    store.install_profile(payload)
+                print(json.dumps(store.create(name, content)))
+            else:
+                store.install_profile(payload)
         elif len(arguments) == 3 and arguments[0] == "inspect":
             print(json.dumps(store.inspect(arguments[1], arguments[2])))
         elif arguments == ["delete"]:
@@ -993,6 +1039,9 @@ def main(arguments=None):
     except WireGuardHooksError as exc:
         print(str(exc), file=sys.stderr)
         return 1
+    except ProfileExistsError:
+        print("profile-exists", file=sys.stderr)
+        return 3
     except Exception:
         print(
             "Ownership verification failed; unproven connections retained. A failed import may require manual cleanup.",

@@ -700,3 +700,177 @@ def test_import_rejects_physical_interface_name(app, tmp_path, monkeypatch, rout
     assert "install-profile" not in app.operations
     assert "import" not in app.operations
     assert not (app.directory / "eth0.conf").exists()
+
+
+# --- Colliding imports never silently replace a root-owned profile --------
+
+
+def _existing_root_profile(app, data=SAFE):
+    target = app.directory / "work.conf"
+    target.write_bytes(data)
+    target.chmod(0o600)
+    return target
+
+
+def test_root_helper_refuses_unapproved_replacement(app, store):
+    target = _existing_root_profile(app)
+    payload = wg.ProfileSnapshot.from_bytes("synthetic", "work", SAFE_OTHER).payload()
+    with pytest.raises(own.ProfileExistsError):
+        store.install_profile(payload)
+    assert target.read_bytes() == SAFE
+    assert not list(app.directory.glob(".import-*"))
+
+
+def test_root_helper_refuses_replacement_of_changed_profile(app, store):
+    target = _existing_root_profile(app, SAFE)
+    payload = wg.ProfileSnapshot.from_bytes("synthetic", "work", SAFE_OTHER).payload()
+    payload["replace_sha256"] = hashlib.sha256(b"other bytes").hexdigest()
+    with pytest.raises(own.ProfileExistsError):
+        store.install_profile(payload)
+    assert target.read_bytes() == SAFE
+
+
+def test_root_helper_replaces_only_the_approved_bytes(app, store):
+    target = _existing_root_profile(app, SAFE)
+    payload = wg.ProfileSnapshot.from_bytes("synthetic", "work", SAFE_OTHER).payload()
+    payload["replace_sha256"] = hashlib.sha256(SAFE).hexdigest()
+    store.install_profile(payload)
+    assert target.read_bytes() == SAFE_OTHER
+    assert target.stat().st_mode & 0o777 == 0o600
+
+
+def test_new_profile_publication_cannot_overwrite_a_racing_file(
+    app, store, monkeypatch
+):
+    target = app.directory / "work.conf"
+    real_link = own.os.link
+
+    def racing_link(source, destination, **kwargs):
+        # Another root writer creates the name after the existence check.
+        target.write_bytes(SAFE)
+        target.chmod(0o600)
+        return real_link(source, destination, **kwargs)
+
+    monkeypatch.setattr(own.os, "link", racing_link)
+    payload = wg.ProfileSnapshot.from_bytes("synthetic", "work", SAFE_OTHER).payload()
+    with pytest.raises((OSError, own.OwnershipError)):
+        store.install_profile(payload)
+    assert target.read_bytes() == SAFE
+    assert not list(app.directory.glob(".import-*"))
+
+
+@pytest.mark.parametrize("value", ["", "A" * 64, "0" * 63, 7, ["0" * 64]])
+def test_invalid_replacement_approval_is_rejected(value):
+    payload = wg.ProfileSnapshot.from_bytes("synthetic", "work", SAFE).payload()
+    payload["replace_sha256"] = value
+    with pytest.raises(own.OwnershipError):
+        own.checked_install_payload(payload)
+
+
+def test_unknown_install_fields_are_still_rejected():
+    payload = wg.ProfileSnapshot.from_bytes("synthetic", "work", SAFE).payload()
+    payload["overwrite"] = True
+    with pytest.raises(own.OwnershipError):
+        own.checked_install_payload(payload)
+
+
+def _collision_dialogs(monkeypatch, *, replace):
+    seen = []
+
+    def answer(title, text, **kwargs):
+        seen.append((title, text, kwargs))
+        if title.startswith("Vorhandene WireGuard-Profile"):
+            assert kwargs.get("default") == "no"
+            return replace
+        return True
+
+    monkeypatch.setattr(vpn.messagebox, "askyesno", answer)
+    return seen
+
+
+def test_folder_import_skips_a_known_collision_unless_confirmed(
+    app, tmp_path, monkeypatch
+):
+    target = _existing_root_profile(app, SAFE)
+    app.wg_profiles = ["work"]
+    seen = _collision_dialogs(monkeypatch, replace=False)
+    enter(app, profile(tmp_path, data=SAFE_OTHER), "folder", monkeypatch)
+    assert target.read_bytes() == SAFE
+    assert "install-profile" not in app.operations
+    assert any("Übersprungen (Profil existiert bereits): work" in m for m in app.logs)
+    first = seen[0][1]
+    assert "ACHTUNG" in first and hashlib.sha256(SAFE).hexdigest() in first
+
+
+def test_folder_import_replaces_after_explicit_confirmation(app, tmp_path, monkeypatch):
+    target = _existing_root_profile(app, SAFE)
+    app.wg_profiles = ["work"]
+    seen = _collision_dialogs(monkeypatch, replace=True)
+    enter(app, profile(tmp_path, data=SAFE_OTHER), "folder", monkeypatch)
+    assert target.read_bytes() == SAFE_OTHER
+    assert [title for title, *_ in seen] == [
+        "WireGuard-Import bestaetigen",
+        "Vorhandene WireGuard-Profile ersetzen?",
+    ]
+
+
+def test_unlisted_collision_is_refused_by_the_root_helper(app, tmp_path, monkeypatch):
+    """The profile list is stale: the root boundary still never replaces."""
+    target = _existing_root_profile(app, SAFE)
+    app.wg_profiles = []
+    _collision_dialogs(monkeypatch, replace=True)
+    enter(app, profile(tmp_path, data=SAFE_OTHER), "folder", monkeypatch)
+    assert target.read_bytes() == SAFE
+    assert "install-profile" in app.operations
+    assert any("existiert bereits" in m for m in app.logs)
+
+
+def test_networkmanager_routes_do_not_ask_about_root_profiles(
+    app, tmp_path, monkeypatch
+):
+    _existing_root_profile(app, SAFE)
+    app.wg_profiles = ["work"]
+    seen = _collision_dialogs(monkeypatch, replace=True)
+    enter(app, profile(tmp_path, data=SAFE_OTHER), "direct", monkeypatch)
+    assert all("ACHTUNG" not in text for _title, text, _kw in seen)
+    assert "snapshot-profile" not in app.operations
+
+
+def test_generated_profile_never_replaces_without_approval(app):
+    target = _existing_root_profile(app, SAFE)
+    content = vpn.build_manual_wireguard_config_text(
+        None,
+        {
+            "private_key": "A" * 43 + "=",
+            "public_key": "A" * 43 + "=",
+            "address": "10.0.0.2/32",
+            "allowed_ips": "0.0.0.0/0",
+            "endpoint": "198.51.100.1:51820",
+        },
+    )
+    ok, message = vpn.write_manual_wg_profile(app, "work", content)
+    assert (ok, target.read_bytes()) == (False, SAFE)
+    assert "existiert bereits" in message
+    ok, _ = vpn.write_manual_wg_profile(
+        app, "work", content, replace_sha256=hashlib.sha256(SAFE).hexdigest()
+    )
+    assert ok and target.read_bytes() == content.encode()
+
+
+def test_cli_maps_unapproved_replacement_to_a_distinct_exit_code(monkeypatch):
+    monkeypatch.setattr(own.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(own.os.path, "abspath", lambda _p: own.HELPER)
+    monkeypatch.setattr(own, "trusted_helper_available", lambda: True)
+
+    class Store:
+        def install_profile(self, payload):
+            raise own.ProfileExistsError("exists")
+
+    monkeypatch.setattr(own, "OwnershipStore", Store)
+    payload = wg.ProfileSnapshot.from_bytes("synthetic", "work", SAFE).payload()
+    monkeypatch.setattr(
+        own.sys,
+        "stdin",
+        SimpleNamespace(buffer=io.BytesIO(json.dumps(payload).encode())),
+    )
+    assert own.main(["install-profile"]) == 3

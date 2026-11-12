@@ -124,6 +124,9 @@ class ProfileSnapshot:
     protected: bool = False
     for_copy: bool = field(default=False, repr=False)
     origin: "ProfileSnapshot | None" = field(default=None, repr=False, compare=False)
+    # Digest of the existing /etc/wireguard profile the user explicitly
+    # approved replacing; None means create-only (never overwrite).
+    replace_sha256: str | None = field(default=None, compare=False)
 
     @classmethod
     def from_bytes(

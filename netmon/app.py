@@ -31561,8 +31561,10 @@ class App(TkBase):
     def _build_manual_wireguard_config_text(self, payload):
         return vpn_controller.build_manual_wireguard_config_text(self, payload)
 
-    def _write_manual_wg_profile(self, profile_name, config_text):
-        return vpn_controller.write_manual_wg_profile(self, profile_name, config_text)
+    def _write_manual_wg_profile(self, profile_name, config_text, replace_sha256=None):
+        return vpn_controller.write_manual_wg_profile(
+            self, profile_name, config_text, replace_sha256=replace_sha256
+        )
 
     def _assign_manual_profile_to_slot(self, profile_name, slot_no):
         return vpn_controller.assign_manual_profile_to_slot(
