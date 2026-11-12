@@ -163,7 +163,9 @@ def git(root, *args):
     ).stdout.strip()
 
 
-def build_deb(root, version=VERSION, *, test_doc=False, package="netmon"):
+def build_deb(
+    root, version=VERSION, *, test_doc=False, package="netmon", payload="synthetic\n"
+):
     """Build a tiny real DEB with the given identity into dist/ (overwrites)."""
     staging = root / "deb-staging"
     shutil.rmtree(staging, ignore_errors=True)
@@ -176,7 +178,7 @@ def build_deb(root, version=VERSION, *, test_doc=False, package="netmon"):
     )
     docs = staging / "usr/share/doc/netmon"
     docs.mkdir(parents=True)
-    (docs / "copyright").write_text("synthetic\n")
+    (docs / "copyright").write_text(payload)
     if test_doc:
         (docs / "TEST-BUILD.md").write_text("# TESTBUILD\n")
     deb = root / f"dist/netmon_{VERSION}_all.deb"
@@ -814,6 +816,76 @@ def test_unproven_deb_is_never_signed_as_release(repo, profile, case):
     assert "Fertig:" not in result.stdout
     no_production_output(root, profile)
     assert not list(root.glob("dist/**/SHA256SUMS.minisig"))
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+@pytest.mark.parametrize("boundary", ["receipt", "manifest"])
+def test_deb_replaced_after_receipt_check_is_not_published(repo, profile, boundary):
+    root, secret = repo
+    # Preserve the approved receipt, then prepare a different, valid DEB with
+    # the same release identity. Replace the staged bytes after real approval.
+    deb = root / f"dist/netmon_{VERSION}_all.deb"
+    approved = deb.read_bytes()
+    replacement = root / "replacement.deb"
+    shutil.copyfile(build_deb(root, payload="unapproved payload\n"), replacement)
+    deb.write_bytes(approved)
+    if boundary == "receipt":
+        action = (
+            'case "$1:${2:-}" in */netmon_release_deb_receipt.py:verify)\n'
+            f'  cp "{replacement}" "$4";;\n'
+            "esac\n"
+        )
+    else:
+        action = (
+            'case "$1:$*" in */verify_netmon_release_bundle.py:*--write-manifest*)\n'
+            f'  cp "{replacement}" "$2/dist/{deb.name}";;\n'
+            "esac\n"
+        )
+    wrapper = root / "test-bin/python3"
+    wrapper.unlink()
+    wrapper.write_text(
+        "#!/bin/sh\n"
+        f'"{shutil.which("python3")}" "$@"\n'
+        "status=$?\n" + action + "exit $status\n"
+    )
+    wrapper.chmod(0o700)
+    result = run_build(root, profile, NETMON_MINISIGN_SECRET_KEY=str(secret))
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "DEB differs from receipt-approved SHA-256" in result.stderr
+    assert "Fertig:" not in result.stdout
+    no_production_output(root, profile)
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+def test_valid_signatures_do_not_override_expected_receipt_digest(repo, profile):
+    root, secret = repo
+    result = run_build(root, profile, NETMON_MINISIGN_SECRET_KEY=str(secret))
+    assert result.returncode == 0, result.stdout + result.stderr
+    path = root / "dist" / profile[1] / profile[2]
+    command = [
+        sys.executable,
+        str(root / "scripts/verify_netmon_release_bundle.py"),
+        str(path),
+        "--kind",
+        profile[3],
+        "--release-deb-sha256",
+    ]
+    approved = hashlib.sha256(
+        (root / f"dist/netmon_{VERSION}_all.deb").read_bytes()
+    ).hexdigest()
+    for digest in (approved, "0" * 64):
+        checked = subprocess.run(
+            [*command, digest],
+            env=environment(root),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if digest == approved:
+            assert checked.returncode == 0, checked.stdout + checked.stderr
+        else:
+            assert checked.returncode != 0
+            assert "DEB differs from receipt-approved SHA-256" in checked.stderr
 
 
 def test_receipt_is_only_written_for_clean_committed_release_sources(repo):

@@ -228,9 +228,20 @@ def directory_hashes(directory, required):
     return hashes
 
 
-def write_manifest(directory, kind):
-    required, _ = expected_files(read_netmon_version(), kind)
+def check_release_deb(hashes, version, expected_sha256):
+    """Bind production manifests and ZIPs to the digest approved at staging."""
+    if expected_sha256 is not None and (
+        not re.fullmatch(r"[0-9a-f]{64}", expected_sha256)
+        or hashes[f"dist/netmon_{version}_all.deb"] != expected_sha256
+    ):
+        raise ValueError("DEB differs from receipt-approved SHA-256")
+
+
+def write_manifest(directory, kind, release_deb_sha256=None):
+    version = read_netmon_version()
+    required, _ = expected_files(version, kind)
     hashes = directory_hashes(directory, required - MANIFEST_FILES)
+    check_release_deb(hashes, version, release_deb_sha256)
     message = "".join(f"{hashes[name]}  {name}\n" for name in sorted(hashes))
     if len(message.encode("ascii")) > SMALL_FILE_BYTES:
         raise ValueError("Release manifest byte budget exceeded")
@@ -248,7 +259,7 @@ def check_sums(message, expected):
         raise ValueError("Release checksums or member set mismatch")
 
 
-def verify_bundle(path, kind, upload_directory=None):
+def verify_bundle(path, kind, upload_directory=None, release_deb_sha256=None):
     if path.name != BUNDLE_NAMES[kind]:
         raise ValueError("Not a production bundle filename")
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
@@ -343,6 +354,7 @@ def verify_bundle(path, kind, upload_directory=None):
                     contents[relative] = b"".join(chunks)
         if not required <= hashes.keys():
             raise ValueError("Missing expected production files")
+        check_release_deb(hashes, version, release_deb_sha256)
         for script in ("verify_netmon_signature.sh", "verify_netmon_download.sh"):
             trusted = hashlib.sha256(
                 (ROOT / "scripts" / script).read_bytes()
@@ -418,6 +430,10 @@ def main():
     parser.add_argument("bundle", type=Path)
     parser.add_argument("--kind", choices=BUNDLE_NAMES, required=True)
     parser.add_argument(
+        "--release-deb-sha256",
+        help="Require the DEB digest approved by the build's release receipt check",
+    )
+    parser.add_argument(
         "--write-manifest",
         action="store_true",
         help="Generate the unsigned full-member manifest in the given staging directory",
@@ -432,9 +448,11 @@ def main():
         if args.write_manifest:
             if args.upload_directory is not None:
                 raise ValueError("Manifest creation cannot verify an upload directory")
-            write_manifest(args.bundle, args.kind)
+            write_manifest(args.bundle, args.kind, args.release_deb_sha256)
             return 0
-        digest = verify_bundle(args.bundle, args.kind, args.upload_directory)
+        digest = verify_bundle(
+            args.bundle, args.kind, args.upload_directory, args.release_deb_sha256
+        )
     except (
         OSError,
         ValueError,

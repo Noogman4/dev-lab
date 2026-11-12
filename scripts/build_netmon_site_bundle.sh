@@ -217,14 +217,7 @@ cp "$ROOT_DIR/scripts/verify_netmon_download.sh" "$VERIFY_DIR/"
 cp "$ROOT_DIR/scripts/verify_netmon_signature.sh" "$MINISIGN_VERIFY_SCRIPT"
 chmod 755 "$VERIFY_DIR/verify_netmon_download.sh" "$MINISIGN_VERIFY_SCRIPT"
 
-(
-  cd "$PUBLIC_DIR/dist"
-  sha256sum \
-    "netmon_${PKG_VERSION}_all.deb" \
-    "docs/netmon_dokumentation_${DOCS_VERSION}.pdf" \
-    "docs/netmon_dokumentation_${DOCS_VERSION}.html" \
-    > "$SUMS_FILE"
-)
+write_release_checksums
 
 sign_release
 

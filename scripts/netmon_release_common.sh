@@ -74,8 +74,21 @@ stage_release_deb() {
   # receipt-bound DEB from build_netmon_deb.sh --release for the current HEAD.
   local source="$ROOT_DIR/dist/netmon_${PKG_VERSION}_all.deb" target="$1"
   cp -- "$source" "$target/"
-  python3 "$ROOT_DIR/scripts/netmon_release_deb_receipt.py" verify \
-    "$source" "$target/netmon_${PKG_VERSION}_all.deb" --version "$PKG_VERSION"
+  RELEASE_DEB_SHA256="$(python3 "$ROOT_DIR/scripts/netmon_release_deb_receipt.py" verify \
+    "$source" "$target/netmon_${PKG_VERSION}_all.deb" --version "$PKG_VERSION" --sha256-only)"
+  readonly RELEASE_DEB_SHA256
+}
+
+write_release_checksums() {
+  # Preserve the approved digest, rather than approving staged bytes again by
+  # hashing them after the receipt check. Later gates reject any replacement.
+  (
+    cd "$PUBLIC_DIR/dist" || exit
+    printf '%s  %s\n' "$RELEASE_DEB_SHA256" "netmon_${PKG_VERSION}_all.deb"
+    sha256sum \
+      "docs/netmon_dokumentation_${DOCS_VERSION}.pdf" \
+      "docs/netmon_dokumentation_${DOCS_VERSION}.html"
+  ) > "$SUMS_FILE"
 }
 
 sign_release() {
@@ -90,7 +103,7 @@ finish_release_build() {
   # Download checksums stay compatible. A second signed manifest binds the
   # complete deployable tree, excluding only itself and its own signature.
   python3 "$ROOT_DIR/scripts/verify_netmon_release_bundle.py" "$PUBLIC_DIR" \
-    --kind "$kind" --write-manifest
+    --kind "$kind" --write-manifest --release-deb-sha256 "$RELEASE_DEB_SHA256"
   minisign -S -s "$NETMON_MINISIGN_SECRET_KEY" \
     -m "$PUBLIC_DIR/verify/RELEASE-SHA256SUMS" \
     -x "$PUBLIC_DIR/verify/RELEASE-SHA256SUMS.minisig"
@@ -104,7 +117,7 @@ finish_release_build() {
   # Inspect the actual ZIP bytes, using the repository verifier, never a verifier
   # supplied by the archive. Only a verified ZIP and its directory are promoted.
   python3 "$ROOT_DIR/scripts/verify_netmon_release_bundle.py" "$BUILD_DIR/$filename" \
-    --kind "$kind" --upload-directory "$PUBLIC_DIR"
+    --kind "$kind" --upload-directory "$PUBLIC_DIR" --release-deb-sha256 "$RELEASE_DEB_SHA256"
   # The upload directory is also an output. Recheck it after packaging so a
   # changed source cannot leave a valid ZIP beside an invalid upload directory.
   bash "$ROOT_DIR/scripts/verify_netmon_signature.sh" \

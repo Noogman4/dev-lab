@@ -237,6 +237,7 @@ def main(argv=None):
     verify.add_argument("source_deb")
     verify.add_argument("staged_deb")
     verify.add_argument("--version", required=True)
+    verify.add_argument("--sha256-only", action="store_true")
     options = parser.parse_args(argv)
     try:
         if options.command == "preflight":
@@ -250,7 +251,10 @@ def main(argv=None):
             receipt = verify_receipt(
                 options.source_deb, options.staged_deb, options.version
             )
-            print(f"Release-DEB belegt: Commit {receipt['commit']}")
+            if options.sha256_only:
+                print(receipt["sha256"])
+            else:
+                print(f"Release-DEB belegt: Commit {receipt['commit']}")
     except ReceiptError as exc:
         print(f"Release-Abbruch: {exc}", file=sys.stderr)
         return 1
