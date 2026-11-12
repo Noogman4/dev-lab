@@ -10,6 +10,7 @@ Dieses Repository ist das Grundgeruest fuer Svens AI Dev Lab.
 - Python-Code soll mit black formatiert werden
 - Code soll mit ruff pruefbar sein
 - Tests laufen mit pytest
+- In der Codex-Sandbox black nur einzeln pro Datei aufrufen, z. B. `for f in a.py b.py; do python3 -m black "$f"; done`. Mit mehreren Dateien nutzt black asyncio; die Sandbox blockiert send/recv auf Unix-Socket-Paaren, der asyncio-Weckruf geht verloren und black haengt dauerhaft (Hauptprozess plus ein Worker je CPU-Kern).
 
 ## Arbeitsfreigaben
 - Nicht-destruktive Lese- und Analysebefehle duerfen ohne Rueckfrage ausgefuehrt werden, z. B. `rg`, `sed`, `cat`, `ls`, `find`, `git diff`, `git status`.
