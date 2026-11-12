@@ -30,8 +30,10 @@ try:
 except Exception:
     keyring = None
 
-# Ensure repository root is importable when launching via tools/netmon.py
-NETMON_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+# Ensure repository root is importable when launching via tools/netmon.py.
+# realpath: started through a symlinked folder (e.g. a desktop shortcut to
+# netmon/), ".." must still be the repository, not the shortcut's folder.
+NETMON_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 if NETMON_REPO_ROOT not in sys.path:
     sys.path.insert(0, NETMON_REPO_ROOT)
 
@@ -39642,7 +39644,7 @@ class App(TkBase):
     def vscode_async(self):
         launch_dir = os.environ.get("VSCODE_PROJECT_PATH", "").strip()
         if not launch_dir:
-            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            repo_root = NETMON_REPO_ROOT
             for candidate in (repo_root, os.getcwd(), os.path.expanduser("~")):
                 if candidate and os.path.isdir(candidate):
                     launch_dir = candidate
