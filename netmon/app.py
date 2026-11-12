@@ -1292,6 +1292,11 @@ except (ImportError, ModuleNotFoundError):
     )
 
 try:
+    from netmon.core import prequarantine_mount
+except (ImportError, ModuleNotFoundError):
+    from core import prequarantine_mount
+
+try:
     from netmon.core.crash import CRASH_LOG_PATH, _append_crash_dump
 except (ImportError, ModuleNotFoundError):
     from core.crash import CRASH_LOG_PATH, _append_crash_dump
@@ -20344,6 +20349,8 @@ class App(TkBase):
         return "Cloudflare (1.1.1.1)"
 
     def _default_download_scan_temp_dir(self) -> str:
+        if prequarantine_mount.active_mount_ready():
+            return prequarantine_mount.prequarantine_mount_point()
         runtime_dir = str(os.environ.get("XDG_RUNTIME_DIR") or "").strip()
         candidates = []
         if runtime_dir and os.path.isdir(runtime_dir):
@@ -20369,25 +20376,6 @@ class App(TkBase):
 
     def _default_backup_data_target_dir(self) -> str:
         return os.path.abspath(os.path.expanduser("~/NetMon-Backups"))
-
-    def _download_scan_temp_dir_candidates(
-        self, preferred: str | None = None
-    ) -> list[str]:
-        candidates = []
-
-        def _add(path: str):
-            normalized = os.path.abspath(os.path.expanduser(path or ""))
-            if normalized and normalized not in candidates:
-                candidates.append(normalized)
-
-        _add(preferred or self._normalized_download_scan_temp_dir())
-        runtime_dir = str(os.environ.get("XDG_RUNTIME_DIR") or "").strip()
-        if runtime_dir:
-            _add(os.path.join(runtime_dir, "netmon_roots", "download_scan"))
-        _add("/dev/shm/netmon_roots/download_scan")
-        _add("/tmp/netmon_roots/download_scan")
-        _add(os.path.expanduser("~/.cache/netmon_roots/download_scan"))
-        return candidates
 
     def _download_scan_existing_anchor_path(self, path: str) -> str:
         current = os.path.abspath(os.path.expanduser(path or "/"))
@@ -20511,10 +20499,7 @@ class App(TkBase):
         )
 
     def _download_scan_mount_option_string(self) -> str:
-        return (
-            "rw,noexec,nosuid,nodev,mode=700,size=256m,"
-            f"uid={os.getuid()},gid={os.getgid()}"
-        )
+        return prequarantine_mount.mount_option_string()
 
     def _describe_download_scan_temp_security(self, path: str) -> tuple[str, str]:
         mount_info = self._download_scan_mount_info(path)
@@ -21368,6 +21353,13 @@ class App(TkBase):
     def _normalized_download_scan_temp_dir(self) -> str:
         var = self.__dict__.get("download_scan_temp_dir_var")
         raw = str(var.get() or "").strip() if var is not None else ""
+        if (
+            raw == prequarantine_mount.prequarantine_mount_point()
+            and not prequarantine_mount.active_mount_ready()
+        ):
+            # Without the verified tmpfs the fixed point is root-owned (e.g.
+            # after a reboot); fall back to the unprivileged default.
+            raw = ""
         return os.path.abspath(
             os.path.expanduser(raw or self._default_download_scan_temp_dir())
         )
@@ -21415,26 +21407,39 @@ class App(TkBase):
         except Exception:
             pass
 
+    def _use_download_scan_prequarantine_mount(self) -> str:
+        mount_point = prequarantine_mount.prequarantine_mount_point()
+        current = str(self.settings.get("download_scan_temp_dir") or "").strip()
+        self.download_scan_temp_dir_var.set(mount_point)
+        if current != mount_point:
+            self.settings["download_scan_temp_dir"] = mount_point
+            self.save_settings(log_success=False)
+        self._download_scan_temp_last_error = ""
+        self._refresh_download_scan_temp_security_status()
+        return mount_point
+
+    def _fail_download_scan_secure_mount(self, detail: str) -> bool:
+        self._download_scan_temp_last_error = self.tr(
+            "download_scan_mount_failed_prefix",
+            "Vor-Quarantäne konnte nicht als tmpfs/noexec eingehängt werden: ",
+        ) + (str(detail or "").strip() or "no details available")
+        self._refresh_download_scan_temp_security_status()
+        self.log_safe(self._download_scan_temp_last_error)
+        return False
+
     def _ensure_download_scan_secure_mount(self, *, interactive: bool = False) -> bool:
+        # Root mounts only the fixed, root-created point below /run. User
+        # settings and shared temporary paths never become a mount target.
+        if prequarantine_mount.active_mount_ready():
+            self._use_download_scan_prequarantine_mount()
+            return True
+
         target = self._normalized_download_scan_temp_dir()
         if self._download_scan_secure_mount_ready(target):
+            # An existing noexec tmpfs needs no privileged action.
             self._download_scan_temp_last_error = ""
             self._refresh_download_scan_temp_security_status()
             return True
-
-        try:
-            os.makedirs(target, exist_ok=True)
-            try:
-                os.chmod(target, 0o700)
-            except Exception:
-                pass
-        except Exception as exc:
-            self._download_scan_temp_last_error = self.tr(
-                "download_scan_temp_error_prepare_failed",
-                "Pre-quarantine could not be prepared: {error}",
-            ).format(error=exc)
-            self.log_safe(self._download_scan_temp_last_error)
-            return False
 
         if not has_cmd("sudo") or not has_cmd("mount"):
             self._download_scan_temp_last_error = self.tr(
@@ -21461,84 +21466,42 @@ class App(TkBase):
             self._refresh_download_scan_temp_security_status()
             return False
 
-        option_string = self._download_scan_mount_option_string()
-        attempts = []
-        for candidate in self._download_scan_temp_dir_candidates(target):
-            try:
-                os.makedirs(candidate, exist_ok=True)
-                try:
-                    os.chmod(candidate, 0o700)
-                except Exception:
-                    pass
-            except Exception as exc:
-                attempts.append(f"{candidate}: directory error: {exc}")
-                continue
-
-            info = self._download_scan_mount_info(candidate)
-            fs_type = str(info.get("fs_type") or "").strip().lower()
-            if fs_type == "tmpfs":
-                cmd = [
-                    "sudo",
-                    "-n",
-                    "mount",
-                    "-o",
-                    f"remount,{option_string}",
-                    candidate,
-                ]
-            else:
-                cmd = [
-                    "sudo",
-                    "-n",
-                    "mount",
-                    "-t",
-                    "tmpfs",
-                    "-o",
-                    option_string,
-                    "tmpfs",
-                    candidate,
-                ]
-            rc, out = run_cmd(cmd, timeout=20)
+        mount_point = prequarantine_mount.prequarantine_mount_point()
+        if prequarantine_mount.exact_mount_entry(mount_point) is None:
+            # Never run install over an existing mount: it would chown its root.
+            rc, out = run_cmd(prequarantine_mount.prepare_command(), timeout=20)
             if rc != 0:
-                attempts.append(
-                    f"{candidate}: " + (str(out or "").strip() or f"return code {rc}")
+                return self._fail_download_scan_secure_mount(
+                    f"{mount_point}: " + (str(out or "").strip() or f"return code {rc}")
                 )
-                continue
 
-            try:
-                os.chmod(candidate, 0o700)
-            except Exception:
-                pass
-            if candidate != target:
-                self.download_scan_temp_dir_var.set(candidate)
-                self.settings["download_scan_temp_dir"] = candidate
-                self.save_settings(log_success=False)
-                self.log_safe(
-                    self.tr(
-                        "download_scan_prequarantine_fallback_enabled",
-                        "Pre-quarantine enabled on fallback path: {path}",
-                    ).format(path=candidate)
-                )
-            self._download_scan_temp_last_error = ""
-            self._refresh_download_scan_temp_security_status()
-            self.log_safe(
-                self.tr(
-                    "download_scan_prequarantine_enabled",
-                    "Pre-quarantine active: {path} ({options})",
-                ).format(path=candidate, options=option_string)
+        # Fails closed on links, non-root owners, writable parents or a mount
+        # that is already present but not the verified NetMon tmpfs.
+        reason = prequarantine_mount.unsafe_unmounted_point_reason()
+        if reason:
+            return self._fail_download_scan_secure_mount(reason)
+
+        rc, out = run_cmd(prequarantine_mount.mount_command(), timeout=20)
+        if rc != 0:
+            return self._fail_download_scan_secure_mount(
+                f"{mount_point}: " + (str(out or "").strip() or f"return code {rc}")
             )
-            return self._download_scan_secure_mount_ready(candidate)
 
-        detail = " | ".join(attempts) if attempts else "no details available"
-        self._download_scan_temp_last_error = (
+        reason = prequarantine_mount.unsafe_active_mount_reason()
+        if reason:
+            return self._fail_download_scan_secure_mount(reason)
+
+        self._use_download_scan_prequarantine_mount()
+        self.log_safe(
             self.tr(
-                "download_scan_mount_failed_prefix",
-                "Vor-Quarantäne konnte nicht als tmpfs/noexec eingehängt werden: ",
+                "download_scan_prequarantine_enabled",
+                "Pre-quarantine active: {path} ({options})",
+            ).format(
+                path=mount_point,
+                options=prequarantine_mount.mount_option_string(),
             )
-            + detail
         )
-        self._refresh_download_scan_temp_security_status()
-        self.log_safe(self._download_scan_temp_last_error)
-        return False
+        return True
 
     def _clear_download_scan_temp_contents(self, *, startup: bool = False) -> int:
         target = self._normalized_download_scan_temp_dir()
@@ -21621,10 +21584,28 @@ class App(TkBase):
         )
 
     def _disable_download_scan_secure_mount(self, *, interactive: bool = False) -> bool:
-        target = self._normalized_download_scan_temp_dir()
-        if not self._download_scan_secure_mount_ready(target):
+        # Only the fixed NetMon tmpfs is ever unmounted, never the configured
+        # path or whatever system mount happens to contain it.
+        target = prequarantine_mount.prequarantine_mount_point()
+        entry = prequarantine_mount.exact_mount_entry(target)
+        if entry is None:
+            self._reset_download_scan_temp_dir_after_unmount(target)
             self._refresh_download_scan_temp_security_status()
             return True
+        if (
+            entry.get("fs_type") != "tmpfs"
+            or entry.get("source") != "tmpfs"
+            or prequarantine_mount.unsafe_parent_reason()
+        ):
+            self._refresh_download_scan_temp_security_status()
+            self.log_safe(
+                self.tr(
+                    "download_scan_disable_failed_prefix",
+                    "Vor-Quarantäne konnte nicht deaktiviert werden: ",
+                )
+                + f"{target}: kein NetMon-tmpfs"
+            )
+            return False
 
         if not has_cmd("sudo") or not has_cmd("umount"):
             self._refresh_download_scan_temp_security_status()
@@ -21644,7 +21625,10 @@ class App(TkBase):
             self._refresh_download_scan_temp_security_status()
             return False
 
-        rc, out = run_cmd(["sudo", "-n", "umount", target], timeout=20)
+        rc, out = run_cmd(prequarantine_mount.unmount_command(), timeout=20)
+        unmounted = prequarantine_mount.exact_mount_entry(target) is None
+        if unmounted:
+            self._reset_download_scan_temp_dir_after_unmount(target)
         self._refresh_download_scan_temp_security_status()
         if rc != 0:
             self.log_safe(
@@ -21662,7 +21646,24 @@ class App(TkBase):
                 "Vor-Quarantäne deaktiviert: {path}",
             ).format(path=target)
         )
-        return not self._download_scan_secure_mount_ready(target)
+        return unmounted
+
+    def _reset_download_scan_temp_dir_after_unmount(self, mount_point: str):
+        # The bare root-owned mount point is not writable for the user.
+        var = self.__dict__.get("download_scan_temp_dir_var")
+        configured = {
+            str(self.settings.get("download_scan_temp_dir") or "").strip(),
+            str(var.get() or "").strip() if var is not None else "",
+        }
+        if mount_point not in configured:
+            return
+        fallback = self._default_download_scan_temp_dir()
+        self.settings["download_scan_temp_dir"] = fallback
+        try:
+            self.download_scan_temp_dir_var.set(fallback)
+        except Exception:
+            pass
+        self.save_settings(log_success=False)
 
     def on_download_scan_prequarantine_startup_toggle(self):
         enabled = bool(self.download_scan_prequarantine_startup_var.get())
