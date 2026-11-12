@@ -111,11 +111,11 @@ def test_site_bundle_publishes_current_r12_audit_and_keeps_archives():
     assert 'require_file "$ROOT_DIR/site/netmon_security_audit_2026_r11.pdf"' in source
     assert 'require_file "$ROOT_DIR/site/netmon_security_audit_2026_r12.pdf"' in source
     assert (
-        'cp "$ROOT_DIR/site/netmon_security_audit_2026_r12.pdf" '
+        'copy_release_file "$ROOT_DIR/site/netmon_security_audit_2026_r12.pdf" '
         '"$PUBLIC_DIR/netmon_security_audit_2026.pdf"'
     ) in source
     assert (
-        'cp "$ROOT_DIR/site/netmon_security_audit_2026_r11.pdf" '
+        'copy_release_file "$ROOT_DIR/site/netmon_security_audit_2026_r11.pdf" '
         '"$PUBLIC_DIR/netmon_security_audit_2026_r11.pdf"'
     ) in source
 
@@ -130,15 +130,15 @@ def test_release_update_bundle_includes_r12_html_pdf_and_r11_pdf_archive():
     assert 'require_file "$ROOT_DIR/site/netmon_security_audit_2026_r11.pdf"' in source
     assert 'require_file "$ROOT_DIR/site/netmon_security_audit_2026_r12.pdf"' in source
     assert (
-        'cp "$ROOT_DIR/site/security-audit.html" '
+        'copy_release_file "$ROOT_DIR/site/security-audit.html" '
         '"$PUBLIC_DIR/security-audit-r12.html"'
     ) in source
     assert (
-        'cp "$ROOT_DIR/site/netmon_security_audit_2026_r12.pdf" '
+        'copy_release_file "$ROOT_DIR/site/netmon_security_audit_2026_r12.pdf" '
         '"$PUBLIC_DIR/netmon_security_audit_2026.pdf"'
     ) in source
     assert (
-        'cp "$ROOT_DIR/site/netmon_security_audit_2026_r11.pdf" '
+        'copy_release_file "$ROOT_DIR/site/netmon_security_audit_2026_r11.pdf" '
         '"$PUBLIC_DIR/netmon_security_audit_2026_r11.pdf"'
     ) in source
     assert 'echo "  public_html/security-audit-r12.html"' in source

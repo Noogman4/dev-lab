@@ -54,7 +54,10 @@ def isolated_repo(root, sources=None):
     for name, *_ in PROFILES:
         source = (root / "scripts" / name).read_text()
         paths.update(
-            re.findall(r'(?:require_file|cp|convert) "(\$ROOT_DIR/[^"\n]+)"', source)
+            re.findall(
+                r'(?:require_file|copy_release_file|convert) "(\$ROOT_DIR/[^"\n]+)"',
+                source,
+            )
         )
         paths.update(
             "$ROOT_DIR/site/screenshots/" + value
@@ -564,6 +567,62 @@ def test_symlink_output_paths_are_rejected(repo, tmp_path, location):
     result = run_build(root, profile, NETMON_MINISIGN_SECRET_KEY=str(secret))
     assert result.returncode != 0
     assert not list(target.iterdir())
+
+
+@pytest.mark.parametrize("late_swap", [False, True])
+@pytest.mark.parametrize(
+    "profile,source",
+    [
+        (profile, source)
+        for profile in PROFILES
+        for source in [
+            "site/downloads.html",
+            "site/download-config.php",
+            f"dist/docs/netmon_dokumentation_{VERSION}.pdf",
+            f"dist/netmon_{VERSION}_all.deb",
+            "site/en",
+            "dist/docs",
+            "docs/security/netmonroots.minisign.pub",
+            "scripts/verify_netmon_download.sh",
+        ]
+        + (
+            ["tools/Favicon.png", "site/robots.txt", "site/screenshots"]
+            if profile[3] == "site"
+            else []
+        )
+    ],
+)
+def test_workspace_symlink_inputs_are_not_signed(
+    repo, tmp_path, profile, source, late_swap
+):
+    root, secret = repo
+    path = root / source
+    target = tmp_path / "external-input"
+    if late_swap:
+        # Runs after require_file preflight, before the first staging copy.
+        (root / "scripts/check_release_consistency.py").write_text(
+            "from pathlib import Path\n"
+            f"source, target = Path({str(path)!r}), Path({str(target)!r})\n"
+            "source.rename(target)\n"
+            "source.symlink_to(target, target_is_directory=target.is_dir())\n"
+        )
+    else:
+        path.rename(target)
+        path.symlink_to(target, target_is_directory=target.is_dir())
+    marker = root / "signer-called"
+    signer = root / "test-bin/minisign"
+    signer.unlink()
+    signer.write_text(
+        '#!/bin/sh\nif [ "$1" = -S ]; then\n'
+        f'  printf called >> "{marker}"\nfi\n'
+        f'exec "{shutil.which("minisign")}" "$@"\n'
+    )
+    signer.chmod(0o700)
+    result = run_build(root, profile, NETMON_MINISIGN_SECRET_KEY=str(secret))
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "Fertig:" not in result.stdout
+    assert not marker.exists(), "Symlink input reached production signing"
+    no_production_output(root, profile)
 
 
 @pytest.mark.parametrize(

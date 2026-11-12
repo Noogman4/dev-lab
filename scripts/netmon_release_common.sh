@@ -69,11 +69,22 @@ require_release_signing() {
   fi
 }
 
+copy_release_file() {
+  local source="$1" target="$2"
+  if [[ "$target" == */ ]]; then
+    target+="${source##*/}"
+  fi
+  # Open every source component with O_NOFOLLOW, then copy from that FD.
+  # A preflight -L check alone would leave a check/use race before cp/convert.
+  python3 "$ROOT_DIR/scripts/copy_netmon_release_input.py" \
+    "$BUILD_DIR" "$source" "$target"
+}
+
 stage_release_deb() {
   # Copy first, then prove the private staged bytes: what gets signed is the
   # receipt-bound DEB from build_netmon_deb.sh --release for the current HEAD.
   local source="$ROOT_DIR/dist/netmon_${PKG_VERSION}_all.deb" target="$1"
-  cp -- "$source" "$target/"
+  copy_release_file "$source" "$target/"
   RELEASE_DEB_SHA256="$(python3 "$ROOT_DIR/scripts/netmon_release_deb_receipt.py" verify \
     "$source" "$target/netmon_${PKG_VERSION}_all.deb" --version "$PKG_VERSION" --sha256-only)"
   readonly RELEASE_DEB_SHA256
@@ -92,8 +103,10 @@ write_release_checksums() {
 }
 
 sign_release() {
+  # The optional override was compared with this pin at preflight. Publish
+  # only the workspace pin, through the same no-follow staging path.
+  copy_release_file "$PINNED_MINISIGN_PUBKEY" "$MINISIGN_PUBKEY_TARGET"
   minisign -S -s "$NETMON_MINISIGN_SECRET_KEY" -m "$SUMS_FILE" -x "$PUBLIC_DIR/dist/SHA256SUMS.minisig"
-  cp "$RELEASE_MINISIGN_PUBKEY" "$MINISIGN_PUBKEY_TARGET"
   bash "$ROOT_DIR/scripts/verify_netmon_signature.sh" \
     "$MINISIGN_PUBKEY_TARGET" "$PUBLIC_DIR/dist/SHA256SUMS.minisig" "$SUMS_FILE"
 }
