@@ -53,10 +53,7 @@ def _netmon_child_dir(base: str, *, private: bool = False) -> str:
 
 
 def _ensure_private_dir(path: str) -> str:
-    try:
-        ensure_private_log_directory(path)
-    except OSError:
-        pass  # Sensitive writers independently reject unsafe paths.
+    ensure_private_log_directory(path)
     return path
 
 

@@ -18,7 +18,8 @@ def test_config_and_state_dirs_use_xdg_home(monkeypatch, tmp_path):
 def test_xdg_documents_dir_wins_over_home_candidates(monkeypatch, tmp_path):
     docs_home = tmp_path / "xdg-docs"
     home = tmp_path / "home"
-    (home / "Documents").mkdir(parents=True)
+    home.mkdir(mode=0o700)
+    (home / "Documents").mkdir(mode=0o700)
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("XDG_DOCUMENTS_DIR", str(docs_home))
 
@@ -28,8 +29,9 @@ def test_xdg_documents_dir_wins_over_home_candidates(monkeypatch, tmp_path):
 
 def test_documents_dir_prefers_documents_over_dokumente(monkeypatch, tmp_path):
     home = tmp_path / "home"
-    (home / "Documents").mkdir(parents=True)
-    (home / "Dokumente").mkdir()
+    home.mkdir(mode=0o700)
+    (home / "Documents").mkdir(mode=0o700)
+    (home / "Dokumente").mkdir(mode=0o700)
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.delenv("XDG_DOCUMENTS_DIR", raising=False)
 
@@ -38,7 +40,8 @@ def test_documents_dir_prefers_documents_over_dokumente(monkeypatch, tmp_path):
 
 def test_documents_dir_uses_dokumente_when_documents_missing(monkeypatch, tmp_path):
     home = tmp_path / "home"
-    (home / "Dokumente").mkdir(parents=True)
+    home.mkdir(mode=0o700)
+    (home / "Dokumente").mkdir(mode=0o700)
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.delenv("XDG_DOCUMENTS_DIR", raising=False)
 

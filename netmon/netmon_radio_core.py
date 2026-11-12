@@ -2,21 +2,34 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
-import fcntl
+import secrets
 import shutil
 import shlex
 import subprocess
 import sys
 import time
 from dataclasses import dataclass
-from contextlib import contextmanager
 
 try:
-    from netmon.core.utils import safe_write_json
+    from netmon.core.private_state import (
+        private_state_key,
+        private_state_lock,
+        read_private_json,
+        remove_private_state,
+        write_private_json,
+    )
 except ModuleNotFoundError:
-    from core.utils import safe_write_json
+    from core.private_state import (
+        private_state_key,
+        private_state_lock,
+        read_private_json,
+        remove_private_state,
+        write_private_json,
+    )
 
 try:
     from netmon.config.constants import (
@@ -188,9 +201,7 @@ def build_radio_paths() -> RadioPathSet:
 
 def _safe_write_json(path: str, payload: dict) -> bool:
     try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as handle:
-            json.dump(payload, handle, indent=2, ensure_ascii=False)
+        write_private_json(path, payload)
         return True
     except Exception:
         return False
@@ -198,13 +209,17 @@ def _safe_write_json(path: str, payload: dict) -> bool:
 
 def _safe_read_json(path: str) -> dict:
     try:
-        with open(path, "r", encoding="utf-8") as handle:
-            payload = json.load(handle)
-        if isinstance(payload, dict):
-            return payload
+        return read_private_json(path)
     except Exception:
         pass
     return {}
+
+
+def _safe_remove_state(path: str, *, remove_if=None) -> bool:
+    try:
+        return remove_private_state(path, remove_if=remove_if)
+    except Exception:
+        return False
 
 
 def _write_radio_host_state_payload(payload: dict) -> bool:
@@ -221,7 +236,7 @@ def _build_session_id(mode: str, owner_pid: int) -> str:
 def _build_transition_id(target_mode: str, owner_pid: int) -> str:
     return (
         f"{str(target_mode or 'transition').strip().lower()}-"
-        f"{int(owner_pid)}-{int(time.time() * 1000)}"
+        f"{int(owner_pid)}-{secrets.token_hex(16)}"
     )
 
 
@@ -312,16 +327,10 @@ def _process_identity(pid: int) -> tuple[str, int] | None:
         return None
 
 
-@contextmanager
 def _netmon_host_state_lock(path):
     # Only local host registration/cleanup uses this lock. It is unrelated to
     # the network coordinator and prevents a late old host removing a new one.
-    with open(path + ".lock", "a", encoding="ascii") as handle:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    return private_state_lock(path + ".lock")
 
 
 def write_netmon_host_state(pid: int) -> bool:
@@ -338,7 +347,7 @@ def write_netmon_host_state(pid: int) -> bool:
     try:
         path = build_radio_paths().netmon_host_state_path
         with _netmon_host_state_lock(path):
-            ok, _error = safe_write_json(path, payload, indent=2)
+            ok = _safe_write_json(path, payload)
         return ok
     except OSError:
         return False
@@ -348,7 +357,7 @@ def clear_netmon_host_state(pid: int | None = None) -> bool:
     try:
         path = build_radio_paths().netmon_host_state_path
         with _netmon_host_state_lock(path):
-            if not os.path.exists(path):
+            if not os.path.lexists(path):
                 return True
             if pid is not None:
                 state = _safe_read_json(path)
@@ -359,8 +368,7 @@ def clear_netmon_host_state(pid: int | None = None) -> bool:
                     state.get("start_ticks"),
                 ):
                     return False
-            os.remove(path)
-        return True
+            return _safe_remove_state(path)
     except FileNotFoundError:
         return True
     except Exception:
@@ -374,18 +382,11 @@ def read_netmon_host_state() -> dict:
 def clear_radio_host_state(pid: int) -> bool:
     """Clear only this radio owner; never unregister a separate NetMon host."""
     path = build_radio_paths().radio_host_state_path
-    if not os.path.exists(path):
-        return True
-    state = _safe_read_json(path)
-    if type(pid) is not int or state.get("owner_pid", state.get("pid")) != pid:
+    if type(pid) is not int:
         return False
-    try:
-        os.remove(path)
-        return True
-    except FileNotFoundError:
-        return True
-    except OSError:
-        return False
+    return _safe_remove_state(
+        path, remove_if=lambda state: state.get("owner_pid", state.get("pid")) == pid
+    )
 
 
 def read_radio_host_state() -> dict:
@@ -650,12 +651,7 @@ def set_radio_detached_state(detached: bool) -> bool:
             attached=bool(state.get("attached", True)),
         )
     ok = _write_radio_host_state_payload(state)
-    try:
-        os.remove(build_radio_paths().radio_detached_state_path)
-    except FileNotFoundError:
-        pass
-    except Exception:
-        pass
+    _safe_remove_state(build_radio_paths().radio_detached_state_path)
     return ok
 
 
@@ -679,8 +675,70 @@ def current_radio_transition_id() -> str:
     return str(state.get("transition_id", "") or "").strip()
 
 
+RADIO_REQUEST_MAX_AGE = 120
+
+
+def _radio_request_mac(path: str, payload: dict, *, create_key=False) -> str:
+    # The private directory and key authenticate the local user, not a process
+    # name or predictable PID. Purpose binding prevents cross-file substitution.
+    key_path = os.path.join(os.path.dirname(path), "radio_ipc.key")
+    key = private_state_key(key_path, create=create_key)
+    message = json.dumps(
+        [os.path.basename(path), payload],
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+    return hmac.new(key, message, hashlib.sha256).hexdigest()
+
+
+def _write_radio_request(path: str, payload: dict) -> bool:
+    try:
+        payload = dict(payload)
+        payload.update(ipc_version=1, nonce=secrets.token_hex(16))
+        payload["auth"] = _radio_request_mac(path, payload, create_key=True)
+        return _safe_write_json(path, payload)
+    except Exception:
+        return False
+
+
+def _valid_radio_request(path: str, payload: dict) -> bool:
+    requested_at = payload.get("requested_at")
+    nonce = payload.get("nonce")
+    if (
+        type(payload.get("ipc_version")) is not int
+        or payload["ipc_version"] != 1
+        or type(requested_at) is not int
+        or not -5 <= time.time() - requested_at <= RADIO_REQUEST_MAX_AGE
+        or not isinstance(nonce, str)
+        or len(nonce) != 32
+        or any(char not in "0123456789abcdef" for char in nonce)
+    ):
+        return False
+    unsigned = dict(payload)
+    supplied_mac = unsigned.pop("auth", None)
+    return (
+        isinstance(supplied_mac, str)
+        and len(supplied_mac) == 64
+        and supplied_mac.isascii()
+        and hmac.compare_digest(supplied_mac, _radio_request_mac(path, unsigned))
+    )
+
+
+def _consume_radio_request(path: str, matches) -> dict | None:
+    try:
+        return read_private_json(
+            path,
+            consume_if=lambda payload: _valid_radio_request(path, payload)
+            and matches(payload),
+        )
+    except Exception:
+        return None
+
+
 def _request_radio_signal(path: str, *, action: str, transition_id: str = "") -> bool:
-    return _safe_write_json(
+    return _write_radio_request(
         path,
         {
             "action": str(action or "").strip(),
@@ -691,30 +749,22 @@ def _request_radio_signal(path: str, *, action: str, transition_id: str = "") ->
 
 
 def _consume_radio_signal(path: str, *, action: str, transition_id: str = "") -> bool:
-    payload = _safe_read_json(path)
-    if payload.get("action") != str(action or "").strip():
-        return False
     expected_transition_id = str(transition_id or "").strip()
-    payload_transition_id = str(payload.get("transition_id", "") or "").strip()
-    if expected_transition_id and payload_transition_id != expected_transition_id:
-        return False
-    try:
-        os.remove(path)
-    except Exception:
-        pass
-    return True
+    return (
+        _consume_radio_request(
+            path,
+            lambda payload: payload.get("action") == str(action or "").strip()
+            and (
+                not expected_transition_id
+                or payload.get("transition_id") == expected_transition_id
+            ),
+        )
+        is not None
+    )
 
 
 def _clear_radio_signal(path: str) -> bool:
-    if not os.path.exists(path):
-        return True
-    try:
-        os.remove(path)
-        return True
-    except FileNotFoundError:
-        return True
-    except Exception:
-        return False
+    return _safe_remove_state(path)
 
 
 def _request_radio_payload(
@@ -725,7 +775,7 @@ def _request_radio_payload(
     action: str,
     transition_id: str = "",
 ) -> bool:
-    return _safe_write_json(
+    return _write_radio_request(
         path,
         {
             "action": str(action or "").strip().lower(),
@@ -743,35 +793,30 @@ def _consume_radio_payload(
     target_mode: str,
     transition_id: str = "",
 ) -> dict | None:
-    payload = _safe_read_json(path)
-    if not payload:
-        return None
     expected_mode = str(target_mode or "").strip().lower()
-    if str(payload.get("target_mode", "")).strip().lower() != expected_mode:
-        return None
     expected_transition_id = str(transition_id or "").strip()
-    payload_transition_id = str(payload.get("transition_id", "") or "").strip()
-    if expected_transition_id and payload_transition_id != expected_transition_id:
+    payload = _consume_radio_request(
+        path,
+        lambda message: message.get("target_mode") == expected_mode
+        and isinstance(message.get("payload"), dict)
+        and (
+            not expected_transition_id
+            or message.get("transition_id") == expected_transition_id
+        ),
+    )
+    if payload is None:
         return None
-    try:
-        os.remove(path)
-    except Exception:
-        pass
-    data = payload.get("payload")
-    return dict(data) if isinstance(data, dict) else {}
+    return dict(payload["payload"])
 
 
 def _clear_radio_payload(path: str, *, target_mode: str | None = None) -> bool:
-    if not os.path.exists(path):
-        return True
-    if target_mode:
-        payload = _safe_read_json(path)
-        if (
-            str(payload.get("target_mode", "")).strip().lower()
-            != str(target_mode or "").strip().lower()
-        ):
-            return False
-    return _clear_radio_signal(path)
+    if not target_mode:
+        return _safe_remove_state(path)
+    expected_mode = str(target_mode).strip().lower()
+    return _safe_remove_state(
+        path,
+        remove_if=lambda payload: payload.get("target_mode") == expected_mode,
+    )
 
 
 def _append_radio_launch_args(

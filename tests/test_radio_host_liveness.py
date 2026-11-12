@@ -179,6 +179,7 @@ def _write_legacy_standalone_state(paths, pid):
             {"pid": pid, "owner_pid": pid, "launcher_state": "standalone_active"}
         )
     )
+    Path(paths.radio_host_state_path).chmod(0o600)
 
 
 @pytest.mark.parametrize("is_netmon", [False, True])

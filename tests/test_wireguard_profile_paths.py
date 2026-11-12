@@ -27,6 +27,7 @@ def configure(home, text):
 def test_system_documents_setting_wins_for_profiles_without_moving_settings(
     home, variable
 ):
+    (home / "Documents").mkdir(mode=0o700)
     (home / "Documents" / "NetMon" / "Config").mkdir(parents=True)
     settings = home / "Documents" / "NetMon" / "Config" / "settings.json"
     settings.write_text('{"existing":true}')
@@ -82,7 +83,7 @@ def test_invalid_config_is_data_and_falls_back(home, value, monkeypatch):
 
 
 def test_no_config_keeps_existing_dokumente_fallback(home):
-    (home / "Dokumente").mkdir()
+    (home / "Dokumente").mkdir(mode=0o700)
     assert state.get_netmon_wireguard_dir() == str(
         home / "Dokumente" / "NetMon" / "WireGuard"
     )
