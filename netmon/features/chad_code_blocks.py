@@ -104,7 +104,9 @@ def insert_body(app, widget, body, body_tag, *, markdown=False):
     widget.insert("end", body, body_tag)
     blocks = find_code_blocks(body)
     if markdown:
-        chad_markdown.apply(widget, start, body, blocks)
+        chad_markdown.apply(
+            widget, start, body, blocks, app.__dict__.get("chad_markdown_budget")
+        )
     if not blocks:
         return
     widget.tag_configure(

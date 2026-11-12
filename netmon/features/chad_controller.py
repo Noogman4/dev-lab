@@ -9,7 +9,7 @@ import threading
 import time
 from datetime import datetime
 
-from . import chad_code_blocks, chad_prompt_display
+from . import chad_code_blocks, chad_markdown, chad_prompt_display
 
 try:
     from netmon.core.image_snapshot import (
@@ -540,17 +540,22 @@ def refresh_chad_output_view(app):
     chad_code_blocks.clear(app)
     widget.delete("1.0", "end")
     first = True
-    for entry in visible:
-        title = str(entry.get("title") or "").strip()
-        body = str(entry.get("text") or "").strip()
-        if not title or not body:
-            continue
-        if not first:
-            widget.insert("end", "\n\n")
-        header_tag, body_tag = _get_chad_entry_tags(title)
-        widget.insert("end", f"--- {title} ---\n", header_tag)
-        chad_prompt_display.insert_body(app, widget, entry, body, body_tag)
-        first = False
+    # One shared styling budget per render: many entries cannot multiply it.
+    app.chad_markdown_budget = chad_markdown.RenderBudget()
+    try:
+        for entry in visible:
+            title = str(entry.get("title") or "").strip()
+            body = str(entry.get("text") or "").strip()
+            if not title or not body:
+                continue
+            if not first:
+                widget.insert("end", "\n\n")
+            header_tag, body_tag = _get_chad_entry_tags(title)
+            widget.insert("end", f"--- {title} ---\n", header_tag)
+            chad_prompt_display.insert_body(app, widget, entry, body, body_tag)
+            first = False
+    finally:
+        app.chad_markdown_budget = None
     widget.configure(state="disabled")
     app.chad_rendered_entries = visible
     try:

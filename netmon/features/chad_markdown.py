@@ -2,30 +2,78 @@
 
 from bisect import bisect_right
 import re
+from functools import lru_cache
 from tkinter import font as tkfont
 
+# Provider answers and imported analyses are untrusted. Delimiter matching
+# rescans line suffixes, so all styling in one render shares a work budget;
+# when it runs out, the rest is shown as plain source text.
+MAX_MARKDOWN_CHARS = 200_000
+MAX_INLINE_LINE_CHARS = 8_192
+MAX_NESTING = 16
+MAX_TICK_RUN = 32
+MAX_RENDER_STEPS = 1_000_000
+MAX_RENDER_SPANS = 20_000
 
-def _tick_end(text, start, end):
-    run = re.match(r"`+", text[start:end])[0]
-    close = re.compile(r"(?<!`)" + re.escape(run) + r"(?!`)").search(
-        text, start + len(run), end
-    )
-    return (start + len(run), close.start(), close.end()) if close else None
+_TICKS = re.compile(r"`+")
+_RUNS = {"*": re.compile(r"\*+"), "_": re.compile(r"_+")}
 
 
-def _close_marker(text, marker, start, end):
+class BudgetExceeded(Exception):
+    pass
+
+
+class RenderBudget:
+    """Work shared by every Markdown body of one output render."""
+
+    def __init__(self, steps=MAX_RENDER_STEPS, spans=MAX_RENDER_SPANS):
+        self.steps = steps
+        self.spans = spans
+        self.exhausted = False
+
+    def charge(self, amount=1):
+        self.steps -= amount
+        if self.steps < 0:
+            self.exhausted = True
+            raise BudgetExceeded
+
+    def add_spans(self, amount):
+        self.spans -= amount
+        if self.spans < 0:
+            self.exhausted = True
+            raise BudgetExceeded
+
+
+@lru_cache(maxsize=MAX_TICK_RUN)
+def _tick_close(length):
+    return re.compile(r"(?<!`)" + "`" * length + r"(?!`)")
+
+
+def _tick_end(text, start, end, budget):
+    run = _TICKS.match(text, start, end).end() - start
+    if run > MAX_TICK_RUN:
+        budget.charge(run)
+        return None
+    close = _tick_close(run).search(text, start + run, end)
+    budget.charge((close.end() if close else end) - start)
+    return (start + run, close.start(), close.end()) if close else None
+
+
+def _close_marker(text, marker, start, end, budget):
     i = start
     while i < end:
+        budget.charge()
         if text[i] == "\\":
             i += 2
             continue
         if text[i] == "`":
-            code = _tick_end(text, i, end)
+            code = _tick_end(text, i, end, budget)
             if code:
                 i = code[2]
                 continue
         if text[i] == marker[0]:
-            run = re.match(re.escape(marker[0]) + r"+", text[i:end])[0]
+            run = _RUNS[marker[0]].match(text, i, end).group()
+            budget.charge(len(run))
             if (
                 (run == marker or len(run) == 3)
                 and i > start
@@ -45,16 +93,19 @@ def _close_marker(text, marker, start, end):
     return None
 
 
-def _inline(text, start, end, spans, context, bold=False, italic=False):
+def _inline(
+    text, start, end, spans, context, budget, bold=False, italic=False, depth=0
+):
     i = start
     while i < end:
+        budget.charge()
         char = text[i]
         if char == "\\" and i + 1 < end and text[i + 1] in r"\`*_{}[]()#+-.!":
             spans.append((i, i + 1, "syntax"))
             i += 2
             continue
         if char == "`":
-            code = _tick_end(text, i, end)
+            code = _tick_end(text, i, end, budget)
             if code and code[0] < code[1]:
                 spans.extend(
                     (
@@ -66,7 +117,8 @@ def _inline(text, start, end, spans, context, bold=False, italic=False):
                 i = code[2]
                 continue
         if char in "*_":
-            marker = re.match(re.escape(char) + r"+", text[i:end])[0]
+            marker = _RUNS[char].match(text, i, end).group()
+            budget.charge(len(marker))
             content = i + len(marker)
             if (
                 len(marker) <= 3
@@ -74,7 +126,7 @@ def _inline(text, start, end, spans, context, bold=False, italic=False):
                 and not text[content].isspace()
                 and not (char == "_" and i > 0 and text[i - 1].isalnum())
             ):
-                close = _close_marker(text, marker, content, end)
+                close = _close_marker(text, marker, content, end, budget)
                 if close is not None:
                     strong = bold or len(marker) >= 2
                     slant = italic or len(marker) in (1, 3)
@@ -86,7 +138,19 @@ def _inline(text, start, end, spans, context, bold=False, italic=False):
                             (close, close + len(marker), "syntax"),
                         )
                     )
-                    _inline(text, content, close, spans, context, strong, slant)
+                    budget.add_spans(3)
+                    if depth < MAX_NESTING:
+                        _inline(
+                            text,
+                            content,
+                            close,
+                            spans,
+                            context,
+                            budget,
+                            strong,
+                            slant,
+                            depth + 1,
+                        )
                     i = close + len(marker)
                     continue
             i += len(marker)
@@ -94,14 +158,40 @@ def _inline(text, start, end, spans, context, bold=False, italic=False):
         i += 1
 
 
-def find_spans(body, blocks):
-    """Return source ranges for the supported, complete Markdown constructs."""
+def find_spans(body, blocks, budget=None):
+    """Return source ranges for the supported, complete Markdown constructs.
+
+    Returns no spans (plain text) when the body or the shared render budget
+    exceeds its limits.
+    """
+    budget = RenderBudget() if budget is None else budget
+    if budget.exhausted or len(body) > MAX_MARKDOWN_CHARS:
+        return []
+    try:
+        spans = _find_spans(body, blocks, budget)
+        budget.add_spans(len(spans))
+    except BudgetExceeded:
+        return []
+    return spans
+
+
+def _closing_hashes(rest):
+    """Start of a closing ``[ \\t]+#+[ \\t]*$`` run, found in linear time."""
+    trimmed = rest.rstrip(" \t")
+    before = trimmed.rstrip("#")
+    if len(before) == len(trimmed) or not before or before[-1] not in " \t":
+        return None
+    return len(before.rstrip(" \t"))
+
+
+def _find_spans(body, blocks, budget):
     spans = []
     excluded = set()
     for block in blocks:
         excluded.update(range(block.first_line, block.last_line + 1))
     offset = 0
     for number, line in enumerate(body.split("\n")):
+        budget.charge()
         end = offset + len(line)
         if number in excluded:
             offset = end + 1
@@ -115,9 +205,9 @@ def find_spans(body, blocks):
             spans.extend(
                 ((offset, end, f"heading_{context}"), (offset, content, "syntax"))
             )
-            closing = re.search(r"[ \t]+#+[ \t]*$", line[heading.end() :])
-            if closing:
-                content_end = content + closing.start()
+            closing = _closing_hashes(line[heading.end() :])
+            if closing is not None:
+                content_end = content + closing
                 spans.append((content_end, end, "syntax"))
         elif item:
             depth = min(8, len(item[1].expandtabs(4)) // 2)
@@ -129,13 +219,15 @@ def find_spans(body, blocks):
             # Indented data/code is deliberately left literal.
             offset = end + 1
             continue
-        _inline(body, content, content_end, spans, context)
+        if len(line) <= MAX_INLINE_LINE_CHARS:
+            _inline(body, content, content_end, spans, context, budget)
         offset = end + 1
     return spans
 
 
-def apply(widget, start, body, blocks):
+def apply(widget, start, body, blocks, budget=None):
     """Style source before code-header windows are inserted and shift indices."""
+    spans = find_spans(body, blocks, budget)
     fonts = widget.__dict__.setdefault("_chad_markdown_fonts", {})
     base = tkfont.nametofont("TkDefaultFont", root=widget).actual()
 
@@ -179,7 +271,7 @@ def apply(widget, start, body, blocks):
         line_number = widget.index(f"{start} + {line} lines linestart").split(".")[0]
         return widget.index(f"{line_number}.{column}")
 
-    for begin, end, kind in find_spans(body, blocks):
+    for begin, end, kind in spans:
         tag = "chad_md_" + kind
         if kind.startswith("heading_"):
             level = int(kind.split("_")[1])
