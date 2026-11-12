@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
 import hashlib
 import json
 import os
@@ -259,7 +260,9 @@ def check_sums(message, expected):
         raise ValueError("Release checksums or member set mismatch")
 
 
-def verify_bundle(path, kind, upload_directory=None, release_deb_sha256=None):
+def verify_bundle(
+    path, kind, upload_directory=None, release_deb_sha256=None, *, materialize=None
+):
     if path.name != BUNDLE_NAMES[kind]:
         raise ValueError("Not a production bundle filename")
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
@@ -329,7 +332,14 @@ def verify_bundle(path, kind, upload_directory=None, release_deb_sha256=None):
                     "latest-version.json",
                     *MANIFEST_FILES,
                 }
-                with archive.open(member) as source:
+                destination = None
+                if materialize is not None:
+                    destination = materialize / "public_html" / relative
+                    destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                with (
+                    archive.open(member) as source,
+                    destination.open("xb") if destination else nullcontext() as output,
+                ):
                     while chunk := source.read(CHUNK_BYTES):
                         actual += len(chunk)
                         total += len(chunk)
@@ -345,6 +355,8 @@ def verify_bundle(path, kind, upload_directory=None, release_deb_sha256=None):
                             )
                         tail = chunk[-(len(TEST_MARKER) - 1) :]
                         digest.update(chunk)
+                        if output is not None:
+                            output.write(chunk)
                         if small:
                             chunks.append(chunk)
                 if actual != member.file_size:
@@ -411,7 +423,20 @@ def verify_bundle(path, kind, upload_directory=None, release_deb_sha256=None):
         ):
             raise ValueError("Upload directory differs from authenticated ZIP")
         handle.seek(0)
-        digest = hashlib.file_digest(handle, "sha256").hexdigest()
+        if materialize is None:
+            digest = hashlib.file_digest(handle, "sha256").hexdigest()
+        else:
+            # Copy from the same open ZIP used above. A later change to the
+            # workspace archive cannot change the independent promoted copy.
+            copied, checksum = 0, hashlib.sha256()
+            with (materialize / path.name).open("xb") as output:
+                while chunk := handle.read(CHUNK_BYTES):
+                    copied += len(chunk)
+                    if copied > before.st_size:
+                        raise ValueError("Release ZIP grew during verification")
+                    output.write(chunk)
+                    checksum.update(chunk)
+            digest = checksum.hexdigest()
         after = os.fstat(handle.fileno())
         current = path.lstat()
         if (current.st_dev, current.st_ino) != (before.st_dev, before.st_ino):
@@ -422,6 +447,41 @@ def verify_bundle(path, kind, upload_directory=None, release_deb_sha256=None):
             after.st_ctime_ns,
         ):
             raise ValueError("Release ZIP changed during verification")
+        if materialize is not None:
+            public = materialize / "public_html"
+            for relative in required:
+                executable = relative in {
+                    "verify/verify_netmon_signature.sh",
+                    "verify/verify_netmon_download.sh",
+                }
+                (public / relative).chmod(0o755 if executable else 0o644)
+            for relative in directories:
+                (public / relative).chmod(0o755)
+            if directory_hashes(public, required) != hashes:
+                raise ValueError("Reconstructed upload differs from authenticated ZIP")
+    return digest
+
+
+def promote_bundle(path, kind, output, upload_directory=None, release_deb_sha256=None):
+    """Publish a fresh ZIP-derived tree, never the previously checked workspace."""
+    if output.exists() or output.is_symlink():
+        raise ValueError("Production target already exists")
+    with tempfile.TemporaryDirectory(
+        prefix=".verified-release-", dir=path.parent
+    ) as work:
+        candidate = Path(work)
+        digest = verify_bundle(
+            path,
+            kind,
+            upload_directory,
+            release_deb_sha256,
+            materialize=candidate,
+        )
+        if output.exists() or output.is_symlink():
+            raise ValueError("Production target appeared during verification")
+        # Same-filesystem rename only; never fall back to a partially copied
+        # production directory. No external command runs between check and use.
+        os.rename(candidate, output)
     return digest
 
 
@@ -443,16 +503,30 @@ def main():
         type=Path,
         help="Also require this upload directory to match the authenticated ZIP",
     )
+    parser.add_argument(
+        "--promote-to",
+        type=Path,
+        help="Atomically publish an independent ZIP copy and its authenticated upload tree",
+    )
     args = parser.parse_args()
     try:
         if args.write_manifest:
-            if args.upload_directory is not None:
+            if args.upload_directory is not None or args.promote_to is not None:
                 raise ValueError("Manifest creation cannot verify an upload directory")
             write_manifest(args.bundle, args.kind, args.release_deb_sha256)
             return 0
-        digest = verify_bundle(
-            args.bundle, args.kind, args.upload_directory, args.release_deb_sha256
-        )
+        if args.promote_to is not None:
+            digest = promote_bundle(
+                args.bundle,
+                args.kind,
+                args.promote_to,
+                args.upload_directory,
+                args.release_deb_sha256,
+            )
+        else:
+            digest = verify_bundle(
+                args.bundle, args.kind, args.upload_directory, args.release_deb_sha256
+            )
     except (
         OSError,
         ValueError,

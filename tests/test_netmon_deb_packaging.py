@@ -259,6 +259,4 @@ def test_production_lifecycle_always_verifies_before_promotion():
     assert "Release-Abbruch: minisign ist nicht installiert." in source
     assert 'cmp -s "$RELEASE_MINISIGN_PUBKEY" "$PINNED_MINISIGN_PUBKEY"' in source
     assert 'bash "$ROOT_DIR/scripts/verify_netmon_signature.sh"' in source
-    assert source.index(
-        'python3 "$ROOT_DIR/scripts/verify_netmon_release_bundle.py"'
-    ) < source.index('    "$BUILD_DIR" "$OUTPUT_DIR"')
+    assert '--promote-to "$OUTPUT_DIR"' in source

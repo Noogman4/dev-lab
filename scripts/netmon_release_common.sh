@@ -127,24 +127,10 @@ finish_release_build() {
     cd "$BUILD_DIR" || exit
     zip -rq "$filename" public_html
   )
-  # Inspect the actual ZIP bytes, using the repository verifier, never a verifier
-  # supplied by the archive. Only a verified ZIP and its directory are promoted.
+  # The verifier reconstructs a fresh upload tree from the authenticated ZIP
+  # bytes and atomically promotes that independent snapshot itself. The mutable
+  # workspace is checked for packaging changes, then cleaned by the EXIT trap.
   python3 "$ROOT_DIR/scripts/verify_netmon_release_bundle.py" "$BUILD_DIR/$filename" \
-    --kind "$kind" --upload-directory "$PUBLIC_DIR" --release-deb-sha256 "$RELEASE_DEB_SHA256"
-  # The upload directory is also an output. Recheck it after packaging so a
-  # changed source cannot leave a valid ZIP beside an invalid upload directory.
-  bash "$ROOT_DIR/scripts/verify_netmon_signature.sh" \
-    "$MINISIGN_PUBKEY_TARGET" "$PUBLIC_DIR/dist/SHA256SUMS.minisig" "$SUMS_FILE"
-  (
-    cd "$PUBLIC_DIR/dist" || exit
-    sha256sum -c SHA256SUMS
-  )
-  if [[ -e "$OUTPUT_DIR" || -L "$OUTPUT_DIR" ]]; then
-    echo "Release-Abbruch: Produktionsziel wurde waehrend des Builds belegt." >&2
-    return 1
-  fi
-  # os.rename fails on EXDEV; unlike mv it never falls back to a partial copy.
-  python3 -c 'import os, sys; os.rename(sys.argv[1], sys.argv[2])' \
-    "$BUILD_DIR" "$OUTPUT_DIR"
-  RELEASE_WORK=""
+    --kind "$kind" --upload-directory "$PUBLIC_DIR" --release-deb-sha256 "$RELEASE_DEB_SHA256" \
+    --promote-to "$OUTPUT_DIR"
 }

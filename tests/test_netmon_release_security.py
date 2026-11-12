@@ -669,11 +669,22 @@ def test_metadata_preflight_rejects_ambiguous_archives_before_zip_parser(
 @pytest.mark.parametrize("profile", PROFILES)
 def test_failed_atomic_promotion_leaves_no_production_copy(repo, profile):
     root, secret = repo
+    launcher = root / "fail-promotion.py"
+    launcher.write_text(
+        "import os, runpy, sys\n"
+        "def fail(*args, **kwargs):\n"
+        "    raise OSError(18, 'simulated EXDEV rename failure')\n"
+        "os.rename = fail\n"
+        "sys.argv = sys.argv[1:]\n"
+        "sys.path.insert(0, os.path.dirname(sys.argv[0]))\n"
+        "runpy.run_path(sys.argv[0], run_name='__main__')\n"
+    )
     wrapper = root / "test-bin/python3"
     wrapper.unlink()
     wrapper.write_text(
         "#!/bin/sh\n"
-        'case "$1:${3:-}" in -c:*/.release-work/*) echo "simulated EXDEV rename failure" >&2; exit 7;; esac\n'
+        'case "$1" in */verify_netmon_release_bundle.py)\n'
+        f'  exec "{shutil.which("python3")}" "{launcher}" "$@";; esac\n'
         f'exec "{shutil.which("python3")}" "$@"\n'
     )
     wrapper.chmod(0o700)
@@ -807,6 +818,59 @@ def test_post_packaging_web_directory_changes_block_promotion(repo, profile, dam
 
 
 @pytest.mark.parametrize("profile", PROFILES)
+@pytest.mark.parametrize(
+    "damage", ["php", "html", "extra", "symlink", "missing", "zip"]
+)
+def test_late_staging_changes_cannot_diverge_promoted_upload_from_zip(
+    repo, profile, damage
+):
+    root, secret = repo
+    action = {
+        "php": "(public / 'download-config.php').write_bytes(b'changed PHP')",
+        "html": "(public / 'downloads.html').write_bytes(b'changed HTML')",
+        "extra": "(public / 'extra.php').write_bytes(b'extra PHP')",
+        "symlink": "p = public / 'downloads.html'; p.unlink(); p.symlink_to('docs.html')",
+        "missing": "(public / 'downloads.html').unlink()",
+        "zip": "Path(sys.argv[1]).write_bytes(b'changed original ZIP')",
+    }[damage]
+    attack = root / "late-staging-change.py"
+    marker = root / "late-staging-change-ran"
+    attack.write_text(
+        "from pathlib import Path\nimport sys\n"
+        "public = Path(sys.argv[1]).parent / 'public_html'\n"
+        + action
+        + f"\nPath({str(marker)!r}).write_text('changed after verification')\n"
+    )
+    wrapper = root / "test-bin/python3"
+    wrapper.unlink()
+    wrapper.write_text(
+        "#!/bin/sh\n"
+        f'"{shutil.which("python3")}" "$@"\nstatus=$?\n'
+        'case "$1:$2" in */verify_netmon_release_bundle.py:*.zip)\n'
+        f'  if [ "$status" = 0 ]; then "{shutil.which("python3")}" "{attack}" "$2"; fi;;\n'
+        "esac\nexit $status\n"
+    )
+    wrapper.chmod(0o700)
+    result = run_build(root, profile, NETMON_MINISIGN_SECRET_KEY=str(secret))
+    assert marker.exists(), "The post-verification attack did not run"
+    assert result.returncode == 0, result.stdout + result.stderr
+    output = root / "dist" / profile[1]
+    with zipfile.ZipFile(output / profile[2]) as archive:
+        expected = {
+            member.filename.removeprefix("public_html/"): archive.read(member)
+            for member in archive.infolist()
+            if not member.is_dir()
+        }
+    public = output / "public_html"
+    actual = {}
+    for path in public.rglob("*"):
+        assert not path.is_symlink(), path
+        if path.is_file():
+            actual[path.relative_to(public).as_posix()] = path.read_bytes()
+    assert actual == expected, "Promoted upload differs from authenticated ZIP"
+
+
+@pytest.mark.parametrize("profile", PROFILES)
 @pytest.mark.parametrize("failure", ["error", "missing"])
 def test_full_manifest_signing_failure_blocks_production(repo, profile, failure):
     root, secret = repo
@@ -821,6 +885,47 @@ def test_full_manifest_signing_failure_blocks_production(repo, profile, failure)
     result = run_build(root, profile, NETMON_MINISIGN_SECRET_KEY=str(secret))
     assert result.returncode != 0, result.stdout + result.stderr
     no_production_output(root, profile)
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+@pytest.mark.parametrize("failure", ["occupied-target", "invalid-signature"])
+def test_snapshot_promotion_failure_preserves_existing_output_and_cleans_work(
+    repo, profile, failure
+):
+    root, secret = repo
+    built = run_build(root, profile, NETMON_MINISIGN_SECRET_KEY=str(secret))
+    assert built.returncode == 0, built.stdout + built.stderr
+    archive = root / "dist" / profile[1] / profile[2]
+    output = root / "independent-promotion"
+    if failure == "occupied-target":
+        output.mkdir()
+        (output / "keep").write_bytes(b"existing output")
+    else:
+        rewrite_zip(
+            archive, {"public_html/verify/RELEASE-SHA256SUMS.minisig": b"invalid"}
+        )
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(root / "scripts/verify_netmon_release_bundle.py"),
+            str(archive),
+            "--kind",
+            profile[3],
+            "--promote-to",
+            str(output),
+        ],
+        env=environment(root),
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode != 0
+    assert "unrecognized arguments" not in result.stderr
+    if failure == "occupied-target":
+        assert (output / "keep").read_bytes() == b"existing output"
+    else:
+        assert not output.exists()
+    assert not list(archive.parent.glob(".verified-release-*"))
 
 
 @pytest.mark.parametrize("profile", PROFILES)
