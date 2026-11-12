@@ -1150,6 +1150,9 @@ def test_combined_blkid_and_libmount_overrides_cannot_replace_fstab(
 def test_hdd_runner_uses_fixed_paths_and_explicit_environment(
     monkeypatch, args, expected
 ):
+    monkeypatch.setattr(
+        service.trusted_sudo, "trusted_sudo_path", lambda: "/usr/bin/sudo"
+    )
     for name in (
         "PATH",
         "LD_PRELOAD",

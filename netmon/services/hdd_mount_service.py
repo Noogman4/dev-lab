@@ -12,6 +12,11 @@ import time
 from dataclasses import dataclass
 from itertools import islice
 
+try:
+    from netmon.core import trusted_sudo
+except ModuleNotFoundError:
+    from core import trusted_sudo
+
 SAFE_MOUNT_OPTIONS = "nodev,nosuid,noexec"
 _DEVICE_TYPES = {"disk", "part", "lvm", "crypt"}
 _SYSTEM_FSTAB = "/etc/fstab"
@@ -98,8 +103,14 @@ def run_hdd_command(args, timeout=15, input_text=None):
             argv[2] = _SYSTEM_TOOLS[argv[2]]
         else:
             raise MountPolicyError("Unsupported privileged HDD command.")
-    argv[0] = _SYSTEM_TOOLS[argv[0]]
     try:
+        # sudo receives the typed password: bind it to the protected system
+        # binary (root-owned, link-free ancestry), not only to a fixed name.
+        argv[0] = (
+            trusted_sudo.trusted_sudo_path()
+            if argv[0] == "sudo"
+            else _SYSTEM_TOOLS[argv[0]]
+        )
         result = subprocess.run(
             argv,
             stdout=subprocess.PIPE,

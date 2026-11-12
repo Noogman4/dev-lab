@@ -8,7 +8,6 @@ import hashlib
 import json
 import math
 import os
-import shlex
 import shutil
 import subprocess
 import stat
@@ -19,6 +18,10 @@ import types
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from netmon.core import icon_http, projectm_archive, radio_logo, radio_sandbox
+from netmon.core.privilege_launcher import (
+    maintenance_terminal_command,
+    terminal_environment,
+)
 from netmon.ui import projectm_pixel_window
 
 _LOGO_WORKERS = threading.BoundedSemaphore(2)
@@ -3876,25 +3879,13 @@ class NetMonRadioApp(tk.Tk):
         return bool(imported_presets)
 
     def _build_external_terminal_command(self, script: str):
-        candidates = [
-            (
-                "x-terminal-emulator",
-                ["x-terminal-emulator", "-e", "bash", "-lc", script],
-            ),
-            ("gnome-terminal", ["gnome-terminal", "--", "bash", "-lc", script]),
-            ("konsole", ["konsole", "-e", "bash", "-lc", script]),
-            (
-                "xfce4-terminal",
-                ["xfce4-terminal", "--command", f"bash -lc {shlex.quote(script)}"],
-            ),
-            ("mate-terminal", ["mate-terminal", "--", "bash", "-lc", script]),
-            ("lxterminal", ["lxterminal", "-e", f"bash -lc {shlex.quote(script)}"]),
-            ("xterm", ["xterm", "-e", "bash", "-lc", script]),
-        ]
-        for binary, command in candidates:
-            if shutil.which(binary):
-                return command
-        return None
+        # Same protected launcher as the main window: fixed terminal and shell
+        # paths, no profile/rc files, and sudo bound to /usr/bin/sudo, so a
+        # PATH or ~/.local/bin entry cannot receive the typed sudo password.
+        try:
+            return maintenance_terminal_command(script)
+        except OSError:
+            return None
 
     def _on_scroll_content_configure(self, _event=None):
         canvas = getattr(self, "_scroll_canvas", None)
@@ -6294,7 +6285,7 @@ class NetMonRadioApp(tk.Tk):
             f"{install_command}; "
             "echo; "
             "echo 'projectM-Installer beendet. Shell bleibt offen.'; "
-            "exec bash"
+            "exec /usr/bin/bash --noprofile --norc"
         )
         launch_cmd = self._build_external_terminal_command(script)
         if not launch_cmd:
@@ -6305,7 +6296,9 @@ class NetMonRadioApp(tk.Tk):
                 )
             )
             return False
-        proc = subprocess.Popen(launch_cmd, start_new_session=True)
+        proc = subprocess.Popen(
+            launch_cmd, start_new_session=True, env=terminal_environment()
+        )
         self.radio_projectm_install_var.set(
             self.tr(
                 "radio_projectm_install_started",
