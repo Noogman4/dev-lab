@@ -87,6 +87,19 @@ Im Code wurden folgende Arten von Netzwerkzugriffen gefunden:
 
 ## Risiken
 
+Der einzeln verteilbare Hash-Helfer `scripts/verify_netmon_download.sh` prueft
+vor jedem Nutzdatenzugriff das gesamte Manifest und dessen exakte, doppelfreie
+Uebereinstimmung mit den uebergebenen Dateien. Er akzeptiert einfache ASCII-
+Dateinamen und `docs/<Dateiname>` (Eingabedokumente im Ordner `docs`). Er berechnet
+Hashes direkt ueber die explizit uebergebenen, ohne Symlink-Folgen geoeffneten
+Dateideskriptoren. Hardlinks und Spezialdateien werden abgewiesen; Identitaet,
+Groesse und Zeitstempel muessen beim Lesen stabil bleiben. Manifestnamen werden
+nie als zu oeffnende Pfade verwendet. Grenzen: 64 KiB Manifest, 64 Dateien,
+2 GiB je Datei und 4 GiB insgesamt. Es gibt keine temporaeren Nutzdatenkopien
+und keine externe `sha256sum -c`-Ausfuehrung mehr. Python 3 ist erforderlich.
+Finding: `acf_60d5f933bcfac4c965278b49e427ad7d`. Der Helfer prueft weiterhin nur
+Integritaet; die separate gepinnte Signaturpruefung bleibt fuer Herkunft noetig.
+
 | Bereich | Risiko | Beleg im Code |
 | --- | --- | --- |
 | Systemkommandos | Viele Aktionen veraendern Netzwerk-, DNS- oder Firewall-Zustand auf dem Host | `sudo -n`-Kommandos in `netmon_network_service.py`, `dns_control_service.py`, `firewall_controller.py` |

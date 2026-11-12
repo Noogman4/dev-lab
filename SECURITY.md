@@ -60,6 +60,17 @@ is local and needs no network connection once the inputs and trusted verifier
 are available. `SHA256SUMS` alone is not proof of origin. See the
 [verification instructions](docs/MINISIGN_RELEASES.md#verifikation-fuer-nutzer).
 
+The standalone `scripts/verify_netmon_download.sh` integrity helper requires
+system Python 3. It validates the complete manifest before opening any payload
+and requires exact, duplicate-free membership matching the explicitly supplied
+files. Only simple ASCII basenames and `docs/<basename>` entries are supported;
+place documentation inputs in a `docs` directory. Absolute paths, dot components,
+backslashes, control characters and unexpected members are rejected. Inputs are
+opened without following symlinks and must be regular, singly linked files.
+Hashes are computed from the supplied file descriptors, never by opening names
+from the manifest. Signature verification remains a separate required step for
+authenticity; this helper does not establish the publisher's identity.
+
 ## Reporting a Vulnerability
 
 Please do **not** open a public GitHub issue for a suspected security problem.
