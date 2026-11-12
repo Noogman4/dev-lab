@@ -39185,15 +39185,25 @@ class App(TkBase):
             )
         return "\n".join(lines)
 
-    def _run_nmap_with_timeout(self, cmd, timeout):
+    def _run_nmap_with_timeout(self, cmd, timeout, privileged=False):
         self.nmap_cancel_requested = False
         self.nmap_active_process = None
         try:
+            if privileged:
+                from netmon.core.trusted_sudo import sudo_environment
+
+                # No user PATH, loader, NMAPDIR or HOME reaches the root run,
+                # and a planted file in the working directory is never found.
+                extra = {"env": sudo_environment(), "cwd": "/"}
+            else:
+                extra = {}
             proc = subprocess.Popen(
                 cmd,
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
+                **extra,
             )
             self.nmap_active_process = proc
             try:
@@ -39341,16 +39351,15 @@ class App(TkBase):
 
         def job():
             try:
-                cmd = (
-                    ["sudo", "-n", "nmap", *args, target]
-                    if requires_sudo
-                    else [
-                        "nmap",
-                        *args,
-                        target,
-                    ]
+                if requires_sudo:
+                    from netmon.core.trusted_sudo import privileged_nmap_command
+
+                    cmd = privileged_nmap_command(args, target)
+                else:
+                    cmd = ["nmap", *args, target]
+                rc, out, state = self._run_nmap_with_timeout(
+                    cmd, timeout=timeout, privileged=requires_sudo
                 )
-                rc, out, state = self._run_nmap_with_timeout(cmd, timeout=timeout)
                 open_ports = parse_nmap_open_tcp_ports(out) if rc == 0 else []
             except Exception as exc:
                 rc, out, state = (

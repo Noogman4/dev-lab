@@ -5,6 +5,8 @@ import stat
 
 SUDO_PATH = "/usr/bin/sudo"
 NMCLI_PATH = "/usr/bin/nmcli"
+NMAP_PATH = "/usr/bin/nmap"
+NMAP_DATADIR = "/usr/share/nmap"
 
 
 def _trusted_system_executable(executable: str) -> str:
@@ -28,6 +30,39 @@ def trusted_sudo_path() -> str:
 
 def trusted_nmcli_path() -> str:
     return _trusted_system_executable(NMCLI_PATH)
+
+
+def trusted_nmap_path() -> str:
+    return _trusted_system_executable(NMAP_PATH)
+
+
+def trusted_nmap_datadir() -> str:
+    """Root-only data and NSE script directory for privileged scans."""
+    for path in ("/", "/usr", "/usr/share", NMAP_DATADIR):
+        info = os.lstat(path)
+        if info.st_uid != 0 or info.st_mode & 0o022 or not stat.S_ISDIR(info.st_mode):
+            raise PermissionError("Unsafe system nmap data directory")
+    return NMAP_DATADIR
+
+
+def privileged_nmap_command(args, target) -> list[str]:
+    """Root nmap run that resolves nothing through the user's PATH or HOME.
+
+    sudo and nmap are fixed, verified system executables; --datadir pins the
+    service databases and NSE scripts (-A) to the root-owned system copy
+    before NMAPDIR, ~/.nmap or the working directory would be searched.
+    """
+    return [
+        trusted_sudo_path(),
+        "-n",
+        "--",
+        trusted_nmap_path(),
+        "--datadir",
+        trusted_nmap_datadir(),
+        *args,
+        "--",
+        target,
+    ]
 
 
 def sudo_environment() -> dict[str, str]:
