@@ -22,6 +22,7 @@ try:
     from netmon.core.docx_process import parse_docx_snapshot
     from netmon.core.docx_worker import MAX_TEXT_CHARS
     from netmon.core.import_limits import (
+        ImportLimitError,
         bounded_list,
         load_bounded_json,
         read_bounded_bytes,
@@ -41,6 +42,7 @@ except ModuleNotFoundError:
     from core.docx_process import parse_docx_snapshot
     from core.docx_worker import MAX_TEXT_CHARS
     from core.import_limits import (
+        ImportLimitError,
         bounded_list,
         load_bounded_json,
         read_bounded_bytes,
@@ -1926,6 +1928,38 @@ def _start_chad_docx_import(app, path, size, ext=".docx"):
         raise
 
 
+def _read_chad_text_import(app, path, max_size):
+    """Read a selected text file exactly once, bounded and without links.
+
+    Only a regular file is accepted (no symlink, FIFO or device), at most
+    ``max_size`` bytes are read, and a change during the read is rejected.
+    The returned bytes are what gets imported; the path is not reopened.
+    """
+    try:
+        if os.path.islink(path):
+            raise ImportLimitError(
+                _tr(
+                    app,
+                    "chad_import_symlink_rejected",
+                    "Symbolic links are not imported. Please select the target file itself.",
+                )
+            )
+        return read_bounded_bytes(path, max_size, label="Chad-Import")
+    except ImportLimitError as exc:
+        messagebox.showwarning(
+            app.tr("chad_import_confirm_title", "Import file"),
+            str(exc),
+            parent=app,
+        )
+        app.chad_chat_status_var.set(
+            app.tr(
+                "chad_status_file_import_error",
+                "Error during file import: {error}",
+            ).format(error=exc)
+        )
+        return None
+
+
 def import_file_to_chad_chat(app):
     if not ensure_chad_enabled(app):
         return
@@ -1986,6 +2020,7 @@ def import_file_to_chad_chat(app):
         filename = os.path.basename(path)
         ext = os.path.splitext(path)[1].lower()
         image_snapshot = None
+        text_payload = None
         if ext in (".png", ".jpg", ".jpeg", ".webp"):
             existing = attachment_snapshots(app.chad_pending_files)
             if len(existing) >= MAX_IMAGE_ATTACHMENTS:
@@ -1993,8 +2028,14 @@ def import_file_to_chad_chat(app):
             image_snapshot = snapshot_image(path)
             size = len(image_snapshot.data)
             path = image_snapshot.source_path
-        else:
+        elif ext in (".pdf", ".docx"):
+            # Advisory only: the parser path reads a bounded no-follow snapshot.
             size = os.path.getsize(path)
+        else:
+            text_payload = _read_chad_text_import(app, path, max_size)
+            if text_payload is None:
+                return
+            size = len(text_payload)
         if size > max_size:
             messagebox.showwarning(
                 app.tr("chad_file_too_large_title", "File too large"),
@@ -2072,8 +2113,7 @@ def import_file_to_chad_chat(app):
             )
             return
         else:
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
+            content = text_payload.decode("utf-8", errors="replace")
 
             if "\x00" in content:
                 append_to_chad_output(
