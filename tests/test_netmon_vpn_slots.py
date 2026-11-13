@@ -1449,9 +1449,9 @@ def test_verify_vpn_exit_country_logs_mismatch(monkeypatch):
     app.country = ""
 
     def fake_run_cmd(args, timeout=15, text=True):
-        if "ifconfig.me" in args:
+        if netmon.PUBLIC_IP_URL in args:
             return 0, "1.2.3.4"
-        if "ipinfo.io/country" in args:
+        if netmon.PUBLIC_COUNTRY_URL in args:
             return 0, "IE"
         return 1, ""
 

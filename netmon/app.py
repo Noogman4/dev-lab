@@ -1826,6 +1826,43 @@ def _desktop_bool(value):
     return (value or "").strip().lower() in ("1", "true", "yes")
 
 
+PUBLIC_IP_URL = "https://ifconfig.me"
+PUBLIC_COUNTRY_URL = "https://ipinfo.io/country"
+# An IP address or a two-letter code; anything larger is not a valid answer.
+PUBLIC_PROBE_MAX_BYTES = 4096
+
+
+def public_probe_curl_args(url, max_time):
+    """curl arguments for the public IP/country probes.
+
+    HTTPS only, also after redirects, so an on-path peer or DNS answer cannot
+    forge the result; the response size is capped as well.
+    """
+    return [
+        "curl",
+        "-sS",
+        "--proto",
+        "=https",
+        "--proto-redir",
+        "=https",
+        "--max-filesize",
+        str(PUBLIC_PROBE_MAX_BYTES),
+        "--max-time",
+        str(max_time),
+    ]
+
+
+def canonical_public_ip(text):
+    """Return the canonical IP address from a probe response, else ``""``."""
+    value = str(text or "").strip()
+    if not value or len(value) > 64:
+        return ""
+    try:
+        return str(ipaddress.ip_address(value))
+    except ValueError:
+        return ""
+
+
 def run_headless_snapshot():
     """Print a compact status snapshot without starting Tk."""
     print("NetMon Headless Snapshot")
@@ -1849,8 +1886,10 @@ def run_headless_snapshot():
     else:
         print("UFW: not installed")
 
-    rc, out = run_cmd(["curl", "-s", "--max-time", "3", "ifconfig.me"], timeout=5)
-    pub_ip = out.strip() if rc == 0 and out.strip() else "n/a"
+    rc, out = run_cmd(
+        [*public_probe_curl_args(PUBLIC_IP_URL, 3), PUBLIC_IP_URL], timeout=5
+    )
+    pub_ip = (canonical_public_ip(out) if rc == 0 else "") or "n/a"
     print(f"Public IP: {pub_ip}")
 
 
@@ -41801,10 +41840,7 @@ class App(TkBase):
                     self.last_ip_ts = time.time()
                     return
 
-                _, ip = run_cmd(
-                    ["curl", "-s", "--max-time", "3", "ifconfig.me"], timeout=5
-                )
-                ip = (ip or "").strip()
+                ip = self._fetch_public_ip(timeout_s=3)
                 c, _reason = self._fetch_country_from_ipinfo(timeout_s=3)
 
                 if ip:
@@ -41892,16 +41928,20 @@ class App(TkBase):
             return candidate, ""
         return None, "invalid_country"
 
+    def _fetch_public_ip(self, timeout_s=5):
+        rc, out = run_cmd(
+            [*public_probe_curl_args(PUBLIC_IP_URL, timeout_s), PUBLIC_IP_URL],
+            timeout=timeout_s + 3,
+        )
+        return canonical_public_ip(out) if rc == 0 else ""
+
     def _fetch_country_from_ipinfo(self, timeout_s=5):
         rc_ct, out_ct = run_cmd(
             [
-                "curl",
-                "-sS",
-                "--max-time",
-                str(timeout_s),
+                *public_probe_curl_args(PUBLIC_COUNTRY_URL, timeout_s),
                 "-w",
                 "\n%{http_code}",
-                "ipinfo.io/country",
+                PUBLIC_COUNTRY_URL,
             ],
             timeout=timeout_s + 3,
         )
@@ -41927,17 +41967,9 @@ class App(TkBase):
         country = getattr(self, "country", "") or ""
         country_reason = ""
 
-        rc_ip, out_ip = run_cmd(
-            [
-                "curl",
-                "-s",
-                "--max-time",
-                "5",
-                "ifconfig.me",
-            ]
-        )
-        if rc_ip == 0:
-            ip = (out_ip or "").strip()
+        fetched_ip = self._fetch_public_ip(timeout_s=5)
+        if fetched_ip:
+            ip = fetched_ip
 
         fetched_country, country_reason = self._fetch_country_from_ipinfo(timeout_s=5)
         if fetched_country:
