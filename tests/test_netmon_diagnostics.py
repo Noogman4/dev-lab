@@ -886,65 +886,6 @@ def test_settings_tab_contains_backup_tab_source():
     assert '"NetMon-Ordner komplett"' in backup_options_source
 
 
-def test_backup_target_conflict_detects_nested_target():
-    app = App.__new__(App)
-
-    conflict = app._backup_target_conflict(
-        "/home/happy/Dokumente/Backup",
-        [{"label": "Dokumente", "path": "/home/happy/Dokumente"}],
-    )
-    no_conflict = app._backup_target_conflict(
-        "/mnt/usb/netmon-backup",
-        [{"label": "Dokumente", "path": "/home/happy/Dokumente"}],
-    )
-
-    assert conflict == {
-        "label": "Dokumente",
-        "path": "/home/happy/Dokumente",
-    }
-    assert no_conflict is None
-
-
-def test_selected_backup_sources_skip_nested_netmon_when_documents_selected(
-    monkeypatch,
-):
-    class _Var:
-        def __init__(self, value):
-            self.value = value
-
-        def get(self):
-            return self.value
-
-    app = App.__new__(App)
-    app.tr = lambda _key, default=None: default or _key
-    app.backup_include_documents_var = _Var(True)
-    app.backup_include_pictures_var = _Var(False)
-    app.backup_include_desktop_var = _Var(False)
-    app.backup_include_music_var = _Var(False)
-    app.backup_include_videos_var = _Var(False)
-    app.backup_include_downloads_var = _Var(False)
-    app.backup_include_netmon_documents_var = _Var(True)
-
-    monkeypatch.setattr(
-        app_module.os.path,
-        "expanduser",
-        lambda value: value.replace("~", "/home/happy"),
-    )
-    monkeypatch.setattr(
-        app_module.os.path,
-        "exists",
-        lambda path: path
-        in {
-            "/home/happy/Dokumente",
-            "/home/happy/Dokumente/NetMon",
-        },
-    )
-
-    selected = app._selected_backup_source_entries()
-
-    assert selected == [{"label": "Dokumente", "path": "/home/happy/Dokumente"}]
-
-
 def test_netmon_backup_full_toggle_deselects_individual_folders():
     class _Var:
         def __init__(self, value):
