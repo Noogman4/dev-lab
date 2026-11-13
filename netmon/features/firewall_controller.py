@@ -2765,26 +2765,53 @@ def allow_ssh_rule_async(app):
 def remove_ssh_rule_async(app, auto=False):
     if not app.ensure_sudo_session("SSH UFW-Regeln entfernen"):
         return
-    if not auto:
-        ok = messagebox.askyesno(
-            app.tr("ssh_remove_confirm_title", "Achtung"),
-            app.tr(
-                "ssh_remove_confirm_body",
-                "Das entfernt UFW-Regeln für SSH (Port 22).\n"
-                "Wenn du per SSH verbunden bist, kannst du dich aussperren.\n\n"
-                "Wirklich fortfahren?",
-            ),
-        )
-        if not ok:
-            app.log(app.tr("ssh_log_cancelled", "SSH/UFW: Abgebrochen."))
-            return
 
-    def job():
+    def _log_later(message):
+        app.after(0, lambda m=message: app.log(m))
+
+    def _read_status():
+        with app.ufw_lock:
+            _, out = guarded_ufw_command(
+                app,
+                ["sudo", "-n", "ufw", "status", "numbered"],
+                timeout=12,
+                runner=run_cmd,
+                lock_held=True,
+            )
+        return str(out or "")
+
+    def _log_status_unavailable():
+        _log_later(
+            app.tr(
+                "ssh_log_status_numbered_unavailable",
+                "UFW status numbered leer/unverfügbar.",
+            )
+        )
+
+    def _log_snapshot(targets, review):
+        for _, rule in review:
+            _log_later(
+                app.tr(
+                    "ssh_log_rule_needs_review",
+                    "SSH/UFW: nicht entfernt, Regel enthält neben Port 22 weitere "
+                    "Ports, bitte manuell prüfen: {rule}",
+                ).format(rule=rule)
+            )
+        if not targets:
+            _log_later(
+                app.tr(
+                    "ssh_log_no_port_22_rule",
+                    "SSH/UFW: keine Port-22-Regel gefunden.",
+                )
+            )
+
+    def delete_job(confirmed=None):
         # UFW numbers shift with every rule change. Each delete therefore
         # re-reads the numbered list under the same lock scope and only
-        # removes rules that were part of the first, confirmed snapshot.
-        pending = None
-        remaining = 0
+        # removes rules that were part of the confirmed snapshot. Without a
+        # dialog (auto) the first locked snapshot is the confirmed one.
+        pending = Counter(confirmed) if confirmed is not None else None
+        remaining = sum(pending.values()) if pending is not None else 0
         while pending is None or remaining > 0:
             target = None
             rc2, del_out = None, ""
@@ -2797,12 +2824,13 @@ def remove_ssh_rule_async(app, auto=False):
                     lock_held=True,
                 )
                 out = str(out or "")
-                matches = _numbered_port_22_rules(out) if out.strip() else []
-                if pending is None and out.strip():
-                    pending = Counter(rest for _, rest in matches)
-                    remaining = len(matches)
+                targets, review = _numbered_ssh_rules(out) if out.strip() else ([], [])
+                first_snapshot = pending is None and bool(out.strip())
+                if first_snapshot:
+                    pending = Counter(rule for _, rule in targets)
+                    remaining = len(targets)
                 candidates = [
-                    item for item in matches if pending and pending[item[1]] > 0
+                    item for item in targets if pending and pending[item[1]] > 0
                 ]
                 if candidates and remaining > 0:
                     target = max(candidates)
@@ -2815,73 +2843,135 @@ def remove_ssh_rule_async(app, auto=False):
                         lock_held=True,
                     )
             if not out.strip():
-                app.after(
-                    0,
-                    lambda: app.log(
-                        app.tr(
-                            "ssh_log_status_numbered_unavailable",
-                            "UFW status numbered leer/unverfügbar.",
-                        )
-                    ),
-                )
+                _log_status_unavailable()
                 break
-            if not pending:
-                app.after(
-                    0,
-                    lambda: app.log(
-                        app.tr(
-                            "ssh_log_no_port_22_rule",
-                            "SSH/UFW: keine Port-22-Regel gefunden.",
-                        )
-                    ),
-                )
-                return
+            if first_snapshot:
+                _log_snapshot(targets, review)
+                if not targets:
+                    return
             if target is None:
                 break
-            rest = target[1]
+            rule = target[1]
             if rc2 == 0:
-                pending[rest] -= 1
-                app.after(
-                    0,
-                    lambda r=rest: app.log(
-                        app.tr(
-                            "ssh_log_removed",
-                            "SSH/UFW entfernt: {rule}",
-                        ).format(rule=r)
-                    ),
+                pending[rule] -= 1
+                _log_later(
+                    app.tr(
+                        "ssh_log_removed",
+                        "SSH/UFW entfernt: {rule}",
+                    ).format(rule=rule)
                 )
             else:
-                app.after(
-                    0,
-                    lambda o=del_out: app.log(
-                        app.tr(
-                            "ssh_log_delete_failed",
-                            "SSH/UFW delete failed: {message}",
-                        ).format(message=o)
-                    ),
+                _log_later(
+                    app.tr(
+                        "ssh_log_delete_failed",
+                        "SSH/UFW delete failed: {message}",
+                    ).format(message=del_out)
                 )
                 break
 
         _schedule_firewall_refresh(app)
 
-    threading.Thread(target=job, daemon=True).start()
+    def confirm(targets, review):
+        body = app.tr(
+            "ssh_remove_confirm_rules_body",
+            "Diese UFW-Regeln für eingehendes SSH (Port 22/TCP) werden "
+            "entfernt:\n\n{rules}\n\n"
+            "Wenn du per SSH verbunden bist, kannst du dich aussperren.\n\n"
+            "Wirklich fortfahren?",
+        ).format(rules="\n".join(f"• {rule}" for _, rule in targets))
+        if review:
+            body += "\n\n" + app.tr(
+                "ssh_remove_confirm_review_note",
+                "Nicht entfernt, weil weitere Ports betroffen wären "
+                "(bitte manuell prüfen):\n{rules}",
+            ).format(rules="\n".join(f"• {rule}" for _, rule in review))
+        ok = messagebox.askyesno(
+            app.tr("ssh_remove_confirm_title", "Achtung"), body, parent=app
+        )
+        if not ok:
+            app.log(app.tr("ssh_log_cancelled", "SSH/UFW: Abgebrochen."))
+            return
+        confirmed = [rule for _, rule in targets]
+        threading.Thread(target=lambda: delete_job(confirmed), daemon=True).start()
+
+    def read_job():
+        out = _read_status()
+        if not out.strip():
+            _log_status_unavailable()
+            return
+        targets, review = _numbered_ssh_rules(out)
+        if not targets:
+            _log_snapshot(targets, review)
+            return
+        call_in_ui_thread(app, lambda: confirm(targets, review))
+
+    threading.Thread(target=delete_job if auto else read_job, daemon=True).start()
 
 
-def _numbered_port_22_rules(status_text):
-    """Return ``(number, normalized rule text)`` for numbered port-22 rows.
+_SSH_REMOVABLE_POLICIES = frozenset({"ALLOW", "LIMIT"})
 
-    Column padding depends on the widest row, so the text is whitespace
-    normalized to stay comparable across snapshots.
-    """
-    rules = []
-    for line in str(status_text or "").splitlines():
-        m = re.match(r"^\[\s*(\d+)\]\s+(.*)$", line.strip())
-        if not m:
+
+def _port_expression_includes(expression, port):
+    """True if a UFW multiport/range expression such as ``21,22:25`` covers port."""
+    for token in str(expression or "").split(","):
+        bounds = token.strip().split(":")
+        try:
+            values = [int(value) for value in bounds]
+        except ValueError:
             continue
-        rest = " ".join(m.group(2).split())
-        if re.search(r"(^|[^0-9])22([^0-9]|$)", rest):
-            rules.append((int(m.group(1)), rest))
-    return rules
+        if len(values) == 1 and values[0] == port:
+            return True
+        if len(values) == 2 and values[0] <= port <= values[1]:
+            return True
+    return False
+
+
+def _classify_ssh_rule(rule):
+    """Classify one parsed UFW rule for SSH cleanup.
+
+    ``"remove"``: inbound ALLOW/LIMIT for exactly port 22 (tcp or any
+    protocol) or the ``OpenSSH`` application profile. ``"review"``: inbound
+    ALLOW/LIMIT whose multiport/range also covers 22; deleting it would drop
+    other ports too. ``None``: everything else, including addresses,
+    interfaces or comments that merely contain ``22`` and DENY/REJECT rules,
+    whose removal would open SSH instead of closing it.
+    """
+    if not rule:
+        return None
+    if str(rule.get("direction") or "").upper() != "IN":
+        return None
+    if str(rule.get("policy") or "").upper() not in _SSH_REMOVABLE_POLICIES:
+        return None
+    if str(rule.get("to") or "").split()[-1:] == ["OpenSSH"]:
+        return "remove"
+    if str(rule.get("proto") or "").strip().lower() not in ("", "tcp"):
+        return None
+    port = str(rule.get("port") or "").strip()
+    if port == "22":
+        return "remove"
+    if _port_expression_includes(port, 22):
+        return "review"
+    return None
+
+
+def _numbered_ssh_rules(status_text):
+    """Split ``ufw status numbered`` into SSH rules to remove and to review.
+
+    Both lists hold ``(number, normalized rule text)``. Column padding depends
+    on the widest row, so the text is whitespace normalized to stay comparable
+    across snapshots.
+    """
+    targets, review = [], []
+    for line in str(status_text or "").splitlines():
+        parsed = parse_ufw_numbered_rule(line)
+        kind = _classify_ssh_rule(parsed)
+        if kind is None:
+            continue
+        # Keep comments: they help the confirmation and tighten the identity.
+        text = re.sub(r"^\[\s*\d+\]\s*", "", str(parsed.get("numbered_raw") or ""))
+        entry = (parsed["number"], " ".join(text.split()))
+        (targets if kind == "remove" else review).append(entry)
+    return targets, review
 
 
 def _is_valid_port_token(port_text):

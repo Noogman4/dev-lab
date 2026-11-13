@@ -8,6 +8,8 @@ run such a writer deterministically right after the first lock release.
 import threading
 from types import SimpleNamespace
 
+import pytest
+
 from netmon.features import firewall_controller as firewall
 
 
@@ -141,7 +143,7 @@ def test_ssh_cleanup_keeps_port_22_rule_added_after_confirmation(monkeypatch):
     )
     _patch_common(monkeypatch, ufw)
     app = _ssh_app(
-        ReleaseHookLock(lambda: ufw.rules.insert(0, "22/udp ALLOW IN 192.0.2.7"))
+        ReleaseHookLock(lambda: ufw.rules.insert(0, "22/tcp ALLOW IN 192.0.2.7"))
     )
 
     firewall.remove_ssh_rule_async(app, auto=True)
@@ -150,7 +152,135 @@ def test_ssh_cleanup_keeps_port_22_rule_added_after_confirmation(monkeypatch):
         "22/tcp (v6) ALLOW IN Anywhere (v6)",
         "22/tcp ALLOW IN Anywhere",
     ]
-    assert ufw.rules == ["22/udp ALLOW IN 192.0.2.7", "80/tcp ALLOW IN Anywhere"]
+    assert ufw.rules == ["22/tcp ALLOW IN 192.0.2.7", "80/tcp ALLOW IN Anywhere"]
+
+
+@pytest.mark.parametrize(
+    "rule",
+    [
+        "443/tcp ALLOW IN 192.0.2.22",
+        "Anywhere ALLOW IN 10.0.0.22",
+        "443 ALLOW IN 2001:db8::22",
+        "80/tcp ALLOW IN Anywhere # room 22",
+        "Anywhere on wg22 ALLOW IN Anywhere",
+        "Anywhere DENY OUT 192.0.2.1 22/tcp",
+        "8022/tcp ALLOW IN Anywhere",
+        "2222/tcp ALLOW IN Anywhere",
+        "22/udp ALLOW IN Anywhere",
+        "22/tcp DENY IN Anywhere",
+        "22/tcp REJECT IN Anywhere",
+        "22/tcp ALLOW OUT Anywhere",
+        "22/tcp ALLOW FWD Anywhere",
+        "OpenSSH DENY IN Anywhere",
+    ],
+)
+def test_ssh_classifier_ignores_rules_that_only_mention_22(rule):
+    assert firewall._numbered_ssh_rules(f"[ 7] {rule}") == ([], [])
+
+
+@pytest.mark.parametrize(
+    "rule",
+    [
+        "22/tcp ALLOW IN Anywhere",
+        "22 ALLOW IN Anywhere",
+        "22/tcp LIMIT IN Anywhere",
+        "22/tcp (v6) ALLOW IN Anywhere (v6)",
+        "22/tcp ALLOW IN 192.168.1.0/24",
+        "192.168.1.5 22/tcp ALLOW IN Anywhere",
+        "22/tcp on eth0 ALLOW IN Anywhere",
+        "22/tcp ALLOW IN Anywhere # ssh",
+        "OpenSSH ALLOW IN Anywhere",
+        "OpenSSH (v6) LIMIT IN Anywhere (v6)",
+        "192.168.1.5 OpenSSH ALLOW IN Anywhere",
+    ],
+)
+def test_ssh_classifier_selects_exact_inbound_ssh_rules(rule):
+    assert firewall._numbered_ssh_rules(f"[ 7] {rule}") == ([(7, rule)], [])
+
+
+@pytest.mark.parametrize(
+    "rule",
+    ["21,22,80/tcp ALLOW IN Anywhere", "20:30/tcp ALLOW IN Anywhere"],
+)
+def test_ssh_classifier_reports_multiport_rules_for_manual_review(rule):
+    assert firewall._numbered_ssh_rules(f"[ 7] {rule}") == ([], [(7, rule)])
+
+
+def test_ssh_cleanup_deletes_only_ssh_rules_from_mixed_table(monkeypatch):
+    ufw = FakeUfw(
+        [
+            "443/tcp ALLOW IN 192.0.2.22",
+            "22/tcp ALLOW IN Anywhere",
+            "Anywhere on wg22 ALLOW IN Anywhere",
+            "21,22,80/tcp ALLOW IN Anywhere",
+            "OpenSSH ALLOW IN Anywhere",
+            "22/tcp DENY IN 203.0.113.0/24",
+        ]
+    )
+    _patch_common(monkeypatch, ufw)
+    logs = []
+    app = _ssh_app(threading.Lock())
+    app.after = lambda _delay, callback: callback()
+    app.log = logs.append
+
+    firewall.remove_ssh_rule_async(app, auto=True)
+
+    assert sorted(ufw.deleted) == [
+        "22/tcp ALLOW IN Anywhere",
+        "OpenSSH ALLOW IN Anywhere",
+    ]
+    assert ufw.rules == [
+        "443/tcp ALLOW IN 192.0.2.22",
+        "Anywhere on wg22 ALLOW IN Anywhere",
+        "21,22,80/tcp ALLOW IN Anywhere",
+        "22/tcp DENY IN 203.0.113.0/24",
+    ]
+    assert any("21,22,80/tcp" in line and "manuell" in line for line in logs)
+
+
+def test_ssh_confirmation_lists_exact_rules_and_deletes_only_those(monkeypatch):
+    ufw = FakeUfw(
+        [
+            "22/tcp ALLOW IN Anywhere",
+            "80/tcp ALLOW IN 192.0.2.22",
+            "20:30/tcp ALLOW IN Anywhere",
+        ]
+    )
+    _patch_common(monkeypatch, ufw)
+    monkeypatch.setattr(firewall, "call_in_ui_thread", lambda _app, fn: fn())
+    prompts = []
+
+    def askyesno(_title, body, **_kwargs):
+        prompts.append(body)
+        # A port-22 rule appearing after the dialog was shown is not confirmed.
+        ufw.rules.insert(0, "22 ALLOW IN 198.51.100.4")
+        return True
+
+    monkeypatch.setattr(firewall.messagebox, "askyesno", askyesno)
+
+    firewall.remove_ssh_rule_async(_ssh_app(threading.Lock()))
+
+    assert len(prompts) == 1
+    assert "• 22/tcp ALLOW IN Anywhere" in prompts[0]
+    assert "• 20:30/tcp ALLOW IN Anywhere" in prompts[0]
+    assert "192.0.2.22" not in prompts[0]
+    assert ufw.deleted == ["22/tcp ALLOW IN Anywhere"]
+    assert ufw.rules == [
+        "22 ALLOW IN 198.51.100.4",
+        "80/tcp ALLOW IN 192.0.2.22",
+        "20:30/tcp ALLOW IN Anywhere",
+    ]
+
+
+def test_ssh_confirmation_cancel_deletes_nothing(monkeypatch):
+    ufw = FakeUfw(["22/tcp ALLOW IN Anywhere"])
+    _patch_common(monkeypatch, ufw)
+    monkeypatch.setattr(firewall, "call_in_ui_thread", lambda _app, fn: fn())
+    monkeypatch.setattr(firewall.messagebox, "askyesno", lambda *_a, **_k: False)
+
+    firewall.remove_ssh_rule_async(_ssh_app(threading.Lock()))
+
+    assert ufw.deleted == []
 
 
 def test_ssh_cleanup_stops_after_failed_delete(monkeypatch):
