@@ -9,6 +9,7 @@ import re
 import threading
 import time
 import tkinter as tk
+from collections import Counter
 from contextlib import contextmanager, nullcontext
 from functools import wraps
 from tkinter import messagebox, ttk
@@ -2779,59 +2780,67 @@ def remove_ssh_rule_async(app, auto=False):
             return
 
     def job():
-        with app.ufw_lock:
-            _, out = guarded_ufw_command(
-                app,
-                ["sudo", "-n", "ufw", "status", "numbered"],
-                timeout=12,
-                runner=run_cmd,
-                lock_held=True,
-            )
-        if not out.strip():
-            app.after(
-                0,
-                lambda: app.log(
-                    app.tr(
-                        "ssh_log_status_numbered_unavailable",
-                        "UFW status numbered leer/unverfügbar.",
-                    )
-                ),
-            )
-            return
-
-        matches = []
-        for line in out.splitlines():
-            m = re.match(r"^\[\s*(\d+)\]\s+(.*)$", line.strip())
-            if not m:
-                continue
-            num = int(m.group(1))
-            rest = m.group(2)
-            if re.search(r"(^|[^0-9])22([^0-9]|$)", rest):
-                matches.append((num, rest))
-
-        if not matches:
-            app.after(
-                0,
-                lambda: app.log(
-                    app.tr(
-                        "ssh_log_no_port_22_rule",
-                        "SSH/UFW: keine Port-22-Regel gefunden.",
-                    )
-                ),
-            )
-            return
-
-        matches.sort(key=lambda x: x[0], reverse=True)
-        for num, rest in matches:
+        # UFW numbers shift with every rule change. Each delete therefore
+        # re-reads the numbered list under the same lock scope and only
+        # removes rules that were part of the first, confirmed snapshot.
+        pending = None
+        remaining = 0
+        while pending is None or remaining > 0:
+            target = None
+            rc2, del_out = None, ""
             with app.ufw_lock:
-                rc2, del_out = guarded_ufw_command(
+                _, out = guarded_ufw_command(
                     app,
-                    ["sudo", "-n", "ufw", "--force", "delete", str(num)],
+                    ["sudo", "-n", "ufw", "status", "numbered"],
                     timeout=12,
                     runner=run_cmd,
                     lock_held=True,
                 )
+                out = str(out or "")
+                matches = _numbered_port_22_rules(out) if out.strip() else []
+                if pending is None and out.strip():
+                    pending = Counter(rest for _, rest in matches)
+                    remaining = len(matches)
+                candidates = [
+                    item for item in matches if pending and pending[item[1]] > 0
+                ]
+                if candidates and remaining > 0:
+                    target = max(candidates)
+                    remaining -= 1
+                    rc2, del_out = guarded_ufw_command(
+                        app,
+                        ["sudo", "-n", "ufw", "--force", "delete", str(target[0])],
+                        timeout=12,
+                        runner=run_cmd,
+                        lock_held=True,
+                    )
+            if not out.strip():
+                app.after(
+                    0,
+                    lambda: app.log(
+                        app.tr(
+                            "ssh_log_status_numbered_unavailable",
+                            "UFW status numbered leer/unverfügbar.",
+                        )
+                    ),
+                )
+                break
+            if not pending:
+                app.after(
+                    0,
+                    lambda: app.log(
+                        app.tr(
+                            "ssh_log_no_port_22_rule",
+                            "SSH/UFW: keine Port-22-Regel gefunden.",
+                        )
+                    ),
+                )
+                return
+            if target is None:
+                break
+            rest = target[1]
             if rc2 == 0:
+                pending[rest] -= 1
                 app.after(
                     0,
                     lambda r=rest: app.log(
@@ -2851,10 +2860,28 @@ def remove_ssh_rule_async(app, auto=False):
                         ).format(message=o)
                     ),
                 )
+                break
 
         _schedule_firewall_refresh(app)
 
     threading.Thread(target=job, daemon=True).start()
+
+
+def _numbered_port_22_rules(status_text):
+    """Return ``(number, normalized rule text)`` for numbered port-22 rows.
+
+    Column padding depends on the widest row, so the text is whitespace
+    normalized to stay comparable across snapshots.
+    """
+    rules = []
+    for line in str(status_text or "").splitlines():
+        m = re.match(r"^\[\s*(\d+)\]\s+(.*)$", line.strip())
+        if not m:
+            continue
+        rest = " ".join(m.group(2).split())
+        if re.search(r"(^|[^0-9])22([^0-9]|$)", rest):
+            rules.append((int(m.group(1)), rest))
+    return rules
 
 
 def _is_valid_port_token(port_text):
@@ -3223,6 +3250,10 @@ def remove_selected_firewall_rule(app):
         return False
 
     def job():
+        # UFW numbers are snapshot-local cursors: resolve and delete inside one
+        # lock scope so no in-process writer can renumber the rule in between.
+        rc_delete, out_delete = None, ""
+        matches = []
         with app.ufw_lock:
             rc_status, out_status = guarded_ufw_command(
                 app,
@@ -3231,6 +3262,28 @@ def remove_selected_firewall_rule(app):
                 runner=run_cmd,
                 lock_held=True,
             )
+            if rc_status == 0 and str(out_status or "").strip():
+                for raw_line in str(out_status or "").splitlines():
+                    parsed = parse_ufw_numbered_rule(raw_line)
+                    if parsed is None:
+                        continue
+                    if _firewall_rule_matches_selected(parsed, meta):
+                        matches.append(parsed)
+                if len(matches) == 1:
+                    rc_delete, out_delete = guarded_ufw_command(
+                        app,
+                        [
+                            "sudo",
+                            "-n",
+                            "ufw",
+                            "--force",
+                            "delete",
+                            str(matches[0]["number"]),
+                        ],
+                        timeout=20,
+                        runner=run_cmd,
+                        lock_held=True,
+                    )
 
         if rc_status != 0 or not str(out_status or "").strip():
 
@@ -3254,14 +3307,6 @@ def remove_selected_firewall_rule(app):
 
             call_in_ui_thread(app, _status_failed)
             return
-
-        matches = []
-        for raw_line in str(out_status or "").splitlines():
-            parsed = parse_ufw_numbered_rule(raw_line)
-            if parsed is None:
-                continue
-            if _firewall_rule_matches_selected(parsed, meta):
-                matches.append(parsed)
 
         def _ambiguous_or_missing(message):
             messagebox.showerror(
@@ -3296,16 +3341,6 @@ def remove_selected_firewall_rule(app):
                 ),
             )
             return
-
-        match = matches[0]
-        with app.ufw_lock:
-            rc_delete, out_delete = guarded_ufw_command(
-                app,
-                ["sudo", "-n", "ufw", "--force", "delete", str(match["number"])],
-                timeout=20,
-                runner=run_cmd,
-                lock_held=True,
-            )
 
         def done():
             if rc_delete != 0:
