@@ -5086,9 +5086,6 @@ def test_radio_database_source_ids_for_download_use_enabled_flags():
 
     assert radio_controller._radio_database_source_ids_for_download(app) == [
         "radio_browser_api",
-        "radio_browser_mirror_1",
-        "community_radio_api",
-        "icecast_json",
     ]
 
 
@@ -5177,11 +5174,10 @@ def test_radio_database_source_ids_for_download_allows_multiple_country_lists_wh
     assert radio_controller._radio_database_source_ids_for_download(app) == [
         "radio_browser_country_de_exact",
         "radio_browser_country_at_exact",
-        "icecast_json",
     ]
 
 
-def test_merge_radio_source_rows_deduplicates_by_url_and_name():
+def test_merge_radio_source_rows_deduplicates_streams_across_sources():
     merged = radio_controller._merge_radio_source_rows(
         [
             [

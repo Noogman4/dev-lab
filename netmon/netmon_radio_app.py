@@ -184,16 +184,6 @@ RADIO_DATABASE_SOURCES = (
         "https://de1.api.radio-browser.info/json/stations/bycountrycodeexact/BR",
     ),
     (
-        "radio_browser_country",
-        "Radio Browser Land",
-        "https://de1.api.radio-browser.info/json/stations/bycountry/",
-    ),
-    (
-        "radio_browser_tag",
-        "Radio Browser Genre/Tag",
-        "https://de1.api.radio-browser.info/json/stations/bytag/",
-    ),
-    (
         "radio_browser_top",
         "Radio Browser Top Votes",
         "https://de1.api.radio-browser.info/json/stations/topvote/100",
@@ -203,19 +193,28 @@ RADIO_DATABASE_SOURCES = (
         "Radio Browser Suche",
         "https://de1.api.radio-browser.info/json/stations/search",
     ),
-    ("shoutcast_api", "SHOUTcast Directory", "https://directory.shoutcast.com/"),
-    ("icecast_directory", "Icecast Directory", "https://dir.xiph.org/"),
-    ("icecast_json", "Icecast JSON Feed", "https://dir.xiph.org/yp.xml"),
-    ("fmstream", "fmstream", "https://fmstream.org/index.php"),
-    ("streamurl_link", "streamurl.link", "https://streamurl.link/"),
-    ("airable", "airable.radio", "https://www.airablenow.com/"),
     (
-        "community_radio_api",
-        "Community Radio Browser API",
-        "https://api.radio-browser.info/",
+        "72fm_top_500",
+        "72FM Top 500 weltweit",
+        "https://raw.githubusercontent.com/AlonDrilich/radio-playlists/main/top/top-500.m3u",
     ),
-    ("radio_api", "RadioAPI", "https://radioapi.me/"),
+    (
+        "iprd_all",
+        "IPRD weltweit",
+        "https://iprd-org.github.io/iprd/site_data/all_stations.m3u",
+    ),
+    (
+        "verified_radio_streams",
+        "Verified Radio Streams weltweit",
+        "https://raw.githubusercontent.com/eyalev/verified-radio-streams/main/stations/all.json",
+    ),
 )
+
+# Website-only links are fixed product choices, never remote station metadata.
+RADIO_DATABASE_WEBSITES = {
+    "shoutcast_api": ("SHOUTcast Directory", "https://directory.shoutcast.com/"),
+    "fmstream": ("fmstream", "https://fmstream.org/index.php"),
+}
 
 PROJECTM_PRESET_SOURCE_URL = "https://milkdrop.org/"
 
@@ -5038,10 +5037,22 @@ class NetMonRadioApp(tk.Tk):
         label,
         url,
     ):
-        var = tk.BooleanVar(
-            value=source_id not in RADIO_DATABASE_EXCLUSIVE_COUNTRY_SOURCE_IDS
+        supports_import = radio_controller.radio_database_source_supports_import(
+            source_id
         )
-        self.radio_database_source_vars[source_id] = var
+        if not supports_import:
+            return row_idx
+        var = tk.BooleanVar(
+            value=supports_import
+            and source_id == radio_controller.RADIO_DATABASE_DEFAULT_SOURCE_ID
+        )
+        if supports_import:
+            self.radio_database_source_vars[source_id] = var
+        source_label = self._radio_database_source_label(source_id, label)
+        if not supports_import:
+            source_label += " – " + self.tr(
+                "radio_database_source_no_import", "Kein Direktimport"
+            )
         status_label = ttk.Label(
             parent,
             image=self._radio_database_indicator_image(),
@@ -5054,12 +5065,17 @@ class NetMonRadioApp(tk.Tk):
             pady=(4, 0),
         )
         self.radio_database_source_status_labels[source_id] = status_label
-        ttk.Checkbutton(
+        checkbox = ttk.Checkbutton(
             parent,
-            text=f"{self._radio_database_source_label(source_id, label)} - {url}",
+            text=f"{source_label} - {url}",
             variable=var,
+            state="normal" if supports_import else "disabled",
             command=lambda sid=source_id: self.on_radio_database_source_toggle(sid),
-        ).grid(row=row_idx, column=1, sticky="w", pady=(4, 0))
+        )
+        # Unsupported rows are deliberately absent from the selectable source
+        # dictionary, so keep their BooleanVar alive with the widget instead.
+        checkbox._netmon_source_var = var
+        checkbox.grid(row=row_idx, column=1, sticky="w", pady=(4, 0))
         return row_idx + 1
 
     def _sync_radio_database_select_all_state(self):
@@ -5291,6 +5307,57 @@ class NetMonRadioApp(tk.Tk):
         ).grid(row=3, column=0, sticky="e", pady=(12, 0))
         return popup
 
+    def open_radio_database_website(self, website_id):
+        if not isinstance(website_id, str):
+            return False
+        website = RADIO_DATABASE_WEBSITES.get(website_id)
+        if website is None:
+            return False
+        _label, url = website
+        for command in (["/usr/bin/xdg-open", url], ["/usr/bin/gio", "open", url]):
+            try:
+                subprocess.Popen(
+                    command,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
+                return True
+            except OSError:
+                continue
+        messagebox.showerror(
+            self.tr("radio_database_websites_title", "Externe Webseiten (Browser)"),
+            self.tr(
+                "radio_database_website_open_failed",
+                "Der Standardbrowser konnte nicht gestartet werden. Adresse: {url}",
+            ).format(url=url),
+            parent=getattr(self, "radio_database_sources_window", None) or self,
+        )
+        return False
+
+    def _add_radio_database_website_links(self, parent):
+        frame = ttk.LabelFrame(
+            parent,
+            text=self.tr(
+                "radio_database_websites_title", "Externe Webseiten (Browser)"
+            ),
+            padding=10,
+        )
+        frame.columnconfigure(1, weight=1)
+        for row, (website_id, (label, url)) in enumerate(
+            RADIO_DATABASE_WEBSITES.items()
+        ):
+            ttk.Button(
+                frame,
+                text=self.tr(
+                    "radio_database_website_open", "{name} im Browser öffnen"
+                ).format(name=label),
+                command=lambda key=website_id: self.open_radio_database_website(key),
+            ).grid(row=row, column=0, sticky="ew", padx=(0, 12), pady=2)
+            ttk.Label(frame, text=url).grid(row=row, column=1, sticky="w", pady=2)
+        return frame
+
     def open_radio_database_sources_popup(self):
         existing = getattr(self, "radio_database_sources_window", None)
         if existing is not None:
@@ -5478,6 +5545,10 @@ class NetMonRadioApp(tk.Tk):
                 url=url,
             )
 
+        self._add_radio_database_website_links(body).grid(
+            row=3, column=0, sticky="ew", pady=(12, 0)
+        )
+
         def _close_popup():
             try:
                 popup.destroy()
@@ -5491,7 +5562,7 @@ class NetMonRadioApp(tk.Tk):
             body,
             text=self.tr("radio_custom_close_button", "Close"),
             command=_close_popup,
-        ).grid(row=3, column=0, sticky="e", pady=(14, 0))
+        ).grid(row=4, column=0, sticky="e", pady=(14, 0))
         popup.protocol("WM_DELETE_WINDOW", _close_popup)
         self.radio_database_sources_window = popup
         self._sync_radio_database_select_all_state()

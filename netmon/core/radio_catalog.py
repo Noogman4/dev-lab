@@ -2,11 +2,19 @@
 
 import io
 import json
+import re
+import shlex
+from urllib.parse import unquote, urlsplit
 
 MAX_BODY_BYTES = 16 * 1024 * 1024
 MAX_REPLY_BYTES = 16 * 1024 * 1024
 MAX_ROWS = 50_000
-MAX_IMPORT_BYTES = 32 * 1024 * 1024
+# Each source stays small; combined imports count duplicates before merging.
+MAX_IMPORT_ROWS = 250_000
+MAX_IMPORT_BYTES = 128 * 1024 * 1024
+MAX_M3U_BYTES = 1024 * 1024
+MAX_M3U_ROWS = 5000
+MAX_M3U_LINE_CHARS = 8192
 # RC-01: one bad upstream row (e.g. 79 tags) must not discard 5000 good ones.
 # Bounded tolerance: more skipped than kept, or more than this, still fails.
 MAX_SKIPPED_ROWS = 100
@@ -173,20 +181,168 @@ def _xml_rows(text):
         depth -= 1
 
 
+def _direct_stream_url(value, *, https_only=False):
+    if not isinstance(value, str) or not value or len(value) > TEXT_LIMITS["url"]:
+        return False
+    if any(char.isspace() or not char.isprintable() for char in value) or "\\" in value:
+        return False
+    try:
+        parsed = urlsplit(value)
+        return (
+            parsed.scheme in ({"https"} if https_only else {"http", "https"})
+            and bool(parsed.hostname)
+            and parsed.username is None
+            and parsed.password is None
+            and not parsed.fragment
+            and not parsed.netloc.endswith(":")
+            and parsed.port != 0
+            and not unquote(parsed.path)
+            .lower()
+            .endswith((".m3u", ".m3u8", ".pls", ".mpd"))
+        )
+    except ValueError:
+        return False
+
+
+def _verified_rows(data):
+    """Map the provider's country envelopes without treating a website as audio."""
+    if not isinstance(data, dict) or not isinstance(data.get("countries"), list):
+        raise ValueError("Invalid Verified Radio country envelope")
+    if len(data["countries"]) > 512:
+        raise ValueError("Verified Radio country count exceeds limit")
+    entries = 0
+    for country in data["countries"]:
+        if not isinstance(country, dict) or not isinstance(
+            country.get("stations"), list
+        ):
+            raise ValueError("Invalid Verified Radio station envelope")
+        for item in country["stations"]:
+            entries += 1
+            if entries > MAX_ROWS:
+                raise ValueError("Verified Radio station count exceeds limit")
+            if not isinstance(item, dict) or not _direct_stream_url(
+                item.get("stream"), https_only=True
+            ):
+                continue
+            languages = item.get("langs", [])
+            if (
+                isinstance(languages, list)
+                and len(languages) <= 32
+                and all(
+                    isinstance(value, str) and len(value) <= 128 for value in languages
+                )
+            ):
+                languages = ", ".join(languages)
+            yield {
+                "name": item.get("name", ""),
+                "url": item["stream"],
+                "homepage": item.get("url", ""),
+                "country": country.get("country", ""),
+                "countrycode": country.get("countryCode", ""),
+                "tags": item.get("genre", []),
+                "language": languages,
+                "codec": item.get("codec", ""),
+                "bitrate": item.get("bitrate", 0),
+                "votes": item.get("votes", 0),
+                "clickcount": item.get("clicks", 0),
+            }
+
+
+def _m3u_rows(text, *, provider="72fm"):
+    """Read named station entries only; never follow playlists or directives.
+
+    The registered 72FM Top 500 feed uses group-title for the country.
+    IPRD uses group-title for semicolon-separated genres, not the country.
+    Provider comments are ignored rather than treated as station websites.
+    """
+    header = False
+    pending = None
+    entries = 0
+    for raw_line in re.split(r"\r\n|\r|\n", text):
+        if len(raw_line) > MAX_M3U_LINE_CHARS:
+            raise ValueError("M3U line exceeds limit")
+        line = raw_line.strip()
+        if not line:
+            continue
+        if not header:
+            if line != "#EXTM3U":
+                raise ValueError("Extended M3U header required")
+            header = True
+            continue
+        if line.startswith("#EXT-X-"):
+            raise ValueError("HLS is not a station catalog")
+        if line.startswith("#EXTINF:"):
+            if pending is not None:
+                raise ValueError("M3U station has no stream")
+            quoted = False
+            separator = None
+            for index, char in enumerate(line):
+                if char == '"':
+                    quoted = not quoted
+                elif char == "," and not quoted:
+                    separator = index
+                    break
+            if separator is None:
+                raise ValueError("Invalid M3U station metadata")
+            tokens = shlex.split(line[8:separator])
+            if not tokens or not re.fullmatch(r"-?\d+(?:\.\d+)?", tokens[0]):
+                raise ValueError("Invalid M3U duration")
+            attributes = dict(
+                token.split("=", 1) for token in tokens[1:] if "=" in token
+            )
+            pending = {
+                "name": line[separator + 1 :].strip(),
+                "favicon": attributes.get("tvg-logo", ""),
+            }
+            group = attributes.get("group-title", "")
+            if provider == "iprd":
+                pending["tags"] = [
+                    tag.strip() for tag in group.split(";") if tag.strip()
+                ]
+            else:
+                pending["country"] = group
+            if not pending["name"]:
+                raise ValueError("M3U station name required")
+            continue
+        if line.startswith("#"):
+            continue
+        entries += 1
+        if entries > MAX_ROWS or (provider != "iprd" and entries > MAX_M3U_ROWS):
+            raise ValueError("M3U station count exceeds limit")
+        if pending is None:
+            raise ValueError("M3U station metadata required")
+        row, pending = pending, None
+        if not _direct_stream_url(line):
+            continue
+        yield {**row, "url": line}
+    if not header or pending is not None:
+        raise ValueError("Incomplete M3U station catalog")
+
+
 def encode_catalog(raw, kind):
     if len(raw) > MAX_BODY_BYTES:
         raise ValueError("Catalog body exceeds limit")
+    if kind == "m3u" and len(raw) > MAX_M3U_BYTES:
+        raise ValueError("M3U body exceeds limit")
     text = raw.decode("utf-8-sig")
-    if kind == "json":
+    if kind in {"json", "verified"}:
 
         def invalid_constant(_value):
             raise ValueError("Non-finite catalog number")
 
-        rows = json.loads(text, parse_constant=invalid_constant)
-        if not isinstance(rows, list) or len(rows) > MAX_ROWS:
-            raise ValueError("Invalid catalog row count")
+        data = json.loads(text, parse_constant=invalid_constant)
+        if kind == "verified":
+            rows = _verified_rows(data)
+        else:
+            rows = data
+            if not isinstance(rows, list) or len(rows) > MAX_ROWS:
+                raise ValueError("Invalid catalog row count")
     elif kind == "xml":
         rows = _xml_rows(text)
+    elif kind == "m3u":
+        rows = _m3u_rows(text)
+    elif kind == "iprd":
+        rows = _m3u_rows(text, provider="iprd")
     else:
         raise ValueError("Invalid catalog kind")
     # Build one bounded reply; no partial result is sent on parser failure.
@@ -235,10 +391,17 @@ def main():
     import sys
 
     try:
-        if sys.argv[1:] not in (["--json"], ["--xml"]):
+        if sys.argv[1:] not in (
+            ["--json"],
+            ["--xml"],
+            ["--m3u"],
+            ["--iprd"],
+            ["--verified"],
+        ):
             raise ValueError("Invalid catalog parser mode")
         apply_process_limits()
-        raw = sys.stdin.buffer.read(MAX_BODY_BYTES + 1)
+        limit = MAX_M3U_BYTES if sys.argv[1:] == ["--m3u"] else MAX_BODY_BYTES
+        raw = sys.stdin.buffer.read(limit + 1)
         reply = encode_catalog(raw, sys.argv[1][2:])
         sys.stdout.buffer.write(reply)
         sys.stdout.buffer.flush()

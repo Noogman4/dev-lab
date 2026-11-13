@@ -34,6 +34,7 @@ TRANSITION_NETS = tuple(
 MAX_ICY_INTERVAL = 1024 * 1024
 MAX_TITLE_CHARS = 512
 MAX_CATALOG_BODY_BYTES = 16 * 1024 * 1024
+MAX_M3U_CATALOG_BODY_BYTES = 1024 * 1024
 MAX_PRESET_BODY_BYTES = 256 * 1024 * 1024
 
 
@@ -221,7 +222,14 @@ def _preset_url(url):
 
 
 def transfer(url, destination, *, mode="stream", idle_timeout=None):
-    catalog = mode in {"catalog-json", "catalog-post", "catalog-xml"}
+    catalog = mode in {
+        "catalog-json",
+        "catalog-post",
+        "catalog-xml",
+        "catalog-m3u",
+        "catalog-iprd",
+    }
+    m3u_catalog = mode in {"catalog-m3u", "catalog-iprd"}
     preset = mode == "preset"
     if preset:
         idle_timeout = float(idle_timeout if idle_timeout is not None else 30)
@@ -236,6 +244,8 @@ def transfer(url, destination, *, mode="stream", idle_timeout=None):
         "catalog-json",
         "catalog-post",
         "catalog-xml",
+        "catalog-m3u",
+        "catalog-iprd",
         "preset",
     }:
         raise SourceError("Invalid source mode")
@@ -248,7 +258,9 @@ def transfer(url, destination, *, mode="stream", idle_timeout=None):
             if url in visited:
                 raise SourceError("Preset redirect loop")
             visited.add(url)
-        parsed, host, port = parse_url(url, allow_playlist=probe or preset)
+        parsed, host, port = parse_url(
+            url, allow_playlist=probe or preset or m3u_catalog
+        )
         plan = resolve_public(host, port)
         connection = (
             open_connection(parsed.scheme, host, port, plan, idle_timeout=idle_timeout)
@@ -280,7 +292,13 @@ def transfer(url, destination, *, mode="stream", idle_timeout=None):
                 headers["Content-Type"] = "application/json"
             if catalog:
                 headers["Accept"] = (
-                    "application/xml" if mode == "catalog-xml" else "application/json"
+                    "audio/x-mpegurl,application/x-mpegurl,text/plain"
+                    if m3u_catalog
+                    else (
+                        "application/xml"
+                        if mode == "catalog-xml"
+                        else "application/json"
+                    )
                 )
                 connection.request(method, path, body=body, headers=headers)
             else:
@@ -322,7 +340,7 @@ def transfer(url, destination, *, mode="stream", idle_timeout=None):
                 if preset:
                     target = _preset_url(target)
                 redirected, _host, _port = parse_url(
-                    target, allow_playlist=probe or preset
+                    target, allow_playlist=probe or preset or m3u_catalog
                 )
                 if parsed.scheme == "https" and redirected.scheme != "https":
                     raise SourceError("TLS downgrade refused")
@@ -341,7 +359,11 @@ def transfer(url, destination, *, mode="stream", idle_timeout=None):
                 .strip()
                 .lower()
             )
-            if content_type in PLAYLIST_TYPES:
+            if content_type in PLAYLIST_TYPES and not (
+                m3u_catalog
+                and content_type
+                in {"application/x-mpegurl", "audio/mpegurl", "audio/x-mpegurl"}
+            ):
                 raise SourceError(
                     "Remote playlists are not supported by this playback boundary"
                 )
@@ -389,21 +411,21 @@ def transfer(url, destination, *, mode="stream", idle_timeout=None):
                     destination.flush()
             if catalog:
                 raw = bytearray()
-                if (
-                    response.length is not None
-                    and response.length > MAX_CATALOG_BODY_BYTES
-                ):
+                body_limit = (
+                    min(MAX_CATALOG_BODY_BYTES, MAX_M3U_CATALOG_BODY_BYTES)
+                    if mode == "catalog-m3u"
+                    else MAX_CATALOG_BODY_BYTES
+                )
+                if response.length is not None and response.length > body_limit:
                     raise SourceError("Catalog body exceeds limit")
                 while True:
-                    chunk = response.read1(
-                        min(16384, MAX_CATALOG_BODY_BYTES + 1 - len(raw))
-                    )
+                    chunk = response.read1(min(16384, body_limit + 1 - len(raw)))
                     if not chunk:
                         if response.length is not None and response.length > 0:
                             raise SourceError("Incomplete catalog body")
                         break
                     raw.extend(chunk)
-                    if len(raw) > MAX_CATALOG_BODY_BYTES:
+                    if len(raw) > body_limit:
                         raise SourceError("Catalog body exceeds limit")
                 destination.write(raw)
                 destination.flush()

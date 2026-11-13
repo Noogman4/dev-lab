@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import concurrent.futures
+import hashlib
 import json
 import os
 import re
@@ -103,6 +104,7 @@ RADIO_THEME_ALIASES = {
 
 
 RADIO_DB_ENDPOINT = "https://de1.api.radio-browser.info/json/stations/search"
+RADIO_DATABASE_DEFAULT_SOURCE_ID = "radio_browser_api"
 RADIO_DB_LIMIT = 5000
 RADIO_RESULTS_PER_PAGE = 50
 RADIO_DB_FIELDS = (
@@ -142,12 +144,18 @@ RADIO_BROWSER_SOURCE_ENDPOINTS = {
     "radio_browser_country_jp_exact": "https://de1.api.radio-browser.info/json/stations/bycountrycodeexact/JP",
     "radio_browser_country_br_exact": "https://de1.api.radio-browser.info/json/stations/bycountrycodeexact/BR",
     "radio_browser_search": "https://de1.api.radio-browser.info/json/stations/search",
-    "community_radio_api": "https://api.radio-browser.info/json/stations",
     "radio_browser_top": "https://de1.api.radio-browser.info/json/stations/topvote/100",
 }
 
-ICECAST_SOURCE_ENDPOINTS = {
-    "icecast_json": "https://dir.xiph.org/yp.xml",
+ICECAST_SOURCE_ENDPOINTS = {}
+
+RADIO_M3U_SOURCE_ENDPOINTS = {
+    "72fm_top_500": "https://raw.githubusercontent.com/AlonDrilich/radio-playlists/main/top/top-500.m3u",
+    "iprd_all": "https://iprd-org.github.io/iprd/site_data/all_stations.m3u",
+}
+
+RADIO_VERIFIED_SOURCE_ENDPOINTS = {
+    "verified_radio_streams": "https://raw.githubusercontent.com/eyalev/verified-radio-streams/main/stations/all.json",
 }
 
 RADIO_DATABASE_SOURCE_CHECK_ENDPOINTS = {
@@ -167,18 +175,10 @@ RADIO_DATABASE_SOURCE_CHECK_ENDPOINTS = {
     "radio_browser_country_au_exact": "https://de1.api.radio-browser.info/json/stations/bycountrycodeexact/AU",
     "radio_browser_country_jp_exact": "https://de1.api.radio-browser.info/json/stations/bycountrycodeexact/JP",
     "radio_browser_country_br_exact": "https://de1.api.radio-browser.info/json/stations/bycountrycodeexact/BR",
-    "radio_browser_country": "https://de1.api.radio-browser.info/json/stations/bycountry/",
-    "radio_browser_tag": "https://de1.api.radio-browser.info/json/stations/bytag/",
     "radio_browser_top": "https://de1.api.radio-browser.info/json/stations/topvote/100",
     "radio_browser_search": "https://de1.api.radio-browser.info/json/stations/search",
-    "shoutcast_api": "https://directory.shoutcast.com/",
-    "icecast_directory": "https://dir.xiph.org/",
-    "icecast_json": "https://dir.xiph.org/yp.xml",
-    "fmstream": "https://fmstream.org/index.php",
-    "streamurl_link": "https://streamurl.link/",
-    "airable": "https://www.airablenow.com/",
-    "community_radio_api": "https://api.radio-browser.info/",
-    "radio_api": "https://radioapi.me/",
+    **RADIO_M3U_SOURCE_ENDPOINTS,
+    **RADIO_VERIFIED_SOURCE_ENDPOINTS,
 }
 
 RADIO_DATABASE_EXCLUSIVE_COUNTRY_SOURCE_IDS = {
@@ -4262,6 +4262,16 @@ def _download_radio_db_payload():
     )
 
 
+def radio_database_source_supports_import(source_id):
+    source_key = str(source_id or "").strip()
+    return (
+        source_key in RADIO_BROWSER_SOURCE_ENDPOINTS
+        or source_key in ICECAST_SOURCE_ENDPOINTS
+        or source_key in RADIO_M3U_SOURCE_ENDPOINTS
+        or source_key in RADIO_VERIFIED_SOURCE_ENDPOINTS
+    )
+
+
 def _radio_database_source_ids_for_download(app):
     selected = []
     exclusive_mode_enabled = _bool_var_value(
@@ -4269,26 +4279,30 @@ def _radio_database_source_ids_for_download(app):
         True,
     )
     source_vars = _app_value(app, "radio_database_source_vars", {}) or {}
+    if not source_vars:
+        return [RADIO_DATABASE_DEFAULT_SOURCE_ID]
     source_ids = list(source_vars.keys())
     for source_id in (
         *RADIO_BROWSER_SOURCE_ENDPOINTS.keys(),
         *ICECAST_SOURCE_ENDPOINTS.keys(),
+        *RADIO_M3U_SOURCE_ENDPOINTS.keys(),
+        *RADIO_VERIFIED_SOURCE_ENDPOINTS.keys(),
     ):
         if source_id not in source_ids:
             source_ids.append(source_id)
     for source_id in source_ids:
+        # Old/default UI selections also contain directory websites and query
+        # endpoints without a country/tag. Only configured importers can run.
+        if not radio_database_source_supports_import(source_id):
+            continue
         var = source_vars.get(source_id)
         if var is None:
-            if source_id != "icecast_json":
-                continue
-            selected.append(source_id)
             continue
         try:
             if bool(var.get()):
                 selected.append(source_id)
         except Exception:
-            if source_id == "icecast_json":
-                selected.append(source_id)
+            continue
     if exclusive_mode_enabled:
         for exclusive_id in RADIO_DATABASE_EXCLUSIVE_COUNTRY_SOURCE_IDS:
             if exclusive_id in selected:
@@ -4326,6 +4340,20 @@ def _parse_icecast_entries_from_xml(text):
 
 def _download_radio_source_payload(source_id):
     source_key = str(source_id or "").strip()
+    endpoint = RADIO_M3U_SOURCE_ENDPOINTS.get(
+        source_key, ""
+    ) or RADIO_VERIFIED_SOURCE_ENDPOINTS.get(source_key, "")
+    if endpoint:
+        kind = {"iprd_all": "iprd", "verified_radio_streams": "verified"}.get(
+            source_key, "m3u"
+        )
+        rows = _filter_radio_db_rows(radio_sandbox.fetch_catalog(endpoint, kind=kind))
+        for station in rows:
+            # These providers have no shared station UUID. Equal names must address
+            # distinct streams, and renaming a station must not change its ID.
+            digest = hashlib.sha256(station["url"].encode("utf-8")).hexdigest()
+            station["id"] = "stream-" + digest
+        return rows
     endpoint = RADIO_BROWSER_SOURCE_ENDPOINTS.get(source_key, "")
     if endpoint:
         return _filter_radio_db_rows(
@@ -4392,10 +4420,9 @@ def _merge_radio_source_rows(sources_payloads):
             )
             if station is None:
                 continue
-            key = (
-                str(station.get("url", "") or "").strip().lower(),
-                str(station.get("name", "") or "").strip().lower(),
-            )
+            # A second provider may use another name for the same stream.
+            # Preserve path/query case and prefer the known resolved address.
+            key = str(station.get("url_resolved") or station.get("url") or "").strip()
             if key in seen_keys:
                 continue
             seen_keys.add(key)
@@ -4520,11 +4547,18 @@ def download_radio_db(app):
                     rows_for_source = _download_radio_source_payload(source_id)
                     import_rows += len(rows_for_source)
                     import_bytes += len(json.dumps(rows_for_source).encode("utf-8"))
-                    if (
-                        import_rows > radio_catalog.MAX_ROWS
-                        or import_bytes > radio_catalog.MAX_IMPORT_BYTES
-                    ):
-                        raise ValueError("Katalogimport überschreitet Gesamtgrenze")
+                    if import_rows > radio_catalog.MAX_IMPORT_ROWS:
+                        raise ValueError(
+                            "Katalogimport überschreitet Gesamtgrenze: "
+                            f"{import_rows} Einträge, maximal "
+                            f"{radio_catalog.MAX_IMPORT_ROWS}"
+                        )
+                    if import_bytes > radio_catalog.MAX_IMPORT_BYTES:
+                        raise ValueError(
+                            "Katalogimport überschreitet Gesamtgrenze: "
+                            f"{import_bytes} Bytes, maximal "
+                            f"{radio_catalog.MAX_IMPORT_BYTES}"
+                        )
                     payloads.append(rows_for_source)
                     source_results.append(
                         {

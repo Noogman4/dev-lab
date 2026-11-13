@@ -152,13 +152,37 @@ def controlled_pipeline(monkeypatch, program):
     return children
 
 
-def test_two_process_pipeline_parses_and_cleans_up(monkeypatch, tmp_path):
-    raw = json.dumps([ROW]).encode()
+@pytest.mark.parametrize("kind", ["json", "m3u", "iprd", "verified"])
+def test_two_process_pipeline_parses_and_cleans_up(monkeypatch, tmp_path, kind):
+    raw = (
+        json.dumps([ROW]).encode()
+        if kind == "json"
+        else (
+            json.dumps(
+                {
+                    "countries": [
+                        {
+                            "country": "Germany",
+                            "countryCode": "DE",
+                            "stations": [
+                                {
+                                    "name": "Test Radio",
+                                    "stream": "https://example.com/live",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            ).encode()
+            if kind == "verified"
+            else b"#EXTM3U\n#EXTINF:-1,Test Radio\nhttps://example.com/live\n"
+        )
+    )
     children = controlled_pipeline(
         monkeypatch, f"import sys; sys.stdout.buffer.write({raw!r})"
     )
     rows = sandbox.fetch_catalog(
-        "https://example.com/?private-token", work_root=tmp_path
+        "https://example.com/?private-token", kind=kind, work_root=tmp_path
     )
     assert rows[0]["name"] == "Test Radio"
     assert len(children) == 2 and all(child.poll() == 0 for child in children)
@@ -241,7 +265,7 @@ def test_parser_respects_already_lower_soft_limits(monkeypatch):
     }
 
 
-@pytest.mark.parametrize("kind", ["json", "xml"])
+@pytest.mark.parametrize("kind", ["json", "m3u", "iprd", "verified"])
 def test_controller_never_uses_direct_urlopen_for_catalogs(monkeypatch, kind):
     monkeypatch.setattr(
         radio.urllib.request,
@@ -255,9 +279,15 @@ def test_controller_never_uses_direct_urlopen_for_catalogs(monkeypatch, kind):
         return [{"name": "Safe Radio", "url": "https://example.com/live"}]
 
     monkeypatch.setattr(sandbox, "fetch_catalog", fetch)
-    source_id = "icecast_json" if kind == "xml" else "radio_browser_api"
+    source_id = {
+        "m3u": "72fm_top_500",
+        "iprd": "iprd_all",
+        "verified": "verified_radio_streams",
+    }.get(kind, "radio_browser_api")
     assert radio._download_radio_source_payload(source_id)[0]["name"] == "Safe Radio"
-    assert calls == ([{"kind": "xml"}] if kind == "xml" else [{"post": True}])
+    assert calls == (
+        [{"kind": kind}] if kind in {"m3u", "iprd", "verified"} else [{"post": True}]
+    )
 
 
 def test_failed_source_keeps_existing_catalog_and_metadata(monkeypatch, tmp_path):
@@ -292,7 +322,9 @@ def test_failed_source_keeps_existing_catalog_and_metadata(monkeypatch, tmp_path
     assert meta.read_bytes() == b"ORIGINAL METADATA"
 
 
-@pytest.mark.parametrize("failure", [None, "rows", "bytes"])
+@pytest.mark.parametrize(
+    "failure", [None, "rows", "bytes", "exact-rows", "exact-bytes"]
+)
 def test_success_merges_once_and_aggregate_limit_failure_does_not_write(
     monkeypatch, tmp_path, failure
 ):
@@ -318,17 +350,72 @@ def test_success_merges_once_and_aggregate_limit_failure_does_not_write(
     monkeypatch.setattr(radio, "refresh_radio_ui", lambda _app: None)
     monkeypatch.setattr(radio, "_show_radio_database_import_summary", lambda *_a: None)
     if failure == "rows":
-        monkeypatch.setattr(catalog, "MAX_ROWS", 1)
+        monkeypatch.setattr(catalog, "MAX_IMPORT_ROWS", 1)
     elif failure == "bytes":
         monkeypatch.setattr(catalog, "MAX_IMPORT_BYTES", 1)
+    elif failure == "exact-rows":
+        monkeypatch.setattr(catalog, "MAX_IMPORT_ROWS", 2)
+    elif failure == "exact-bytes":
+        size = sum(
+            len(
+                json.dumps(
+                    [{"name": source, "url": f"https://example.com/{source}"}]
+                ).encode("utf-8")
+            )
+            for source in ("one", "two")
+        )
+        monkeypatch.setattr(catalog, "MAX_IMPORT_BYTES", size)
     thread = radio.download_radio_db(app)
     thread.join(timeout=3)
     assert not thread.is_alive()
-    if failure:
+    if failure in {"rows", "bytes"}:
         assert path.read_text() == "[]" and meta.read_text() == "{}"
     else:
         assert [row["name"] for row in json.loads(path.read_text())] == ["one", "two"]
         assert json.loads(meta.read_text())["count"] == 2
+
+
+def test_combined_import_above_single_source_limit_is_saved_and_reloadable(
+    monkeypatch, tmp_path
+):
+    path, meta = tmp_path / "catalog.json", tmp_path / "meta.json"
+    app = SimpleNamespace(
+        radio_db_path=str(path), radio_db_meta_path=str(meta), log=lambda _message: None
+    )
+    # Two individually valid catalogs used to fail the shared 50,000-row limit.
+    payloads = {
+        "first": [
+            {"name": f"Radio {index}", "url": f"https://example.com/live/{index}"}
+            for index in range(30_000)
+        ],
+        "second": [
+            {"name": f"Radio {index}", "url": f"https://example.com/live/{index}"}
+            for index in range(20_000, 50_001)
+        ],
+    }
+    assert all(len(rows) <= catalog.MAX_ROWS for rows in payloads.values())
+    monkeypatch.setattr(
+        radio, "_radio_database_source_ids_for_download", lambda _app: list(payloads)
+    )
+    monkeypatch.setattr(radio, "_download_radio_source_payload", payloads.__getitem__)
+    monkeypatch.setattr(radio, "_schedule_ui", lambda _app, callback: callback())
+    monkeypatch.setattr(
+        radio, "_set_radio_database_import_progress", lambda *_a, **_k: None
+    )
+    monkeypatch.setattr(radio, "refresh_radio_ui", lambda _app: None)
+    summaries = []
+    monkeypatch.setattr(
+        radio,
+        "_show_radio_database_import_summary",
+        lambda _app, summary: summaries.append(summary),
+    )
+    thread = radio.download_radio_db(app)
+    thread.join(timeout=20)
+    assert not thread.is_alive()
+    assert summaries[0]["raw_total"] == 60_001
+    assert summaries[0]["duplicates_removed"] == 10_000
+    assert json.loads(meta.read_text())["count"] == 50_001
+    assert len(radio.load_radio_db(app)) == 50_001
 
 
 # -- RC-01: single invalid upstream rows are skipped, bounded -----------------

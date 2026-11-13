@@ -1274,7 +1274,7 @@ def fetch_catalog(url, *, kind="json", post=False, timeout=30, work_root=None):
     if (
         not isinstance(url, str)
         or not 0 < len(url) <= 8192
-        or kind not in {"json", "xml"}
+        or kind not in {"json", "xml", "m3u", "iprd", "verified"}
     ):
         raise RadioSandboxError("Ungültige Kataloganfrage.")
     timeout = float(timeout)
@@ -1289,7 +1289,11 @@ def fetch_catalog(url, *, kind="json", post=False, timeout=30, work_root=None):
         directory = Path(name)
         _prepare_directory(directory)
         request = directory / "request.json"
-        mode = "catalog-post" if post else "catalog-" + kind
+        mode = (
+            "catalog-post"
+            if post
+            else "catalog-json" if kind == "verified" else "catalog-" + kind
+        )
         request.write_text(json.dumps({"url": url, "mode": mode}))
         request.chmod(0o600)
         source = process = None

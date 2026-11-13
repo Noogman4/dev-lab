@@ -394,7 +394,61 @@ class FragmentedCatalogResponse(Response):
         return chunk
 
 
-@pytest.mark.parametrize("mode", ["catalog-json", "catalog-xml", "catalog-post"])
+@pytest.mark.parametrize(
+    "mode, allowed",
+    [
+        ("catalog-m3u", True),
+        ("catalog-iprd", True),
+        ("stream", False),
+        ("catalog-json", False),
+    ],
+)
+def test_m3u_mime_is_only_permitted_for_station_catalog_import(
+    monkeypatch, mode, allowed
+):
+    body = b"#EXTM3U\n"
+    response = Response(
+        headers={"Content-Type": "audio/x-mpegurl"}, body=body, length=None
+    )
+    setup_transfers(monkeypatch, [response])
+    output = io.BytesIO()
+    if allowed:
+        fetch.transfer("https://catalog.example/stations", output, mode=mode)
+        assert output.getvalue() == body
+    else:
+        with pytest.raises(fetch.SourceError, match="playlists"):
+            fetch.transfer("https://catalog.example/stations", output, mode=mode)
+        assert output.getvalue() == b""
+
+
+def test_m3u_catalog_redirects_keep_private_destination_and_downgrade_guards(
+    monkeypatch,
+):
+    for target in [
+        "https://127.0.0.1/private.m3u",
+        "http://catalog.example/downgrade.m3u",
+    ]:
+        setup_transfers(monkeypatch, [Response(302, {"Location": target})])
+        with pytest.raises(fetch.SourceError):
+            fetch.transfer(
+                "https://catalog.example/list.m3u", io.BytesIO(), mode="catalog-m3u"
+            )
+
+
+def test_m3u_catalog_has_its_own_smaller_body_limit(monkeypatch):
+    monkeypatch.setattr(fetch, "MAX_M3U_CATALOG_BODY_BYTES", 4)
+    response = FragmentedCatalogResponse(b"12345", None)
+    setup_transfers(monkeypatch, [response])
+    output = io.BytesIO()
+    with pytest.raises(fetch.SourceError, match="body exceeds"):
+        fetch.transfer("https://catalog.example/list.m3u", output, mode="catalog-m3u")
+    assert output.getvalue() == b""
+
+
+@pytest.mark.parametrize(
+    "mode",
+    ["catalog-json", "catalog-xml", "catalog-post", "catalog-m3u", "catalog-iprd"],
+)
 @pytest.mark.parametrize(
     "body,length,refused,read_bytes",
     [
@@ -423,7 +477,10 @@ def test_catalog_source_budget_and_partial_reads(
     assert response.closed and connections[0]["closed"]
 
 
-@pytest.mark.parametrize("mode", ["catalog-json", "catalog-xml", "catalog-post"])
+@pytest.mark.parametrize(
+    "mode",
+    ["catalog-json", "catalog-xml", "catalog-post", "catalog-m3u", "catalog-iprd"],
+)
 @pytest.mark.parametrize("status", [301, 302, 303, 307, 308])
 def test_catalog_redirects_never_read_intermediate_bodies(monkeypatch, mode, status):
     class Redirect(Response):
