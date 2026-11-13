@@ -131,6 +131,7 @@ copy_file "$ROOT_DIR/netmon/netmon_radio_app.py" "$APP_PY_ROOT/netmon_radio_app.
 copy_file "$ROOT_DIR/netmon/netmon_radio_core.py" "$APP_PY_ROOT/netmon_radio_core.py"
 copy_file "$ROOT_DIR/tools/netmon-linux-befehlsdatenbank-v1.csv" "$APP_PY_ROOT/linux-befehle.csv"
 copy_file "$ROOT_DIR/tools/netmon-linux-befehlsdatenbank-v1.csv" "$APP_PY_ROOT/netmon-linux-befehlsdatenbank-v1.csv"
+copy_file "$ROOT_DIR/docs/linux-befehlsdatenbank/7z.md" "$APP_ROOT/docs/linux-befehlsdatenbank/7z.md"
 copy_file_if_exists "$ROOT_DIR/netmon_radio_app.py" "$APP_ROOT/netmon_radio_app.py"
 
 copy_tree "$ROOT_DIR/netmon/config" "$APP_PY_ROOT/config"

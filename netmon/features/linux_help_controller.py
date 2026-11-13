@@ -209,12 +209,12 @@ def set_linux_help_dirty(app, dirty=True):
 
 def linux_help_csv_candidates():
     return [
-        os.path.join(
-            NETMON_REPO_ROOT, "tools", "netmon-linux-befehlsdatenbank-v1.csv"
-        ),
+        os.path.join(NETMON_REPO_ROOT, "tools", "netmon-linux-befehlsdatenbank-v1.csv"),
         os.path.join(NETMON_REPO_ROOT, "netmon", "linux-befehle.csv"),
         os.path.join(NETMON_REPO_ROOT, "netmon", "linux-befehle.xlsx"),
-        os.path.join(NETMON_REPO_ROOT, "netmon", "netmon-linux-befehlsdatenbank-v1.csv"),
+        os.path.join(
+            NETMON_REPO_ROOT, "netmon", "netmon-linux-befehlsdatenbank-v1.csv"
+        ),
         os.path.join(NETMON_REPO_ROOT, "linux-befehle.csv"),
         os.path.join(NETMON_REPO_ROOT, "linux-befehle.xlsx"),
     ]
@@ -539,13 +539,11 @@ def _linux_help_chad_title(app, item) -> str:
             "linux_help_chad_title_glossary",
             "Explain glossary term: {name}",
         ).format(name=entry.get("name") or "Unknown")
-    return (
-        _tr(
-            app,
-            "linux_help_chad_title_command",
-            "Explain Linux command: {name}",
-        ).format(name=entry.get("name") or entry.get("cmd") or "Unknown")
-    )
+    return _tr(
+        app,
+        "linux_help_chad_title_command",
+        "Explain Linux command: {name}",
+    ).format(name=entry.get("name") or entry.get("cmd") or "Unknown")
 
 
 def build_linux_help_chad_prompt(app, item):
@@ -623,21 +621,15 @@ def build_linux_help_chad_prompt(app, item):
         else app.tr("label_no", "No")
     )
     tags = str(entry.get("tags") or "–").strip() or "–"
-    explanation = (
-        str(entry.get("explanation") or "").strip()
-        or _tr(
-            app,
-            "linux_help_prompt_no_additional_explanation",
-            "No additional explanation stored.",
-        )
+    explanation = str(entry.get("explanation") or "").strip() or _tr(
+        app,
+        "linux_help_prompt_no_additional_explanation",
+        "No additional explanation stored.",
     )
-    warning_text = (
-        str(entry.get("warning_text") or "").strip()
-        or _tr(
-            app,
-            "linux_help_prompt_no_additional_warning",
-            "No additional warning stored.",
-        )
+    warning_text = str(entry.get("warning_text") or "").strip() or _tr(
+        app,
+        "linux_help_prompt_no_additional_warning",
+        "No additional warning stored.",
     )
     lines = [
         _tr(
@@ -1241,6 +1233,12 @@ def update_linux_help_notes(app, item=None, extra_error=""):
     widget = _app_value(app, "linux_help_text")
     if widget is None:
         return
+    _set_text_widget_content(
+        widget, build_linux_help_notes_text(app, item, extra_error)
+    )
+
+
+def build_linux_help_notes_text(app, item=None, extra_error=""):
     if not item:
         body = app.tr(
             "linux_help_notes_empty",
@@ -1248,8 +1246,7 @@ def update_linux_help_notes(app, item=None, extra_error=""):
         )
         if extra_error:
             body = f"{body}\n\nError: {extra_error}"
-        _set_text_widget_content(widget, body)
-        return
+        return body
 
     if _is_glossary_item(item):
         lines = [
@@ -1274,10 +1271,13 @@ def update_linux_help_notes(app, item=None, extra_error=""):
             ),
         ]
     else:
-        _risk_key, risk_label, _fill = RISK_UI.get(
+        risk_key, risk_label, _fill = RISK_UI.get(
             str(item.get("risk") or "").strip().lower(),
             RISK_UI["unknown"],
         )
+        risk_label = _tr(app, risk_key, risk_label)
+        risk_prefix = _tr(app, "linux_help_col_risk", "Risk") + ":"
+        risk_label = risk_label.removeprefix(risk_prefix).strip()
         lines = [
             f"{app.tr('linux_help_label_command_name', 'Command name')}: {item.get('name') or item.get('cmd') or '–'}",
             f"{app.tr('label_category', 'Category')}: {item.get('category') or '–'}",
@@ -1308,7 +1308,7 @@ def update_linux_help_notes(app, item=None, extra_error=""):
                 "This entry acts as NetMon reference data and can be sent to the terminal when needed.",
             ),
         ]
-    _set_text_widget_content(widget, "\n".join(lines))
+    return "\n".join(lines)
 
 
 def _risk_filter_value(app):
@@ -1512,6 +1512,53 @@ def on_linux_help_select(app, _event=None):
     update_linux_help_notes(app, item)
 
 
+def open_linux_help_reader(app, event=None):
+    tree = _app_value(app, "linux_help_tree")
+    if event is not None and getattr(event, "num", None) == 1 and tree is not None:
+        row = tree.identify_row(event.y)
+        if not row:
+            return "break"
+        tree.selection_set(row)
+        tree.focus(row)
+    item = _resolve_linux_help_item(app)
+    if item is None:
+        return "break" if event is not None else None
+    try:
+        from netmon.services.linux_help_markdown_service import load_command_document
+        from netmon.ui.linux_help_reader import open_reader_window
+    except ModuleNotFoundError:
+        from services.linux_help_markdown_service import load_command_document
+        from ui.linux_help_reader import open_reader_window
+    error_message = ""
+    try:
+        document = load_command_document(item)
+    except (OSError, ValueError, UnicodeError, RecursionError):
+        document = None
+        error_message = _tr(
+            app,
+            "linux_help_reader_failed",
+            "Die Markdown-Dokumentation konnte nicht geladen werden. Die Kurzinfo bleibt verfügbar.",
+        )
+    window = _app_value(app, "linux_help_reader_window")
+    created = window is None or not window.winfo_exists()
+    parent = tree.winfo_toplevel() if tree is not None else app
+    window = open_reader_window(
+        parent,
+        window=None if created else window,
+        tr=app.tr,
+        entry=item,
+        short_info=build_linux_help_notes_text(app, item),
+        document=document,
+        error_message=error_message,
+    )
+    app.linux_help_reader_window = window
+    if created:
+        attach_menu = _app_value(app, "attach_chad_context_menu")
+        if callable(attach_menu):
+            attach_menu(window.short_info, "Linux command database")
+    return "break" if event is not None else window
+
+
 def linux_help_apply_form_to_entry(app, mark_dirty=True):
     target = get_linux_help_command_by_id(app, app.linux_help_selected_id)
     if target is None or _app_value(app, "linux_help_form_category_var") is None:
@@ -1627,9 +1674,11 @@ def linux_help_delete_selected(app):
                     if _is_glossary_item(target)
                     else "linux_help_delete_confirm"
                 ),
-                "Delete the selected glossary entry now?"
-                if _is_glossary_item(target)
-                else "Delete the selected Linux command now?",
+                (
+                    "Delete the selected glossary entry now?"
+                    if _is_glossary_item(target)
+                    else "Delete the selected Linux command now?"
+                ),
             ),
             parent=app,
         )
@@ -1662,9 +1711,11 @@ def linux_help_delete_selected(app):
                 if _is_glossary_item(target)
                 else "linux_help_status_entry_deleted"
             ),
-            "Linux help: glossary entry deleted."
-            if _is_glossary_item(target)
-            else "Linux help: entry deleted.",
+            (
+                "Linux help: glossary entry deleted."
+                if _is_glossary_item(target)
+                else "Linux help: entry deleted."
+            ),
         )
     )
 
@@ -1678,22 +1729,31 @@ def open_linux_help_entry_dialog(app, item=None, is_new=False):
             pass
 
     base = dict(item or {})
-    is_glossary = _is_glossary_item(base) or str(
-        base.get("entry_type") or ""
-    ).strip().lower() == "glossary"
+    is_glossary = (
+        _is_glossary_item(base)
+        or str(base.get("entry_type") or "").strip().lower() == "glossary"
+    )
     dialog = tk.Toplevel(app)
     dialog.title(
         app.tr(
-            "linux_help_dialog_title_new_glossary"
-            if is_new and is_glossary
-            else "linux_help_dialog_title_new",
-            "Create glossary term" if is_new and is_glossary else "Create Linux command",
+            (
+                "linux_help_dialog_title_new_glossary"
+                if is_new and is_glossary
+                else "linux_help_dialog_title_new"
+            ),
+            (
+                "Create glossary term"
+                if is_new and is_glossary
+                else "Create Linux command"
+            ),
         )
         if is_new
         else app.tr(
-            "linux_help_dialog_title_edit_glossary"
-            if is_glossary
-            else "linux_help_dialog_title_edit",
+            (
+                "linux_help_dialog_title_edit_glossary"
+                if is_glossary
+                else "linux_help_dialog_title_edit"
+            ),
             "Edit glossary term" if is_glossary else "Edit Linux command",
         )
     )
@@ -1746,9 +1806,7 @@ def open_linux_help_entry_dialog(app, item=None, is_new=False):
             "linux_help_label_term" if is_glossary else "linux_help_label_command_name",
             "Term" if is_glossary else "Command name",
         ),
-    ).grid(
-        row=0, column=2, sticky="w", padx=(12, 8), pady=(0, 6)
-    )
+    ).grid(row=0, column=2, sticky="w", padx=(12, 8), pady=(0, 6))
     ttk.Entry(form, textvariable=name_var).grid(
         row=0, column=3, sticky="ew", pady=(0, 6)
     )
@@ -1906,9 +1964,11 @@ def open_linux_help_entry_dialog(app, item=None, is_new=False):
                             if is_glossary
                             else "linux_help_dialog_validation_body"
                         ),
-                        "Please fill at least the glossary term."
-                        if is_glossary
-                        else "Please fill at least name and command.",
+                        (
+                            "Please fill at least the glossary term."
+                            if is_glossary
+                            else "Please fill at least name and command."
+                        ),
                     ),
                     parent=dialog,
                 )
@@ -1959,9 +2019,11 @@ def open_linux_help_entry_dialog(app, item=None, is_new=False):
                     if is_glossary
                     else "linux_help_status_entry_saved"
                 ),
-                "Linux help: glossary entry saved."
-                if is_glossary
-                else "Linux help: entry saved.",
+                (
+                    "Linux help: glossary entry saved."
+                    if is_glossary
+                    else "Linux help: entry saved."
+                ),
             )
         )
         _close_dialog()
@@ -2298,12 +2360,16 @@ def reload_linux_help_documents(app, select_id: str = ""):
         return []
 
     app.linux_help_documents = documents
-    app.linux_help_document_ids = [str(item.get("id") or "").strip() for item in documents]
+    app.linux_help_document_ids = [
+        str(item.get("id") or "").strip() for item in documents
+    ]
     if listbox is not None:
         try:
             listbox.delete(0, "end")
             for item in documents:
-                title = str(item.get("title") or item.get("command_name") or "PDF").strip()
+                title = str(
+                    item.get("title") or item.get("command_name") or "PDF"
+                ).strip()
                 created = str(item.get("created_at") or "").strip().replace("T", " ")
                 listbox.insert("end", f"{title} [{created}]".strip())
         except Exception:
@@ -2400,7 +2466,9 @@ def open_selected_linux_help_pdf(app):
     metadata = _selected_linux_help_document(app)
     if not metadata:
         app.linux_help_status_var.set(
-            _tr(app, "linux_help_status_no_pdf_selected", "Linux help: no PDF selected.")
+            _tr(
+                app, "linux_help_status_no_pdf_selected", "Linux help: no PDF selected."
+            )
         )
         return False
     path = str(metadata.get("pdf_path") or "").strip()
@@ -2416,7 +2484,11 @@ def open_selected_linux_help_pdf(app):
         )
     else:
         app.linux_help_status_var.set(
-            _tr(app, "linux_help_status_pdf_open_failed", "Linux help: PDF could not be opened.")
+            _tr(
+                app,
+                "linux_help_status_pdf_open_failed",
+                "Linux help: PDF could not be opened.",
+            )
         )
     return bool(opened)
 
@@ -2425,7 +2497,9 @@ def copy_selected_linux_help_document_prompt(app):
     metadata = _selected_linux_help_document(app)
     if not metadata:
         app.linux_help_status_var.set(
-            _tr(app, "linux_help_status_no_pdf_selected", "Linux help: no PDF selected.")
+            _tr(
+                app, "linux_help_status_no_pdf_selected", "Linux help: no PDF selected."
+            )
         )
         return False
     prompt = str(metadata.get("source_prompt") or "").strip()
@@ -2451,7 +2525,9 @@ def delete_selected_linux_help_document(app):
     metadata = _selected_linux_help_document(app)
     if not metadata:
         app.linux_help_status_var.set(
-            _tr(app, "linux_help_status_no_pdf_selected", "Linux help: no PDF selected.")
+            _tr(
+                app, "linux_help_status_no_pdf_selected", "Linux help: no PDF selected."
+            )
         )
         return False
     title = str(metadata.get("title") or metadata.get("command_name") or "PDF").strip()
@@ -2540,7 +2616,11 @@ def import_linux_help_pdf_dialog(app):
         metadata = import_linux_help_pdf(path)
     except Exception as exc:
         app.linux_help_status_var.set(
-            _tr(app, "linux_help_status_pdf_import_failed", "Linux help: PDF import failed.")
+            _tr(
+                app,
+                "linux_help_status_pdf_import_failed",
+                "Linux help: PDF import failed.",
+            )
         )
         update_linux_help_document_preview(app, None, extra_error=str(exc))
         return None

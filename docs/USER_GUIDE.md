@@ -190,6 +190,8 @@ Eine hohe CPU-Auslastung bedeutet normalerweise, dass ClamAV noch arbeitet. `cla
 ### Linux-Hilfe
 
 - **Zweck:** Die Linux-Hilfe zeigt CSV-/JSON-basierte Kommandoeintraege mit Kategorien, Risiken und Details.
+- **Reader:** Doppelklick auf einen Eintrag (oder die Eingabetaste bei ausgewaehlter Zeile) oeffnet das vorhandene Lesefenster mit den Reitern `Kurzinfo` und `Dokumentation`. Fuer `7z` wird die ausfuehrliche Datei `docs/linux-befehlsdatenbank/7z.md` geladen. Der Leser bietet Inhaltsverzeichnis, Suche im Dokument, Schriftgroesse, kopierbare Codebloecke und umbrechende Tabellen. Kopieren fuehrt keinen Befehl aus. Weitere Befehle behalten die Kurzinfo; die bestehende Befehlsdatenbank wird nicht durch Markdown ersetzt. Ein einfacher Klick oeffnet kein Fenster. Weitere Doppelklicks verwenden dasselbe Lesefenster; Bearbeiten bleibt ueber den eigenen Button und das Kontextmenue erreichbar.
+- **Dokumentationsverwaltung:** Unten bleibt ein kompakter Bereich mit Dokumentenliste, Metadaten sowie den bisherigen Funktionen zum PDF-Import, Neuladen, Oeffnen und Verwalten. Die Befehlsliste erhaelt den frei werdenden Platz.
 - **Beschreibung:** Die obere Eintragsliste bietet per Rechtsklick normale Chad-Prompts und den Eintrag `Als Prompt mit PDF`. Dieser PDF-Prompt ist fuer externe Erklaerung und PDF-Erstellung gedacht; NetMon erzeugt diese PDF nicht lokal.
 - **PDF-Bibliothek:** Die untere Bibliothek importiert heruntergeladene PDFs, zeigt Metadaten und Vorschau, oeffnet PDFs per Doppelklick oder Button und erlaubt per Rechtsklick das Loeschen der PDF inklusive JSON-Metadaten.
 - **Screenshot-Platzhalter:** Screenshot-Platzhalter: Linux-Hilfe.

@@ -6,6 +6,11 @@ import tkinter as tk
 from tkinter import ttk
 
 try:
+    from netmon.features.linux_help_controller import open_linux_help_reader
+except ModuleNotFoundError:
+    from features.linux_help_controller import open_linux_help_reader
+
+try:
     from netmon.ui.tabs.security_tabs import _install_vertical_pane_drag_markers
 except (ImportError, ModuleNotFoundError):
     from ui.tabs.security_tabs import _install_vertical_pane_drag_markers
@@ -181,7 +186,7 @@ def build_linux_help_tab(app):
         help_row,
         text=app.tr(
             "linux_help_hint_integrated",
-            "Search by command, tags, description or syntax. The detail view below remains usable while scrolling.",
+            "Search by command, tags, description or syntax. Double-click a command to open the reader.",
         ),
         justify="left",
         wraplength=980,
@@ -235,7 +240,7 @@ def build_linux_help_tab(app):
     top_pane = ttk.Frame(app.linux_help_main_pane, padding=(0, 0, 0, 6))
     top_pane.columnconfigure(0, weight=1)
     top_pane.rowconfigure(0, weight=1)
-    app.linux_help_main_pane.add(top_pane, weight=3)
+    app.linux_help_main_pane.add(top_pane, weight=1)
 
     table_frame = ttk.LabelFrame(
         top_pane,
@@ -278,7 +283,10 @@ def build_linux_help_tab(app):
     app.linux_help_tree.bind("<<TreeviewSelect>>", app.on_linux_help_select)
     app.linux_help_tree.bind(
         "<Double-1>",
-        lambda _event: app.linux_help_edit_selected(),
+        lambda event: open_linux_help_reader(app, event),
+    )
+    app.linux_help_tree.bind(
+        "<Return>", lambda event: open_linux_help_reader(app, event)
     )
     app.linux_help_tree.bind("<Button-3>", app.show_linux_help_tree_menu)
 
@@ -297,42 +305,19 @@ def build_linux_help_tab(app):
     bottom_pane = ttk.Frame(app.linux_help_main_pane, padding=(0, 6, 0, 0))
     bottom_pane.columnconfigure(0, weight=1)
     bottom_pane.rowconfigure(0, weight=1)
-    bottom_pane.rowconfigure(1, weight=1)
-    app.linux_help_main_pane.add(bottom_pane, weight=2)
-
-    explanation_frame = ttk.LabelFrame(
-        bottom_pane,
-        text=app.tr("linux_help_group_explanation", "Explanation and notes"),
-        padding=8,
-    )
-    explanation_frame.grid(row=0, column=0, sticky="nsew")
-    explanation_frame.columnconfigure(0, weight=1)
-    explanation_frame.rowconfigure(0, weight=1)
-
+    app.linux_help_main_pane.add(bottom_pane, weight=0)
+    # Selection updates metadata only; reading happens explicitly in the popup.
+    app.linux_help_text = None
     app.linux_help_risk_canvas = None
     app.linux_help_risk_dot = None
-
-    app.linux_help_text = tk.Text(
-        explanation_frame,
-        wrap="word",
-        height=11,
-        relief="flat",
-        bd=0,
-    )
-    app.linux_help_text.grid(row=0, column=0, sticky="nsew")
-    detail_scroll = ttk.Scrollbar(
-        explanation_frame, orient="vertical", command=app.linux_help_text.yview
-    )
-    detail_scroll.grid(row=0, column=1, sticky="ns")
-    app.linux_help_text.configure(yscrollcommand=detail_scroll.set)
-    app.attach_chad_context_menu(app.linux_help_text, "Linux command database")
+    app.linux_help_reader_window = None
 
     documents_frame = ttk.LabelFrame(
         bottom_pane,
-        text=app.tr("linux_help_group_documents", "PDF documentation library"),
+        text=app.tr("linux_help_document_management", "Dokumentationen verwalten"),
         padding=8,
     )
-    documents_frame.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
+    documents_frame.grid(row=0, column=0, sticky="nsew")
     documents_frame.columnconfigure(0, weight=0)
     documents_frame.columnconfigure(1, weight=1)
     documents_frame.rowconfigure(1, weight=1)
@@ -375,7 +360,7 @@ def build_linux_help_tab(app):
     app.linux_help_documents_listbox = tk.Listbox(
         documents_list_frame,
         exportselection=False,
-        height=8,
+        height=3,
     )
     app.linux_help_documents_listbox.grid(row=0, column=0, sticky="nsew")
     app.linux_help_documents_listbox.bind(
@@ -406,7 +391,7 @@ def build_linux_help_tab(app):
     app.linux_help_documents_text = tk.Text(
         documents_preview_frame,
         wrap="word",
-        height=8,
+        height=3,
         relief="flat",
         bd=0,
     )
@@ -425,7 +410,7 @@ def build_linux_help_tab(app):
     _install_vertical_pane_drag_markers(
         app.tab_linux_help,
         app.linux_help_main_pane,
-        min_pane_size=180,
+        min_pane_size=120,
     )
     app.reload_linux_help_data()
     app.reload_linux_help_documents()
