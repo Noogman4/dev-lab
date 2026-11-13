@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 import secrets
+import shutil
 import stat
 import unicodedata
 
@@ -92,6 +93,83 @@ def prepare_directory(path):
     validate_scan_path(path)
     descriptor = qfs.open_directory(path, create=True, private=True)
     os.close(descriptor)
+
+
+def _listing(directory):
+    # O_PATH descriptors cannot be listed; reopen "." read-only through it.
+    readable = os.open(
+        ".", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC, dir_fd=directory
+    )
+    try:
+        return sorted(os.listdir(readable))
+    finally:
+        os.close(readable)
+
+
+def list_directory(path):
+    """Entry names of the private pre-quarantine, checked like prepare_directory."""
+    validate_scan_path(path)
+    descriptor = qfs.open_directory(path, private=True)
+    try:
+        return _listing(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def clear_directory(path, names=None):
+    """Delete entries of the private pre-quarantine without following links.
+
+    The directory must pass the same no-follow ownership and mode checks as
+    prepare_directory. Removal happens relative to that descriptor, so a
+    swapped path or a planted symlink cannot redirect deletion elsewhere.
+    With ``names`` only those confirmed entries are removed.
+    """
+    validate_scan_path(path)
+    descriptor = qfs.open_directory(path, private=True)
+    removed, errors = 0, []
+    try:
+        present = _listing(descriptor)
+        confirmed = None if names is None else set(names)
+        wanted = [n for n in present if confirmed is None or n in confirmed]
+        for name in wanted:
+            try:
+                entry = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+                if stat.S_ISDIR(entry.st_mode):
+                    shutil.rmtree(name, dir_fd=descriptor)
+                else:
+                    os.unlink(name, dir_fd=descriptor)
+                removed += 1
+            except OSError as exc:
+                errors.append((name, exc))
+    finally:
+        os.close(descriptor)
+    return removed, errors
+
+
+def write_report(directory, name, text):
+    """Create a new owner-only report; never follow or replace an existing name."""
+    validate_scan_path(directory)
+    descriptor = qfs.open_directory(directory, create=True)
+    try:
+        entry = os.fstat(descriptor)
+        if entry.st_uid != os.getuid() or stat.S_IMODE(entry.st_mode) & 0o077:
+            raise UnsafePath(f"Berichtsordner nicht privat: {directory}")
+        data = (str(text or "").rstrip() + "\n").encode("utf-8")
+        for candidate in _names(name):
+            try:
+                output = os.open(candidate, _WRITE_FLAGS, 0o600, dir_fd=descriptor)
+            except FileExistsError:
+                continue
+            try:
+                view = memoryview(data)
+                while view:
+                    view = view[os.write(output, view) :]
+            finally:
+                os.close(output)
+            return os.path.join(directory, candidate)
+        raise UnsafePath("kein freier Name im Berichtsordner")
+    finally:
+        os.close(descriptor)
 
 
 def _names(name):

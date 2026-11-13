@@ -21463,24 +21463,39 @@ class App(TkBase):
         )
         return True
 
-    def _clear_download_scan_temp_contents(self, *, startup: bool = False) -> int:
+    def _clear_download_scan_temp_contents(
+        self, *, startup: bool = False, names=None
+    ) -> int:
+        # Same checks as prepare_directory (private, owned, no symlink in the
+        # path); raises UnsafePath instead of deleting in a foreign directory.
         target = self._normalized_download_scan_temp_dir()
-        if not os.path.isdir(target):
+        if not os.path.lexists(target):
             return 0
-        removed = 0
-        for entry in os.scandir(target):
-            path = entry.path
-            try:
-                if entry.is_dir(follow_symlinks=False):
-                    shutil.rmtree(path)
-                else:
-                    os.unlink(path)
-                removed += 1
-            except Exception as exc:
-                self.log_debug_safe(
-                    f"Download scan: temporary file could not be removed: {path} ({exc})"
-                )
+        removed, errors = download_scan_fs.clear_directory(target, names=names)
+        for name, exc in errors:
+            self.log_debug_safe(
+                f"Download scan: temporary file could not be removed: "
+                f"{os.path.join(target, name)} ({exc})"
+            )
         return removed
+
+    def _reject_download_scan_temp_clear(self, target: str, exc: Exception):
+        self.log_safe(
+            self.tr(
+                "download_scan_log_temp_clear_rejected",
+                "Temp-Ordner nicht geleert: {path} ({error})",
+            ).format(path=target, error=exc)
+        )
+        messagebox.showerror(
+            self.tr("download_scan_clear_confirm_title", "Temp-Ordner leeren"),
+            self.tr(
+                "download_scan_clear_rejected",
+                "Der Temp-Ordner wurde nicht geleert.\n\nPfad: {path}\nGrund: {error}\n\n"
+                "Geleert wird nur ein privater Vor-Quarantäne-Ordner "
+                "(eigener Besitz, Rechte 700, kein Symlink im Pfad).",
+            ).format(path=target, error=exc),
+            parent=self,
+        )
 
     def prepare_download_scan_workspace(self, *, startup: bool = False):
         target = self._normalized_download_scan_temp_dir()
@@ -21799,6 +21814,31 @@ class App(TkBase):
         if not folder:
             return
         normalized = os.path.abspath(os.path.expanduser(folder))
+        try:
+            download_scan_fs.prepare_directory(normalized)
+        except (download_scan_fs.UnsafePath, OSError) as exc:
+            # Never adopt a path that "Temp-Ordner leeren" could not clear safely.
+            self.log_safe(
+                self.tr(
+                    "download_scan_log_temp_dir_rejected",
+                    "Temp-Pfad abgelehnt: {path} ({error})",
+                ).format(path=normalized, error=exc)
+            )
+            messagebox.showerror(
+                self.tr(
+                    "download_scan_temp_dir_dialog_title",
+                    "Choose temporary download folder",
+                ),
+                self.tr(
+                    "download_scan_temp_dir_rejected",
+                    "Dieser Ordner kann nicht als Vor-Quarantäne verwendet werden.\n\n"
+                    "Pfad: {path}\nGrund: {error}\n\n"
+                    "Bitte einen eigenen, privaten Ordner (Rechte 700) wählen, "
+                    "z. B. einen neuen Unterordner.",
+                ).format(path=normalized, error=exc),
+                parent=self,
+            )
+            return
         self.download_scan_temp_dir_var.set(normalized)
         self.prepare_download_scan_workspace(startup=False)
         self._set_download_scan_status(
@@ -22304,7 +22344,41 @@ class App(TkBase):
 
     def clear_download_scan_temp_folder(self):
         target = self._normalized_download_scan_temp_dir()
-        removed = self._clear_download_scan_temp_contents(startup=False)
+        try:
+            entries = (
+                download_scan_fs.list_directory(target)
+                if os.path.lexists(target)
+                else []
+            )
+        except (download_scan_fs.UnsafePath, OSError) as exc:
+            self._reject_download_scan_temp_clear(target, exc)
+            return False
+        if entries:
+            shown = "\n".join(f"- {name}" for name in entries[:10])
+            if len(entries) > 10:
+                shown += "\n- …"
+            if not messagebox.askyesno(
+                self.tr("download_scan_clear_confirm_title", "Temp-Ordner leeren"),
+                self.tr(
+                    "download_scan_clear_confirm_body",
+                    "Diese {count} Einträge werden endgültig gelöscht "
+                    "(nicht in den Papierkorb):\n\nOrdner: {path}\n\n{entries}"
+                    "\n\nFortfahren?",
+                ).format(count=len(entries), path=target, entries=shown),
+                parent=self,
+            ):
+                self.log_safe(
+                    self.tr(
+                        "download_scan_log_temp_clear_cancelled",
+                        "Temp-Ordner leeren abgebrochen: {path}",
+                    ).format(path=target)
+                )
+                return False
+        try:
+            removed = self._clear_download_scan_temp_contents(names=entries)
+        except (download_scan_fs.UnsafePath, OSError) as exc:
+            self._reject_download_scan_temp_clear(target, exc)
+            return False
         self._refresh_download_scan_temp_security_status()
         self._set_download_scan_status(
             status="🟡 unchecked",
@@ -22324,6 +22398,7 @@ class App(TkBase):
                 "Temp-Ordner geleert.\n\nZielpfad: {path}\nEntfernte Einträge: {count}\nDateien in diesem Bereich sind nur für temporäre Nutzung gedacht.",
             ).format(path=target, count=removed)
         )
+        return True
 
     def choose_download_scan_file(self):
         self.prepare_download_scan_workspace(startup=False)
@@ -22451,26 +22526,24 @@ class App(TkBase):
             return False
 
     def _download_scan_report_dir(self) -> str:
-        return os.path.join(self._normalized_download_scan_temp_dir(), "reports")
+        # Not inside the pre-quarantine: untrusted downloads must not be able
+        # to plant links where NetMon writes.
+        return os.path.join(get_netmon_documents_dir(), "Download-Scan")
 
-    def _download_scan_report_path(self, scan_kind: str) -> str:
+    def _download_scan_report_name(self, scan_kind: str) -> str:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_kind = re.sub(r"[^a-zA-Z0-9_.-]", "_", scan_kind or "scan")
-        return os.path.join(
-            self._download_scan_report_dir(),
-            f"netmon_download_scan_{safe_kind}_{stamp}.txt",
-        )
+        return f"netmon_download_scan_{safe_kind}_{stamp}.txt"
 
     def _download_scan_write_report(self, scan_kind: str, report_text: str) -> str:
         if not bool(self.download_scan_save_report_var.get()):
             return ""
         try:
-            report_dir = self._download_scan_report_dir()
-            os.makedirs(report_dir, exist_ok=True)
-            report_path = self._download_scan_report_path(scan_kind)
-            with open(report_path, "w", encoding="utf-8") as handle:
-                handle.write(report_text.rstrip() + "\n")
-            return report_path
+            return download_scan_fs.write_report(
+                self._download_scan_report_dir(),
+                self._download_scan_report_name(scan_kind),
+                report_text,
+            )
         except Exception as exc:
             self.log_debug_safe(f"Download scan report could not be saved: {exc}")
             return ""
