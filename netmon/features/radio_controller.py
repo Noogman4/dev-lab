@@ -16,7 +16,6 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-import webbrowser
 from datetime import datetime, timezone
 from tkinter import filedialog, messagebox, simpledialog
 
@@ -36,9 +35,11 @@ _PLAYBACK_LOCK_INIT = threading.Lock()
 try:
     from netmon.core import radio_catalog, radio_sandbox, stall_log
     from netmon.core.import_limits import read_bounded_text
+    from netmon.core.radio_homepage import normalize_homepage_url
 except ModuleNotFoundError:
     from core import radio_catalog, radio_sandbox, stall_log
     from core.import_limits import read_bounded_text
+    from core.radio_homepage import normalize_homepage_url
 
 try:
     from netmon.core.tooling import has_cmd
@@ -120,7 +121,6 @@ RADIO_DB_FIELDS = (
 )
 
 ALLOWED_RADIO_STREAM_SCHEMES = {"http", "https", "rtsp", "rtmp"}
-ALLOWED_RADIO_HOMEPAGE_SCHEMES = {"http", "https"}
 
 RADIO_BROWSER_SOURCE_ENDPOINTS = {
     "radio_browser_api": "https://de1.api.radio-browser.info/json/stations",
@@ -370,17 +370,7 @@ def _normalize_station_stream_url(value) -> str:
 
 
 def _normalize_station_homepage_url(value) -> str:
-    url = str(value or "").strip()
-    if not url:
-        return ""
-    try:
-        parsed = urllib.parse.urlparse(url)
-    except Exception:
-        return ""
-    scheme = str(parsed.scheme or "").strip().lower()
-    if scheme not in ALLOWED_RADIO_HOMEPAGE_SCHEMES:
-        return ""
-    return url
+    return normalize_homepage_url(value)
 
 
 def normalize_station_entry(entry, *, custom=False):
@@ -5635,6 +5625,8 @@ def copy_selected_station_url(app):
 
 
 def open_selected_station_homepage(app):
+    # Keep the callback name for embedded/standalone callers. Metadata must not
+    # navigate an ambient browser: it resolves DNS and follows redirects itself.
     station = _resolve_target_station(app, _selected_station_id(app))
     if station is None:
         set_radio_status(
@@ -5646,28 +5638,52 @@ def open_selected_station_homepage(app):
         return False
     url = _normalize_station_homepage_url(station.get("homepage", "") or "")
     if not url:
-        url = _normalize_station_homepage_url(station.get("url", "") or "")
-    if not url:
-        set_radio_status(
-            app,
-            _tr(app, "radio_status_homepage_missing", "Keine Homepage vorhanden."),
-        )
-        return False
-    try:
-        webbrowser.open(url, new=2)
-    except Exception as exc:
         set_radio_status(
             app,
             _tr(
                 app,
-                "radio_status_homepage_open_failed",
-                "Homepage konnte nicht geöffnet werden: {error}",
-            ).format(error=exc),
+                "radio_status_homepage_missing",
+                "Keine gültige öffentliche Homepage vorhanden.",
+            ),
+        )
+        return False
+    try:
+        authority = urllib.parse.urlsplit(url).netloc
+        approved = messagebox.askyesno(
+            _tr(app, "radio_homepage_review_title", "Homepage-Adresse prüfen"),
+            _tr(
+                app,
+                "radio_homepage_review_text",
+                "Ziel: {authority}\n\n{url}\n\n"
+                "Diese Adresse stammt aus Senderdaten. NetMon öffnet sie nicht "
+                "im Browser und prüft keine Weiterleitungen.\n\n"
+                "Adresse in die Zwischenablage kopieren?",
+            ).format(authority=authority, url=url),
+            parent=app,
+            default="no",
+            icon="question",
+        )
+        if not approved:
+            return False
+        app.clipboard_clear()
+        app.clipboard_append(url)
+    except Exception:
+        set_radio_status(
+            app,
+            _tr(
+                app,
+                "radio_status_homepage_copy_failed",
+                "Homepage-Adresse konnte nicht kopiert werden.",
+            ),
         )
         return False
     set_radio_status(
         app,
-        _tr(app, "radio_status_homepage_opened", "Homepage geöffnet."),
+        _tr(
+            app,
+            "radio_status_homepage_copied",
+            "Homepage-Adresse kopiert; kein Browser gestartet.",
+        ),
     )
     return True
 

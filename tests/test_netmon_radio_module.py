@@ -1061,66 +1061,57 @@ def test_open_last_recording_missing_file_does_not_launch_any_player(
     assert refreshed == [app]
 
 
-def test_open_selected_station_homepage_rejects_disallowed_scheme():
-    app = type("DummyApp", (), {})()
+def test_open_selected_station_homepage_rejects_disallowed_scheme(monkeypatch):
+    app = SimpleNamespace()
     statuses = []
-    opened = []
-
-    original_resolve_target_station = radio_controller._resolve_target_station
-    original_selected_station_id = radio_controller._selected_station_id
-    original_webbrowser_open = radio_controller.webbrowser.open
-    original_set_radio_status = radio_controller.set_radio_status
-    try:
-        radio_controller._resolve_target_station = lambda _app, station_id="": {
+    monkeypatch.setattr(
+        radio_controller,
+        "_resolve_target_station",
+        lambda *_: {
             "homepage": "file:///etc/passwd",
-            "url": "rtsp://stream.example.com/live",
-        }
-        radio_controller._selected_station_id = lambda _app: "station-1"
-        radio_controller.webbrowser.open = lambda url, new=0: opened.append((url, new))
-        radio_controller.set_radio_status = lambda _app, message: statuses.append(
-            message
-        )
-
-        assert radio_controller.open_selected_station_homepage(app) is False
-    finally:
-        radio_controller._resolve_target_station = original_resolve_target_station
-        radio_controller._selected_station_id = original_selected_station_id
-        radio_controller.webbrowser.open = original_webbrowser_open
-        radio_controller.set_radio_status = original_set_radio_status
-
-    assert opened == []
-    assert statuses[-1] == "Keine Homepage vorhanden."
+            "url": "https://stream.example.com/live",
+        },
+    )
+    monkeypatch.setattr(radio_controller, "_selected_station_id", lambda _: "station-1")
+    monkeypatch.setattr(
+        radio_controller, "set_radio_status", lambda _, text: statuses.append(text)
+    )
+    monkeypatch.setattr(
+        radio_controller.messagebox,
+        "askyesno",
+        lambda *a, **k: pytest.fail("unsafe homepage displayed"),
+    )
+    assert radio_controller.open_selected_station_homepage(app) is False
+    assert statuses[-1] == "Keine gültige öffentliche Homepage vorhanden."
 
 
-def test_open_selected_station_homepage_opens_https():
-    app = type("DummyApp", (), {})()
+def test_open_selected_station_homepage_copies_https_after_confirmation(monkeypatch):
+    copied = []
+    app = SimpleNamespace(clipboard_clear=copied.clear, clipboard_append=copied.append)
     statuses = []
-    opened = []
-
-    original_resolve_target_station = radio_controller._resolve_target_station
-    original_selected_station_id = radio_controller._selected_station_id
-    original_webbrowser_open = radio_controller.webbrowser.open
-    original_set_radio_status = radio_controller.set_radio_status
-    try:
-        radio_controller._resolve_target_station = lambda _app, station_id="": {
+    reviews = []
+    monkeypatch.setattr(
+        radio_controller,
+        "_resolve_target_station",
+        lambda *_: {
             "homepage": "https://example.com",
             "url": "https://example.com/live.mp3",
-        }
-        radio_controller._selected_station_id = lambda _app: "station-1"
-        radio_controller.webbrowser.open = lambda url, new=0: opened.append((url, new))
-        radio_controller.set_radio_status = lambda _app, message: statuses.append(
-            message
-        )
-
-        assert radio_controller.open_selected_station_homepage(app) is True
-    finally:
-        radio_controller._resolve_target_station = original_resolve_target_station
-        radio_controller._selected_station_id = original_selected_station_id
-        radio_controller.webbrowser.open = original_webbrowser_open
-        radio_controller.set_radio_status = original_set_radio_status
-
-    assert opened == [("https://example.com", 2)]
-    assert statuses[-1] == "Homepage geöffnet."
+        },
+    )
+    monkeypatch.setattr(radio_controller, "_selected_station_id", lambda _: "station-1")
+    monkeypatch.setattr(
+        radio_controller, "set_radio_status", lambda _, text: statuses.append(text)
+    )
+    monkeypatch.setattr(
+        radio_controller.messagebox,
+        "askyesno",
+        lambda title, text, **kw: reviews.append((text, kw)) or True,
+    )
+    assert radio_controller.open_selected_station_homepage(app) is True
+    assert copied == ["https://example.com"]
+    assert "Ziel: example.com" in reviews[0][0]
+    assert reviews[0][1]["default"] == "no"
+    assert statuses[-1] == "Homepage-Adresse kopiert; kein Browser gestartet."
 
 
 def test_add_custom_station_persists_into_radio_db_and_updates_search():

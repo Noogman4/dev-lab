@@ -4862,7 +4862,7 @@ class NetMonRadioApp(tk.Tk):
             command=self.copy_selected_radio_stream_url,
         )
         self.radio_station_menu.add_command(
-            label=self.tr("radio_menu_open_homepage", "Open homepage"),
+            label=self.tr("radio_menu_open_homepage", "Show homepage address"),
             command=self.open_selected_radio_homepage,
         )
         self.radio_station_menu.add_separator()

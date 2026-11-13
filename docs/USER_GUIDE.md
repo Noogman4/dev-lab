@@ -264,6 +264,7 @@ Eine hohe CPU-Auslastung bedeutet normalerweise, dass ClamAV noch arbeitet. `cla
 
 14. **Wo liegt die Radio-Datenbank?**
    Im State-Verzeichnis, standardmaessig als `radio_db.json` und `radio_db_meta.json`.
+   `Homepage-Adresse anzeigen` zeigt das kanonische Ziel einer Sender-Homepage und bietet nach Rueckfrage das Kopieren an. NetMon startet dafuer keinen Browser und verwendet die Stream-Adresse nicht als Ersatz. Lokale/private IP-Adressen, lokale Hostnamen, Benutzerinformationen und unpassende Ports werden abgewiesen. Eine angezeigte Adresse ist keine Pruefung ihrer DNS-Ziele oder Weiterleitungen.
 
 15. **Wie speichere ich Theme-Studio-Profile?**
    Das Theme Studio bietet `Theme speichern` und `Theme laden`; Profile landen unter `~/Documents/NetMon/ThemeStudio` oder `~/Dokumente/NetMon/ThemeStudio`.
