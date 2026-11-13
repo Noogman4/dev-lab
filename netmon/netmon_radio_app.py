@@ -18,6 +18,8 @@ import types
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from netmon.core import icon_http, projectm_archive, radio_logo, radio_sandbox
+from netmon.core.log_redaction import format_log_message
+from netmon.core.private_logs import open_private_log
 from netmon.core.privilege_launcher import (
     maintenance_terminal_command,
     terminal_environment,
@@ -2293,7 +2295,7 @@ class NetMonRadioApp(tk.Tk):
             pass
 
     def log(self, message):
-        text = str(message or "").strip()
+        text = format_log_message(str(message or "").strip())
         if not text:
             return
         self._append_log_file(text)
@@ -2319,10 +2321,9 @@ class NetMonRadioApp(tk.Tk):
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     def _append_log_file(self, text):
-        line = f"[{self._timestamp_text()}] {text}\n"
+        line = f"[{self._timestamp_text()}] {format_log_message(text)}\n"
         try:
-            os.makedirs(os.path.dirname(self.radio_log_path), exist_ok=True)
-            with open(self.radio_log_path, "a", encoding="utf-8") as handle:
+            with open_private_log(self.radio_log_path) as handle:
                 handle.write(line)
         except Exception:
             pass

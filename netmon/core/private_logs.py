@@ -11,7 +11,11 @@ from pathlib import Path
 import secrets
 import stat
 
-from .log_redaction import redact_diagnostic_value, redact_sensitive_text
+from .log_redaction import (
+    encode_log_record,
+    redact_diagnostic_value,
+    redact_sensitive_text,
+)
 
 MAX_LOG_RECORD_CHARS = 64 * 1024
 
@@ -55,6 +59,14 @@ class _RedactedLog:
             text = "[NetMon log record truncated]\n"
         else:
             text = redact_sensitive_text("".join(self.parts))
+            # A caller may supply one final framing LF. All embedded separators
+            # belong to this event, even across write()/writelines() calls.
+            terminator = "\n" if text.endswith("\n") else ""
+            body = text[:-1] if terminator else text
+            text = (
+                encode_log_record(body, limit=MAX_LOG_RECORD_CHARS - len(terminator))
+                + terminator
+            )
         self.output.write(text)
 
 

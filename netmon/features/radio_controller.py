@@ -36,10 +36,12 @@ try:
     from netmon.core import radio_catalog, radio_sandbox, stall_log
     from netmon.core.import_limits import read_bounded_text
     from netmon.core.radio_homepage import normalize_homepage_url
+    from netmon.core.log_redaction import escape_log_controls, format_log_message
 except ModuleNotFoundError:
     from core import radio_catalog, radio_sandbox, stall_log
     from core.import_limits import read_bounded_text
     from core.radio_homepage import normalize_homepage_url
+    from core.log_redaction import escape_log_controls, format_log_message
 
 try:
     from netmon.core.tooling import has_cmd
@@ -359,6 +361,8 @@ def _normalize_station_stream_url(value) -> str:
     url = str(value or "").strip()
     if not url:
         return ""
+    if escape_log_controls(url) != url:
+        return ""
     try:
         parsed = urllib.parse.urlparse(url)
     except Exception:
@@ -373,22 +377,28 @@ def _normalize_station_homepage_url(value) -> str:
     return normalize_homepage_url(value)
 
 
+def _station_display_text(value):
+    # Preserve word boundaries so normalization cannot obscure credentials
+    # from the logger's later redaction step.
+    return re.sub(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]+", " ", str(value or ""))
+
+
 def normalize_station_entry(entry, *, custom=False):
     if not isinstance(entry, dict):
         return None
 
-    name = str(entry.get("name", "") or "").strip()
+    name = _station_display_text(str(entry.get("name", "") or "").strip())
     url = _normalize_station_stream_url(
         entry.get("url", "") or entry.get("url_resolved", "") or ""
     )
     if not name or not url:
         return None
 
-    station_id = str(entry.get("id", "") or "").strip()
+    station_id = _station_display_text(str(entry.get("id", "") or "").strip())
     if not station_id:
         station_id = _slugify_station_id(name)
 
-    category = str(entry.get("category", "") or "").strip()
+    category = _station_display_text(str(entry.get("category", "") or "").strip())
     station = {
         "id": station_id,
         "name": name,
@@ -406,6 +416,10 @@ def normalize_station_entry(entry, *, custom=False):
             value = _normalize_station_homepage_url(value)
         if key == "tags" and isinstance(value, str):
             value = [tag.strip() for tag in value.split(",") if tag.strip()]
+        if isinstance(value, str):
+            value = _station_display_text(value)
+        elif key == "tags" and isinstance(value, list):
+            value = [_station_display_text(str(tag)) for tag in value]
         station[key] = value
     if station.get("url_resolved") and not station.get("url"):
         station["url"] = _normalize_station_stream_url(
@@ -1084,7 +1098,7 @@ def _set_radio_bitrate_text(app, bitrate):
 
 
 def _radio_debug_log(app, message):
-    text = str(message or "").strip()
+    text = format_log_message(str(message or "").strip())
     if not text:
         return
     for candidate in [app, *list(_radio_targets(app))]:

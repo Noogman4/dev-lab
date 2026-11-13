@@ -2,6 +2,47 @@
 
 import json
 import re
+import unicodedata
+
+MAX_LOG_MESSAGE_CHARS = 64 * 1024
+TRUNCATED_LOG_MESSAGE = "[NetMon log record truncated]"
+
+
+def escape_log_controls(text):
+    """Keep untrusted text in one physical record without altering Unicode text."""
+    short = {"\n": "\\n", "\r": "\\r", "\t": "\\t"}
+    return "".join(
+        (
+            short.get(char, f"\\u{ord(char):04x}")
+            if unicodedata.category(char) in {"Cc", "Zl", "Zp"}
+            else char
+        )
+        for char in text
+    )
+
+
+def encode_log_record(text, *, limit=MAX_LOG_MESSAGE_CHARS):
+    """Frame already-redacted text; valid structured records remain valid JSON."""
+    if len(text) > limit:
+        return TRUNCATED_LOG_MESSAGE
+    if text.lstrip().startswith(("{", "[")):
+        try:
+            value = json.loads(text)
+            if isinstance(value, (dict, list)):
+                text = json.dumps(value, ensure_ascii=False)
+        except (ValueError, RecursionError):
+            pass
+    text = escape_log_controls(text)
+    return text if len(text) <= limit else TRUNCATED_LOG_MESSAGE
+
+
+def format_log_message(value):
+    """Redact complete, bounded input before encoding any record separators."""
+    text = str(value or "")
+    if len(text) > MAX_LOG_MESSAGE_CHARS:
+        return TRUNCATED_LOG_MESSAGE
+    return encode_log_record(redact_sensitive_text(text))
+
 
 _KEY = (
     r"(?:private[-_]?key|preshared[-_]?key|client[-_]?secret|access[-_]?token|"

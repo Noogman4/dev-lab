@@ -1304,8 +1304,10 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from netmon.core.private_logs import open_private_log
+    from netmon.core.log_redaction import format_log_message
 except (ImportError, ModuleNotFoundError):
     from core.private_logs import open_private_log
+    from core.log_redaction import format_log_message
 
 try:
     from netmon.core.diagnostics import (
@@ -12058,7 +12060,7 @@ class App(TkBase):
         )
 
     def log(self, msg):
-        msg = redact_sensitive_text(self._translate_runtime_log_message(msg))
+        msg = format_log_message(self._translate_runtime_log_message(msg))
         line = f"[{runtime_log_timestamp()}] {msg}"
         try:
             self._append_runtime_log_line(line)
@@ -12163,7 +12165,7 @@ class App(TkBase):
 
     def log_network_debug(self, msg):
         if self.__dict__.get("debug_network_logging", False):
-            text = redact_sensitive_text(str(msg or "").rstrip())
+            text = format_log_message(str(msg or "").rstrip())
             if not text:
                 return
             line = f"[{runtime_log_timestamp()}] {text}"
