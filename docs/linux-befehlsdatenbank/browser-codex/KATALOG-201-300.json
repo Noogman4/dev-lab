@@ -1,0 +1,1811 @@
+{
+  "schema_version": 1,
+  "source_catalog": "tools/netmon-linux-befehlsdatenbank-v1.csv",
+  "source_sha256": "40c0b0c306636337f25276c1ffb58322bb2ae1f35225ac70dc33ef98e00ae887",
+  "total_records": 713,
+  "purpose": "Eingefrorene Zuordnung 201–300; kein Fortschrittsindex und keine fachliche Freigabe",
+  "first_record": 201,
+  "last_record": 300,
+  "records": [
+    {
+      "source_record": 201,
+      "id": "touch",
+      "name": "touch",
+      "category": "Dateien & Verzeichnisse",
+      "document": "touch.md",
+      "source": {
+        "Kategorie": "Dateien & Verzeichnisse",
+        "Befehl": "touch",
+        "Kurzbeschreibung": "touch ist ein Linux/Unix-Werkzeug fuer dateien & verzeichnisse.",
+        "Syntax": "touch [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "touch --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "dateien,verzeichnisse"
+      }
+    },
+    {
+      "source_record": 202,
+      "id": "tree",
+      "name": "tree",
+      "category": "Dateien & Verzeichnisse",
+      "document": "tree.md",
+      "source": {
+        "Kategorie": "Dateien & Verzeichnisse",
+        "Befehl": "tree",
+        "Kurzbeschreibung": "tree ist ein Linux/Unix-Werkzeug fuer dateien & verzeichnisse.",
+        "Syntax": "tree [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "tree --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "dateien,verzeichnisse"
+      }
+    },
+    {
+      "source_record": 203,
+      "id": "truncate",
+      "name": "truncate",
+      "category": "Dateien & Verzeichnisse",
+      "document": "truncate.md",
+      "source": {
+        "Kategorie": "Dateien & Verzeichnisse",
+        "Befehl": "truncate",
+        "Kurzbeschreibung": "truncate ist ein Linux/Unix-Werkzeug fuer dateien & verzeichnisse.",
+        "Syntax": "truncate [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "truncate --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "dateien,verzeichnisse"
+      }
+    },
+    {
+      "source_record": 204,
+      "id": "unlink",
+      "name": "unlink",
+      "category": "Dateien & Verzeichnisse",
+      "document": "unlink.md",
+      "source": {
+        "Kategorie": "Dateien & Verzeichnisse",
+        "Befehl": "unlink",
+        "Kurzbeschreibung": "unlink ist ein Linux/Unix-Werkzeug fuer dateien & verzeichnisse.",
+        "Syntax": "unlink [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "unlink --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "dateien,verzeichnisse"
+      }
+    },
+    {
+      "source_record": 205,
+      "id": "updatedb",
+      "name": "updatedb",
+      "category": "Dateien & Verzeichnisse",
+      "document": "updatedb.md",
+      "source": {
+        "Kategorie": "Dateien & Verzeichnisse",
+        "Befehl": "updatedb",
+        "Kurzbeschreibung": "updatedb ist ein Linux/Unix-Werkzeug fuer dateien & verzeichnisse.",
+        "Syntax": "updatedb [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "updatedb --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "dateien,verzeichnisse"
+      }
+    },
+    {
+      "source_record": 206,
+      "id": "vdir",
+      "name": "vdir",
+      "category": "Dateien & Verzeichnisse",
+      "document": "vdir.md",
+      "source": {
+        "Kategorie": "Dateien & Verzeichnisse",
+        "Befehl": "vdir",
+        "Kurzbeschreibung": "vdir ist ein Linux/Unix-Werkzeug fuer dateien & verzeichnisse.",
+        "Syntax": "vdir [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "vdir --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "dateien,verzeichnisse"
+      }
+    },
+    {
+      "source_record": 207,
+      "id": "watch",
+      "name": "watch",
+      "category": "Dateien & Verzeichnisse",
+      "document": "watch.md",
+      "source": {
+        "Kategorie": "Dateien & Verzeichnisse",
+        "Befehl": "watch",
+        "Kurzbeschreibung": "watch ist ein Linux/Unix-Werkzeug fuer dateien & verzeichnisse.",
+        "Syntax": "watch [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "watch --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "dateien,verzeichnisse"
+      }
+    },
+    {
+      "source_record": 208,
+      "id": "xargs",
+      "name": "xargs",
+      "category": "Dateien & Verzeichnisse",
+      "document": "xargs.md",
+      "source": {
+        "Kategorie": "Dateien & Verzeichnisse",
+        "Befehl": "xargs",
+        "Kurzbeschreibung": "xargs ist ein Linux/Unix-Werkzeug fuer dateien & verzeichnisse.",
+        "Syntax": "xargs [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "xargs --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "dateien,verzeichnisse"
+      }
+    },
+    {
+      "source_record": 209,
+      "id": "badblocks",
+      "name": "badblocks",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "badblocks.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "badblocks",
+        "Kurzbeschreibung": "badblocks ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "badblocks [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "badblocks --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Rot - destruktiv/moeglich kritisch",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 210,
+      "id": "blkid",
+      "name": "blkid",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "blkid.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "blkid",
+        "Kurzbeschreibung": "blkid ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "blkid [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "blkid --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 211,
+      "id": "btrfs",
+      "name": "btrfs",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "btrfs.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "btrfs",
+        "Kurzbeschreibung": "btrfs ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "btrfs [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "btrfs --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 212,
+      "id": "cfdisk",
+      "name": "cfdisk",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "cfdisk.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "cfdisk",
+        "Kurzbeschreibung": "cfdisk ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "cfdisk [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "cfdisk --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 213,
+      "id": "chattr",
+      "name": "chattr",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "chattr.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "chattr",
+        "Kurzbeschreibung": "chattr ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "chattr [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "chattr --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Rot - destruktiv/moeglich kritisch",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 214,
+      "id": "debugfs",
+      "name": "debugfs",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "debugfs.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "debugfs",
+        "Kurzbeschreibung": "debugfs ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "debugfs [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "debugfs --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 215,
+      "id": "dumpe2fs",
+      "name": "dumpe2fs",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "dumpe2fs.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "dumpe2fs",
+        "Kurzbeschreibung": "dumpe2fs ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "dumpe2fs [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "dumpe2fs --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 216,
+      "id": "e2fsck",
+      "name": "e2fsck",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "e2fsck.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "e2fsck",
+        "Kurzbeschreibung": "e2fsck ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "e2fsck [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "e2fsck --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 217,
+      "id": "edquota",
+      "name": "edquota",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "edquota.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "edquota",
+        "Kurzbeschreibung": "edquota ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "edquota [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "edquota --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 218,
+      "id": "fdisk",
+      "name": "fdisk",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "fdisk.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "fdisk",
+        "Kurzbeschreibung": "fdisk ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "fdisk [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "fdisk --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Rot - destruktiv/moeglich kritisch",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 219,
+      "id": "findmnt",
+      "name": "findmnt",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "findmnt.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "findmnt",
+        "Kurzbeschreibung": "findmnt ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "findmnt [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "findmnt --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 220,
+      "id": "fsck",
+      "name": "fsck",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "fsck.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "fsck",
+        "Kurzbeschreibung": "fsck ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "fsck [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "fsck --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 221,
+      "id": "fstrim",
+      "name": "fstrim",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "fstrim.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "fstrim",
+        "Kurzbeschreibung": "fstrim ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "fstrim [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "fstrim --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 222,
+      "id": "gdisk",
+      "name": "gdisk",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "gdisk.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "gdisk",
+        "Kurzbeschreibung": "gdisk ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "gdisk [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "gdisk --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Rot - destruktiv/moeglich kritisch",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 223,
+      "id": "hdparm",
+      "name": "hdparm",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "hdparm.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "hdparm",
+        "Kurzbeschreibung": "hdparm ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "hdparm [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "hdparm --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 224,
+      "id": "losetup",
+      "name": "losetup",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "losetup.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "losetup",
+        "Kurzbeschreibung": "losetup ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "losetup [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "losetup --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 225,
+      "id": "lsattr",
+      "name": "lsattr",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "lsattr.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "lsattr",
+        "Kurzbeschreibung": "lsattr ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "lsattr [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "lsattr --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 226,
+      "id": "lsblk",
+      "name": "lsblk",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "lsblk.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "lsblk",
+        "Kurzbeschreibung": "lsblk ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "lsblk [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "lsblk --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 227,
+      "id": "mkfs",
+      "name": "mkfs",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "mkfs.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "mkfs",
+        "Kurzbeschreibung": "mkfs ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "mkfs [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "mkfs --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Rot - destruktiv/moeglich kritisch",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 228,
+      "id": "mkfs_btrfs",
+      "name": "mkfs.btrfs",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "mkfs_btrfs.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "mkfs.btrfs",
+        "Kurzbeschreibung": "mkfs.btrfs ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "mkfs.btrfs [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "mkfs.btrfs --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Rot - destruktiv/moeglich kritisch",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 229,
+      "id": "mkfs_ext2",
+      "name": "mkfs.ext2",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "mkfs_ext2.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "mkfs.ext2",
+        "Kurzbeschreibung": "mkfs.ext2 ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "mkfs.ext2 [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "mkfs.ext2 --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 230,
+      "id": "mkfs_ext3",
+      "name": "mkfs.ext3",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "mkfs_ext3.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "mkfs.ext3",
+        "Kurzbeschreibung": "mkfs.ext3 ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "mkfs.ext3 [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "mkfs.ext3 --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 231,
+      "id": "mkfs_ext4",
+      "name": "mkfs.ext4",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "mkfs_ext4.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "mkfs.ext4",
+        "Kurzbeschreibung": "mkfs.ext4 ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "mkfs.ext4 [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "mkfs.ext4 --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Rot - destruktiv/moeglich kritisch",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 232,
+      "id": "mkfs_xfs",
+      "name": "mkfs.xfs",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "mkfs_xfs.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "mkfs.xfs",
+        "Kurzbeschreibung": "mkfs.xfs ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "mkfs.xfs [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "mkfs.xfs --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Rot - destruktiv/moeglich kritisch",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 233,
+      "id": "mkswap",
+      "name": "mkswap",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "mkswap.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "mkswap",
+        "Kurzbeschreibung": "mkswap ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "mkswap [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "mkswap --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 234,
+      "id": "mount",
+      "name": "mount",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "mount.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "mount",
+        "Kurzbeschreibung": "mount ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "mount [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "mount --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 235,
+      "id": "mountpoint",
+      "name": "mountpoint",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "mountpoint.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "mountpoint",
+        "Kurzbeschreibung": "mountpoint ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "mountpoint [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "mountpoint --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 236,
+      "id": "nvme",
+      "name": "nvme",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "nvme.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "nvme",
+        "Kurzbeschreibung": "nvme ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "nvme [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "nvme --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 237,
+      "id": "parted",
+      "name": "parted",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "parted.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "parted",
+        "Kurzbeschreibung": "parted ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "parted [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "parted --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Rot - destruktiv/moeglich kritisch",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 238,
+      "id": "partprobe",
+      "name": "partprobe",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "partprobe.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "partprobe",
+        "Kurzbeschreibung": "partprobe ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "partprobe [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "partprobe --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 239,
+      "id": "quota",
+      "name": "quota",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "quota.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "quota",
+        "Kurzbeschreibung": "quota ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "quota [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "quota --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 240,
+      "id": "quotacheck",
+      "name": "quotacheck",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "quotacheck.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "quotacheck",
+        "Kurzbeschreibung": "quotacheck ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "quotacheck [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "quotacheck --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 241,
+      "id": "repquota",
+      "name": "repquota",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "repquota.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "repquota",
+        "Kurzbeschreibung": "repquota ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "repquota [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "repquota --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 242,
+      "id": "resize2fs",
+      "name": "resize2fs",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "resize2fs.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "resize2fs",
+        "Kurzbeschreibung": "resize2fs ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "resize2fs [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "resize2fs --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 243,
+      "id": "sfdisk",
+      "name": "sfdisk",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "sfdisk.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "sfdisk",
+        "Kurzbeschreibung": "sfdisk ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "sfdisk [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "sfdisk --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Rot - destruktiv/moeglich kritisch",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 244,
+      "id": "sgdisk",
+      "name": "sgdisk",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "sgdisk.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "sgdisk",
+        "Kurzbeschreibung": "sgdisk ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "sgdisk [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "sgdisk --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 245,
+      "id": "smartctl",
+      "name": "smartctl",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "smartctl.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "smartctl",
+        "Kurzbeschreibung": "smartctl ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "smartctl [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "smartctl --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 246,
+      "id": "swapoff",
+      "name": "swapoff",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "swapoff.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "swapoff",
+        "Kurzbeschreibung": "swapoff ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "swapoff [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "swapoff --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 247,
+      "id": "swapon",
+      "name": "swapon",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "swapon.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "swapon",
+        "Kurzbeschreibung": "swapon ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "swapon [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "swapon --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 248,
+      "id": "tune2fs",
+      "name": "tune2fs",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "tune2fs.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "tune2fs",
+        "Kurzbeschreibung": "tune2fs ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "tune2fs [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "tune2fs --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 249,
+      "id": "umount",
+      "name": "umount",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "umount.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "umount",
+        "Kurzbeschreibung": "umount ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "umount [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "umount --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 250,
+      "id": "wipefs",
+      "name": "wipefs",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "wipefs.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "wipefs",
+        "Kurzbeschreibung": "wipefs ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "wipefs [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "wipefs --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Rot - destruktiv/moeglich kritisch",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 251,
+      "id": "xfs_info",
+      "name": "xfs_info",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "xfs_info.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "xfs_info",
+        "Kurzbeschreibung": "xfs_info ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "xfs_info [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "xfs_info --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 252,
+      "id": "xfs_repair",
+      "name": "xfs_repair",
+      "category": "Datentraeger & Dateisysteme",
+      "document": "xfs_repair.md",
+      "source": {
+        "Kategorie": "Datentraeger & Dateisysteme",
+        "Befehl": "xfs_repair",
+        "Kurzbeschreibung": "xfs_repair ist ein Linux/Unix-Werkzeug fuer datentraeger & dateisysteme.",
+        "Syntax": "xfs_repair [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "xfs_repair --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gelb - Admin/Vorsicht",
+        "Root noetig": "Hauefig",
+        "Tags": "datentraeger,dateisysteme"
+      }
+    },
+    {
+      "source_record": 253,
+      "id": "dbus_send",
+      "name": "dbus-send",
+      "category": "Desktop & GUI",
+      "document": "dbus_send.md",
+      "source": {
+        "Kategorie": "Desktop & GUI",
+        "Befehl": "dbus-send",
+        "Kurzbeschreibung": "dbus-send ist ein Linux/Unix-Werkzeug fuer desktop & gui.",
+        "Syntax": "dbus-send [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "dbus-send --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "desktop,gui"
+      }
+    },
+    {
+      "source_record": 254,
+      "id": "dconf",
+      "name": "dconf",
+      "category": "Desktop & GUI",
+      "document": "dconf.md",
+      "source": {
+        "Kategorie": "Desktop & GUI",
+        "Befehl": "dconf",
+        "Kurzbeschreibung": "dconf ist ein Linux/Unix-Werkzeug fuer desktop & gui.",
+        "Syntax": "dconf [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "dconf --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "desktop,gui"
+      }
+    },
+    {
+      "source_record": 255,
+      "id": "gio",
+      "name": "gio",
+      "category": "Desktop & GUI",
+      "document": "gio.md",
+      "source": {
+        "Kategorie": "Desktop & GUI",
+        "Befehl": "gio",
+        "Kurzbeschreibung": "gio ist ein Linux/Unix-Werkzeug fuer desktop & gui.",
+        "Syntax": "gio [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "gio --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "desktop,gui"
+      }
+    },
+    {
+      "source_record": 256,
+      "id": "gio_cat",
+      "name": "gio-cat",
+      "category": "Desktop & GUI",
+      "document": "gio_cat.md",
+      "source": {
+        "Kategorie": "Desktop & GUI",
+        "Befehl": "gio-cat",
+        "Kurzbeschreibung": "gio-cat ist ein Linux/Unix-Werkzeug fuer desktop & gui.",
+        "Syntax": "gio-cat [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "gio-cat --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "desktop,gui"
+      }
+    },
+    {
+      "source_record": 257,
+      "id": "gio_copy",
+      "name": "gio-copy",
+      "category": "Desktop & GUI",
+      "document": "gio_copy.md",
+      "source": {
+        "Kategorie": "Desktop & GUI",
+        "Befehl": "gio-copy",
+        "Kurzbeschreibung": "gio-copy ist ein Linux/Unix-Werkzeug fuer desktop & gui.",
+        "Syntax": "gio-copy [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "gio-copy --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "desktop,gui"
+      }
+    },
+    {
+      "source_record": 258,
+      "id": "gio_info",
+      "name": "gio-info",
+      "category": "Desktop & GUI",
+      "document": "gio_info.md",
+      "source": {
+        "Kategorie": "Desktop & GUI",
+        "Befehl": "gio-info",
+        "Kurzbeschreibung": "gio-info ist ein Linux/Unix-Werkzeug fuer desktop & gui.",
+        "Syntax": "gio-info [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "gio-info --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "desktop,gui"
+      }
+    },
+    {
+      "source_record": 259,
+      "id": "gio_list",
+      "name": "gio-list",
+      "category": "Desktop & GUI",
+      "document": "gio_list.md",
+      "source": {
+        "Kategorie": "Desktop & GUI",
+        "Befehl": "gio-list",
+        "Kurzbeschreibung": "gio-list ist ein Linux/Unix-Werkzeug fuer desktop & gui.",
+        "Syntax": "gio-list [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "gio-list --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "desktop,gui"
+      }
+    },
+    {
+      "source_record": 260,
+      "id": "gio_mime",
+      "name": "gio-mime",
+      "category": "Desktop & GUI",
+      "document": "gio_mime.md",
+      "source": {
+        "Kategorie": "Desktop & GUI",
+        "Befehl": "gio-mime",
+        "Kurzbeschreibung": "gio-mime ist ein Linux/Unix-Werkzeug fuer desktop & gui.",
+        "Syntax": "gio-mime [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "gio-mime --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "desktop,gui"
+      }
+    },
+    {
+      "source_record": 261,
+      "id": "gsettings",
+      "name": "gsettings",
+      "category": "Desktop & GUI",
+      "document": "gsettings.md",
+      "source": {
+        "Kategorie": "Desktop & GUI",
+        "Befehl": "gsettings",
+        "Kurzbeschreibung": "gsettings ist ein Linux/Unix-Werkzeug fuer desktop & gui.",
+        "Syntax": "gsettings [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "gsettings --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "desktop,gui"
+      }
+    },
+    {
+      "source_record": 262,
+      "id": "kdialog",
+      "name": "kdialog",
+      "category": "Desktop & GUI",
+      "document": "kdialog.md",
+      "source": {
+        "Kategorie": "Desktop & GUI",
+        "Befehl": "kdialog",
+        "Kurzbeschreibung": "kdialog ist ein Linux/Unix-Werkzeug fuer desktop & gui.",
+        "Syntax": "kdialog [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "kdialog --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "desktop,gui"
+      }
+    },
+    {
+      "source_record": 263,
+      "id": "notify_send",
+      "name": "notify-send",
+      "category": "Desktop & GUI",
+      "document": "notify_send.md",
+      "source": {
+        "Kategorie": "Desktop & GUI",
+        "Befehl": "notify-send",
+        "Kurzbeschreibung": "notify-send ist ein Linux/Unix-Werkzeug fuer desktop & gui.",
+        "Syntax": "notify-send [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "notify-send --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "desktop,gui"
+      }
+    },
+    {
+      "source_record": 264,
+      "id": "xdg_mime",
+      "name": "xdg-mime",
+      "category": "Desktop & GUI",
+      "document": "xdg_mime.md",
+      "source": {
+        "Kategorie": "Desktop & GUI",
+        "Befehl": "xdg-mime",
+        "Kurzbeschreibung": "xdg-mime ist ein Linux/Unix-Werkzeug fuer desktop & gui.",
+        "Syntax": "xdg-mime [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "xdg-mime --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "desktop,gui"
+      }
+    },
+    {
+      "source_record": 265,
+      "id": "xdg_open",
+      "name": "xdg-open",
+      "category": "Desktop & GUI",
+      "document": "xdg_open.md",
+      "source": {
+        "Kategorie": "Desktop & GUI",
+        "Befehl": "xdg-open",
+        "Kurzbeschreibung": "xdg-open ist ein Linux/Unix-Werkzeug fuer desktop & gui.",
+        "Syntax": "xdg-open [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "xdg-open --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "desktop,gui"
+      }
+    },
+    {
+      "source_record": 266,
+      "id": "xdg_settings",
+      "name": "xdg-settings",
+      "category": "Desktop & GUI",
+      "document": "xdg_settings.md",
+      "source": {
+        "Kategorie": "Desktop & GUI",
+        "Befehl": "xdg-settings",
+        "Kurzbeschreibung": "xdg-settings ist ein Linux/Unix-Werkzeug fuer desktop & gui.",
+        "Syntax": "xdg-settings [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "xdg-settings --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "desktop,gui"
+      }
+    },
+    {
+      "source_record": 267,
+      "id": "zenity",
+      "name": "zenity",
+      "category": "Desktop & GUI",
+      "document": "zenity.md",
+      "source": {
+        "Kategorie": "Desktop & GUI",
+        "Befehl": "zenity",
+        "Kurzbeschreibung": "zenity ist ein Linux/Unix-Werkzeug fuer desktop & gui.",
+        "Syntax": "zenity [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "zenity --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "desktop,gui"
+      }
+    },
+    {
+      "source_record": 268,
+      "id": "as",
+      "name": "as",
+      "category": "Entwicklung",
+      "document": "as.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "as",
+        "Kurzbeschreibung": "as ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "as [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "as --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 269,
+      "id": "clang",
+      "name": "clang",
+      "category": "Entwicklung",
+      "document": "clang.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "clang",
+        "Kurzbeschreibung": "clang ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "clang [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "clang --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 270,
+      "id": "clang_2",
+      "name": "clang++",
+      "category": "Entwicklung",
+      "document": "clang_2.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "clang++",
+        "Kurzbeschreibung": "clang++ ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "clang++ [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "clang++ --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 271,
+      "id": "cmake",
+      "name": "cmake",
+      "category": "Entwicklung",
+      "document": "cmake.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "cmake",
+        "Kurzbeschreibung": "cmake ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "cmake [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "cmake --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 272,
+      "id": "g",
+      "name": "g++",
+      "category": "Entwicklung",
+      "document": "g.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "g++",
+        "Kurzbeschreibung": "g++ ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "g++ [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "g++ --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 273,
+      "id": "gcc",
+      "name": "gcc",
+      "category": "Entwicklung",
+      "document": "gcc.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "gcc",
+        "Kurzbeschreibung": "gcc ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "gcc [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "gcc --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 274,
+      "id": "gdb",
+      "name": "gdb",
+      "category": "Entwicklung",
+      "document": "gdb.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "gdb",
+        "Kurzbeschreibung": "gdb ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "gdb [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "gdb --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 275,
+      "id": "git",
+      "name": "git",
+      "category": "Entwicklung",
+      "document": "git.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "git",
+        "Kurzbeschreibung": "git ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "git [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "git --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 276,
+      "id": "gitk",
+      "name": "gitk",
+      "category": "Entwicklung",
+      "document": "gitk.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "gitk",
+        "Kurzbeschreibung": "gitk ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "gitk [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "gitk --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 277,
+      "id": "go",
+      "name": "go",
+      "category": "Entwicklung",
+      "document": "go.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "go",
+        "Kurzbeschreibung": "go ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "go [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "go --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 278,
+      "id": "gradle",
+      "name": "gradle",
+      "category": "Entwicklung",
+      "document": "gradle.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "gradle",
+        "Kurzbeschreibung": "gradle ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "gradle [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "gradle --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 279,
+      "id": "hg",
+      "name": "hg",
+      "category": "Entwicklung",
+      "document": "hg.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "hg",
+        "Kurzbeschreibung": "hg ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "hg [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "hg --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 280,
+      "id": "jar",
+      "name": "jar",
+      "category": "Entwicklung",
+      "document": "jar.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "jar",
+        "Kurzbeschreibung": "jar ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "jar [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "jar --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 281,
+      "id": "java",
+      "name": "java",
+      "category": "Entwicklung",
+      "document": "java.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "java",
+        "Kurzbeschreibung": "java ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "java [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "java --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 282,
+      "id": "javac",
+      "name": "javac",
+      "category": "Entwicklung",
+      "document": "javac.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "javac",
+        "Kurzbeschreibung": "javac ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "javac [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "javac --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 283,
+      "id": "ld",
+      "name": "ld",
+      "category": "Entwicklung",
+      "document": "ld.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "ld",
+        "Kurzbeschreibung": "ld ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "ld [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "ld --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 284,
+      "id": "ldd",
+      "name": "ldd",
+      "category": "Entwicklung",
+      "document": "ldd.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "ldd",
+        "Kurzbeschreibung": "ldd ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "ldd [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "ldd --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 285,
+      "id": "lldb",
+      "name": "lldb",
+      "category": "Entwicklung",
+      "document": "lldb.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "lldb",
+        "Kurzbeschreibung": "lldb ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "lldb [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "lldb --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 286,
+      "id": "make",
+      "name": "make",
+      "category": "Entwicklung",
+      "document": "make.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "make",
+        "Kurzbeschreibung": "make ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "make [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "make --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 287,
+      "id": "mvn",
+      "name": "mvn",
+      "category": "Entwicklung",
+      "document": "mvn.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "mvn",
+        "Kurzbeschreibung": "mvn ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "mvn [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "mvn --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 288,
+      "id": "ninja",
+      "name": "ninja",
+      "category": "Entwicklung",
+      "document": "ninja.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "ninja",
+        "Kurzbeschreibung": "ninja ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "ninja [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "ninja --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 289,
+      "id": "nm",
+      "name": "nm",
+      "category": "Entwicklung",
+      "document": "nm.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "nm",
+        "Kurzbeschreibung": "nm ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "nm [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "nm --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 290,
+      "id": "node",
+      "name": "node",
+      "category": "Entwicklung",
+      "document": "node.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "node",
+        "Kurzbeschreibung": "node ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "node [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "node --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 291,
+      "id": "objdump",
+      "name": "objdump",
+      "category": "Entwicklung",
+      "document": "objdump.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "objdump",
+        "Kurzbeschreibung": "objdump ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "objdump [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "objdump --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 292,
+      "id": "perl",
+      "name": "perl",
+      "category": "Entwicklung",
+      "document": "perl.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "perl",
+        "Kurzbeschreibung": "perl ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "perl [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "perl --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 293,
+      "id": "python",
+      "name": "python",
+      "category": "Entwicklung",
+      "document": "python.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "python",
+        "Kurzbeschreibung": "python ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "python [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "python --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 294,
+      "id": "python3",
+      "name": "python3",
+      "category": "Entwicklung",
+      "document": "python3.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "python3",
+        "Kurzbeschreibung": "python3 ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "python3 [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "python3 --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 295,
+      "id": "python3_config",
+      "name": "python3-config",
+      "category": "Entwicklung",
+      "document": "python3_config.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "python3-config",
+        "Kurzbeschreibung": "python3-config ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "python3-config [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "python3-config --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 296,
+      "id": "ranlib",
+      "name": "ranlib",
+      "category": "Entwicklung",
+      "document": "ranlib.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "ranlib",
+        "Kurzbeschreibung": "ranlib ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "ranlib [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "ranlib --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 297,
+      "id": "readelf",
+      "name": "readelf",
+      "category": "Entwicklung",
+      "document": "readelf.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "readelf",
+        "Kurzbeschreibung": "readelf ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "readelf [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "readelf --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 298,
+      "id": "ruby",
+      "name": "ruby",
+      "category": "Entwicklung",
+      "document": "ruby.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "ruby",
+        "Kurzbeschreibung": "ruby ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "ruby [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "ruby --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 299,
+      "id": "rustc",
+      "name": "rustc",
+      "category": "Entwicklung",
+      "document": "rustc.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "rustc",
+        "Kurzbeschreibung": "rustc ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "rustc [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "rustc --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    },
+    {
+      "source_record": 300,
+      "id": "strip",
+      "name": "strip",
+      "category": "Entwicklung",
+      "document": "strip.md",
+      "source": {
+        "Kategorie": "Entwicklung",
+        "Befehl": "strip",
+        "Kurzbeschreibung": "strip ist ein Linux/Unix-Werkzeug fuer entwicklung.",
+        "Syntax": "strip [OPTIONEN] [ARGUMENTE]",
+        "Beispiel": "strip --help",
+        "Ausgabe/Erklaerung": "Zeigt Hilfe, Statusinformationen oder fuehrt die angegebene Aufgabe aus.",
+        "Risiko": "Gruen - sicher lesend",
+        "Root noetig": "Nein/selten",
+        "Tags": "entwicklung"
+      }
+    }
+  ]
+}

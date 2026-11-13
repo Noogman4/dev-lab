@@ -1,0 +1,18 @@
+{
+  "archive_name": "NETMON-BROWSER-201-210.zip",
+  "archive_sha256": "b7b86c0c89777435aa5b5880eb444820c0fb041ae7b3c0603221d0fd2b3fbfed",
+  "classification": "Ungepruefte Entwuerfe mit bekannten fachlichen Fehlern; siehe REVIEW-201-210.md",
+  "files": {
+    "touch.md": "054d57dffa31eda3a2386ac8d721dbeef46699c75f5d409c7d85b9ba21682831",
+    "tree.md": "dd7e2cae1b8b4a773f3e4207707b91a5cc968d5cdbfae4e41fc676d8a0405fe2",
+    "truncate.md": "4aae4c4512695e9fcbd659c5d30e0f34d6b2346a8fe4b39ca72a98f528ecacc5",
+    "unlink.md": "0cb641c7454888e38d6367843acdf89097b8a4a20a51a30053fa0b6209a1a921",
+    "updatedb.md": "d7eb0d016a61a110a310d6beef4195f2697ff486504f08ea140c4611cef13dd6",
+    "vdir.md": "88a5dc86e94f36265081accd4984154d8c14e49c8ef8b5c85c53ae5e42e384ff",
+    "watch.md": "5a9e15031dfc05ab98ec3cfe7141ba8956fd5cd9e0b083f3d205606549f9fe0c",
+    "xargs.md": "a86479c8a682beed0a80d3df9f4ba69dd6a5fdc7586c7bd8d230220ebf020994",
+    "badblocks.md": "942cd4da403816ea4b5b811c863366c66cca20aa671a5aa2efe40f57f9941973",
+    "blkid.md": "7614f53f562ed6504bb4bf7e76699d5c6682c2b7c7fa865c9680c1f8c837d251",
+    "FORTSCHRITT-BROWSER-201-210.md": "e414bfad53992fb9d8970705342d553536e9dc16f9cb80c10af896f0055c375a"
+  }
+}
