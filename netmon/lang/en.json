@@ -1712,6 +1712,7 @@
     "download_scan_dialog_title": "ClamAV Download Scan",
     "download_scan_select_target_first": "Please select a file or folder first.",
     "download_scan_path_not_found": "The scan path was not found:\n{path}",
+    "download_scan_path_control_characters": "The scan path contains unsupported control characters. Please rename the file or folder before scanning.",
     "download_scan_already_running": "Another ClamAV scan is already running.",
     "download_scan_clamav_unavailable_text": "ClamAV is not available locally.\n\nRequired: clamscan\nRecommendation: sudo apt install clamav clamav-freshclam",
     "download_scan_temp_path_inaccessible": "The current pre-quarantine path is not accessible.\n\nPath: {path}\n\nPlease activate pre-quarantine again or adjust the path.",

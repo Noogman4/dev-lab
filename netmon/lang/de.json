@@ -1712,6 +1712,7 @@
     "download_scan_dialog_title": "ClamAV Download-Scan",
     "download_scan_select_target_first": "Bitte zuerst eine Datei oder einen Ordner auswählen.",
     "download_scan_path_not_found": "Der Scan-Pfad wurde nicht gefunden:\n{path}",
+    "download_scan_path_control_characters": "Der Scan-Pfad enthält unzulässige Steuerzeichen. Bitte die Datei oder den Ordner vor dem Scan umbenennen.",
     "download_scan_already_running": "Ein anderer ClamAV-Scan läuft bereits.",
     "download_scan_clamav_unavailable_text": "ClamAV ist lokal nicht verfügbar.\n\nBenötigt: clamscan\nEmpfehlung: sudo apt install clamav clamav-freshclam",
     "download_scan_temp_path_inaccessible": "Der aktuelle Vor-Quarantänepfad ist nicht zugänglich.\n\nPfad: {path}\n\nBitte Vor-Quarantäne erneut aktivieren oder den Pfad anpassen.",

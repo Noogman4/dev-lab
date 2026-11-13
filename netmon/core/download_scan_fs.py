@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import os
 import secrets
 import stat
+import unicodedata
 
 from . import quarantine_fs as qfs
 
@@ -14,6 +15,13 @@ is_within = qfs.is_within
 _READ_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
 _WRITE_FLAGS = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
 _CHUNK = 1024 * 1024
+
+
+def validate_scan_path(path):
+    """Reject names that can add records to line-oriented scanner/UI output."""
+    text = os.fsdecode(path)
+    if any(unicodedata.category(char) in {"Cc", "Zl", "Zp"} for char in text):
+        raise UnsafePath("Scan-Pfad enthält unzulässige Steuerzeichen")
 
 
 def _identity(entry):
@@ -34,6 +42,7 @@ class ScanFile:
     parent: int
     name: str
     identity: tuple
+    path: str
 
     def verify(self):
         try:
@@ -59,6 +68,7 @@ class ScanFile:
 
 
 def open_scan_file(path):
+    validate_scan_path(path)
     parent_path, name = os.path.split(path)
     qfs.plain_name(name)
     parent = qfs.open_directory(parent_path)
@@ -68,7 +78,7 @@ def open_scan_file(path):
         entry = os.fstat(descriptor)
         if not stat.S_ISREG(entry.st_mode) or entry.st_nlink != 1:
             raise UnsafePath("Scan-Quelle muss eine reguläre Datei ohne Hardlinks sein")
-        result = ScanFile(descriptor, parent, name, _identity(entry))
+        result = ScanFile(descriptor, parent, name, _identity(entry), os.fsdecode(path))
         result.verify()
         return result
     except BaseException:
@@ -79,6 +89,7 @@ def open_scan_file(path):
 
 
 def prepare_directory(path):
+    validate_scan_path(path)
     descriptor = qfs.open_directory(path, create=True, private=True)
     os.close(descriptor)
 
@@ -101,6 +112,8 @@ def _copy(source, destination):
 
 
 def suggest_destination(source_path, target_dir):
+    validate_scan_path(source_path)
+    validate_scan_path(target_dir)
     target = qfs.open_directory(target_dir, create=True)
     try:
         for name in _names(os.path.basename(source_path)):
@@ -114,6 +127,8 @@ def suggest_destination(source_path, target_dir):
 
 
 def import_file(source_path, temporary_dir):
+    validate_scan_path(source_path)
+    validate_scan_path(temporary_dir)
     target = qfs.open_directory(temporary_dir, create=True, private=True)
     try:
         with open_scan_file(source_path) as source:
@@ -140,6 +155,7 @@ def import_file(source_path, temporary_dir):
 
 def release_file(source, target_dir):
     """Copy from the scanned FD; publish exclusively only after revalidation."""
+    validate_scan_path(target_dir)
     source.verify()
     target = qfs.open_directory(target_dir, create=True)
     temporary = f".netmon-release-{secrets.token_hex(16)}"

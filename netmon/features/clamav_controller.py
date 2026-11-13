@@ -901,6 +901,31 @@ def clamav_extract_findings(output, scan_type, timestamp):
     return findings
 
 
+def clamav_single_file_findings(output, scanned_file, scan_type, timestamp):
+    """Use scanner text only as a verdict/signature, never as path authority."""
+    scanned_file.verify()
+    signatures = []
+    for line in (output or "").splitlines():
+        match = re.fullmatch(r"stdin: (.+?) FOUND", line)
+        if match and match.group(1) not in signatures:
+            signatures.append(match.group(1))
+    if not signatures:
+        return []
+    # Identity was retained when this exact descriptor was opened, before the
+    # scan. Never lstat a path extracted from scanner or display text here.
+    dev, ino, size, mtime_ns = scanned_file.identity[:4]
+    return [
+        {
+            "path": scanned_file.path,
+            "signature": " | ".join(signatures),
+            "timestamp": timestamp,
+            "scan_type": scan_type,
+            "status": "found",
+            "identity": {"dev": dev, "ino": ino, "size": size, "mtime_ns": mtime_ns},
+        }
+    ]
+
+
 def clamav_replace_open_findings(app, findings):
     history = [
         item

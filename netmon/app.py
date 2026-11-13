@@ -22901,6 +22901,19 @@ class App(TkBase):
 
     def _run_download_scan(self, target_path: str, *, target_kind: str):
         normalized = os.path.abspath(os.path.expanduser(target_path or ""))
+        try:
+            download_scan_fs.validate_scan_path(normalized)
+        except download_scan_fs.UnsafePath:
+            messagebox.showerror(
+                self.tr("download_scan_dialog_title", "ClamAV Download-Scan"),
+                self.tr(
+                    "download_scan_path_control_characters",
+                    "Der Scan-Pfad enthält unzulässige Steuerzeichen. "
+                    "Bitte die Datei oder den Ordner vor dem Scan umbenennen.",
+                ),
+                parent=self,
+            )
+            return
         if not normalized:
             messagebox.showinfo(
                 self.tr("download_scan_dialog_title", "ClamAV Download-Scan"),
@@ -23021,10 +23034,6 @@ class App(TkBase):
                         timeout=900,
                         stdin_fd=scanned_file.fd,
                     )
-                    out = "".join(
-                        normalized + line[5:] if line.startswith("stdin:") else line
-                        for line in out.splitlines(keepends=True)
-                    )
                     timed_out = rc == 124
                     self._clamav_progress_update_safe(1)
 
@@ -23110,13 +23119,19 @@ class App(TkBase):
                     return
 
                 if scanned_file is not None:
-                    scanned_file.verify()
-
-                findings = self._clamav_extract_findings(
-                    out,
-                    scan_type=f"download_scan_{target_kind}",
-                    timestamp=timestamp_log,
-                )
+                    findings = clamav_controller.clamav_single_file_findings(
+                        out,
+                        scanned_file,
+                        scan_type=f"download_scan_{target_kind}",
+                        timestamp=timestamp_log,
+                    )
+                    infected_count = max(infected_count, len(findings), int(rc == 1))
+                else:
+                    findings = self._clamav_extract_findings(
+                        out,
+                        scan_type=f"download_scan_{target_kind}",
+                        timestamp=timestamp_log,
+                    )
                 self._clamav_replace_open_findings(findings)
 
                 result_text = (

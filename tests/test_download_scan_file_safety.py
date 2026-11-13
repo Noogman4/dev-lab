@@ -252,6 +252,13 @@ def test_real_clamscan_reads_the_opened_descriptor_with_synthetic_database(
             timeout=15,
         )
         scanned.verify()
+        assert rc == 1, output
+        [finding] = controller.clamav_single_file_findings(
+            output, scanned, "download_scan_file", "now"
+        )
+        assert finding["path"] == str(source)
+        assert finding["signature"].startswith("NetMon.Synthetic")
+        assert finding["identity"] == dfs.qfs.file_identity(os.fstat(scanned.fd))
     assert rc == 1, output
     assert "stdin: NetMon.Synthetic" in output
     assert "FOUND" in output
