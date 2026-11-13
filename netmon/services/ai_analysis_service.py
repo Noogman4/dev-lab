@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-import re
+try:
+    from netmon.core.log_redaction import redact_sensitive_text
+except ModuleNotFoundError:  # pragma: no cover - legacy flat import layout
+    from core.log_redaction import redact_sensitive_text
 
 CHAD_COMMAND_GUIDANCE = """
 Terminalbefehle Schritt für Schritt darstellen:
@@ -26,42 +29,17 @@ Terminalbefehle Schritt für Schritt darstellen:
 
 class AiAnalysisService:
     def sanitize_content(self, content: str) -> str:
+        """Redact text bound for an external AI with NetMon's shared filter.
+
+        One redaction contract for logs, diagnostics and AI prompts: the
+        shared filter covers option/value pairs, Basic/Bearer authorization,
+        cookies, PEM keys, provider tokens, URL credentials, WireGuard keys,
+        e-mail addresses and home directory names.
+        """
         text = (content or "").strip()
         if not text:
             return ""
-
-        replacements = [
-            (
-                r"(?i)\b(authorization\s*:\s*bearer)\s+[A-Za-z0-9._~+/=-]+",
-                r"\1 [REDACTED]",
-            ),
-            (
-                r"(?i)\b(api[_-]?key|token|secret|password|passwd|pwd)\s*[:=]\s*"
-                r"['\"]?[^'\"\s;]+",
-                r"\1=[REDACTED]",
-            ),
-            (
-                r"(?i)\b(private[_-]?key|client[_-]?secret|access[_-]?token)\s*[:=]\s*"
-                r"['\"]?[^'\"\s;]+",
-                r"\1=[REDACTED]",
-            ),
-            (
-                r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b",
-                "[EMAIL_REDACTED]",
-            ),
-            (
-                r"(?<![A-Za-z0-9])/(home|Users)/[A-Za-z0-9._-]+",
-                r"/\1/[USER_REDACTED]",
-            ),
-            (
-                r"(?i)\b(passphrase|psk)\s*[:=]\s*['\"]?[^'\"\s;]+",
-                r"\1=[REDACTED]",
-            ),
-        ]
-        for pattern, replacement in replacements:
-            text = re.sub(pattern, replacement, text)
-
-        return text
+        return redact_sensitive_text(text).strip()
 
     def build_prompt(self, title: str, content: str) -> str:
         content = self.sanitize_content(content)

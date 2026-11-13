@@ -1093,7 +1093,9 @@ def build_chad_analysis_prompt(app, title: str, raw_text: str) -> str:
 
 
 def _apply_prepared_chad_analysis(app, title: str, prompt: str):
-    cleaned_prompt = str(prompt or "").strip()
+    # Show exactly what may later be sent: direct prompts (e.g. Linux help)
+    # did not pass build_prompt, so they get the same shared redaction here.
+    cleaned_prompt = AiAnalysisService().sanitize_content(str(prompt or ""))
     app.chad_analysis_current_prompt = cleaned_prompt
     app.chad_online_result = ""
     app.chad_analysis_source_var.set(

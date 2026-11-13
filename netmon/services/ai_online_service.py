@@ -21,6 +21,8 @@ from netmon.core.image_snapshot import (
     snapshot_image,
 )
 
+from netmon.core.log_redaction import redact_sensitive_text
+
 from .ai_analysis_service import CHAD_COMMAND_GUIDANCE
 
 try:
@@ -613,10 +615,20 @@ class AiOnlineService:
             return False, "Empty response from API."
         return True, text
 
+    @staticmethod
+    def _redact_outbound(text) -> str:
+        """Final boundary: every locally sourced text is redacted before upload.
+
+        Callers already show redacted previews; repeating the idempotent shared
+        filter here also covers direct prompts and future callers.
+        """
+        return redact_sensitive_text(str(text or ""))
+
     def analyze(self, prompt: str, files: list[dict] | None = None) -> tuple[bool, str]:
         self.last_response_incomplete = False
         if not self.api_key:
             return False, "No API key configured (OPENAI_API_KEY)."
+        prompt = self._redact_outbound(prompt)
 
         try:
             url = "https://api.openai.com/v1/responses"
@@ -705,6 +717,8 @@ class AiOnlineService:
             for idx, msg in enumerate(recent_messages):
                 role = msg.get("role", "user")
                 text = (msg.get("content") or "").strip()
+                if role != "assistant":
+                    text = self._redact_outbound(text).strip()
                 if not text:
                     continue
 

@@ -52,11 +52,47 @@ _VALUE = r"""(?:"(?:[^"\\]|\\.)*(?:"|$)|'(?:[^'\\]|\\.)*(?:'|$)|[^\r\n]+)"""
 _ASSIGNMENT = re.compile(
     rf"""(?P<prefix>\b{_KEY}\b["']?\s*[:=]\s*)(?P<value>{_VALUE})""", re.I
 )
+# An option token starts the word ("--auth-token x", "'--token', 'x'"); prose
+# such as "API-Token erlaubt Zugriff" is not an option and stays readable.
 _OPTION = re.compile(
-    rf"""(?P<prefix>--?{_KEY}\b(?:["']\s*,\s*|["']?[ \t]+))(?P<value>{_VALUE})""",
+    rf"""(?P<prefix>(?<![\w-])--?(?:[A-Za-z0-9]{{1,32}}[-_]){{0,4}}{_KEY}\b"""
+    rf"""(?:["']\s*,\s*|["']?[ \t]+))(?P<value>{_VALUE})""",
     re.I,
 )
 _SENSITIVE_KEY = re.compile(rf"(?:{_KEY}|authorization|cookie|set[-_]?cookie)\Z", re.I)
+_ARG = r"""(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s"']+)"""
+# Short password options are only unambiguous for specific programs; "-p" is
+# a port elsewhere (ssh -p 2222, mysql -P 3306). The option must follow the
+# program name within 256 characters, which keeps scans linear on long lines.
+_PROGRAM_PATTERNS = (
+    # sshpass -p PASSWORD / -pPASSWORD, only among sshpass's own leading options.
+    (
+        re.compile(rf"(\bsshpass(?:[ \t]+-(?!p)\S+)*[ \t]+-p)[ \t]*{_ARG}"),
+        r"\1 [REDACTED]",
+    ),
+    # docker login -p PASSWORD
+    (
+        re.compile(rf"(\bdocker[ \t]+login\b[^\r\n]{{0,256}}?[ \t]-p)[ \t]*{_ARG}"),
+        r"\1 [REDACTED]",
+    ),
+    # mysql -pPASSWORD (attached only; "-p value" prompts and names a database)
+    (
+        re.compile(
+            r"(\b(?:mysql|mysqldump|mysqladmin|mysqlimport|mysqlcheck|mysqlshow|"
+            r"mariadb|mariadb-dump|mariadb-admin)\b[^\r\n]{0,256}?[ \t]-p)"
+            r"""(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s"'-][^\s"']*)"""
+        ),
+        r"\1[REDACTED]",
+    ),
+    # curl -u USER:PASSWORD / --user USER:PASSWORD keeps the user name.
+    (
+        re.compile(
+            r"""(\bcurl\b[^\r\n]{0,256}?[ \t](?:-u|--user(?![\w-]))(?:=|[ \t]*)"""
+            r"""["']?[^\s:"']+:)[^\s"']+"""
+        ),
+        r"\1[REDACTED]",
+    ),
+)
 _PATTERNS = (
     (
         re.compile(
@@ -105,7 +141,7 @@ def redact_sensitive_text(value):
     text = pattern.sub(replacement, text)
     text = _ASSIGNMENT.sub(_replace_value, text)
     text = _OPTION.sub(_replace_value, text)
-    for pattern, replacement in _PATTERNS[1:]:
+    for pattern, replacement in _PROGRAM_PATTERNS + _PATTERNS[1:]:
         text = pattern.sub(replacement, text)
     return text
 
