@@ -4,7 +4,7 @@
   "source_catalog": "tools/it_lexikon_linux_hilfe.json",
   "source_sha256": "b3fb9bfe37d335ee6eaa89c89425f08c94e8efc6f698e7c520ffc81ed128fc24",
   "total_records": 302,
-  "documented_records": 10,
+  "documented_records": 40,
   "records": [
     {
       "source_record": 1,
@@ -240,27 +240,771 @@
         "https://docs.python.org/3.13/reference/expressions.html#boolean-operations"
       ],
       "status": "review_pending"
+    },
+    {
+      "source_record": 11,
+      "id": "it_0011",
+      "term": "Null",
+      "category": "Grundlagen",
+      "document": "it_0011.md",
+      "sha256": "c5eed8854194d8d5f6f9ba55b00b936615c251617412408755a2459d84125f13",
+      "source": {
+        "id": "it_0011",
+        "term": "Null",
+        "short": "Ein spezieller Wert für 'kein Wert'.",
+        "example": "In Python heißt dieser Wert None.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/constants.html#None",
+        "https://docs.python.org/3.13/library/json.html#encoders-and-decoders"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 12,
+      "id": "it_0012",
+      "term": "Operator",
+      "category": "Grundlagen",
+      "document": "it_0012.md",
+      "sha256": "c9164548d40d761479b92290927190386fca93b5b36acab099207b55d7fd6d42",
+      "source": {
+        "id": "it_0012",
+        "term": "Operator",
+        "short": "Ein Symbol oder Schlüsselwort, das eine Operation ausführt.",
+        "example": "+ addiert, == vergleicht, and verknüpft Bedingungen.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/reference/expressions.html#boolean-operations",
+        "https://docs.python.org/3.13/reference/expressions.html#operator-precedence"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 13,
+      "id": "it_0013",
+      "term": "Operand",
+      "category": "Grundlagen",
+      "document": "it_0013.md",
+      "sha256": "cde51a65ca13b5ce263b1436a21d49eb953a28dc364104b0ec6d0c81ca4804c1",
+      "source": {
+        "id": "it_0013",
+        "term": "Operand",
+        "short": "Ein Wert, auf den ein Operator angewendet wird.",
+        "example": "Bei 2 + 3 sind 2 und 3 Operanden.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/reference/expressions.html#binary-arithmetic-operations",
+        "https://docs.python.org/3.13/reference/expressions.html#evaluation-order"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 14,
+      "id": "it_0014",
+      "term": "Bedingung",
+      "category": "Grundlagen",
+      "document": "it_0014.md",
+      "sha256": "366aa9e5359afa18ca6bf3ca70cf5eba8bb7ea895956271b89b73d2dddcad94d",
+      "source": {
+        "id": "it_0014",
+        "term": "Bedingung",
+        "short": "Ein Ausdruck, der entscheidet, ob Code ausgeführt wird.",
+        "example": "if alter >= 18 prüft eine Bedingung.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/stdtypes.html#truth-value-testing",
+        "https://docs.python.org/3.13/reference/compound_stmts.html#the-if-statement"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 15,
+      "id": "it_0015",
+      "term": "Schleife",
+      "category": "Grundlagen",
+      "document": "it_0015.md",
+      "sha256": "367295a493af8adb5188499f8a8e283f7d2381860c86158932ce8fe98f0a1a9b",
+      "source": {
+        "id": "it_0015",
+        "term": "Schleife",
+        "short": "Ein Codeblock, der mehrfach ausgeführt wird.",
+        "example": "for und while sind typische Schleifen.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/reference/compound_stmts.html#the-for-statement",
+        "https://docs.python.org/3.13/reference/compound_stmts.html#the-while-statement"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 16,
+      "id": "it_0016",
+      "term": "Iteration",
+      "category": "Grundlagen",
+      "document": "it_0016.md",
+      "sha256": "679f8fc5de54b23b16840bc91e85fbc1791b15fd76f47ae94a2f67e4288ca41e",
+      "source": {
+        "id": "it_0016",
+        "term": "Iteration",
+        "short": "Ein einzelner Durchlauf einer Schleife.",
+        "example": "Beim Durchlaufen einer Liste ist jedes Element eine Iteration.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/glossary.html#term-iterator",
+        "https://docs.python.org/3.13/library/functions.html#enumerate"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 17,
+      "id": "it_0017",
+      "term": "Funktion",
+      "category": "Grundlagen",
+      "document": "it_0017.md",
+      "sha256": "2aa02aa54c66fb0f9b9fa0a1eee89a966060f48ec58369bdf5927b14d4529700",
+      "source": {
+        "id": "it_0017",
+        "term": "Funktion",
+        "short": "Ein wiederverwendbarer Codeblock mit Namen.",
+        "example": "def check_dns(): definiert eine Funktion.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/reference/expressions.html#lambda",
+        "https://docs.python.org/3.13/tutorial/controlflow.html#defining-functions"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 18,
+      "id": "it_0018",
+      "term": "Parameter",
+      "category": "Grundlagen",
+      "document": "it_0018.md",
+      "sha256": "d32d8de8284a167eeb13338a15b069bc417e8cb90798566b2fc9ded56751dd36",
+      "source": {
+        "id": "it_0018",
+        "term": "Parameter",
+        "short": "Eine Eingabevariable einer Funktion.",
+        "example": "def greet(name): name ist ein Parameter.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/glossary.html#term-parameter",
+        "https://docs.python.org/3.13/tutorial/controlflow.html#default-argument-values"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 19,
+      "id": "it_0019",
+      "term": "Argument",
+      "category": "Grundlagen",
+      "document": "it_0019.md",
+      "sha256": "e1e1a2a6135eb3707d0b765961749facd86a3d6c1b5c7452c163151784a4c292",
+      "source": {
+        "id": "it_0019",
+        "term": "Argument",
+        "short": "Ein konkreter Wert, der an eine Funktion übergeben wird.",
+        "example": "greet('Sven') übergibt 'Sven' als Argument.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/glossary.html#term-argument",
+        "https://docs.python.org/3.13/reference/expressions.html#calls"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 20,
+      "id": "it_0020",
+      "term": "Rückgabewert",
+      "category": "Grundlagen",
+      "document": "it_0020.md",
+      "sha256": "37845faba46adbfac44a5bdacdae3210abbd734dd919b2a83348c045d5b02232",
+      "source": {
+        "id": "it_0020",
+        "term": "Rückgabewert",
+        "short": "Der Wert, den eine Funktion zurückliefert.",
+        "example": "return True gibt True zurück.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/reference/simple_stmts.html#the-return-statement",
+        "https://docs.python.org/3.13/tutorial/controlflow.html#defining-functions"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 21,
+      "id": "it_0021",
+      "term": "Scope",
+      "category": "Grundlagen",
+      "document": "it_0021.md",
+      "sha256": "b6ad2eb3ae4ac0eeca156f86d7ab61755fca311c6eb39e08a0b9a449c8b11666",
+      "source": {
+        "id": "it_0021",
+        "term": "Scope",
+        "short": "Der Gültigkeitsbereich einer Variable.",
+        "example": "Eine Variable in einer Funktion ist meist nur dort sichtbar.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/reference/executionmodel.html#resolution-of-names",
+        "https://docs.python.org/3.13/tutorial/classes.html#python-scopes-and-namespaces"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 22,
+      "id": "it_0022",
+      "term": "Kommentar",
+      "category": "Grundlagen",
+      "document": "it_0022.md",
+      "sha256": "bec191093588579ecef0c7dcd2b68f9c62f4899726574dc2b3df24f87a56f126",
+      "source": {
+        "id": "it_0022",
+        "term": "Kommentar",
+        "short": "Text im Code, der nicht ausgeführt wird.",
+        "example": "# Erklärung in Python.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/reference/lexical_analysis.html#comments",
+        "https://peps.python.org/pep-0257/#what-is-a-docstring"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 23,
+      "id": "it_0023",
+      "term": "Syntax",
+      "category": "Grundlagen",
+      "document": "it_0023.md",
+      "sha256": "4d59c56425b68c34593dc25bc0e6b77449a77036064fd198d36187e396fa02f7",
+      "source": {
+        "id": "it_0023",
+        "term": "Syntax",
+        "short": "Die formalen Schreibregeln einer Programmiersprache.",
+        "example": "Ein fehlender Doppelpunkt nach if verursacht einen Syntaxfehler.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/reference/compound_stmts.html#compound-statements",
+        "https://docs.python.org/3.13/tutorial/errors.html#syntax-errors"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 24,
+      "id": "it_0024",
+      "term": "Semantik",
+      "category": "Grundlagen",
+      "document": "it_0024.md",
+      "sha256": "b717723e5a60712aa470fc383fb074db466261d80c8595d2d1bfe5664598524b",
+      "source": {
+        "id": "it_0024",
+        "term": "Semantik",
+        "short": "Die Bedeutung von Code.",
+        "example": "Syntaktisch gültiger Code kann trotzdem logisch falsch sein.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/reference/expressions.html#binary-arithmetic-operations",
+        "https://docs.python.org/3.13/reference/expressions.html#comparisons"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 25,
+      "id": "it_0025",
+      "term": "Fehler",
+      "category": "Grundlagen",
+      "document": "it_0025.md",
+      "sha256": "b35de450fe530d3f5869d49cff3b59b736aac0191ae645fd17bfc3fde0a9428a",
+      "source": {
+        "id": "it_0025",
+        "term": "Fehler",
+        "short": "Ein Problem im Programm.",
+        "example": "Ein Tippfehler im Variablennamen kann einen Fehler auslösen.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/exceptions.html#NameError",
+        "https://docs.python.org/3.13/tutorial/errors.html#exceptions"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 26,
+      "id": "it_0026",
+      "term": "Bug",
+      "category": "Grundlagen",
+      "document": "it_0026.md",
+      "sha256": "7eebf4b8bccaf7f95417f47ad0137e0fcf0dd8f496f61f11422d548729b96dca",
+      "source": {
+        "id": "it_0026",
+        "term": "Bug",
+        "short": "Ein Programmfehler, der falsches Verhalten verursacht.",
+        "example": "Ein Button startet versehentlich zwei Prozesse.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/bugs.html",
+        "https://docs.python.org/3.13/library/unittest.html#unittest.TestCase.assertEqual"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 27,
+      "id": "it_0027",
+      "term": "Debugging",
+      "category": "Grundlagen",
+      "document": "it_0027.md",
+      "sha256": "1d549103e6af057aeaac7c82998c59a4cbc195157ea16739cc00cf4efe6c23b7",
+      "source": {
+        "id": "it_0027",
+        "term": "Debugging",
+        "short": "Das Suchen und Beheben von Fehlern.",
+        "example": "Mit print-Ausgaben oder Debugger findet man die Fehlerstelle.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/functions.html#breakpoint",
+        "https://docs.python.org/3.13/library/pdb.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 28,
+      "id": "it_0028",
+      "term": "Refactoring",
+      "category": "Grundlagen",
+      "document": "it_0028.md",
+      "sha256": "76b224fff9208200e3aaa816e4072653e34dd2a36d7411fef6419e226359de24",
+      "source": {
+        "id": "it_0028",
+        "term": "Refactoring",
+        "short": "Verbessern der Code-Struktur, ohne das Verhalten zu ändern.",
+        "example": "Eine lange Funktion wird in kleinere Funktionen aufgeteilt.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/unittest.html#unittest.TestCase.assertEqual",
+        "https://martinfowler.com/bliki/DefinitionOfRefactoring.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 29,
+      "id": "it_0029",
+      "term": "Codebase",
+      "category": "Grundlagen",
+      "document": "it_0029.md",
+      "sha256": "7b5407b442ce0e1f7ea67a96f1f2ef99a5ea179eb1c3562b68c59e0fdb8d3cb0",
+      "source": {
+        "id": "it_0029",
+        "term": "Codebase",
+        "short": "Die gesamte Quellcode-Sammlung eines Projekts.",
+        "example": "NetMon hat eine Codebase aus Python-Dateien.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/tutorial/modules.html#modules",
+        "https://raw.githubusercontent.com/git/git/master/Documentation/gitrepository-layout.adoc"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 30,
+      "id": "it_0030",
+      "term": "Quellcode",
+      "category": "Grundlagen",
+      "document": "it_0030.md",
+      "sha256": "7367dc23bad54fa4aa789595e7076f3d2942ec221c27c90fb64bd137217944d9",
+      "source": {
+        "id": "it_0030",
+        "term": "Quellcode",
+        "short": "Der vom Menschen geschriebene Programmcode.",
+        "example": "Eine .py-Datei enthält Python-Quellcode.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/reference/lexical_analysis.html#encoding-declarations",
+        "https://docs.python.org/3.13/tutorial/modules.html#modules"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 31,
+      "id": "it_0031",
+      "term": "Runtime",
+      "category": "Grundlagen",
+      "document": "it_0031.md",
+      "sha256": "4bfcc762474d1d94186532346bb33c37c90cf903ebaae3b46a23d9c2b00c8065",
+      "source": {
+        "id": "it_0031",
+        "term": "Runtime",
+        "short": "Die Laufzeitumgebung oder die Zeit, in der ein Programm läuft.",
+        "example": "Python Runtime führt Python-Code aus.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/sys.html#sys.implementation",
+        "https://docs.python.org/3.13/library/time.html#time.perf_counter"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 32,
+      "id": "it_0032",
+      "term": "Build",
+      "category": "Grundlagen",
+      "document": "it_0032.md",
+      "sha256": "7a6347c570c6992a5239183297464b38891cc83f624fbe621270d94d0a9821f3",
+      "source": {
+        "id": "it_0032",
+        "term": "Build",
+        "short": "Der Vorgang oder das Ergebnis, bei dem Software erzeugt wird.",
+        "example": "Aus Quellcode wird ein installierbares Paket gebaut.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/tutorials/packaging-projects.rst",
+        "https://www.gnu.org/software/make/manual/html_node/Introduction.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 33,
+      "id": "it_0033",
+      "term": "Deployment",
+      "category": "Grundlagen",
+      "document": "it_0033.md",
+      "sha256": "563427a6301742357377db2dcaa40847fe7bc71d34928ac7e11bb7e0b37929e0",
+      "source": {
+        "id": "it_0033",
+        "term": "Deployment",
+        "short": "Das Bereitstellen einer Software auf einem Zielsystem.",
+        "example": "Eine neue Version wird auf einem Server veröffentlicht.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://raw.githubusercontent.com/django/django/stable/5.2.x/docs/howto/deployment/checklist.txt",
+        "https://raw.githubusercontent.com/kubernetes/website/main/content/en/docs/concepts/workloads/controllers/deployment.md"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 34,
+      "id": "it_0034",
+      "term": "Release",
+      "category": "Grundlagen",
+      "document": "it_0034.md",
+      "sha256": "6d71f63e1d0de5556e235e135debfd808db2e59f74aa604d5c539e15635fec73",
+      "source": {
+        "id": "it_0034",
+        "term": "Release",
+        "short": "Eine veröffentlichte Version einer Software.",
+        "example": "Version 1.0.0 ist ein Release.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://peps.python.org/pep-0602/",
+        "https://raw.githubusercontent.com/github/docs/main/content/repositories/releasing-projects-on-github/about-releases.md"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 35,
+      "id": "it_0035",
+      "term": "Version",
+      "category": "Grundlagen",
+      "document": "it_0035.md",
+      "sha256": "6b6e6618b4f99ef4ba02165eda1fe59b3ad5a8c58ca572f93cc5af6ed6477af2",
+      "source": {
+        "id": "it_0035",
+        "term": "Version",
+        "short": "Eine Kennzeichnung eines Softwarestands.",
+        "example": "1.2.3 ist eine typische Versionsnummer.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://peps.python.org/pep-0440/#version-scheme",
+        "https://semver.org/spec/v2.0.0.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 36,
+      "id": "it_0036",
+      "term": "Changelog",
+      "category": "Grundlagen",
+      "document": "it_0036.md",
+      "sha256": "c2ba760e18bd69e0f74f762f194b5b833e68dc2b7786976395fe1df31c98b053",
+      "source": {
+        "id": "it_0036",
+        "term": "Changelog",
+        "short": "Eine Liste der Änderungen zwischen Versionen.",
+        "example": "Ein Changelog erklärt, was in NetMon geändert wurde.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://keepachangelog.com/en/1.1.0/",
+        "https://raw.githubusercontent.com/git/git/master/Documentation/git-log.adoc"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 37,
+      "id": "it_0037",
+      "term": "Array",
+      "category": "Datenstrukturen",
+      "document": "it_0037.md",
+      "sha256": "1eb2a9f8794855ab77bcccd397a719a9b42dcc2a351780520e54427188765bee",
+      "source": {
+        "id": "it_0037",
+        "term": "Array",
+        "short": "Eine geordnete Sammlung von Werten.",
+        "example": "In vielen Sprachen ist ein Array eine Liste mit festen oder dynamischen Elementen.",
+        "tags": [
+          "datenstrukturen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://doc.rust-lang.org/book/ch03-02-data-types.html#the-array-type",
+        "https://docs.python.org/3.13/library/array.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 38,
+      "id": "it_0038",
+      "term": "Liste",
+      "category": "Datenstrukturen",
+      "document": "it_0038.md",
+      "sha256": "f1e89ac636e14a724300d3f13cf6f5ce796b27016d7cb9918e765df0356f647f",
+      "source": {
+        "id": "it_0038",
+        "term": "Liste",
+        "short": "Eine geordnete, meist veränderbare Sammlung.",
+        "example": "Python: ports = [80, 443, 53].",
+        "tags": [
+          "datenstrukturen",
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/stdtypes.html#lists",
+        "https://docs.python.org/3.13/tutorial/datastructures.html#more-on-lists"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 39,
+      "id": "it_0039",
+      "term": "Tuple",
+      "category": "Datenstrukturen",
+      "document": "it_0039.md",
+      "sha256": "05604e4db681893aaf7934fcf2a73893389d1bd72b0d9b82ed3657d905e3fba0",
+      "source": {
+        "id": "it_0039",
+        "term": "Tuple",
+        "short": "Eine geordnete, meist unveränderbare Sammlung.",
+        "example": "Python: point = (10, 20).",
+        "tags": [
+          "datenstrukturen",
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/stdtypes.html#tuples",
+        "https://docs.python.org/3.13/reference/datamodel.html#objects-values-and-types"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 40,
+      "id": "it_0040",
+      "term": "Dictionary",
+      "category": "Datenstrukturen",
+      "document": "it_0040.md",
+      "sha256": "035384262f83ecea14248df263acbda8e85b99230295570e4282e36c5f62afd4",
+      "source": {
+        "id": "it_0040",
+        "term": "Dictionary",
+        "short": "Eine Sammlung aus Schlüssel-Wert-Paaren.",
+        "example": "Python: {'dns': '1.1.1.1'}.",
+        "tags": [
+          "datenstrukturen",
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/stdtypes.html#mapping-types-dict",
+        "https://docs.python.org/3.13/tutorial/datastructures.html#dictionaries"
+      ],
+      "status": "review_pending"
     }
   ],
   "source_urls": [
+    "https://doc.rust-lang.org/book/ch03-02-data-types.html#the-array-type",
+    "https://docs.python.org/3.13/bugs.html",
+    "https://docs.python.org/3.13/glossary.html#term-argument",
+    "https://docs.python.org/3.13/glossary.html#term-iterator",
+    "https://docs.python.org/3.13/glossary.html#term-parameter",
     "https://docs.python.org/3.13/howto/sorting.html#key-functions",
     "https://docs.python.org/3.13/howto/unicode.html#encodings",
+    "https://docs.python.org/3.13/library/array.html",
+    "https://docs.python.org/3.13/library/constants.html#None",
+    "https://docs.python.org/3.13/library/exceptions.html#NameError",
+    "https://docs.python.org/3.13/library/functions.html#breakpoint",
+    "https://docs.python.org/3.13/library/functions.html#enumerate",
     "https://docs.python.org/3.13/library/functions.html#int",
     "https://docs.python.org/3.13/library/functions.html#type",
+    "https://docs.python.org/3.13/library/json.html#encoders-and-decoders",
     "https://docs.python.org/3.13/library/math.html#math.isclose",
+    "https://docs.python.org/3.13/library/pdb.html",
     "https://docs.python.org/3.13/library/stdtypes.html#boolean-type-bool",
+    "https://docs.python.org/3.13/library/stdtypes.html#lists",
+    "https://docs.python.org/3.13/library/stdtypes.html#mapping-types-dict",
     "https://docs.python.org/3.13/library/stdtypes.html#numeric-types-int-float-complex",
     "https://docs.python.org/3.13/library/stdtypes.html#text-sequence-type-str",
     "https://docs.python.org/3.13/library/stdtypes.html#truth-value-testing",
+    "https://docs.python.org/3.13/library/stdtypes.html#tuples",
+    "https://docs.python.org/3.13/library/sys.html#sys.implementation",
+    "https://docs.python.org/3.13/library/time.html#time.perf_counter",
     "https://docs.python.org/3.13/library/typing.html#typing.Final",
+    "https://docs.python.org/3.13/library/unittest.html#unittest.TestCase.assertEqual",
+    "https://docs.python.org/3.13/reference/compound_stmts.html#compound-statements",
+    "https://docs.python.org/3.13/reference/compound_stmts.html#the-for-statement",
     "https://docs.python.org/3.13/reference/compound_stmts.html#the-if-statement",
+    "https://docs.python.org/3.13/reference/compound_stmts.html#the-while-statement",
     "https://docs.python.org/3.13/reference/datamodel.html#objects-values-and-types",
     "https://docs.python.org/3.13/reference/executionmodel.html#binding-of-names",
+    "https://docs.python.org/3.13/reference/executionmodel.html#resolution-of-names",
+    "https://docs.python.org/3.13/reference/expressions.html#binary-arithmetic-operations",
     "https://docs.python.org/3.13/reference/expressions.html#boolean-operations",
+    "https://docs.python.org/3.13/reference/expressions.html#calls",
+    "https://docs.python.org/3.13/reference/expressions.html#comparisons",
     "https://docs.python.org/3.13/reference/expressions.html#evaluation-order",
+    "https://docs.python.org/3.13/reference/expressions.html#lambda",
+    "https://docs.python.org/3.13/reference/expressions.html#operator-precedence",
+    "https://docs.python.org/3.13/reference/lexical_analysis.html#comments",
+    "https://docs.python.org/3.13/reference/lexical_analysis.html#encoding-declarations",
     "https://docs.python.org/3.13/reference/simple_stmts.html#expression-statements",
+    "https://docs.python.org/3.13/reference/simple_stmts.html#the-return-statement",
+    "https://docs.python.org/3.13/tutorial/classes.html#python-scopes-and-namespaces",
+    "https://docs.python.org/3.13/tutorial/controlflow.html#default-argument-values",
+    "https://docs.python.org/3.13/tutorial/controlflow.html#defining-functions",
     "https://docs.python.org/3.13/tutorial/controlflow.html#for-statements",
+    "https://docs.python.org/3.13/tutorial/datastructures.html#dictionaries",
+    "https://docs.python.org/3.13/tutorial/datastructures.html#more-on-lists",
+    "https://docs.python.org/3.13/tutorial/errors.html#exceptions",
+    "https://docs.python.org/3.13/tutorial/errors.html#syntax-errors",
     "https://docs.python.org/3.13/tutorial/floatingpoint.html#representation-error",
-    "https://peps.python.org/pep-0008/#constants"
+    "https://docs.python.org/3.13/tutorial/modules.html#modules",
+    "https://keepachangelog.com/en/1.1.0/",
+    "https://martinfowler.com/bliki/DefinitionOfRefactoring.html",
+    "https://peps.python.org/pep-0008/#constants",
+    "https://peps.python.org/pep-0257/#what-is-a-docstring",
+    "https://peps.python.org/pep-0440/#version-scheme",
+    "https://peps.python.org/pep-0602/",
+    "https://raw.githubusercontent.com/django/django/stable/5.2.x/docs/howto/deployment/checklist.txt",
+    "https://raw.githubusercontent.com/git/git/master/Documentation/git-log.adoc",
+    "https://raw.githubusercontent.com/git/git/master/Documentation/gitrepository-layout.adoc",
+    "https://raw.githubusercontent.com/github/docs/main/content/repositories/releasing-projects-on-github/about-releases.md",
+    "https://raw.githubusercontent.com/kubernetes/website/main/content/en/docs/concepts/workloads/controllers/deployment.md",
+    "https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/tutorials/packaging-projects.rst",
+    "https://semver.org/spec/v2.0.0.html",
+    "https://www.gnu.org/software/make/manual/html_node/Introduction.html"
   ]
 }
