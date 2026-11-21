@@ -4953,3 +4953,557 @@ Branch `codex/linux-glossar-011-302`; Ausgangscommit dieses Abschnitts `9e1a898e
 Gesamtprüfung aller 270 Dokumente erfolgreich: unveränderte Quelle mit erwartetem SHA-256 und 302 eindeutigen IDs/Begriffen; vollständige Originalzuordnung, Metadaten, Kategorieableitung, unverändertes Indexschema, lückenlose records und documented_records; sortierte duplikatfreie Vereinigung der genauen Eintragsquellen; zehn Hauptabschnitte, Codeblöcke, Größen-/Parserlimits, interne Verweise und tatsächliche Dokumentprüfsummen. Alle bisherigen 260 Texte und Indexdatensätze sowie PROMPT.md gegenüber dem Ausgangscommit unverändert; Pilottexte und Pilotindex zusätzlich gegen den Pilotcommit geprüft. Neue Linkbeschriftungen mit Katalogbegriffen verglichen. 182 vollständige Python-Beispiele und ein JavaScript-Beispiel erneut erfolgreich ausgeführt, Assertions, Exitcodes und vollständige Ausgaben kontrolliert. Exakter Änderungsumfang nur neue Texte 261–270 sowie Index und Fortschritt; git diff --check erfolgreich.
 
 Acht neue praktische Python-Prüfungen: eigener Fork samt Pipe/waitpid, zwei asyncio-Tasks, fertiges Future/Await-Reihenfolge, deterministischer verlorener Zählerstand mit Gegenprüfung, nichtblockierendes Lock, begrenzte Semaphore, kurz begrenzte Queue-Wartefrist und unmittelbarer Queue-Abruf. Eigene Kindprozesse, Tasks und Threads kontrolliert beendet; eigene Ressourcen aufgeräumt. Deadlock und Paketierung ausdrücklich nicht ausgeführte Gedankenmodelle. Keine permanente Blockade, echte Netzwerkverbindung, Paket-/Build-/Installationsänderung, privilegierte Aktion oder fremde Ressourcenverwaltung. Neue Texte review_pending. Unabhängige inhaltliche Prüfung sowie lokale Reader-Abnahme bleiben offen; die temporäre Kopf-/Markdown-Strukturprüfung ist keine Reader-Abnahme.
+
+## 271. Installer – it_0271
+
+Ausgearbeitet und strukturell geprüft: 569 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 4617 UTF-8-Bytes, 25 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://manpages.debian.org/stable/dpkg/dpkg.1.en.html
+- https://manpages.debian.org/stable/apt/apt.8.en.html
+
+Gedankenbeispiel: Installationsablauf eines fiktiven Debian-Pakets beschrieben. Keine Paketdatei ausgeführt und keine Systemänderung vorgenommen.
+
+Präzisierung gegenüber der Quelle: Ein .deb als Installationsartefakt eingeordnet. Die Rolle des Installationswerkzeugs, Abhängigkeitsauflösung und getrennte Zustände beim Entpacken und Konfigurieren erläutert.
+
+SHA-256: `8e81a9eb8f902daf1b10a2b1e169c4b5c1c563618ce0337adfd015651b256be2`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 272. Abhängigkeiten – it_0272
+
+Ausgearbeitet und strukturell geprüft: 527 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 4445 UTF-8-Bytes, 26 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.debian.org/doc/debian-policy/ch-relationships.html
+- https://packaging.python.org/en/latest/specifications/pyproject-toml/
+
+Gedankenbeispiel: Voraussetzungen für Kern- und Zusatzfunktion zugeordnet. Keine Programme oder Pakete installiert.
+
+Präzisierung gegenüber der Quelle: Erforderliche, empfohlene und optionale Komponenten unterschieden. Wireshark als hypothetisches Beispiel behandelt, ohne eine tatsächliche NetMon-Abhängigkeit zu behaupten.
+
+SHA-256: `1fe37d100ef06557e2413eec77ae8ca33fde030a1ecf795f09ec6dca5586ac42`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 273. Manifest – it_0273
+
+Ausgearbeitet und strukturell geprüft: 503 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 4122 UTF-8-Bytes, 26 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://packaging.python.org/en/latest/specifications/pyproject-toml/
+- https://www.debian.org/doc/debian-policy/ch-controlfields.html
+
+Gedankenbeispiel: Paketbeschreibung einer fiktiven Notizanwendung verglichen. Keine Manifestdatei geschrieben oder verarbeitet.
+
+Präzisierung gegenüber der Quelle: Manifest als formatabhängige Beschreibung eingeordnet. pyproject.toml und Debian-Kontrolldaten als konkrete Beispiele mit jeweils eigenem Schema erklärt.
+
+SHA-256: `61fd6a1d8d33e55985a1636f04f4c687bd847390403c0c881277fb25d8a4da17`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 274. pyproject.toml – it_0274
+
+Ausgearbeitet und strukturell geprüft: 506 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 4239 UTF-8-Bytes, 24 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://packaging.python.org/en/latest/specifications/pyproject-toml/
+- https://docs.python.org/3.13/library/tomllib.html
+
+Praktische Prüfung: eigenständiges Python-Beispiel im temporären Verzeichnis, Exitcode 0 und erwartete Ausgabe. TOML mit der Python-Standardbibliothek eingelesen und beide Tabellen geprüft. Kein Build-Backend importiert und kein Paket installiert.
+
+Präzisierung gegenüber der Quelle: Build-Voraussetzungen, Projektmetadaten und werkzeugspezifische Einstellungen getrennt. Versionsangabe kann abhängig vom Build-Backend statisch oder dynamisch sein.
+
+SHA-256: `fe2bc7b1642c59cf56d91f7d2fbce762242425ad6a5f5bd0e1f203e1295107e7`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 275. Wheel – it_0275
+
+Ausgearbeitet und strukturell geprüft: 479 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 4164 UTF-8-Bytes, 24 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://packaging.python.org/en/latest/specifications/binary-distribution-format/
+- https://packaging.python.org/en/latest/specifications/platform-compatibility-tags/
+
+Praktische Prüfung: eigenständiges Python-Beispiel im temporären Verzeichnis, Exitcode 0 und erwartete Ausgabe. Die drei Kompatibilitäts-Tags eines selbst gewählten Dateinamens zerlegt. Keine Wheel-Datei erstellt, geprüft oder installiert.
+
+Präzisierung gegenüber der Quelle: Binäres Distributionsformat von nativem Maschinencode unterschieden. Kompatibilitäts-Tags und Abhängigkeiten erläutert.
+
+SHA-256: `db598047a6268690ad21d0e73e3941c07abef339cc7ef72ea1e8d69b6a99ed99`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 276. AppImage – it_0276
+
+Ausgearbeitet und strukturell geprüft: 514 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 4166 UTF-8-Bytes, 26 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.appimage.org/introduction/concepts.html
+- https://docs.appimage.org/user-guide/troubleshooting/fuse.html
+
+Gedankenbeispiel: Startversuch einer hypothetischen AppImage-Datei beschrieben. Keine Datei heruntergeladen oder ausgeführt.
+
+Präzisierung gegenüber der Quelle: Portabilität an Architektur und Systemvoraussetzungen gebunden. Direkter Start, Desktop-Integration und Isolation als getrennte Eigenschaften erklärt.
+
+SHA-256: `1990de4aa8e821f5deaf9d86e5cacce9c07333fe027627f9b585fbe8b0881925`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 277. Flatpak – it_0277
+
+Ausgearbeitet und strukturell geprüft: 510 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 4136 UTF-8-Bytes, 26 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.flatpak.org/en/latest/basic-concepts.html
+- https://docs.flatpak.org/en/latest/sandbox-permissions.html
+
+Gedankenbeispiel: Dateizugriff eines fiktiven Bildprogramms über einen systemvermittelten Dialog. Keine App oder Runtime installiert.
+
+Präzisierung gegenüber der Quelle: Flatpak als Verteilungssystem mit getrennten Apps und Runtimes beschrieben. Sandbox, deklarierte Freigaben und Portale konkret eingeordnet.
+
+SHA-256: `7e08b5dfe0436f9e207f4e1f9cbd213992656b0320e3d01903c67dcc7ec227be`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 278. Snap – it_0278
+
+Ausgearbeitet und strukturell geprüft: 501 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 4222 UTF-8-Bytes, 26 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://snapcraft.io/docs/explanation/security/snap-confinement/index.html
+- https://snapcraft.io/docs/reference/interfaces/
+
+Gedankenbeispiel: Zugriffsprofil eines erfundenen Bildprogramms betrachtet. Kein Snap installiert und keine Schnittstelle verbunden.
+
+Präzisierung gegenüber der Quelle: Paketformat, Snap-Dienst und abgestufte Isolation unterschieden. Distributionseignung an Unterstützung und konkreten Snap gebunden.
+
+SHA-256: `38d6c6505ff03bd33f824f3db82bd2609a169f44e0ce5f7992a9a0afe20abc59`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 279. Postinst – it_0279
+
+Ausgearbeitet und strukturell geprüft: 495 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 4161 UTF-8-Bytes, 26 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.debian.org/doc/debian-policy/ch-maintainerscripts.html
+- https://manpages.debian.org/stable/dpkg/dpkg.1.en.html
+
+Gedankenbeispiel: wiederholbare Konfiguration eines erfundenen Debian-Pakets durchgespielt. Kein Paketbetreuerskript geschrieben oder ausgeführt.
+
+Präzisierung gegenüber der Quelle: Postinst auf die Konfigurationsphase und weitere dokumentierte Aufrufpfade bezogen. Fehler und Wiederholung von der eigentlichen Dateiauslieferung getrennt.
+
+SHA-256: `d947dbbc33d7633632b6387e8ecc5927bbb84b99dc53a94454e7535c47c3efa1`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 280. Preinst – it_0280
+
+Ausgearbeitet und strukturell geprüft: 489 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 3988 UTF-8-Bytes, 26 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.debian.org/doc/debian-policy/ch-maintainerscripts.html
+- https://manpages.debian.org/stable/dpkg/dpkg.1.en.html
+
+Gedankenbeispiel: Prüfung eines eigenen Paketpfads vor dem Entpacken modelliert. Keine Dateien oder Systemkonfiguration geändert.
+
+Präzisierung gegenüber der Quelle: Zeitpunkt vor dem Entpacken der neuen Paketdateien präzisiert. Installations- und Upgrade-Argumente sowie begrenzte verfügbare Abhängigkeiten berücksichtigt.
+
+SHA-256: `23141d9cfa09dc55ae413baed198f180dc8676066a9de98e27d2e05d7c2e4de9`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 281. Postrm – it_0281
+
+Ausgearbeitet und strukturell geprüft: 489 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 4025 UTF-8-Bytes, 26 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.debian.org/doc/debian-policy/ch-maintainerscripts.html
+- https://manpages.debian.org/stable/dpkg/dpkg.1.en.html
+
+Gedankenbeispiel: Paketdaten und persönliche Nutzerdaten beim Entfernen abgegrenzt. Keine Löschung und kein Skriptlauf.
+
+Präzisierung gegenüber der Quelle: Postrm auf mehrere mögliche Aufrufe bezogen. Remove, Purge und Upgrade als verschiedene Fälle mit unterschiedlichen Aufräumgrenzen erläutert.
+
+SHA-256: `2d9be3cafd2f2857fe9fd2ee9035289025641e8ff773aae0d4f05fbbe725fef9`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 282. Dokumentation – it_0282
+
+Ausgearbeitet und strukturell geprüft: 484 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 4069 UTF-8-Bytes, 27 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://diataxis.fr/
+- https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes
+
+Gedankenbeispiel: Informationen für eine fiktive Notizanwendung auf mehrere Dokumenttypen verteilt.
+
+Präzisierung gegenüber der Quelle: Dokumentation nach Bedarf und Zielgruppe eingeordnet. README als Einstieg, Verfahrensanleitung und Referenz als unterschiedliche Hilfen beschrieben.
+
+SHA-256: `5b617f1c0887b7f2a47bcfa49d18e128f976e5f2d8ebb5308aee56b623a770b6`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 283. README – it_0283
+
+Ausgearbeitet und strukturell geprüft: 484 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 3997 UTF-8-Bytes, 27 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes
+- https://docs.gitlab.com/user/project/repository/files/
+
+Gedankenbeispiel: Einstiegsinformationen und weiterführende Links für ein Modellprojekt entworfen.
+
+Präzisierung gegenüber der Quelle: README als sichtbaren Einstieg eingeordnet. Automatische Anzeige vom Host und Ablageort abhängig gemacht.
+
+SHA-256: `cd40ee65fd0e55bb8c3daa250fd64fbbe90511663a285d93c2a6a723361f83a5`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 284. Markdown – it_0284
+
+Ausgearbeitet und strukturell geprüft: 465 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 3660 UTF-8-Bytes, 26 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://spec.commonmark.org/0.31.2/
+- https://github.github.com/gfm/
+
+Gedankenbeispiel: Quelltext und erwartete Darstellung beschrieben. Kein Renderer für dieses Beispiel ausgeführt.
+
+Präzisierung gegenüber der Quelle: Markdown-Syntax, CommonMark und plattformspezifische Erweiterungen getrennt. Überschrift mit Leerzeichen nach dem Markierungszeichen gezeigt.
+
+SHA-256: `e712a6a773d1a51632b6beac7ac11093014af809dd6f290a2f9f1d256698f2f2`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 285. Docstring Python – it_0285
+
+Ausgearbeitet und strukturell geprüft: 445 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 3570 UTF-8-Bytes, 24 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://peps.python.org/pep-0257/
+- https://docs.python.org/3.13/library/inspect.html
+
+Praktische Prüfung: eigenständiges Python-Beispiel im temporären Verzeichnis, Exitcode 0 und erwartete Ausgabe. Rückgabewert und den von inspect.getdoc ausgelesenen Text geprüft.
+
+Präzisierung gegenüber der Quelle: Position des Docstrings und Zugriff zur Laufzeit erläutert. Von Kommentaren, Typannotationen und automatischer Prüfung abgegrenzt.
+
+SHA-256: `591f6a89d4147616262e572a76ce46716deabcb4fee53a789c3759824434549f`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 286. Glossar – it_0286
+
+Ausgearbeitet und strukturell geprüft: 476 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 3917 UTF-8-Bytes, 27 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.w3.org/TR/skos-reference/
+- https://www.sphinx-doc.org/en/master/usage/restructuredtext/directives.html#directive-glossary
+
+Gedankenbeispiel: Begriff, Synonym und Querverweis für einen fiktiven Glossareintrag zugeordnet.
+
+Präzisierung gegenüber der Quelle: Glossar als Begriffsnachschlagewerk mit Beziehungen und Vorzugsbenennungen erläutert.
+
+SHA-256: `440a1e150cb1f32844b1fb4d41a54e442db2e0b5c4f14d5c684e05dbbe2c835c`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 287. FAQ – it_0287
+
+Ausgearbeitet und strukturell geprüft: 455 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 3654 UTF-8-Bytes, 26 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/faq/general.html
+- https://design-system.service.gov.uk/components/accordion/
+
+Gedankenbeispiel: Wiederkehrende Fragen für eine fiktive Notizanwendung strukturiert.
+
+Präzisierung gegenüber der Quelle: FAQ anhand echter wiederkehrender Fragen eingeordnet. Längere Verfahren und Grundlagen in passende Dokumente verwiesen.
+
+SHA-256: `e352792e59f29801d91839e578cd0eab1d0a73b16f19e8092d2a32cb19510e46`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 288. How-to – it_0288
+
+Ausgearbeitet und strukturell geprüft: 482 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 3811 UTF-8-Bytes, 27 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://diataxis.fr/how-to-guides/
+- https://www.debian.org/doc/debian-policy/ch-binary.html
+
+Gedankenbeispiel: Aufbau einer Anleitung für ein hypothetisches Debian-Paket. Kein Paket gebaut oder installiert.
+
+Präzisierung gegenüber der Quelle: How-to auf ein konkretes Ergebnis samt Voraussetzungen und Abschlusskriterium bezogen. Paketierung als Gegenstand eines hypothetischen How-tos eingeordnet.
+
+SHA-256: `1cd21556026b47798e898927d10cf007bef1aeecd4701a40dc1cbfa6375c43f7`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 289. Tutorial – it_0289
+
+Ausgearbeitet und strukturell geprüft: 469 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 3643 UTF-8-Bytes, 27 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://diataxis.fr/tutorials/
+- https://tkdocs.com/tutorial/firstexample.html
+
+Gedankenbeispiel: Ablauf einer ersten GUI-Lektion skizziert. Keine GUI gestartet.
+
+Präzisierung gegenüber der Quelle: Tutorial auf Lernerfolg und überprüfbare Zwischenschritte bezogen. Das Tk-Beispiel konzeptionell eingeordnet.
+
+SHA-256: `2a5aa7f6abe69f39dfda5c866dab3e8035d07725ca7237f964ad31a154624eff`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 290. Manpage – it_0290
+
+Ausgearbeitet und strukturell geprüft: 465 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 3771 UTF-8-Bytes, 27 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://man7.org/linux/man-pages/man1/man.1.html
+- https://www.freedesktop.org/software/systemd/man/latest/systemctl.html
+
+Gedankenbeispiel: örtliche und aktuelle Online-Referenz verglichen. Kein systemctl-Befehl aufgerufen und kein Dienst verändert.
+
+Präzisierung gegenüber der Quelle: Manpage als lokale Referenz mit nummerierten Abschnitten eingeordnet. Das Lesen der systemctl-Hilfe vom Ausführen des Verwaltungsbefehls getrennt.
+
+SHA-256: `4930d246d0dd04c2b1dfed419df24a392ece289bfdec09aae39fa3893d90ab37`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 291. Compiler – it_0291
+
+Ausgearbeitet und strukturell geprüft: 467 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 3833 UTF-8-Bytes, 26 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://gcc.gnu.org/onlinedocs/gcc/Overall-Options.html
+- https://clang.llvm.org/docs/CommandGuide/clang.html
+
+Gedankenbeispiel: C-Übersetzung bis zur Objektdatei und danach zum Programm beschrieben. Kein Compiler aufgerufen.
+
+Präzisierung gegenüber der Quelle: Compiler auf Übersetzung in Zielcode bezogen. Einzelne Stufen des C-Werkzeugaufrufs von der Übersetzung im engeren Sinn getrennt.
+
+SHA-256: `6aa428410b63c18731c175100aeca70ca3fa413a9e71103b7061f95e2e3c71a5`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 292. Interpreter – it_0292
+
+Ausgearbeitet und strukturell geprüft: 454 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 3627 UTF-8-Bytes, 24 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/glossary.html
+- https://docs.python.org/3.13/library/dis.html
+
+Praktische Prüfung: eigenständiges Python-Beispiel im temporären Verzeichnis, Exitcode 0 und erwartete Ausgabe. Codeobjekt mit compile erzeugt und in leerem eigenen Namensraum ausgeführt. Errechneten Wert geprüft.
+
+Präzisierung gegenüber der Quelle: „Direkt“ für CPython präzisiert. Übersetzung in Bytecode und Ausführung durch die Laufzeit unterschieden.
+
+SHA-256: `301295018cb1e6c23173c7dd798993afebf48e98e1948922b1e736e7b180143b`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 293. Transpiler – it_0293
+
+Ausgearbeitet und strukturell geprüft: 454 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 3884 UTF-8-Bytes, 27 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.typescriptlang.org/docs/handbook/typescript-from-scratch.html
+- https://www.typescriptlang.org/tsconfig/target.html
+
+Gedankenbeispiel: TypeScript-Quelltext und erwartete JavaScript-Form modelliert. Kein Compilerlauf.
+
+Präzisierung gegenüber der Quelle: Transpiler als Compiler mit Quelltext als Zielausgabe eingeordnet. TypeScript-Typen und JavaScript-Laufzeitkompatibilität getrennt.
+
+SHA-256: `b3098d952ac78ec7af321b618a01130c1eb90e51dd8ffbf9bd2e30e14e57f5c8`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 294. IDE – it_0294
+
+Ausgearbeitet und strukturell geprüft: 467 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 3955 UTF-8-Bytes, 27 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.jetbrains.com/help/pycharm/quick-start-guide.html
+- https://code.visualstudio.com/docs/python/python-tutorial
+
+Gedankenbeispiel: Projektumgebung auswählen, Test starten und Fehler untersuchen. Keine IDE gestartet.
+
+Präzisierung gegenüber der Quelle: IDE als gebündelte Entwicklungsumgebung beschrieben. VS Code als erweiterbaren Editor mit IDE-ähnlichem Funktionsumfang eingeordnet.
+
+SHA-256: `e8bbf4a7ca1ba2d19948666d12e49c2cd85e047e4d301d476f19ac51256432dd`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 295. Editor – it_0295
+
+Ausgearbeitet und strukturell geprüft: 452 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 3599 UTF-8-Bytes, 26 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://code.visualstudio.com/docs/editor/codebasics
+- https://www.nano-editor.org/dist/latest/nano.html
+
+Gedankenbeispiel: Markdown-Datei im Terminal oder Desktop bearbeiten und den Diff prüfen. Keine Editoraktion ausgeführt.
+
+Präzisierung gegenüber der Quelle: Editor nach der Textbearbeitung eingeordnet. Sprachfunktionen, Dateikodierung und IDE-ähnliche Erweiterungen unterschieden.
+
+SHA-256: `4911511d51099ff971ae9cd779c661d664ab563cb496ec014bd3b46af17c05f5`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 296. Debugger – it_0296
+
+Ausgearbeitet und strukturell geprüft: 465 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 3776 UTF-8-Bytes, 26 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/pdb.html
+- https://sourceware.org/gdb/current/onlinedocs/gdb.html/Breakpoints.html
+
+Gedankenbeispiel: fehlerhaften Teilschritt in einer erfundenen Mengenberechnung untersucht. Kein interaktiver Debugger gestartet.
+
+Präzisierung gegenüber der Quelle: Debugger auf Laufzeitzustand, schrittweise Analyse und Grenzen bei Timingfehlern bezogen.
+
+SHA-256: `9d6799e03213e8601fbd4ce9bf08b1e2fa74650426680546eec50c464a4cfcf1`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 297. Breakpoint – it_0297
+
+Ausgearbeitet und strukturell geprüft: 469 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 3799 UTF-8-Bytes, 24 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/pdb.html
+- https://sourceware.org/gdb/current/onlinedocs/gdb.html/Breakpoints.html
+
+Praktische Prüfung: eigenständiges Python-Beispiel im temporären Verzeichnis, Exitcode 0 und erwartete Ausgabe. Eigenen Breakpoint-Hook aufgerufen und anschließend wiederhergestellt. Kein interaktiver Debugger und keine Prozessanbindung.
+
+Präzisierung gegenüber der Quelle: Haltepunkte an Orten und mit Bedingungen erläutert. Von Einzelschritt und Watchpoint abgegrenzt. Python-eigenen Hook ohne interaktives Anhalten getestet.
+
+SHA-256: `7917554e1dc67f7019326f309337a02e9dbc0443f87ecfd63673679e4a8eebb8`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 298. Profiling – it_0298
+
+Ausgearbeitet und strukturell geprüft: 467 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 3862 UTF-8-Bytes, 24 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/profile.html
+- https://docs.python.org/3.13/library/tracemalloc.html
+
+Praktische Prüfung: eigenständiges Python-Beispiel im temporären Verzeichnis, Exitcode 0 und erwartete Ausgabe. Mit cProfile das eigene Beispiel gemessen und in pstats drei Aufrufe der Zielfunktion geprüft. Keine Zeitwerte zugesichert.
+
+Präzisierung gegenüber der Quelle: CPU- und Speicherprofile unterschieden. Profilwerte und Messinstrument bewusst auf eigene Testarbeit begrenzt.
+
+SHA-256: `bc2c4f7831ad1144ee63070b5e4f4516a74846404990f3d2146b59c7c460372e`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 299. Benchmark – it_0299
+
+Ausgearbeitet und strukturell geprüft: 476 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 3890 UTF-8-Bytes, 24 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/timeit.html
+- https://pyperf.readthedocs.io/en/latest/run_benchmark.html
+
+Praktische Prüfung: eigenständiges Python-Beispiel im temporären Verzeichnis, Exitcode 0 und erwartete Ausgabe. Ergebnisse zweier Rechenvarianten und jeweils drei Messwerte geprüft. Keine Laufzeit oder Rangfolge zugesichert.
+
+Präzisierung gegenüber der Quelle: Vergleichsmessung an gleiche Arbeit und dokumentierte Bedingungen gebunden. Warm-up, Wiederholungen und Streuung erläutert.
+
+SHA-256: `62b2fb255f2f7eca4429e81e15642215a24c32d43579de6524009be79f395235`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 300. Performance – it_0300
+
+Ausgearbeitet und strukturell geprüft: 485 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 4090 UTF-8-Bytes, 26 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/asyncio-dev.html
+- https://docs.python.org/3.13/library/tkinter.html
+
+Gedankenbeispiel: lange Prüfung in einer GUI mit Reaktion, Fortschritt und Rückgabe modelliert. Keine GUI und kein Netzwerkzugriff.
+
+Präzisierung gegenüber der Quelle: Leistung über konkrete Kenngrößen eingeordnet. GUI-Reaktionszeit von Gesamtdauer und Durchsatz getrennt.
+
+SHA-256: `7393e82e7c69a8e47e3df11f79b9f35d1e97b968492045b8200ccd18a971eb19`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 301. Memory Leak – it_0301
+
+Ausgearbeitet und strukturell geprüft: 513 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 4093 UTF-8-Bytes, 24 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/tracemalloc.html
+- https://man7.org/linux/man-pages/man5/proc_pid_status.5.html
+
+Praktische Prüfung: eigenständiges Python-Beispiel im temporären Verzeichnis, Exitcode 0 und erwartete Ausgabe. Mit schwachen Referenzen drei unbeabsichtigt gehaltene Objekte und ihre Freigabe durch Leeren der Liste in CPython geprüft. Kein RSS-Grenzwert behauptet.
+
+Präzisierung gegenüber der Quelle: Speicherleck anhand unbeabsichtigt dauerhaft belegter Ressourcen erläutert. Wachsenden Prozessspeicher als Hinweis eingeordnet. Behaltene Python-Referenzen praktisch modelliert.
+
+SHA-256: `5ba4b399c07b3116d212b9ac94752ed2152644b8ab401d491015eca99c45e636`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 302. Garbage Collection – it_0302
+
+Ausgearbeitet und strukturell geprüft: 497 durch Leerraum getrennte Wörter einschließlich Beispiel/Links, 4084 UTF-8-Bytes, 24 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/gc.html
+- https://docs.python.org/3.13/reference/datamodel.html
+
+Praktische Prüfung: eigenständiges Python-Beispiel im temporären Verzeichnis, Exitcode 0 und erwartete Ausgabe. Eigenen unerreichbaren Zyklus mit schwachen Referenzen und einem expliziten Sammellauf geprüft. Vorherigen Automatikzustand wiederhergestellt.
+
+Präzisierung gegenüber der Quelle: Automatische Speicherbereinigung auf nicht mehr erreichbare Objekte bezogen. CPython-Referenzzählung und ergänzenden Zyklensammler erläutert. Ressourcenlebensdauer getrennt.
+
+SHA-256: `1f311b0d1db6e498b138013e6f0992851f1f8c2bfbc218021ad7c0bab9e2b605`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## Abschluss nach Eintrag 302 – 21.11.2026
+
+Auf dem Branch `codex/linux-glossar-011-302` sind **302 von 302 Einträgen ausgearbeitet und strukturell geprüft**. Dieser Abschnitt beginnt beim Commit `04b1d1e14e793a7ab042712d0a58dc3fa173230d` und ergänzt die Einträge 271 „Installer“ bis 302 „Garbage Collection“. Alle 302 Indexdatensätze stehen auf `review_pending`.
+
+Der Gesamtcheck hat die unveränderte Originalquelle mit SHA-256 `b3fb9bfe37d335ee6eaa89c89425f08c94e8efc6f698e7c520ffc81ed128fc24` und 302 eindeutige IDs und Begriffe bestätigt. Geprüft wurden Quellreihenfolge, vollständige Originaldatensätze, Kategorieableitung, JSON-kompatible Köpfe, genau zehn Hauptabschnitte pro Dokument, Codeblöcke, Parsergrenzen, interne Linkziele, Dokumentprüfsummen und die sortierte Quellenvereinigung. Die Dokumente und Indexdatensätze 1–270 sowie `PROMPT.md` sind byteweise beziehungsweise als unveränderte JSON-Datensätze mit dem Ausgangscommit abgeglichen. Der bisherige Teil dieses Fortschrittsprotokolls ist erhalten.
+
+Für die 32 neuen Texte wurden die angegebenen Primärquellen per HTTPS abgerufen und die zentralen Aussagen mit den jeweiligen Referenzen abgeglichen. Neun neue Python-Beispiele liefen mit Python 3.12.14 in temporären Verzeichnissen mit Exitcode 0 und erwarteter Standardausgabe. Die übrigen 23 Beispiele sind im jeweiligen Eintrag als nicht ausgeführte Gedankenbeispiele gekennzeichnet. Die früheren praktischen Beispiele wurden in diesem Durchlauf nicht erneut ausgeführt.
+
+Die unabhängige fachliche Zweitprüfung und die lokale NetMon-Reader-Abnahme stehen aus. Dazu zählen die Zuordnung, Darstellung, Suche, Code-Kopierfunktion und der getrennte Lesestatus. Die Strukturprüfung verwendete den vorhandenen Markdown-Parser mit einem nur im Speicher ergänzten kompatiblen Kopf. Der separate pytest-Lauf zum Befehlsreader konnte in dieser Umgebung mangels installiertem pytest nicht starten.

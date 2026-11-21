@@ -4,7 +4,7 @@
   "source_catalog": "tools/it_lexikon_linux_hilfe.json",
   "source_sha256": "b3fb9bfe37d335ee6eaa89c89425f08c94e8efc6f698e7c520ffc81ed128fc24",
   "total_records": 302,
-  "documented_records": 270,
+  "documented_records": 302,
   "records": [
     {
       "source_record": 1,
@@ -6395,16 +6395,774 @@
         "https://www.debian.org/doc/debian-policy/ch-binary.html"
       ],
       "status": "review_pending"
+    },
+    {
+      "source_record": 271,
+      "id": "it_0271",
+      "term": "Installer",
+      "category": "Paketierung",
+      "document": "it_0271.md",
+      "sha256": "8e81a9eb8f902daf1b10a2b1e169c4b5c1c563618ce0337adfd015651b256be2",
+      "source": {
+        "id": "it_0271",
+        "term": "Installer",
+        "short": "Programm oder Paket zur Installation von Software.",
+        "example": "Ein .deb-Paket dient als Installer unter Debian-Systemen.",
+        "tags": [
+          "paketierung"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://manpages.debian.org/stable/apt/apt.8.en.html",
+        "https://manpages.debian.org/stable/dpkg/dpkg.1.en.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 272,
+      "id": "it_0272",
+      "term": "Abhängigkeiten",
+      "category": "Paketierung",
+      "document": "it_0272.md",
+      "sha256": "1fe37d100ef06557e2413eec77ae8ca33fde030a1ecf795f09ec6dca5586ac42",
+      "source": {
+        "id": "it_0272",
+        "term": "Abhängigkeiten",
+        "short": "Externe Pakete oder Programme, die benötigt werden.",
+        "example": "Wireshark wäre eine optionale Abhängigkeit für Paketmitschnitt.",
+        "tags": [
+          "paketierung"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://packaging.python.org/en/latest/specifications/pyproject-toml/",
+        "https://www.debian.org/doc/debian-policy/ch-relationships.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 273,
+      "id": "it_0273",
+      "term": "Manifest",
+      "category": "Paketierung",
+      "document": "it_0273.md",
+      "sha256": "61fd6a1d8d33e55985a1636f04f4c687bd847390403c0c881277fb25d8a4da17",
+      "source": {
+        "id": "it_0273",
+        "term": "Manifest",
+        "short": "Datei mit Metadaten über ein Paket oder Projekt.",
+        "example": "pyproject.toml kann Projektmetadaten enthalten.",
+        "tags": [
+          "paketierung"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://packaging.python.org/en/latest/specifications/pyproject-toml/",
+        "https://www.debian.org/doc/debian-policy/ch-controlfields.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 274,
+      "id": "it_0274",
+      "term": "pyproject.toml",
+      "category": "Paketierung",
+      "document": "it_0274.md",
+      "sha256": "fe2bc7b1642c59cf56d91f7d2fbce762242425ad6a5f5bd0e1f203e1295107e7",
+      "source": {
+        "id": "it_0274",
+        "term": "pyproject.toml",
+        "short": "Moderne Python-Projektdatei für Build- und Paketinformationen.",
+        "example": "Darin stehen Name, Version und Abhängigkeiten.",
+        "tags": [
+          "paketierung",
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/tomllib.html",
+        "https://packaging.python.org/en/latest/specifications/pyproject-toml/"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 275,
+      "id": "it_0275",
+      "term": "Wheel",
+      "category": "Paketierung",
+      "document": "it_0275.md",
+      "sha256": "db598047a6268690ad21d0e73e3941c07abef339cc7ef72ea1e8d69b6a99ed99",
+      "source": {
+        "id": "it_0275",
+        "term": "Wheel",
+        "short": "Binäres Python-Paketformat.",
+        "example": "Eine .whl-Datei kann per pip installiert werden.",
+        "tags": [
+          "paketierung",
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://packaging.python.org/en/latest/specifications/binary-distribution-format/",
+        "https://packaging.python.org/en/latest/specifications/platform-compatibility-tags/"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 276,
+      "id": "it_0276",
+      "term": "AppImage",
+      "category": "Paketierung",
+      "document": "it_0276.md",
+      "sha256": "1990de4aa8e821f5deaf9d86e5cacce9c07333fe027627f9b585fbe8b0881925",
+      "source": {
+        "id": "it_0276",
+        "term": "AppImage",
+        "short": "Linux-Paketformat für portable Anwendungen.",
+        "example": "Eine AppImage-Datei kann oft direkt gestartet werden.",
+        "tags": [
+          "paketierung",
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.appimage.org/introduction/concepts.html",
+        "https://docs.appimage.org/user-guide/troubleshooting/fuse.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 277,
+      "id": "it_0277",
+      "term": "Flatpak",
+      "category": "Paketierung",
+      "document": "it_0277.md",
+      "sha256": "7e08b5dfe0436f9e207f4e1f9cbd213992656b0320e3d01903c67dcc7ec227be",
+      "source": {
+        "id": "it_0277",
+        "term": "Flatpak",
+        "short": "Linux-Paketformat mit Sandbox-Ansatz.",
+        "example": "Flatpak verteilt Desktop-Apps distroübergreifend.",
+        "tags": [
+          "paketierung",
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.flatpak.org/en/latest/basic-concepts.html",
+        "https://docs.flatpak.org/en/latest/sandbox-permissions.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 278,
+      "id": "it_0278",
+      "term": "Snap",
+      "category": "Paketierung",
+      "document": "it_0278.md",
+      "sha256": "38d6c6505ff03bd33f824f3db82bd2609a169f44e0ce5f7992a9a0afe20abc59",
+      "source": {
+        "id": "it_0278",
+        "term": "Snap",
+        "short": "Paketformat von Canonical für Linux-Apps.",
+        "example": "Snap-Pakete laufen auf vielen Distributionen.",
+        "tags": [
+          "paketierung",
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://snapcraft.io/docs/explanation/security/snap-confinement/index.html",
+        "https://snapcraft.io/docs/reference/interfaces/"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 279,
+      "id": "it_0279",
+      "term": "Postinst",
+      "category": "Paketierung",
+      "document": "it_0279.md",
+      "sha256": "d947dbbc33d7633632b6387e8ecc5927bbb84b99dc53a94454e7535c47c3efa1",
+      "source": {
+        "id": "it_0279",
+        "term": "Postinst",
+        "short": "Debian-Skript, das nach der Installation läuft.",
+        "example": "postinst kann Services einrichten.",
+        "tags": [
+          "paketierung",
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://manpages.debian.org/stable/dpkg/dpkg.1.en.html",
+        "https://www.debian.org/doc/debian-policy/ch-maintainerscripts.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 280,
+      "id": "it_0280",
+      "term": "Preinst",
+      "category": "Paketierung",
+      "document": "it_0280.md",
+      "sha256": "23141d9cfa09dc55ae413baed198f180dc8676066a9de98e27d2e05d7c2e4de9",
+      "source": {
+        "id": "it_0280",
+        "term": "Preinst",
+        "short": "Debian-Skript, das vor der Installation läuft.",
+        "example": "preinst bereitet Installation vor.",
+        "tags": [
+          "paketierung",
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://manpages.debian.org/stable/dpkg/dpkg.1.en.html",
+        "https://www.debian.org/doc/debian-policy/ch-maintainerscripts.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 281,
+      "id": "it_0281",
+      "term": "Postrm",
+      "category": "Paketierung",
+      "document": "it_0281.md",
+      "sha256": "2d9be3cafd2f2857fe9fd2ee9035289025641e8ff773aae0d4f05fbbe725fef9",
+      "source": {
+        "id": "it_0281",
+        "term": "Postrm",
+        "short": "Debian-Skript, das nach dem Entfernen läuft.",
+        "example": "postrm kann alte Dateien bereinigen.",
+        "tags": [
+          "paketierung",
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://manpages.debian.org/stable/dpkg/dpkg.1.en.html",
+        "https://www.debian.org/doc/debian-policy/ch-maintainerscripts.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 282,
+      "id": "it_0282",
+      "term": "Dokumentation",
+      "category": "Dokumentation",
+      "document": "it_0282.md",
+      "sha256": "5b617f1c0887b7f2a47bcfa49d18e128f976e5f2d8ebb5308aee56b623a770b6",
+      "source": {
+        "id": "it_0282",
+        "term": "Dokumentation",
+        "short": "Erklärungen zur Nutzung oder Entwicklung einer Software.",
+        "example": "Eine README erklärt Installation und Start.",
+        "tags": [
+          "dokumentation"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://diataxis.fr/",
+        "https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 283,
+      "id": "it_0283",
+      "term": "README",
+      "category": "Dokumentation",
+      "document": "it_0283.md",
+      "sha256": "cd40ee65fd0e55bb8c3daa250fd64fbbe90511663a285d93c2a6a723361f83a5",
+      "source": {
+        "id": "it_0283",
+        "term": "README",
+        "short": "Startdokument eines Projekts.",
+        "example": "README.md enthält Überblick und Anleitung.",
+        "tags": [
+          "dokumentation"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes",
+        "https://docs.gitlab.com/user/project/repository/files/"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 284,
+      "id": "it_0284",
+      "term": "Markdown",
+      "category": "Dokumentation",
+      "document": "it_0284.md",
+      "sha256": "e712a6a773d1a51632b6beac7ac11093014af809dd6f290a2f9f1d256698f2f2",
+      "source": {
+        "id": "it_0284",
+        "term": "Markdown",
+        "short": "Einfache Auszeichnungssprache für Textdokumente.",
+        "example": "# Überschrift erstellt eine Überschrift.",
+        "tags": [
+          "dokumentation"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://github.github.com/gfm/",
+        "https://spec.commonmark.org/0.31.2/"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 285,
+      "id": "it_0285",
+      "term": "Docstring Python",
+      "category": "Dokumentation",
+      "document": "it_0285.md",
+      "sha256": "591f6a89d4147616262e572a76ce46716deabcb4fee53a789c3759824434549f",
+      "source": {
+        "id": "it_0285",
+        "term": "Docstring Python",
+        "short": "Dokumentation direkt im Python-Code.",
+        "example": "Eine Funktion beschreibt ihre Parameter im Docstring.",
+        "tags": [
+          "dokumentation",
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/inspect.html",
+        "https://peps.python.org/pep-0257/"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 286,
+      "id": "it_0286",
+      "term": "Glossar",
+      "category": "Dokumentation",
+      "document": "it_0286.md",
+      "sha256": "440a1e150cb1f32844b1fb4d41a54e442db2e0b5c4f14d5c684e05dbbe2c835c",
+      "source": {
+        "id": "it_0286",
+        "term": "Glossar",
+        "short": "Nachschlagewerk mit Begriffserklärungen.",
+        "example": "Dieses IT-Lexikon ist ein Glossar.",
+        "tags": [
+          "dokumentation"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.sphinx-doc.org/en/master/usage/restructuredtext/directives.html#directive-glossary",
+        "https://www.w3.org/TR/skos-reference/"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 287,
+      "id": "it_0287",
+      "term": "FAQ",
+      "category": "Dokumentation",
+      "document": "it_0287.md",
+      "sha256": "e352792e59f29801d91839e578cd0eab1d0a73b16f19e8092d2a32cb19510e46",
+      "source": {
+        "id": "it_0287",
+        "term": "FAQ",
+        "short": "Frequently Asked Questions: häufige Fragen und Antworten.",
+        "example": "Eine FAQ erklärt typische Probleme.",
+        "tags": [
+          "dokumentation"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://design-system.service.gov.uk/components/accordion/",
+        "https://docs.python.org/3.13/faq/general.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 288,
+      "id": "it_0288",
+      "term": "How-to",
+      "category": "Dokumentation",
+      "document": "it_0288.md",
+      "sha256": "1cd21556026b47798e898927d10cf007bef1aeecd4701a40dc1cbfa6375c43f7",
+      "source": {
+        "id": "it_0288",
+        "term": "How-to",
+        "short": "Schritt-für-Schritt-Anleitung für eine Aufgabe.",
+        "example": "Ein How-to erklärt das Erstellen eines .deb-Pakets.",
+        "tags": [
+          "dokumentation"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://diataxis.fr/how-to-guides/",
+        "https://www.debian.org/doc/debian-policy/ch-binary.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 289,
+      "id": "it_0289",
+      "term": "Tutorial",
+      "category": "Dokumentation",
+      "document": "it_0289.md",
+      "sha256": "2a5aa7f6abe69f39dfda5c866dab3e8035d07725ca7237f964ad31a154624eff",
+      "source": {
+        "id": "it_0289",
+        "term": "Tutorial",
+        "short": "Lernanleitung mit Beispielen.",
+        "example": "Ein Tutorial führt in Tkinter ein.",
+        "tags": [
+          "dokumentation"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://diataxis.fr/tutorials/",
+        "https://tkdocs.com/tutorial/firstexample.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 290,
+      "id": "it_0290",
+      "term": "Manpage",
+      "category": "Dokumentation",
+      "document": "it_0290.md",
+      "sha256": "4930d246d0dd04c2b1dfed419df24a392ece289bfdec09aae39fa3893d90ab37",
+      "source": {
+        "id": "it_0290",
+        "term": "Manpage",
+        "short": "Klassische Linux-Hilfeseite für Befehle.",
+        "example": "man systemctl zeigt die Manpage.",
+        "tags": [
+          "dokumentation",
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://man7.org/linux/man-pages/man1/man.1.html",
+        "https://www.freedesktop.org/software/systemd/man/latest/systemctl.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 291,
+      "id": "it_0291",
+      "term": "Compiler",
+      "category": "Werkzeuge",
+      "document": "it_0291.md",
+      "sha256": "6aa428410b63c18731c175100aeca70ca3fa413a9e71103b7061f95e2e3c71a5",
+      "source": {
+        "id": "it_0291",
+        "term": "Compiler",
+        "short": "Programm, das Quellcode in Maschinencode oder Zwischencode übersetzt.",
+        "example": "C-Code wird oft kompiliert.",
+        "tags": [
+          "werkzeuge"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://clang.llvm.org/docs/CommandGuide/clang.html",
+        "https://gcc.gnu.org/onlinedocs/gcc/Overall-Options.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 292,
+      "id": "it_0292",
+      "term": "Interpreter",
+      "category": "Werkzeuge",
+      "document": "it_0292.md",
+      "sha256": "301295018cb1e6c23173c7dd798993afebf48e98e1948922b1e736e7b180143b",
+      "source": {
+        "id": "it_0292",
+        "term": "Interpreter",
+        "short": "Programm, das Code direkt ausführt.",
+        "example": "Python nutzt einen Interpreter.",
+        "tags": [
+          "werkzeuge",
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/glossary.html",
+        "https://docs.python.org/3.13/library/dis.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 293,
+      "id": "it_0293",
+      "term": "Transpiler",
+      "category": "Werkzeuge",
+      "document": "it_0293.md",
+      "sha256": "b3098d952ac78ec7af321b618a01130c1eb90e51dd8ffbf9bd2e30e14e57f5c8",
+      "source": {
+        "id": "it_0293",
+        "term": "Transpiler",
+        "short": "Werkzeug, das Code von einer Sprache in eine andere übersetzt.",
+        "example": "TypeScript wird zu JavaScript transpiliert.",
+        "tags": [
+          "werkzeuge",
+          "web"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.typescriptlang.org/docs/handbook/typescript-from-scratch.html",
+        "https://www.typescriptlang.org/tsconfig/target.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 294,
+      "id": "it_0294",
+      "term": "IDE",
+      "category": "Werkzeuge",
+      "document": "it_0294.md",
+      "sha256": "e8bbf4a7ca1ba2d19948666d12e49c2cd85e047e4d301d476f19ac51256432dd",
+      "source": {
+        "id": "it_0294",
+        "term": "IDE",
+        "short": "Integrierte Entwicklungsumgebung.",
+        "example": "VS Code oder PyCharm helfen beim Programmieren.",
+        "tags": [
+          "werkzeuge"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://code.visualstudio.com/docs/python/python-tutorial",
+        "https://www.jetbrains.com/help/pycharm/quick-start-guide.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 295,
+      "id": "it_0295",
+      "term": "Editor",
+      "category": "Werkzeuge",
+      "document": "it_0295.md",
+      "sha256": "4911511d51099ff971ae9cd779c661d664ab563cb496ec014bd3b46af17c05f5",
+      "source": {
+        "id": "it_0295",
+        "term": "Editor",
+        "short": "Programm zum Bearbeiten von Text oder Code.",
+        "example": "VS Code, Nano und Vim sind Editoren.",
+        "tags": [
+          "werkzeuge"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://code.visualstudio.com/docs/editor/codebasics",
+        "https://www.nano-editor.org/dist/latest/nano.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 296,
+      "id": "it_0296",
+      "term": "Debugger",
+      "category": "Werkzeuge",
+      "document": "it_0296.md",
+      "sha256": "9d6799e03213e8601fbd4ce9bf08b1e2fa74650426680546eec50c464a4cfcf1",
+      "source": {
+        "id": "it_0296",
+        "term": "Debugger",
+        "short": "Werkzeug zum schrittweisen Untersuchen eines Programms.",
+        "example": "Ein Debugger kann Variablen während der Ausführung zeigen.",
+        "tags": [
+          "werkzeuge"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/pdb.html",
+        "https://sourceware.org/gdb/current/onlinedocs/gdb.html/Breakpoints.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 297,
+      "id": "it_0297",
+      "term": "Breakpoint",
+      "category": "Debugging",
+      "document": "it_0297.md",
+      "sha256": "7917554e1dc67f7019326f309337a02e9dbc0443f87ecfd63673679e4a8eebb8",
+      "source": {
+        "id": "it_0297",
+        "term": "Breakpoint",
+        "short": "Haltepunkt im Debugger.",
+        "example": "Der Code stoppt an einem Breakpoint.",
+        "tags": [
+          "debugging",
+          "werkzeuge"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/pdb.html",
+        "https://sourceware.org/gdb/current/onlinedocs/gdb.html/Breakpoints.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 298,
+      "id": "it_0298",
+      "term": "Profiling",
+      "category": "Werkzeuge",
+      "document": "it_0298.md",
+      "sha256": "bc2c4f7831ad1144ee63070b5e4f4516a74846404990f3d2146b59c7c460372e",
+      "source": {
+        "id": "it_0298",
+        "term": "Profiling",
+        "short": "Messen, welche Codeteile Zeit oder Speicher verbrauchen.",
+        "example": "Profiling findet langsame Funktionen.",
+        "tags": [
+          "werkzeuge",
+          "performance"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/profile.html",
+        "https://docs.python.org/3.13/library/tracemalloc.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 299,
+      "id": "it_0299",
+      "term": "Benchmark",
+      "category": "Performance",
+      "document": "it_0299.md",
+      "sha256": "62b2fb255f2f7eca4429e81e15642215a24c32d43579de6524009be79f395235",
+      "source": {
+        "id": "it_0299",
+        "term": "Benchmark",
+        "short": "Leistungsmessung unter vergleichbaren Bedingungen.",
+        "example": "Ein Benchmark vergleicht zwei Scanner-Methoden.",
+        "tags": [
+          "performance"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/timeit.html",
+        "https://pyperf.readthedocs.io/en/latest/run_benchmark.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 300,
+      "id": "it_0300",
+      "term": "Performance",
+      "category": "Performance",
+      "document": "it_0300.md",
+      "sha256": "7393e82e7c69a8e47e3df11f79b9f35d1e97b968492045b8200ccd18a971eb19",
+      "source": {
+        "id": "it_0300",
+        "term": "Performance",
+        "short": "Leistung und Geschwindigkeit einer Software.",
+        "example": "Eine GUI sollte nicht durch lange Checks einfrieren.",
+        "tags": [
+          "performance"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/asyncio-dev.html",
+        "https://docs.python.org/3.13/library/tkinter.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 301,
+      "id": "it_0301",
+      "term": "Memory Leak",
+      "category": "Performance",
+      "document": "it_0301.md",
+      "sha256": "5ba4b399c07b3116d212b9ac94752ed2152644b8ab401d491015eca99c45e636",
+      "source": {
+        "id": "it_0301",
+        "term": "Memory Leak",
+        "short": "Speicher wird nicht mehr freigegeben.",
+        "example": "Ein Programm verbraucht mit der Zeit immer mehr RAM.",
+        "tags": [
+          "performance"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/tracemalloc.html",
+        "https://man7.org/linux/man-pages/man5/proc_pid_status.5.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 302,
+      "id": "it_0302",
+      "term": "Garbage Collection",
+      "category": "Performance",
+      "document": "it_0302.md",
+      "sha256": "1f311b0d1db6e498b138013e6f0992851f1f8c2bfbc218021ad7c0bab9e2b605",
+      "source": {
+        "id": "it_0302",
+        "term": "Garbage Collection",
+        "short": "Automatische Speicherbereinigung.",
+        "example": "Python räumt nicht mehr benötigte Objekte automatisch auf.",
+        "tags": [
+          "performance",
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/gc.html",
+        "https://docs.python.org/3.13/reference/datamodel.html"
+      ],
+      "status": "review_pending"
     }
   ],
   "source_urls": [
     "https://cassandra.apache.org/doc/latest/cassandra/architecture/overview.html",
+    "https://clang.llvm.org/docs/CommandGuide/clang.html",
+    "https://code.visualstudio.com/docs/editor/codebasics",
+    "https://code.visualstudio.com/docs/python/python-tutorial",
     "https://compose-spec.github.io/compose-spec/spec.html",
     "https://cwe.mitre.org/data/definitions/362.html",
     "https://cwe.mitre.org/data/definitions/833.html",
+    "https://design-system.service.gov.uk/components/accordion/",
     "https://developer.mozilla.org/en-US/docs/Glossary/MVC",
     "https://developer.mozilla.org/en-US/docs/Learn_web_development/Extensions/Server-side/First_steps/Client-Server_overview",
     "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie",
+    "https://diataxis.fr/",
+    "https://diataxis.fr/how-to-guides/",
+    "https://diataxis.fr/tutorials/",
     "https://doc.qt.io/qt-6/layout.html",
     "https://doc.qt.io/qt-6/model-view-programming.html",
     "https://doc.qt.io/qt-6/qdialog.html",
@@ -6417,16 +7175,22 @@
     "https://doc.qt.io/qt-6/signalsandslots.html",
     "https://doc.rust-lang.org/book/ch03-02-data-types.html#the-array-type",
     "https://doc.rust-lang.org/book/ch04-02-references-and-borrowing.html",
+    "https://docs.appimage.org/introduction/concepts.html",
+    "https://docs.appimage.org/user-guide/troubleshooting/fuse.html",
     "https://docs.djangoproject.com/en/5.2/intro/overview/",
     "https://docs.djangoproject.com/en/5.2/topics/http/sessions/",
     "https://docs.fedoraproject.org/en-US/quick-docs/dnf/",
+    "https://docs.flatpak.org/en/latest/basic-concepts.html",
+    "https://docs.flatpak.org/en/latest/sandbox-permissions.html",
     "https://docs.github.com/en/actions/get-started/continuous-integration",
     "https://docs.github.com/en/pull-requests/how-tos/create-pull-requests/changing-the-stage-of-a-pull-request",
     "https://docs.github.com/en/pull-requests/how-tos/work-with-forks/syncing-a-fork",
     "https://docs.github.com/en/pull-requests/reference/forks",
     "https://docs.github.com/en/pull-requests/reference/pull-requests",
+    "https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes",
     "https://docs.github.com/en/webhooks/about-webhooks",
     "https://docs.github.com/en/webhooks/using-webhooks/best-practices-for-using-webhooks",
+    "https://docs.gitlab.com/user/project/repository/files/",
     "https://docs.kernel.org/admin-guide/mm/concepts.html",
     "https://docs.kernel.org/scheduler/sched-design-CFS.html",
     "https://docs.kernel.org/security/credentials.html",
@@ -6436,6 +7200,8 @@
     "https://docs.kernel.org/userspace-api/no_new_privs.html",
     "https://docs.kernel.org/userspace-api/seccomp_filter.html",
     "https://docs.python.org/3.13/bugs.html",
+    "https://docs.python.org/3.13/faq/general.html",
+    "https://docs.python.org/3.13/glossary.html",
     "https://docs.python.org/3.13/glossary.html#term-CPython",
     "https://docs.python.org/3.13/glossary.html#term-argument",
     "https://docs.python.org/3.13/glossary.html#term-callback",
@@ -6451,6 +7217,7 @@
     "https://docs.python.org/3.13/library/abc.html#abc.abstractmethod",
     "https://docs.python.org/3.13/library/argparse.html#argparse.ArgumentParser.parse_args",
     "https://docs.python.org/3.13/library/array.html",
+    "https://docs.python.org/3.13/library/asyncio-dev.html",
     "https://docs.python.org/3.13/library/asyncio-dev.html#running-blocking-code",
     "https://docs.python.org/3.13/library/asyncio-eventloop.html#running-and-stopping-the-loop",
     "https://docs.python.org/3.13/library/asyncio-future.html#asyncio.Future.set_result",
@@ -6463,6 +7230,7 @@
     "https://docs.python.org/3.13/library/configparser.html#supported-datatypes",
     "https://docs.python.org/3.13/library/constants.html#None",
     "https://docs.python.org/3.13/library/dialog.html#tkinter.simpledialog.Dialog",
+    "https://docs.python.org/3.13/library/dis.html",
     "https://docs.python.org/3.13/library/enum.html#enum.Enum",
     "https://docs.python.org/3.13/library/exceptions.html#NameError",
     "https://docs.python.org/3.13/library/exceptions.html#exception-hierarchy",
@@ -6478,6 +7246,7 @@
     "https://docs.python.org/3.13/library/functions.html#type",
     "https://docs.python.org/3.13/library/functools.html#functools.lru_cache",
     "https://docs.python.org/3.13/library/functools.html#functools.wraps",
+    "https://docs.python.org/3.13/library/gc.html",
     "https://docs.python.org/3.13/library/hashlib.html",
     "https://docs.python.org/3.13/library/hashlib.html#usage",
     "https://docs.python.org/3.13/library/hmac.html#hmac.compare_digest",
@@ -6489,6 +7258,7 @@
     "https://docs.python.org/3.13/library/importlib.html#importlib.util.spec_from_file_location",
     "https://docs.python.org/3.13/library/importlib.metadata.html#distribution-requirements",
     "https://docs.python.org/3.13/library/importlib.metadata.html#entry-points",
+    "https://docs.python.org/3.13/library/inspect.html",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Address",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Address.is_loopback",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Network",
@@ -6511,6 +7281,7 @@
     "https://docs.python.org/3.13/library/pathlib.html#pathlib.Path.symlink_to",
     "https://docs.python.org/3.13/library/pathlib.html#pure-paths",
     "https://docs.python.org/3.13/library/pdb.html",
+    "https://docs.python.org/3.13/library/profile.html",
     "https://docs.python.org/3.13/library/queue.html#queue.LifoQueue",
     "https://docs.python.org/3.13/library/queue.html#queue.Queue",
     "https://docs.python.org/3.13/library/queue.html#queue.Queue.empty",
@@ -6554,6 +7325,8 @@
     "https://docs.python.org/3.13/library/threading.html#threading.BoundedSemaphore",
     "https://docs.python.org/3.13/library/threading.html#threading.Thread.join",
     "https://docs.python.org/3.13/library/time.html#time.perf_counter",
+    "https://docs.python.org/3.13/library/timeit.html",
+    "https://docs.python.org/3.13/library/tkinter.html",
     "https://docs.python.org/3.13/library/tkinter.html#a-hello-world-program",
     "https://docs.python.org/3.13/library/tkinter.html#architecture",
     "https://docs.python.org/3.13/library/tkinter.html#bindings-and-events",
@@ -6568,9 +7341,11 @@
     "https://docs.python.org/3.13/library/tkinter.ttk.html#tkinter.ttk.Radiobutton.invoke",
     "https://docs.python.org/3.13/library/tkinter.ttk.html#tkinter.ttk.Style.theme_create",
     "https://docs.python.org/3.13/library/tkinter.ttk.html#ttk-widgets",
+    "https://docs.python.org/3.13/library/tomllib.html",
     "https://docs.python.org/3.13/library/tomllib.html#tomllib.load",
     "https://docs.python.org/3.13/library/trace.html#trace.Trace",
     "https://docs.python.org/3.13/library/traceback.html#traceback.extract_tb",
+    "https://docs.python.org/3.13/library/tracemalloc.html",
     "https://docs.python.org/3.13/library/typing.html",
     "https://docs.python.org/3.13/library/typing.html#typing.Final",
     "https://docs.python.org/3.13/library/typing.html#typing.Protocol",
@@ -6596,6 +7371,7 @@
     "https://docs.python.org/3.13/reference/compound_stmts.html#the-for-statement",
     "https://docs.python.org/3.13/reference/compound_stmts.html#the-if-statement",
     "https://docs.python.org/3.13/reference/compound_stmts.html#the-while-statement",
+    "https://docs.python.org/3.13/reference/datamodel.html",
     "https://docs.python.org/3.13/reference/datamodel.html#object.__hash__",
     "https://docs.python.org/3.13/reference/datamodel.html#object.__init__",
     "https://docs.python.org/3.13/reference/datamodel.html#object.__new__",
@@ -6654,6 +7430,8 @@
     "https://dom.spec.whatwg.org/#introduction-to-dom-events",
     "https://fetch.spec.whatwg.org/#http-cors-protocol",
     "https://firewalld.org/documentation/concepts.html",
+    "https://gcc.gnu.org/onlinedocs/gcc/Overall-Options.html",
+    "https://github.github.com/gfm/",
     "https://google.github.io/eng-practices/review/reviewer/looking-for.html",
     "https://google.github.io/eng-practices/review/reviewer/standard.html",
     "https://help.gnome.org/gnome-terminal/introduction.html",
@@ -6669,6 +7447,7 @@
     "https://learn.microsoft.com/en-us/dotnet/core/extensions/dependency-injection/overview",
     "https://learn.microsoft.com/en-us/dotnet/core/extensions/dependency-injection/service-lifetimes",
     "https://man7.org/linux/man-pages/man1/kill.1.html",
+    "https://man7.org/linux/man-pages/man1/man.1.html",
     "https://man7.org/linux/man-pages/man2/chown.2.html",
     "https://man7.org/linux/man-pages/man2/execve.2.html",
     "https://man7.org/linux/man-pages/man2/flock.2.html",
@@ -6680,6 +7459,7 @@
     "https://man7.org/linux/man-pages/man5/crontab.5.html",
     "https://man7.org/linux/man-pages/man5/nsswitch.conf.5.html",
     "https://man7.org/linux/man-pages/man5/passwd.5.html",
+    "https://man7.org/linux/man-pages/man5/proc_pid_status.5.html",
     "https://man7.org/linux/man-pages/man7/arp.7.html",
     "https://man7.org/linux/man-pages/man7/capabilities.7.html",
     "https://man7.org/linux/man-pages/man7/environ.7.html",
@@ -6700,6 +7480,8 @@
     "https://man7.org/linux/man-pages/man8/logrotate.8.html",
     "https://man7.org/linux/man-pages/man8/ping.8.html",
     "https://man7.org/linux/man-pages/man8/traceroute.8.html",
+    "https://manpages.debian.org/stable/apt/apt.8.en.html",
+    "https://manpages.debian.org/stable/dpkg/dpkg.1.en.html",
     "https://manpages.debian.org/trixie/apt/apt-get.8.en.html",
     "https://manpages.debian.org/trixie/apt/apt-secure.8.en.html",
     "https://manpages.debian.org/trixie/apt/apt.8.en.html",
@@ -6716,10 +7498,14 @@
     "https://networkx.org/documentation/stable/reference/classes/graph.html#networkx.Graph",
     "https://nodejs.org/api/globals.html",
     "https://openfeature.dev/specification/sections/flag-evaluation/",
+    "https://packaging.python.org/en/latest/specifications/binary-distribution-format/",
+    "https://packaging.python.org/en/latest/specifications/platform-compatibility-tags/",
+    "https://packaging.python.org/en/latest/specifications/pyproject-toml/",
     "https://peps.python.org/pep-0008/#a-foolish-consistency-is-the-hobgoblin-of-little-minds",
     "https://peps.python.org/pep-0008/#constants",
     "https://peps.python.org/pep-0008/#function-and-variable-names",
     "https://peps.python.org/pep-0008/#indentation",
+    "https://peps.python.org/pep-0257/",
     "https://peps.python.org/pep-0257/#what-is-a-docstring",
     "https://peps.python.org/pep-0440/#version-scheme",
     "https://peps.python.org/pep-0484/#non-goals",
@@ -6731,6 +7517,7 @@
     "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/chown.html",
     "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/env.html",
     "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/grep.html",
+    "https://pyperf.readthedocs.io/en/latest/run_benchmark.html",
     "https://pyyaml.org/wiki/PyYAMLDocumentation",
     "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Authentication_Cheat_Sheet.md",
     "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Authorization_Cheat_Sheet.md",
@@ -6794,15 +7581,23 @@
     "https://raw.githubusercontent.com/usnistgov/800-63-4/nist-pages/sp800-63b/authenticators/index.html",
     "https://raw.githubusercontent.com/usnistgov/800-63-4/nist-pages/sp800-63b/introduction/index.html",
     "https://semver.org/spec/v2.0.0.html",
+    "https://snapcraft.io/docs/explanation/security/snap-confinement/index.html",
+    "https://snapcraft.io/docs/reference/interfaces/",
+    "https://sourceware.org/gdb/current/onlinedocs/gdb.html/Breakpoints.html",
+    "https://spec.commonmark.org/0.31.2/",
     "https://spec.openapis.org/oas/v3.1.1.html#paths-object",
     "https://specifications.freedesktop.org/secret-service/latest/ch01.html",
     "https://specifications.freedesktop.org/secret-service/latest/ch10.html",
     "https://specifications.freedesktop.org/secret-service/latest/unlocking.html",
     "https://tc39.es/ecma262/",
     "https://tc39.es/ecma262/#sec-array.prototype.map",
+    "https://tkdocs.com/tutorial/firstexample.html",
     "https://wiki.nftables.org/wiki-nftables/index.php/Configuring_chains",
     "https://wiki.nftables.org/wiki-nftables/index.php/Netfilter_hooks",
     "https://www.debian.org/doc/debian-policy/ch-binary.html",
+    "https://www.debian.org/doc/debian-policy/ch-controlfields.html",
+    "https://www.debian.org/doc/debian-policy/ch-maintainerscripts.html",
+    "https://www.debian.org/doc/debian-policy/ch-relationships.html",
     "https://www.debian.org/doc/manuals/debian-handbook/sect.apt-get.en.html",
     "https://www.debian.org/intro/about",
     "https://www.debian.org/releases/",
@@ -6824,9 +7619,11 @@
     "https://www.gnu.org/software/coreutils/manual/html_node/Symbolic-Modes.html",
     "https://www.gnu.org/software/coreutils/manual/html_node/chmod-invocation.html",
     "https://www.gnu.org/software/make/manual/html_node/Introduction.html",
+    "https://www.jetbrains.com/help/pycharm/quick-start-guide.html",
     "https://www.kernel.org/doc/html/latest/admin-guide/README.html",
     "https://www.mongodb.com/docs/manual/core/transactions/",
     "https://www.mongodb.com/docs/manual/data-modeling/",
+    "https://www.nano-editor.org/dist/latest/nano.html",
     "https://www.networkmanager.dev/docs/api/latest/NetworkManager.html",
     "https://www.networkmanager.dev/docs/api/latest/settings-802-11-wireless.html",
     "https://www.postgresql.org/docs/current/ddl-basics.html",
@@ -6903,6 +7700,7 @@
     "https://www.riverbankcomputing.com/static/Docs/PyQt6/introduction.html",
     "https://www.riverbankcomputing.com/static/Docs/PyQt6/signals_slots.html",
     "https://www.rsyslog.com/doc/configuration/modules/omfile.html",
+    "https://www.sphinx-doc.org/en/master/usage/restructuredtext/directives.html#directive-glossary",
     "https://www.sqlite.org/about.html",
     "https://www.sqlite.org/datatype3.html",
     "https://www.sqlite.org/foreignkeys.html",
@@ -6919,9 +7717,12 @@
     "https://www.sqlite.org/wal.html",
     "https://www.sqlite.org/whentouse.html",
     "https://www.tcpdump.org/manpages/pcap-savefile.5.html",
+    "https://www.typescriptlang.org/docs/handbook/typescript-from-scratch.html",
+    "https://www.typescriptlang.org/tsconfig/target.html",
     "https://www.w3.org/TR/css-cascade-5/",
     "https://www.w3.org/TR/css-values-4/#font-relative-lengths",
     "https://www.w3.org/TR/selectors-4/",
+    "https://www.w3.org/TR/skos-reference/",
     "https://www.w3.org/TR/xml/",
     "https://www.w3.org/WAI/WCAG22/Understanding/content-on-hover-or-focus.html",
     "https://www.w3.org/WAI/WCAG22/Understanding/reflow.html",
