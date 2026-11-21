@@ -4,7 +4,7 @@
   "source_catalog": "tools/it_lexikon_linux_hilfe.json",
   "source_sha256": "b3fb9bfe37d335ee6eaa89c89425f08c94e8efc6f698e7c520ffc81ed128fc24",
   "total_records": 302,
-  "documented_records": 140,
+  "documented_records": 150,
   "records": [
     {
       "source_record": 1,
@@ -3300,6 +3300,251 @@
         "https://www.rfc-editor.org/rfc/rfc791.html"
       ],
       "status": "review_pending"
+    },
+    {
+      "source_record": 141,
+      "id": "it_0141",
+      "term": "IPv6",
+      "category": "Netzwerk",
+      "document": "it_0141.md",
+      "sha256": "1ca3ea68f1105443e0be0d3c9643fce3bd0ed4aa2d93b99af689164046fe27e5",
+      "source": {
+        "id": "it_0141",
+        "term": "IPv6",
+        "short": "Neueres IP-Adressformat mit 128 Bit.",
+        "example": "2001:db8::1 ist IPv6.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.rfc-editor.org/rfc/rfc3849.html",
+        "https://www.rfc-editor.org/rfc/rfc4291.html",
+        "https://www.rfc-editor.org/rfc/rfc5952.html",
+        "https://www.rfc-editor.org/rfc/rfc8200.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 142,
+      "id": "it_0142",
+      "term": "Port",
+      "category": "Netzwerk",
+      "document": "it_0142.md",
+      "sha256": "b1e300cc91247369d943d8f2646f2fe8ac5931f9fa7b23140da628c579e580c7",
+      "source": {
+        "id": "it_0142",
+        "term": "Port",
+        "short": "Nummer für einen Dienst auf einem Gerät.",
+        "example": "Port 80 ist häufig HTTP.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.rfc-editor.org/rfc/rfc6335.html",
+        "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.1",
+        "https://www.rfc-editor.org/rfc/rfc9293.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 143,
+      "id": "it_0143",
+      "term": "TCP",
+      "category": "Netzwerk",
+      "document": "it_0143.md",
+      "sha256": "7f6f26dd8503e9854cdf3b3689cb045980ace41707f788659610e750c2ff0cd4",
+      "source": {
+        "id": "it_0143",
+        "term": "TCP",
+        "short": "Zuverlässiges Transportprotokoll mit Verbindungsaufbau.",
+        "example": "Webseiten über HTTPS nutzen TCP.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.rfc-editor.org/rfc/rfc9000.html",
+        "https://www.rfc-editor.org/rfc/rfc9114.html",
+        "https://www.rfc-editor.org/rfc/rfc9293.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 144,
+      "id": "it_0144",
+      "term": "UDP",
+      "category": "Netzwerk",
+      "document": "it_0144.md",
+      "sha256": "ecd0d116469a5cdbf7b82c1f71c80f902a0b2e6cf623032ac5e6a5566c6ad97a",
+      "source": {
+        "id": "it_0144",
+        "term": "UDP",
+        "short": "Schnelles Transportprotokoll ohne garantierte Zustellung.",
+        "example": "DNS nutzt oft UDP.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.rfc-editor.org/rfc/rfc768.html",
+        "https://www.rfc-editor.org/rfc/rfc7766.html",
+        "https://www.rfc-editor.org/rfc/rfc8085.html",
+        "https://www.rfc-editor.org/rfc/rfc9000.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 145,
+      "id": "it_0145",
+      "term": "HTTP",
+      "category": "Netzwerk",
+      "document": "it_0145.md",
+      "sha256": "b54133fb72cce0508fc7da2d08f2659efff138c51e6ebbbe956c6c13ee94c151",
+      "source": {
+        "id": "it_0145",
+        "term": "HTTP",
+        "short": "Protokoll zur Übertragung von Webseiten und APIs.",
+        "example": "http://example.com nutzt HTTP.",
+        "tags": [
+          "netzwerk",
+          "web"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.rfc-editor.org/rfc/rfc9110.html",
+        "https://www.rfc-editor.org/rfc/rfc9112.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 146,
+      "id": "it_0146",
+      "term": "HTTPS",
+      "category": "Netzwerk",
+      "document": "it_0146.md",
+      "sha256": "219d3f9f2192b04fd4f6ad2045251f168c9c7db3f32239993e4087a52a5aef8e",
+      "source": {
+        "id": "it_0146",
+        "term": "HTTPS",
+        "short": "Verschlüsseltes HTTP über TLS.",
+        "example": "https:// schützt Verbindung und Inhalt besser.",
+        "tags": [
+          "netzwerk",
+          "web",
+          "sicherheit"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.rfc-editor.org/rfc/rfc8446.html",
+        "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.2",
+        "https://www.rfc-editor.org/rfc/rfc9114.html",
+        "https://www.rfc-editor.org/rfc/rfc9525.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 147,
+      "id": "it_0147",
+      "term": "TLS",
+      "category": "Netzwerk",
+      "document": "it_0147.md",
+      "sha256": "d0e3a6c27dafd76290d3505f4ffa55d76fbcf3169d5cfd540e18108ffaf58244",
+      "source": {
+        "id": "it_0147",
+        "term": "TLS",
+        "short": "Verschlüsselungsprotokoll für sichere Verbindungen.",
+        "example": "HTTPS verwendet TLS.",
+        "tags": [
+          "netzwerk",
+          "sicherheit"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/ssl.html#ssl.PROTOCOL_TLS_CLIENT",
+        "https://www.rfc-editor.org/rfc/rfc8446.html",
+        "https://www.rfc-editor.org/rfc/rfc9325.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 148,
+      "id": "it_0148",
+      "term": "DNS",
+      "category": "Netzwerk",
+      "document": "it_0148.md",
+      "sha256": "36a36cbe06582673f4b9d6b6145d7261bdcf8a1804ab4b98ab371eee8b762827",
+      "source": {
+        "id": "it_0148",
+        "term": "DNS",
+        "short": "Domain Name System: übersetzt Namen in IP-Adressen.",
+        "example": "example.com wird zu einer IP-Adresse aufgelöst.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.rfc-editor.org/rfc/rfc1034.html",
+        "https://www.rfc-editor.org/rfc/rfc1035.html",
+        "https://www.rfc-editor.org/rfc/rfc3596.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 149,
+      "id": "it_0149",
+      "term": "Resolver",
+      "category": "Netzwerk",
+      "document": "it_0149.md",
+      "sha256": "eebca4976aed255ca5dfecdcfcc972a5045a27f5eeadd0559eb5595dff097a04",
+      "source": {
+        "id": "it_0149",
+        "term": "Resolver",
+        "short": "Komponente, die DNS-Anfragen auflöst.",
+        "example": "Ein DNS-Resolver fragt DNS-Server ab.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://man7.org/linux/man-pages/man5/nsswitch.conf.5.html",
+        "https://www.rfc-editor.org/rfc/rfc9499.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 150,
+      "id": "it_0150",
+      "term": "Gateway",
+      "category": "Netzwerk",
+      "document": "it_0150.md",
+      "sha256": "c9c46493a64eebee5eab042f03a026573bff0f606060df34a4e299ebf4d6e480",
+      "source": {
+        "id": "it_0150",
+        "term": "Gateway",
+        "short": "Übergang zu einem anderen Netzwerk.",
+        "example": "Der Router ist meist das Standard-Gateway.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://man7.org/linux/man-pages/man8/ip-route.8.html",
+        "https://www.rfc-editor.org/rfc/rfc1812.html",
+        "https://www.rfc-editor.org/rfc/rfc5737.html"
+      ],
+      "status": "review_pending"
     }
   ],
   "source_urls": [
@@ -3366,6 +3611,7 @@
     "https://docs.python.org/3.13/library/queue.html#queue.Queue.empty",
     "https://docs.python.org/3.13/library/shutil.html#shutil.which",
     "https://docs.python.org/3.13/library/socket.html#socket.socketpair",
+    "https://docs.python.org/3.13/library/ssl.html#ssl.PROTOCOL_TLS_CLIENT",
     "https://docs.python.org/3.13/library/stdtypes.html#boolean-type-bool",
     "https://docs.python.org/3.13/library/stdtypes.html#common-sequence-operations",
     "https://docs.python.org/3.13/library/stdtypes.html#lists",
@@ -3470,6 +3716,7 @@
     "https://man7.org/linux/man-pages/man2/kill.2.html",
     "https://man7.org/linux/man-pages/man2/mount.2.html",
     "https://man7.org/linux/man-pages/man5/crontab.5.html",
+    "https://man7.org/linux/man-pages/man5/nsswitch.conf.5.html",
     "https://man7.org/linux/man-pages/man5/passwd.5.html",
     "https://man7.org/linux/man-pages/man7/capabilities.7.html",
     "https://man7.org/linux/man-pages/man7/environ.7.html",
@@ -3482,6 +3729,7 @@
     "https://man7.org/linux/man-pages/man7/unix.7.html",
     "https://man7.org/linux/man-pages/man7/user_namespaces.7.html",
     "https://man7.org/linux/man-pages/man8/cron.8.html",
+    "https://man7.org/linux/man-pages/man8/ip-route.8.html",
     "https://man7.org/linux/man-pages/man8/logrotate.8.html",
     "https://manpages.debian.org/trixie/apt/apt-get.8.en.html",
     "https://manpages.debian.org/trixie/apt/apt-secure.8.en.html",
@@ -3555,16 +3803,36 @@
     "https://www.gnu.org/software/make/manual/html_node/Introduction.html",
     "https://www.kernel.org/doc/html/latest/admin-guide/README.html",
     "https://www.networkmanager.dev/docs/api/latest/NetworkManager.html",
+    "https://www.rfc-editor.org/rfc/rfc1034.html",
+    "https://www.rfc-editor.org/rfc/rfc1035.html",
     "https://www.rfc-editor.org/rfc/rfc1122.html",
     "https://www.rfc-editor.org/rfc/rfc1812.html",
     "https://www.rfc-editor.org/rfc/rfc1918.html",
+    "https://www.rfc-editor.org/rfc/rfc3596.html",
     "https://www.rfc-editor.org/rfc/rfc3849.html",
     "https://www.rfc-editor.org/rfc/rfc4291.html",
     "https://www.rfc-editor.org/rfc/rfc4632.html",
     "https://www.rfc-editor.org/rfc/rfc5424.html",
     "https://www.rfc-editor.org/rfc/rfc5425.html",
     "https://www.rfc-editor.org/rfc/rfc5737.html",
+    "https://www.rfc-editor.org/rfc/rfc5952.html",
+    "https://www.rfc-editor.org/rfc/rfc6335.html",
+    "https://www.rfc-editor.org/rfc/rfc768.html",
+    "https://www.rfc-editor.org/rfc/rfc7766.html",
     "https://www.rfc-editor.org/rfc/rfc791.html",
+    "https://www.rfc-editor.org/rfc/rfc8085.html",
+    "https://www.rfc-editor.org/rfc/rfc8200.html",
+    "https://www.rfc-editor.org/rfc/rfc8446.html",
+    "https://www.rfc-editor.org/rfc/rfc9000.html",
+    "https://www.rfc-editor.org/rfc/rfc9110.html",
+    "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.1",
+    "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.2",
+    "https://www.rfc-editor.org/rfc/rfc9112.html",
+    "https://www.rfc-editor.org/rfc/rfc9114.html",
+    "https://www.rfc-editor.org/rfc/rfc9293.html",
+    "https://www.rfc-editor.org/rfc/rfc9325.html",
+    "https://www.rfc-editor.org/rfc/rfc9499.html",
+    "https://www.rfc-editor.org/rfc/rfc9525.html",
     "https://www.riverbankcomputing.com/static/Docs/PyQt6/introduction.html",
     "https://www.riverbankcomputing.com/static/Docs/PyQt6/signals_slots.html",
     "https://www.rsyslog.com/doc/configuration/modules/omfile.html",
