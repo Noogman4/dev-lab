@@ -2033,3 +2033,241 @@ Gesamtprüfung erfolgreich: alle 112 Dokumente samt tatsächlichen SHA-256-Prüf
 Alle 93 vollständigen Python-Beispiele des Gesamtstands erneut erfolgreich ausgeführt: Assertions, Exitcodes und Standardausgaben stimmen. In 83–112 sind es 22 ausgeführte Python-Beispiele und acht reine Gedankenbeispiele. Drei der neuen Beispiele nutzen den bereits vorhandenen virtuellen X-Bildschirm für eigene Tk-Kontexte; keine Installation und keine NetMon-/Reader-Abnahme. Nicht ausgeführte Teile, darunter PyQt, privilegierte Aktionen und reale Systemkonfigurationen, sind ausdrücklich im jeweiligen Eintrag gekennzeichnet. Der Reader-Glossarparser fehlt weiterhin; nur temporäre kompatible Prüfköpfe im Arbeitsspeicher des vorhandenen Markdown-Parsers verwendet.
 
 Der geprüfte Änderungsumfang dieses Sicherungspunkts umfasst ausschließlich 30 neue Glossartexte, index.json und FORTSCHRITT.md unter docs/linux-glossar/. git diff --check erfolgreich. Fachliche Zweitprüfung und lokale Reader-Prüfung der neuen Texte stehen aus; Status review_pending bleibt erhalten. Kein Merge, kein Force-Push und keine Veröffentlichung der Cloud-Umgebung.
+
+## 113. chmod – it_0113
+
+Ausgearbeitet und strukturell geprüft: 698 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6114 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.gnu.org/software/coreutils/manual/html_node/Symbolic-Modes.html
+- https://www.gnu.org/software/coreutils/manual/html_node/chmod-invocation.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Datei nicht gestartet; keine fremde Benutzerrolle, symbolischen Links oder rekursiven Aufrufe getestet. GNU-Quelle nach einmaligem HTTP 503 unverändert erneut erfolgreich abgerufen.
+
+Präzisierung gegenüber der Quelle: Quellbeispiel +x um ausdrückliche Benutzerklasse u+x und umask-Einfluss präzisiert. Modusänderung von Programmgültigkeit und Eigentümerschaft getrennt. Tatsächliche chmod-Aufrufe ausschließlich an eigener temporärer Datei geprüft.
+
+SHA-256: `7ba0beb0650ae5f34e50a04e57f33af74b702ccb9dc0da874b2ab15bdef2befc`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 114. chown – it_0114
+
+Ausgearbeitet und strukturell geprüft: 687 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5903 UTF-8-Bytes; 27 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://man7.org/linux/man-pages/man2/chown.2.html
+- https://pubs.opengroup.org/onlinepubs/9799919799/utilities/chown.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nur fiktives Gedankenbeispiel; keine Eigentümer-, Gruppen- oder Kontenänderung. GNU-Einzel- und Gesamthandbuchabrufe lieferten HTTP 503, erreichbare POSIX- und Linux-Primärquellen verwendet.
+
+Präzisierung gegenüber der Quelle: Eigentümer- und Gruppenzuordnung von Modusbits und Kontenverwaltung getrennt. Linux-Berechtigung zur Eigentümerübertragung anhand chown(2) präzisiert; POSIX-Syntax für owner:group verwendet.
+
+SHA-256: `3498110894524c84f7a830aa32c6d82001e95120f76d10f0a39c973d8c4ae193`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 115. Prozess – it_0115
+
+Ausgearbeitet und strukturell geprüft: 701 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6053 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/subprocess.html#subprocess.run
+- https://man7.org/linux/man-pages/man2/execve.2.html
+- https://man7.org/linux/man-pages/man2/fork.2.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine Prozessliste, fremden Prozesse, Signale, Parallelitätsmessung oder Speicherisolationsprüfung.
+
+Präzisierung gegenüber der Quelle: Prozess von Programmdatei, CPU-Aktivität, Thread und Dienst getrennt. fork als konkrete Schnittstelle und execve als Programmbildwechsel erläutert. Ausschließlich eigenen Kindprozess mit Elternbeziehung und Ergebnis praktisch geprüft.
+
+SHA-256: `ea67fc04ab18945a8f9ddc6fca56d0a368fdcb231e30523a4d513d85dd449e94`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 116. PID – it_0116
+
+Ausgearbeitet und strukturell geprüft: 710 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6065 UTF-8-Bytes; 28 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://man7.org/linux/man-pages/man1/kill.1.html
+- https://man7.org/linux/man-pages/man2/getpid.2.html
+- https://man7.org/linux/man-pages/man2/kill.2.html
+- https://man7.org/linux/man-pages/man7/pid_namespaces.7.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Reines Gedankenbeispiel mit erfundenen PIDs; keine Prozessliste, keine Signaloperation und kein Beenden von Prozessen.
+
+Präzisierung gegenüber der Quelle: Eindeutigkeit auf Zeit und PID-Namensraum eingegrenzt. Katalogbehauptung kill beendet korrigiert: Signalübermittlung, Berechtigung und tatsächliches Ende getrennt; TERM gemäß Handbuch erläutert.
+
+SHA-256: `99d5b7ce724e4060ccf8b01fe8c3d4f6652808574bfa6f96a7ac793be30271c9`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 117. Daemon – it_0117
+
+Ausgearbeitet und strukturell geprüft: 706 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6026 UTF-8-Bytes; 27 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.freedesktop.org/software/systemd/man/latest/daemon.html
+- https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Fiktives Gedankenbeispiel ohne Einrichtung, Überwachung, Dienststart, Statusabfrage oder Konfigurationsänderung.
+
+Präzisierung gegenüber der Quelle: Daemonrolle von beliebigem Hintergrundprozess und Service-Verwaltung getrennt. Klassische Selbstablösung nicht als universelle Pflicht dargestellt; modernes systemd-Modell anhand offizieller Dokumentation erläutert.
+
+SHA-256: `f1d9c35988efba456c73bd53f084dfbd78dfe03df2286e7308b311a3924692d6`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 118. systemd – it_0118
+
+Ausgearbeitet und strukturell geprüft: 691 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6108 UTF-8-Bytes; 28 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.freedesktop.org/software/systemd/man/latest/systemctl.html
+- https://www.freedesktop.org/software/systemd/man/latest/systemd.html
+- https://www.freedesktop.org/software/systemd/man/latest/systemd.unit.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Fiktive Statuserläuterung; kein systemctl-Aufruf, keine Unit-Dateiänderung und kein Start oder Neustart.
+
+Präzisierung gegenüber der Quelle: Systemmanager, Benutzermanager und systemctl getrennt. Unit-Typen, Abhängigkeit gegenüber Reihenfolge sowie active gegenüber enabled erläutert. Katalogname ssh nicht als distributionsübergreifend garantiert dargestellt.
+
+SHA-256: `e37c15cfb2769c1b5546fb1edb98525130a08a6323aa5c82a1f8f95ad82b1327`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 119. Service – it_0119
+
+Ausgearbeitet und strukturell geprüft: 711 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6228 UTF-8-Bytes; 28 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html
+- https://www.networkmanager.dev/docs/api/latest/NetworkManager.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nur Gedankenbeispiel; keine Statusabfrage, Unit-Erstellung, Dienst- oder Netzwerkaktion.
+
+Präzisierung gegenüber der Quelle: Service nicht auf dauerhaft laufenden Hintergrundprozess beschränkt; systemd-oneshot-Modell und fachliche Funktion vom Managerstatus getrennt. NetworkManager-Aufgabe anhand offizieller Projektbeschreibung bestätigt.
+
+SHA-256: `c7e13a3f06449a95ee633ddc2dda08044f371ef7707c038cc7e495245855f581`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 120. Logdatei – it_0120
+
+Ausgearbeitet und strukturell geprüft: 692 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6327 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/logging.handlers.html#logging.FileHandler
+- https://man7.org/linux/man-pages/man8/logrotate.8.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine vorhandenen Logs, Zeitabgleiche, Rotation, Parallel-Schreibzugriffe oder Ausfalltests; temporäre Datei ausschließlich eigene Meldungen.
+
+Präzisierung gegenüber der Quelle: Logdatei von vollständiger Ablaufaufzeichnung und Sicherung getrennt; /var/log nicht als universeller Speicherort dargestellt. Eigene UTF-8-Logdatei mit zwei Meldungen geschrieben und vollständig zurückgelesen.
+
+SHA-256: `b4efaa3292b26826fc2c335bf8a25e31efeb4c55a4485dc020d1053d8d58b22e`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 121. syslog – it_0121
+
+Ausgearbeitet und strukturell geprüft: 673 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6022 UTF-8-Bytes; 28 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.rfc-editor.org/rfc/rfc5424.html
+- https://www.rfc-editor.org/rfc/rfc5425.html
+- https://www.rsyslog.com/doc/configuration/modules/omfile.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Erfundene RFC-5424-Zeile nicht gesendet und nicht durch einen Empfänger validiert; keine lokalen Logs oder Netzwerkdienste verändert.
+
+Präzisierung gegenüber der Quelle: syslog von einzelner Datei und Implementierung getrennt, nicht auf Linux beschränkt. RFC-5424-Format und TLS-Transportzuordnung unterschieden; rsyslog-Dateiausgabe als konfigurationsabhängig erläutert.
+
+SHA-256: `db22abc03c5974cc65b09b8cff4a0e9c739b953710ee4d8fd7419fa178f2d544`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 122. Journal – it_0122
+
+Ausgearbeitet und strukturell geprüft: 688 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6091 UTF-8-Bytes; 28 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.freedesktop.org/software/systemd/man/latest/journalctl.html
+- https://www.freedesktop.org/software/systemd/man/latest/journald.conf.html
+- https://www.freedesktop.org/software/systemd/man/latest/systemd-journald.service.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. journalctl nicht ausgeführt; keine vorhandenen Logs gelesen, keine Speicher-, Rechte- oder Dienstkonfiguration verändert.
+
+Präzisierung gegenüber der Quelle: Journal, journald und journalctl getrennt; Speicherung nicht pauschal dauerhaft oder unbegrenzt. Dateisystemjournal als andere Wortbedeutung abgegrenzt. Filtermuster mit ausdrücklich fiktiver Unit erläutert.
+
+SHA-256: `0261931136352b30ed5b0cf85eb8c8bcee9678f1a523aeef811c23ce6f484a62`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 123. Paketmanager – it_0123
+
+Ausgearbeitet und strukturell geprüft: 667 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6030 UTF-8-Bytes; 28 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.fedoraproject.org/en-US/quick-docs/dnf/
+- https://www.debian.org/doc/manuals/debian-handbook/sect.apt-get.en.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Fiktiver Paketplan, keine Paketabfrage, Installation, Aktualisierung, Entfernung oder Quellenänderung.
+
+Präzisierung gegenüber der Quelle: Paketmanager über Suche, Bestand und Abhängigkeiten erklärt; Paketinformationen aktualisieren von Softwareaktualisierung getrennt. Systempakete, Python-Importpakete und pip-Zuständigkeit auseinandergehalten.
+
+SHA-256: `0cbb62da388be842bacc183fc32ef55fbbf003919c1aca8fe4733ea7c104a27a`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 124. APT – it_0124
+
+Ausgearbeitet und strukturell geprüft: 665 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6060 UTF-8-Bytes; 28 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://manpages.debian.org/trixie/apt/apt-get.8.en.html
+- https://manpages.debian.org/trixie/apt/apt-secure.8.en.html
+- https://manpages.debian.org/trixie/apt/apt.8.en.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Kein apt/apt-get-Aufruf, keine Paketlistenabfrage oder -aktualisierung, keine Installation, Entfernung oder Quellenänderung.
+
+Präzisierung gegenüber der Quelle: APT-Familie von apt-Programm und DEB-Format getrennt; update, install und upgrade präzisiert. Bereits erfüllten Installationsauftrag und Vertrauenskette ohne Qualitätsgarantie erläutert; versionsgebundene Debian-trixie-Handbücher verwendet.
+
+SHA-256: `a9220ced9971e185cec0ffacf738f9243fae454f8a911e7f40755fcfbe0b506e`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 125. DEB – it_0125
+
+Ausgearbeitet und strukturell geprüft: 645 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5971 UTF-8-Bytes; 28 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://manpages.debian.org/trixie/dpkg-dev/deb.5.en.html
+- https://manpages.debian.org/trixie/dpkg/dpkg-deb.1.en.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nur vereinfachtes Gedankenbild; kein Paket gebaut, heruntergeladen, entpackt, untersucht oder installiert und keine bestehende Paketierung verändert.
+
+Präzisierung gegenüber der Quelle: DEB als Binärpaketformat auch für Skripte und Daten erklärt; Formatkennung, Kontroll- und Datenarchiv von Paket-/Anwendungsversion getrennt. NetMon-Quellbeispiel nicht als tatsächlicher Paketierungsnachweis übernommen.
+
+SHA-256: `0250ec4b82338a9715c0e80a41f1634caf76c6c14e4c9f8246f47932bbeb3a8d`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## Gesicherter Zwischenstand nach Datensatz 125 – 21.11.2026
+
+**125 von 302** ausgearbeitet und strukturell geprüft; 177 fehlen. Nächster Datensatz: **it_0126** (Originalbegriff bei der Fortsetzung aus dem Katalog lesen). Die Freigabe bis 302 bleibt bestehen. Dies ist ein weiterer Sicherungspunkt und keine Gesamtabschlussmeldung.
+
+Ausgangspunkt dieses Abschnitts: `215643f28d7dcb351dc595a3c5c3fff38acb9682` auf `codex/linux-glossar-011-302`. Die 13 Einträge 113–125 wurden jeweils einzeln recherchiert, geschrieben, praktisch beziehungsweise als Gedankenmodell geprüft und unmittelbar in Index und Fortschritt gesichert.
+
+Gesamtprüfung aller 125 Dokumente erfolgreich: Quelle mit unveränderter vereinbarter SHA-256 und 302 eindeutigen Originaldatensätzen, Metadaten und Kategorieableitung, Reihenfolge, Indexzuordnung, tatsächliche Dokumentprüfsummen, zehn Hauptabschnitte, Codeblöcke, Parserlimits und interne Verweise. Alle 96 vollständigen Python-Beispiele des Gesamtstands erneut erfolgreich ausgeführt. Die jüngsten 13 Texte enthalten drei praktische Python-Beispiele (eigene chmod-Testdatei, eigener Kindprozess, eigene Logdatei) und zehn ausdrücklich nicht ausgeführte Gedankenbeispiele. Keine privilegierten Aktionen oder Änderungen an bestehenden Dateien, Konten, Geräten, Diensten, Netzwerken oder Paketbeständen.
+
+Alle vorherigen Dokumente 1–112 und ihre Indexdatensätze gegenüber 215643f unverändert; die Pilottexte zusätzlich gegen den ursprünglichen Pilotcommit geprüft. Neue interne Linkbeschriftungen auch gegen Originalbegriffe geprüft. Änderungen ausschließlich 13 neue Glossartexte sowie index.json und FORTSCHRITT.md; git diff --check erfolgreich. Keine neue Reader-Anbindung oder unabhängige Inhaltsabnahme behauptet; review_pending bleibt erhalten.

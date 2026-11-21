@@ -4,7 +4,7 @@
   "source_catalog": "tools/it_lexikon_linux_hilfe.json",
   "source_sha256": "b3fb9bfe37d335ee6eaa89c89425f08c94e8efc6f698e7c520ffc81ed128fc24",
   "total_records": 302,
-  "documented_records": 112,
+  "documented_records": 125,
   "records": [
     {
       "source_record": 1,
@@ -2630,6 +2630,314 @@
         "https://www.gnu.org/software/coreutils/manual/html_node/Mode-Structure.html"
       ],
       "status": "review_pending"
+    },
+    {
+      "source_record": 113,
+      "id": "it_0113",
+      "term": "chmod",
+      "category": "Linux",
+      "document": "it_0113.md",
+      "sha256": "7ba0beb0650ae5f34e50a04e57f33af74b702ccb9dc0da874b2ab15bdef2befc",
+      "source": {
+        "id": "it_0113",
+        "term": "chmod",
+        "short": "Linux-Befehl zum Ändern von Dateirechten.",
+        "example": "chmod +x start.sh macht ein Skript ausführbar.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.gnu.org/software/coreutils/manual/html_node/Symbolic-Modes.html",
+        "https://www.gnu.org/software/coreutils/manual/html_node/chmod-invocation.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 114,
+      "id": "it_0114",
+      "term": "chown",
+      "category": "Linux",
+      "document": "it_0114.md",
+      "sha256": "3498110894524c84f7a830aa32c6d82001e95120f76d10f0a39c973d8c4ae193",
+      "source": {
+        "id": "it_0114",
+        "term": "chown",
+        "short": "Linux-Befehl zum Ändern des Besitzers einer Datei.",
+        "example": "chown user:user file.txt ändert Eigentümer und Gruppe.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://man7.org/linux/man-pages/man2/chown.2.html",
+        "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/chown.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 115,
+      "id": "it_0115",
+      "term": "Prozess",
+      "category": "Linux",
+      "document": "it_0115.md",
+      "sha256": "ea67fc04ab18945a8f9ddc6fca56d0a368fdcb231e30523a4d513d85dd449e94",
+      "source": {
+        "id": "it_0115",
+        "term": "Prozess",
+        "short": "Ein laufendes Programm.",
+        "example": "ps zeigt laufende Prozesse.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/subprocess.html#subprocess.run",
+        "https://man7.org/linux/man-pages/man2/execve.2.html",
+        "https://man7.org/linux/man-pages/man2/fork.2.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 116,
+      "id": "it_0116",
+      "term": "PID",
+      "category": "Linux",
+      "document": "it_0116.md",
+      "sha256": "99d5b7ce724e4060ccf8b01fe8c3d4f6652808574bfa6f96a7ac793be30271c9",
+      "source": {
+        "id": "it_0116",
+        "term": "PID",
+        "short": "Process ID: eindeutige Nummer eines laufenden Prozesses.",
+        "example": "kill 1234 beendet den Prozess mit PID 1234.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://man7.org/linux/man-pages/man1/kill.1.html",
+        "https://man7.org/linux/man-pages/man2/getpid.2.html",
+        "https://man7.org/linux/man-pages/man2/kill.2.html",
+        "https://man7.org/linux/man-pages/man7/pid_namespaces.7.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 117,
+      "id": "it_0117",
+      "term": "Daemon",
+      "category": "Linux",
+      "document": "it_0117.md",
+      "sha256": "f1d9c35988efba456c73bd53f084dfbd78dfe03df2286e7308b311a3924692d6",
+      "source": {
+        "id": "it_0117",
+        "term": "Daemon",
+        "short": "Ein Hintergrunddienst unter Unix/Linux.",
+        "example": "systemd startet und verwaltet Daemons.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.freedesktop.org/software/systemd/man/latest/daemon.html",
+        "https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 118,
+      "id": "it_0118",
+      "term": "systemd",
+      "category": "Linux",
+      "document": "it_0118.md",
+      "sha256": "e37c15cfb2769c1b5546fb1edb98525130a08a6323aa5c82a1f8f95ad82b1327",
+      "source": {
+        "id": "it_0118",
+        "term": "systemd",
+        "short": "Ein System- und Dienstmanager vieler Linux-Distributionen.",
+        "example": "systemctl status ssh zeigt den Dienststatus.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.freedesktop.org/software/systemd/man/latest/systemctl.html",
+        "https://www.freedesktop.org/software/systemd/man/latest/systemd.html",
+        "https://www.freedesktop.org/software/systemd/man/latest/systemd.unit.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 119,
+      "id": "it_0119",
+      "term": "Service",
+      "category": "Linux",
+      "document": "it_0119.md",
+      "sha256": "c7e13a3f06449a95ee633ddc2dda08044f371ef7707c038cc7e495245855f581",
+      "source": {
+        "id": "it_0119",
+        "term": "Service",
+        "short": "Ein verwalteter Hintergrunddienst.",
+        "example": "NetworkManager ist ein Service.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html",
+        "https://www.networkmanager.dev/docs/api/latest/NetworkManager.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 120,
+      "id": "it_0120",
+      "term": "Logdatei",
+      "category": "Linux",
+      "document": "it_0120.md",
+      "sha256": "b4efaa3292b26826fc2c335bf8a25e31efeb4c55a4485dc020d1053d8d58b22e",
+      "source": {
+        "id": "it_0120",
+        "term": "Logdatei",
+        "short": "Eine Datei mit Ereignis- und Fehlerprotokollen.",
+        "example": "/var/log enthält viele Logdateien.",
+        "tags": [
+          "linux",
+          "debugging"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/logging.handlers.html#logging.FileHandler",
+        "https://man7.org/linux/man-pages/man8/logrotate.8.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 121,
+      "id": "it_0121",
+      "term": "syslog",
+      "category": "Linux",
+      "document": "it_0121.md",
+      "sha256": "db22abc03c5974cc65b09b8cff4a0e9c739b953710ee4d8fd7419fa178f2d544",
+      "source": {
+        "id": "it_0121",
+        "term": "syslog",
+        "short": "Ein klassisches Linux-Protokollsystem.",
+        "example": "Systemmeldungen können im syslog landen.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.rfc-editor.org/rfc/rfc5424.html",
+        "https://www.rfc-editor.org/rfc/rfc5425.html",
+        "https://www.rsyslog.com/doc/configuration/modules/omfile.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 122,
+      "id": "it_0122",
+      "term": "Journal",
+      "category": "Linux",
+      "document": "it_0122.md",
+      "sha256": "0261931136352b30ed5b0cf85eb8c8bcee9678f1a523aeef811c23ce6f484a62",
+      "source": {
+        "id": "it_0122",
+        "term": "Journal",
+        "short": "Das systemd-Protokollsystem.",
+        "example": "journalctl zeigt Logs aus dem Journal.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.freedesktop.org/software/systemd/man/latest/journalctl.html",
+        "https://www.freedesktop.org/software/systemd/man/latest/journald.conf.html",
+        "https://www.freedesktop.org/software/systemd/man/latest/systemd-journald.service.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 123,
+      "id": "it_0123",
+      "term": "Paketmanager",
+      "category": "Linux",
+      "document": "it_0123.md",
+      "sha256": "0cbb62da388be842bacc183fc32ef55fbbf003919c1aca8fe4733ea7c104a27a",
+      "source": {
+        "id": "it_0123",
+        "term": "Paketmanager",
+        "short": "Werkzeug zum Installieren und Aktualisieren von Software.",
+        "example": "apt ist ein Paketmanager.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.fedoraproject.org/en-US/quick-docs/dnf/",
+        "https://www.debian.org/doc/manuals/debian-handbook/sect.apt-get.en.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 124,
+      "id": "it_0124",
+      "term": "APT",
+      "category": "Linux",
+      "document": "it_0124.md",
+      "sha256": "a9220ced9971e185cec0ffacf738f9243fae454f8a911e7f40755fcfbe0b506e",
+      "source": {
+        "id": "it_0124",
+        "term": "APT",
+        "short": "Paketverwaltung für Debian, Ubuntu und Zorin.",
+        "example": "apt install curl installiert curl.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://manpages.debian.org/trixie/apt/apt-get.8.en.html",
+        "https://manpages.debian.org/trixie/apt/apt-secure.8.en.html",
+        "https://manpages.debian.org/trixie/apt/apt.8.en.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 125,
+      "id": "it_0125",
+      "term": "DEB",
+      "category": "Linux",
+      "document": "it_0125.md",
+      "sha256": "0250ec4b82338a9715c0e80a41f1634caf76c6c14e4c9f8246f47932bbeb3a8d",
+      "source": {
+        "id": "it_0125",
+        "term": "DEB",
+        "short": "Paketformat für Debian-basierte Systeme.",
+        "example": "NetMon könnte später als .deb verteilt werden.",
+        "tags": [
+          "linux",
+          "paketierung"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://manpages.debian.org/trixie/dpkg-dev/deb.5.en.html",
+        "https://manpages.debian.org/trixie/dpkg/dpkg-deb.1.en.html"
+      ],
+      "status": "review_pending"
     }
   ],
   "source_urls": [
@@ -2640,6 +2948,7 @@
     "https://doc.qt.io/qt-6/qtwidgets-index.html",
     "https://doc.rust-lang.org/book/ch03-02-data-types.html#the-array-type",
     "https://doc.rust-lang.org/book/ch04-02-references-and-borrowing.html",
+    "https://docs.fedoraproject.org/en-US/quick-docs/dnf/",
     "https://docs.kernel.org/admin-guide/mm/concepts.html",
     "https://docs.kernel.org/scheduler/sched-design-CFS.html",
     "https://docs.kernel.org/userspace-api/index.html",
@@ -2679,6 +2988,7 @@
     "https://docs.python.org/3.13/library/hashlib.html#usage",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.ip_address",
     "https://docs.python.org/3.13/library/json.html#encoders-and-decoders",
+    "https://docs.python.org/3.13/library/logging.handlers.html#logging.FileHandler",
     "https://docs.python.org/3.13/library/logging.html#logging.Formatter",
     "https://docs.python.org/3.13/library/logging.html#logging.Logger",
     "https://docs.python.org/3.13/library/math.html#math.isclose",
@@ -2780,9 +3090,22 @@
     "https://help.gnome.org/gnome-terminal/introduction.html",
     "https://invisible-island.net/xterm/xterm.html",
     "https://keepachangelog.com/en/1.1.0/",
+    "https://man7.org/linux/man-pages/man1/kill.1.html",
+    "https://man7.org/linux/man-pages/man2/chown.2.html",
+    "https://man7.org/linux/man-pages/man2/execve.2.html",
+    "https://man7.org/linux/man-pages/man2/fork.2.html",
+    "https://man7.org/linux/man-pages/man2/getpid.2.html",
+    "https://man7.org/linux/man-pages/man2/kill.2.html",
     "https://man7.org/linux/man-pages/man7/capabilities.7.html",
     "https://man7.org/linux/man-pages/man7/path_resolution.7.html",
+    "https://man7.org/linux/man-pages/man7/pid_namespaces.7.html",
     "https://man7.org/linux/man-pages/man7/user_namespaces.7.html",
+    "https://man7.org/linux/man-pages/man8/logrotate.8.html",
+    "https://manpages.debian.org/trixie/apt/apt-get.8.en.html",
+    "https://manpages.debian.org/trixie/apt/apt-secure.8.en.html",
+    "https://manpages.debian.org/trixie/apt/apt.8.en.html",
+    "https://manpages.debian.org/trixie/dpkg-dev/deb.5.en.html",
+    "https://manpages.debian.org/trixie/dpkg/dpkg-deb.1.en.html",
     "https://martinfowler.com/bliki/DefinitionOfRefactoring.html",
     "https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.tree.recognition.is_tree.html",
     "https://networkx.org/documentation/stable/reference/classes/digraph.html#networkx.DiGraph",
@@ -2797,6 +3120,7 @@
     "https://peps.python.org/pep-0484/#non-goals",
     "https://peps.python.org/pep-0602/",
     "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html",
+    "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/chown.html",
     "https://raw.githubusercontent.com/django/django/stable/5.2.x/docs/howto/deployment/checklist.txt",
     "https://raw.githubusercontent.com/git/git/master/Documentation/git-log.adoc",
     "https://raw.githubusercontent.com/git/git/master/Documentation/gitrepository-layout.adoc",
@@ -2825,6 +3149,14 @@
     "https://www.debian.org/doc/manuals/debian-handbook/sect.apt-get.en.html",
     "https://www.debian.org/intro/about",
     "https://www.debian.org/releases/",
+    "https://www.freedesktop.org/software/systemd/man/latest/daemon.html",
+    "https://www.freedesktop.org/software/systemd/man/latest/journalctl.html",
+    "https://www.freedesktop.org/software/systemd/man/latest/journald.conf.html",
+    "https://www.freedesktop.org/software/systemd/man/latest/systemctl.html",
+    "https://www.freedesktop.org/software/systemd/man/latest/systemd-journald.service.html",
+    "https://www.freedesktop.org/software/systemd/man/latest/systemd.html",
+    "https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html",
+    "https://www.freedesktop.org/software/systemd/man/latest/systemd.unit.html",
     "https://www.gnu.org/software/bash/manual/html_node/Arrays.html",
     "https://www.gnu.org/software/bash/manual/html_node/Bash-Startup-Files.html",
     "https://www.gnu.org/software/bash/manual/html_node/What-is-Bash_003f.html",
@@ -2832,10 +3164,16 @@
     "https://www.gnu.org/software/c-intro-and-ref/manual/html_node/Invalid-Dereference.html",
     "https://www.gnu.org/software/c-intro-and-ref/manual/html_node/Pointers.html",
     "https://www.gnu.org/software/coreutils/manual/html_node/Mode-Structure.html",
+    "https://www.gnu.org/software/coreutils/manual/html_node/Symbolic-Modes.html",
+    "https://www.gnu.org/software/coreutils/manual/html_node/chmod-invocation.html",
     "https://www.gnu.org/software/make/manual/html_node/Introduction.html",
     "https://www.kernel.org/doc/html/latest/admin-guide/README.html",
+    "https://www.networkmanager.dev/docs/api/latest/NetworkManager.html",
+    "https://www.rfc-editor.org/rfc/rfc5424.html",
+    "https://www.rfc-editor.org/rfc/rfc5425.html",
     "https://www.riverbankcomputing.com/static/Docs/PyQt6/introduction.html",
     "https://www.riverbankcomputing.com/static/Docs/PyQt6/signals_slots.html",
+    "https://www.rsyslog.com/doc/configuration/modules/omfile.html",
     "https://www.sqlite.org/lang_createindex.html",
     "https://www.sqlite.org/queryplanner.html",
     "https://www.w3.org/WAI/WCAG22/Understanding/content-on-hover-or-focus.html",
