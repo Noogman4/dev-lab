@@ -4,7 +4,7 @@
   "source_catalog": "tools/it_lexikon_linux_hilfe.json",
   "source_sha256": "b3fb9bfe37d335ee6eaa89c89425f08c94e8efc6f698e7c520ffc81ed128fc24",
   "total_records": 302,
-  "documented_records": 135,
+  "documented_records": 140,
   "records": [
     {
       "source_record": 1,
@@ -3177,6 +3177,129 @@
         "https://man7.org/linux/man-pages/man7/symlink.7.html"
       ],
       "status": "review_pending"
+    },
+    {
+      "source_record": 136,
+      "id": "it_0136",
+      "term": "Shebang",
+      "category": "Linux",
+      "document": "it_0136.md",
+      "sha256": "ec78ec50be5b924d8c9854a4e50b1e86152188e84fa85d52366640bde111f6fe",
+      "source": {
+        "id": "it_0136",
+        "term": "Shebang",
+        "short": "Erste Skriptzeile, die den Interpreter angibt.",
+        "example": "#!/usr/bin/env python3 ist ein Shebang.",
+        "tags": [
+          "linux",
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/tutorial/appendix.html#executable-python-scripts",
+        "https://man7.org/linux/man-pages/man2/execve.2.html",
+        "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/env.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 137,
+      "id": "it_0137",
+      "term": "Exit-Code",
+      "category": "Linux",
+      "document": "it_0137.md",
+      "sha256": "f8d90c53e1c1c1296688f92c68c6abb920d368c69e1768258934227dc666c615",
+      "source": {
+        "id": "it_0137",
+        "term": "Exit-Code",
+        "short": "Rückgabecode eines Programms.",
+        "example": "0 bedeutet meistens Erfolg, andere Werte Fehler.",
+        "tags": [
+          "linux",
+          "debugging"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/subprocess.html#subprocess.CompletedProcess.returncode",
+        "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html",
+        "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/grep.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 138,
+      "id": "it_0138",
+      "term": "Netzwerk",
+      "category": "Netzwerk",
+      "document": "it_0138.md",
+      "sha256": "929b9a7064de2ab0d6a0e9e54660f58cb19ff50ceb7d5b58d27d6777344ba2c7",
+      "source": {
+        "id": "it_0138",
+        "term": "Netzwerk",
+        "short": "Verbund von Geräten, die Daten austauschen.",
+        "example": "Router, PC und Smartphone bilden ein Heimnetz.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.rfc-editor.org/rfc/rfc1122.html",
+        "https://www.rfc-editor.org/rfc/rfc1812.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 139,
+      "id": "it_0139",
+      "term": "IP-Adresse",
+      "category": "Netzwerk",
+      "document": "it_0139.md",
+      "sha256": "be35eb8fdb6ab406232de92941754af63feaa613252d8efa92c985cf33099f46",
+      "source": {
+        "id": "it_0139",
+        "term": "IP-Adresse",
+        "short": "Adresse eines Geräts in einem Netzwerk.",
+        "example": "192.168.1.10 ist eine private IPv4-Adresse.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.ip_address",
+        "https://www.rfc-editor.org/rfc/rfc1918.html",
+        "https://www.rfc-editor.org/rfc/rfc3849.html",
+        "https://www.rfc-editor.org/rfc/rfc4291.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 140,
+      "id": "it_0140",
+      "term": "IPv4",
+      "category": "Netzwerk",
+      "document": "it_0140.md",
+      "sha256": "e1dbb3eb640fa94ff7c0eff9c7a19b100e5a3e039eaa3dda2c3a5a1c91f8860c",
+      "source": {
+        "id": "it_0140",
+        "term": "IPv4",
+        "short": "Älteres IP-Adressformat mit 32 Bit.",
+        "example": "192.168.0.1 ist IPv4.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Address",
+        "https://www.rfc-editor.org/rfc/rfc4632.html",
+        "https://www.rfc-editor.org/rfc/rfc5737.html",
+        "https://www.rfc-editor.org/rfc/rfc791.html"
+      ],
+      "status": "review_pending"
     }
   ],
   "source_urls": [
@@ -3226,6 +3349,7 @@
     "https://docs.python.org/3.13/library/functions.html#type",
     "https://docs.python.org/3.13/library/functools.html#functools.wraps",
     "https://docs.python.org/3.13/library/hashlib.html#usage",
+    "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Address",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.ip_address",
     "https://docs.python.org/3.13/library/json.html#encoders-and-decoders",
     "https://docs.python.org/3.13/library/logging.handlers.html#logging.FileHandler",
@@ -3253,6 +3377,7 @@
     "https://docs.python.org/3.13/library/stdtypes.html#tuples",
     "https://docs.python.org/3.13/library/subprocess.html#replacing-shell-pipeline",
     "https://docs.python.org/3.13/library/subprocess.html#security-considerations",
+    "https://docs.python.org/3.13/library/subprocess.html#subprocess.CompletedProcess.returncode",
     "https://docs.python.org/3.13/library/subprocess.html#subprocess.TimeoutExpired",
     "https://docs.python.org/3.13/library/subprocess.html#subprocess.run",
     "https://docs.python.org/3.13/library/sys.html#sys.implementation",
@@ -3308,6 +3433,7 @@
     "https://docs.python.org/3.13/reference/simple_stmts.html#expression-statements",
     "https://docs.python.org/3.13/reference/simple_stmts.html#the-import-statement",
     "https://docs.python.org/3.13/reference/simple_stmts.html#the-return-statement",
+    "https://docs.python.org/3.13/tutorial/appendix.html#executable-python-scripts",
     "https://docs.python.org/3.13/tutorial/appetite.html",
     "https://docs.python.org/3.13/tutorial/classes.html#class-definition-syntax",
     "https://docs.python.org/3.13/tutorial/classes.html#class-objects",
@@ -3379,6 +3505,8 @@
     "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap08.html",
     "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html",
     "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/chown.html",
+    "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/env.html",
+    "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/grep.html",
     "https://raw.githubusercontent.com/django/django/stable/5.2.x/docs/howto/deployment/checklist.txt",
     "https://raw.githubusercontent.com/git/git/master/Documentation/git-log.adoc",
     "https://raw.githubusercontent.com/git/git/master/Documentation/gitrepository-layout.adoc",
@@ -3427,8 +3555,16 @@
     "https://www.gnu.org/software/make/manual/html_node/Introduction.html",
     "https://www.kernel.org/doc/html/latest/admin-guide/README.html",
     "https://www.networkmanager.dev/docs/api/latest/NetworkManager.html",
+    "https://www.rfc-editor.org/rfc/rfc1122.html",
+    "https://www.rfc-editor.org/rfc/rfc1812.html",
+    "https://www.rfc-editor.org/rfc/rfc1918.html",
+    "https://www.rfc-editor.org/rfc/rfc3849.html",
+    "https://www.rfc-editor.org/rfc/rfc4291.html",
+    "https://www.rfc-editor.org/rfc/rfc4632.html",
     "https://www.rfc-editor.org/rfc/rfc5424.html",
     "https://www.rfc-editor.org/rfc/rfc5425.html",
+    "https://www.rfc-editor.org/rfc/rfc5737.html",
+    "https://www.rfc-editor.org/rfc/rfc791.html",
     "https://www.riverbankcomputing.com/static/Docs/PyQt6/introduction.html",
     "https://www.riverbankcomputing.com/static/Docs/PyQt6/signals_slots.html",
     "https://www.rsyslog.com/doc/configuration/modules/omfile.html",

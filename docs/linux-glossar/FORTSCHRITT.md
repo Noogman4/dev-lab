@@ -2458,3 +2458,106 @@ Alle 135 Dokumente und Indexzuordnungen erneut geprüft: unveränderte Quelle mi
 Alle 102 vollständigen Python-Beispiele des Gesamtstands erneut erfolgreich ausgeführt, einschließlich Assertions, Exitcodes und dokumentierten Standardausgaben. In 126–135 sind sechs praktische Beispiele und vier Gedankenmodelle enthalten. Praktisch wurden nur eigene temporäre Daten, lokale Unix-Socket-Paare, eigene kurzlebige Kindprozesse und explizite Suchpfadkopien verwendet. Kein Netzwerkport oder fremder Dienst angesprochen, keine Konten-, Mount-, Paket-, Profil- oder Dienständerung. Das PATH-Beispiel startet seine Testdateien nicht und verändert die tatsächliche PATH-Variable nicht. Der Lockfile-Test prüft eigene Dateideskriptoren, keine NetMon-Eininstanzabnahme.
 
 Dokumente 1–125 und ihre Indexdatensätze gegenüber b3a3c5d unverändert; Pilottexte zusätzlich gegen ursprünglichen Pilotcommit geprüft. PROMPT.md unverändert. Nur zehn neue Glossartexte, index.json und FORTSCHRITT.md geändert; git diff --check erfolgreich. Unabhängige Inhaltsprüfung und lokale Reader-Abnahme der neuen Texte bleiben offen. Alle neuen Statuswerte bleiben review_pending.
+
+## 136. Shebang – it_0136
+
+Ausgearbeitet und strukturell geprüft: 665 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6001 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/tutorial/appendix.html#executable-python-scripts
+- https://man7.org/linux/man-pages/man2/execve.2.html
+- https://pubs.opengroup.org/onlinepubs/9799919799/utilities/env.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Katalogvariante mit /usr/bin/env python3 und andere Plattformen nicht ausgeführt; keine vorhandenen Skripte, Installationen oder Suchpfade verändert.
+
+Präzisierung gegenüber der Quelle: Shebang von Endung und explizitem Interpreteraufruf getrennt; env-Variante als umgebungsabhängige Suche präzisiert. Eigenes Skript mit tatsächlichem System-Interpreter im Shebang direkt gestartet und Ausgabe geprüft.
+
+SHA-256: `ec78ec50be5b924d8c9854a4e50b1e86152188e84fa85d52366640bde111f6fe`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 137. Exit-Code – it_0137
+
+Ausgearbeitet und strukturell geprüft: 683 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6196 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/subprocess.html#subprocess.CompletedProcess.returncode
+- https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html
+- https://pubs.opengroup.org/onlinepubs/9799919799/utilities/grep.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Kein grep, Signalversuch oder Zugriff auf Fremddaten; beide Unterprozesse ausdrücklich nach eigener Statusvereinbarung ausgewertet.
+
+Präzisierung gegenüber der Quelle: Nichtnullen Status von Bug und fachlichem Fehler getrennt; grep-Konvention und Pythons negative Signalrepräsentation eingeordnet. Eigene Such-Kindprozesse mit erwartetem Status 0 und 1 samt leeren Ausgabekanälen geprüft.
+
+SHA-256: `f8d90c53e1c1c1296688f92c68c6abb920d368c69e1768258934227dc666c615`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 138. Netzwerk – it_0138
+
+Ausgearbeitet und strukturell geprüft: 702 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6061 UTF-8-Bytes; 28 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.rfc-editor.org/rfc/rfc1122.html
+- https://www.rfc-editor.org/rfc/rfc1812.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nur fiktives Heimnetz; keine Verbindungsversuche, Scans, Mitschnitte, Geräteabfragen oder Netzwerkkonfigurationsänderungen.
+
+Präzisierung gegenüber der Quelle: Netzwerk von Internet, Funkzugang und Anwendungsfunktion getrennt. TCP/IP-Schichten und IPv4-Routerrolle anhand RFCs eingeordnet, historische Spezifikationen nicht als vollständige heutige Konfigurationsanweisung verwendet.
+
+SHA-256: `929b9a7064de2ab0d6a0e9e54660f58cb19ff50ceb7d5b58d27d6777344ba2c7`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 139. IP-Adresse – it_0139
+
+Ausgearbeitet und strukturell geprüft: 672 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6009 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/ipaddress.html#ipaddress.ip_address
+- https://www.rfc-editor.org/rfc/rfc1918.html
+- https://www.rfc-editor.org/rfc/rfc3849.html
+- https://www.rfc-editor.org/rfc/rfc4291.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine reale Adressvergabe, DNS-Auflösung, Schnittstellenabfrage, Pakete oder Erreichbarkeitsprüfung.
+
+Präzisierung gegenüber der Quelle: Geräteadresse auf kontextabhängige Schnittstellenadressierung präzisiert; mehrere Adressen und private IPv4-Wiederverwendung erläutert. Eigenes IPv4-/Dokumentations-IPv6-Parsing samt Bereich und Schreibweisengleichheit praktisch geprüft.
+
+SHA-256: `be35eb8fdb6ab406232de92941754af63feaa613252d8efa92c985cf33099f46`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 140. IPv4 – it_0140
+
+Ausgearbeitet und strukturell geprüft: 697 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6057 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Address
+- https://www.rfc-editor.org/rfc/rfc4632.html
+- https://www.rfc-editor.org/rfc/rfc5737.html
+- https://www.rfc-editor.org/rfc/rfc791.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur Adressberechnung mit reserviertem Dokumentationsbereich; keine Pakete, Schnittstellen-, Routen- oder Gerätekonfigurationsänderung.
+
+Präzisierung gegenüber der Quelle: IPv4 als Protokollversion statt bloß älterem Textformat erklärt. 32-Bit-Adresse, vier Oktette und CIDR-Präfix getrennt; .1 nicht als universellen Routerwert ausgegeben. Dokumentationsadresse, /24-Größe und ungültiges Oktett praktisch geprüft.
+
+SHA-256: `e1dbb3eb640fa94ff7c0eff9c7a19b100e5a3e039eaa3dda2c3a5a1c91f8860c`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## Gesicherter Zwischenstand nach Datensatz 140 – 21.11.2026
+
+**140 von 302** ausgearbeitet und strukturell geprüft; 162 fehlen. Nächster Datensatz: **it_0141 – IPv6**. Die Fortsetzungsfreigabe bis 302 bleibt bestehen. Dieser an der Verarbeitungsgrenze gesicherte Stand ist keine Fertigmeldung; die gemeinsame Gesamtzusammenfassung folgt erst nach 302.
+
+Ausgangspunkt dieses Abschnitts: `70f1875a39bd38b1c6b45d1a79280d5f741b3fa4` auf `codex/linux-glossar-011-302`. Die fünf Einträge 136–140 wurden einzeln recherchiert, geschrieben, geprüft und unmittelbar in Index und Fortschritt gespeichert.
+
+Gesamtprüfung erfolgreich für alle 140 Dokumente: unveränderte Originalquelle mit vereinbarter SHA-256 und 302 eindeutigen IDs und Begriffen; tatsächliche Dokumentprüfsummen, Originalzuordnung, vollständige JSON-Metadaten, Kategorieableitung, unverändertes Indexschema, lückenlose Reihenfolge, zehn Hauptabschnitte, geschlossene Codeblöcke, Parserlimits und interne Verweise. Neue Linkbeschriftungen gegen Originalbegriffe geprüft. documented_records 140; source_urls sortierte, duplikatfreie Vereinigung der genauen Eintragsquellen.
+
+Alle 106 vollständigen Python-Beispiele des Gesamtstands erneut erfolgreich ausgeführt: Assertions, Exitcodes und dokumentierte Standardausgaben. Vier neue praktische Beispiele betreffen einen eigenen direkten Skriptstart, eigene Kindprozesse mit erwarteten Statuswerten sowie ausschließlich lokale Adressberechnungen. Das Netzwerk-Gedankenmodell wurde nicht ausgeführt. Keine Netzwerkpakete, DNS-Abfragen, Scans, Schnittstellen-, Geräte-, Konten-, Dienst- oder Paketänderungen. Nicht ausgeführte Varianten sind in den Einträgen und Einzelberichten kenntlich gemacht.
+
+Alle Dokumente 1–135 und ihre Indexdatensätze gegenüber 70f1875 unverändert; Pilottexte zusätzlich gegen den ursprünglichen Pilotcommit geprüft. PROMPT.md unverändert. Änderungsumfang nur fünf neue Glossartexte, index.json und FORTSCHRITT.md; git diff --check erfolgreich. Im gesamten Durchlauf ausschließlich docs/linux-glossar/ geändert. Der vorhandene Markdown-Parser prüft nur die Struktur mit temporärem Kopf im Arbeitsspeicher. Unabhängige Inhaltsprüfung und lokale Reader-Abnahme der neuen Texte bleiben offen; review_pending bleibt erhalten. Kein Merge, Force-Push oder Veröffentlichen der Cloud-Umgebung.
