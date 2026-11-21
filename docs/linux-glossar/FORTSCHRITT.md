@@ -3327,3 +3327,188 @@ Gesamtlauf: 120 vollständige Python-Beispiele mit System-Python und ein JavaScr
 Temporärer Validator um JavaScript-Ausführung und zulässige unquotierte HTML-id-Attribute bei Quellenankern ergänzt; kein Anwendungscode verändert. Der vorhandene Markdown-Parser hat ausschließlich im Prüfprozess einen kompatiblen Kopf erhalten. Keine Reader-Abnahme oder vollständige Schema-/Sicherheitsvalidierung behauptet.
 
 Alle Texte 1–170 und ihre Indexdatensätze gegenüber 4672b57 unverändert, Pilottexte zusätzlich gegen ursprünglichen Pilotcommit geprüft. PROMPT.md unverändert. Nur zehn neue Glossartexte, index.json und FORTSCHRITT.md geändert; git diff --check erfolgreich. Keine Anwendung, Tests, Abhängigkeiten, Paketierung, Originalquelle, Befehlsdokumentation oder Cloud-Veröffentlichung geändert. Fachliche Zweitprüfung und lokale Reader-Prüfung bleiben ausstehend; review_pending bleibt erhalten.
+
+## 181. Frontend – it_0181
+
+Ausgearbeitet und strukturell geprüft: 643 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5785 UTF-8-Bytes; 28 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://developer.mozilla.org/en-US/docs/Learn_web_development/Extensions/Server-side/First_steps/Client-Server_overview
+- https://www.w3.org/WAI/tutorials/forms/validation/
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nur fiktives Zustandsmodell, keine Oberfläche, API-Anfrage oder Bedien-/Reader-Abnahme.
+
+Präzisierung gegenüber der Quelle: Sichtbaren Teil um Interaktion, Zustände und zugängliche Rückmeldung erweitert. Browserprüfung und ausgeblendete Elemente nicht als ausreichende serverseitige Sicherheit dargestellt.
+
+SHA-256: `aec2253582f9655dc9b7177c21780e5ad0c2e5ee90611b5bcc656e31fb82ff82`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 182. Backend – it_0182
+
+Ausgearbeitet und strukturell geprüft: 692 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6064 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.djangoproject.com/en/5.2/intro/overview/
+- https://www.w3.org/WAI/tutorials/forms/validation/
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine Anwendung, Authentifizierung, Datenbank oder HTTP-Verarbeitung getestet; nur eigene lokale Werte.
+
+Präzisierung gegenüber der Quelle: Backend als Architekturrolle statt bloßem Hintergrundprozess erklärt; Datenbank nicht vorausgesetzt. Eigenes begrenztes Eingabemodell inklusive String-, Boolean- und Bereichsablehnung praktisch geprüft.
+
+SHA-256: `68a0d06c33c53e748657a346f81c197d940fd0c0e4b717b403b701694ce688fd`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 183. Client – it_0183
+
+Ausgearbeitet und strukturell geprüft: 693 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5671 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/urllib.request.html#urllib.request.urlopen
+- https://www.rfc-editor.org/rfc/rfc9110.html#section-3.3
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nur fiktiver Ablauf, kein urlopen oder anderer Clientzugriff und keine neue Software.
+
+Präzisierung gegenüber der Quelle: Client als Programmrolle von Mensch, GUI und Geräteklasse getrennt. HTTP-Definition nicht als universeller Ablauf aller Protokolle verwendet; Mehrfachrollen eines Vermittlers berücksichtigt.
+
+SHA-256: `86fb973e93a8e6a7cc955db519775f2cd02a7e39c5d03018a9f5ea3386fdc941`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 184. Server – it_0184
+
+Ausgearbeitet und strukturell geprüft: 682 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5942 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/http.server.html
+- https://www.rfc-editor.org/rfc/rfc9110.html#section-3.3
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Kein Serverstart, Port, Dateifreigabe oder Verbindungsversuch; keine Produktions- oder Betriebsabnahme.
+
+Präzisierung gegenüber der Quelle: Serverprogramm, Rechner, Backend und Dienstverwaltung getrennt. Erreichbarkeit und Fachfunktion nicht aus bloßer Installation abgeleitet; http.server nur als begrenzten Bibliotheksbaustein eingeordnet.
+
+SHA-256: `d8e4cf0602023b47454729fbf74296d3904a2c7aea760d11e095127f16cb4413`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 185. CORS – it_0185
+
+Ausgearbeitet und strukturell geprüft: 692 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5931 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://fetch.spec.whatwg.org/#http-cors-protocol
+- https://www.rfc-editor.org/rfc/rfc6454.html#section-4
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nur fiktive Origin-Tabelle; kein Browser-CORS-Test, keine Anfragen, Header-, Browserflag- oder Serveränderungen.
+
+Präzisierung gegenüber der Quelle: Domainverkürzung auf Origin aus Schema, Host und Port präzisiert. Browser-Antwortfreigabe von Authentifizierung, Autorisierung, Senden und CSRF-Schutz getrennt; Preflight nicht pauschal vorausgesetzt.
+
+SHA-256: `2715cd5e2940cb6d951f7dfbc5854ce9628474bf6a6dc3f4bfbf2d260286c84c`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 186. Cookie – it_0186
+
+Ausgearbeitet und strukturell geprüft: 651 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5777 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie
+- https://docs.python.org/3.13/library/http.cookies.html#http.cookies.SimpleCookie
+- https://www.rfc-editor.org/rfc/rfc6265.html
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Kein Browserbestand, Login, Serverkontakt oder Cookieversand; Parserprüfung keine Browser- oder Sitzungsabnahme.
+
+Präzisierung gegenüber der Quelle: Cookie von vollständiger Sitzung und pauschalem Zugriffsnachweis getrennt. Attribute und Browserpolitik unterschieden; Origin nicht mit Site gleichgesetzt. Eigene Felder mit SimpleCookie lokal geprüft.
+
+SHA-256: `b361beff43eda1e693999d62d8f7f09ab13524af92ee39036016af7c73a253a7`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 187. Session – it_0187
+
+Ausgearbeitet und strukturell geprüft: 684 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6064 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.djangoproject.com/en/5.2/topics/http/sessions/
+- https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Session_Management_Cheat_Sheet.md
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nur fiktiver Ablauf, keine Konten oder Sitzungen. OWASP-Webseite lieferte HTTP 403; erreichbare offizielle Quelldatei aus OWASP/CheatSheetSeries verwendet.
+
+Präzisierung gegenüber der Quelle: Sitzung von Cookie, Kennung, Verbindung und Login getrennt. Unterschiedliche Speicherverfahren und Gültigkeitsregeln anhand Django 5.2 und OWASP eingeordnet.
+
+SHA-256: `a1481115d58f33a0d4ce6fefcb859dbb3571c58b6ae5ad23e9a814c4e624145c`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 188. Token – it_0188
+
+Ausgearbeitet und strukturell geprüft: 687 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5780 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/secrets.html#secrets.token_urlsafe
+- https://www.rfc-editor.org/rfc/rfc6750.html
+- https://www.rfc-editor.org/rfc/rfc7519.html
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Kein bestehender Token, Konto oder Dienst verwendet; keine Berechtigung, Speicherung oder Sicherheitsabnahme des Gesamtsystems.
+
+Präzisierung gegenüber der Quelle: Tokenarten, Bearer-Modell und JWT-Format getrennt; Darstellung nicht mit Gültigkeit oder Berechtigung gleichgesetzt. Neuen eigenen Zufallswert erzeugt und nur Umfang/Form ohne Geheimwertausgabe geprüft.
+
+SHA-256: `f462f2973e541fb7321f42252fbe1dadec1e883a02ca494c4d0ded7186f409ee`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 189. OAuth – it_0189
+
+Ausgearbeitet und strukturell geprüft: 711 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5997 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.rfc-editor.org/rfc/rfc6749.html
+- https://www.rfc-editor.org/rfc/rfc9700.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Keine Anbieterintegration, Clientregistrierung, Anmeldung, PKCE-, Konto- oder Tokenoperation.
+
+Präzisierung gegenüber der Quelle: OAuth 2.0 als Autorisierungsrahmen von allgemeiner Anmeldung und Tokenformat getrennt. Grundstandard mit RFC 9700 als neueren Sicherheitsempfehlungen eingeordnet; fiktiver Umfang nicht als universeller Scope ausgegeben.
+
+SHA-256: `93e4c84a3cbebeb586be49f332cd3a9026c0e0a0b4f96bcc2036ad3afd4106e4`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 190. Webhook – it_0190
+
+Ausgearbeitet und strukturell geprüft: 686 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6203 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.github.com/en/webhooks/about-webhooks
+- https://docs.github.com/en/webhooks/using-webhooks/best-practices-for-using-webhooks
+- https://docs.python.org/3.13/library/hmac.html#hmac.compare_digest
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine Benachrichtigung, Registrierung, Empfänger, Konten oder echten Schlüssel; HMAC-Test keine vollständige Webhook-, Replay- oder Berechtigungsabnahme.
+
+Präzisierung gegenüber der Quelle: Webhook als anbieterspezifischen Ereignisweg erklärt; Annahme, Verarbeitung und Wiederholung getrennt. Eigenes HMAC-Beispiel prüft unveränderte gegen veränderte Rohbytes ohne tatsächlichen Anbieter.
+
+SHA-256: `3c58eb699a26b523af784f2e0473b6470754976a6944361ffff97add96540624`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## Gesicherter Zwischenstand nach Datensatz 190 – 21.11.2026
+
+**190 von 302** ausgearbeitet und strukturell geprüft; 112 fehlen. Nächster Datensatz: **it_0191 – Datenbank**. Die Fortsetzungsfreigabe bis 302 bleibt bestehen. An der Verarbeitungsgrenze gesichert; keine Fertigmeldung und keine gemeinsame Gesamtzusammenfassung vor 302.
+
+Tatsächlicher Branch: codex/linux-glossar-011-302. Ausgangscommit dieses Durchlaufs: 27ca13ce704cad028cb4126bef57f63bd5899833. Nach Svens ausdrücklicher Pause wurde auf sein „ok mach weiter“ fortgesetzt. Anfangsstand sauber, Quelle und Index 180 bestätigt. Die beim Stopp zurückgestellte PR-Beschreibung zunächst auf 180 aktualisiert. Danach 181–190 einzeln recherchiert, geschrieben, geprüft und unmittelbar in Index und Fortschritt gespeichert. Keine Unteragenten oder weiteren Worktrees.
+
+Gesamtprüfung aller 190 Dokumente erfolgreich: unveränderte Originalquelle mit vereinbarter SHA-256 und 302 eindeutigen Originaldatensätzen; Metadaten, Kategorieableitung, zehn Hauptabschnitte, Codeblöcke und Parserlimits, tatsächliche Dokumentprüfsummen, interne Verweise und unverändertes Indexschema. Linkbeschriftungen der neuen Texte zusätzlich gegen Originalbegriffe geprüft. records lückenlos in Quellreihenfolge; documented_records 190; source_urls sortierte duplikatfreie Vereinigung der genauen Eintragsquellen.
+
+Gesamtlauf erfolgreich: 124 vollständige Python-Beispiele und ein JavaScript-Beispiel erneut ausgeführt; Assertions, Exitcodes und vollständige Standardausgaben stimmen. Die zehn neuen Texte enthalten vier praktische Python-Prüfungen und sechs Gedankenmodelle. Praktisch wurden nur eigene Eingaben, Cookie-Headerdaten, ein neu erzeugter nicht berechtigender Testwert und eine eigene HMAC-Nachricht geprüft. Keine echten Tokens ausgegeben, Konten genutzt oder Benachrichtigungen gesendet. Kein Browser-, CORS-, Session-, OAuth-, Backend- oder Webhook-Integrationstest behauptet. Die Beispielprüfungen sind keine allgemeine Sicherheitsabnahme.
+
+Alle Dokumente 1–180 und ihre Indexdatensätze gegenüber 27ca13c unverändert; die zehn Pilottexte zusätzlich unmittelbar gegen 688a832 geprüft. PROMPT.md unverändert. Nur zehn neue Glossartexte, index.json und FORTSCHRITT.md geändert; git diff --check erfolgreich. Anwendung, Tests, Abhängigkeiten, Paketierung, Originalquelle und Befehlsdokumentationen unverändert. Keine Cloud-Veröffentlichung, kein Merge oder Force-Push. Strukturprüfung weiterhin nur mit temporärem kompatiblem Kopf im vorhandenen begrenzten Markdown-Parser. Fachliche Zweitprüfung und lokale Reader-Abnahme der neuen Texte bleiben offen; review_pending bleibt erhalten.

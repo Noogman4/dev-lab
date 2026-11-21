@@ -4,7 +4,7 @@
   "source_catalog": "tools/it_lexikon_linux_hilfe.json",
   "source_sha256": "b3fb9bfe37d335ee6eaa89c89425f08c94e8efc6f698e7c520ffc81ed128fc24",
   "total_records": 302,
-  "documented_records": 180,
+  "documented_records": 190,
   "records": [
     {
       "source_record": 1,
@@ -4271,10 +4271,254 @@
         "https://tc39.es/ecma262/#sec-array.prototype.map"
       ],
       "status": "review_pending"
+    },
+    {
+      "source_record": 181,
+      "id": "it_0181",
+      "term": "Frontend",
+      "category": "Web",
+      "document": "it_0181.md",
+      "sha256": "aec2253582f9655dc9b7177c21780e5ad0c2e5ee90611b5bcc656e31fb82ff82",
+      "source": {
+        "id": "it_0181",
+        "term": "Frontend",
+        "short": "Der sichtbare Teil einer Anwendung.",
+        "example": "Buttons und Formularfelder gehören zum Frontend.",
+        "tags": [
+          "web",
+          "architektur"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://developer.mozilla.org/en-US/docs/Learn_web_development/Extensions/Server-side/First_steps/Client-Server_overview",
+        "https://www.w3.org/WAI/tutorials/forms/validation/"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 182,
+      "id": "it_0182",
+      "term": "Backend",
+      "category": "Web",
+      "document": "it_0182.md",
+      "sha256": "68a0d06c33c53e748657a346f81c197d940fd0c0e4b717b403b701694ce688fd",
+      "source": {
+        "id": "it_0182",
+        "term": "Backend",
+        "short": "Der Hintergrundteil einer Anwendung.",
+        "example": "Datenbankzugriff und API-Logik laufen im Backend.",
+        "tags": [
+          "web",
+          "architektur"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.djangoproject.com/en/5.2/intro/overview/",
+        "https://www.w3.org/WAI/tutorials/forms/validation/"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 183,
+      "id": "it_0183",
+      "term": "Client",
+      "category": "Web",
+      "document": "it_0183.md",
+      "sha256": "86fb973e93a8e6a7cc955db519775f2cd02a7e39c5d03018a9f5ea3386fdc941",
+      "source": {
+        "id": "it_0183",
+        "term": "Client",
+        "short": "Ein Programm, das Anfragen stellt.",
+        "example": "Ein Browser ist ein Web-Client.",
+        "tags": [
+          "web",
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/urllib.request.html#urllib.request.urlopen",
+        "https://www.rfc-editor.org/rfc/rfc9110.html#section-3.3"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 184,
+      "id": "it_0184",
+      "term": "Server",
+      "category": "Web",
+      "document": "it_0184.md",
+      "sha256": "d8e4cf0602023b47454729fbf74296d3904a2c7aea760d11e095127f16cb4413",
+      "source": {
+        "id": "it_0184",
+        "term": "Server",
+        "short": "Ein Programm oder Rechner, der Dienste bereitstellt.",
+        "example": "Ein Webserver liefert Webseiten aus.",
+        "tags": [
+          "web",
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/http.server.html",
+        "https://www.rfc-editor.org/rfc/rfc9110.html#section-3.3"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 185,
+      "id": "it_0185",
+      "term": "CORS",
+      "category": "Web",
+      "document": "it_0185.md",
+      "sha256": "2715cd5e2940cb6d951f7dfbc5854ce9628474bf6a6dc3f4bfbf2d260286c84c",
+      "source": {
+        "id": "it_0185",
+        "term": "CORS",
+        "short": "Browser-Sicherheitsmechanismus für Anfragen zwischen unterschiedlichen Domains.",
+        "example": "Eine API muss CORS erlauben, wenn ein anderes Frontend darauf zugreift.",
+        "tags": [
+          "web",
+          "sicherheit"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://fetch.spec.whatwg.org/#http-cors-protocol",
+        "https://www.rfc-editor.org/rfc/rfc6454.html#section-4"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 186,
+      "id": "it_0186",
+      "term": "Cookie",
+      "category": "Web",
+      "document": "it_0186.md",
+      "sha256": "b361beff43eda1e693999d62d8f7f09ab13524af92ee39036016af7c73a253a7",
+      "source": {
+        "id": "it_0186",
+        "term": "Cookie",
+        "short": "Kleine Datenmenge, die eine Webseite im Browser speichern kann.",
+        "example": "Cookies können Login-Sitzungen speichern.",
+        "tags": [
+          "web"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie",
+        "https://docs.python.org/3.13/library/http.cookies.html#http.cookies.SimpleCookie",
+        "https://www.rfc-editor.org/rfc/rfc6265.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 187,
+      "id": "it_0187",
+      "term": "Session",
+      "category": "Web",
+      "document": "it_0187.md",
+      "sha256": "a1481115d58f33a0d4ce6fefcb859dbb3571c58b6ae5ad23e9a814c4e624145c",
+      "source": {
+        "id": "it_0187",
+        "term": "Session",
+        "short": "Eine zusammenhängende Nutzungssitzung.",
+        "example": "Nach Login wird oft eine Session erstellt.",
+        "tags": [
+          "web",
+          "sicherheit"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.djangoproject.com/en/5.2/topics/http/sessions/",
+        "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Session_Management_Cheat_Sheet.md"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 188,
+      "id": "it_0188",
+      "term": "Token",
+      "category": "Api",
+      "document": "it_0188.md",
+      "sha256": "f462f2973e541fb7321f42252fbe1dadec1e883a02ca494c4d0ded7186f409ee",
+      "source": {
+        "id": "it_0188",
+        "term": "Token",
+        "short": "Ein digitaler Nachweis für Zugriff oder Identität.",
+        "example": "Ein API-Token erlaubt Zugriff auf eine API.",
+        "tags": [
+          "api",
+          "sicherheit"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/secrets.html#secrets.token_urlsafe",
+        "https://www.rfc-editor.org/rfc/rfc6750.html",
+        "https://www.rfc-editor.org/rfc/rfc7519.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 189,
+      "id": "it_0189",
+      "term": "OAuth",
+      "category": "Api",
+      "document": "it_0189.md",
+      "sha256": "93e4c84a3cbebeb586be49f332cd3a9026c0e0a0b4f96bcc2036ad3afd4106e4",
+      "source": {
+        "id": "it_0189",
+        "term": "OAuth",
+        "short": "Standard zur Autorisierung zwischen Diensten.",
+        "example": "Mit OAuth kann eine App Zugriff auf ein Konto erhalten.",
+        "tags": [
+          "api",
+          "sicherheit"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.rfc-editor.org/rfc/rfc6749.html",
+        "https://www.rfc-editor.org/rfc/rfc9700.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 190,
+      "id": "it_0190",
+      "term": "Webhook",
+      "category": "Api",
+      "document": "it_0190.md",
+      "sha256": "3c58eb699a26b523af784f2e0473b6470754976a6944361ffff97add96540624",
+      "source": {
+        "id": "it_0190",
+        "term": "Webhook",
+        "short": "Eine automatische HTTP-Benachrichtigung bei Ereignissen.",
+        "example": "Ein Dienst sendet einen Webhook, wenn ein Build fertig ist.",
+        "tags": [
+          "api",
+          "web"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.github.com/en/webhooks/about-webhooks",
+        "https://docs.github.com/en/webhooks/using-webhooks/best-practices-for-using-webhooks",
+        "https://docs.python.org/3.13/library/hmac.html#hmac.compare_digest"
+      ],
+      "status": "review_pending"
     }
   ],
   "source_urls": [
     "https://compose-spec.github.io/compose-spec/spec.html",
+    "https://developer.mozilla.org/en-US/docs/Learn_web_development/Extensions/Server-side/First_steps/Client-Server_overview",
+    "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie",
     "https://doc.qt.io/qt-6/layout.html",
     "https://doc.qt.io/qt-6/qdialog.html",
     "https://doc.qt.io/qt-6/qgraphicsscene.html",
@@ -4282,7 +4526,11 @@
     "https://doc.qt.io/qt-6/qtwidgets-index.html",
     "https://doc.rust-lang.org/book/ch03-02-data-types.html#the-array-type",
     "https://doc.rust-lang.org/book/ch04-02-references-and-borrowing.html",
+    "https://docs.djangoproject.com/en/5.2/intro/overview/",
+    "https://docs.djangoproject.com/en/5.2/topics/http/sessions/",
     "https://docs.fedoraproject.org/en-US/quick-docs/dnf/",
+    "https://docs.github.com/en/webhooks/about-webhooks",
+    "https://docs.github.com/en/webhooks/using-webhooks/best-practices-for-using-webhooks",
     "https://docs.kernel.org/admin-guide/mm/concepts.html",
     "https://docs.kernel.org/scheduler/sched-design-CFS.html",
     "https://docs.kernel.org/userspace-api/index.html",
@@ -4321,8 +4569,11 @@
     "https://docs.python.org/3.13/library/functions.html#type",
     "https://docs.python.org/3.13/library/functools.html#functools.wraps",
     "https://docs.python.org/3.13/library/hashlib.html#usage",
+    "https://docs.python.org/3.13/library/hmac.html#hmac.compare_digest",
     "https://docs.python.org/3.13/library/http.client.html#http.client.parse_headers",
+    "https://docs.python.org/3.13/library/http.cookies.html#http.cookies.SimpleCookie",
     "https://docs.python.org/3.13/library/http.html#http.HTTPStatus",
+    "https://docs.python.org/3.13/library/http.server.html",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Address",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Address.is_loopback",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Network",
@@ -4344,6 +4595,7 @@
     "https://docs.python.org/3.13/library/pdb.html",
     "https://docs.python.org/3.13/library/queue.html#queue.LifoQueue",
     "https://docs.python.org/3.13/library/queue.html#queue.Queue.empty",
+    "https://docs.python.org/3.13/library/secrets.html#secrets.token_urlsafe",
     "https://docs.python.org/3.13/library/shutil.html#shutil.which",
     "https://docs.python.org/3.13/library/socket.html#socket.socketpair",
     "https://docs.python.org/3.13/library/ssl.html#ssl.PROTOCOL_TLS_CLIENT",
@@ -4384,6 +4636,7 @@
     "https://docs.python.org/3.13/library/unittest.html#unittest.TestCase.assertEqual",
     "https://docs.python.org/3.13/library/urllib.parse.html#urllib.parse.urlsplit",
     "https://docs.python.org/3.13/library/urllib.request.html#urllib.request.Request",
+    "https://docs.python.org/3.13/library/urllib.request.html#urllib.request.urlopen",
     "https://docs.python.org/3.13/library/venv.html#creating-virtual-environments",
     "https://docs.python.org/3.13/library/venv.html#venv.EnvBuilder",
     "https://docs.python.org/3.13/library/xml.etree.elementtree.html#building-xml-documents",
@@ -4444,6 +4697,7 @@
     "https://docs.python.org/3.13/tutorial/modules.html#modules",
     "https://docs.python.org/3.13/using/cmdline.html#cmdoption-OO",
     "https://dom.spec.whatwg.org/#introduction-to-dom-events",
+    "https://fetch.spec.whatwg.org/#http-cors-protocol",
     "https://firewalld.org/documentation/concepts.html",
     "https://help.gnome.org/gnome-terminal/introduction.html",
     "https://html.spec.whatwg.org/multipage/form-elements.html#the-button-element",
@@ -4506,6 +4760,7 @@
     "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/env.html",
     "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/grep.html",
     "https://pyyaml.org/wiki/PyYAMLDocumentation",
+    "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Session_Management_Cheat_Sheet.md",
     "https://raw.githubusercontent.com/django/django/stable/5.2.x/docs/howto/deployment/checklist.txt",
     "https://raw.githubusercontent.com/git/git/master/Documentation/git-log.adoc",
     "https://raw.githubusercontent.com/git/git/master/Documentation/gitrepository-layout.adoc",
@@ -4581,9 +4836,14 @@
     "https://www.rfc-editor.org/rfc/rfc5425.html",
     "https://www.rfc-editor.org/rfc/rfc5737.html",
     "https://www.rfc-editor.org/rfc/rfc5952.html",
+    "https://www.rfc-editor.org/rfc/rfc6265.html",
     "https://www.rfc-editor.org/rfc/rfc6335.html",
+    "https://www.rfc-editor.org/rfc/rfc6454.html#section-4",
+    "https://www.rfc-editor.org/rfc/rfc6749.html",
+    "https://www.rfc-editor.org/rfc/rfc6750.html",
     "https://www.rfc-editor.org/rfc/rfc6761.html#section-6.3",
     "https://www.rfc-editor.org/rfc/rfc6762.html",
+    "https://www.rfc-editor.org/rfc/rfc7519.html",
     "https://www.rfc-editor.org/rfc/rfc768.html",
     "https://www.rfc-editor.org/rfc/rfc7766.html",
     "https://www.rfc-editor.org/rfc/rfc791.html",
@@ -4597,6 +4857,7 @@
     "https://www.rfc-editor.org/rfc/rfc9110.html",
     "https://www.rfc-editor.org/rfc/rfc9110.html#section-15",
     "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.5",
+    "https://www.rfc-editor.org/rfc/rfc9110.html#section-3.3",
     "https://www.rfc-editor.org/rfc/rfc9110.html#section-3.7",
     "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.1",
     "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.2",
@@ -4614,6 +4875,7 @@
     "https://www.rfc-editor.org/rfc/rfc9499.html",
     "https://www.rfc-editor.org/rfc/rfc9525.html",
     "https://www.rfc-editor.org/rfc/rfc9542.html",
+    "https://www.rfc-editor.org/rfc/rfc9700.html",
     "https://www.riverbankcomputing.com/static/Docs/PyQt6/introduction.html",
     "https://www.riverbankcomputing.com/static/Docs/PyQt6/signals_slots.html",
     "https://www.rsyslog.com/doc/configuration/modules/omfile.html",
@@ -4626,6 +4888,7 @@
     "https://www.w3.org/TR/xml/",
     "https://www.w3.org/WAI/WCAG22/Understanding/content-on-hover-or-focus.html",
     "https://www.w3.org/WAI/WCAG22/Understanding/reflow.html",
+    "https://www.w3.org/WAI/tutorials/forms/validation/",
     "https://www.wireshark.org/docs/dfref/i/ip.html",
     "https://www.wireshark.org/docs/man-pages/dumpcap.html",
     "https://www.wireshark.org/docs/man-pages/tshark.html",
