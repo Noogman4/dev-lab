@@ -4,7 +4,7 @@
   "source_catalog": "tools/it_lexikon_linux_hilfe.json",
   "source_sha256": "b3fb9bfe37d335ee6eaa89c89425f08c94e8efc6f698e7c520ffc81ed128fc24",
   "total_records": 302,
-  "documented_records": 80,
+  "documented_records": 82,
   "records": [
     {
       "source_record": 1,
@@ -1866,11 +1866,59 @@
         "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/ttk_frame.n"
       ],
       "status": "review_pending"
+    },
+    {
+      "source_record": 81,
+      "id": "it_0081",
+      "term": "Canvas",
+      "category": "Gui",
+      "document": "it_0081.md",
+      "sha256": "8d66283e5035058ae23da8e88ef697bb0d05bbc39fb24ad06dd74928597c5685",
+      "source": {
+        "id": "it_0081",
+        "term": "Canvas",
+        "short": "Eine Zeichenfläche in einer GUI.",
+        "example": "Ein Canvas kann Diagramme oder Statusgrafiken anzeigen.",
+        "tags": [
+          "gui"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://doc.qt.io/qt-6/qgraphicsscene.html",
+        "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/canvas.n"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 82,
+      "id": "it_0082",
+      "term": "Tooltip",
+      "category": "Gui",
+      "document": "it_0082.md",
+      "sha256": "98f911cdf2d9341636220b1d468ad7a51aa5fc6d8a7781e37b746c395bd3c4ba",
+      "source": {
+        "id": "it_0082",
+        "term": "Tooltip",
+        "short": "Ein kleiner Hilfetext beim Überfahren mit der Maus.",
+        "example": "Ein Tooltip erklärt, was ein Button macht.",
+        "tags": [
+          "gui"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://doc.qt.io/qt-6/qtooltip.html",
+        "https://www.w3.org/WAI/WCAG22/Understanding/content-on-hover-or-focus.html"
+      ],
+      "status": "review_pending"
     }
   ],
   "source_urls": [
     "https://doc.qt.io/qt-6/layout.html",
     "https://doc.qt.io/qt-6/qdialog.html",
+    "https://doc.qt.io/qt-6/qgraphicsscene.html",
+    "https://doc.qt.io/qt-6/qtooltip.html",
     "https://doc.qt.io/qt-6/qtwidgets-index.html",
     "https://doc.rust-lang.org/book/ch03-02-data-types.html#the-array-type",
     "https://doc.rust-lang.org/book/ch04-02-references-and-borrowing.html",
@@ -1993,6 +2041,7 @@
     "https://raw.githubusercontent.com/kubernetes/website/main/content/en/docs/concepts/workloads/controllers/deployment.md",
     "https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/tutorials/packaging-projects.rst",
     "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/bind.n",
+    "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/canvas.n",
     "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/destroy.n",
     "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/grid.n",
     "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/ttk_button.n",
@@ -2008,6 +2057,7 @@
     "https://www.gnu.org/software/c-intro-and-ref/manual/html_node/Pointers.html",
     "https://www.gnu.org/software/make/manual/html_node/Introduction.html",
     "https://www.sqlite.org/lang_createindex.html",
-    "https://www.sqlite.org/queryplanner.html"
+    "https://www.sqlite.org/queryplanner.html",
+    "https://www.w3.org/WAI/WCAG22/Understanding/content-on-hover-or-focus.html"
   ]
 }

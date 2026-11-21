@@ -1453,3 +1453,41 @@ Prüfungen und tatsächliche Grenzen dieses Checkpoints:
 Offen bleiben Ausarbeitungen 81–302 sowie die unabhängige fachliche Prüfung und lokale Reader-Abnahme der neuen Texte. Der im Browser-Checkout fehlende `parse_glossary_document` wurde nicht durch Anwendungscodeänderungen ergänzt. Die bereits von Sven gemeldete lokale Pilotabnahme wird nicht als Abnahme der Fortsetzung ausgegeben.
 
 Der fortlaufende Entwurfs-PR ist #6 auf Branch `codex/linux-glossar-011-302`. Der bestehende PR wird um diesen geprüften Stand erweitert; die Inhalte sind kein Abschluss des gesamten Auftrags.
+
+# Fortsetzung ab Datensatz 81
+
+Sven hat die Weiterarbeit bis 302 erneut bestätigt. Ausgangspunkt dieses Durchlaufs: Branch `codex/linux-glossar-011-302`, Commit `b6c38afbcbe9957c7921e27f4efe9bdbff6a593c`, sauberer Arbeitsstand. Quelle und Index mit 80 Dokumenten erneut geprüft; vorhandene Texte, Zuordnungen und praktische Beispiele bestehen den Gesamtlauf. Der vorhandene Entwurfs-PR #6 wird fortgeführt. Kein zusätzliches Worktree, keine Unteragenten, keine Änderungen außerhalb des freigegebenen Dokumentationspfads. Die abschließende gemeinsame Zusammenfassung bleibt für Eintrag 302 vorgesehen.
+
+## 81. Canvas – it_0081
+
+Ausgearbeitet und strukturell geprüft: 615 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5600 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://doc.qt.io/qt-6/qgraphicsscene.html
+- https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/canvas.n
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigene Tk-Elemente unter Xvfb erzeugt, bewegt und entfernt; keine visuelle Grafik-, Qt-, NetMon- oder Messdatenabnahme.
+
+Präzisierung gegenüber der Quelle: Quellbeschreibung und Grafikbeispiel sind passend. Toolkitabhängiges Zeichenmodell sowie Objektkennung/Tag getrennt; Qt-Szene nicht mit Tk-Canvas gleichgesetzt. Primärquellen: offizielles Tk-Canvas-Handbuch und QGraphicsScene-Referenz.
+
+SHA-256: `8d66283e5035058ae23da8e88ef697bb0d05bbc39fb24ad06dd74928597c5685`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 82. Tooltip – it_0082
+
+Ausgearbeitet und strukturell geprüft: 649 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5581 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://doc.qt.io/qt-6/qtooltip.html
+- https://www.w3.org/WAI/WCAG22/Understanding/content-on-hover-or-focus.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Ausschließlich Hilfetext-Gedankenmodell; keine tatsächliche Anzeige, Maus-/Tastaturbedienung oder Qt-/Reader-Abnahme.
+
+Präzisierung gegenüber der Quelle: Mausauslöser der Quelle als häufige Variante statt alleinige Definition eingeordnet. Tooltip von Hauptbeschriftung und Dialog getrennt. Primärquellen: Qt-QToolTip und informative W3C-Erläuterung zu Webinhalten; deren Geltungsbereich ausdrücklich benannt.
+
+SHA-256: `98f911cdf2d9341636220b1d468ad7a51aa5fc6d8a7781e37b746c395bd3c4ba`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
