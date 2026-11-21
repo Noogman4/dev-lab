@@ -4,7 +4,7 @@
   "source_catalog": "tools/it_lexikon_linux_hilfe.json",
   "source_sha256": "b3fb9bfe37d335ee6eaa89c89425f08c94e8efc6f698e7c520ffc81ed128fc24",
   "total_records": 302,
-  "documented_records": 170,
+  "documented_records": 180,
   "records": [
     {
       "source_record": 1,
@@ -4027,9 +4027,254 @@
         "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.1"
       ],
       "status": "review_pending"
+    },
+    {
+      "source_record": 171,
+      "id": "it_0171",
+      "term": "Endpoint",
+      "category": "Api",
+      "document": "it_0171.md",
+      "sha256": "5720f508faffa89744a284529b0ce22d907fb012396788bab56e9b62925e81a4",
+      "source": {
+        "id": "it_0171",
+        "term": "Endpoint",
+        "short": "Eine konkrete Adresse einer API-Funktion.",
+        "example": "/api/status kann ein Endpoint sein.",
+        "tags": [
+          "api",
+          "web"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/urllib.parse.html#urllib.parse.urlsplit",
+        "https://spec.openapis.org/oas/v3.1.1.html#paths-object"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 172,
+      "id": "it_0172",
+      "term": "Request",
+      "category": "Api",
+      "document": "it_0172.md",
+      "sha256": "7d87013d54aaa00f2bc6459379414386e8dfea63e20038298235bb91f3b103ee",
+      "source": {
+        "id": "it_0172",
+        "term": "Request",
+        "short": "Eine Anfrage an Server, API oder Dienst.",
+        "example": "Der Browser sendet einen Request an eine Webseite.",
+        "tags": [
+          "api",
+          "web"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/urllib.request.html#urllib.request.Request",
+        "https://www.rfc-editor.org/rfc/rfc9110.html#section-6",
+        "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 173,
+      "id": "it_0173",
+      "term": "Response",
+      "category": "Api",
+      "document": "it_0173.md",
+      "sha256": "74bf83569aac49386e3f97c3820e4536b7c628c4062f476ebb20251c79a1d5ec",
+      "source": {
+        "id": "it_0173",
+        "term": "Response",
+        "short": "Die Antwort auf eine Anfrage.",
+        "example": "Eine API liefert eine JSON-Response.",
+        "tags": [
+          "api",
+          "web"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/http.client.html#http.client.parse_headers",
+        "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4",
+        "https://www.rfc-editor.org/rfc/rfc9112.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 174,
+      "id": "it_0174",
+      "term": "Statuscode",
+      "category": "Web",
+      "document": "it_0174.md",
+      "sha256": "a292a0fca743bae626c70c3bf555126e28c8b3687a1e4469cdbb70dfb5711fda",
+      "source": {
+        "id": "it_0174",
+        "term": "Statuscode",
+        "short": "HTTP-Code, der das Ergebnis einer Anfrage beschreibt.",
+        "example": "200 heißt OK, 404 heißt nicht gefunden.",
+        "tags": [
+          "web",
+          "api"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/http.html#http.HTTPStatus",
+        "https://www.rfc-editor.org/rfc/rfc9110.html#section-15",
+        "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.5"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 175,
+      "id": "it_0175",
+      "term": "JSON",
+      "category": "Datenformat",
+      "document": "it_0175.md",
+      "sha256": "34edff1007e3cb9e1b0d99ced5268f69891cdeb354b7764fce5b4a3c99766124",
+      "source": {
+        "id": "it_0175",
+        "term": "JSON",
+        "short": "Textformat für strukturierte Daten.",
+        "example": "{\"name\": \"NetMon\"} ist JSON.",
+        "tags": [
+          "datenformat",
+          "api"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/json.html#json.dumps",
+        "https://docs.python.org/3.13/library/json.html#standard-compliance-and-interoperability",
+        "https://www.rfc-editor.org/rfc/rfc8259.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 176,
+      "id": "it_0176",
+      "term": "YAML",
+      "category": "Datenformat",
+      "document": "it_0176.md",
+      "sha256": "e2af493c2bf0354d4e15e6a6157003b604892209211086ac3154e4efdd63ff1e",
+      "source": {
+        "id": "it_0176",
+        "term": "YAML",
+        "short": "Lesbares Datenformat für Konfigurationen.",
+        "example": "docker-compose.yml nutzt YAML.",
+        "tags": [
+          "datenformat"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://compose-spec.github.io/compose-spec/spec.html",
+        "https://pyyaml.org/wiki/PyYAMLDocumentation",
+        "https://yaml.org/spec/1.2.2/"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 177,
+      "id": "it_0177",
+      "term": "XML",
+      "category": "Datenformat",
+      "document": "it_0177.md",
+      "sha256": "539dba3939b26ab1e29c213f201c0e8a70ee543b71ba15c198039db42753af2b",
+      "source": {
+        "id": "it_0177",
+        "term": "XML",
+        "short": "Markup-Datenformat mit Tags.",
+        "example": "<name>NetMon</name> ist XML.",
+        "tags": [
+          "datenformat"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/xml.etree.elementtree.html#xml.etree.ElementTree.fromstring",
+        "https://docs.python.org/3.13/library/xml.html#xml-vulnerabilities",
+        "https://www.w3.org/TR/xml/"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 178,
+      "id": "it_0178",
+      "term": "HTML",
+      "category": "Web",
+      "document": "it_0178.md",
+      "sha256": "e2d6e21c2b3473e1fe7bc0aec4362a7d92c9fea73a776bb3faab74792cf0a4a1",
+      "source": {
+        "id": "it_0178",
+        "term": "HTML",
+        "short": "Markup-Sprache für Webseitenstruktur.",
+        "example": "<button>Start</button> erzeugt einen Button.",
+        "tags": [
+          "web"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://html.spec.whatwg.org/multipage/form-elements.html#the-button-element",
+        "https://html.spec.whatwg.org/multipage/introduction.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 179,
+      "id": "it_0179",
+      "term": "CSS",
+      "category": "Web",
+      "document": "it_0179.md",
+      "sha256": "a3e282f7b474f706bb7caa5be1e69e673ec54dd1e260f553524dbb30e5cc9ae1",
+      "source": {
+        "id": "it_0179",
+        "term": "CSS",
+        "short": "Sprache zur Gestaltung von Webseiten.",
+        "example": "CSS legt Farben, Abstände und Schriftgrößen fest.",
+        "tags": [
+          "web"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.w3.org/TR/css-cascade-5/",
+        "https://www.w3.org/TR/css-values-4/#font-relative-lengths",
+        "https://www.w3.org/TR/selectors-4/"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 180,
+      "id": "it_0180",
+      "term": "JavaScript",
+      "category": "Web",
+      "document": "it_0180.md",
+      "sha256": "b9e7bd959f29ce7d972183556e25fc4d400da32cc73b6c460d8f692497931bba",
+      "source": {
+        "id": "it_0180",
+        "term": "JavaScript",
+        "short": "Programmiersprache für Webbrowser und Server.",
+        "example": "JavaScript reagiert auf Klicks im Browser.",
+        "tags": [
+          "web"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://dom.spec.whatwg.org/#introduction-to-dom-events",
+        "https://nodejs.org/api/globals.html",
+        "https://tc39.es/ecma262/",
+        "https://tc39.es/ecma262/#sec-array.prototype.map"
+      ],
+      "status": "review_pending"
     }
   ],
   "source_urls": [
+    "https://compose-spec.github.io/compose-spec/spec.html",
     "https://doc.qt.io/qt-6/layout.html",
     "https://doc.qt.io/qt-6/qdialog.html",
     "https://doc.qt.io/qt-6/qgraphicsscene.html",
@@ -4076,13 +4321,17 @@
     "https://docs.python.org/3.13/library/functions.html#type",
     "https://docs.python.org/3.13/library/functools.html#functools.wraps",
     "https://docs.python.org/3.13/library/hashlib.html#usage",
+    "https://docs.python.org/3.13/library/http.client.html#http.client.parse_headers",
+    "https://docs.python.org/3.13/library/http.html#http.HTTPStatus",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Address",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Address.is_loopback",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Network",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.collapse_addresses",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.ip_address",
     "https://docs.python.org/3.13/library/json.html#encoders-and-decoders",
+    "https://docs.python.org/3.13/library/json.html#json.dumps",
     "https://docs.python.org/3.13/library/json.html#json.loads",
+    "https://docs.python.org/3.13/library/json.html#standard-compliance-and-interoperability",
     "https://docs.python.org/3.13/library/logging.handlers.html#logging.FileHandler",
     "https://docs.python.org/3.13/library/logging.html#logging.Formatter",
     "https://docs.python.org/3.13/library/logging.html#logging.Logger",
@@ -4133,9 +4382,13 @@
     "https://docs.python.org/3.13/library/typing.html#typing.Final",
     "https://docs.python.org/3.13/library/typing.html#typing.Protocol",
     "https://docs.python.org/3.13/library/unittest.html#unittest.TestCase.assertEqual",
+    "https://docs.python.org/3.13/library/urllib.parse.html#urllib.parse.urlsplit",
+    "https://docs.python.org/3.13/library/urllib.request.html#urllib.request.Request",
     "https://docs.python.org/3.13/library/venv.html#creating-virtual-environments",
     "https://docs.python.org/3.13/library/venv.html#venv.EnvBuilder",
     "https://docs.python.org/3.13/library/xml.etree.elementtree.html#building-xml-documents",
+    "https://docs.python.org/3.13/library/xml.etree.elementtree.html#xml.etree.ElementTree.fromstring",
+    "https://docs.python.org/3.13/library/xml.html#xml-vulnerabilities",
     "https://docs.python.org/3.13/reference/compound_stmts.html#compound-statements",
     "https://docs.python.org/3.13/reference/compound_stmts.html#function-definitions",
     "https://docs.python.org/3.13/reference/compound_stmts.html#the-for-statement",
@@ -4190,8 +4443,11 @@
     "https://docs.python.org/3.13/tutorial/floatingpoint.html#representation-error",
     "https://docs.python.org/3.13/tutorial/modules.html#modules",
     "https://docs.python.org/3.13/using/cmdline.html#cmdoption-OO",
+    "https://dom.spec.whatwg.org/#introduction-to-dom-events",
     "https://firewalld.org/documentation/concepts.html",
     "https://help.gnome.org/gnome-terminal/introduction.html",
+    "https://html.spec.whatwg.org/multipage/form-elements.html#the-button-element",
+    "https://html.spec.whatwg.org/multipage/introduction.html",
     "https://ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm",
     "https://invisible-island.net/xterm/xterm.html",
     "https://keepachangelog.com/en/1.1.0/",
@@ -4235,6 +4491,7 @@
     "https://networkx.org/documentation/stable/reference/classes/digraph.html#networkx.DiGraph",
     "https://networkx.org/documentation/stable/reference/classes/generated/networkx.Graph.add_node.html",
     "https://networkx.org/documentation/stable/reference/classes/graph.html#networkx.Graph",
+    "https://nodejs.org/api/globals.html",
     "https://peps.python.org/pep-0008/#a-foolish-consistency-is-the-hobgoblin-of-little-minds",
     "https://peps.python.org/pep-0008/#constants",
     "https://peps.python.org/pep-0008/#function-and-variable-names",
@@ -4248,6 +4505,7 @@
     "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/chown.html",
     "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/env.html",
     "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/grep.html",
+    "https://pyyaml.org/wiki/PyYAMLDocumentation",
     "https://raw.githubusercontent.com/django/django/stable/5.2.x/docs/howto/deployment/checklist.txt",
     "https://raw.githubusercontent.com/git/git/master/Documentation/git-log.adoc",
     "https://raw.githubusercontent.com/git/git/master/Documentation/gitrepository-layout.adoc",
@@ -4273,6 +4531,9 @@
     "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/ttk_radiobutton.n",
     "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/ttk_style.n",
     "https://semver.org/spec/v2.0.0.html",
+    "https://spec.openapis.org/oas/v3.1.1.html#paths-object",
+    "https://tc39.es/ecma262/",
+    "https://tc39.es/ecma262/#sec-array.prototype.map",
     "https://wiki.nftables.org/wiki-nftables/index.php/Netfilter_hooks",
     "https://www.debian.org/doc/manuals/debian-handbook/sect.apt-get.en.html",
     "https://www.debian.org/intro/about",
@@ -4329,15 +4590,21 @@
     "https://www.rfc-editor.org/rfc/rfc792.html",
     "https://www.rfc-editor.org/rfc/rfc8085.html",
     "https://www.rfc-editor.org/rfc/rfc8200.html",
+    "https://www.rfc-editor.org/rfc/rfc8259.html",
     "https://www.rfc-editor.org/rfc/rfc826.html",
     "https://www.rfc-editor.org/rfc/rfc8446.html",
     "https://www.rfc-editor.org/rfc/rfc9000.html",
     "https://www.rfc-editor.org/rfc/rfc9110.html",
+    "https://www.rfc-editor.org/rfc/rfc9110.html#section-15",
+    "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.5",
     "https://www.rfc-editor.org/rfc/rfc9110.html#section-3.7",
     "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.1",
     "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.2",
+    "https://www.rfc-editor.org/rfc/rfc9110.html#section-6",
+    "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4",
     "https://www.rfc-editor.org/rfc/rfc9110.html#section-9",
     "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.1",
+    "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2",
     "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6",
     "https://www.rfc-editor.org/rfc/rfc9112.html",
     "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.2",
@@ -4353,6 +4620,10 @@
     "https://www.sqlite.org/lang_createindex.html",
     "https://www.sqlite.org/queryplanner.html",
     "https://www.tcpdump.org/manpages/pcap-savefile.5.html",
+    "https://www.w3.org/TR/css-cascade-5/",
+    "https://www.w3.org/TR/css-values-4/#font-relative-lengths",
+    "https://www.w3.org/TR/selectors-4/",
+    "https://www.w3.org/TR/xml/",
     "https://www.w3.org/WAI/WCAG22/Understanding/content-on-hover-or-focus.html",
     "https://www.w3.org/WAI/WCAG22/Understanding/reflow.html",
     "https://www.wireshark.org/docs/dfref/i/ip.html",
@@ -4361,6 +4632,7 @@
     "https://www.wireshark.org/docs/man-pages/wireshark-filter.html",
     "https://www.wireshark.org/docs/man-pages/wireshark.html",
     "https://www.wireshark.org/docs/wsug_html_chunked/ChapterIntroduction.html",
+    "https://yaml.org/spec/1.2.2/",
     "https://zorin.com/os/"
   ]
 }

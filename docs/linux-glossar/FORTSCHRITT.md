@@ -3133,3 +3133,197 @@ Gesamtprüfung aller 170 Dokumente erfolgreich: unveränderte Originalquelle mit
 Die zehn neuen Texte enthalten zwei praktische Python-Beispiele (eigene Loopback-Adresswerte und eigene JSON-Daten über eine lokale API) und acht nicht ausgeführte Gedankenbeispiele. Keine Verbindungen, Namensauflösungen oder Mitschnitte in den Beispielen. wireshark, tshark, dumpcap und capinfos bei reiner Suchpfadprüfung nicht gefunden; nichts installiert und keine Werkzeugabnahme behauptet. Quellenbelegte Filter und Kommandomuster ausdrücklich nicht ausgeführt. VPN, Proxy, Netzwerkprofile, Zertifikate und Dienste unverändert.
 
 Dokumente 1–160 und deren Indexdatensätze gegenüber 2cda9c0 unverändert; Pilottexte zusätzlich unmittelbar gegen Pilotcommit 688a832 geprüft. PROMPT.md unverändert. Änderungsumfang nur zehn neue Glossartexte, index.json und FORTSCHRITT.md; git diff --check erfolgreich. Keine Anwendung, Tests, Abhängigkeiten, Paketierung, Originalquelle oder Befehlsdokumentationen verändert. Strukturprüfung weiterhin über temporären kompatiblen Kopf im vorhandenen Markdown-Parser, keine neue Reader-Abnahme. Inhaltliche Zweitprüfung und lokaler Reader-Test stehen aus; review_pending bleibt erhalten.
+
+## 171. Endpoint – it_0171
+
+Ausgearbeitet und strukturell geprüft: 643 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5657 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/urllib.parse.html#urllib.parse.urlsplit
+- https://spec.openapis.org/oas/v3.1.1.html#paths-object
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine Verbindung oder API-Operation; URL-Parsing nicht als Erreichbarkeits- oder Sicherheitsprüfung ausgegeben.
+
+Präzisierung gegenüber der Quelle: Endpoint-Pfad von vollständiger URL und Operation getrennt; Methode und API-Vertrag berücksichtigt. OpenAPI 3.1.1 ausdrücklich als verwendete Spezifikation genannt. Eigene URL lokal in Bestandteile zerlegt.
+
+SHA-256: `5720f508faffa89744a284529b0ce22d907fb012396788bab56e9b62925e81a4`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 172. Request – it_0172
+
+Ausgearbeitet und strukturell geprüft: 667 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5783 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/urllib.request.html#urllib.request.Request
+- https://www.rfc-editor.org/rfc/rfc9110.html#section-6
+- https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Kein urlopen, DNS, Serverkontakt oder Handshake; Accept-Präferenz nicht als tatsächliche Serverantwort ausgegeben.
+
+Präzisierung gegenüber der Quelle: Anfrageerzeugung, Senden und Ausführung getrennt; HTTP nur als konkreter Kontext. Wiederholungsrisiko und idempotente Semantik eingeordnet. Eigenes Request-Objekt ohne Sendeoperation praktisch geprüft.
+
+SHA-256: `7d87013d54aaa00f2bc6459379414386e8dfea63e20038298235bb91f3b103ee`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 173. Response – it_0173
+
+Ausgearbeitet und strukturell geprüft: 678 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6020 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/http.client.html#http.client.parse_headers
+- https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4
+- https://www.rfc-editor.org/rfc/rfc9112.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Kein Server, Socket oder echter API-Austausch. Beispiel nicht als vollständiger Parser für beliebige HTTP-Nachrichten oder Dienstabnahme ausgegeben.
+
+Präzisierung gegenüber der Quelle: Response von Körper, JSON und fachlichem Erfolg getrennt. Öffentliche parse_headers-Funktion nur für ihre dokumentierte Teilaufgabe verwendet; eigene vollständige Beispielbytes und Feld-/Körperlänge geprüft.
+
+SHA-256: `74bf83569aac49386e3f97c3820e4536b7c628c4062f476ebb20251c79a1d5ec`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 174. Statuscode – it_0174
+
+Ausgearbeitet und strukturell geprüft: 680 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5567 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/http.html#http.HTTPStatus
+- https://www.rfc-editor.org/rfc/rfc9110.html#section-15
+- https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.5
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine Verbindung, Endpoint-Prüfung oder API-Antwort; Bibliothekszuordnung ist keine Serverdiagnose.
+
+Präzisierung gegenüber der Quelle: HTTP-Status von Exit-Code und fachlichem Erfolg getrennt. Klassen und 404-Existenz-/Offenlegungsaussage präzisiert. Eigene Zahlen über Python-3.13-HTTPStatus geprüft, keine echten Antworten behauptet.
+
+SHA-256: `a292a0fca743bae626c70c3bf555126e28c8b3687a1e4469cdbb70dfb5711fda`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 175. JSON – it_0175
+
+Ausgearbeitet und strukturell geprüft: 683 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6050 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/json.html#json.dumps
+- https://docs.python.org/3.13/library/json.html#standard-compliance-and-interoperability
+- https://www.rfc-editor.org/rfc/rfc8259.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur eigene Speicherwerte; keine API, Fremddatei oder Konfiguration. Rücklesen ist keine vollständige Schema- oder Sicherheitsabnahme.
+
+Präzisierung gegenüber der Quelle: JSON-Standard von Python-Strukturen, Parsererweiterungen und Anwendungsschema getrennt. Objekte nicht als einzige gültige Wurzelwerte dargestellt; NaN-Ausgabe im eigenen Beispiel ausdrücklich abgelehnt.
+
+SHA-256: `34edff1007e3cb9e1b0d99ced5268f69891cdeb354b7764fce5b4a3c99766124`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 176. YAML – it_0176
+
+Ausgearbeitet und strukturell geprüft: 685 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5803 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://compose-spec.github.io/compose-spec/spec.html
+- https://pyyaml.org/wiki/PyYAMLDocumentation
+- https://yaml.org/spec/1.2.2/
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine Installation, Compose-Ausführung oder echte Konfigurationsdatei. safe_load-Test keine umfassende Schema- oder Sicherheitsabnahme.
+
+Präzisierung gegenüber der Quelle: YAML-Version, Schema, Parser und Anwendungsvertrag getrennt. Compose-Dateiname anhand aktueller Spezifikation eingeordnet. Vorhandenes PyYAML 6.0.2 für eigene Werte genutzt; yes-Verhalten ausdrücklich als Parserverhalten statt YAML-1.2-Regel bezeichnet.
+
+SHA-256: `e2af493c2bf0354d4e15e6a6157003b604892209211086ac3154e4efdd63ff1e`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 177. XML – it_0177
+
+Ausgearbeitet und strukturell geprüft: 682 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6162 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/xml.etree.elementtree.html#xml.etree.ElementTree.fromstring
+- https://docs.python.org/3.13/library/xml.html#xml-vulnerabilities
+- https://www.w3.org/TR/xml/
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine Fremddateien, externen Entitäten oder Netzwerkzugriffe; keine Schema-, Sicherheits- oder Importabnahme behauptet.
+
+Präzisierung gegenüber der Quelle: XML-Wohlgeformtheit von Schema und Fachvertrag getrennt; Element-/Attributstruktur und Texttypen erläutert. Eigene Zeichenketten mit ElementTree verarbeitet und echte Verschachtelungsablehnung geprüft.
+
+SHA-256: `539dba3939b26ab1e29c213f201c0e8a70ee543b71ba15c198039db42753af2b`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 178. HTML – it_0178
+
+Ausgearbeitet und strukturell geprüft: 670 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5778 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://html.spec.whatwg.org/multipage/form-elements.html#the-button-element
+- https://html.spec.whatwg.org/multipage/introduction.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nur inaktiver Textblock; keine Browser-, Tastatur- oder Barrierefreiheitsabnahme. Temporäre Quellenankerprüfung um zulässige unquotierte HTML-id-Attribute ergänzt; kein Anwendungscode geändert.
+
+Präzisierung gegenüber der Quelle: HTML-Struktur und Semantik von Gestaltung und Programmlogik getrennt. Buttonbeispiel mit explizitem Typ und ohne automatische Fachaktion erklärt. Aktueller WHATWG-Standard als Primärquelle.
+
+SHA-256: `e2d6e21c2b3473e1fe7bc0aec4362a7d92c9fea73a776bb3faab74792cf0a4a1`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 179. CSS – it_0179
+
+Ausgearbeitet und strukturell geprüft: 682 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5904 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.w3.org/TR/css-values-4/#font-relative-lengths
+
+- https://www.w3.org/TR/css-cascade-5/
+- https://www.w3.org/TR/selectors-4/
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nur inaktiver CSS-Text; kein Browserrendering, Pixel-, Kontrast- oder Responsive-Test. Keine Stylesheets oder Reader-Darstellung verändert.
+
+Präzisierung gegenüber der Quelle: CSS über reine Farben hinaus als Darstellungssprache erläutert. Selektor, Deklaration, Kaskade und Vererbung getrennt; letzte-Regel-Regel ausdrücklich an Vergleichsbedingungen gebunden.
+
+SHA-256: `a3e282f7b474f706bb7caa5be1e69e673ec54dd1e260f553524dbb30e5cc9ae1`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 180. JavaScript – it_0180
+
+Ausgearbeitet und strukturell geprüft: 651 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5943 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://dom.spec.whatwg.org/#introduction-to-dom-events
+- https://nodejs.org/api/globals.html
+- https://tc39.es/ecma262/
+- https://tc39.es/ecma262/#sec-array.prototype.map
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Kein Browser-, Klick-, DOM- oder Netzwerkversuch; keine Pakete installiert. Nur temporären Validator um korrekt markierte JavaScript-Beispiele erweitert, Anwendungscode unverändert.
+
+Präzisierung gegenüber der Quelle: ECMAScript-Sprachkern von Browser-/DOM- und Node-APIs getrennt. Eigenes JavaScript mit vorhandener Node.js 24.22.1 praktisch ausgeführt; Arraywerte, Objekttrennung und Funktionsfälle geprüft.
+
+SHA-256: `b9e7bd959f29ce7d972183556e25fc4d400da32cc73b6c460d8f692497931bba`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## Sicherungspunkt nach Datensatz 180 – 21.11.2026
+
+**180 von 302** ausgearbeitet und strukturell geprüft; 122 fehlen. Nächster Datensatz: **it_0181** (Originalbegriff vor Beginn aus dem Katalog lesen). Die Freigabe bis 302 bleibt bestehen; kein Abschluss des Gesamtauftrags.
+
+Branch codex/linux-glossar-011-302; Ausgangspunkt dieses Abschnitts 4672b57676ce0703f7243a6c1c6d8008d215958b. Einträge 171–180 einzeln recherchiert, geschrieben und nach Prüfung unmittelbar in Index und Fortschritt gespeichert. Originaldaten und Reihenfolge erhalten. Neuer JavaScript-Code ist korrekt als javascript markiert; alle Glossarköpfe bleiben im vereinbarten unveränderten Schema.
+
+Alle 180 Dokumente und Indexdatensätze erneut erfolgreich geprüft: vereinbarter Quellhash, 302 eindeutige Originaldatensätze, vollständige Metadaten, Kategorieableitung, zehn Hauptabschnitte, Codeblöcke, Grenzen, lokale Verweise und tatsächliche Dokumentprüfsummen. Indexschema unverändert; documented_records 180 und genaue Quellenvereinigung sortiert und duplikatfrei. Neue Linkbeschriftungen zusätzlich gegen Originalbegriffe geprüft.
+
+Gesamtlauf: 120 vollständige Python-Beispiele mit System-Python und ein JavaScript-Beispiel mit vorhandenem Node.js 24.22.1 erneut erfolgreich ausgeführt. Assertions, Exitcodes und Standardausgaben geprüft. In 171–180 sind sieben Python-Beispiele, ein JavaScript-Beispiel und zwei Gedankenmodelle enthalten. Vorhandenes PyYAML 6.0.2 ohne Installation genutzt; dessen yes-Auflösung ausdrücklich von YAML-1.2-Regeln unterschieden. Alle Daten selbst erzeugt und Ausführungen in temporären Ordnern. Kein Serverkontakt, Browser-, Klick- oder Darstellungstest. HTML und CSS nur inaktive Textblöcke.
+
+Temporärer Validator um JavaScript-Ausführung und zulässige unquotierte HTML-id-Attribute bei Quellenankern ergänzt; kein Anwendungscode verändert. Der vorhandene Markdown-Parser hat ausschließlich im Prüfprozess einen kompatiblen Kopf erhalten. Keine Reader-Abnahme oder vollständige Schema-/Sicherheitsvalidierung behauptet.
+
+Alle Texte 1–170 und ihre Indexdatensätze gegenüber 4672b57 unverändert, Pilottexte zusätzlich gegen ursprünglichen Pilotcommit geprüft. PROMPT.md unverändert. Nur zehn neue Glossartexte, index.json und FORTSCHRITT.md geändert; git diff --check erfolgreich. Keine Anwendung, Tests, Abhängigkeiten, Paketierung, Originalquelle, Befehlsdokumentation oder Cloud-Veröffentlichung geändert. Fachliche Zweitprüfung und lokale Reader-Prüfung bleiben ausstehend; review_pending bleibt erhalten.
