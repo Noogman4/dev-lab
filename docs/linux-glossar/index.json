@@ -4,7 +4,7 @@
   "source_catalog": "tools/it_lexikon_linux_hilfe.json",
   "source_sha256": "b3fb9bfe37d335ee6eaa89c89425f08c94e8efc6f698e7c520ffc81ed128fc24",
   "total_records": 302,
-  "documented_records": 240,
+  "documented_records": 250,
   "records": [
     {
       "source_record": 1,
@@ -5685,6 +5685,241 @@
         "https://docs.kernel.org/userspace-api/seccomp_filter.html"
       ],
       "status": "review_pending"
+    },
+    {
+      "source_record": 241,
+      "id": "it_0241",
+      "term": "Injection",
+      "category": "Sicherheit",
+      "document": "it_0241.md",
+      "sha256": "68f23e3bae27c9b616cd4ee405bb684e1cf1a4c84cee58046729dcbe0f74af84",
+      "source": {
+        "id": "it_0241",
+        "term": "Injection",
+        "short": "Angriff, bei dem fremde Befehle eingeschleust werden.",
+        "example": "SQL Injection kann Datenbankbefehle manipulieren.",
+        "tags": [
+          "sicherheit"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/OS_Command_Injection_Defense_Cheat_Sheet.md",
+        "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.md"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 242,
+      "id": "it_0242",
+      "term": "Input Validation",
+      "category": "Sicherheit",
+      "document": "it_0242.md",
+      "sha256": "c2646e0b678f5dca407b44ec0904acff19e7fc3783f436781a6e462df3ff40f8",
+      "source": {
+        "id": "it_0242",
+        "term": "Input Validation",
+        "short": "Prüfung von Benutzereingaben.",
+        "example": "Eine IP-Adresse wird vor Nutzung validiert.",
+        "tags": [
+          "sicherheit",
+          "programmierung"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.ip_address",
+        "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Input_Validation_Cheat_Sheet.md"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 243,
+      "id": "it_0243",
+      "term": "Escaping",
+      "category": "Sicherheit",
+      "document": "it_0243.md",
+      "sha256": "9d1cc53272870edda7a5a37428a12d11f50df39bd2fb0d008da8819d99e553ec",
+      "source": {
+        "id": "it_0243",
+        "term": "Escaping",
+        "short": "Sicheres Entschärfen spezieller Zeichen.",
+        "example": "Shell-Argumente müssen korrekt escaped werden.",
+        "tags": [
+          "sicherheit"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/html.html#html.escape",
+        "https://docs.python.org/3.13/library/shlex.html#shlex.quote",
+        "https://docs.python.org/3.13/library/subprocess.html#security-considerations"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 244,
+      "id": "it_0244",
+      "term": "Secrets",
+      "category": "Sicherheit",
+      "document": "it_0244.md",
+      "sha256": "7cfb994b905c140b4847c63d7e1f973eca293bfa808494e65a9a5761e43c875d",
+      "source": {
+        "id": "it_0244",
+        "term": "Secrets",
+        "short": "Geheime Werte wie API-Schlüssel oder Passwörter.",
+        "example": "Secrets gehören nicht öffentlich ins Git-Repo.",
+        "tags": [
+          "sicherheit"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/secrets.html",
+        "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Secrets_Management_Cheat_Sheet.md"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 245,
+      "id": "it_0245",
+      "term": "Keyring",
+      "category": "Sicherheit",
+      "document": "it_0245.md",
+      "sha256": "92af80a36fe39f714b749ed067367abcf6dc0f97ab4c7b15666862909ede73b1",
+      "source": {
+        "id": "it_0245",
+        "term": "Keyring",
+        "short": "Sicherer Speicher für Zugangsdaten.",
+        "example": "Linux kann Passwörter im Keyring speichern.",
+        "tags": [
+          "sicherheit",
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.kernel.org/security/keys/core.html",
+        "https://specifications.freedesktop.org/secret-service/latest/ch01.html",
+        "https://specifications.freedesktop.org/secret-service/latest/ch10.html",
+        "https://specifications.freedesktop.org/secret-service/latest/unlocking.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 246,
+      "id": "it_0246",
+      "term": "Test",
+      "category": "Testing",
+      "document": "it_0246.md",
+      "sha256": "95ef91062163890615576f09c04ef4496b7054f1fbf6d8a16e8107cc94ff9ae1",
+      "source": {
+        "id": "it_0246",
+        "term": "Test",
+        "short": "Prüfung, ob Code erwartetes Verhalten zeigt.",
+        "example": "Ein Test prüft, ob DNS-Erkennung funktioniert.",
+        "tags": [
+          "testing"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/unittest.html",
+        "https://raw.githubusercontent.com/pytest-dev/pytest/main/doc/en/how-to/assert.rst"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 247,
+      "id": "it_0247",
+      "term": "Unit Test",
+      "category": "Testing",
+      "document": "it_0247.md",
+      "sha256": "41e131f653f338c4c59d0a1bc4a7c3d7563ab8819f5594ad3ff50dd30adc8d33",
+      "source": {
+        "id": "it_0247",
+        "term": "Unit Test",
+        "short": "Test einer kleinen Codeeinheit.",
+        "example": "Eine Funktion wird isoliert getestet.",
+        "tags": [
+          "testing"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/unittest.html#basic-example",
+        "https://docs.python.org/3.13/library/unittest.html#unittest.TestCase.assertRaises"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 248,
+      "id": "it_0248",
+      "term": "Integrationstest",
+      "category": "Testing",
+      "document": "it_0248.md",
+      "sha256": "8da6b9c477b730548f0105775b6fa2ecfae9691ab6dc3130ec15be32a96c89c3",
+      "source": {
+        "id": "it_0248",
+        "term": "Integrationstest",
+        "short": "Test mehrerer zusammenarbeitender Komponenten.",
+        "example": "GUI und Netzwerkmodul werden zusammen getestet.",
+        "tags": [
+          "testing"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/sqlite3.html#sqlite3.connect",
+        "https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests?view=aspnetcore-10.0"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 249,
+      "id": "it_0249",
+      "term": "End-to-End-Test",
+      "category": "Testing",
+      "document": "it_0249.md",
+      "sha256": "4c7ccad43d02b6affd7ef0a16ec469062a6facc6527080ec12d00cab160d9050",
+      "source": {
+        "id": "it_0249",
+        "term": "End-to-End-Test",
+        "short": "Test eines vollständigen Ablaufs aus Nutzersicht.",
+        "example": "Starten, Scannen, Ergebnis anzeigen.",
+        "tags": [
+          "testing"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://playwright.dev/docs/best-practices",
+        "https://playwright.dev/docs/writing-tests"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 250,
+      "id": "it_0250",
+      "term": "Mock",
+      "category": "Testing",
+      "document": "it_0250.md",
+      "sha256": "941f7a4ca2f82f32292578934f209939db9e11fb8c0bf396a805d822df86d1c3",
+      "source": {
+        "id": "it_0250",
+        "term": "Mock",
+        "short": "Ersatzobjekt für Tests.",
+        "example": "Ein Netzwerkaufruf wird durch einen Mock ersetzt.",
+        "tags": [
+          "testing"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/unittest.mock.html#auto-speccing",
+        "https://docs.python.org/3.13/library/unittest.mock.html#unittest.mock.Mock.side_effect"
+      ],
+      "status": "review_pending"
     }
   ],
   "source_urls": [
@@ -5717,6 +5952,7 @@
     "https://docs.kernel.org/admin-guide/mm/concepts.html",
     "https://docs.kernel.org/scheduler/sched-design-CFS.html",
     "https://docs.kernel.org/security/credentials.html",
+    "https://docs.kernel.org/security/keys/core.html",
     "https://docs.kernel.org/userspace-api/index.html",
     "https://docs.kernel.org/userspace-api/landlock.html",
     "https://docs.kernel.org/userspace-api/no_new_privs.html",
@@ -5761,6 +5997,7 @@
     "https://docs.python.org/3.13/library/hashlib.html",
     "https://docs.python.org/3.13/library/hashlib.html#usage",
     "https://docs.python.org/3.13/library/hmac.html#hmac.compare_digest",
+    "https://docs.python.org/3.13/library/html.html#html.escape",
     "https://docs.python.org/3.13/library/http.client.html#http.client.parse_headers",
     "https://docs.python.org/3.13/library/http.cookies.html#http.cookies.SimpleCookie",
     "https://docs.python.org/3.13/library/http.html#http.HTTPStatus",
@@ -5794,7 +6031,9 @@
     "https://docs.python.org/3.13/library/queue.html#queue.Queue.empty",
     "https://docs.python.org/3.13/library/queue.html#queue.Queue.join",
     "https://docs.python.org/3.13/library/queue.html#queue.Queue.task_done",
+    "https://docs.python.org/3.13/library/secrets.html",
     "https://docs.python.org/3.13/library/secrets.html#secrets.token_urlsafe",
+    "https://docs.python.org/3.13/library/shlex.html#shlex.quote",
     "https://docs.python.org/3.13/library/shutil.html#shutil.which",
     "https://docs.python.org/3.13/library/socket.html#socket.socketpair",
     "https://docs.python.org/3.13/library/sqlite3.html#how-to-use-the-connection-context-manager",
@@ -5837,7 +6076,12 @@
     "https://docs.python.org/3.13/library/typing.html",
     "https://docs.python.org/3.13/library/typing.html#typing.Final",
     "https://docs.python.org/3.13/library/typing.html#typing.Protocol",
+    "https://docs.python.org/3.13/library/unittest.html",
+    "https://docs.python.org/3.13/library/unittest.html#basic-example",
     "https://docs.python.org/3.13/library/unittest.html#unittest.TestCase.assertEqual",
+    "https://docs.python.org/3.13/library/unittest.html#unittest.TestCase.assertRaises",
+    "https://docs.python.org/3.13/library/unittest.mock.html#auto-speccing",
+    "https://docs.python.org/3.13/library/unittest.mock.html#unittest.mock.Mock.side_effect",
     "https://docs.python.org/3.13/library/urllib.parse.html#urllib.parse.urlsplit",
     "https://docs.python.org/3.13/library/urllib.request.html#urllib.request.Request",
     "https://docs.python.org/3.13/library/urllib.request.html#urllib.request.urlopen",
@@ -5913,6 +6157,7 @@
     "https://ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm",
     "https://invisible-island.net/xterm/xterm.html",
     "https://keepachangelog.com/en/1.1.0/",
+    "https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests?view=aspnetcore-10.0",
     "https://learn.microsoft.com/en-us/azure/architecture/guide/architecture-styles/",
     "https://learn.microsoft.com/en-us/azure/architecture/guide/design-principles/",
     "https://learn.microsoft.com/en-us/azure/azure-app-configuration/feature-management-python-reference",
@@ -5970,6 +6215,8 @@
     "https://peps.python.org/pep-0440/#version-scheme",
     "https://peps.python.org/pep-0484/#non-goals",
     "https://peps.python.org/pep-0602/",
+    "https://playwright.dev/docs/best-practices",
+    "https://playwright.dev/docs/writing-tests",
     "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap08.html",
     "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html",
     "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/chown.html",
@@ -5979,8 +6226,12 @@
     "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Authentication_Cheat_Sheet.md",
     "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Authorization_Cheat_Sheet.md",
     "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Cryptographic_Storage_Cheat_Sheet.md",
+    "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Input_Validation_Cheat_Sheet.md",
     "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Insecure_Direct_Object_Reference_Prevention_Cheat_Sheet.md",
+    "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/OS_Command_Injection_Defense_Cheat_Sheet.md",
     "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Password_Storage_Cheat_Sheet.md",
+    "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.md",
+    "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Secrets_Management_Cheat_Sheet.md",
     "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Session_Management_Cheat_Sheet.md",
     "https://raw.githubusercontent.com/django/django/stable/5.2.x/docs/howto/deployment/checklist.txt",
     "https://raw.githubusercontent.com/git/git/master/Documentation/git-add.adoc",
@@ -6010,6 +6261,7 @@
     "https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/tutorials/packaging-projects.rst",
     "https://raw.githubusercontent.com/pypa/pip/main/docs/html/cli/pip_install.rst",
     "https://raw.githubusercontent.com/pypa/pip/main/docs/html/user_guide.rst",
+    "https://raw.githubusercontent.com/pytest-dev/pytest/main/doc/en/how-to/assert.rst",
     "https://raw.githubusercontent.com/sudo-project/sudo/main/docs/sudo.mdoc.in",
     "https://raw.githubusercontent.com/sudo-project/sudo/main/docs/sudoers.mdoc.in",
     "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/bind.n",
@@ -6028,6 +6280,9 @@
     "https://raw.githubusercontent.com/usnistgov/800-63-4/nist-pages/sp800-63b/introduction/index.html",
     "https://semver.org/spec/v2.0.0.html",
     "https://spec.openapis.org/oas/v3.1.1.html#paths-object",
+    "https://specifications.freedesktop.org/secret-service/latest/ch01.html",
+    "https://specifications.freedesktop.org/secret-service/latest/ch10.html",
+    "https://specifications.freedesktop.org/secret-service/latest/unlocking.html",
     "https://tc39.es/ecma262/",
     "https://tc39.es/ecma262/#sec-array.prototype.map",
     "https://wiki.nftables.org/wiki-nftables/index.php/Configuring_chains",

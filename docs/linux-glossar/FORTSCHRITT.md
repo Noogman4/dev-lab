@@ -4408,3 +4408,184 @@ Branch `codex/linux-glossar-011-302`; Ausgangscommit dieses Abschnitts `bfd253a8
 Gesamtprüfung aller 240 Dokumente erfolgreich: vollständige Originalzuordnung und Metadaten, Kategorieableitung, unverändertes Indexschema, lückenlose records und documented_records, genaue sortierte duplikatfreie Quellenvereinigung, zehn Hauptabschnitte, Codeblöcke, Größen-/Parserlimits, interne Verweise und tatsächliche Dokumentprüfsummen. Quelle unverändert mit erwartetem SHA-256 und 302 eindeutigen IDs/Begriffen. Alle bisherigen 230 Texte und ihre vollständigen Indexdatensätze sowie PROMPT.md gegenüber dem Ausgangscommit unverändert; Pilottexte und Pilotindex zusätzlich gegen den Pilotcommit geprüft. Neue Linkbeschriftungen mit Katalogbegriffen abgeglichen. 159 vollständige Python-Beispiele und ein JavaScript-Beispiel erneut erfolgreich mit Assertions, Exitcodes und exakten Ausgaben ausgeführt. Ausschließlich neue Texte 231–240 sowie Index und Fortschritt geändert; git diff --check erfolgreich.
 
 Drei neue praktische Python-Prüfungen: eigene Queue mit beendetem Worker-Thread, objektbezogene Erlaubnis-/Ablehnungsentscheidung für erfundene Notizen und SHA-256-Vergleich eigener harmloser Bytes. Sieben ausdrücklich nicht ausgeführte Gedankenmodelle zu Authentifizierung, Verschlüsselung, Salt, Firewall-Regel, Privilege Escalation, Least Privilege und Sandbox. Keine echten Anmeldungen, Kontodaten, Passwörter, Schlüssel, Firewall-Regeln oder Systemschutzprofile gelesen beziehungsweise verändert. Keine privilegierten Aktionen, Geräte-, Dienst- oder Netzwerkkonfiguration; keine Installationen. Keine Reader-, GUI-, Kryptografie-, Autorisierungs-, DNS-Schutz- oder Sandbox-Abnahme behauptet. Alle neuen Texte review_pending; fachliche Zweitprüfung und lokale Reader-Prüfung offen. Strukturprüfung nur über temporären kompatiblen Kopf im vorhandenen Markdown-Parser.
+
+## 241. Injection – it_0241
+
+Ausgearbeitet und strukturell geprüft: 775 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6837 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/OS_Command_Injection_Defense_Cheat_Sheet.md
+- https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.md
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigene SQLite-Speicherdaten mit sicher gebundenem legitimen Apostrophnamen und ungewöhnlichem Datenwert geprüft; keine unsichere Abfrage, Shell, externen Befehle oder fremden Systeme.
+
+Präzisierung gegenüber der Quelle: Injection als Verwechslung von Daten und Anweisungssyntax präzisiert; SQL-Wertbindung von dynamischen Strukturentscheidungen, Shellkontext und Dependency Injection getrennt.
+
+SHA-256: `68f23e3bae27c9b616cd4ee405bb684e1cf1a4c84cee58046729dcbe0f74af84`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 242. Input Validation – it_0242
+
+Ausgearbeitet und strukturell geprüft: 740 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6522 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/ipaddress.html#ipaddress.ip_address
+- https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Input_Validation_Cheat_Sheet.md
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigene IPv4-/IPv6-Textliterale und drei Ablehnungen lokal geprüft; keine DNS-Auflösung, Verbindung, Netzwerk-/Dienste-/Geräteänderung.
+
+Präzisierung gegenüber der Quelle: Syntax und Semantik sowie Normalisierung, sichere Weitergabe und Autorisierung getrennt. IP-Literalprüfung von Hostname, Erreichbarkeit und Nutzungserlaubnis unterschieden; Parser-Verhalten versionsbezogen.
+
+SHA-256: `c2646e0b678f5dca407b44ec0904acff19e7fc3783f436781a6e462df3ff40f8`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 243. Escaping – it_0243
+
+Ausgearbeitet und strukturell geprüft: 739 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6555 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/html.html#html.escape
+- https://docs.python.org/3.13/library/shlex.html#shlex.quote
+- https://docs.python.org/3.13/library/subprocess.html#security-considerations
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigene HTML-Zeichenreferenzen und shlex-Rückvergleich geprüft; keine echte Shell, Unterprogramme, Browserausgabe oder Netzwerkoperation ausgeführt.
+
+Präzisierung gegenüber der Quelle: Escaping als kontextgebundene Darstellung erklärt; HTML, POSIX-Shell, Argumentlisten und SQL-Parameter getrennt. Keine universelle Entschärfung oder Validierungs-/Verschlüsselungsgarantie.
+
+SHA-256: `9d1cc53272870edda7a5a37428a12d11f50df39bd2fb0d008da8819d99e553ec`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 244. Secrets – it_0244
+
+Ausgearbeitet und strukturell geprüft: 763 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6548 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/secrets.html
+- https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Secrets_Management_Cheat_Sheet.md
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigener nicht registrierter Zufallstestwert ohne Inhaltsausgabe oder Speicherung; nur Form und Vergleich geprüft, keine echte Anmeldung, Token-/Rechteverwaltung oder Laufzeitsicherheitsabnahme.
+
+Präzisierung gegenüber der Quelle: Secrets nach Funktion und Lebenszyklus eingeordnet; öffentliche Schlüssel und Salt getrennt. Versteckte Dateien, Umgebungsvariablen und aktuelle Git-Löschung keine universellen Schutzgarantien.
+
+SHA-256: `7cfb994b905c140b4847c63d7e1f973eca293bfa808494e65a9a5761e43c875d`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 245. Keyring – it_0245
+
+Ausgearbeitet und strukturell geprüft: 760 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6732 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.kernel.org/security/keys/core.html
+- https://specifications.freedesktop.org/secret-service/latest/ch01.html
+- https://specifications.freedesktop.org/secret-service/latest/ch10.html
+- https://specifications.freedesktop.org/secret-service/latest/unlocking.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht ausgeführtes Speichermodell; keine echten Zugangswerte, Keyring-Abfragen, Entsperrungen, Dialoge, Konten-, Schlüssel- oder Dienständerungen.
+
+Präzisierung gegenüber der Quelle: Desktop-Secret-Service von Kernel-Keyrings getrennt. Abgerufener Secret-Service-Entwurf 0.2, nicht geheime Suchattribute, Sperr-/Fehlerzustände und nicht vorgeschriebene Zugriffskontrolle ausdrücklich eingeordnet.
+
+SHA-256: `92af80a36fe39f714b749ed067367abcf6dc0f97ab4c7b15666862909ede73b1`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 246. Test – it_0246
+
+Ausgearbeitet und strukturell geprüft: 741 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6439 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/unittest.html
+- https://raw.githubusercontent.com/pytest-dev/pytest/main/doc/en/how-to/assert.rst
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht ausgeführtes Notizlistenmodell; kein GUI-/DNS-/End-to-End-Lauf, keine Änderung bestehender Anwendungstests oder Behauptung einer Reader-Abnahme.
+
+Präzisierung gegenüber der Quelle: Test als begrenzte Beobachtung mit unabhängiger Erwartung erklärt; Erfolg, Fehlerfall, übersprungene Fälle, Review und statische Prüfung getrennt. Keine automatische Vollständigkeitsgarantie.
+
+SHA-256: `95ef91062163890615576f09c04ef4496b7054f1fbf6d8a16e8107cc94ff9ae1`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 247. Unit Test – it_0247
+
+Ausgearbeitet und strukturell geprüft: 740 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6543 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/unittest.html#basic-example
+- https://docs.python.org/3.13/library/unittest.html#unittest.TestCase.assertRaises
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Zwei eigene unittest-Fälle mit Standardbibliothek im temporären Skript ausgeführt; keine App-Imports, vorhandenen Testsuite-Dateien oder Integrations-/GUI-Abnahme.
+
+Präzisierung gegenüber der Quelle: Unit als gewählte kleine Vertragsgrenze erklärt, nicht zwingend einzelne Methode. Beobachtbare Erwartungen, vorgesehene Fehler und Grenzen von Ersatzobjekten/Erfolg getrennt.
+
+SHA-256: `41e131f653f338c4c59d0a1bc4a7c3d7563ab8819f5594ad3ff50dd30adc8d33`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 248. Integrationstest – it_0248
+
+Ausgearbeitet und strukturell geprüft: 770 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6876 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/sqlite3.html#sqlite3.connect
+- https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests?view=aspnetcore-10.0
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigener Python-/SQLite-Dateirundlauf mit Commit, Verbindungswechsel und kontrolliertem Aufräumen; keine App-Imports, vorhandenen Tests, Server, Konkurrenz-, Stromausfall- oder End-to-End-Prüfung.
+
+Präzisierung gegenüber der Quelle: Integration als benannte gemeinsame Prüfgrenze erklärt. ASP.NET-Core-Werkzeuge kontextualisiert; tatsächliche SQLite-Datei mit neuer Verbindung von GUI-/Netzwerk-/Fremddatenbankabnahme getrennt.
+
+SHA-256: `8da6b9c477b730548f0105775b6fa2ecfae9691ab6dc3130ec15be32a96c89c3`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 249. End-to-End-Test – it_0249
+
+Ausgearbeitet und strukturell geprüft: 757 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6599 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://playwright.dev/docs/best-practices
+- https://playwright.dev/docs/writing-tests
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht ausgeführtes Notizoberflächenmodell; keine Browser-/GUI-Installation, Klick-, Netzwerk-, Scan-, Produkt- oder Reader-Abnahme.
+
+Präzisierung gegenüber der Quelle: End-to-End als vollständigen benannten Ablauf mit begrenztem Umfang erklärt; Browserwerkzeuge von Desktop-/Readerprüfung getrennt. Erwartungen, Bedingungen und Ersatzstellen statt bloßer Aktionsfolge.
+
+SHA-256: `4c7ccad43d02b6affd7ef0a16ec469062a6facc6527080ec12d00cab160d9050`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 250. Mock – it_0250
+
+Ausgearbeitet und strukturell geprüft: 741 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6639 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/unittest.mock.html#auto-speccing
+- https://docs.python.org/3.13/library/unittest.mock.html#unittest.mock.Mock.side_effect
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigener Python-Mock mit Signaturvorlage, Rückgabe, Aufrufkontrolle und simuliertem TimeoutError geprüft; kein realer Dienst, Netzfehler, App-Import oder bestehende Testsuite verändert.
+
+Präzisierung gegenüber der Quelle: Mock als begrenztes kontrolliertes Test Double erklärt; Rückgabeverarbeitung und Aufrufprüfung getrennt. Autospeccing und simulierte Fehler keine echte Integrations-/Timeoutabnahme.
+
+SHA-256: `941f7a4ca2f82f32292578934f209939db9e11fb8c0bf396a805d822df86d1c3`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## Sicherungspunkt nach Eintrag 250
+
+Branch `codex/linux-glossar-011-302`; Ausgangscommit dieses Abschnitts `31c1886a8a9f2e176463e9a8d07647b380e5115f`. Einträge 241–250 einzeln in Quellreihenfolge recherchiert, geschrieben, geprüft und nach jedem Abschluss in Index und Fortschritt gespeichert. Tatsächlicher Gesamtstand: 250 von 302; noch 52 offen. Nächster Eintrag: `it_0251` – Fixture. Der Auftrag bis 302 bleibt aktiv; gemeinsame Gesamtzusammenfassung noch ausstehend.
+
+Gesamtprüfung aller 250 Dokumente erfolgreich: Quelle unverändert mit erwartetem SHA-256, 302 eindeutige IDs/Begriffe; vollständige Originalzuordnung, Metadaten und Kategorieableitung; unverändertes Indexschema, lückenlose records und documented_records; genaue sortierte duplikatfreie Quellenvereinigung; zehn Hauptabschnitte, Codeblöcke, Größen-/Parserlimits, interne Verweise und tatsächliche Dokumentprüfsummen. Alle bisherigen 240 Texte und Indexdatensätze sowie PROMPT.md gegenüber dem Ausgangscommit unverändert, Pilottexte und Pilotindex zusätzlich gegen den Pilotcommit geprüft. Neue Linkbeschriftungen mit Katalogbegriffen abgeglichen. 166 vollständige Python-Beispiele und ein JavaScript-Beispiel erneut erfolgreich ausgeführt, Assertions, Exitcodes und vollständige Standardausgaben geprüft. Exakter Änderungsumfang neue Texte 241–250 sowie Index und Fortschritt; git diff --check erfolgreich.
+
+Sieben neue ausführbare Python-Beispiele: sichere SQLite-Wertbindung, lokale IP-Literalprüfung, HTML-/POSIX-Shell-Textdarstellung, eigener nicht registrierter Zufallswert ohne Inhaltsausgabe, zwei eigene Unit-Testfälle, temporärer SQLite-Dateirundlauf und kontrollierter Mock. Drei nicht ausgeführte Gedankenmodelle zu Keyring, allgemeinem Test und End-to-End-Test. Keine unsichere SQL-Variante oder echte Shell ausgeführt; keine Verbindungen oder echten Zugangsdaten verwendet. Kein Keyring gelesen/entsperrt, keine Browser-/GUI-Werkzeuge installiert, keine vorhandenen Anwendungstests verändert. Secret-Service-Quelle als abgerufenen Entwurf 0.2 gekennzeichnet. Keine echte Login-, Rechte-, Netzwerk-, End-to-End- oder Reader-Abnahme behauptet. Alle neuen Texte review_pending; fachliche Zweitprüfung und lokale Reader-Prüfung offen. Strukturprüfung im vorhandenen Markdown-Parser mit ausschließlich temporärem kompatiblem Kopf.
