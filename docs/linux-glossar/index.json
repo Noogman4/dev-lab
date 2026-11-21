@@ -4,7 +4,7 @@
   "source_catalog": "tools/it_lexikon_linux_hilfe.json",
   "source_sha256": "b3fb9bfe37d335ee6eaa89c89425f08c94e8efc6f698e7c520ffc81ed128fc24",
   "total_records": 302,
-  "documented_records": 260,
+  "documented_records": 270,
   "records": [
     {
       "source_record": 1,
@@ -6157,11 +6157,251 @@
         "https://docs.python.org/3.13/library/threading.html#lock-objects"
       ],
       "status": "review_pending"
+    },
+    {
+      "source_record": 261,
+      "id": "it_0261",
+      "term": "Process Fork",
+      "category": "Concurrency",
+      "document": "it_0261.md",
+      "sha256": "f497fb875c71618ce978977410e1949a19566c92d21669577ac17939e99dab48",
+      "source": {
+        "id": "it_0261",
+        "term": "Process Fork",
+        "short": "Erzeugen eines neuen Prozesses.",
+        "example": "Unter Linux kann fork einen Prozess kopieren.",
+        "tags": [
+          "concurrency",
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/os.html#os.fork",
+        "https://man7.org/linux/man-pages/man2/fork.2.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 262,
+      "id": "it_0262",
+      "term": "Async",
+      "category": "Concurrency",
+      "document": "it_0262.md",
+      "sha256": "8a2e9f0cb98c90c7e172d95a826bda77758898c88b3015023c1693ddd24db75b",
+      "source": {
+        "id": "it_0262",
+        "term": "Async",
+        "short": "Asynchrone Programmierung ohne dauerhaftes Blockieren.",
+        "example": "asyncio kann viele Netzwerkaufgaben effizient verwalten.",
+        "tags": [
+          "concurrency",
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/asyncio-sync.html#asyncio.Event",
+        "https://docs.python.org/3.13/library/asyncio-task.html#asyncio.to_thread",
+        "https://docs.python.org/3.13/library/asyncio-task.html#coroutines"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 263,
+      "id": "it_0263",
+      "term": "Await",
+      "category": "Concurrency",
+      "document": "it_0263.md",
+      "sha256": "be2cd66d2dd1b038c25fa1fa793df31098f2796ea818b758b60864867988d282",
+      "source": {
+        "id": "it_0263",
+        "term": "Await",
+        "short": "Warten auf ein asynchrones Ergebnis.",
+        "example": "await fetch() wartet, ohne alles zu blockieren.",
+        "tags": [
+          "concurrency",
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/asyncio-future.html#asyncio.Future.set_result",
+        "https://docs.python.org/3.13/library/asyncio-task.html#awaitables",
+        "https://docs.python.org/3.13/reference/expressions.html#await-expression"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 264,
+      "id": "it_0264",
+      "term": "Race Condition",
+      "category": "Concurrency",
+      "document": "it_0264.md",
+      "sha256": "f6be22d3c12a985814be5d68e78c711b472d477d99e7f41b56a7f251c07cde40",
+      "source": {
+        "id": "it_0264",
+        "term": "Race Condition",
+        "short": "Fehler durch ungünstige zeitliche Reihenfolge paralleler Abläufe.",
+        "example": "Zwei Threads schreiben gleichzeitig dieselbe Datei.",
+        "tags": [
+          "concurrency"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://cwe.mitre.org/data/definitions/362.html",
+        "https://docs.python.org/3.13/library/threading.html#lock-objects"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 265,
+      "id": "it_0265",
+      "term": "Deadlock",
+      "category": "Concurrency",
+      "document": "it_0265.md",
+      "sha256": "5d983ac8946b5484d1bb809bd4e68c93e3e00414c0f33b467ceb9e64defe987d",
+      "source": {
+        "id": "it_0265",
+        "term": "Deadlock",
+        "short": "Zustand, in dem Prozesse oder Threads gegenseitig aufeinander warten.",
+        "example": "Thread A wartet auf B, B wartet auf A.",
+        "tags": [
+          "concurrency"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://cwe.mitre.org/data/definitions/833.html",
+        "https://docs.python.org/3.13/library/threading.html#lock-objects"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 266,
+      "id": "it_0266",
+      "term": "Mutex",
+      "category": "Concurrency",
+      "document": "it_0266.md",
+      "sha256": "3492574e0f9b8be5421bcfbb50966085f69dff864149000f464bc68ca0a33e8d",
+      "source": {
+        "id": "it_0266",
+        "term": "Mutex",
+        "short": "Sperre für exklusiven Zugriff auf eine Ressource.",
+        "example": "Ein Mutex schützt gemeinsame Daten.",
+        "tags": [
+          "concurrency"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/threading.html#lock-objects",
+        "https://man7.org/linux/man-pages/man3/pthread_mutex_lock.3p.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 267,
+      "id": "it_0267",
+      "term": "Semaphore",
+      "category": "Concurrency",
+      "document": "it_0267.md",
+      "sha256": "f956893e586bbf3cce48e180c42a7a1279263f3d73c5fe3a7f377b6b1aa6d70d",
+      "source": {
+        "id": "it_0267",
+        "term": "Semaphore",
+        "short": "Zählerbasierte Sperre für begrenzten gleichzeitigen Zugriff.",
+        "example": "Nur drei Downloads gleichzeitig erlaubt.",
+        "tags": [
+          "concurrency"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/threading.html#semaphore-objects",
+        "https://docs.python.org/3.13/library/threading.html#threading.BoundedSemaphore",
+        "https://man7.org/linux/man-pages/man7/sem_overview.7.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 268,
+      "id": "it_0268",
+      "term": "Blocking",
+      "category": "Concurrency",
+      "document": "it_0268.md",
+      "sha256": "cdd0ddfcdd0191abf5070f2e4c0ad3476ec32ddb2c95b51fc7595bcda9c5d9cc",
+      "source": {
+        "id": "it_0268",
+        "term": "Blocking",
+        "short": "Ein Vorgang hält die weitere Ausführung auf.",
+        "example": "Ein langer Ping kann die GUI blockieren.",
+        "tags": [
+          "concurrency",
+          "gui"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/asyncio-dev.html#running-blocking-code",
+        "https://docs.python.org/3.13/library/queue.html#queue.Queue.get"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 269,
+      "id": "it_0269",
+      "term": "Nonblocking",
+      "category": "Concurrency",
+      "document": "it_0269.md",
+      "sha256": "abe8898732b4b69b6fa88ed083109a83f54422ce475f058adfd6fc6dcbb181f9",
+      "source": {
+        "id": "it_0269",
+        "term": "Nonblocking",
+        "short": "Ein Vorgang blockiert die weitere Ausführung nicht.",
+        "example": "Ein Hintergrundthread hält die GUI reaktionsfähig.",
+        "tags": [
+          "concurrency",
+          "gui"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/queue.html#queue.Queue.get_nowait",
+        "https://docs.python.org/3.13/library/socket.html#socket.socket.setblocking"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 270,
+      "id": "it_0270",
+      "term": "Paketierung",
+      "category": "Paketierung",
+      "document": "it_0270.md",
+      "sha256": "d7e590f8ceaa71e96ca0ab920ef3d06bc3f2627f602c81953a6710d2df812295",
+      "source": {
+        "id": "it_0270",
+        "term": "Paketierung",
+        "short": "Software in ein installierbares Format bringen.",
+        "example": "NetMon kann als .deb paketiert werden.",
+        "tags": [
+          "paketierung"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/tutorials/packaging-projects.rst",
+        "https://www.debian.org/doc/debian-policy/ch-binary.html"
+      ],
+      "status": "review_pending"
     }
   ],
   "source_urls": [
     "https://cassandra.apache.org/doc/latest/cassandra/architecture/overview.html",
     "https://compose-spec.github.io/compose-spec/spec.html",
+    "https://cwe.mitre.org/data/definitions/362.html",
+    "https://cwe.mitre.org/data/definitions/833.html",
     "https://developer.mozilla.org/en-US/docs/Glossary/MVC",
     "https://developer.mozilla.org/en-US/docs/Learn_web_development/Extensions/Server-side/First_steps/Client-Server_overview",
     "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie",
@@ -6211,7 +6451,13 @@
     "https://docs.python.org/3.13/library/abc.html#abc.abstractmethod",
     "https://docs.python.org/3.13/library/argparse.html#argparse.ArgumentParser.parse_args",
     "https://docs.python.org/3.13/library/array.html",
+    "https://docs.python.org/3.13/library/asyncio-dev.html#running-blocking-code",
     "https://docs.python.org/3.13/library/asyncio-eventloop.html#running-and-stopping-the-loop",
+    "https://docs.python.org/3.13/library/asyncio-future.html#asyncio.Future.set_result",
+    "https://docs.python.org/3.13/library/asyncio-sync.html#asyncio.Event",
+    "https://docs.python.org/3.13/library/asyncio-task.html#asyncio.to_thread",
+    "https://docs.python.org/3.13/library/asyncio-task.html#awaitables",
+    "https://docs.python.org/3.13/library/asyncio-task.html#coroutines",
     "https://docs.python.org/3.13/library/collections.abc.html#collections-abstract-base-classes",
     "https://docs.python.org/3.13/library/collections.html#collections.deque",
     "https://docs.python.org/3.13/library/configparser.html#supported-datatypes",
@@ -6259,6 +6505,7 @@
     "https://docs.python.org/3.13/library/logging.html#logging.setLogRecordFactory",
     "https://docs.python.org/3.13/library/math.html#math.isclose",
     "https://docs.python.org/3.13/library/os.html#os.environ",
+    "https://docs.python.org/3.13/library/os.html#os.fork",
     "https://docs.python.org/3.13/library/pathlib.html#pathlib.Path.home",
     "https://docs.python.org/3.13/library/pathlib.html#pathlib.Path.read_text",
     "https://docs.python.org/3.13/library/pathlib.html#pathlib.Path.symlink_to",
@@ -6267,12 +6514,15 @@
     "https://docs.python.org/3.13/library/queue.html#queue.LifoQueue",
     "https://docs.python.org/3.13/library/queue.html#queue.Queue",
     "https://docs.python.org/3.13/library/queue.html#queue.Queue.empty",
+    "https://docs.python.org/3.13/library/queue.html#queue.Queue.get",
+    "https://docs.python.org/3.13/library/queue.html#queue.Queue.get_nowait",
     "https://docs.python.org/3.13/library/queue.html#queue.Queue.join",
     "https://docs.python.org/3.13/library/queue.html#queue.Queue.task_done",
     "https://docs.python.org/3.13/library/secrets.html",
     "https://docs.python.org/3.13/library/secrets.html#secrets.token_urlsafe",
     "https://docs.python.org/3.13/library/shlex.html#shlex.quote",
     "https://docs.python.org/3.13/library/shutil.html#shutil.which",
+    "https://docs.python.org/3.13/library/socket.html#socket.socket.setblocking",
     "https://docs.python.org/3.13/library/socket.html#socket.socketpair",
     "https://docs.python.org/3.13/library/sqlite3.html#how-to-use-the-connection-context-manager",
     "https://docs.python.org/3.13/library/sqlite3.html#sqlite3-placeholders",
@@ -6300,6 +6550,8 @@
     "https://docs.python.org/3.13/library/threading.html#event-objects",
     "https://docs.python.org/3.13/library/threading.html#gil-and-performance-considerations",
     "https://docs.python.org/3.13/library/threading.html#lock-objects",
+    "https://docs.python.org/3.13/library/threading.html#semaphore-objects",
+    "https://docs.python.org/3.13/library/threading.html#threading.BoundedSemaphore",
     "https://docs.python.org/3.13/library/threading.html#threading.Thread.join",
     "https://docs.python.org/3.13/library/time.html#time.perf_counter",
     "https://docs.python.org/3.13/library/tkinter.html#a-hello-world-program",
@@ -6350,6 +6602,7 @@
     "https://docs.python.org/3.13/reference/datamodel.html#objects-values-and-types",
     "https://docs.python.org/3.13/reference/executionmodel.html#binding-of-names",
     "https://docs.python.org/3.13/reference/executionmodel.html#resolution-of-names",
+    "https://docs.python.org/3.13/reference/expressions.html#await-expression",
     "https://docs.python.org/3.13/reference/expressions.html#binary-arithmetic-operations",
     "https://docs.python.org/3.13/reference/expressions.html#boolean-operations",
     "https://docs.python.org/3.13/reference/expressions.html#calls",
@@ -6423,6 +6676,7 @@
     "https://man7.org/linux/man-pages/man2/getpid.2.html",
     "https://man7.org/linux/man-pages/man2/kill.2.html",
     "https://man7.org/linux/man-pages/man2/mount.2.html",
+    "https://man7.org/linux/man-pages/man3/pthread_mutex_lock.3p.html",
     "https://man7.org/linux/man-pages/man5/crontab.5.html",
     "https://man7.org/linux/man-pages/man5/nsswitch.conf.5.html",
     "https://man7.org/linux/man-pages/man5/passwd.5.html",
@@ -6436,6 +6690,7 @@
     "https://man7.org/linux/man-pages/man7/pid_namespaces.7.html",
     "https://man7.org/linux/man-pages/man7/pipe.7.html",
     "https://man7.org/linux/man-pages/man7/pthreads.7.html",
+    "https://man7.org/linux/man-pages/man7/sem_overview.7.html",
     "https://man7.org/linux/man-pages/man7/socket.7.html",
     "https://man7.org/linux/man-pages/man7/symlink.7.html",
     "https://man7.org/linux/man-pages/man7/unix.7.html",
@@ -6547,6 +6802,7 @@
     "https://tc39.es/ecma262/#sec-array.prototype.map",
     "https://wiki.nftables.org/wiki-nftables/index.php/Configuring_chains",
     "https://wiki.nftables.org/wiki-nftables/index.php/Netfilter_hooks",
+    "https://www.debian.org/doc/debian-policy/ch-binary.html",
     "https://www.debian.org/doc/manuals/debian-handbook/sect.apt-get.en.html",
     "https://www.debian.org/intro/about",
     "https://www.debian.org/releases/",

@@ -4772,3 +4772,184 @@ Branch `codex/linux-glossar-011-302`; Ausgangscommit dieses Abschnitts `f73d71ac
 Gesamtprüfung aller 260 Dokumente erfolgreich: Quelle mit erwartetem SHA-256 unverändert, 302 eindeutige IDs/Begriffe; vollständige Originalzuordnung, Metadaten, Kategorieableitung, unverändertes Indexschema, lückenlose records und documented_records; sortierte duplikatfreie Vereinigung der genauen Eintragsquellen; zehn Hauptabschnitte, Codeblöcke, Größen-/Parserlimits, interne Verweise und tatsächliche Dokumentprüfsummen. Alle bisherigen 250 Texte und Indexdatensätze sowie PROMPT.md gegenüber dem Ausgangscommit unverändert; Pilottexte und Pilotindex zusätzlich gegen den Pilotcommit geprüft. Neue semantische Linkbeschriftungen stimmen mit Originalbegriffen überein. 174 vollständige Python-Beispiele und ein JavaScript-Beispiel erneut erfolgreich ausgeführt; Assertions, Exitcodes und exakte Ausgaben kontrolliert. Ausschließlich neue Texte 251–260 sowie Index und Fortschritt verändert; git diff --check erfolgreich.
 
 Acht neue praktische Python-Beispiele: Fixture samt Cleanup, assert mit/ohne Optimierung, eigenes Regressionsmodell, Linting, Formatierung, begrenzte Zeilenaufzeichnung, Thread und Multithreading. Vorhandenes Ruff 0.17.5 und Black 26.10.1 ausschließlich an eigenen temporären Quelldateien geprüft; Black pro Aufruf mit einer Quelldatei und eigener Konfiguration, ohne Cache. Erwartete Unterprozess-Verstoßcodes ausdrücklich kontrolliert. Keine Tools installiert, Projektdateien formatiert oder bestehende Tests verändert. Coverage-Demonstration verwendet Standardbibliothek trace und erklärt ihren Umfang; keine App-Coverage gemessen. Eigene Threads beendet, Ressourcen aufgeräumt. Code Review und CI bleiben ausdrücklich nicht ausgeführte Gedankenmodelle; keine Reviewer-Kommentare, manuellen Workflows, Berechtigungsänderungen oder Veröffentlichungen ausgelöst. Alle neuen Texte review_pending; unabhängige inhaltliche Prüfung und lokale Reader-Abnahme weiterhin offen. Temporäre Kopf-/Markdown-Strukturprüfung ist keine Reader-Abnahme.
+
+## 261. Process Fork – it_0261
+
+Ausgearbeitet und strukturell geprüft: 764 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6618 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/os.html#os.fork
+- https://man7.org/linux/man-pages/man2/fork.2.html
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigenes einzelnes Linux-Kind und eigene Pipe mit unterschiedlichen Variablenwerten geprüft; Deskriptoren geschlossen und waitpid-Status kontrolliert. Keine bestehende App oder Mehrthread-Fork-Integration getestet.
+
+Präzisierung gegenüber der Quelle: Linux-fork mit eigenen Prozesskennungen, getrenntem gewöhnlichem Speicher und geerbten Ressourcen präzisiert; Copy-on-write, Threadgrenzen, Programmwechsel und Repository-Fork getrennt.
+
+SHA-256: `f497fb875c71618ce978977410e1949a19566c92d21669577ac17939e99dab48`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 262. Async – it_0262
+
+Ausgearbeitet und strukturell geprüft: 753 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6726 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/asyncio-sync.html#asyncio.Event
+- https://docs.python.org/3.13/library/asyncio-task.html#asyncio.to_thread
+- https://docs.python.org/3.13/library/asyncio-task.html#coroutines
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigener asyncio-Lauf mit zwei wartenden Tasks, Freigabe und kontrollierten Ergebnissen; kein Netzwerk, GUI, Worker-Thread, Leistungs- oder bestehender Event-Loop-Eingriff.
+
+Präzisierung gegenüber der Quelle: Async als kooperative Aufgabenplanung erklärt, nicht automatisch nichtblockierender Inhalt oder Thread pro Task. Coroutine-Aufruf, Planung, Event und Thread-Auslagerung getrennt.
+
+SHA-256: `8a2e9f0cb98c90c7e172d95a826bda77758898c88b3015023c1693ddd24db75b`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 263. Await – it_0263
+
+Ausgearbeitet und strukturell geprüft: 733 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6545 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/asyncio-future.html#asyncio.Future.set_result
+- https://docs.python.org/3.13/library/asyncio-task.html#awaitables
+- https://docs.python.org/3.13/reference/expressions.html#await-expression
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigenes fertiges Future und separat geplanter asyncio-Task mit kontrollierter Reihenfolge geprüft; keine Eager-Factory, fremder Event Loop, GUI, Netzwerk oder feste Wartezeit.
+
+Präzisierung gegenüber der Quelle: Awaitable-Typen, direkte Erwartung und Task-Planung getrennt; fertiges Future erzwingt unter den gezeigten Standardbedingungen keinen Taskwechsel. Keine automatische Thread-/Erfolgszusage.
+
+SHA-256: `be2cd66d2dd1b038c25fa1fa793df31098f2796ea818b758b60864867988d282`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 264. Race Condition – it_0264
+
+Ausgearbeitet und strukturell geprüft: 771 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6862 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://cwe.mitre.org/data/definitions/362.html
+- https://docs.python.org/3.13/library/threading.html#lock-objects
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigener deterministisch verschachtelter Zähler mit Barrier und getrennten Locks sowie geschützter Gesamtaktualisierung geprüft; alle Threads beendet, keine bestehende Ressource oder allgemeine Race-Freiheit abgenommen.
+
+Präzisierung gegenüber der Quelle: Race als ungeregelte Korrektheitsabhängigkeit der Reihenfolge statt nur gleichzeitiges Schreiben erklärt. Einzelne gesperrte Zugriffe von notwendiger gesamter Aktualisierung getrennt; GIL keine Pauschalgarantie.
+
+SHA-256: `f6be22d3c12a985814be5d68e78c711b472d477d99e7f41b56a7f251c07cde40`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 265. Deadlock – it_0265
+
+Ausgearbeitet und strukturell geprüft: 803 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6659 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://cwe.mitre.org/data/definitions/833.html
+- https://docs.python.org/3.13/library/threading.html#lock-objects
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht ausgeführtes Zwei-Sperren-Modell; keine dauerhafte Blockade, angehaltenen Threads/Dienste, Fremdprozessdiagnose oder allgemeine Deadlock-Freiheitsabnahme.
+
+Präzisierung gegenüber der Quelle: Deadlock als festgefahrene Warteabhängigkeit von langsamer Arbeit, Race und Starvation getrennt. Einheitliche Sperrreihenfolge und Timeout nur mit ihren konkreten Grenzen erklärt.
+
+SHA-256: `5d983ac8946b5484d1bb809bd4e68c93e3e00414c0f33b467ceb9e64defe987d`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 266. Mutex – it_0266
+
+Ausgearbeitet und strukturell geprüft: 702 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6178 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/threading.html#lock-objects
+- https://man7.org/linux/man-pages/man3/pthread_mutex_lock.3p.html
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigenes Python-Lock ausschließlich nichtblockierend erworben und freigegeben; Zustände kontrolliert, keine POSIX-Besitzer-/Fairness-/Mehrprozess- oder allgemeine Korrektheitsprüfung.
+
+Präzisierung gegenüber der Quelle: Mutex/Mutual Exclusion über konkreten Schutzumfang erklärt; POSIX-Besitzerregeln von Python-primitivem Lock getrennt. Nichtblockierender Versuch, Reentranz, Fairness und Geltungsbereich eingeordnet.
+
+SHA-256: `3492574e0f9b8be5421bcfbb50966085f69dff864149000f464bc68ca0a33e8d`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 267. Semaphore – it_0267
+
+Ausgearbeitet und strukturell geprüft: 732 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6575 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/threading.html#semaphore-objects
+- https://docs.python.org/3.13/library/threading.html#threading.BoundedSemaphore
+- https://man7.org/linux/man-pages/man7/sem_overview.7.html
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigene begrenzte Python-Semaphore nichtblockierend erworben/freigegeben; Kapazität und überzählige Freigabe geprüft, keine Downloads, Verbindungen, benannten OS-Objekte oder Fairness-/Mehrprozessprüfung.
+
+Präzisierung gegenüber der Quelle: Semaphore als Kapazitätszähler mit korrekt gepaarter Lebensdauer erklärt; Python BoundedSemaphore von POSIX-Formen, Mutex, Event und Autorisierung getrennt.
+
+SHA-256: `f956893e586bbf3cce48e180c42a7a1279263f3d73c5fe3a7f377b6b1aa6d70d`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 268. Blocking – it_0268
+
+Ausgearbeitet und strukturell geprüft: 722 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6223 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/asyncio-dev.html#running-blocking-code
+- https://docs.python.org/3.13/library/queue.html#queue.Queue.get
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigene Queue mit kurzem begrenztem Warten/Empty und verfügbarem Text geprüft; kein Ping, Netzwerk, GUI-, genaue Zeitmessung oder unbegrenzter Wartezustand.
+
+Präzisierung gegenüber der Quelle: Blocking auf betroffenen Ausführungsort und Schnittstellenvertrag bezogen, nicht pauschal gesamter Rechner oder Fehler. Worker-Auslagerung, Event Loop und Timeout-Erfolg getrennt.
+
+SHA-256: `cdd0ddfcdd0191abf5070f2e4c0ad3476ec32ddb2c95b51fc7595bcda9c5d9cc`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 269. Nonblocking – it_0269
+
+Ausgearbeitet und strukturell geprüft: 739 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6474 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/queue.html#queue.Queue.get_nowait
+- https://docs.python.org/3.13/library/socket.html#socket.socket.setblocking
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigene Queue mit Empty ohne Warten, anderer Datenverarbeitung und späterem Eintrag geprüft; kein Socket, Netzwerkmodus, Worker, GUI-, Zeit- oder Echtzeittest.
+
+Präzisierung gegenüber der Quelle: Nonblocking als konkreten Bereitschaftsvertrag von Timeout, Async und Worker-Auslagerung getrennt. Fehlende Bereitschaft keine Erfolgsgarantie; Gesamtreaktionsfähigkeit nicht aus einzelner API abgeleitet.
+
+SHA-256: `abe8898732b4b69b6fa88ed083109a83f54422ce475f058adfd6fc6dcbb181f9`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 270. Paketierung – it_0270
+
+Ausgearbeitet und strukturell geprüft: 749 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6785 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/tutorials/packaging-projects.rst
+- https://www.debian.org/doc/debian-policy/ch-binary.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht gebautes Notizanwendungsmodell; keine Artefakte, Builds, Paket-/Abhängigkeitsänderungen, Installationen, Skripte oder Uploads ausgeführt.
+
+Präzisierung gegenüber der Quelle: Paketierung als zielbezogene Dateiauswahl/Metadaten erklärt; Debian-Binärpaket von Python-Distribution, Build, Installation und Veröffentlichung getrennt. Keine tatsächliche NetMon-Paketbehauptung.
+
+SHA-256: `d7e590f8ceaa71e96ca0ab920ef3d06bc3f2627f602c81953a6710d2df812295`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## Sicherungspunkt nach Eintrag 270
+
+Branch `codex/linux-glossar-011-302`; Ausgangscommit dieses Abschnitts `9e1a898e216d6d4c27505409ee8824356ced8068`. Einträge 261–270 einzeln in Quellreihenfolge recherchiert, geschrieben, geprüft und jeweils in Index und Fortschritt gespeichert. Tatsächlicher Stand: 270 von 302; 32 fehlen. Nächster Eintrag: `it_0271` – Installer. Fortsetzungsfreigabe bis 302 bleibt aktiv; gemeinsame Gesamtzusammenfassung noch offen.
+
+Gesamtprüfung aller 270 Dokumente erfolgreich: unveränderte Quelle mit erwartetem SHA-256 und 302 eindeutigen IDs/Begriffen; vollständige Originalzuordnung, Metadaten, Kategorieableitung, unverändertes Indexschema, lückenlose records und documented_records; sortierte duplikatfreie Vereinigung der genauen Eintragsquellen; zehn Hauptabschnitte, Codeblöcke, Größen-/Parserlimits, interne Verweise und tatsächliche Dokumentprüfsummen. Alle bisherigen 260 Texte und Indexdatensätze sowie PROMPT.md gegenüber dem Ausgangscommit unverändert; Pilottexte und Pilotindex zusätzlich gegen den Pilotcommit geprüft. Neue Linkbeschriftungen mit Katalogbegriffen verglichen. 182 vollständige Python-Beispiele und ein JavaScript-Beispiel erneut erfolgreich ausgeführt, Assertions, Exitcodes und vollständige Ausgaben kontrolliert. Exakter Änderungsumfang nur neue Texte 261–270 sowie Index und Fortschritt; git diff --check erfolgreich.
+
+Acht neue praktische Python-Prüfungen: eigener Fork samt Pipe/waitpid, zwei asyncio-Tasks, fertiges Future/Await-Reihenfolge, deterministischer verlorener Zählerstand mit Gegenprüfung, nichtblockierendes Lock, begrenzte Semaphore, kurz begrenzte Queue-Wartefrist und unmittelbarer Queue-Abruf. Eigene Kindprozesse, Tasks und Threads kontrolliert beendet; eigene Ressourcen aufgeräumt. Deadlock und Paketierung ausdrücklich nicht ausgeführte Gedankenmodelle. Keine permanente Blockade, echte Netzwerkverbindung, Paket-/Build-/Installationsänderung, privilegierte Aktion oder fremde Ressourcenverwaltung. Neue Texte review_pending. Unabhängige inhaltliche Prüfung sowie lokale Reader-Abnahme bleiben offen; die temporäre Kopf-/Markdown-Strukturprüfung ist keine Reader-Abnahme.
