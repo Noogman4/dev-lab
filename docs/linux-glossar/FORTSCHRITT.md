@@ -3512,3 +3512,362 @@ Gesamtprüfung aller 190 Dokumente erfolgreich: unveränderte Originalquelle mit
 Gesamtlauf erfolgreich: 124 vollständige Python-Beispiele und ein JavaScript-Beispiel erneut ausgeführt; Assertions, Exitcodes und vollständige Standardausgaben stimmen. Die zehn neuen Texte enthalten vier praktische Python-Prüfungen und sechs Gedankenmodelle. Praktisch wurden nur eigene Eingaben, Cookie-Headerdaten, ein neu erzeugter nicht berechtigender Testwert und eine eigene HMAC-Nachricht geprüft. Keine echten Tokens ausgegeben, Konten genutzt oder Benachrichtigungen gesendet. Kein Browser-, CORS-, Session-, OAuth-, Backend- oder Webhook-Integrationstest behauptet. Die Beispielprüfungen sind keine allgemeine Sicherheitsabnahme.
 
 Alle Dokumente 1–180 und ihre Indexdatensätze gegenüber 27ca13c unverändert; die zehn Pilottexte zusätzlich unmittelbar gegen 688a832 geprüft. PROMPT.md unverändert. Nur zehn neue Glossartexte, index.json und FORTSCHRITT.md geändert; git diff --check erfolgreich. Anwendung, Tests, Abhängigkeiten, Paketierung, Originalquelle und Befehlsdokumentationen unverändert. Keine Cloud-Veröffentlichung, kein Merge oder Force-Push. Strukturprüfung weiterhin nur mit temporärem kompatiblem Kopf im vorhandenen begrenzten Markdown-Parser. Fachliche Zweitprüfung und lokale Reader-Abnahme der neuen Texte bleiben offen; review_pending bleibt erhalten.
+
+## 191. Datenbank – it_0191
+
+Ausgearbeitet und strukturell geprüft: 688 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6084 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/sqlite3.html#sqlite3.connect
+- https://www.postgresql.org/docs/current/tutorial-concepts.html
+- https://www.sqlite.org/about.html
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine Anwendungsdatenbank, Dienste oder Installationen; kein Ausfall-, Mehrbenutzer- oder Sicherungstest.
+
+Präzisierung gegenüber der Quelle: Datenbestand, Managementsystem und relationales Modell getrennt; eingebettete und servergestützte Bereitstellung berücksichtigt. Eigene temporäre SQLite-Datei geschrieben und nach neuer Verbindung wieder gelesen.
+
+SHA-256: `183e8a5344f3ee003a61e84c1317947a3d56aaea2bd9d3f000eb58f491d91e74`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 192. SQL – it_0192
+
+Ausgearbeitet und strukturell geprüft: 710 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6259 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/sqlite3.html#sqlite3-placeholders
+- https://www.sqlite.org/lang.html
+- https://www.sqlite.org/lang_select.html
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur eigene In-Memory-Datenbank; keine Anwendungstabellen oder verändernden Operationen an fremden Beständen. Kein vollständiger Sicherheitsnachweis.
+
+Präzisierung gegenüber der Quelle: SQL von Datenbanksystem und rein lesender Abfrage getrennt; Dialekt, Ergebnisreihenfolge und Wertbindung berücksichtigt. Eigene Apostroph- und SQL-ähnliche Werte mit Platzhaltern geprüft.
+
+SHA-256: `8b53f6006cb354e06c1e2414a501e37029810aaab57d558501efb0d371ff1305`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 193. SQLite – it_0193
+
+Ausgearbeitet und strukturell geprüft: 683 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6241 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.sqlite.org/about.html
+- https://www.sqlite.org/inmemorydb.html
+- https://www.sqlite.org/wal.html
+- https://www.sqlite.org/whentouse.html
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine vorhandene Datei, WAL-Einstellung oder Installation verändert; keine parallele Last-, Sicherungs- oder Ausfallabnahme.
+
+Präzisierung gegenüber der Quelle: SQLite von bloß kleinem Dateiformat getrennt; eingebettetes Modell, In-Memory-Form und WAL-Zusatzdateien berücksichtigt. Zwei private Speicherverbindungen praktisch auf getrennte Bestände geprüft.
+
+SHA-256: `0dae46d782367cce03879649a330c7aacfd58ee6d669e3ad7418fe49c2f9bdf8`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 194. Tabelle – it_0194
+
+Ausgearbeitet und strukturell geprüft: 715 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6143 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.postgresql.org/docs/current/ddl-basics.html
+- https://www.sqlite.org/lang_createtable.html
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine reale Stationsdatei, bestehende Tabelle oder Anwendung verändert; kein vollständiges Fachmodell oder Radiodienst getestet.
+
+Präzisierung gegenüber der Quelle: SQL-Tabelle von geordneter Liste und Bildschirmansicht getrennt. Eindeutigkeit und Nicht-Fehlen als ausdrücklich gewählte Regeln behandelt. Eigene SQLite-Tabelle samt gleichen Namen und abgelehntem NULL geprüft.
+
+SHA-256: `c3937af5b42cfedab3b1bdaae216c719a6643c5155ed3348a543c65438da0781`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 195. Zeile – it_0195
+
+Ausgearbeitet und strukturell geprüft: 729 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6133 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.postgresql.org/docs/current/ddl-basics.html
+- https://www.sqlite.org/lang_select.html
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur eigene In-Memory-Daten; keine echten Notizen, Sender oder Anwendungsbestände verändert.
+
+Präzisierung gegenüber der Quelle: Datenbankzeile von Textzeile und Ausgabeposition getrennt. Vorhandene Zeile mit NULL von fehlendem Treffer unterschieden. Eigener mehrzeiliger Text und beide Fehlwertfälle praktisch geprüft.
+
+SHA-256: `b5dc620fe4fa0359d081a242587e460938c5dd421c55b5b8bdf3d416b0917280`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 196. Spalte – it_0196
+
+Ausgearbeitet und strukturell geprüft: 701 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6230 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.postgresql.org/docs/current/ddl-basics.html
+- https://www.sqlite.org/datatype3.html
+- https://www.sqlite.org/stricttables.html
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur eigene In-Memory-Tabellen mit SQLite 3.46.1; keine Anwendungsschemata, Migrationen oder Versionen verändert.
+
+Präzisierung gegenüber der Quelle: Spalte ausdrücklich von Feldtyp getrennt. SQLite-Affinität und versionsabhängige STRICT-Regeln nicht als allgemeines SQL-Verhalten ausgegeben. Eigene normale und strenge Integer-Spalten praktisch verglichen.
+
+SHA-256: `8e6bc8c1bc1c9f725f0cc0ca0d652c3f3e5ca62ecebe63d96a9b776457ec8e02`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 197. Primärschlüssel – it_0197
+
+Ausgearbeitet und strukturell geprüft: 714 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6360 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-PRIMARY-KEYS
+- https://www.sqlite.org/lang_createtable.html#the_primary_key
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur eigene In-Memory-Tabelle; keine konkurrierenden Zugriffe oder vorhandenen Datenbanken geprüft.
+
+Präzisierung gegenüber der Quelle: Primärschlüssel können mehrteilig sein; Spaltenname, Nummernerzeugung und Ergebnisposition sind davon getrennt. SQLite-NULL-Ausnahmen ausdrücklich eingeordnet.
+
+SHA-256: `d82771c40d4abeac88934da95058d5cae09aa836e8d2ad80de766ea2a2b3a1bc`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 198. Fremdschlüssel – it_0198
+
+Ausgearbeitet und strukturell geprüft: 697 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6321 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-FK
+- https://www.sqlite.org/foreignkeys.html
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur eigene In-Memory-Daten; keine Löschkaskaden, aufgeschobenen Prüfungen oder produktiven Importe getestet.
+
+Präzisierung gegenüber der Quelle: Fremdschlüssel können mehrteilig und selbstbezüglich sein. Verpflichtende Zuordnung, Löschaktionen und SQLite-Aktivierung sind getrennte Regeln.
+
+SHA-256: `f194d1992a1586df2110f0bcaf4c1733271254a1bdf9b7eda4e37e1feeceab8a`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 199. Index Datenbank – it_0199
+
+Ausgearbeitet und strukturell geprüft: 738 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6361 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.sqlite.org/lang_createindex.html
+- https://www.sqlite.org/queryplanner.html
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur Indexanlage und Ergebnisgleichheit geprüft; kein Ausführungsplan und kein Leistungstest.
+
+Präzisierung gegenüber der Quelle: Index kann passende Zugriffswege unterstützen; keine pauschale Beschleunigung, automatische Eindeutigkeit oder Ergebnisordnung. Schreib- und Speicheraufwand eingeordnet.
+
+SHA-256: `752c51019f6abd2762bd4149717dc4bf8cd80dccb2e1985e8d47cb6505a4abd1`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 200. Query – it_0200
+
+Ausgearbeitet und strukturell geprüft: 746 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6314 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/sqlite3.html#sqlite3-placeholders
+- https://www.postgresql.org/docs/current/tutorial-select.html
+- https://www.sqlite.org/lang_select.html
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur eigene In-Memory-Abfrage; keine Leistungsmessung oder fremde Datenquelle.
+
+Präzisierung gegenüber der Quelle: Abfragetext, Ausführung und Ergebnis unterschieden; Auswahl, Filter, explizite Sortierung, leeres Ergebnis und sichere Wertbindung erläutert. Andere Verwendungen des Begriffs eingeordnet.
+
+SHA-256: `0fcd494ba24e7e1813342def221770cecb09b1dc0a86cd8c06b196c026b4aeeb`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 201. Migration – it_0201
+
+Ausgearbeitet und strukturell geprüft: 732 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6767 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/sqlite3.html#transaction-control-via-the-autocommit-attribute
+- https://www.sqlite.org/lang_altertable.html
+- https://www.sqlite.org/lang_transaction.html
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur eigene In-Memory-Schemaänderung mit Rollback und Commit geprüft; kein Migrationswerkzeug, Backup, NetMon-Update oder produktiver Bestand getestet.
+
+Präzisierung gegenüber der Quelle: Migration als geplante Schema- und gegebenenfalls Datenänderung eingeordnet; Versionsverwaltung, Bestandswerte, Kompatibilität und begrenzte Rücknahme getrennt. SQLite-ALTER-Grenzen beachtet.
+
+SHA-256: `979445fc64a38272b39ba408e0782bc7f23bc49279f59f5616c4772486dbd51f`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 202. Transaktion – it_0202
+
+Ausgearbeitet und strukturell geprüft: 730 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6717 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/sqlite3.html#how-to-use-the-connection-context-manager
+- https://www.postgresql.org/docs/current/tutorial-transactions.html
+- https://www.sqlite.org/lang_transaction.html
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur eigener SQLite-Fehlerpfad mit Kontextmanager und erfolgreicher Bestätigung; keine Crashfestigkeit, Mehrbenutzerisolation oder externen Wirkungen geprüft.
+
+Präzisierung gegenüber der Quelle: Automatische Gesamtrücknahme bei jedem Fehler ausdrücklich korrigiert; Transaktionsgrenzen, Schnittstellensteuerung und externe Wirkungen getrennt.
+
+SHA-256: `2ff42706172a7eac8c7b7ef95ca459338b32ed2d63268f0c8ab5aec442d46496`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 203. NoSQL – it_0203
+
+Ausgearbeitet und strukturell geprüft: 704 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6348 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://cassandra.apache.org/doc/latest/cassandra/architecture/overview.html
+- https://www.mongodb.com/docs/manual/core/transactions/
+- https://www.mongodb.com/docs/manual/data-modeling/
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht ausgeführtes Gedankenbeispiel mit eigenen JSON-Dokumentformen; kein NoSQL-System installiert, gestartet oder abgenommen.
+
+Präzisierung gegenüber der Quelle: NoSQL als heterogener Sammelbegriff erklärt; Dokumentmodell nicht mit JSON-Datei gleichgesetzt. Schemaflexibilität, CQL-Tabellen und produktabhängige Transaktionen differenziert.
+
+SHA-256: `ed202b1254b642ee91873caeaf0d6a3c6acb1f64fe31968a03f30bfec6aacee9`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 204. ORM – it_0204
+
+Ausgearbeitet und strukturell geprüft: 733 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6552 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.sqlalchemy.org/en/20/orm/session_basics.html
+- https://docs.sqlalchemy.org/en/20/tutorial/metadata.html
+- https://docs.sqlalchemy.org/en/20/tutorial/orm_data_manipulation.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht ausgeführtes Gedankenbeispiel; keine ORM-Bibliothek installiert oder praktische Speicherung behauptet.
+
+Präzisierung gegenüber der Quelle: ORM als explizite Zuordnung erklärt, nicht beliebige Objektserialisierung. SQLAlchemy 2.0 dient als versionsbezogenes Beispiel; Objektzustand, Flush, Commit und Migration getrennt.
+
+SHA-256: `f958c1cd114241daf6a21a561eee64af8624f37c4d1972bb11f13777e45f6e16`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 205. Git – it_0205
+
+Ausgearbeitet und strukturell geprüft: 718 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6546 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/git/git/master/Documentation/git-init.adoc
+- https://raw.githubusercontent.com/git/git/master/Documentation/git.adoc
+- https://raw.githubusercontent.com/git/git/master/Documentation/gittutorial.adoc
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur eigenes temporäres Git-Repository mit Git 2.52.0; keine Netzwerkoperation und keine bestehende Konfiguration verändert.
+
+Präzisierung gegenüber der Quelle: Git als verteiltes Werkzeug von Hostingdienst und Backup unterschieden; bewusste Auswahl, Index, Commit und Upload getrennt.
+
+SHA-256: `9621754b9574e0dd8339ef508a47079299ffbf7214009a7b1fe8c12dbe035326`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 206. Repository Git – it_0206
+
+Ausgearbeitet und strukturell geprüft: 758 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6757 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/git/git/master/Documentation/git-init.adoc
+- https://raw.githubusercontent.com/git/git/master/Documentation/gitrepository-layout.adoc
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur zwei eigene leere temporäre Repositories; kein zusätzliches Projekt-Worktree, kein Remote, kein Netzwerk und keine bestehenden Git-Metadaten verändert.
+
+Präzisierung gegenüber der Quelle: Repository-Daten von Arbeitsverzeichnis unterschieden; Bare-Form, mögliche gitfile und anfänglicher Branch ohne Commit erläutert.
+
+SHA-256: `55cc33f1699bf84473b72b63664fbdb9c89b4706257415a542605435cbe32896`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 207. Commit – it_0207
+
+Ausgearbeitet und strukturell geprüft: 745 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6659 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/git/git/master/Documentation/git-add.adoc
+- https://raw.githubusercontent.com/git/git/master/Documentation/git-commit.adoc
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur eigenes temporäres Repository; vorgemerkte und spätere Fassung tatsächlich verglichen, kein Push und keine produktive Historie verändert.
+
+Präzisierung gegenüber der Quelle: Commit als Projektstand mit Metadaten und Vorgängern erklärt; fachliche Vollständigkeit keine Git-Garantie. Indexaufnahme von späterer Bearbeitung und Upload unterschieden.
+
+SHA-256: `c38b413560c1906a556b026fa0cb1a5727c620472a2f535369a8f62fa460e43a`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 208. Branch – it_0208
+
+Ausgearbeitet und strukturell geprüft: 751 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6674 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/git/git/master/Documentation/git-branch.adoc
+- https://raw.githubusercontent.com/git/git/master/Documentation/git-switch.adoc
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur eigener temporärer Branchversuch; keine Projekt-Referenzen, Remotes oder offenen fremden Änderungen berührt.
+
+Präzisierung gegenüber der Quelle: Branch als bewegliche Referenz erklärt; Anlegen, Wechseln, Commit und Remote-Zuordnung getrennt. Schutz bei offenen Änderungen differenziert.
+
+SHA-256: `2733df7fcf217c2c94aaec69b4b2f3d026db64b1752adfef24d3c75b2a587c37`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 209. Merge – it_0209
+
+Ausgearbeitet und strukturell geprüft: 748 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6922 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/git/git/master/Documentation/git-merge-base.adoc
+- https://raw.githubusercontent.com/git/git/master/Documentation/git-merge.adoc
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur eigene konfliktfreie temporäre Zweige; keine Konfliktauflösung, produktive Zusammenführung oder Netzwerkoperation getestet.
+
+Präzisierung gegenüber der Quelle: Merge-Richtung, Fast-Forward und Merge-Commit unterschieden; gemeinsame Basis und Grenzen automatischer Konfliktfreiheit erläutert.
+
+SHA-256: `97c6459372920b437fa95878bca84276e529752c067997248660fd3a9e3901f3`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 210. Pull – it_0210
+
+Ausgearbeitet und strukturell geprüft: 790 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6970 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/git/git/master/Documentation/git-fetch.adoc
+- https://raw.githubusercontent.com/git/git/master/Documentation/git-pull.adoc
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur zwei eigene lokale temporäre Repositories; kein Internettransport, kein Rebase-/Konfliktfall und kein Pull im Projekt.
+
+Präzisierung gegenüber der Quelle: Pull als Abruf plus Integration erklärt, nicht nur Download. Optionen und Konfiguration differenziert; explizites Fast-Forward statt vorausgesetztem Standardverhalten.
+
+SHA-256: `e82dfbf71ad0e6166e16897e63a4709bf1004036084b03d8729c0186be59452d`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## Sicherungspunkt nach Eintrag 210
+
+Fortsetzung am 21.11.2026 auf Branch `codex/linux-glossar-011-302`, Ausgangscommit `612c62ae00b9459412d27c9bf11af4e1319f3325`. Einträge 191–210 wurden in Quellreihenfolge einzeln recherchiert, geschrieben, geprüft und jeweils vor dem nächsten Eintrag in Index und Fortschritt gespeichert. Tatsächlicher Gesamtstand: 210 von 302; 92 fehlen. Nächster Eintrag: `it_0211` – Push. Der Auftrag bis 302 besteht fort; die gemeinsame Gesamtzusammenfassung folgt erst danach.
+
+Gesamtprüfung erfolgreich: 210 Dokumente, Originalzuordnung, unverändertes Indexschema, lückenlose records, documented_records, genaue sortierte Quellenvereinigung, JSON-kompatible Metadaten, zehn Hauptabschnitte, Codeblöcke, Größen-/Parserlimits, interne Verweise und tatsächliche Dokumentprüfsummen. 142 vollständige Python-Beispiele und ein JavaScript-Beispiel erneut mit erfolgreichen Assertions, Exitcodes und exakten Ausgaben ausgeführt. Quelle unverändert mit dem vereinbarten SHA-256; 302 eindeutige IDs und Begriffe. Alle bisherigen 190 Texte und ihre vollständigen Indexdatensätze gegenüber dem Ausgangscommit unverändert; Pilottexte und Pilotindex zusätzlich gegen `688a83204d653b7977d11848ac813d400a7b1b8f` geprüft. PROMPT.md unverändert. Semantische Linkbeschriftungen der neuen Texte gegen den Katalog geprüft. Änderungen ausschließlich unter docs/linux-glossar/; git diff --check erfolgreich.
+
+Die neuen Datenbankbeispiele verwenden eigene temporäre Dateien beziehungsweise In-Memory-Datenbanken mit SQLite 3.46.1. Die Git-Beispiele verwenden eigene temporäre Repositories mit Git 2.52.0, ohne Übernahme von Vorlagen und ohne persönliche oder systemweite Git-Konfiguration in den Kindprozessen. Keine bestehenden Anwendungsdaten oder Projekt-Referenzen für Übungen geändert; kein zusätzlicher Projekt-Worktree und keine Netzwerktransporte in den Git-Beispielen. NoSQL und ORM sind ausdrücklich nicht ausgeführte Gedankenbeispiele. Nichts installiert. Primärquellen über HTTPS geprüft; nicht abrufbare Webdarstellungen durch offizielle Git-Dokumentationsquellen ersetzt. Alle neuen Texte bleiben review_pending. Fachliche Zweitprüfung und lokale Reader-Abnahme stehen aus; die temporäre kompatible Kopfprüfung im vorhandenen Markdown-Parser ist keine Reader-Abnahme.
