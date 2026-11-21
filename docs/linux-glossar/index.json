@@ -4,7 +4,7 @@
   "source_catalog": "tools/it_lexikon_linux_hilfe.json",
   "source_sha256": "b3fb9bfe37d335ee6eaa89c89425f08c94e8efc6f698e7c520ffc81ed128fc24",
   "total_records": 302,
-  "documented_records": 230,
+  "documented_records": 240,
   "records": [
     {
       "source_record": 1,
@@ -5451,6 +5451,240 @@
         "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2"
       ],
       "status": "review_pending"
+    },
+    {
+      "source_record": 231,
+      "id": "it_0231",
+      "term": "Queue Worker",
+      "category": "Architektur",
+      "document": "it_0231.md",
+      "sha256": "be31d97585bffe3c29f67c17c6041951e58c17d8b85f9c50ad3d5ebf75bff1e0",
+      "source": {
+        "id": "it_0231",
+        "term": "Queue Worker",
+        "short": "Hintergrundarbeiter, der Aufgaben aus einer Warteschlange abarbeitet.",
+        "example": "Ein Worker verarbeitet Netzwerkchecks nacheinander.",
+        "tags": [
+          "architektur"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/queue.html#queue.Queue",
+        "https://docs.python.org/3.13/library/queue.html#queue.Queue.join",
+        "https://docs.python.org/3.13/library/queue.html#queue.Queue.task_done"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 232,
+      "id": "it_0232",
+      "term": "Authentifizierung",
+      "category": "Sicherheit",
+      "document": "it_0232.md",
+      "sha256": "9b5691ae367ba2112a26b7ff92906e36fc3312df0b4548cc886978173ca6a972",
+      "source": {
+        "id": "it_0232",
+        "term": "Authentifizierung",
+        "short": "Prüfung, wer jemand ist.",
+        "example": "Login mit Passwort ist Authentifizierung.",
+        "tags": [
+          "sicherheit"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Authentication_Cheat_Sheet.md",
+        "https://raw.githubusercontent.com/usnistgov/800-63-4/nist-pages/sp800-63b/introduction/index.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 233,
+      "id": "it_0233",
+      "term": "Autorisierung",
+      "category": "Sicherheit",
+      "document": "it_0233.md",
+      "sha256": "cdb632ad37f375f2f803f58d04312d3eb81a6659ebdd0aa4c1ce77b5c6f21d31",
+      "source": {
+        "id": "it_0233",
+        "term": "Autorisierung",
+        "short": "Prüfung, was jemand tun darf.",
+        "example": "Nur Admins dürfen Einstellungen ändern.",
+        "tags": [
+          "sicherheit"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Authorization_Cheat_Sheet.md",
+        "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Insecure_Direct_Object_Reference_Prevention_Cheat_Sheet.md"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 234,
+      "id": "it_0234",
+      "term": "Verschlüsselung",
+      "category": "Sicherheit",
+      "document": "it_0234.md",
+      "sha256": "006133808ffa9a963d732990d639d8d76ffd468d815846c9bab1961b96b078e8",
+      "source": {
+        "id": "it_0234",
+        "term": "Verschlüsselung",
+        "short": "Umwandlung von Daten, damit Unbefugte sie nicht lesen können.",
+        "example": "TLS verschlüsselt Webverbindungen.",
+        "tags": [
+          "sicherheit"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Cryptographic_Storage_Cheat_Sheet.md",
+        "https://www.rfc-editor.org/rfc/rfc8446.html#section-1"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 235,
+      "id": "it_0235",
+      "term": "Hashing",
+      "category": "Sicherheit",
+      "document": "it_0235.md",
+      "sha256": "c6208e446c0249e00ad739f2a632163b74995b2a11cae8b3adcc96654feabf97",
+      "source": {
+        "id": "it_0235",
+        "term": "Hashing",
+        "short": "Einweg-Berechnung eines Prüfwerts aus Daten.",
+        "example": "Passwörter werden besser gehasht als im Klartext gespeichert.",
+        "tags": [
+          "sicherheit"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/hashlib.html",
+        "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Password_Storage_Cheat_Sheet.md"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 236,
+      "id": "it_0236",
+      "term": "Salt",
+      "category": "Sicherheit",
+      "document": "it_0236.md",
+      "sha256": "296744481b93a81455c69c6e00c5a9e5485ea83815894e61a90f274996b49b53",
+      "source": {
+        "id": "it_0236",
+        "term": "Salt",
+        "short": "Zusatzwert beim Hashing, um Angriffe zu erschweren.",
+        "example": "Ein Passwort-Hash sollte einen Salt nutzen.",
+        "tags": [
+          "sicherheit"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Password_Storage_Cheat_Sheet.md",
+        "https://raw.githubusercontent.com/usnistgov/800-63-4/nist-pages/sp800-63b/authenticators/index.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 237,
+      "id": "it_0237",
+      "term": "Firewall-Regel",
+      "category": "Sicherheit",
+      "document": "it_0237.md",
+      "sha256": "2dd9f86b7e6e5315991edc01de473cdb07f6eff2334eea37af85f2906ada0816",
+      "source": {
+        "id": "it_0237",
+        "term": "Firewall-Regel",
+        "short": "Eine einzelne Erlaubnis- oder Sperrregel.",
+        "example": "Blockiere ausgehend Port 53 außer zum erlaubten DNS.",
+        "tags": [
+          "sicherheit",
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://netfilter.org/projects/nftables/manpage.html",
+        "https://wiki.nftables.org/wiki-nftables/index.php/Configuring_chains"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 238,
+      "id": "it_0238",
+      "term": "Privilege Escalation",
+      "category": "Sicherheit",
+      "document": "it_0238.md",
+      "sha256": "35eff6bb15ff2c5414076f9a7442c23a3a7e5ad89c2866a40541d3b4c259d9e5",
+      "source": {
+        "id": "it_0238",
+        "term": "Privilege Escalation",
+        "short": "Ausweitung von Rechten.",
+        "example": "Ein Programm bekommt unbeabsichtigt Root-Rechte.",
+        "tags": [
+          "sicherheit",
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.kernel.org/security/credentials.html",
+        "https://man7.org/linux/man-pages/man7/capabilities.7.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 239,
+      "id": "it_0239",
+      "term": "Least Privilege",
+      "category": "Sicherheit",
+      "document": "it_0239.md",
+      "sha256": "e687aa2b1e5cd2a8c0b4d054f9a131d1fde24fa34710e781658f69988caa99a8",
+      "source": {
+        "id": "it_0239",
+        "term": "Least Privilege",
+        "short": "Prinzip: nur die minimal nötigen Rechte vergeben.",
+        "example": "NetMon sollte Root nur nutzen, wenn es nötig ist.",
+        "tags": [
+          "sicherheit",
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.kernel.org/userspace-api/no_new_privs.html",
+        "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Authorization_Cheat_Sheet.md"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 240,
+      "id": "it_0240",
+      "term": "Sandbox",
+      "category": "Sicherheit",
+      "document": "it_0240.md",
+      "sha256": "4c2cad0ca4dba9035db685da095efa5b2e6276e3e947be5e88275151bcf2765c",
+      "source": {
+        "id": "it_0240",
+        "term": "Sandbox",
+        "short": "Isolierte Umgebung für Programme.",
+        "example": "Eine Sandbox begrenzt mögliche Schäden.",
+        "tags": [
+          "sicherheit"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.kernel.org/userspace-api/landlock.html",
+        "https://docs.kernel.org/userspace-api/seccomp_filter.html"
+      ],
+      "status": "review_pending"
     }
   ],
   "source_urls": [
@@ -5482,7 +5716,11 @@
     "https://docs.github.com/en/webhooks/using-webhooks/best-practices-for-using-webhooks",
     "https://docs.kernel.org/admin-guide/mm/concepts.html",
     "https://docs.kernel.org/scheduler/sched-design-CFS.html",
+    "https://docs.kernel.org/security/credentials.html",
     "https://docs.kernel.org/userspace-api/index.html",
+    "https://docs.kernel.org/userspace-api/landlock.html",
+    "https://docs.kernel.org/userspace-api/no_new_privs.html",
+    "https://docs.kernel.org/userspace-api/seccomp_filter.html",
     "https://docs.python.org/3.13/bugs.html",
     "https://docs.python.org/3.13/glossary.html#term-CPython",
     "https://docs.python.org/3.13/glossary.html#term-argument",
@@ -5520,6 +5758,7 @@
     "https://docs.python.org/3.13/library/functions.html#type",
     "https://docs.python.org/3.13/library/functools.html#functools.lru_cache",
     "https://docs.python.org/3.13/library/functools.html#functools.wraps",
+    "https://docs.python.org/3.13/library/hashlib.html",
     "https://docs.python.org/3.13/library/hashlib.html#usage",
     "https://docs.python.org/3.13/library/hmac.html#hmac.compare_digest",
     "https://docs.python.org/3.13/library/http.client.html#http.client.parse_headers",
@@ -5551,7 +5790,10 @@
     "https://docs.python.org/3.13/library/pathlib.html#pure-paths",
     "https://docs.python.org/3.13/library/pdb.html",
     "https://docs.python.org/3.13/library/queue.html#queue.LifoQueue",
+    "https://docs.python.org/3.13/library/queue.html#queue.Queue",
     "https://docs.python.org/3.13/library/queue.html#queue.Queue.empty",
+    "https://docs.python.org/3.13/library/queue.html#queue.Queue.join",
+    "https://docs.python.org/3.13/library/queue.html#queue.Queue.task_done",
     "https://docs.python.org/3.13/library/secrets.html#secrets.token_urlsafe",
     "https://docs.python.org/3.13/library/shutil.html#shutil.which",
     "https://docs.python.org/3.13/library/socket.html#socket.socketpair",
@@ -5713,6 +5955,7 @@
     "https://manpages.debian.org/trixie/dpkg/dpkg-deb.1.en.html",
     "https://martinfowler.com/articles/injection.html",
     "https://martinfowler.com/bliki/DefinitionOfRefactoring.html",
+    "https://netfilter.org/projects/nftables/manpage.html",
     "https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.tree.recognition.is_tree.html",
     "https://networkx.org/documentation/stable/reference/classes/digraph.html#networkx.DiGraph",
     "https://networkx.org/documentation/stable/reference/classes/generated/networkx.Graph.add_node.html",
@@ -5733,6 +5976,11 @@
     "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/env.html",
     "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/grep.html",
     "https://pyyaml.org/wiki/PyYAMLDocumentation",
+    "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Authentication_Cheat_Sheet.md",
+    "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Authorization_Cheat_Sheet.md",
+    "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Cryptographic_Storage_Cheat_Sheet.md",
+    "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Insecure_Direct_Object_Reference_Prevention_Cheat_Sheet.md",
+    "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Password_Storage_Cheat_Sheet.md",
     "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Session_Management_Cheat_Sheet.md",
     "https://raw.githubusercontent.com/django/django/stable/5.2.x/docs/howto/deployment/checklist.txt",
     "https://raw.githubusercontent.com/git/git/master/Documentation/git-add.adoc",
@@ -5776,10 +6024,13 @@
     "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/ttk_label.n",
     "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/ttk_radiobutton.n",
     "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/ttk_style.n",
+    "https://raw.githubusercontent.com/usnistgov/800-63-4/nist-pages/sp800-63b/authenticators/index.html",
+    "https://raw.githubusercontent.com/usnistgov/800-63-4/nist-pages/sp800-63b/introduction/index.html",
     "https://semver.org/spec/v2.0.0.html",
     "https://spec.openapis.org/oas/v3.1.1.html#paths-object",
     "https://tc39.es/ecma262/",
     "https://tc39.es/ecma262/#sec-array.prototype.map",
+    "https://wiki.nftables.org/wiki-nftables/index.php/Configuring_chains",
     "https://wiki.nftables.org/wiki-nftables/index.php/Netfilter_hooks",
     "https://www.debian.org/doc/manuals/debian-handbook/sect.apt-get.en.html",
     "https://www.debian.org/intro/about",
@@ -5853,6 +6104,7 @@
     "https://www.rfc-editor.org/rfc/rfc8259.html",
     "https://www.rfc-editor.org/rfc/rfc826.html",
     "https://www.rfc-editor.org/rfc/rfc8446.html",
+    "https://www.rfc-editor.org/rfc/rfc8446.html#section-1",
     "https://www.rfc-editor.org/rfc/rfc9000.html",
     "https://www.rfc-editor.org/rfc/rfc9110.html",
     "https://www.rfc-editor.org/rfc/rfc9110.html#section-15",

@@ -4229,3 +4229,182 @@ Branch `codex/linux-glossar-011-302`; Ausgangscommit dieses Abschnitts `92e815e3
 Gesamtprüfung erfolgreich für alle 230 Dokumente: unveränderte Quelle mit erwartetem SHA-256 und 302 eindeutigen IDs/Begriffen; Metadaten und Kategorieableitung; exakte vollständige Originalzuordnung; unverändertes Indexschema; lückenlose records und documented_records; sortierte duplikatfreie Vereinigung der genauen Eintragsquellen; zehn Hauptabschnitte, Codeblöcke, Größen-/Parserlimits, interne Verweise und tatsächliche Dokumentprüfsummen. 156 vollständige Python-Beispiele und ein JavaScript-Beispiel erneut erfolgreich mit Assertions, Exitcodes und vollständigen Ausgaben geprüft. Alle bisherigen 220 Texte und Indexdatensätze sowie PROMPT.md gegenüber dem Ausgangscommit unverändert. Pilottexte und Pilotindex zusätzlich gegen den Pilotcommit geprüft. Semantische Linkbeschriftungen der neuen Texte mit den Originalbegriffen verglichen. Ausschließlich neue Texte 221–230 sowie Index und Fortschritt verändert; git diff --check erfolgreich.
 
 Acht neue ausgeführte Python-Beispiele zu Übergabe einer Meldungsfunktion, begrenzter Logger-Wiederverwendung, Factory-Auswahl, synchronem Observer, Zustandsübergängen, eigenen Config-Zeichenketten, Feature-Flag-Auswahl und eigenem Funktionscache. Zwei nicht ausgeführte Gedankenbeispiele zu Plugins und Paketabhängigkeiten. Kein Plugin, Paket, Framework oder SDK installiert; kein fremder Code geladen; keine bestehenden Konfigurationsdateien, Dienste, Konten, Geräte oder Netzwerkeinstellungen verändert. Kein echter Scan, DNS-Zugriff, Pro-Modus oder Berechtigungssystem getestet. Framework- und Protokollbesonderheiten von den allgemeinen Begriffen getrennt. Alle neuen Texte review_pending; fachliche Zweitprüfung und lokale Reader-Abnahme offen. Temporäre Prüfung der Textstruktur im vorhandenen Markdown-Parser ist keine Reader-Abnahme.
+
+## 231. Queue Worker – it_0231
+
+Ausgearbeitet und strukturell geprüft: 733 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6597 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/queue.html#queue.Queue
+- https://docs.python.org/3.13/library/queue.html#queue.Queue.join
+- https://docs.python.org/3.13/library/queue.html#queue.Queue.task_done
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigener Python-Thread verarbeitet zwei harmlose Texte und Stoppsignal; Threadende kontrolliert. Keine Netzwerkchecks, GUI-, Absturz-, Wiederholungs- oder Mehrworkerprüfung.
+
+Präzisierung gegenüber der Quelle: Worker von Warteschlange und Cache getrennt; FIFO-Entnahme, Abschlussmeldung, Threadende und fachlicher Erfolg unterschieden. Keine Dauerhaftigkeits- oder Genau-einmal-Garantie.
+
+SHA-256: `be31d97585bffe3c29f67c17c6041951e58c17d8b85f9c50ad3d5ebf75bff1e0`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 232. Authentifizierung – it_0232
+
+Ausgearbeitet und strukturell geprüft: 725 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6491 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Authentication_Cheat_Sheet.md
+- https://raw.githubusercontent.com/usnistgov/800-63-4/nist-pages/sp800-63b/introduction/index.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht ausgeführtes Modell eines erfundenen Kontos; keine Anmeldung, Passwortprüfung, MFA-, Sitzungs- oder Wiederherstellungsabnahme und keine Kontenänderung.
+
+Präzisierung gegenüber der Quelle: Digitale Authentifizierung als Prüfung zugeordneter Nachweise präzisiert; von Identifikation, realer Identitätsprüfung, Sitzung und Berechtigung getrennt. Faktorarten und Richtliniengeltungsbereich eingeordnet.
+
+SHA-256: `9b5691ae367ba2112a26b7ff92906e36fc3312df0b4548cc886978173ca6a972`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 233. Autorisierung – it_0233
+
+Ausgearbeitet und strukturell geprüft: 714 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6543 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Authorization_Cheat_Sheet.md
+- https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Insecure_Direct_Object_Reference_Prevention_Cheat_Sheet.md
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigene erfundene Notizen mit erlaubten und drei abgelehnten Speicherzugriffen; keine reale Anmeldung, Rollen-/Rechteänderung oder produktionsreife Autorisierungsabnahme.
+
+Präzisierung gegenüber der Quelle: Aktion-, objekt- und identitätsbezogene Entscheidung von Login, Anzeige und Kennung getrennt. Öffentliche Ressourcen, Identitätsherkunft und getrennte Lese-/Änderungsrechte eingeordnet.
+
+SHA-256: `cdb632ad37f375f2f803f58d04312d3eb81a6659ebdd0aa4c1ce77b5c6f21d31`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 234. Verschlüsselung – it_0234
+
+Ausgearbeitet und strukturell geprüft: 738 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6914 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Cryptographic_Storage_Cheat_Sheet.md
+- https://www.rfc-editor.org/rfc/rfc8446.html#section-1
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht ausgeführtes Transportmodell; keine TLS-Verbindung, Schlüssel, Archive, Datenträger, Bibliotheksinstallation oder Kryptografieabnahme.
+
+Präzisierung gegenüber der Quelle: Vertraulichkeit von Integrität, Authentifizierung, Autorisierung und Verfügbarkeit getrennt. TLS-Kanalschutz und Endpunktspeicherung unterschieden; keine Eigenbau-Kryptografie als Beispiel.
+
+SHA-256: `006133808ffa9a963d732990d639d8d76ffd468d815846c9bab1961b96b078e8`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 235. Hashing – it_0235
+
+Ausgearbeitet und strukturell geprüft: 721 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6641 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/hashlib.html
+- https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Password_Storage_Cheat_Sheet.md
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigener SHA-256-Bytevergleich samt Digest-/Hexlänge geprüft; keine Passwortspeicherung, allgemeine Kollisionsfreiheit, Herkunftsprüfung oder Kryptografieabnahme.
+
+Präzisierung gegenüber der Quelle: Hash nicht als kollisionsfreie Kennung, Verschlüsselung oder Herkunftsbeweis dargestellt. Dateiprüfsummen von langsamen gesalzenen Passwortverfahren getrennt; SHA-256-Beispiel ausschließlich harmlose Testbytes.
+
+SHA-256: `c6208e446c0249e00ad739f2a632163b74995b2a11cae8b3adcc96654feabf97`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 236. Salt – it_0236
+
+Ausgearbeitet und strukturell geprüft: 792 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6937 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Password_Storage_Cheat_Sheet.md
+- https://raw.githubusercontent.com/usnistgov/800-63-4/nist-pages/sp800-63b/authenticators/index.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht berechnetes Kontenmodell ohne echte Passworttexte oder erfundene Hashausgaben; keine Konten-, Passwortdatei-, Bibliotheks- oder Widerstandsprüfung.
+
+Präzisierung gegenüber der Quelle: Salt als individueller nicht geheimer Zusatz für geeignete Passwortverfahren erklärt; Prüfung mit gespeichertem Salt, Kostenfaktoren und Pepper getrennt. Kein schneller Eigenbau-Passworthash.
+
+SHA-256: `296744481b93a81455c69c6e00c5a9e5485ea83815894e61a90f274996b49b53`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 237. Firewall-Regel – it_0237
+
+Ausgearbeitet und strukturell geprüft: 762 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6699 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://netfilter.org/projects/nftables/manpage.html
+- https://wiki.nftables.org/wiki-nftables/index.php/Configuring_chains
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht konfiguriertes Paketmodell mit Dokumentationsadressen; keine Firewall gelesen/gesetzt, privilegierten Befehle, Resolveranfragen, Netzwerktests oder DNS-Schutzabnahme.
+
+Präzisierung gegenüber der Quelle: Regelwirkung im Kontext von Ketten, Hooks, Richtung, Protokollen und Familien erläutert. Erlauben keine Zustellgarantie; Port-53-Modell ausdrücklich kein vollständiger DNS-Schutz.
+
+SHA-256: `2dd9f86b7e6e5315991edc01de473cdb07f6eff2334eea37af85f2906ada0816`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 238. Privilege Escalation – it_0238
+
+Ausgearbeitet und strukturell geprüft: 765 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6829 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.kernel.org/security/credentials.html
+- https://man7.org/linux/man-pages/man7/capabilities.7.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht implementiertes Hilfsprogramm-Modell ohne Systempfade/Befehle; keine Schwachstellensuche, Eskalation, privilegierte Aktion oder Rechte-/Konten-/Dienständerung.
+
+Präzisierung gegenüber der Quelle: Unzulässige Rechteausweitung von erlaubter Administration getrennt; mögliche Effekte über Hilfsprogramme und einzelne Capabilities statt pauschal immer Root erklärt.
+
+SHA-256: `35eff6bb15ff2c5414076f9a7442c23a3a7e5ad89c2866a40541d3b4c259d9e5`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 239. Least Privilege – it_0239
+
+Ausgearbeitet und strukturell geprüft: 781 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6838 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.kernel.org/userspace-api/no_new_privs.html
+- https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Authorization_Cheat_Sheet.md
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht umgesetztes Exportmodell; keine Prozessisolation, Rechteverringerung, Konten-/Dateirechte-, Capability- oder Dienständerung.
+
+Präzisierung gegenüber der Quelle: Minimalrechte auf Aufgaben, Ressourcen, Dauer und indirekte Wirkungen bezogen. no_new_privs als begrenzten execve-Mechanismus statt vollständiger Rechteentziehung oder Sandbox erklärt.
+
+SHA-256: `e687aa2b1e5cd2a8c0b4d054f9a131d1fde24fa34710e781658f69988caa99a8`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 240. Sandbox – it_0240
+
+Ausgearbeitet und strukturell geprüft: 762 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6605 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.kernel.org/userspace-api/landlock.html
+- https://docs.kernel.org/userspace-api/seccomp_filter.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht umgesetztes Textverarbeitungsmodell; kein fremder Code, Container/VM, Sicherheitsprofil, Filter oder zusätzlicher Isolationsmechanismus ausgeführt und keine Cloud-Schutzabnahme behauptet.
+
+Präzisierung gegenüber der Quelle: Sandbox über konkrete Grenzen und Freigaben erklärt; Ordner, Paketumgebung, Container und Systemaufruffilter nicht mit vollständiger Isolation gleichgesetzt. Landlock-Funktionen ABI-/kernelabhängig.
+
+SHA-256: `4c2cad0ca4dba9035db685da095efa5b2e6276e3e947be5e88275151bcf2765c`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## Sicherungspunkt nach Eintrag 240
+
+Branch `codex/linux-glossar-011-302`; Ausgangscommit dieses Abschnitts `bfd253a895d8bc2761bee4c78e7ebf7a23fbebf0`. Einträge 231–240 in Originalreihenfolge einzeln recherchiert, geschrieben und geprüft; Index und Fortschritt jeweils vor dem nächsten Eintrag gespeichert. Tatsächlicher Stand: 240 von 302; 62 fehlen. Nächster Eintrag: `it_0241` – Injection. Freigabe bis 302 besteht fort; gemeinsame Gesamtzusammenfassung noch offen.
+
+Gesamtprüfung aller 240 Dokumente erfolgreich: vollständige Originalzuordnung und Metadaten, Kategorieableitung, unverändertes Indexschema, lückenlose records und documented_records, genaue sortierte duplikatfreie Quellenvereinigung, zehn Hauptabschnitte, Codeblöcke, Größen-/Parserlimits, interne Verweise und tatsächliche Dokumentprüfsummen. Quelle unverändert mit erwartetem SHA-256 und 302 eindeutigen IDs/Begriffen. Alle bisherigen 230 Texte und ihre vollständigen Indexdatensätze sowie PROMPT.md gegenüber dem Ausgangscommit unverändert; Pilottexte und Pilotindex zusätzlich gegen den Pilotcommit geprüft. Neue Linkbeschriftungen mit Katalogbegriffen abgeglichen. 159 vollständige Python-Beispiele und ein JavaScript-Beispiel erneut erfolgreich mit Assertions, Exitcodes und exakten Ausgaben ausgeführt. Ausschließlich neue Texte 231–240 sowie Index und Fortschritt geändert; git diff --check erfolgreich.
+
+Drei neue praktische Python-Prüfungen: eigene Queue mit beendetem Worker-Thread, objektbezogene Erlaubnis-/Ablehnungsentscheidung für erfundene Notizen und SHA-256-Vergleich eigener harmloser Bytes. Sieben ausdrücklich nicht ausgeführte Gedankenmodelle zu Authentifizierung, Verschlüsselung, Salt, Firewall-Regel, Privilege Escalation, Least Privilege und Sandbox. Keine echten Anmeldungen, Kontodaten, Passwörter, Schlüssel, Firewall-Regeln oder Systemschutzprofile gelesen beziehungsweise verändert. Keine privilegierten Aktionen, Geräte-, Dienst- oder Netzwerkkonfiguration; keine Installationen. Keine Reader-, GUI-, Kryptografie-, Autorisierungs-, DNS-Schutz- oder Sandbox-Abnahme behauptet. Alle neuen Texte review_pending; fachliche Zweitprüfung und lokale Reader-Prüfung offen. Strukturprüfung nur über temporären kompatiblen Kopf im vorhandenen Markdown-Parser.
