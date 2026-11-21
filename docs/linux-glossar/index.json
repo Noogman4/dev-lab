@@ -4,7 +4,7 @@
   "source_catalog": "tools/it_lexikon_linux_hilfe.json",
   "source_sha256": "b3fb9bfe37d335ee6eaa89c89425f08c94e8efc6f698e7c520ffc81ed128fc24",
   "total_records": 302,
-  "documented_records": 220,
+  "documented_records": 230,
   "records": [
     {
       "source_record": 1,
@@ -5216,6 +5216,241 @@
         "https://doc.qt.io/qt-6/model-view-programming.html"
       ],
       "status": "review_pending"
+    },
+    {
+      "source_record": 221,
+      "id": "it_0221",
+      "term": "Plugin",
+      "category": "Architektur",
+      "document": "it_0221.md",
+      "sha256": "4654a1119b35ac57d08e005109b379b999ca774b45427b7449f9bf3fd6f9a708",
+      "source": {
+        "id": "it_0221",
+        "term": "Plugin",
+        "short": "Erweiterung, die eine Anwendung um Funktionen ergänzt.",
+        "example": "Ein Radio-Modul könnte als Plugin gedacht werden.",
+        "tags": [
+          "architektur"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/importlib.metadata.html#entry-points",
+        "https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/guides/creating-and-discovering-plugins.rst"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 222,
+      "id": "it_0222",
+      "term": "Dependency",
+      "category": "Architektur",
+      "document": "it_0222.md",
+      "sha256": "3caa590c4ea497dbe10380bef989c6428a9f6ed4e68a0f29842ab830cb04559f",
+      "source": {
+        "id": "it_0222",
+        "term": "Dependency",
+        "short": "Eine Abhängigkeit, die ein Projekt benötigt.",
+        "example": "requests kann eine Dependency sein.",
+        "tags": [
+          "architektur",
+          "paketierung"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/importlib.metadata.html#distribution-requirements",
+        "https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/specifications/dependency-specifiers.rst"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 223,
+      "id": "it_0223",
+      "term": "Dependency Injection",
+      "category": "Architektur",
+      "document": "it_0223.md",
+      "sha256": "320108b2be968519be717554cd7e4ed06f3365c1c8e7ddc21f596147fe99bb4b",
+      "source": {
+        "id": "it_0223",
+        "term": "Dependency Injection",
+        "short": "Abhängigkeiten werden von außen übergeben statt intern erstellt.",
+        "example": "Ein Logger wird an eine Klasse übergeben.",
+        "tags": [
+          "architektur"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://learn.microsoft.com/en-us/dotnet/core/extensions/dependency-injection/overview",
+        "https://martinfowler.com/articles/injection.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 224,
+      "id": "it_0224",
+      "term": "Singleton",
+      "category": "Architektur",
+      "document": "it_0224.md",
+      "sha256": "297bbac25cc122e7930880704e78836a7e440301929a70bc364231e182cf1b3e",
+      "source": {
+        "id": "it_0224",
+        "term": "Singleton",
+        "short": "Entwurfsmuster mit genau einer Instanz.",
+        "example": "Ein ConfigManager kann als Singleton umgesetzt werden.",
+        "tags": [
+          "architektur"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/logging.html#logging.getLogger",
+        "https://learn.microsoft.com/en-us/dotnet/core/extensions/dependency-injection/service-lifetimes"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 225,
+      "id": "it_0225",
+      "term": "Factory",
+      "category": "Architektur",
+      "document": "it_0225.md",
+      "sha256": "c799241d23b127edb565e5c62c70d156b03b3580fead1bfbd75af089f56f6831",
+      "source": {
+        "id": "it_0225",
+        "term": "Factory",
+        "short": "Entwurfsmuster zum Erzeugen von Objekten.",
+        "example": "Eine Factory erstellt passende Scanner-Objekte.",
+        "tags": [
+          "architektur"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://doc.qt.io/qt-6/qstylefactory.html#create",
+        "https://docs.python.org/3.13/library/json.html#json.dumps",
+        "https://docs.python.org/3.13/library/logging.html#logging.setLogRecordFactory"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 226,
+      "id": "it_0226",
+      "term": "Observer",
+      "category": "Architektur",
+      "document": "it_0226.md",
+      "sha256": "96159df44ae1a9328641cd2053f8c185e803b702723e4e6a94c7ff06ac958fa1",
+      "source": {
+        "id": "it_0226",
+        "term": "Observer",
+        "short": "Entwurfsmuster zur Benachrichtigung bei Änderungen.",
+        "example": "Die GUI aktualisiert sich, wenn ein Status sich ändert.",
+        "tags": [
+          "architektur",
+          "gui"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://doc.qt.io/qt-6/qobject.html#disconnect",
+        "https://doc.qt.io/qt-6/signalsandslots.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 227,
+      "id": "it_0227",
+      "term": "State",
+      "category": "Architektur",
+      "document": "it_0227.md",
+      "sha256": "a2623cee21e8e57b81286255c922cc9ad96dfefbf6af8944cc33c1d7b2955387",
+      "source": {
+        "id": "it_0227",
+        "term": "State",
+        "short": "Zustand eines Programms oder Objekts.",
+        "example": "NetMon kann im Zustand 'scannt' oder 'bereit' sein.",
+        "tags": [
+          "architektur"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://doc.qt.io/qt-6/qstatemachine.html",
+        "https://docs.python.org/3.13/library/enum.html#enum.Enum"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 228,
+      "id": "it_0228",
+      "term": "Config",
+      "category": "Architektur",
+      "document": "it_0228.md",
+      "sha256": "3f1a8c0071e01ad4205c8ad531b6d93f0c7d4c3871a6e018013e932ea6bbae36",
+      "source": {
+        "id": "it_0228",
+        "term": "Config",
+        "short": "Konfiguration einer Anwendung.",
+        "example": "Eine Config-Datei speichert DNS-Server und Optionen.",
+        "tags": [
+          "architektur"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/configparser.html#supported-datatypes",
+        "https://docs.python.org/3.13/library/tomllib.html#tomllib.load"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 229,
+      "id": "it_0229",
+      "term": "Feature Flag",
+      "category": "Architektur",
+      "document": "it_0229.md",
+      "sha256": "313b30598ab77c678d9170d85b19bb04f8cde913d98822338e791d8b31aa70d0",
+      "source": {
+        "id": "it_0229",
+        "term": "Feature Flag",
+        "short": "Schalter zum Aktivieren oder Deaktivieren einer Funktion.",
+        "example": "Pro-Modus kann per Feature Flag aktiviert werden.",
+        "tags": [
+          "architektur"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://learn.microsoft.com/en-us/azure/azure-app-configuration/feature-management-python-reference",
+        "https://openfeature.dev/specification/sections/flag-evaluation/"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 230,
+      "id": "it_0230",
+      "term": "Cache",
+      "category": "Architektur",
+      "document": "it_0230.md",
+      "sha256": "72dd279a21f0d0d03b9778772ad7c2263168fa04b25d7fdb29e4ccc04bd5dbdf",
+      "source": {
+        "id": "it_0230",
+        "term": "Cache",
+        "short": "Zwischenspeicher für schnelleren Zugriff.",
+        "example": "Ein DNS-Cache speichert kürzlich aufgelöste Namen.",
+        "tags": [
+          "architektur",
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/functools.html#functools.lru_cache",
+        "https://www.rfc-editor.org/rfc/rfc1035.html#section-3.2.1",
+        "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2"
+      ],
+      "status": "review_pending"
     }
   ],
   "source_urls": [
@@ -5228,8 +5463,12 @@
     "https://doc.qt.io/qt-6/model-view-programming.html",
     "https://doc.qt.io/qt-6/qdialog.html",
     "https://doc.qt.io/qt-6/qgraphicsscene.html",
+    "https://doc.qt.io/qt-6/qobject.html#disconnect",
+    "https://doc.qt.io/qt-6/qstatemachine.html",
+    "https://doc.qt.io/qt-6/qstylefactory.html#create",
     "https://doc.qt.io/qt-6/qtooltip.html",
     "https://doc.qt.io/qt-6/qtwidgets-index.html",
+    "https://doc.qt.io/qt-6/signalsandslots.html",
     "https://doc.rust-lang.org/book/ch03-02-data-types.html#the-array-type",
     "https://doc.rust-lang.org/book/ch04-02-references-and-borrowing.html",
     "https://docs.djangoproject.com/en/5.2/intro/overview/",
@@ -5263,8 +5502,10 @@
     "https://docs.python.org/3.13/library/asyncio-eventloop.html#running-and-stopping-the-loop",
     "https://docs.python.org/3.13/library/collections.abc.html#collections-abstract-base-classes",
     "https://docs.python.org/3.13/library/collections.html#collections.deque",
+    "https://docs.python.org/3.13/library/configparser.html#supported-datatypes",
     "https://docs.python.org/3.13/library/constants.html#None",
     "https://docs.python.org/3.13/library/dialog.html#tkinter.simpledialog.Dialog",
+    "https://docs.python.org/3.13/library/enum.html#enum.Enum",
     "https://docs.python.org/3.13/library/exceptions.html#NameError",
     "https://docs.python.org/3.13/library/exceptions.html#exception-hierarchy",
     "https://docs.python.org/3.13/library/fcntl.html#fcntl.flock",
@@ -5277,6 +5518,7 @@
     "https://docs.python.org/3.13/library/functions.html#staticmethod",
     "https://docs.python.org/3.13/library/functions.html#super",
     "https://docs.python.org/3.13/library/functions.html#type",
+    "https://docs.python.org/3.13/library/functools.html#functools.lru_cache",
     "https://docs.python.org/3.13/library/functools.html#functools.wraps",
     "https://docs.python.org/3.13/library/hashlib.html#usage",
     "https://docs.python.org/3.13/library/hmac.html#hmac.compare_digest",
@@ -5285,6 +5527,8 @@
     "https://docs.python.org/3.13/library/http.html#http.HTTPStatus",
     "https://docs.python.org/3.13/library/http.server.html",
     "https://docs.python.org/3.13/library/importlib.html#importlib.util.spec_from_file_location",
+    "https://docs.python.org/3.13/library/importlib.metadata.html#distribution-requirements",
+    "https://docs.python.org/3.13/library/importlib.metadata.html#entry-points",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Address",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Address.is_loopback",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Network",
@@ -5297,6 +5541,8 @@
     "https://docs.python.org/3.13/library/logging.handlers.html#logging.FileHandler",
     "https://docs.python.org/3.13/library/logging.html#logging.Formatter",
     "https://docs.python.org/3.13/library/logging.html#logging.Logger",
+    "https://docs.python.org/3.13/library/logging.html#logging.getLogger",
+    "https://docs.python.org/3.13/library/logging.html#logging.setLogRecordFactory",
     "https://docs.python.org/3.13/library/math.html#math.isclose",
     "https://docs.python.org/3.13/library/os.html#os.environ",
     "https://docs.python.org/3.13/library/pathlib.html#pathlib.Path.home",
@@ -5344,6 +5590,7 @@
     "https://docs.python.org/3.13/library/tkinter.ttk.html#tkinter.ttk.Radiobutton.invoke",
     "https://docs.python.org/3.13/library/tkinter.ttk.html#tkinter.ttk.Style.theme_create",
     "https://docs.python.org/3.13/library/tkinter.ttk.html#ttk-widgets",
+    "https://docs.python.org/3.13/library/tomllib.html#tomllib.load",
     "https://docs.python.org/3.13/library/traceback.html#traceback.extract_tb",
     "https://docs.python.org/3.13/library/typing.html",
     "https://docs.python.org/3.13/library/typing.html#typing.Final",
@@ -5426,6 +5673,9 @@
     "https://keepachangelog.com/en/1.1.0/",
     "https://learn.microsoft.com/en-us/azure/architecture/guide/architecture-styles/",
     "https://learn.microsoft.com/en-us/azure/architecture/guide/design-principles/",
+    "https://learn.microsoft.com/en-us/azure/azure-app-configuration/feature-management-python-reference",
+    "https://learn.microsoft.com/en-us/dotnet/core/extensions/dependency-injection/overview",
+    "https://learn.microsoft.com/en-us/dotnet/core/extensions/dependency-injection/service-lifetimes",
     "https://man7.org/linux/man-pages/man1/kill.1.html",
     "https://man7.org/linux/man-pages/man2/chown.2.html",
     "https://man7.org/linux/man-pages/man2/execve.2.html",
@@ -5461,12 +5711,14 @@
     "https://manpages.debian.org/trixie/apt/sources.list.5.en.html",
     "https://manpages.debian.org/trixie/dpkg-dev/deb.5.en.html",
     "https://manpages.debian.org/trixie/dpkg/dpkg-deb.1.en.html",
+    "https://martinfowler.com/articles/injection.html",
     "https://martinfowler.com/bliki/DefinitionOfRefactoring.html",
     "https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.tree.recognition.is_tree.html",
     "https://networkx.org/documentation/stable/reference/classes/digraph.html#networkx.DiGraph",
     "https://networkx.org/documentation/stable/reference/classes/generated/networkx.Graph.add_node.html",
     "https://networkx.org/documentation/stable/reference/classes/graph.html#networkx.Graph",
     "https://nodejs.org/api/globals.html",
+    "https://openfeature.dev/specification/sections/flag-evaluation/",
     "https://peps.python.org/pep-0008/#a-foolish-consistency-is-the-hobgoblin-of-little-minds",
     "https://peps.python.org/pep-0008/#constants",
     "https://peps.python.org/pep-0008/#function-and-variable-names",
@@ -5505,6 +5757,8 @@
     "https://raw.githubusercontent.com/htop-dev/htop/main/htop.1.in",
     "https://raw.githubusercontent.com/kubernetes/website/main/content/en/docs/concepts/workloads/controllers/deployment.md",
     "https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/discussions/distribution-package-vs-import-package.rst",
+    "https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/guides/creating-and-discovering-plugins.rst",
+    "https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/specifications/dependency-specifiers.rst",
     "https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/tutorials/packaging-projects.rst",
     "https://raw.githubusercontent.com/pypa/pip/main/docs/html/cli/pip_install.rst",
     "https://raw.githubusercontent.com/pypa/pip/main/docs/html/user_guide.rst",
@@ -5561,6 +5815,7 @@
     "https://www.postgresql.org/docs/current/tutorial-transactions.html",
     "https://www.rfc-editor.org/rfc/rfc1034.html",
     "https://www.rfc-editor.org/rfc/rfc1035.html",
+    "https://www.rfc-editor.org/rfc/rfc1035.html#section-3.2.1",
     "https://www.rfc-editor.org/rfc/rfc1122.html",
     "https://www.rfc-editor.org/rfc/rfc1123.html",
     "https://www.rfc-editor.org/rfc/rfc1812.html",
@@ -5612,6 +5867,7 @@
     "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.1",
     "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2",
     "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6",
+    "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2",
     "https://www.rfc-editor.org/rfc/rfc9112.html",
     "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.2",
     "https://www.rfc-editor.org/rfc/rfc9114.html",

@@ -4049,3 +4049,183 @@ Branch `codex/linux-glossar-011-302`; Ausgangscommit dieses Abschnitts `f6ec7ea8
 Gesamtprüfung aller 220 Dokumente erfolgreich: Quelle und 302 eindeutige Originaldatensätze, unverändertes Indexschema und Originalzuordnung, lückenlose Reihenfolge, documented_records, genaue sortierte duplikatfreie Quellenvereinigung, Metadaten, zehn Hauptabschnitte, Codeblöcke, Größen-/Parserlimits, interne Verweise und tatsächliche SHA-256-Prüfsummen. 148 vollständige Python-Beispiele und ein JavaScript-Beispiel erneut erfolgreich ausgeführt, Assertions und vollständige Ausgaben geprüft. Sämtliche bisherigen 210 Texte und Indexdatensätze gegenüber dem Ausgangscommit unverändert. Pilottexte und Pilotindex zusätzlich gegen den Pilotcommit geprüft. Neue Linkbeschriftungen stimmen semantisch mit den verlinkten Katalogbegriffen überein. Exakter Änderungsumfang nur neue Texte 211–220 sowie Index und Fortschritt; git diff --check erfolgreich.
 
 Sechs neue ausführbare Beispiele: eigene temporäre Git-Tests für Push, Clone, Textkonflikt, Tags und Staging sowie ein selbst erzeugtes Python-Modul. Vier ausdrücklich nicht ausgeführte Gedankenbeispiele zu Fork, Pull Request, Architektur und MVC. Keine zusätzlichen Hostingaktionen für die Beispiele, kein Git-Netzwerktransport, kein produktiver Merge, keine neuen Projekt-Worktrees und keine fremden Module ausgeführt. Git 2.52.0 und Python 3.13 bereits vorhanden, nichts installiert. Architekturquellen mit Cloudkontext gekennzeichnet; Qt Model/View von allgemeinem MVC unterschieden. Alle neuen Texte review_pending. Fachliche Zweitprüfung und lokale Reader-Abnahme weiterhin offen; Strukturprüfung mit temporärem kompatiblem Kopf im vorhandenen Markdown-Parser ist keine Reader-Abnahme.
+
+## 221. Plugin – it_0221
+
+Ausgearbeitet und strukturell geprüft: 750 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6598 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/importlib.metadata.html#entry-points
+- https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/guides/creating-and-discovering-plugins.rst
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht ausgeführtes Export-Gedankenmodell; keine Plugins gesucht, geladen, installiert oder aktiviert und keine vorhandene Anwendung geändert.
+
+Präzisierung gegenüber der Quelle: Plugin als vertraglich eingebundene Erweiterung erklärt; Erkennung, Laden und Ausführung getrennt. Python Entry Points als konkrete Möglichkeit, keine automatische Sandbox oder Verträglichkeitsgarantie.
+
+SHA-256: `4654a1119b35ac57d08e005109b379b999ca774b45427b7449f9bf3fd6f9a708`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 222. Dependency – it_0222
+
+Ausgearbeitet und strukturell geprüft: 734 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6758 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/importlib.metadata.html#distribution-requirements
+- https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/specifications/dependency-specifiers.rst
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht ausgeführtes Modell mit erfundenen Paketnamen; keine Installation, Paketauflösung oder Änderung von Abhängigkeiten und Umgebungen.
+
+Präzisierung gegenüber der Quelle: Direkte, transitive, optionale und zweckgebundene Anforderungen getrennt. Python-Spezifikationen kontextualisiert; deklarierte Metadaten und Versionsbereiche keine Laufzeit-/Kompatibilitätsgarantie.
+
+SHA-256: `3caa590c4ea497dbe10380bef989c6428a9f6ed4e68a0f29842ab830cb04559f`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 223. Dependency Injection – it_0223
+
+Ausgearbeitet und strukturell geprüft: 743 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6503 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://learn.microsoft.com/en-us/dotnet/core/extensions/dependency-injection/overview
+- https://martinfowler.com/articles/injection.html
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigener Python-Test mit übergebener Listensammelfunktion; kein echtes Logging, Dateizugriff, Container oder Dienst getestet.
+
+Präzisierung gegenüber der Quelle: Übergabe benötigter Fähigkeiten von Container und Service Locator unterschieden. .NET-Details und Fowlers Java-Beispiele kontextualisiert; Lebensdauer und Ersatzgrenzen erläutert.
+
+SHA-256: `320108b2be968519be717554cd7e4ed06f3365c1c8e7ddc21f596147fe99bb4b`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 224. Singleton – it_0224
+
+Ausgearbeitet und strukturell geprüft: 699 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6390 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/logging.html#logging.getLogger
+- https://learn.microsoft.com/en-us/dotnet/core/extensions/dependency-injection/service-lifetimes
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigener Python-Test zeigt nur Logger-Wiederverwendung pro Name; kein klassischer Singleton implementiert, keine Thread-/Prozess-Einzigkeit oder Container-Lebensdauer abgenommen.
+
+Präzisierung gegenüber der Quelle: Klassisches Singleton, Container-Lebensdauer und Namensregistrierung getrennt. Geltungsbereich, Testzustand und fehlende automatische Threadsicherheit ausdrücklich eingeordnet.
+
+SHA-256: `297bbac25cc122e7930880704e78836a7e440301929a70bc364231e182cf1b3e`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 225. Factory – it_0225
+
+Ausgearbeitet und strukturell geprüft: 725 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6496 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://doc.qt.io/qt-6/qstylefactory.html#create
+- https://docs.python.org/3.13/library/json.html#json.dumps
+- https://docs.python.org/3.13/library/logging.html#logging.setLogRecordFactory
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigene Python-Auswahl zwischen Text- und JSON-Darstellung samt Fehlerfall; keine Qt-/Logging-Factory geändert, Plugins gesucht oder Scanner-/Netzwerkfunktion ausgeführt.
+
+Präzisierung gegenüber der Quelle: Factory als gekapselte Erzeugung erklärt; einfache Auswahlfunktion von Factory Method und Abstract Factory getrennt. Rückgabe, Fehler und Objektlebensdauer ausdrücklich vertraglich eingeordnet.
+
+SHA-256: `c799241d23b127edb565e5c62c70d156b03b3580fead1bfbd75af089f56f6831`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 226. Observer – it_0226
+
+Ausgearbeitet und strukturell geprüft: 713 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6486 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://doc.qt.io/qt-6/qobject.html#disconnect
+- https://doc.qt.io/qt-6/signalsandslots.html
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigene synchrone Python-Statusliste mit Anmeldung, Unterdrückung gleicher Werte und Abmeldung geprüft; kein Scan, GUI-, Thread- oder Queue-Test.
+
+Präzisierung gegenüber der Quelle: Observer von Polling, Warteschlange und automatischer Asynchronität getrennt. Qt-Verbindungsregeln versionsabhängig; Lebensdauer, Fehler und doppelte Anmeldungen als Vertragsfragen erläutert.
+
+SHA-256: `96159df44ae1a9328641cd2053f8c185e803b702723e4e6a94c7ff06ac958fa1`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 227. State – it_0227
+
+Ausgearbeitet und strukturell geprüft: 743 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6624 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://doc.qt.io/qt-6/qstatemachine.html
+- https://docs.python.org/3.13/library/enum.html#enum.Enum
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigene Python-Zustandsfolge und abgelehnter Wechsel; kein Scan, GUI-, Parallelitäts-, Speicher- oder Wiederanlauftest einer Anwendung.
+
+Präzisierung gegenüber der Quelle: Allgemeinen Zustand, vereinfachten Status, Zustandsautomaten und State-Entwurfsmuster getrennt. Enum garantiert keine Übergänge; Qt-Ausführung nicht auf das synchrone Beispiel übertragen.
+
+SHA-256: `a2623cee21e8e57b81286255c922cc9ad96dfefbf6af8944cc33c1d7b2955387`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 228. Config – it_0228
+
+Ausgearbeitet und strukturell geprüft: 720 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6389 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/configparser.html#supported-datatypes
+- https://docs.python.org/3.13/library/tomllib.html#tomllib.load
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur eigene INI-Zeichenketten im Speicher; keine Dateien gelesen/geschrieben, DNS-, Netzwerk-, Geräte- oder Diensteinstellungen verändert.
+
+Präzisierung gegenüber der Quelle: Konfiguration von einzelner Datei, Laufzeitstatus und Typprüfung getrennt. Quellenpriorität und Wirksamkeitszeitpunkt anwendungsabhängig; ConfigParser-Zeichenketten und getboolean ausdrücklich erklärt.
+
+SHA-256: `3f1a8c0071e01ad4205c8ad531b6d93f0c7d4c3871a6e018013e932ea6bbae36`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 229. Feature Flag – it_0229
+
+Ausgearbeitet und strukturell geprüft: 729 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6615 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://learn.microsoft.com/en-us/azure/azure-app-configuration/feature-management-python-reference
+- https://openfeature.dev/specification/sections/flag-evaluation/
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigener Python-Darstellungstest mit gesonderter simulierter Zugriffsentscheidung; keine echte Autorisierung, Lizenzprüfung, Zielgruppenverwaltung oder Produktaktivierung abgenommen.
+
+Präzisierung gegenüber der Quelle: Funktionsauswahl von Berechtigung/Lizenz und Veröffentlichung getrennt. Standardwerte, Aktualisierungsgrenzen, Kombinationen und nicht rücknehmbare Wirkungen eingeordnet.
+
+SHA-256: `313b30598ab77c678d9170d85b19bb04f8cde913d98822338e791d8b31aa70d0`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 230. Cache – it_0230
+
+Ausgearbeitet und strukturell geprüft: 752 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6407 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/functools.html#functools.lru_cache
+- https://www.rfc-editor.org/rfc/rfc1035.html#section-3.2.1
+- https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigener Python-Funktionscache mit gezählten Quellzugriffen, veraltetem Wert und cache_clear geprüft; kein DNS-/Netzwerkzugriff, Löschen vorhandener Dateien, Zeitablauf- oder Leistungstest.
+
+Präzisierung gegenüber der Quelle: Zwischenspeicherung von Gültigkeit, Verdrängung, Puffer und Backup getrennt. DNS- und HTTP-Regeln kontextualisiert; lru_cache besitzt keine automatische Quelleninvalidierung oder TTL.
+
+SHA-256: `72dd279a21f0d0d03b9778772ad7c2263168fa04b25d7fdb29e4ccc04bd5dbdf`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## Sicherungspunkt nach Eintrag 230
+
+Branch `codex/linux-glossar-011-302`; Ausgangscommit dieses Abschnitts `92e815e360bdc6ea710ce688a76554c334a6c33b`. Einträge 221–230 in Quellreihenfolge einzeln recherchiert, geschrieben, geprüft und jeweils in Index und Fortschritt gespeichert. Tatsächlicher Gesamtstand: 230 von 302; noch 72 offen. Nächster Eintrag: `it_0231` – Queue Worker. Auftrag bis 302 weiterhin aktiv; die gemeinsame Gesamtzusammenfassung steht noch aus.
+
+Gesamtprüfung erfolgreich für alle 230 Dokumente: unveränderte Quelle mit erwartetem SHA-256 und 302 eindeutigen IDs/Begriffen; Metadaten und Kategorieableitung; exakte vollständige Originalzuordnung; unverändertes Indexschema; lückenlose records und documented_records; sortierte duplikatfreie Vereinigung der genauen Eintragsquellen; zehn Hauptabschnitte, Codeblöcke, Größen-/Parserlimits, interne Verweise und tatsächliche Dokumentprüfsummen. 156 vollständige Python-Beispiele und ein JavaScript-Beispiel erneut erfolgreich mit Assertions, Exitcodes und vollständigen Ausgaben geprüft. Alle bisherigen 220 Texte und Indexdatensätze sowie PROMPT.md gegenüber dem Ausgangscommit unverändert. Pilottexte und Pilotindex zusätzlich gegen den Pilotcommit geprüft. Semantische Linkbeschriftungen der neuen Texte mit den Originalbegriffen verglichen. Ausschließlich neue Texte 221–230 sowie Index und Fortschritt verändert; git diff --check erfolgreich.
+
+Acht neue ausgeführte Python-Beispiele zu Übergabe einer Meldungsfunktion, begrenzter Logger-Wiederverwendung, Factory-Auswahl, synchronem Observer, Zustandsübergängen, eigenen Config-Zeichenketten, Feature-Flag-Auswahl und eigenem Funktionscache. Zwei nicht ausgeführte Gedankenbeispiele zu Plugins und Paketabhängigkeiten. Kein Plugin, Paket, Framework oder SDK installiert; kein fremder Code geladen; keine bestehenden Konfigurationsdateien, Dienste, Konten, Geräte oder Netzwerkeinstellungen verändert. Kein echter Scan, DNS-Zugriff, Pro-Modus oder Berechtigungssystem getestet. Framework- und Protokollbesonderheiten von den allgemeinen Begriffen getrennt. Alle neuen Texte review_pending; fachliche Zweitprüfung und lokale Reader-Abnahme offen. Temporäre Prüfung der Textstruktur im vorhandenen Markdown-Parser ist keine Reader-Abnahme.
