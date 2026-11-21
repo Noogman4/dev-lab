@@ -4,7 +4,7 @@
   "source_catalog": "tools/it_lexikon_linux_hilfe.json",
   "source_sha256": "b3fb9bfe37d335ee6eaa89c89425f08c94e8efc6f698e7c520ffc81ed128fc24",
   "total_records": 302,
-  "documented_records": 82,
+  "documented_records": 112,
   "records": [
     {
       "source_record": 1,
@@ -1912,6 +1912,724 @@
         "https://www.w3.org/WAI/WCAG22/Understanding/content-on-hover-or-focus.html"
       ],
       "status": "review_pending"
+    },
+    {
+      "source_record": 83,
+      "id": "it_0083",
+      "term": "Theme",
+      "category": "Gui",
+      "document": "it_0083.md",
+      "sha256": "f9aa68f53ce8cadf915a627a1225671d31b9f278a2b7e651c18c914ddfa8fc12",
+      "source": {
+        "id": "it_0083",
+        "term": "Theme",
+        "short": "Das optische Erscheinungsbild einer Anwendung.",
+        "example": "Dark Mode ist ein Theme.",
+        "tags": [
+          "gui"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/tkinter.ttk.html#tkinter.ttk.Style.theme_create",
+        "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/ttk_style.n"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 84,
+      "id": "it_0084",
+      "term": "Responsive Design",
+      "category": "Gui",
+      "document": "it_0084.md",
+      "sha256": "c78238fadf4dd15ab466a50a5f46f80acb77718ad959fbd10c301068751d1eda",
+      "source": {
+        "id": "it_0084",
+        "term": "Responsive Design",
+        "short": "Eine Oberfläche passt sich an verschiedene Größen an.",
+        "example": "Ein Fenster bleibt auch bei kleiner Breite nutzbar.",
+        "tags": [
+          "gui",
+          "web"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://doc.qt.io/qt-6/layout.html",
+        "https://www.w3.org/WAI/WCAG22/Understanding/reflow.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 85,
+      "id": "it_0085",
+      "term": "Python",
+      "category": "Python",
+      "document": "it_0085.md",
+      "sha256": "37c1c245413e873777b87581081ccf2cbc3f32392351c6bcd665f9a74b86c5d5",
+      "source": {
+        "id": "it_0085",
+        "term": "Python",
+        "short": "Eine beliebte, gut lesbare Programmiersprache.",
+        "example": "NetMon kann mit Python und Tkinter gebaut werden.",
+        "tags": [
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/glossary.html#term-CPython",
+        "https://docs.python.org/3.13/library/tkinter.html#module-tkinter",
+        "https://docs.python.org/3.13/tutorial/appetite.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 86,
+      "id": "it_0086",
+      "term": "Modul",
+      "category": "Python",
+      "document": "it_0086.md",
+      "sha256": "a5645290bc1d78a88a3b3fd1715104368fe2e176f8f63d4a1259c1d6a3067aff",
+      "source": {
+        "id": "it_0086",
+        "term": "Modul",
+        "short": "Eine Datei oder Einheit mit wiederverwendbarem Code.",
+        "example": "dns_utils.py kann ein Modul sein.",
+        "tags": [
+          "python",
+          "architektur"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/reference/import.html#the-module-cache",
+        "https://docs.python.org/3.13/tutorial/modules.html#modules"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 87,
+      "id": "it_0087",
+      "term": "Paket",
+      "category": "Python",
+      "document": "it_0087.md",
+      "sha256": "385ab0ef1ea2028b92e799b5ace70a7f4f470f7efa2250ac6d51349a630d076b",
+      "source": {
+        "id": "it_0087",
+        "term": "Paket",
+        "short": "Eine Sammlung von Modulen.",
+        "example": "Ein Python-Paket enthält meist eine __init__.py.",
+        "tags": [
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/reference/import.html#namespace-packages",
+        "https://docs.python.org/3.13/reference/import.html#packages",
+        "https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/discussions/distribution-package-vs-import-package.rst"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 88,
+      "id": "it_0088",
+      "term": "Import",
+      "category": "Python",
+      "document": "it_0088.md",
+      "sha256": "bd898b54e74f4c8383e30cea34bc27a51d3cf3444bbad0f56c616d07cafa3c21",
+      "source": {
+        "id": "it_0088",
+        "term": "Import",
+        "short": "Das Einbinden von Code aus einem Modul.",
+        "example": "import os bindet das os-Modul ein.",
+        "tags": [
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/reference/import.html#loading",
+        "https://docs.python.org/3.13/reference/simple_stmts.html#the-import-statement"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 89,
+      "id": "it_0089",
+      "term": "pip",
+      "category": "Python",
+      "document": "it_0089.md",
+      "sha256": "976f639b5b003d5de6e55617e7ccff4f4463bd9dd3f32a5e6255e0b6d55b4dfd",
+      "source": {
+        "id": "it_0089",
+        "term": "pip",
+        "short": "Der Paketmanager für Python-Pakete.",
+        "example": "pip install requests installiert requests.",
+        "tags": [
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://raw.githubusercontent.com/pypa/pip/main/docs/html/cli/pip_install.rst",
+        "https://raw.githubusercontent.com/pypa/pip/main/docs/html/user_guide.rst"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 90,
+      "id": "it_0090",
+      "term": "venv",
+      "category": "Python",
+      "document": "it_0090.md",
+      "sha256": "2a3ede75be4dea8ef43bf4697f8c3f05eba04ac6a2fbf26b8113826da4c0feab",
+      "source": {
+        "id": "it_0090",
+        "term": "venv",
+        "short": "Eine virtuelle Python-Umgebung für Projektabhängigkeiten.",
+        "example": "python -m venv .venv erstellt eine isolierte Umgebung.",
+        "tags": [
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/venv.html#creating-virtual-environments",
+        "https://docs.python.org/3.13/library/venv.html#venv.EnvBuilder"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 91,
+      "id": "it_0091",
+      "term": "Exception",
+      "category": "Python",
+      "document": "it_0091.md",
+      "sha256": "6a540831871623d2a5d62368325e5f272f1b073cf0be2f38ac0ce61bd9346680",
+      "source": {
+        "id": "it_0091",
+        "term": "Exception",
+        "short": "Eine Ausnahme, also ein Laufzeitproblem, das abgefangen werden kann.",
+        "example": "try/except behandelt Exceptions.",
+        "tags": [
+          "python",
+          "fehler"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/exceptions.html#exception-hierarchy",
+        "https://docs.python.org/3.13/tutorial/errors.html#handling-exceptions"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 92,
+      "id": "it_0092",
+      "term": "Traceback",
+      "category": "Python",
+      "document": "it_0092.md",
+      "sha256": "26ed07d310a4b49dd170461f74e86e12b67d1d4e366c2931ead6c61cea5f071f",
+      "source": {
+        "id": "it_0092",
+        "term": "Traceback",
+        "short": "Die Fehlerausgabe, die zeigt, wo ein Fehler entstanden ist.",
+        "example": "Ein Traceback zeigt Datei, Zeile und Fehlertyp.",
+        "tags": [
+          "python",
+          "fehler"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/traceback.html#traceback.extract_tb",
+        "https://docs.python.org/3.13/tutorial/errors.html#exceptions"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 93,
+      "id": "it_0093",
+      "term": "Decorator",
+      "category": "Python",
+      "document": "it_0093.md",
+      "sha256": "95c054ccaee139e3bba58e5e660acc0a8baf20f02e114c8c5a0319c13fa48bd1",
+      "source": {
+        "id": "it_0093",
+        "term": "Decorator",
+        "short": "Eine Funktion, die eine andere Funktion erweitert.",
+        "example": "@staticmethod ist ein Decorator.",
+        "tags": [
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/functions.html#staticmethod",
+        "https://docs.python.org/3.13/library/functools.html#functools.wraps",
+        "https://docs.python.org/3.13/reference/compound_stmts.html#function-definitions"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 94,
+      "id": "it_0094",
+      "term": "Generator",
+      "category": "Python",
+      "document": "it_0094.md",
+      "sha256": "8c39fcf121994bd6efd2094e186c0186f13fde3088be96bbdc311689f6b67727",
+      "source": {
+        "id": "it_0094",
+        "term": "Generator",
+        "short": "Eine Funktion, die Werte nach und nach liefert.",
+        "example": "yield erzeugt einen Generator.",
+        "tags": [
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/glossary.html#term-generator",
+        "https://docs.python.org/3.13/reference/expressions.html#yield-expressions"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 95,
+      "id": "it_0095",
+      "term": "List Comprehension",
+      "category": "Python",
+      "document": "it_0095.md",
+      "sha256": "9377e96edeaee73a56255b85872f2d0a0f4ef4e346fef07362496b9a3ed788c9",
+      "source": {
+        "id": "it_0095",
+        "term": "List Comprehension",
+        "short": "Kurze Schreibweise zum Erzeugen von Listen.",
+        "example": "[x*x for x in nums] erzeugt Quadrate.",
+        "tags": [
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/reference/expressions.html#displays-for-lists-sets-and-dictionaries",
+        "https://docs.python.org/3.13/tutorial/datastructures.html#list-comprehensions"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 96,
+      "id": "it_0096",
+      "term": "Docstring",
+      "category": "Python",
+      "document": "it_0096.md",
+      "sha256": "d07fa6e0ea620b02c01f711d6232ea3f84cf27ead104092773beb020297cb7a6",
+      "source": {
+        "id": "it_0096",
+        "term": "Docstring",
+        "short": "Ein Dokumentationstext direkt in Funktion, Klasse oder Modul.",
+        "example": "Ein Docstring erklärt Zweck und Parameter.",
+        "tags": [
+          "python",
+          "dokumentation"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/tutorial/controlflow.html#documentation-strings",
+        "https://docs.python.org/3.13/using/cmdline.html#cmdoption-OO",
+        "https://peps.python.org/pep-0257/#what-is-a-docstring"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 97,
+      "id": "it_0097",
+      "term": "Type Hint",
+      "category": "Python",
+      "document": "it_0097.md",
+      "sha256": "932c7e150206f33d256c30c413d7267bb6168dbb972bb669d9363cae7d57dd56",
+      "source": {
+        "id": "it_0097",
+        "term": "Type Hint",
+        "short": "Eine Typangabe im Python-Code.",
+        "example": "def add(a: int, b: int) -> int nutzt Type Hints.",
+        "tags": [
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/typing.html",
+        "https://peps.python.org/pep-0484/#non-goals"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 98,
+      "id": "it_0098",
+      "term": "PEP 8",
+      "category": "Python",
+      "document": "it_0098.md",
+      "sha256": "05752d441f92ff01dd870477296850d5cc14e6bfe371c70a37e26b74981479b4",
+      "source": {
+        "id": "it_0098",
+        "term": "PEP 8",
+        "short": "Ein Styleguide für gut lesbaren Python-Code.",
+        "example": "PEP 8 empfiehlt klare Namen und Einrückung.",
+        "tags": [
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://peps.python.org/pep-0008/#a-foolish-consistency-is-the-hobgoblin-of-little-minds",
+        "https://peps.python.org/pep-0008/#function-and-variable-names",
+        "https://peps.python.org/pep-0008/#indentation"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 99,
+      "id": "it_0099",
+      "term": "Tkinter",
+      "category": "Python",
+      "document": "it_0099.md",
+      "sha256": "f46f6e934d381a9066b89b1afbe34e788e43f416eb491a7dcd98456fe8f11ee4",
+      "source": {
+        "id": "it_0099",
+        "term": "Tkinter",
+        "short": "Eine Standardbibliothek für einfache Python-GUIs.",
+        "example": "Tkinter kann Fenster und Buttons erstellen.",
+        "tags": [
+          "python",
+          "gui"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/tkinter.html#architecture",
+        "https://docs.python.org/3.13/library/tkinter.html#threading-model",
+        "https://docs.python.org/3.13/library/tkinter.ttk.html#ttk-widgets"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 100,
+      "id": "it_0100",
+      "term": "PyQt",
+      "category": "Python",
+      "document": "it_0100.md",
+      "sha256": "734c47d0eca8a8323f6be960181be4aac7fbf238b7b53c4edb43524fd82c4210",
+      "source": {
+        "id": "it_0100",
+        "term": "PyQt",
+        "short": "Ein Python-Toolkit für umfangreiche GUIs.",
+        "example": "PyQt eignet sich für komplexere Desktop-Anwendungen.",
+        "tags": [
+          "python",
+          "gui"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.riverbankcomputing.com/static/Docs/PyQt6/introduction.html",
+        "https://www.riverbankcomputing.com/static/Docs/PyQt6/signals_slots.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 101,
+      "id": "it_0101",
+      "term": "subprocess",
+      "category": "Python",
+      "document": "it_0101.md",
+      "sha256": "8133748ea272b83e1f1881d617a654174d08d7575493f685fa587aa81a31f1f9",
+      "source": {
+        "id": "it_0101",
+        "term": "subprocess",
+        "short": "Ein Python-Modul zum Starten externer Programme.",
+        "example": "subprocess.run(['ping', '-c', '1', '1.1.1.1']) startet ping.",
+        "tags": [
+          "python",
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/subprocess.html#security-considerations",
+        "https://docs.python.org/3.13/library/subprocess.html#subprocess.TimeoutExpired",
+        "https://docs.python.org/3.13/library/subprocess.html#subprocess.run"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 102,
+      "id": "it_0102",
+      "term": "pathlib",
+      "category": "Python",
+      "document": "it_0102.md",
+      "sha256": "16e414e7d7a5bfcb27307a265b240c97477a856c133e84203a0c02abb01d6d4f",
+      "source": {
+        "id": "it_0102",
+        "term": "pathlib",
+        "short": "Ein Python-Modul für moderne Pfadverarbeitung.",
+        "example": "Path.home() liefert das Home-Verzeichnis.",
+        "tags": [
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/pathlib.html#pathlib.Path.home",
+        "https://docs.python.org/3.13/library/pathlib.html#pathlib.Path.read_text",
+        "https://docs.python.org/3.13/library/pathlib.html#pure-paths"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 103,
+      "id": "it_0103",
+      "term": "logging",
+      "category": "Python",
+      "document": "it_0103.md",
+      "sha256": "71a51afec73fd1b45bdb0d1adbd880034da196f1083758c0198e3e9a8fa8c729",
+      "source": {
+        "id": "it_0103",
+        "term": "logging",
+        "short": "Ein Python-Modul für strukturierte Log-Ausgaben.",
+        "example": "logging.info('Start') schreibt eine Info-Meldung.",
+        "tags": [
+          "python",
+          "debugging"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/howto/logging.html#a-simple-example",
+        "https://docs.python.org/3.13/library/logging.html#logging.Formatter",
+        "https://docs.python.org/3.13/library/logging.html#logging.Logger"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 104,
+      "id": "it_0104",
+      "term": "Linux",
+      "category": "Linux",
+      "document": "it_0104.md",
+      "sha256": "5886e302b49e8beccbb9a0d275d2392bba971bade54186086b306a292efcf6de",
+      "source": {
+        "id": "it_0104",
+        "term": "Linux",
+        "short": "Ein freies Betriebssystem beziehungsweise Betriebssystem-Kern mit vielen Distributionen.",
+        "example": "Zorin OS basiert auf Linux.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.debian.org/intro/about",
+        "https://www.kernel.org/doc/html/latest/admin-guide/README.html",
+        "https://zorin.com/os/"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 105,
+      "id": "it_0105",
+      "term": "Distribution",
+      "category": "Linux",
+      "document": "it_0105.md",
+      "sha256": "b5d729e0511b2577bc0ba64e0d60a2019c474458fb8c050a5dd7a3f7dd3532cb",
+      "source": {
+        "id": "it_0105",
+        "term": "Distribution",
+        "short": "Eine Linux-Variante mit Kernel, Programmen und Paketverwaltung.",
+        "example": "Ubuntu, Debian und Zorin sind Distributionen.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.debian.org/doc/manuals/debian-handbook/sect.apt-get.en.html",
+        "https://www.debian.org/intro/about",
+        "https://www.debian.org/releases/",
+        "https://zorin.com/os/"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 106,
+      "id": "it_0106",
+      "term": "Kernel",
+      "category": "Linux",
+      "document": "it_0106.md",
+      "sha256": "bb0db9011e5b345fdc461dfa149f7c04fcc491ce693c77f0bdab01f6f18417bb",
+      "source": {
+        "id": "it_0106",
+        "term": "Kernel",
+        "short": "Der zentrale Teil des Betriebssystems.",
+        "example": "Der Kernel verwaltet Hardware, Prozesse und Speicher.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.kernel.org/admin-guide/mm/concepts.html",
+        "https://docs.kernel.org/scheduler/sched-design-CFS.html",
+        "https://docs.kernel.org/userspace-api/index.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 107,
+      "id": "it_0107",
+      "term": "Shell",
+      "category": "Linux",
+      "document": "it_0107.md",
+      "sha256": "86eeb0f8fb9d055959735c41bc6d35ff9910cb2a196c2dd4f0372465eec8ad55",
+      "source": {
+        "id": "it_0107",
+        "term": "Shell",
+        "short": "Ein Programm zur Eingabe von Befehlen.",
+        "example": "Bash ist eine bekannte Shell.",
+        "tags": [
+          "linux",
+          "terminal"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html",
+        "https://www.gnu.org/software/bash/manual/html_node/What-is-a-shell_003f.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 108,
+      "id": "it_0108",
+      "term": "Terminal",
+      "category": "Linux",
+      "document": "it_0108.md",
+      "sha256": "0636798f3039722d6e2bf606470e1e55d79b420ddce13be1ac776bd14a46e08a",
+      "source": {
+        "id": "it_0108",
+        "term": "Terminal",
+        "short": "Eine Oberfläche zur Nutzung der Shell.",
+        "example": "Im Terminal startet man Programme per Befehl.",
+        "tags": [
+          "linux",
+          "terminal"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://help.gnome.org/gnome-terminal/introduction.html",
+        "https://invisible-island.net/xterm/xterm.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 109,
+      "id": "it_0109",
+      "term": "Bash",
+      "category": "Linux",
+      "document": "it_0109.md",
+      "sha256": "5e7dd2e81bda21d4c9f1346fb22b5355aed44d6277d80a23ea0f289ebde94a67",
+      "source": {
+        "id": "it_0109",
+        "term": "Bash",
+        "short": "Eine weit verbreitete Linux-Shell.",
+        "example": "Bash führt Shell-Skripte aus.",
+        "tags": [
+          "linux",
+          "terminal"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.gnu.org/software/bash/manual/html_node/Arrays.html",
+        "https://www.gnu.org/software/bash/manual/html_node/Bash-Startup-Files.html",
+        "https://www.gnu.org/software/bash/manual/html_node/What-is-Bash_003f.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 110,
+      "id": "it_0110",
+      "term": "sudo",
+      "category": "Linux",
+      "document": "it_0110.md",
+      "sha256": "f661c944d93c0759b28cc91add9ad3473721b942cf9ebf13a3d272e906be39e2",
+      "source": {
+        "id": "it_0110",
+        "term": "sudo",
+        "short": "Befehl zum Ausführen mit Administratorrechten.",
+        "example": "sudo apt update aktualisiert Paketlisten.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://raw.githubusercontent.com/sudo-project/sudo/main/docs/sudo.mdoc.in",
+        "https://raw.githubusercontent.com/sudo-project/sudo/main/docs/sudoers.mdoc.in",
+        "https://www.debian.org/doc/manuals/debian-handbook/sect.apt-get.en.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 111,
+      "id": "it_0111",
+      "term": "Root",
+      "category": "Linux",
+      "document": "it_0111.md",
+      "sha256": "bada5ec2730383c9aa5a7a4258163d8c53504d857fdf90e648d21c9aaebd5a39",
+      "source": {
+        "id": "it_0111",
+        "term": "Root",
+        "short": "Der Administrator-Benutzer unter Linux.",
+        "example": "Root darf fast alles am System ändern.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://man7.org/linux/man-pages/man7/capabilities.7.html",
+        "https://man7.org/linux/man-pages/man7/user_namespaces.7.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 112,
+      "id": "it_0112",
+      "term": "Dateirechte",
+      "category": "Linux",
+      "document": "it_0112.md",
+      "sha256": "738957ddcca071e5bf0625ed0fc35959f68d934b96e32d602a79c17327f01c07",
+      "source": {
+        "id": "it_0112",
+        "term": "Dateirechte",
+        "short": "Regeln, wer Dateien lesen, schreiben oder ausführen darf.",
+        "example": "chmod 755 script.sh setzt Rechte.",
+        "tags": [
+          "linux",
+          "sicherheit"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://man7.org/linux/man-pages/man7/path_resolution.7.html",
+        "https://www.gnu.org/software/coreutils/manual/html_node/Mode-Structure.html"
+      ],
+      "status": "review_pending"
     }
   ],
   "source_urls": [
@@ -1922,14 +2640,20 @@
     "https://doc.qt.io/qt-6/qtwidgets-index.html",
     "https://doc.rust-lang.org/book/ch03-02-data-types.html#the-array-type",
     "https://doc.rust-lang.org/book/ch04-02-references-and-borrowing.html",
+    "https://docs.kernel.org/admin-guide/mm/concepts.html",
+    "https://docs.kernel.org/scheduler/sched-design-CFS.html",
+    "https://docs.kernel.org/userspace-api/index.html",
     "https://docs.python.org/3.13/bugs.html",
+    "https://docs.python.org/3.13/glossary.html#term-CPython",
     "https://docs.python.org/3.13/glossary.html#term-argument",
     "https://docs.python.org/3.13/glossary.html#term-callback",
     "https://docs.python.org/3.13/glossary.html#term-duck-typing",
+    "https://docs.python.org/3.13/glossary.html#term-generator",
     "https://docs.python.org/3.13/glossary.html#term-iterator",
     "https://docs.python.org/3.13/glossary.html#term-mapping",
     "https://docs.python.org/3.13/glossary.html#term-parameter",
     "https://docs.python.org/3.13/howto/curses.html#what-is-curses",
+    "https://docs.python.org/3.13/howto/logging.html#a-simple-example",
     "https://docs.python.org/3.13/howto/sorting.html#key-functions",
     "https://docs.python.org/3.13/howto/unicode.html#encodings",
     "https://docs.python.org/3.13/library/abc.html#abc.abstractmethod",
@@ -1941,6 +2665,7 @@
     "https://docs.python.org/3.13/library/constants.html#None",
     "https://docs.python.org/3.13/library/dialog.html#tkinter.simpledialog.Dialog",
     "https://docs.python.org/3.13/library/exceptions.html#NameError",
+    "https://docs.python.org/3.13/library/exceptions.html#exception-hierarchy",
     "https://docs.python.org/3.13/library/functions.html#breakpoint",
     "https://docs.python.org/3.13/library/functions.html#enumerate",
     "https://docs.python.org/3.13/library/functions.html#int",
@@ -1950,10 +2675,15 @@
     "https://docs.python.org/3.13/library/functions.html#staticmethod",
     "https://docs.python.org/3.13/library/functions.html#super",
     "https://docs.python.org/3.13/library/functions.html#type",
+    "https://docs.python.org/3.13/library/functools.html#functools.wraps",
     "https://docs.python.org/3.13/library/hashlib.html#usage",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.ip_address",
     "https://docs.python.org/3.13/library/json.html#encoders-and-decoders",
+    "https://docs.python.org/3.13/library/logging.html#logging.Formatter",
+    "https://docs.python.org/3.13/library/logging.html#logging.Logger",
     "https://docs.python.org/3.13/library/math.html#math.isclose",
+    "https://docs.python.org/3.13/library/pathlib.html#pathlib.Path.home",
+    "https://docs.python.org/3.13/library/pathlib.html#pathlib.Path.read_text",
     "https://docs.python.org/3.13/library/pathlib.html#pure-paths",
     "https://docs.python.org/3.13/library/pdb.html",
     "https://docs.python.org/3.13/library/queue.html#queue.LifoQueue",
@@ -1967,10 +2697,15 @@
     "https://docs.python.org/3.13/library/stdtypes.html#text-sequence-type-str",
     "https://docs.python.org/3.13/library/stdtypes.html#truth-value-testing",
     "https://docs.python.org/3.13/library/stdtypes.html#tuples",
+    "https://docs.python.org/3.13/library/subprocess.html#security-considerations",
+    "https://docs.python.org/3.13/library/subprocess.html#subprocess.TimeoutExpired",
+    "https://docs.python.org/3.13/library/subprocess.html#subprocess.run",
     "https://docs.python.org/3.13/library/sys.html#sys.implementation",
     "https://docs.python.org/3.13/library/time.html#time.perf_counter",
     "https://docs.python.org/3.13/library/tkinter.html#a-hello-world-program",
+    "https://docs.python.org/3.13/library/tkinter.html#architecture",
     "https://docs.python.org/3.13/library/tkinter.html#bindings-and-events",
+    "https://docs.python.org/3.13/library/tkinter.html#module-tkinter",
     "https://docs.python.org/3.13/library/tkinter.html#threading-model",
     "https://docs.python.org/3.13/library/tkinter.ttk.html#tkinter.ttk.Button.invoke",
     "https://docs.python.org/3.13/library/tkinter.ttk.html#tkinter.ttk.Checkbutton.invoke",
@@ -1979,11 +2714,18 @@
     "https://docs.python.org/3.13/library/tkinter.ttk.html#tkinter.ttk.Frame",
     "https://docs.python.org/3.13/library/tkinter.ttk.html#tkinter.ttk.Label",
     "https://docs.python.org/3.13/library/tkinter.ttk.html#tkinter.ttk.Radiobutton.invoke",
+    "https://docs.python.org/3.13/library/tkinter.ttk.html#tkinter.ttk.Style.theme_create",
+    "https://docs.python.org/3.13/library/tkinter.ttk.html#ttk-widgets",
+    "https://docs.python.org/3.13/library/traceback.html#traceback.extract_tb",
+    "https://docs.python.org/3.13/library/typing.html",
     "https://docs.python.org/3.13/library/typing.html#typing.Final",
     "https://docs.python.org/3.13/library/typing.html#typing.Protocol",
     "https://docs.python.org/3.13/library/unittest.html#unittest.TestCase.assertEqual",
+    "https://docs.python.org/3.13/library/venv.html#creating-virtual-environments",
+    "https://docs.python.org/3.13/library/venv.html#venv.EnvBuilder",
     "https://docs.python.org/3.13/library/xml.etree.elementtree.html#building-xml-documents",
     "https://docs.python.org/3.13/reference/compound_stmts.html#compound-statements",
+    "https://docs.python.org/3.13/reference/compound_stmts.html#function-definitions",
     "https://docs.python.org/3.13/reference/compound_stmts.html#the-for-statement",
     "https://docs.python.org/3.13/reference/compound_stmts.html#the-if-statement",
     "https://docs.python.org/3.13/reference/compound_stmts.html#the-while-statement",
@@ -1997,13 +2739,21 @@
     "https://docs.python.org/3.13/reference/expressions.html#boolean-operations",
     "https://docs.python.org/3.13/reference/expressions.html#calls",
     "https://docs.python.org/3.13/reference/expressions.html#comparisons",
+    "https://docs.python.org/3.13/reference/expressions.html#displays-for-lists-sets-and-dictionaries",
     "https://docs.python.org/3.13/reference/expressions.html#evaluation-order",
     "https://docs.python.org/3.13/reference/expressions.html#lambda",
     "https://docs.python.org/3.13/reference/expressions.html#operator-precedence",
+    "https://docs.python.org/3.13/reference/expressions.html#yield-expressions",
+    "https://docs.python.org/3.13/reference/import.html#loading",
+    "https://docs.python.org/3.13/reference/import.html#namespace-packages",
+    "https://docs.python.org/3.13/reference/import.html#packages",
+    "https://docs.python.org/3.13/reference/import.html#the-module-cache",
     "https://docs.python.org/3.13/reference/lexical_analysis.html#comments",
     "https://docs.python.org/3.13/reference/lexical_analysis.html#encoding-declarations",
     "https://docs.python.org/3.13/reference/simple_stmts.html#expression-statements",
+    "https://docs.python.org/3.13/reference/simple_stmts.html#the-import-statement",
     "https://docs.python.org/3.13/reference/simple_stmts.html#the-return-statement",
+    "https://docs.python.org/3.13/tutorial/appetite.html",
     "https://docs.python.org/3.13/tutorial/classes.html#class-definition-syntax",
     "https://docs.python.org/3.13/tutorial/classes.html#class-objects",
     "https://docs.python.org/3.13/tutorial/classes.html#inheritance",
@@ -2014,32 +2764,51 @@
     "https://docs.python.org/3.13/tutorial/classes.html#python-scopes-and-namespaces",
     "https://docs.python.org/3.13/tutorial/controlflow.html#default-argument-values",
     "https://docs.python.org/3.13/tutorial/controlflow.html#defining-functions",
+    "https://docs.python.org/3.13/tutorial/controlflow.html#documentation-strings",
     "https://docs.python.org/3.13/tutorial/controlflow.html#for-statements",
     "https://docs.python.org/3.13/tutorial/datastructures.html#dictionaries",
+    "https://docs.python.org/3.13/tutorial/datastructures.html#list-comprehensions",
     "https://docs.python.org/3.13/tutorial/datastructures.html#more-on-lists",
     "https://docs.python.org/3.13/tutorial/datastructures.html#sets",
     "https://docs.python.org/3.13/tutorial/datastructures.html#using-lists-as-stacks",
     "https://docs.python.org/3.13/tutorial/errors.html#exceptions",
+    "https://docs.python.org/3.13/tutorial/errors.html#handling-exceptions",
     "https://docs.python.org/3.13/tutorial/errors.html#syntax-errors",
     "https://docs.python.org/3.13/tutorial/floatingpoint.html#representation-error",
     "https://docs.python.org/3.13/tutorial/modules.html#modules",
+    "https://docs.python.org/3.13/using/cmdline.html#cmdoption-OO",
+    "https://help.gnome.org/gnome-terminal/introduction.html",
+    "https://invisible-island.net/xterm/xterm.html",
     "https://keepachangelog.com/en/1.1.0/",
+    "https://man7.org/linux/man-pages/man7/capabilities.7.html",
+    "https://man7.org/linux/man-pages/man7/path_resolution.7.html",
+    "https://man7.org/linux/man-pages/man7/user_namespaces.7.html",
     "https://martinfowler.com/bliki/DefinitionOfRefactoring.html",
     "https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.tree.recognition.is_tree.html",
     "https://networkx.org/documentation/stable/reference/classes/digraph.html#networkx.DiGraph",
     "https://networkx.org/documentation/stable/reference/classes/generated/networkx.Graph.add_node.html",
     "https://networkx.org/documentation/stable/reference/classes/graph.html#networkx.Graph",
+    "https://peps.python.org/pep-0008/#a-foolish-consistency-is-the-hobgoblin-of-little-minds",
     "https://peps.python.org/pep-0008/#constants",
+    "https://peps.python.org/pep-0008/#function-and-variable-names",
+    "https://peps.python.org/pep-0008/#indentation",
     "https://peps.python.org/pep-0257/#what-is-a-docstring",
     "https://peps.python.org/pep-0440/#version-scheme",
+    "https://peps.python.org/pep-0484/#non-goals",
     "https://peps.python.org/pep-0602/",
+    "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html",
     "https://raw.githubusercontent.com/django/django/stable/5.2.x/docs/howto/deployment/checklist.txt",
     "https://raw.githubusercontent.com/git/git/master/Documentation/git-log.adoc",
     "https://raw.githubusercontent.com/git/git/master/Documentation/gitrepository-layout.adoc",
     "https://raw.githubusercontent.com/github/docs/main/content/repositories/releasing-projects-on-github/about-releases.md",
     "https://raw.githubusercontent.com/htop-dev/htop/main/htop.1.in",
     "https://raw.githubusercontent.com/kubernetes/website/main/content/en/docs/concepts/workloads/controllers/deployment.md",
+    "https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/discussions/distribution-package-vs-import-package.rst",
     "https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/tutorials/packaging-projects.rst",
+    "https://raw.githubusercontent.com/pypa/pip/main/docs/html/cli/pip_install.rst",
+    "https://raw.githubusercontent.com/pypa/pip/main/docs/html/user_guide.rst",
+    "https://raw.githubusercontent.com/sudo-project/sudo/main/docs/sudo.mdoc.in",
+    "https://raw.githubusercontent.com/sudo-project/sudo/main/docs/sudoers.mdoc.in",
     "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/bind.n",
     "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/canvas.n",
     "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/destroy.n",
@@ -2051,13 +2820,26 @@
     "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/ttk_frame.n",
     "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/ttk_label.n",
     "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/ttk_radiobutton.n",
+    "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/ttk_style.n",
     "https://semver.org/spec/v2.0.0.html",
+    "https://www.debian.org/doc/manuals/debian-handbook/sect.apt-get.en.html",
+    "https://www.debian.org/intro/about",
+    "https://www.debian.org/releases/",
+    "https://www.gnu.org/software/bash/manual/html_node/Arrays.html",
+    "https://www.gnu.org/software/bash/manual/html_node/Bash-Startup-Files.html",
+    "https://www.gnu.org/software/bash/manual/html_node/What-is-Bash_003f.html",
     "https://www.gnu.org/software/bash/manual/html_node/What-is-a-shell_003f.html",
     "https://www.gnu.org/software/c-intro-and-ref/manual/html_node/Invalid-Dereference.html",
     "https://www.gnu.org/software/c-intro-and-ref/manual/html_node/Pointers.html",
+    "https://www.gnu.org/software/coreutils/manual/html_node/Mode-Structure.html",
     "https://www.gnu.org/software/make/manual/html_node/Introduction.html",
+    "https://www.kernel.org/doc/html/latest/admin-guide/README.html",
+    "https://www.riverbankcomputing.com/static/Docs/PyQt6/introduction.html",
+    "https://www.riverbankcomputing.com/static/Docs/PyQt6/signals_slots.html",
     "https://www.sqlite.org/lang_createindex.html",
     "https://www.sqlite.org/queryplanner.html",
-    "https://www.w3.org/WAI/WCAG22/Understanding/content-on-hover-or-focus.html"
+    "https://www.w3.org/WAI/WCAG22/Understanding/content-on-hover-or-focus.html",
+    "https://www.w3.org/WAI/WCAG22/Understanding/reflow.html",
+    "https://zorin.com/os/"
   ]
 }

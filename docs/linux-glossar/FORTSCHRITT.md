@@ -1491,3 +1491,545 @@ Präzisierung gegenüber der Quelle: Mausauslöser der Quelle als häufige Varia
 SHA-256: `98f911cdf2d9341636220b1d468ad7a51aa5fc6d8a7781e37b746c395bd3c4ba`.
 
 Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+# Fortsetzung ab Datensatz 83
+
+Sven hat am 21.11.2026 zunächst Commit und Push des gespeicherten Stands 81–82 und anschließend die Weiterarbeit beauftragt. Der Gesamtlauf für 82 Texte bestand; ausschließlich die vier erwarteten Dateien wurden als Commit `21a3c95` gesichert und auf `codex/linux-glossar-011-302` gepusht. Vorhandene Texte und Indexdatensätze 1–80 blieben dabei unverändert. Die Weiterarbeit beginnt mit `it_0083 – Theme`, erneut einzeln in Quellreihenfolge, ohne Unteragenten und ohne zusätzliches Worktree. Quellenabrufe und Beispielprüfungen des folgenden Durchlaufs erfolgen am 21.11.2026. Der Browser-Checkout enthält weiterhin keinen `parse_glossary_document`; verwendet wird ausschließlich die dokumentierte temporäre Strukturprüfung, keine Reader-Abnahme.
+
+## 83. Theme – it_0083
+
+Ausgearbeitet und strukturell geprüft: 613 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5507 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/tkinter.ttk.html#tkinter.ttk.Style.theme_create
+- https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/ttk_style.n
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigenes Tk-Theme unter Xvfb erzeugt, gewählt und abgefragt; keine sichtbare Kontrast-, Systemtheme- oder NetMon-Abnahme.
+
+Präzisierung gegenüber der Quelle: Dark Mode als mögliche Theme-Variante statt vollständiger universeller Gestaltung eingeordnet. Widget-Stil, Theme, Layout und fachliche Wirkung getrennt. Belege: offizielles ttk-style-Handbuch und theme_create-Referenz.
+
+SHA-256: `f9aa68f53ce8cadf915a627a1225671d31b9f278a2b7e651c18c914ddfa8fc12`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 84. Responsive Design – it_0084
+
+Ausgearbeitet und strukturell geprüft: 622 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5717 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://doc.qt.io/qt-6/layout.html
+- https://www.w3.org/WAI/WCAG22/Understanding/reflow.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigenes Tk-Feld unter Xvfb bei zwei Fenstergrößen tatsächlich gemessen; keine vollständige Responsive-, WCAG-, NetMon- oder Reader-Abnahme.
+
+Präzisierung gegenüber der Quelle: Quellbeschreibung als Gestaltungsziel eingeordnet, nicht als automatische Garantie. Web-Reflow und Desktopanpassung samt unterschiedlichen Maßsystemen getrennt. Belege: offizielle W3C-Reflow-Erläuterung und Qt-Layoutdokumentation.
+
+SHA-256: `c78238fadf4dd15ab466a50a5f46f80acb77718ad959fbd10c301068751d1eda`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 85. Python – it_0085
+
+Ausgearbeitet und strukturell geprüft: 622 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5659 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/glossary.html#term-CPython
+- https://docs.python.org/3.13/library/tkinter.html#module-tkinter
+- https://docs.python.org/3.13/tutorial/appetite.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine nicht ausgeführten praktischen Beispiele.
+
+Präzisierung gegenüber der Quelle: Subjektive Lesbarkeit nicht als Qualitätsgarantie ausgegeben. Sprache, konkrete Implementierung und Bibliotheksvoraussetzungen getrennt. Belege: offizieller Tutorialeinstieg, CPython-Glossar und Tkinter-Modulbeschreibung. Eigene reine Integerverarbeitung samt Grenzfällen ausgeführt.
+
+SHA-256: `37c1c245413e873777b87581081ccf2cbc3f32392351c6bcd665f9a74b86c5d5`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 86. Modul – it_0086
+
+Ausgearbeitet und strukturell geprüft: 654 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5806 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/reference/import.html#the-module-cache
+- https://docs.python.org/3.13/tutorial/modules.html#modules
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine nicht ausgeführten praktischen Beispiele.
+
+Präzisierung gegenüber der Quelle: Dateibeispiel als häufige, nicht einzige Modulrepräsentation eingeordnet. Namensraum und Importcache anhand offizieller Python-Dokumentation präzisiert. Eigenes temporäres Modul und Identität bei zweimaligem normalem Import tatsächlich im Kindprozess geprüft.
+
+SHA-256: `a5645290bc1d78a88a3b3fd1715104368fe2e176f8f63d4a1259c1d6a3067aff`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 87. Paket – it_0087
+
+Ausgearbeitet und strukturell geprüft: 605 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5824 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/reference/import.html#namespace-packages
+- https://docs.python.org/3.13/reference/import.html#packages
+- https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/discussions/distribution-package-vs-import-package.rst
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigenes reguläres Paket samt Initialisierungsdatei und Untermodul praktisch importiert; keine Namespace-Verteilung oder Installation getestet.
+
+Präzisierung gegenüber der Quelle: Sammlungsbild um hierarchischen Importnamensraum präzisiert. Reguläre und Namespace-Pakete sowie Importpaket und installierbare Distribution getrennt. Belege: offizielle Python-Paket-/Namespace-Beschreibung und PyPA-Begriffsklärung.
+
+SHA-256: `385ab0ef1ea2028b92e799b5ace70a7f4f470f7efa2250ac6d51349a630d076b`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 88. Import – it_0088
+
+Ausgearbeitet und strukturell geprüft: 665 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5852 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/reference/import.html#loading
+- https://docs.python.org/3.13/reference/simple_stmts.html#the-import-statement
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine nicht ausgeführten praktischen Beispiele.
+
+Präzisierung gegenüber der Quelle: Quellbeispiel ist passend. Finden/Laden und lokale Namensbindung von Installation sowie Quelltextkopie getrennt. Belege: offizielle import-Anweisung und Ladebeschreibung. Eigenen Initialisierungslauf, Modulalias und separat gebundenen Integer praktisch geprüft.
+
+SHA-256: `bd898b54e74f4c8383e30cea34bc27a51d3cf3444bbad0f56c616d07cafa3c21`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 89. pip – it_0089
+
+Ausgearbeitet und strukturell geprüft: 626 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5747 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/pypa/pip/main/docs/html/cli/pip_install.rst
+- https://raw.githubusercontent.com/pypa/pip/main/docs/html/user_guide.rst
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Beide beschriebenen pip-Aufrufe nicht ausgeführt; keine Installation, Aktualisierung, Entfernung oder Build-Ausführung vorgenommen.
+
+Präzisierung gegenüber der Quelle: Paketmanager-Bild auf Python-Distributionen und ausgewählten Interpreter präzisiert. Installationsanforderung nicht mit neuem Download, Update oder Funktionsnachweis gleichgesetzt. Primärquellen: offizielle pip-Benutzeranleitung und Installationsreferenz aus dem Projektquelltext; direkte Dokumentationsseite war mit HTTP 403 gesperrt.
+
+SHA-256: `976f639b5b003d5de6e55617e7ccff4f4463bd9dd3f32a5e6255e0b6d55b4dfd`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 90. venv – it_0090
+
+Ausgearbeitet und strukturell geprüft: 612 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5830 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/venv.html#creating-virtual-environments
+- https://docs.python.org/3.13/library/venv.html#venv.EnvBuilder
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigene temporäre Linux-venv ohne pip oder Paketinstallation erzeugt und Interpreterpräfix geprüft; bestehende Projektumgebung und Systeminstallation unverändert.
+
+Präzisierung gegenüber der Quelle: „Isolierte Umgebung“ auf Python-Paketkontext präzisiert, nicht als Sicherheitscontainer ausgegeben. Aktivierung von tatsächlicher Interpreterwahl getrennt. Belege: offizielle venv-Einführung und EnvBuilder-Referenz.
+
+SHA-256: `2a3ede75be4dea8ef43bf4697f8c3f05eba04ac6a2fbf26b8113826da4c0feab`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 91. Exception – it_0091
+
+Ausgearbeitet und strukturell geprüft: 609 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5405 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/exceptions.html#exception-hierarchy
+- https://docs.python.org/3.13/tutorial/errors.html#handling-exceptions
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine nicht ausgeführten praktischen Beispiele.
+
+Präzisierung gegenüber der Quelle: Ausnahme nicht pauschal mit Defekt oder jedem Laufzeitproblem gleichgesetzt. Exception-Klasse von BaseException-Hierarchie und erwarteten Kontrollabläufen getrennt. Belege: offizielles Behandlungstutorial und Ausnahmehierarchie. Gezielte ValueError-Behandlung mit gültiger Null praktisch geprüft.
+
+SHA-256: `6a540831871623d2a5d62368325e5f272f1b073cf0be2f38ac0ce61bd9346680`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 92. Traceback – it_0092
+
+Ausgearbeitet und strukturell geprüft: 620 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5512 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/traceback.html#traceback.extract_tb
+- https://docs.python.org/3.13/tutorial/errors.html#exceptions
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine nicht ausgeführten praktischen Beispiele.
+
+Präzisierung gegenüber der Quelle: Übliche Fehlerausgabe vom Traceback-Aufrufkontext und ergänzender Ausnahmeart getrennt. Letzte Stelle nicht als automatische Wurzelursache ausgegeben. Belege: offizielles Ausnahmetutorial und extract_tb-Referenz. Eigene Aufrufkette und Zeilennummern praktisch untersucht.
+
+SHA-256: `26ed07d310a4b49dd170461f74e86e12b67d1d4e366c2931ead6c61cea5f071f`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 93. Decorator – it_0093
+
+Ausgearbeitet und strukturell geprüft: 698 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6126 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/functions.html#staticmethod
+- https://docs.python.org/3.13/library/functools.html#functools.wraps
+- https://docs.python.org/3.13/reference/compound_stmts.html#function-definitions
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Klassen-Decorators und gestapelte Decorators nicht praktisch ausgeführt.
+
+Präzisierung gegenüber der Quelle: Quellbeschreibung auf aufrufbare Objekte und Definitionsergebnis präzisiert; Zusatzarbeit pro Aufruf ist nur ein möglicher Aufbau. staticmethod anhand der offiziellen Referenz eingeordnet; wraps und eigene Hülle praktisch geprüft.
+
+SHA-256: `95c054ccaee139e3bba58e5e660acc0a8baf20f02e114c8c5a0319c13fa48bd1`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 94. Generator – it_0094
+
+Ausgearbeitet und strukturell geprüft: 719 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5947 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/glossary.html#term-generator
+- https://docs.python.org/3.13/reference/expressions.html#yield-expressions
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine großen Dateien, Ressourcenverwaltung oder gleichzeitigen Abläufe praktisch geprüft.
+
+Präzisierung gegenüber der Quelle: Generatorfunktion und Generatorobjekt getrennt; yield erzeugt nicht bei jedem Durchlauf ein neues Generatorobjekt, sondern unterbricht dessen Ausführung. Verzögerte Berechnung und Erschöpfung praktisch geprüft.
+
+SHA-256: `8c39fcf121994bd6efd2094e186c0186f13fde3088be96bbdc311689f6b67727`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 95. List Comprehension – it_0095
+
+Ausgearbeitet und strukturell geprüft: 709 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5716 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/reference/expressions.html#displays-for-lists-sets-and-dictionaries
+- https://docs.python.org/3.13/tutorial/datastructures.html#list-comprehensions
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine Laufzeitmessung und keine großen Eingaben ausgeführt.
+
+Präzisierung gegenüber der Quelle: Quellbeispiel um Filter, unveränderte Eingabe und sofortigen Ergebnisaufbau ergänzt. Neue Liste von Kopien ihrer Elemente abgegrenzt. Praktischer Vergleich mit ausgeschriebener Schleife und leerer Eingabe.
+
+SHA-256: `9377e96edeaee73a56255b85872f2d0a0f4ef4e346fef07362496b9a3ed788c9`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 96. Docstring – it_0096
+
+Ausgearbeitet und strukturell geprüft: 692 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6055 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/using/cmdline.html#cmdoption-OO
+
+- https://docs.python.org/3.13/tutorial/controlflow.html#documentation-strings
+- https://peps.python.org/pep-0257/#what-is-a-docstring
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Dokumentationsgeneratoren, doctest und der Modus -OO wurden nicht ausgeführt.
+
+Präzisierung gegenüber der Quelle: Regulären Docstring als erste Stringliteral-Anweisung von Kommentaren und beliebigen Texten getrennt; __doc__ und Beschreibung gegenüber tatsächlicher Prüfung abgegrenzt. Eigene Funktion samt und ohne Docstring praktisch geprüft.
+
+SHA-256: `d07fa6e0ea620b02c01f711d6232ea3f84cf27ead104092773beb020297cb7a6`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 97. Type Hint – it_0097
+
+Ausgearbeitet und strukturell geprüft: 701 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5933 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/typing.html
+- https://peps.python.org/pep-0484/#non-goals
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Kein externer statischer Typprüfer installiert oder ausgeführt; keine entsprechende Diagnose behauptet.
+
+Präzisierung gegenüber der Quelle: Typangaben ausdrücklich von Laufzeitprüfung und Umwandlung getrennt; Python 3.13 als Beispielversion genannt. Ausgelesene Hinweise und absichtlich nicht passender String-Aufruf praktisch geprüft.
+
+SHA-256: `932c7e150206f33d256c30c413d7267bb6168dbb972bb669d9363cae7d57dd56`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 98. PEP 8 – it_0098
+
+Ausgearbeitet und strukturell geprüft: 682 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5967 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://peps.python.org/pep-0008/#a-foolish-consistency-is-the-hobgoblin-of-little-minds
+- https://peps.python.org/pep-0008/#function-and-variable-names
+- https://peps.python.org/pep-0008/#indentation
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Absichtlich ungünstige erste Schreibweise unverändert als Lehrbeispiel; kein Formatierer oder Stilprüfer ausgeführt und keine vollständige PEP-8-Konformität behauptet.
+
+Präzisierung gegenüber der Quelle: Stilregeln von Syntax und Verhalten abgegrenzt; ausdrücklich dokumentierte Priorität des Projektstils und Kompatibilität übernommen. Drei Eingabepaare zeigen gleiches Verhalten zweier Schreibweisen.
+
+SHA-256: `05752d441f92ff01dd870477296850d5cc14e6bfe371c70a37e26b74981479b4`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 99. Tkinter – it_0099
+
+Ausgearbeitet und strukturell geprüft: 679 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6214 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/tkinter.html#architecture
+- https://docs.python.org/3.13/library/tkinter.html#threading-model
+- https://docs.python.org/3.13/library/tkinter.ttk.html#ttk-widgets
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Interne Verweise auf GUI und Widget gegen die Originalbegriffe geprüft und korrigiert. Keine menschliche Bedienung, dauerhafte mainloop, Thread-Beispiele oder NetMon-/Reader-Abnahme ausgeführt.
+
+Präzisierung gegenüber der Quelle: Standardschnittstelle zu Tcl/Tk statt reinem Python-Zeichensystem; nicht auf einfache Oberflächen beschränkt und Verfügbarkeit von Installation/Display getrennt. Eigenen Ttk-Button und Variable unter virtuellem Bildschirm praktisch geprüft.
+
+SHA-256: `f46f6e934d381a9066b89b1afbe34e788e43f416eb491a7dcd98456fe8f11ee4`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 100. PyQt – it_0100
+
+Ausgearbeitet und strukturell geprüft: 730 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6306 UTF-8-Bytes; 28 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.riverbankcomputing.com/static/Docs/PyQt6/introduction.html
+- https://www.riverbankcomputing.com/static/Docs/PyQt6/signals_slots.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Ausschließlich Gedankenbeispiel: keine Installation, kein PyQt-Import, kein Fensterstart und keine praktische GUI-Abnahme.
+
+Präzisierung gegenüber der Quelle: PyQt als Python-Binding von Qt, nicht als ausschließliches Python-Zeichensystem erklärt; PyQt6-Dokumentation von anderen Hauptversionen getrennt. Signale und Slots anhand offizieller Riverbank-Quellen eingeordnet.
+
+SHA-256: `734c47d0eca8a8323f6be960181be4aac7fbf238b7b53c4edb43524fd82c4210`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 101. subprocess – it_0101
+
+Ausgearbeitet und strukturell geprüft: 702 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6379 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/subprocess.html#security-considerations
+- https://docs.python.org/3.13/library/subprocess.html#subprocess.TimeoutExpired
+- https://docs.python.org/3.13/library/subprocess.html#subprocess.run
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Kein ping, Netzwerkzugriff im Praxisbeispiel, Timeout-Ereignis oder check=True praktisch ausgelöst.
+
+Präzisierung gegenüber der Quelle: Netzwerkbeispiel durch eigenen lokalen Unterprozess ersetzt; getrennte Argumente, Ausgabekanäle und absichtlichen Rückgabecode 3 praktisch geprüft. Sicherheit ohne Shell nicht mit Ungefährlichkeit beliebiger Programme gleichgesetzt.
+
+SHA-256: `8133748ea272b83e1f1881d617a654174d08d7575493f685fa587aa81a31f1f9`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 102. pathlib – it_0102
+
+Ausgearbeitet und strukturell geprüft: 675 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5955 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/pathlib.html#pathlib.Path.home
+- https://docs.python.org/3.13/library/pathlib.html#pathlib.Path.read_text
+- https://docs.python.org/3.13/library/pathlib.html#pure-paths
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Objekt-Verweis gegen Originalbegriff korrigiert. Kein Path.home-Aufruf, kein Zugriff auf Benutzerdaten und keine Tests symbolischer Links oder paralleler Dateiveränderungen.
+
+Präzisierung gegenüber der Quelle: Pfadobjekt von Datei und reinem Namensumgang von Dateisystemzugriff getrennt. Path.home als auflösungsabhängig erläutert; Praxis ausschließlich eigener temporärer Pfad mit UTF-8-Schreiben und Lesen.
+
+SHA-256: `16e414e7d7a5bfcb27307a265b240c97477a856c133e84203a0c02abb01d6d4f`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 103. logging – it_0103
+
+Ausgearbeitet und strukturell geprüft: 683 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6395 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/howto/logging.html#a-simple-example
+- https://docs.python.org/3.13/library/logging.html#logging.Formatter
+- https://docs.python.org/3.13/library/logging.html#logging.Logger
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine Dateilogs, Logrotation oder Systemjournalzugriffe ausgeführt; vorhandene Logging-Konfiguration nicht verändert.
+
+Präzisierung gegenüber der Quelle: Katalogbeispiel korrigiert: INFO ist bei voreingestelltem WARNING-Schwellwert nicht sichtbar. Ereignisfelder von automatisch strukturiertem JSON getrennt. Eigener Logger, Handler, Formatter und Schwellwert praktisch im Speicher geprüft.
+
+SHA-256: `71a51afec73fd1b45bdb0d1adbd880034da196f1083758c0198e3e9a8fa8c729`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 104. Linux – it_0104
+
+Ausgearbeitet und strukturell geprüft: 713 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6240 UTF-8-Bytes; 27 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.debian.org/intro/about
+- https://www.kernel.org/doc/html/latest/admin-guide/README.html
+- https://zorin.com/os/
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Keine Systeminspektion, Installation, Gerätezugriffe oder praktische Ablaufverfolgung. Ein zunächst gesuchter Zorin-Hilfeartikel lieferte HTTP 404; verwendet wurde die erreichbare offizielle Projektübersicht.
+
+Präzisierung gegenüber der Quelle: Technische Kernelbedeutung und alltägliche Bezeichnung vollständiger Systeme getrennt. Zorin-Beispiel anhand offizieller Projektseite bestätigt; Hardwareunterstützung nicht pauschal behauptet. Gedanklicher Dateizugriff nur als vereinfachte Zuständigkeitsfolge.
+
+SHA-256: `5886e302b49e8beccbb9a0d275d2392bba971bade54186086b306a292efcf6de`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 105. Distribution – it_0105
+
+Ausgearbeitet und strukturell geprüft: 676 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6278 UTF-8-Bytes; 28 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.debian.org/doc/manuals/debian-handbook/sect.apt-get.en.html
+- https://www.debian.org/intro/about
+- https://www.debian.org/releases/
+- https://zorin.com/os/
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Fiktives Gedankenbeispiel, keine Installation oder Bestandsabfrage. Ubuntu-about-Abruf lieferte HTTP 503; verwendet wurden erreichbare Debian- und Zorin-Primärquellen.
+
+Präzisierung gegenüber der Quelle: Distribution als abgestimmte und gewartete Zusammenstellung statt bloßer Oberfläche erklärt. Debian-spezifische Releasezweige und APT-Beispiele nicht verallgemeinert; Zorin-Grundlage anhand offizieller Seite geprüft.
+
+SHA-256: `b5d729e0511b2577bc0ba64e0d60a2019c474458fb8c050a5dd7a3f7dd3532cb`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 106. Kernel – it_0106
+
+Ausgearbeitet und strukturell geprüft: 712 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6280 UTF-8-Bytes; 28 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.kernel.org/admin-guide/mm/concepts.html
+- https://docs.kernel.org/scheduler/sched-design-CFS.html
+- https://docs.kernel.org/userspace-api/index.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Gedankenbeispiel ohne Ressourcenmessung, Kernel-, Treiber- oder Parameteränderungen.
+
+Präzisierung gegenüber der Quelle: Allgemeine Kernaufgaben von Linux-Ausprägungen und konkreten Scheduler-Versionen getrennt. Virtuelle Speicherverwaltung mit Hardwarevoraussetzung erläutert; Benutzerraum und Administratorrechte nicht gleichgesetzt.
+
+SHA-256: `bb0db9011e5b345fdc461dfa149f7c04fcc491ce693c77f0bdab01f6f18417bb`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 107. Shell – it_0107
+
+Ausgearbeitet und strukturell geprüft: 709 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6031 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html
+- https://www.gnu.org/software/bash/manual/html_node/What-is-a-shell_003f.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine interaktive Sitzung, kein Profil, keine Fremdeingaben und keine umfassende POSIX-Konformitätsprüfung.
+
+Präzisierung gegenüber der Quelle: Shell als Befehlsinterpreter und Programmiersprache auch ohne interaktive Eingabe präzisiert. POSIX-Sprache von Bash-Erweiterungen getrennt. Lokale /bin/sh mit fester Variablenzuweisung, Quotierung und printf praktisch geprüft.
+
+SHA-256: `86eeb0f8fb9d055959735c41bc6d35ff9910cb2a196c2dd4f0372465eec8ad55`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 108. Terminal – it_0108
+
+Ausgearbeitet und strukturell geprüft: 710 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6071 UTF-8-Bytes; 27 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://help.gnome.org/gnome-terminal/introduction.html
+- https://invisible-island.net/xterm/xterm.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Ausschließlich Gedankenbeispiel, keine interaktive Sitzung und keine Tastatur-, Profil- oder Prozessänderungen.
+
+Präzisierung gegenüber der Quelle: Terminalemulator und Shell getrennt; auch andere interaktive Programme und textuelle Oberflächen möglich. Konkrete GNOME-/xterm-Eigenschaften nicht pauschal auf alle Terminalprogramme übertragen.
+
+SHA-256: `0636798f3039722d6e2bf606470e1e55d79b420ddce13be1ac776bd14a46e08a`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 109. Bash – it_0109
+
+Ausgearbeitet und strukturell geprüft: 689 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6029 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.gnu.org/software/bash/manual/html_node/Arrays.html
+- https://www.gnu.org/software/bash/manual/html_node/Bash-Startup-Files.html
+- https://www.gnu.org/software/bash/manual/html_node/What-is-Bash_003f.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine interaktive Sitzung, Benutzerdateiänderung oder Prüfung aller Startmodi; zusätzliche Shells nicht getestet.
+
+Präzisierung gegenüber der Quelle: Bash von Shell-Oberbegriff, Terminal und sh getrennt. Indiziertes Array und quotierte Weitergabe anhand offizieller Dokumentation erklärt. Eigener Unterprozess mit ausgeschlossenem BASH_ENV und festen Werten praktisch geprüft.
+
+SHA-256: `5e7dd2e81bda21d4c9f1346fb22b5355aed44d6277d80a23ea0f289ebde94a67`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 110. sudo – it_0110
+
+Ausgearbeitet und strukturell geprüft: 697 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6221 UTF-8-Bytes; 27 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/sudo-project/sudo/main/docs/sudo.mdoc.in
+- https://raw.githubusercontent.com/sudo-project/sudo/main/docs/sudoers.mdoc.in
+- https://www.debian.org/doc/manuals/debian-handbook/sect.apt-get.en.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Keine sudo-Ausführung, Authentifizierung, Konten-/Richtlinienabfrage oder Paketaktion. sudo.ws-Handbuchabruf lieferte HTTP 403; beide offiziellen Handbuchquellen aus sudo-project/sudo waren erreichbar.
+
+Präzisierung gegenüber der Quelle: sudo nicht auf root beschränkt; Richtlinie, Authentifizierung und Zielidentität getrennt. Quellbeispiel apt update als Aktualisierung der Paketinformationen präzisiert. Offizielle Handbuchquellen statt nicht abrufbarer Website verwendet.
+
+SHA-256: `f661c944d93c0759b28cc91add9ad3473721b942cf9ebf13a3d272e906be39e2`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 111. Root – it_0111
+
+Ausgearbeitet und strukturell geprüft: 671 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6015 UTF-8-Bytes; 27 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://man7.org/linux/man-pages/man7/capabilities.7.html
+- https://man7.org/linux/man-pages/man7/user_namespaces.7.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Gedankenbeispiel ohne Kontenabfrage, Identitätswechsel, Root-Aufruf, Namensraumexperiment oder Systemänderung.
+
+Präzisierung gegenüber der Quelle: Root über UID und Prozessrechte erklärt; pauschales fast alles durch Linux-Capabilities und Benutzer-Namensräume präzisiert. Benutzerkonto von Kernel und Wurzelverzeichnis getrennt.
+
+SHA-256: `bada5ec2730383c9aa5a7a4258163d8c53504d857fdf90e648d21c9aaebd5a39`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 112. Dateirechte – it_0112
+
+Ausgearbeitet und strukturell geprüft: 709 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6056 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://man7.org/linux/man-pages/man7/path_resolution.7.html
+- https://www.gnu.org/software/coreutils/manual/html_node/Mode-Structure.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine Identitätswechsel, ACL-, Lösch- oder Fremdbenutzer-Zugriffstests. GNU-Quelle zunächst HTTP 503, beim unveränderten erneuten Abruf HTTP 200.
+
+Präzisierung gegenüber der Quelle: Datei- und Verzeichnisbedeutung der Rechte getrennt; 755 nicht als universelle Empfehlung ausgegeben. Tatsächliche 0640-Modusbits einer eigenen temporären Datei geprüft, keine fremde Benutzerrolle simuliert.
+
+SHA-256: `738957ddcca071e5bf0625ed0fc35959f68d934b96e32d602a79c17327f01c07`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## Gesicherter Zwischenstand nach Datensatz 112 – 21.11.2026
+
+Tatsächlicher Stand: **112 von 302** ausgearbeitet und strukturell geprüft; 190 fehlen. Nächster Datensatz: **it_0113 – chmod**. Die Fortsetzungsfreigabe gilt weiterhin bis 302; dies ist ein Sicherungspunkt, keine Abschlussmeldung oder Gesamtzusammenfassung.
+
+Branch: `codex/linux-glossar-011-302`. Ausgangscommit dieses Durchlaufs: `b6c38afbcbe9957c7921e27f4efe9bdbff6a593c` (80 Einträge). Die zunächst gespeicherten Einträge 81–82 wurden auf Svens Auftrag zuerst mit `21a3c95d121e8356e612af5bee2249ea6c005cff` committet und gepusht. Danach wurden 83–112 einzeln recherchiert, geschrieben, geprüft und unmittelbar in Index und Fortschritt gesichert.
+
+Gesamtprüfung erfolgreich: alle 112 Dokumente samt tatsächlichen SHA-256-Prüfsummen, Originalzuordnung, vollständigen Metadaten, Hauptabschnitten, geschlossenen Codeblöcken, Parserlimits und internen Verweisen. Indexfelder und Datensatzschema unverändert; records lückenlos, documented_records 112, source_urls sortierte duplikatfreie Vereinigung. Quelle weiterhin bytegetreu mit dem vereinbarten SHA-256 und 302 eindeutigen IDs und Begriffen. Alle Dokumente 1–82 sowie ihre Indexdatensätze gegenüber 21a3c95 unverändert; die zehn Pilottexte zusätzlich unmittelbar gegen Pilotcommit 688a832 geprüft. PROMPT.md unverändert. Interne Linkbeschriftungen der neuen Texte auch semantisch gegen die Originalbegriffe geprüft.
+
+Alle 93 vollständigen Python-Beispiele des Gesamtstands erneut erfolgreich ausgeführt: Assertions, Exitcodes und Standardausgaben stimmen. In 83–112 sind es 22 ausgeführte Python-Beispiele und acht reine Gedankenbeispiele. Drei der neuen Beispiele nutzen den bereits vorhandenen virtuellen X-Bildschirm für eigene Tk-Kontexte; keine Installation und keine NetMon-/Reader-Abnahme. Nicht ausgeführte Teile, darunter PyQt, privilegierte Aktionen und reale Systemkonfigurationen, sind ausdrücklich im jeweiligen Eintrag gekennzeichnet. Der Reader-Glossarparser fehlt weiterhin; nur temporäre kompatible Prüfköpfe im Arbeitsspeicher des vorhandenen Markdown-Parsers verwendet.
+
+Der geprüfte Änderungsumfang dieses Sicherungspunkts umfasst ausschließlich 30 neue Glossartexte, index.json und FORTSCHRITT.md unter docs/linux-glossar/. git diff --check erfolgreich. Fachliche Zweitprüfung und lokale Reader-Prüfung der neuen Texte stehen aus; Status review_pending bleibt erhalten. Kein Merge, kein Force-Push und keine Veröffentlichung der Cloud-Umgebung.
