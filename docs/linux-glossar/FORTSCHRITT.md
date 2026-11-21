@@ -2944,3 +2944,192 @@ Gesamtprüfung erfolgreich für alle 160 Dokumente und Indexdatensätze: vereinb
 Alle 111 vollständigen Python-Beispiele des Gesamtstands erneut erfolgreich ausgeführt: Assertions, Exitcodes und vollständige Standardausgaben. Die 20 neuen Texte dieses Durchlaufs enthalten fünf praktische Python-Prüfungen und 15 Gedankenbeispiele. Praktisch wurden ausschließlich eigene IPv6-/Präfix-/MAC-Werte und ein eigener TLS-Kontext untersucht. Keine Netzwerkverbindung oder TLS-Handshake in diesen Beispielen. Ping, Traceroute, DNS-, DHCP- und ARP-Abläufe sowie Firewall- und NAT-Tabellen sind ausdrücklich nicht ausgeführte Modelle. Keine Geräte, Konten, Dienste, Zertifikatsablagen, Routing-, Firewall-, NAT- oder Netzprofile verändert.
 
 Alle Dokumente 1–150 und ihre Indexdatensätze gegenüber 60f77aa unverändert; die Pilottexte zusätzlich unmittelbar gegen 688a832 geprüft. PROMPT.md unverändert. Der aktuelle Änderungsumfang enthält nur zehn neue Glossartexte, index.json und FORTSCHRITT.md; git diff --check erfolgreich. Im gesamten Durchlauf ausschließlich docs/linux-glossar/ geändert. Anwendung, Tests, Abhängigkeiten, Paketierung, Originalquelle und Befehlsdokumentationen unverändert. Keine zusätzlichen Worktrees oder Unteragenten. Keine Reader-Abnahme behauptet: Strukturprüfung weiterhin nur mit temporärem kompatiblem Kopf im vorhandenen Markdown-Parser. Inhaltliche Zweitprüfung und lokale Reader-Prüfung bleiben offen; review_pending bleibt erhalten. Kein Merge, Force-Push oder Veröffentlichen der Cloud-Umgebung.
+
+## 161. VPN – it_0161
+
+Ausgearbeitet und strukturell geprüft: 696 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6176 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.rfc-editor.org/rfc/rfc4026.html
+- https://www.rfc-editor.org/rfc/rfc4301.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Reines Gedankenmodell: kein Client, Tunnel, Schlüssel, Routing- oder Netzwerkprofil angelegt oder verändert.
+
+Präzisierung gegenüber der Quelle: VPN-Oberbegriff von häufig verschlüsseltem Fernzugriff getrennt. Verkehrsselektion, Endpunktschutz und Anwendungsberechtigung berücksichtigt; IPsec nur als konkretes Beispiel eingeordnet.
+
+SHA-256: `1c9a595ad2b82e00c37f5a68bcf11b038530c0d3c6e6916f7ee7cfb0e04a7c2e`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 162. Proxy – it_0162
+
+Ausgearbeitet und strukturell geprüft: 710 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6126 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.rfc-editor.org/rfc/rfc9110.html#section-3.7
+- https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6
+- https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.2
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nur fiktive Vermittlung; keine Proxy-, Browser- oder Vertrauenseinstellungen, DNS-Abfragen oder echten Anfragen.
+
+Präzisierung gegenüber der Quelle: Forward Proxy, Reverse Proxy und Tunnel getrennt; HTTP-Verhalten nicht auf jede Proxyart verallgemeinert. CONNECT-Tunnel nicht automatisch als TLS-Entschlüsselung dargestellt.
+
+SHA-256: `c0f78ce173db417aaf2c253f55ab8fc40b638ccc2deece731c8dc5c84e528a58`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 163. Packet – it_0163
+
+Ausgearbeitet und strukturell geprüft: 671 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5949 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.rfc-editor.org/rfc/rfc768.html
+- https://www.rfc-editor.org/rfc/rfc791.html
+- https://www.rfc-editor.org/rfc/rfc8200.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Gedankenmodell ohne Paketbau, Prüfsummenabnahme, Mitschnitt oder Übertragung; keine fremden Daten oder Schnittstellen.
+
+Präzisierung gegenüber der Quelle: Paketbegriff nach Protokollebene eingegrenzt; Rahmen, IP-Paket, Transport- und Anwendungsnachricht getrennt. 33-Byte-Beispiel ausdrücklich nur Kopf-/Nutzdatenrechnung ohne vollständiges Paket.
+
+SHA-256: `20e3bae229efa2da2c1d6974b2892aa5dc1a8bfc2ee4206cbb2bbe3a7aa8aa1b`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 164. Packet Capture – it_0164
+
+Ausgearbeitet und strukturell geprüft: 686 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5778 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.tcpdump.org/manpages/pcap-savefile.5.html
+- https://www.wireshark.org/docs/man-pages/dumpcap.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Fiktive Metadaten; kein Mitschnitt oder Fremddateizugriff. wireshark, tshark, dumpcap und capinfos nicht im Suchpfad; nichts installiert oder privilegiert ausgeführt.
+
+Präzisierung gegenüber der Quelle: Aufzeichnung auf konkreten Beobachtungspunkt und Grenzen eingegrenzt. Gespeicherte von gemeldeter ursprünglicher Länge sowie Capture- von Display-Filter getrennt. Werkzeugverfügbarkeit ehrlich geprüft.
+
+SHA-256: `2782eb026ec8d9afb7f82f24c94dfff2d354091481f448aa9fc0340e8361ce68`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 165. Wireshark – it_0165
+
+Ausgearbeitet und strukturell geprüft: 654 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5718 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.wireshark.org/docs/man-pages/wireshark-filter.html
+- https://www.wireshark.org/docs/man-pages/wireshark.html
+- https://www.wireshark.org/docs/wsug_html_chunked/ChapterIntroduction.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Wireshark nicht im Suchpfad; Filter und Tabelle nur Gedankenbeispiel. Keine Installation, Oberfläche, Dateiöffnung oder Erfassung ausgeführt.
+
+Präzisierung gegenüber der Quelle: Wireshark als grafische Analyse vorhandener Beobachtungen erklärt; Dissectoren, Display- und Capture-Filter getrennt. tcp.port-Filter nicht als vollständigen HTTPS- oder Verschlüsselungsnachweis ausgegeben.
+
+SHA-256: `cf58d2d11f24d7df8808d752cd87c11475c785a598f142ed6f4aa35d1c36d414`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 166. tshark – it_0166
+
+Ausgearbeitet und strukturell geprüft: 670 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5725 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.wireshark.org/docs/dfref/i/ip.html
+- https://www.wireshark.org/docs/man-pages/tshark.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. tshark nicht im Suchpfad; Muster nicht ausgeführt, keine Testdatei oder Ergebniswerte vorgetäuscht, keine Installation oder Erfassung.
+
+Präzisierung gegenüber der Quelle: TShark als eigene CLI-Schnittstelle erklärt; Dateilesen von möglicher Live-Erfassung getrennt. Feldausgabe und IPv4-spezifische Felder eingeordnet, fehlende Werte nicht als fehlende Kommunikation gewertet.
+
+SHA-256: `e1de43903bab499a8404ade9ab483fefb3d9bddf991bcbf1b3afce1f0a96e12d`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 167. Hostname – it_0167
+
+Ausgearbeitet und strukturell geprüft: 686 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5863 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://man7.org/linux/man-pages/man7/hostname.7.html
+- https://www.rfc-editor.org/rfc/rfc1123.html
+- https://www.rfc-editor.org/rfc/rfc6762.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nur fiktive Namen; keine lokalen Namens- oder Systemdateiabfragen, DNS-/mDNS-Anfragen oder Umbenennungen.
+
+Präzisierung gegenüber der Quelle: Kurzen Systemnamen, vollständigen Host-/DNS-Namen, IP und URL getrennt. Kontextabhängige Auflösung und .local-Sonderrolle erläutert; Katalogbeispiel nicht als tatsächlicher Rechnername ausgegeben.
+
+SHA-256: `e14a100409444283dbc6f18ede01fa60916d06a9d32b88226e133288ba6e97dd`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 168. localhost – it_0168
+
+Ausgearbeitet und strukturell geprüft: 636 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5685 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Address.is_loopback
+- https://man7.org/linux/man-pages/man7/network_namespaces.7.html
+- https://www.rfc-editor.org/rfc/rfc1122.html
+- https://www.rfc-editor.org/rfc/rfc4291.html
+- https://www.rfc-editor.org/rfc/rfc6761.html#section-6.3
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine Namensauflösung, Sockets, Dienste oder Namensräume abgefragt oder verändert; Adressklassifikation keine Erreichbarkeitsabnahme.
+
+Präzisierung gegenüber der Quelle: localhost-Namen, Loopback-Adressen und laufenden Dienst getrennt; IPv4-Bereich, IPv6 und Linux-Netzkontext berücksichtigt. Vier eigene Adresswerte lokal klassifiziert.
+
+SHA-256: `a4dbed37ec22b890a1ae074b577c65436820deafe3166bc389ab80feea84a59b`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 169. API – it_0169
+
+Ausgearbeitet und strukturell geprüft: 662 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5791 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/json.html#json.loads
+- https://www.rfc-editor.org/rfc/rfc9110.html#section-9
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine Wetterdaten oder entfernte API, keine Dienste oder Konten angesprochen; nur selbst erzeugte Werte.
+
+Präzisierung gegenüber der Quelle: API nicht auf Web, JSON oder REST eingeschränkt. Dokumentierte Eingaben, Fehler und Ergebnisstruktur getrennt. Eigene JSON-Zeichenketten über lokale Bibliotheks-API praktisch verarbeitet.
+
+SHA-256: `d42283b59005202cc6bf774d90e30b444c37de23194f57890e644826b049b5d5`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 170. REST – it_0170
+
+Ausgearbeitet und strukturell geprüft: 675 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6016 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm
+- https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.1
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nur fiktive Notizdarstellung; keine API-Anfrage, Implementierung oder REST-Konformitätsabnahme.
+
+Präzisierung gegenüber der Quelle: REST nach Fieldings Originalbeschreibung von HTTP, JSON und einzelnen Pfaden getrennt. Zustandslosigkeit nicht mit Verbot gespeicherter Ressourcen verwechselt; Hypermedia und weitere Bedingungen berücksichtigt.
+
+SHA-256: `071bd869dfe8fd858f936c9727011f598990e2f9eed143d98bace814b34830b1`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## Sicherungspunkt nach Datensatz 170 – 21.11.2026
+
+**170 von 302** ausgearbeitet und strukturell geprüft; 132 fehlen. Nächster Datensatz: **it_0171 – Endpoint**. Die Fortsetzungsfreigabe bis 302 besteht; keine Abschlussmeldung und keine gemeinsame Gesamtzusammenfassung.
+
+Branch: codex/linux-glossar-011-302. Ausgangscommit dieses Durchlaufs: 2cda9c06c5d23d784d848394d12801ab1d9b01e2 (160 Einträge). Arbeitsverzeichnis anfangs sauber; erneuter Push bestätigte Everything up-to-date. Danach 161–170 einzeln recherchiert, geschrieben, geprüft und unmittelbar in Index und Fortschritt gespeichert. Quellenabruf 21.11.2026 über HTTPS mit unveränderter TLS-Prüfung. Keine Unteragenten oder weiteren Worktrees.
+
+Gesamtprüfung aller 170 Dokumente erfolgreich: unveränderte Originalquelle mit vereinbarter SHA-256 und 302 eindeutigen Originaldatensätzen; Metadaten und Kategorieableitung, zehn Hauptabschnitte, Codeblöcke und Parserlimits, lückenloser Index, tatsächliche Dokumentprüfsummen, genaue Quellenvereinigung und interne Verweise. Linkbeschriftungen der neuen Texte zusätzlich gegen Originalbegriffe geprüft. Alle 113 vollständigen Python-Beispiele erneut ausgeführt; Assertions, Exitcodes und dokumentierte Ausgaben erfolgreich.
+
+Die zehn neuen Texte enthalten zwei praktische Python-Beispiele (eigene Loopback-Adresswerte und eigene JSON-Daten über eine lokale API) und acht nicht ausgeführte Gedankenbeispiele. Keine Verbindungen, Namensauflösungen oder Mitschnitte in den Beispielen. wireshark, tshark, dumpcap und capinfos bei reiner Suchpfadprüfung nicht gefunden; nichts installiert und keine Werkzeugabnahme behauptet. Quellenbelegte Filter und Kommandomuster ausdrücklich nicht ausgeführt. VPN, Proxy, Netzwerkprofile, Zertifikate und Dienste unverändert.
+
+Dokumente 1–160 und deren Indexdatensätze gegenüber 2cda9c0 unverändert; Pilottexte zusätzlich unmittelbar gegen Pilotcommit 688a832 geprüft. PROMPT.md unverändert. Änderungsumfang nur zehn neue Glossartexte, index.json und FORTSCHRITT.md; git diff --check erfolgreich. Keine Anwendung, Tests, Abhängigkeiten, Paketierung, Originalquelle oder Befehlsdokumentationen verändert. Strukturprüfung weiterhin über temporären kompatiblen Kopf im vorhandenen Markdown-Parser, keine neue Reader-Abnahme. Inhaltliche Zweitprüfung und lokaler Reader-Test stehen aus; review_pending bleibt erhalten.

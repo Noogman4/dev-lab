@@ -4,7 +4,7 @@
   "source_catalog": "tools/it_lexikon_linux_hilfe.json",
   "source_sha256": "b3fb9bfe37d335ee6eaa89c89425f08c94e8efc6f698e7c520ffc81ed128fc24",
   "total_records": 302,
-  "documented_records": 160,
+  "documented_records": 170,
   "records": [
     {
       "source_record": 1,
@@ -3785,6 +3785,248 @@
         "https://www.rfc-editor.org/rfc/rfc5737.html"
       ],
       "status": "review_pending"
+    },
+    {
+      "source_record": 161,
+      "id": "it_0161",
+      "term": "VPN",
+      "category": "Netzwerk",
+      "document": "it_0161.md",
+      "sha256": "1c9a595ad2b82e00c37f5a68bcf11b038530c0d3c6e6916f7ee7cfb0e04a7c2e",
+      "source": {
+        "id": "it_0161",
+        "term": "VPN",
+        "short": "Virtual Private Network: verschlüsselte Verbindung über ein anderes Netzwerk.",
+        "example": "Ein VPN kann externen Zugriff auf ein Heimnetz ermöglichen.",
+        "tags": [
+          "netzwerk",
+          "sicherheit"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.rfc-editor.org/rfc/rfc4026.html",
+        "https://www.rfc-editor.org/rfc/rfc4301.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 162,
+      "id": "it_0162",
+      "term": "Proxy",
+      "category": "Netzwerk",
+      "document": "it_0162.md",
+      "sha256": "c0f78ce173db417aaf2c253f55ab8fc40b638ccc2deece731c8dc5c84e528a58",
+      "source": {
+        "id": "it_0162",
+        "term": "Proxy",
+        "short": "Zwischenstation für Anfragen.",
+        "example": "Ein HTTP-Proxy leitet Webanfragen weiter.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.rfc-editor.org/rfc/rfc9110.html#section-3.7",
+        "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6",
+        "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.2"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 163,
+      "id": "it_0163",
+      "term": "Packet",
+      "category": "Netzwerk",
+      "document": "it_0163.md",
+      "sha256": "20e3bae229efa2da2c1d6974b2892aa5dc1a8bfc2ee4206cbb2bbe3a7aa8aa1b",
+      "source": {
+        "id": "it_0163",
+        "term": "Packet",
+        "short": "Ein Datenpaket im Netzwerk.",
+        "example": "Netzwerkdaten werden in Pakete zerlegt.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.rfc-editor.org/rfc/rfc768.html",
+        "https://www.rfc-editor.org/rfc/rfc791.html",
+        "https://www.rfc-editor.org/rfc/rfc8200.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 164,
+      "id": "it_0164",
+      "term": "Packet Capture",
+      "category": "Netzwerk",
+      "document": "it_0164.md",
+      "sha256": "2782eb026ec8d9afb7f82f24c94dfff2d354091481f448aa9fc0340e8361ce68",
+      "source": {
+        "id": "it_0164",
+        "term": "Packet Capture",
+        "short": "Mitschneiden von Netzwerkpaketen.",
+        "example": "Wireshark kann Packet Capture durchführen.",
+        "tags": [
+          "netzwerk",
+          "sicherheit"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.tcpdump.org/manpages/pcap-savefile.5.html",
+        "https://www.wireshark.org/docs/man-pages/dumpcap.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 165,
+      "id": "it_0165",
+      "term": "Wireshark",
+      "category": "Netzwerk",
+      "document": "it_0165.md",
+      "sha256": "cf58d2d11f24d7df8808d752cd87c11475c785a598f142ed6f4aa35d1c36d414",
+      "source": {
+        "id": "it_0165",
+        "term": "Wireshark",
+        "short": "Werkzeug zur Analyse von Netzwerkpaketen.",
+        "example": "Wireshark zeigt Details von Netzwerkverkehr.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.wireshark.org/docs/man-pages/wireshark-filter.html",
+        "https://www.wireshark.org/docs/man-pages/wireshark.html",
+        "https://www.wireshark.org/docs/wsug_html_chunked/ChapterIntroduction.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 166,
+      "id": "it_0166",
+      "term": "tshark",
+      "category": "Netzwerk",
+      "document": "it_0166.md",
+      "sha256": "e1de43903bab499a8404ade9ab483fefb3d9bddf991bcbf1b3afce1f0a96e12d",
+      "source": {
+        "id": "it_0166",
+        "term": "tshark",
+        "short": "Kommandozeilen-Version von Wireshark.",
+        "example": "tshark kann Mitschnitte im Terminal auswerten.",
+        "tags": [
+          "netzwerk",
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.wireshark.org/docs/dfref/i/ip.html",
+        "https://www.wireshark.org/docs/man-pages/tshark.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 167,
+      "id": "it_0167",
+      "term": "Hostname",
+      "category": "Netzwerk",
+      "document": "it_0167.md",
+      "sha256": "e14a100409444283dbc6f18ede01fa60916d06a9d32b88226e133288ba6e97dd",
+      "source": {
+        "id": "it_0167",
+        "term": "Hostname",
+        "short": "Der Name eines Geräts im Netzwerk.",
+        "example": "laptop-sven kann ein Hostname sein.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://man7.org/linux/man-pages/man7/hostname.7.html",
+        "https://www.rfc-editor.org/rfc/rfc1123.html",
+        "https://www.rfc-editor.org/rfc/rfc6762.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 168,
+      "id": "it_0168",
+      "term": "localhost",
+      "category": "Netzwerk",
+      "document": "it_0168.md",
+      "sha256": "a4dbed37ec22b890a1ae074b577c65436820deafe3166bc389ab80feea84a59b",
+      "source": {
+        "id": "it_0168",
+        "term": "localhost",
+        "short": "Der eigene Rechner.",
+        "example": "127.0.0.1 steht meist für localhost.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Address.is_loopback",
+        "https://man7.org/linux/man-pages/man7/network_namespaces.7.html",
+        "https://www.rfc-editor.org/rfc/rfc1122.html",
+        "https://www.rfc-editor.org/rfc/rfc4291.html",
+        "https://www.rfc-editor.org/rfc/rfc6761.html#section-6.3"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 169,
+      "id": "it_0169",
+      "term": "API",
+      "category": "Api",
+      "document": "it_0169.md",
+      "sha256": "d42283b59005202cc6bf774d90e30b444c37de23194f57890e644826b049b5d5",
+      "source": {
+        "id": "it_0169",
+        "term": "API",
+        "short": "Application Programming Interface: eine Schnittstelle für Programme.",
+        "example": "Eine Wetter-App ruft Daten über eine API ab.",
+        "tags": [
+          "api",
+          "web"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/json.html#json.loads",
+        "https://www.rfc-editor.org/rfc/rfc9110.html#section-9"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 170,
+      "id": "it_0170",
+      "term": "REST",
+      "category": "Api",
+      "document": "it_0170.md",
+      "sha256": "071bd869dfe8fd858f936c9727011f598990e2f9eed143d98bace814b34830b1",
+      "source": {
+        "id": "it_0170",
+        "term": "REST",
+        "short": "Ein verbreiteter Stil für Web-APIs.",
+        "example": "GET /users ruft Benutzer über eine REST-API ab.",
+        "tags": [
+          "api",
+          "web"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm",
+        "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.1"
+      ],
+      "status": "review_pending"
     }
   ],
   "source_urls": [
@@ -3835,10 +4077,12 @@
     "https://docs.python.org/3.13/library/functools.html#functools.wraps",
     "https://docs.python.org/3.13/library/hashlib.html#usage",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Address",
+    "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Address.is_loopback",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Network",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.collapse_addresses",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.ip_address",
     "https://docs.python.org/3.13/library/json.html#encoders-and-decoders",
+    "https://docs.python.org/3.13/library/json.html#json.loads",
     "https://docs.python.org/3.13/library/logging.handlers.html#logging.FileHandler",
     "https://docs.python.org/3.13/library/logging.html#logging.Formatter",
     "https://docs.python.org/3.13/library/logging.html#logging.Logger",
@@ -3948,6 +4192,7 @@
     "https://docs.python.org/3.13/using/cmdline.html#cmdoption-OO",
     "https://firewalld.org/documentation/concepts.html",
     "https://help.gnome.org/gnome-terminal/introduction.html",
+    "https://ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm",
     "https://invisible-island.net/xterm/xterm.html",
     "https://keepachangelog.com/en/1.1.0/",
     "https://man7.org/linux/man-pages/man1/kill.1.html",
@@ -3964,7 +4209,9 @@
     "https://man7.org/linux/man-pages/man7/arp.7.html",
     "https://man7.org/linux/man-pages/man7/capabilities.7.html",
     "https://man7.org/linux/man-pages/man7/environ.7.html",
+    "https://man7.org/linux/man-pages/man7/hostname.7.html",
     "https://man7.org/linux/man-pages/man7/mount_namespaces.7.html",
+    "https://man7.org/linux/man-pages/man7/network_namespaces.7.html",
     "https://man7.org/linux/man-pages/man7/path_resolution.7.html",
     "https://man7.org/linux/man-pages/man7/pid_namespaces.7.html",
     "https://man7.org/linux/man-pages/man7/pipe.7.html",
@@ -4054,6 +4301,7 @@
     "https://www.rfc-editor.org/rfc/rfc1034.html",
     "https://www.rfc-editor.org/rfc/rfc1035.html",
     "https://www.rfc-editor.org/rfc/rfc1122.html",
+    "https://www.rfc-editor.org/rfc/rfc1123.html",
     "https://www.rfc-editor.org/rfc/rfc1812.html",
     "https://www.rfc-editor.org/rfc/rfc1918.html",
     "https://www.rfc-editor.org/rfc/rfc2131.html",
@@ -4062,7 +4310,9 @@
     "https://www.rfc-editor.org/rfc/rfc3022.html",
     "https://www.rfc-editor.org/rfc/rfc3596.html",
     "https://www.rfc-editor.org/rfc/rfc3849.html",
+    "https://www.rfc-editor.org/rfc/rfc4026.html",
     "https://www.rfc-editor.org/rfc/rfc4291.html",
+    "https://www.rfc-editor.org/rfc/rfc4301.html",
     "https://www.rfc-editor.org/rfc/rfc4443.html",
     "https://www.rfc-editor.org/rfc/rfc4632.html",
     "https://www.rfc-editor.org/rfc/rfc4861.html",
@@ -4071,6 +4321,8 @@
     "https://www.rfc-editor.org/rfc/rfc5737.html",
     "https://www.rfc-editor.org/rfc/rfc5952.html",
     "https://www.rfc-editor.org/rfc/rfc6335.html",
+    "https://www.rfc-editor.org/rfc/rfc6761.html#section-6.3",
+    "https://www.rfc-editor.org/rfc/rfc6762.html",
     "https://www.rfc-editor.org/rfc/rfc768.html",
     "https://www.rfc-editor.org/rfc/rfc7766.html",
     "https://www.rfc-editor.org/rfc/rfc791.html",
@@ -4081,9 +4333,14 @@
     "https://www.rfc-editor.org/rfc/rfc8446.html",
     "https://www.rfc-editor.org/rfc/rfc9000.html",
     "https://www.rfc-editor.org/rfc/rfc9110.html",
+    "https://www.rfc-editor.org/rfc/rfc9110.html#section-3.7",
     "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.1",
     "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.2",
+    "https://www.rfc-editor.org/rfc/rfc9110.html#section-9",
+    "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.1",
+    "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6",
     "https://www.rfc-editor.org/rfc/rfc9112.html",
+    "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.2",
     "https://www.rfc-editor.org/rfc/rfc9114.html",
     "https://www.rfc-editor.org/rfc/rfc9293.html",
     "https://www.rfc-editor.org/rfc/rfc9325.html",
@@ -4095,8 +4352,15 @@
     "https://www.rsyslog.com/doc/configuration/modules/omfile.html",
     "https://www.sqlite.org/lang_createindex.html",
     "https://www.sqlite.org/queryplanner.html",
+    "https://www.tcpdump.org/manpages/pcap-savefile.5.html",
     "https://www.w3.org/WAI/WCAG22/Understanding/content-on-hover-or-focus.html",
     "https://www.w3.org/WAI/WCAG22/Understanding/reflow.html",
+    "https://www.wireshark.org/docs/dfref/i/ip.html",
+    "https://www.wireshark.org/docs/man-pages/dumpcap.html",
+    "https://www.wireshark.org/docs/man-pages/tshark.html",
+    "https://www.wireshark.org/docs/man-pages/wireshark-filter.html",
+    "https://www.wireshark.org/docs/man-pages/wireshark.html",
+    "https://www.wireshark.org/docs/wsug_html_chunked/ChapterIntroduction.html",
     "https://zorin.com/os/"
   ]
 }
