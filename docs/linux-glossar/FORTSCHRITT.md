@@ -3871,3 +3871,181 @@ Fortsetzung am 21.11.2026 auf Branch `codex/linux-glossar-011-302`, Ausgangscomm
 Gesamtprüfung erfolgreich: 210 Dokumente, Originalzuordnung, unverändertes Indexschema, lückenlose records, documented_records, genaue sortierte Quellenvereinigung, JSON-kompatible Metadaten, zehn Hauptabschnitte, Codeblöcke, Größen-/Parserlimits, interne Verweise und tatsächliche Dokumentprüfsummen. 142 vollständige Python-Beispiele und ein JavaScript-Beispiel erneut mit erfolgreichen Assertions, Exitcodes und exakten Ausgaben ausgeführt. Quelle unverändert mit dem vereinbarten SHA-256; 302 eindeutige IDs und Begriffe. Alle bisherigen 190 Texte und ihre vollständigen Indexdatensätze gegenüber dem Ausgangscommit unverändert; Pilottexte und Pilotindex zusätzlich gegen `688a83204d653b7977d11848ac813d400a7b1b8f` geprüft. PROMPT.md unverändert. Semantische Linkbeschriftungen der neuen Texte gegen den Katalog geprüft. Änderungen ausschließlich unter docs/linux-glossar/; git diff --check erfolgreich.
 
 Die neuen Datenbankbeispiele verwenden eigene temporäre Dateien beziehungsweise In-Memory-Datenbanken mit SQLite 3.46.1. Die Git-Beispiele verwenden eigene temporäre Repositories mit Git 2.52.0, ohne Übernahme von Vorlagen und ohne persönliche oder systemweite Git-Konfiguration in den Kindprozessen. Keine bestehenden Anwendungsdaten oder Projekt-Referenzen für Übungen geändert; kein zusätzlicher Projekt-Worktree und keine Netzwerktransporte in den Git-Beispielen. NoSQL und ORM sind ausdrücklich nicht ausgeführte Gedankenbeispiele. Nichts installiert. Primärquellen über HTTPS geprüft; nicht abrufbare Webdarstellungen durch offizielle Git-Dokumentationsquellen ersetzt. Alle neuen Texte bleiben review_pending. Fachliche Zweitprüfung und lokale Reader-Abnahme stehen aus; die temporäre kompatible Kopfprüfung im vorhandenen Markdown-Parser ist keine Reader-Abnahme.
+
+## 211. Push – it_0211
+
+Ausgearbeitet und strukturell geprüft: 796 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 7121 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/git/git/master/Documentation/git-push.adoc
+- https://raw.githubusercontent.com/git/git/master/Documentation/git-remote.adoc
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur eigene lokale temporäre Quelle und Bare-Ziel; kein Force-Push, Git-Netzwerktransport oder Dienstablauf.
+
+Präzisierung gegenüber der Quelle: Push überträgt gespeicherte Objekte und aktualisiert ausgewählte Referenzen, nicht offene Arbeitsdateien. Zielkonfiguration, Schutzregeln, Merge und Veröffentlichung getrennt.
+
+SHA-256: `8400878d944c59d3032e35e3004841773ab7139a2ce5bf5a57c16febbb46df37`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 212. Clone – it_0212
+
+Ausgearbeitet und strukturell geprüft: 777 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 7052 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/git/git/master/Documentation/git-clone.adoc
+- https://raw.githubusercontent.com/git/git/master/Documentation/gitrepository-layout.adoc
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur eigene temporäre lokale Quelle und Kopie; kein fremder Download, Internettransport, zusätzlicher Projekt-Worktree oder Ausführen von Projektcode.
+
+Präzisierung gegenüber der Quelle: Clone von Dateikopie, ZIP, Installation und automatischer Synchronisierung getrennt. Begrenzte Historie, Remote-Referenzen und nicht übernommene offene Quelldateien erläutert.
+
+SHA-256: `845ad3855f8b63d3324fc1ae69763a8bb7a4f1b39797c0cc0c29aa37c1ad853d`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 213. Fork – it_0213
+
+Ausgearbeitet und strukturell geprüft: 752 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6415 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.github.com/en/pull-requests/how-tos/work-with-forks/syncing-a-fork
+- https://docs.github.com/en/pull-requests/reference/forks
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht ausgeführtes Gedankenbeispiel; kein Fork, Konto, Vorschlag, Plattform-Schreibzugriff oder Nachricht angelegt.
+
+Präzisierung gegenüber der Quelle: Fork als eigenständig verwaltete Abzweigung erklärt; GitHub-Regeln ausdrücklich plattformspezifisch. Von Clone, Branch, automatischer Synchronisierung und Unix-Prozessbegriff getrennt.
+
+SHA-256: `06f05f1039d164fb57b0e1c4e8edaaef8131000fcba969ad1d2d5b8bd08eceb5`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 214. Pull Request – it_0214
+
+Ausgearbeitet und strukturell geprüft: 751 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6325 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.github.com/en/pull-requests/how-tos/create-pull-requests/changing-the-stage-of-a-pull-request
+- https://docs.github.com/en/pull-requests/reference/pull-requests
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht ausgeführtes Gedankenbeispiel; kein zusätzlicher PR, keine Reviewer-Zuweisung, Nachricht oder Integration.
+
+Präzisierung gegenüber der Quelle: Vorschlag und tatsächliche Integration getrennt; Ablehnung, Aktualisierungen und Entwurfsstatus erklärt. GitHub-Funktionen ausdrücklich plattformspezifisch, keine allgemeine Review-Garantie.
+
+SHA-256: `b949883d34d7e7bffa6f62003e7598ae9c3ac3cfda6d90e088db7f86dbe7c8d5`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 215. Conflict – it_0215
+
+Ausgearbeitet und strukturell geprüft: 789 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 7226 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/git/git/master/Documentation/git-diff.adoc
+- https://raw.githubusercontent.com/git/git/master/Documentation/git-merge.adoc
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur eigener temporärer Text-Merge-Konflikt samt Auflösung und Abschluss; keine Binär-, Lösch-, Rebase-Konflikte oder produktiven Dateien getestet.
+
+Präzisierung gegenüber der Quelle: Konflikt als angehaltene technische Integration von fachlicher Unverträglichkeit unterschieden. Weitere Konfliktarten und verfahrensabhängige Fortsetzung eingeordnet.
+
+SHA-256: `210d988e28c2830c5c453f2f2be9ec12481e91010bdd54621a0fb57e843d5e7a`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 216. Tag – it_0216
+
+Ausgearbeitet und strukturell geprüft: 786 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 7004 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/git/git/master/Documentation/git-push.adoc
+- https://raw.githubusercontent.com/git/git/master/Documentation/git-tag.adoc
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur eigene temporäre einfache und annotierte Tags; keine Signaturprüfung, Veröffentlichung, Übertragung oder bestehende Projektmarkierung verändert.
+
+Präzisierung gegenüber der Quelle: Lightweight- und annotierte Tags, stehende Markierung und beweglicher Branch getrennt. Tagname keine Release-/Stabilitätsgarantie; Austausch und Signatur gesondert eingeordnet.
+
+SHA-256: `6a83ab6f0429b25b5cb3c41d0fdac9337843c3a76503e1d68e083abeec093524`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 217. Staging – it_0217
+
+Ausgearbeitet und strukturell geprüft: 775 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6815 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/git/git/master/Documentation/git-add.adoc
+- https://raw.githubusercontent.com/git/git/master/Documentation/git-diff.adoc
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur zwei eigene temporäre Textdateien; kein Projekt-Staging, Commit, Netzwerktransport, interaktive Patchauswahl oder Konfliktfall.
+
+Präzisierung gegenüber der Quelle: Staging als Inhaltsauswahl im Index erklärt; spätere Bearbeitung, untracked Dateien und verschiedene Diff-Vergleiche getrennt. Nicht mit Bereitstellungsumgebung gleichgesetzt.
+
+SHA-256: `d7cd2f3e384b43079018afad4ff9cc8876bbe75bdfa64517fde8e6b1473d7b9f`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 218. Architektur – it_0218
+
+Ausgearbeitet und strukturell geprüft: 768 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6618 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://learn.microsoft.com/en-us/azure/architecture/guide/architecture-styles/
+- https://learn.microsoft.com/en-us/azure/architecture/guide/design-principles/
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht implementiertes Gedankenmodell einer eigenen Notizanwendung; keine Repository-Architekturprüfung, Messung oder Dienständerung.
+
+Präzisierung gegenüber der Quelle: Architektur über Ordnerstruktur hinaus als Verantwortlichkeiten, Beziehungen und wichtige Entscheidungen erklärt. Cloud-Primärquellen ausdrücklich kontextualisiert; keine Behauptung über NetMon-Implementierung.
+
+SHA-256: `cef3be5a8060e47882f883893195c6ed1847e8409711edfcdac387bd44146449`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 219. Modularisierung – it_0219
+
+Ausgearbeitet und strukturell geprüft: 754 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6755 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/importlib.html#importlib.util.spec_from_file_location
+- https://docs.python.org/3.13/tutorial/modules.html
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur selbst erzeugtes temporäres Python-Modul mit Erfolgs- und Fehlerfall; keine DNS-Abfrage, Installation, Anwendungsänderung oder Austauschbarkeitsabnahme.
+
+Präzisierung gegenüber der Quelle: Modularisierung als Aufgaben- und Schnittstellengestaltung erklärt, nicht bloß Dateiaufteilung. Austauschbarkeit, Seiteneffekte und zyklische Abhängigkeiten differenziert.
+
+SHA-256: `4ff81b5389af6f9ec7a8cde240c987a01e7aca4dc4580f7c04cc7d31002c2fc9`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 220. MVC – it_0220
+
+Ausgearbeitet und strukturell geprüft: 775 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6486 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://developer.mozilla.org/en-US/docs/Glossary/MVC
+- https://doc.qt.io/qt-6/model-view-programming.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht ausgeführtes Aufgabenlistenmodell; keine GUI gestartet, Implementierung, Klickprüfung, Speicherung oder Reader-Abnahme behauptet.
+
+Präzisierung gegenüber der Quelle: MVC-Rollen von Klassen-/Dateizahl und Datenbanktabellen getrennt; Qt Model/View mit Delegates ausdrücklich als Frameworkvariante eingeordnet.
+
+SHA-256: `44eafca64c20d84e0a39fb26b1546f5b6d3b84325ed6dcc4b8458000dca30df3`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## Sicherungspunkt nach Eintrag 220
+
+Branch `codex/linux-glossar-011-302`; Ausgangscommit dieses Abschnitts `f6ec7ea8034dc064164f1f5d4b738ba21902de06`. Einträge 211–220 einzeln in Quellreihenfolge recherchiert, geschrieben und geprüft; Index und Fortschritt nach jedem Abschluss gespeichert. Tatsächlicher Stand: 220 von 302, noch 82 offen. Nächster Eintrag: `it_0221` – Plugin. Der Auftrag bis 302 bleibt aktiv; keine Gesamtfertigmeldung.
+
+Gesamtprüfung aller 220 Dokumente erfolgreich: Quelle und 302 eindeutige Originaldatensätze, unverändertes Indexschema und Originalzuordnung, lückenlose Reihenfolge, documented_records, genaue sortierte duplikatfreie Quellenvereinigung, Metadaten, zehn Hauptabschnitte, Codeblöcke, Größen-/Parserlimits, interne Verweise und tatsächliche SHA-256-Prüfsummen. 148 vollständige Python-Beispiele und ein JavaScript-Beispiel erneut erfolgreich ausgeführt, Assertions und vollständige Ausgaben geprüft. Sämtliche bisherigen 210 Texte und Indexdatensätze gegenüber dem Ausgangscommit unverändert. Pilottexte und Pilotindex zusätzlich gegen den Pilotcommit geprüft. Neue Linkbeschriftungen stimmen semantisch mit den verlinkten Katalogbegriffen überein. Exakter Änderungsumfang nur neue Texte 211–220 sowie Index und Fortschritt; git diff --check erfolgreich.
+
+Sechs neue ausführbare Beispiele: eigene temporäre Git-Tests für Push, Clone, Textkonflikt, Tags und Staging sowie ein selbst erzeugtes Python-Modul. Vier ausdrücklich nicht ausgeführte Gedankenbeispiele zu Fork, Pull Request, Architektur und MVC. Keine zusätzlichen Hostingaktionen für die Beispiele, kein Git-Netzwerktransport, kein produktiver Merge, keine neuen Projekt-Worktrees und keine fremden Module ausgeführt. Git 2.52.0 und Python 3.13 bereits vorhanden, nichts installiert. Architekturquellen mit Cloudkontext gekennzeichnet; Qt Model/View von allgemeinem MVC unterschieden. Alle neuen Texte review_pending. Fachliche Zweitprüfung und lokale Reader-Abnahme weiterhin offen; Strukturprüfung mit temporärem kompatiblem Kopf im vorhandenen Markdown-Parser ist keine Reader-Abnahme.

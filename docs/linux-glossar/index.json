@@ -4,7 +4,7 @@
   "source_catalog": "tools/it_lexikon_linux_hilfe.json",
   "source_sha256": "b3fb9bfe37d335ee6eaa89c89425f08c94e8efc6f698e7c520ffc81ed128fc24",
   "total_records": 302,
-  "documented_records": 210,
+  "documented_records": 220,
   "records": [
     {
       "source_record": 1,
@@ -4985,14 +4985,247 @@
         "https://raw.githubusercontent.com/git/git/master/Documentation/git-pull.adoc"
       ],
       "status": "review_pending"
+    },
+    {
+      "source_record": 211,
+      "id": "it_0211",
+      "term": "Push",
+      "category": "Git",
+      "document": "it_0211.md",
+      "sha256": "8400878d944c59d3032e35e3004841773ab7139a2ce5bf5a57c16febbb46df37",
+      "source": {
+        "id": "it_0211",
+        "term": "Push",
+        "short": "Lokale Änderungen in ein entferntes Repository senden.",
+        "example": "git push lädt Commits hoch.",
+        "tags": [
+          "git"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://raw.githubusercontent.com/git/git/master/Documentation/git-push.adoc",
+        "https://raw.githubusercontent.com/git/git/master/Documentation/git-remote.adoc"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 212,
+      "id": "it_0212",
+      "term": "Clone",
+      "category": "Git",
+      "document": "it_0212.md",
+      "sha256": "845ad3855f8b63d3324fc1ae69763a8bb7a4f1b39797c0cc0c29aa37c1ad853d",
+      "source": {
+        "id": "it_0212",
+        "term": "Clone",
+        "short": "Ein Repository lokal kopieren.",
+        "example": "git clone lädt ein Projekt herunter.",
+        "tags": [
+          "git"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://raw.githubusercontent.com/git/git/master/Documentation/git-clone.adoc",
+        "https://raw.githubusercontent.com/git/git/master/Documentation/gitrepository-layout.adoc"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 213,
+      "id": "it_0213",
+      "term": "Fork",
+      "category": "Git",
+      "document": "it_0213.md",
+      "sha256": "06f05f1039d164fb57b0e1c4e8edaaef8131000fcba969ad1d2d5b8bd08eceb5",
+      "source": {
+        "id": "it_0213",
+        "term": "Fork",
+        "short": "Eigene Kopie eines fremden Repositories.",
+        "example": "Ein Fork erlaubt unabhängige Änderungen.",
+        "tags": [
+          "git"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.github.com/en/pull-requests/how-tos/work-with-forks/syncing-a-fork",
+        "https://docs.github.com/en/pull-requests/reference/forks"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 214,
+      "id": "it_0214",
+      "term": "Pull Request",
+      "category": "Git",
+      "document": "it_0214.md",
+      "sha256": "b949883d34d7e7bffa6f62003e7598ae9c3ac3cfda6d90e088db7f86dbe7c8d5",
+      "source": {
+        "id": "it_0214",
+        "term": "Pull Request",
+        "short": "Vorschlag, Änderungen in ein Projekt zu übernehmen.",
+        "example": "Ein Pull Request wird geprüft und gemergt.",
+        "tags": [
+          "git"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.github.com/en/pull-requests/how-tos/create-pull-requests/changing-the-stage-of-a-pull-request",
+        "https://docs.github.com/en/pull-requests/reference/pull-requests"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 215,
+      "id": "it_0215",
+      "term": "Conflict",
+      "category": "Git",
+      "document": "it_0215.md",
+      "sha256": "210d988e28c2830c5c453f2f2be9ec12481e91010bdd54621a0fb57e843d5e7a",
+      "source": {
+        "id": "it_0215",
+        "term": "Conflict",
+        "short": "Widerspruch beim Zusammenführen von Änderungen.",
+        "example": "Ein Merge Conflict muss manuell gelöst werden.",
+        "tags": [
+          "git"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://raw.githubusercontent.com/git/git/master/Documentation/git-diff.adoc",
+        "https://raw.githubusercontent.com/git/git/master/Documentation/git-merge.adoc"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 216,
+      "id": "it_0216",
+      "term": "Tag",
+      "category": "Git",
+      "document": "it_0216.md",
+      "sha256": "6a83ab6f0429b25b5cb3c41d0fdac9337843c3a76503e1d68e083abeec093524",
+      "source": {
+        "id": "it_0216",
+        "term": "Tag",
+        "short": "Markierung eines bestimmten Git-Stands.",
+        "example": "v1.0.0 kann ein Release-Tag sein.",
+        "tags": [
+          "git"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://raw.githubusercontent.com/git/git/master/Documentation/git-push.adoc",
+        "https://raw.githubusercontent.com/git/git/master/Documentation/git-tag.adoc"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 217,
+      "id": "it_0217",
+      "term": "Staging",
+      "category": "Git",
+      "document": "it_0217.md",
+      "sha256": "d7cd2f3e384b43079018afad4ff9cc8876bbe75bdfa64517fde8e6b1473d7b9f",
+      "source": {
+        "id": "it_0217",
+        "term": "Staging",
+        "short": "Auswahl der Änderungen für den nächsten Commit.",
+        "example": "git add legt Dateien in die Staging Area.",
+        "tags": [
+          "git"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://raw.githubusercontent.com/git/git/master/Documentation/git-add.adoc",
+        "https://raw.githubusercontent.com/git/git/master/Documentation/git-diff.adoc"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 218,
+      "id": "it_0218",
+      "term": "Architektur",
+      "category": "Architektur",
+      "document": "it_0218.md",
+      "sha256": "cef3be5a8060e47882f883893195c6ed1847e8409711edfcdac387bd44146449",
+      "source": {
+        "id": "it_0218",
+        "term": "Architektur",
+        "short": "Die Grundstruktur einer Software.",
+        "example": "NetMon kann in GUI, Netzwerklogik und Konfiguration aufgeteilt werden.",
+        "tags": [
+          "architektur"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://learn.microsoft.com/en-us/azure/architecture/guide/architecture-styles/",
+        "https://learn.microsoft.com/en-us/azure/architecture/guide/design-principles/"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 219,
+      "id": "it_0219",
+      "term": "Modularisierung",
+      "category": "Architektur",
+      "document": "it_0219.md",
+      "sha256": "4ff81b5389af6f9ec7a8cde240c987a01e7aca4dc4580f7c04cc7d31002c2fc9",
+      "source": {
+        "id": "it_0219",
+        "term": "Modularisierung",
+        "short": "Aufteilung in kleinere, austauschbare Teile.",
+        "example": "DNS-Code liegt in einem eigenen Modul.",
+        "tags": [
+          "architektur"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/importlib.html#importlib.util.spec_from_file_location",
+        "https://docs.python.org/3.13/tutorial/modules.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 220,
+      "id": "it_0220",
+      "term": "MVC",
+      "category": "Architektur",
+      "document": "it_0220.md",
+      "sha256": "44eafca64c20d84e0a39fb26b1546f5b6d3b84325ed6dcc4b8458000dca30df3",
+      "source": {
+        "id": "it_0220",
+        "term": "MVC",
+        "short": "Architekturmuster mit Model, View und Controller.",
+        "example": "View zeigt Daten, Controller reagiert auf Eingaben.",
+        "tags": [
+          "architektur",
+          "gui"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://developer.mozilla.org/en-US/docs/Glossary/MVC",
+        "https://doc.qt.io/qt-6/model-view-programming.html"
+      ],
+      "status": "review_pending"
     }
   ],
   "source_urls": [
     "https://cassandra.apache.org/doc/latest/cassandra/architecture/overview.html",
     "https://compose-spec.github.io/compose-spec/spec.html",
+    "https://developer.mozilla.org/en-US/docs/Glossary/MVC",
     "https://developer.mozilla.org/en-US/docs/Learn_web_development/Extensions/Server-side/First_steps/Client-Server_overview",
     "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie",
     "https://doc.qt.io/qt-6/layout.html",
+    "https://doc.qt.io/qt-6/model-view-programming.html",
     "https://doc.qt.io/qt-6/qdialog.html",
     "https://doc.qt.io/qt-6/qgraphicsscene.html",
     "https://doc.qt.io/qt-6/qtooltip.html",
@@ -5002,6 +5235,10 @@
     "https://docs.djangoproject.com/en/5.2/intro/overview/",
     "https://docs.djangoproject.com/en/5.2/topics/http/sessions/",
     "https://docs.fedoraproject.org/en-US/quick-docs/dnf/",
+    "https://docs.github.com/en/pull-requests/how-tos/create-pull-requests/changing-the-stage-of-a-pull-request",
+    "https://docs.github.com/en/pull-requests/how-tos/work-with-forks/syncing-a-fork",
+    "https://docs.github.com/en/pull-requests/reference/forks",
+    "https://docs.github.com/en/pull-requests/reference/pull-requests",
     "https://docs.github.com/en/webhooks/about-webhooks",
     "https://docs.github.com/en/webhooks/using-webhooks/best-practices-for-using-webhooks",
     "https://docs.kernel.org/admin-guide/mm/concepts.html",
@@ -5047,6 +5284,7 @@
     "https://docs.python.org/3.13/library/http.cookies.html#http.cookies.SimpleCookie",
     "https://docs.python.org/3.13/library/http.html#http.HTTPStatus",
     "https://docs.python.org/3.13/library/http.server.html",
+    "https://docs.python.org/3.13/library/importlib.html#importlib.util.spec_from_file_location",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Address",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Address.is_loopback",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Network",
@@ -5171,6 +5409,7 @@
     "https://docs.python.org/3.13/tutorial/errors.html#handling-exceptions",
     "https://docs.python.org/3.13/tutorial/errors.html#syntax-errors",
     "https://docs.python.org/3.13/tutorial/floatingpoint.html#representation-error",
+    "https://docs.python.org/3.13/tutorial/modules.html",
     "https://docs.python.org/3.13/tutorial/modules.html#modules",
     "https://docs.python.org/3.13/using/cmdline.html#cmdoption-OO",
     "https://docs.sqlalchemy.org/en/20/orm/session_basics.html",
@@ -5185,6 +5424,8 @@
     "https://ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm",
     "https://invisible-island.net/xterm/xterm.html",
     "https://keepachangelog.com/en/1.1.0/",
+    "https://learn.microsoft.com/en-us/azure/architecture/guide/architecture-styles/",
+    "https://learn.microsoft.com/en-us/azure/architecture/guide/design-principles/",
     "https://man7.org/linux/man-pages/man1/kill.1.html",
     "https://man7.org/linux/man-pages/man2/chown.2.html",
     "https://man7.org/linux/man-pages/man2/execve.2.html",
@@ -5244,14 +5485,19 @@
     "https://raw.githubusercontent.com/django/django/stable/5.2.x/docs/howto/deployment/checklist.txt",
     "https://raw.githubusercontent.com/git/git/master/Documentation/git-add.adoc",
     "https://raw.githubusercontent.com/git/git/master/Documentation/git-branch.adoc",
+    "https://raw.githubusercontent.com/git/git/master/Documentation/git-clone.adoc",
     "https://raw.githubusercontent.com/git/git/master/Documentation/git-commit.adoc",
+    "https://raw.githubusercontent.com/git/git/master/Documentation/git-diff.adoc",
     "https://raw.githubusercontent.com/git/git/master/Documentation/git-fetch.adoc",
     "https://raw.githubusercontent.com/git/git/master/Documentation/git-init.adoc",
     "https://raw.githubusercontent.com/git/git/master/Documentation/git-log.adoc",
     "https://raw.githubusercontent.com/git/git/master/Documentation/git-merge-base.adoc",
     "https://raw.githubusercontent.com/git/git/master/Documentation/git-merge.adoc",
     "https://raw.githubusercontent.com/git/git/master/Documentation/git-pull.adoc",
+    "https://raw.githubusercontent.com/git/git/master/Documentation/git-push.adoc",
+    "https://raw.githubusercontent.com/git/git/master/Documentation/git-remote.adoc",
     "https://raw.githubusercontent.com/git/git/master/Documentation/git-switch.adoc",
+    "https://raw.githubusercontent.com/git/git/master/Documentation/git-tag.adoc",
     "https://raw.githubusercontent.com/git/git/master/Documentation/git.adoc",
     "https://raw.githubusercontent.com/git/git/master/Documentation/gitrepository-layout.adoc",
     "https://raw.githubusercontent.com/git/git/master/Documentation/gittutorial.adoc",
