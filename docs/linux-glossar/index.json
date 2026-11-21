@@ -4,7 +4,7 @@
   "source_catalog": "tools/it_lexikon_linux_hilfe.json",
   "source_sha256": "b3fb9bfe37d335ee6eaa89c89425f08c94e8efc6f698e7c520ffc81ed128fc24",
   "total_records": 302,
-  "documented_records": 125,
+  "documented_records": 135,
   "records": [
     {
       "source_record": 1,
@@ -2938,6 +2938,245 @@
         "https://manpages.debian.org/trixie/dpkg/dpkg-deb.1.en.html"
       ],
       "status": "review_pending"
+    },
+    {
+      "source_record": 126,
+      "id": "it_0126",
+      "term": "Repository",
+      "category": "Linux",
+      "document": "it_0126.md",
+      "sha256": "30a434a03e11ccfcd030a66c17ec1d83e9c9d415a793fcba241cf106e860ba04",
+      "source": {
+        "id": "it_0126",
+        "term": "Repository",
+        "short": "Eine Softwarequelle für Pakete oder Code.",
+        "example": "apt nutzt Paket-Repositories.",
+        "tags": [
+          "linux",
+          "git"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://manpages.debian.org/trixie/apt/sources.list.5.en.html",
+        "https://raw.githubusercontent.com/git/git/master/Documentation/gitrepository-layout.adoc"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 127,
+      "id": "it_0127",
+      "term": "Lockfile",
+      "category": "Linux",
+      "document": "it_0127.md",
+      "sha256": "78dd37f8ce11d0cedfc88eed75234e7af8ba5efbe0786d7875ef96d7875d0a0b",
+      "source": {
+        "id": "it_0127",
+        "term": "Lockfile",
+        "short": "Eine Sperrdatei, die parallele Starts verhindern kann.",
+        "example": "NetMon kann per Lockfile Single-Instance erzwingen.",
+        "tags": [
+          "linux",
+          "programmierung"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/fcntl.html#fcntl.flock",
+        "https://man7.org/linux/man-pages/man2/flock.2.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 128,
+      "id": "it_0128",
+      "term": "Cron",
+      "category": "Linux",
+      "document": "it_0128.md",
+      "sha256": "50c66415d328cb0aeddfd8676e8145ddd66926087887b05a8e0bb607afee8a0e",
+      "source": {
+        "id": "it_0128",
+        "term": "Cron",
+        "short": "Zeitgesteuerter Aufgabenplaner unter Unix/Linux.",
+        "example": "cron startet Skripte zu festen Zeiten.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://man7.org/linux/man-pages/man5/crontab.5.html",
+        "https://man7.org/linux/man-pages/man8/cron.8.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 129,
+      "id": "it_0129",
+      "term": "Socket",
+      "category": "Linux",
+      "document": "it_0129.md",
+      "sha256": "ab1f3dc25140629c16c9252d0d1c918689264824156c90f7e04d1d4c5bc94317",
+      "source": {
+        "id": "it_0129",
+        "term": "Socket",
+        "short": "Kommunikationsendpunkt für Netzwerk- oder Prozesskommunikation.",
+        "example": "Ein Programm kann über einen Socket Daten senden.",
+        "tags": [
+          "linux",
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/socket.html#socket.socketpair",
+        "https://man7.org/linux/man-pages/man7/socket.7.html",
+        "https://man7.org/linux/man-pages/man7/unix.7.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 130,
+      "id": "it_0130",
+      "term": "Pipe",
+      "category": "Linux",
+      "document": "it_0130.md",
+      "sha256": "f1e754f16a155f227af3828adbcf9ba86633719aba12c5e3ccc6ce3960d7197c",
+      "source": {
+        "id": "it_0130",
+        "term": "Pipe",
+        "short": "Verbindung zwischen Programmen zur Datenweitergabe.",
+        "example": "ls | grep py nutzt eine Pipe.",
+        "tags": [
+          "linux",
+          "terminal"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/subprocess.html#replacing-shell-pipeline",
+        "https://man7.org/linux/man-pages/man7/pipe.7.html",
+        "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 131,
+      "id": "it_0131",
+      "term": "Umgebungsvariable",
+      "category": "Linux",
+      "document": "it_0131.md",
+      "sha256": "f51b9b30856d6117cc1b1b0c91eb87e53b9460a1f4550bacb5b73da6a5d0f95d",
+      "source": {
+        "id": "it_0131",
+        "term": "Umgebungsvariable",
+        "short": "Eine Variable des Betriebssystems für Prozesse.",
+        "example": "PATH enthält Suchpfade für Programme.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/os.html#os.environ",
+        "https://docs.python.org/3.13/library/subprocess.html#subprocess.run",
+        "https://man7.org/linux/man-pages/man7/environ.7.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 132,
+      "id": "it_0132",
+      "term": "PATH",
+      "category": "Linux",
+      "document": "it_0132.md",
+      "sha256": "6dc384a14c59d43265da49f055806e619b2f71f47446b7e80be480c3c35966ae",
+      "source": {
+        "id": "it_0132",
+        "term": "PATH",
+        "short": "Umgebungsvariable mit Verzeichnissen für ausführbare Programme.",
+        "example": "Wenn ein Befehl nicht gefunden wird, fehlt er oft im PATH.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/shutil.html#shutil.which",
+        "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap08.html",
+        "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 133,
+      "id": "it_0133",
+      "term": "Home-Verzeichnis",
+      "category": "Linux",
+      "document": "it_0133.md",
+      "sha256": "f6f9a3c4dcde825baec62d1f94e2cf9ef701154ad3f765d635949f987cdc1287",
+      "source": {
+        "id": "it_0133",
+        "term": "Home-Verzeichnis",
+        "short": "Persönliches Benutzerverzeichnis.",
+        "example": "/home/sven ist ein typisches Home-Verzeichnis.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/pathlib.html#pathlib.Path.home",
+        "https://man7.org/linux/man-pages/man5/passwd.5.html",
+        "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 134,
+      "id": "it_0134",
+      "term": "Mount",
+      "category": "Linux",
+      "document": "it_0134.md",
+      "sha256": "462e3d903a6badc8026e081a3462a2a87b58189e16923e493c52d7cd6c1d72f9",
+      "source": {
+        "id": "it_0134",
+        "term": "Mount",
+        "short": "Das Einhängen eines Dateisystems.",
+        "example": "Ein USB-Stick wird in das Dateisystem gemountet.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://man7.org/linux/man-pages/man2/mount.2.html",
+        "https://man7.org/linux/man-pages/man7/mount_namespaces.7.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 135,
+      "id": "it_0135",
+      "term": "Symlink",
+      "category": "Linux",
+      "document": "it_0135.md",
+      "sha256": "934f137ba7a1880189883c99a553bd2986b0c190fb88199aa89b613ce504df5e",
+      "source": {
+        "id": "it_0135",
+        "term": "Symlink",
+        "short": "Ein symbolischer Link auf Datei oder Ordner.",
+        "example": "Ein Symlink wirkt wie eine Verknüpfung.",
+        "tags": [
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/pathlib.html#pathlib.Path.symlink_to",
+        "https://man7.org/linux/man-pages/man7/symlink.7.html"
+      ],
+      "status": "review_pending"
     }
   ],
   "source_urls": [
@@ -2975,6 +3214,7 @@
     "https://docs.python.org/3.13/library/dialog.html#tkinter.simpledialog.Dialog",
     "https://docs.python.org/3.13/library/exceptions.html#NameError",
     "https://docs.python.org/3.13/library/exceptions.html#exception-hierarchy",
+    "https://docs.python.org/3.13/library/fcntl.html#fcntl.flock",
     "https://docs.python.org/3.13/library/functions.html#breakpoint",
     "https://docs.python.org/3.13/library/functions.html#enumerate",
     "https://docs.python.org/3.13/library/functions.html#int",
@@ -2992,12 +3232,16 @@
     "https://docs.python.org/3.13/library/logging.html#logging.Formatter",
     "https://docs.python.org/3.13/library/logging.html#logging.Logger",
     "https://docs.python.org/3.13/library/math.html#math.isclose",
+    "https://docs.python.org/3.13/library/os.html#os.environ",
     "https://docs.python.org/3.13/library/pathlib.html#pathlib.Path.home",
     "https://docs.python.org/3.13/library/pathlib.html#pathlib.Path.read_text",
+    "https://docs.python.org/3.13/library/pathlib.html#pathlib.Path.symlink_to",
     "https://docs.python.org/3.13/library/pathlib.html#pure-paths",
     "https://docs.python.org/3.13/library/pdb.html",
     "https://docs.python.org/3.13/library/queue.html#queue.LifoQueue",
     "https://docs.python.org/3.13/library/queue.html#queue.Queue.empty",
+    "https://docs.python.org/3.13/library/shutil.html#shutil.which",
+    "https://docs.python.org/3.13/library/socket.html#socket.socketpair",
     "https://docs.python.org/3.13/library/stdtypes.html#boolean-type-bool",
     "https://docs.python.org/3.13/library/stdtypes.html#common-sequence-operations",
     "https://docs.python.org/3.13/library/stdtypes.html#lists",
@@ -3007,6 +3251,7 @@
     "https://docs.python.org/3.13/library/stdtypes.html#text-sequence-type-str",
     "https://docs.python.org/3.13/library/stdtypes.html#truth-value-testing",
     "https://docs.python.org/3.13/library/stdtypes.html#tuples",
+    "https://docs.python.org/3.13/library/subprocess.html#replacing-shell-pipeline",
     "https://docs.python.org/3.13/library/subprocess.html#security-considerations",
     "https://docs.python.org/3.13/library/subprocess.html#subprocess.TimeoutExpired",
     "https://docs.python.org/3.13/library/subprocess.html#subprocess.run",
@@ -3093,17 +3338,29 @@
     "https://man7.org/linux/man-pages/man1/kill.1.html",
     "https://man7.org/linux/man-pages/man2/chown.2.html",
     "https://man7.org/linux/man-pages/man2/execve.2.html",
+    "https://man7.org/linux/man-pages/man2/flock.2.html",
     "https://man7.org/linux/man-pages/man2/fork.2.html",
     "https://man7.org/linux/man-pages/man2/getpid.2.html",
     "https://man7.org/linux/man-pages/man2/kill.2.html",
+    "https://man7.org/linux/man-pages/man2/mount.2.html",
+    "https://man7.org/linux/man-pages/man5/crontab.5.html",
+    "https://man7.org/linux/man-pages/man5/passwd.5.html",
     "https://man7.org/linux/man-pages/man7/capabilities.7.html",
+    "https://man7.org/linux/man-pages/man7/environ.7.html",
+    "https://man7.org/linux/man-pages/man7/mount_namespaces.7.html",
     "https://man7.org/linux/man-pages/man7/path_resolution.7.html",
     "https://man7.org/linux/man-pages/man7/pid_namespaces.7.html",
+    "https://man7.org/linux/man-pages/man7/pipe.7.html",
+    "https://man7.org/linux/man-pages/man7/socket.7.html",
+    "https://man7.org/linux/man-pages/man7/symlink.7.html",
+    "https://man7.org/linux/man-pages/man7/unix.7.html",
     "https://man7.org/linux/man-pages/man7/user_namespaces.7.html",
+    "https://man7.org/linux/man-pages/man8/cron.8.html",
     "https://man7.org/linux/man-pages/man8/logrotate.8.html",
     "https://manpages.debian.org/trixie/apt/apt-get.8.en.html",
     "https://manpages.debian.org/trixie/apt/apt-secure.8.en.html",
     "https://manpages.debian.org/trixie/apt/apt.8.en.html",
+    "https://manpages.debian.org/trixie/apt/sources.list.5.en.html",
     "https://manpages.debian.org/trixie/dpkg-dev/deb.5.en.html",
     "https://manpages.debian.org/trixie/dpkg/dpkg-deb.1.en.html",
     "https://martinfowler.com/bliki/DefinitionOfRefactoring.html",
@@ -3119,6 +3376,7 @@
     "https://peps.python.org/pep-0440/#version-scheme",
     "https://peps.python.org/pep-0484/#non-goals",
     "https://peps.python.org/pep-0602/",
+    "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap08.html",
     "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html",
     "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/chown.html",
     "https://raw.githubusercontent.com/django/django/stable/5.2.x/docs/howto/deployment/checklist.txt",

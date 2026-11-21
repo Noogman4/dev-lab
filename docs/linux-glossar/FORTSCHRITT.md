@@ -2271,3 +2271,190 @@ Ausgangspunkt dieses Abschnitts: `215643f28d7dcb351dc595a3c5c3fff38acb9682` auf 
 Gesamtprüfung aller 125 Dokumente erfolgreich: Quelle mit unveränderter vereinbarter SHA-256 und 302 eindeutigen Originaldatensätzen, Metadaten und Kategorieableitung, Reihenfolge, Indexzuordnung, tatsächliche Dokumentprüfsummen, zehn Hauptabschnitte, Codeblöcke, Parserlimits und interne Verweise. Alle 96 vollständigen Python-Beispiele des Gesamtstands erneut erfolgreich ausgeführt. Die jüngsten 13 Texte enthalten drei praktische Python-Beispiele (eigene chmod-Testdatei, eigener Kindprozess, eigene Logdatei) und zehn ausdrücklich nicht ausgeführte Gedankenbeispiele. Keine privilegierten Aktionen oder Änderungen an bestehenden Dateien, Konten, Geräten, Diensten, Netzwerken oder Paketbeständen.
 
 Alle vorherigen Dokumente 1–112 und ihre Indexdatensätze gegenüber 215643f unverändert; die Pilottexte zusätzlich gegen den ursprünglichen Pilotcommit geprüft. Neue interne Linkbeschriftungen auch gegen Originalbegriffe geprüft. Änderungen ausschließlich 13 neue Glossartexte sowie index.json und FORTSCHRITT.md; git diff --check erfolgreich. Keine neue Reader-Anbindung oder unabhängige Inhaltsabnahme behauptet; review_pending bleibt erhalten.
+
+## 126. Repository – it_0126
+
+Ausgearbeitet und strukturell geprüft: 689 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6212 UTF-8-Bytes; 28 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://manpages.debian.org/trixie/apt/sources.list.5.en.html
+- https://raw.githubusercontent.com/git/git/master/Documentation/gitrepository-layout.adoc
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nur Gedankenvergleich. Kein Repository, keine Paketquelle oder Git-Konfiguration angelegt oder verändert. git-scm-Handbuchabruf HTTP 403; offizielle Handbuchquelldatei aus git/git erfolgreich geprüft.
+
+Präzisierung gegenüber der Quelle: Paketquelle und Git-Repository ausdrücklich getrennt; Git nicht mit GitHub, Arbeitsverzeichnis oder Backup gleichgesetzt. Bare-Repositories und mögliche .git-Verweisdatei anhand offizieller Git-Dokumentation präzisiert.
+
+SHA-256: `30a434a03e11ccfcd030a66c17ec1d83e9c9d415a793fcba241cf106e860ba04`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 127. Lockfile – it_0127
+
+Ausgearbeitet und strukturell geprüft: 691 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6223 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/fcntl.html#fcntl.flock
+- https://man7.org/linux/man-pages/man2/flock.2.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Kein Mehrprozessstart, NetMon-Test, Netzwerkdateisystem oder Entfernen fremder Lockfiles.
+
+Präzisierung gegenüber der Quelle: Dateiexistenz von korrektem Sperrverfahren getrennt; flock, PID-File und Abhängigkeits-Lockfile unterschieden. Zwei unabhängige Öffnungen einer eigenen temporären Datei geprüft; kein NetMon-Single-Instance-Nachweis behauptet.
+
+SHA-256: `78dd37f8ce11d0cedfc88eed75234e7af8ba5efbe0786d7875ef96d7875d0a0b`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 128. Cron – it_0128
+
+Ausgearbeitet und strukturell geprüft: 679 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5865 UTF-8-Bytes; 28 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://man7.org/linux/man-pages/man5/crontab.5.html
+- https://man7.org/linux/man-pages/man8/cron.8.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Beispielzeile nur erklärt; keine Crontab gelesen, eingerichtet oder verändert, kein Dienst oder zeitgesteuerter Auftrag ausgeführt.
+
+Präzisierung gegenüber der Quelle: Zeitplanung von erfolgreicher Ausführung und Nachholen getrennt; Benutzer- und Systemtabellen unterschieden. Cronie als konkrete Implementierungsquelle genannt, Zeitumstellungen und Ausführungsumgebung nicht verallgemeinert.
+
+SHA-256: `50c66415d328cb0aeddfd8676e8145ddd66926087887b05a8e0bb607afee8a0e`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 129. Socket – it_0129
+
+Ausgearbeitet und strukturell geprüft: 667 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6115 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/socket.html#socket.socketpair
+- https://man7.org/linux/man-pages/man7/socket.7.html
+- https://man7.org/linux/man-pages/man7/unix.7.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Beide Endpunkte im selben Prüfprozess; keine Ports, DNS-Abfragen, fremden Dienste, Netzwerk- oder Mehrprozessabnahme.
+
+Präzisierung gegenüber der Quelle: Socket als Endpunkt statt Port oder zwingender Internetverbindung erklärt; AF_UNIX und Stream-Grenzen anhand offizieller Quellen präzisiert. Eigene lokale Socket-Paar-Anfrage und Antwort mit längengeprüftem Empfang praktisch getestet.
+
+SHA-256: `ab1f3dc25140629c16c9252d0d1c918689264824156c90f7e04d1d4c5bc94317`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 130. Pipe – it_0130
+
+Ausgearbeitet und strukturell geprüft: 702 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6198 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/subprocess.html#replacing-shell-pipeline
+- https://man7.org/linux/man-pages/man7/pipe.7.html
+- https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine ls-/grep-Auswertung realer Dateien, keine FIFO, großen Datenmengen oder vorzeitig abbrechenden Gegenstellen getestet.
+
+Präzisierung gegenüber der Quelle: Pipe als begrenzten unidirektionalen Bytestrom erläutert, nicht als semantischen Dateifilter. Shell-Pipeline und direkte Prozessverkettung getrennt; eigener Erzeuger und Verarbeiter praktisch verbunden und beide Exitcodes geprüft.
+
+SHA-256: `f1e754f16a155f227af3828adbcf9ba86633719aba12c5e3ccc6ce3960d7197c`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 131. Umgebungsvariable – it_0131
+
+Ausgearbeitet und strukturell geprüft: 707 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6270 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/os.html#os.environ
+- https://docs.python.org/3.13/library/subprocess.html#subprocess.run
+- https://man7.org/linux/man-pages/man7/environ.7.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine Startdateien, dauerhaften Umgebungswerte oder Dienst-/Desktopkonfigurationen verändert; keine vorhandenen Umgebungsinhalte ausgegeben.
+
+Präzisierung gegenüber der Quelle: Umgebung als prozessbezogene Textzuordnung statt globaler Variablentabelle präzisiert; Shell-Export und normale Programmiervariablen getrennt. Eigenen Wert nur in kopierter Kindumgebung gesetzt und unveränderten Elternwert geprüft.
+
+SHA-256: `f51b9b30856d6117cc1b1b0c91eb87e53b9460a1f4550bacb5b73da6a5d0f95d`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 132. PATH – it_0132
+
+Ausgearbeitet und strukturell geprüft: 719 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6381 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/shutil.html#shutil.which
+- https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap08.html
+- https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Testdateien nicht gestartet, tatsächliche PATH-Variable nicht gelesen oder geändert; keine Startdateien oder dauerhaften Umgebungen bearbeitet.
+
+Präzisierung gegenüber der Quelle: PATH als geordnete Suchliste und nicht alleinige Fehlerursache präzisiert. Shell-interne Auswahl von Dateisuche abgegrenzt. Zwei eigene gleichnamige Dateien über explizite Suchlisten in wechselnder Reihenfolge gefunden.
+
+SHA-256: `6dc384a14c59d43265da49f055806e619b2f71f47446b7e80be480c3c35966ae`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 133. Home-Verzeichnis – it_0133
+
+Ausgearbeitet und strukturell geprüft: 704 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6152 UTF-8-Bytes; 28 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/pathlib.html#pathlib.Path.home
+- https://man7.org/linux/man-pages/man5/passwd.5.html
+- https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nur fiktive Pfade; keine Konten- oder Verzeichnisabfrage, kein Path.home-Aufruf, keine persönlichen Daten und kein Verzeichniswechsel.
+
+Präzisierung gegenüber der Quelle: Home von Arbeits-, Projekt- und Wurzelverzeichnis getrennt; /home/sven nicht als universelle Regel ausgegeben. Kontenzuordnung, HOME-Umgebung und tatsächliche Rechte unterschieden.
+
+SHA-256: `f6f9a3c4dcde825baec62d1f94e2cf9ef701154ad3f765d635949f987cdc1287`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 134. Mount – it_0134
+
+Ausgearbeitet und strukturell geprüft: 723 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6047 UTF-8-Bytes; 28 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://man7.org/linux/man-pages/man2/mount.2.html
+- https://man7.org/linux/man-pages/man7/mount_namespaces.7.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Fiktive Struktur; keine Geräteabfrage, Mount-/Unmount-Operation, Namensraum- oder Dateisystemänderung.
+
+Präzisierung gegenüber der Quelle: Mount von Formatieren und Kopieren getrennt; Quelle nicht auf physischen Datenträger beschränkt. Verdeckte Inhalte und prozessbezogene Mount-Namensräume anhand Linux-Dokumentation erläutert.
+
+SHA-256: `462e3d903a6badc8026e081a3462a2a87b58189e16923e493c52d7cd6c1d72f9`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 135. Symlink – it_0135
+
+Ausgearbeitet und strukturell geprüft: 699 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5902 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/pathlib.html#pathlib.Path.symlink_to
+- https://man7.org/linux/man-pages/man7/symlink.7.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine fremden Dateien, Systemlinks, Linkschleifen, rekursiven Änderungen oder Mount-Aktionen getestet.
+
+Präzisierung gegenüber der Quelle: Symlink als gespeicherten Zielpfad statt Kopie oder Desktop-Verknüpfung erklärt. Relative Zielauflösung und gebrochene Links unterschieden. Eigener relativer Link und eigener Link ohne Ziel praktisch geprüft.
+
+SHA-256: `934f137ba7a1880189883c99a553bd2986b0c190fb88199aa89b613ce504df5e`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## Gesicherter Zwischenstand nach Datensatz 135 – 21.11.2026
+
+**135 von 302** ausgearbeitet und strukturell geprüft; 167 fehlen. Nächster Datensatz: **it_0136 – Shebang**. Die Freigabe bis 302 bleibt bestehen; keine Gesamtabschlussmeldung.
+
+Ausgangspunkt dieses Abschnitts: `b3a3c5d8ea0222b877cccf87945e970e0d8ebd1d` auf `codex/linux-glossar-011-302`. Zehn Texte 126–135 einzeln recherchiert, geschrieben und nach jeweiliger Prüfung in Index und Fortschritt gespeichert.
+
+Alle 135 Dokumente und Indexzuordnungen erneut geprüft: unveränderte Quelle mit vereinbarter SHA-256 und 302 eindeutigen Originaldatensätzen; Metadaten, Kategorieableitung, lückenlose Reihenfolge, ursprüngliches Indexschema, tatsächliche Dokumentprüfsummen, zehn Hauptabschnitte, geschlossene Codeblöcke, Parserlimits und interne Verweise. Quellenvereinigung weiterhin sortiert und duplikatfrei. Neue Linkbeschriftungen gegen Originalbegriffe verglichen.
+
+Alle 102 vollständigen Python-Beispiele des Gesamtstands erneut erfolgreich ausgeführt, einschließlich Assertions, Exitcodes und dokumentierten Standardausgaben. In 126–135 sind sechs praktische Beispiele und vier Gedankenmodelle enthalten. Praktisch wurden nur eigene temporäre Daten, lokale Unix-Socket-Paare, eigene kurzlebige Kindprozesse und explizite Suchpfadkopien verwendet. Kein Netzwerkport oder fremder Dienst angesprochen, keine Konten-, Mount-, Paket-, Profil- oder Dienständerung. Das PATH-Beispiel startet seine Testdateien nicht und verändert die tatsächliche PATH-Variable nicht. Der Lockfile-Test prüft eigene Dateideskriptoren, keine NetMon-Eininstanzabnahme.
+
+Dokumente 1–125 und ihre Indexdatensätze gegenüber b3a3c5d unverändert; Pilottexte zusätzlich gegen ursprünglichen Pilotcommit geprüft. PROMPT.md unverändert. Nur zehn neue Glossartexte, index.json und FORTSCHRITT.md geändert; git diff --check erfolgreich. Unabhängige Inhaltsprüfung und lokale Reader-Abnahme der neuen Texte bleiben offen. Alle neuen Statuswerte bleiben review_pending.
