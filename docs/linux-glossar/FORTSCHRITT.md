@@ -2755,3 +2755,192 @@ Gesamtprüfung aller 150 Dokumente erfolgreich: unveränderte Originalquelle sam
 Die neuen zehn Texte enthalten zwei praktische Python-Prüfungen (lokale IPv6-Werte und Einstellungen eines eigenen TLS-Kontexts) und acht Gedankenbeispiele. Kein TLS-Handshake oder Netzwerkverkehr in den Praxisbeispielen; keine Ports, Zertifikatsablagen, Resolver- oder Routingkonfigurationen verändert. HTTPS-Quellenrecherche ist davon getrennt. Nicht ausgeführte Modelle ausdrücklich gekennzeichnet.
 
 Dokumente 1–140 und ihre Indexdatensätze gegen d0848a4 unverändert; zehn Pilottexte zusätzlich unmittelbar gegen ursprünglichen Pilotcommit geprüft. PROMPT.md unverändert. Nur zehn neue Glossartexte, index.json und FORTSCHRITT.md geändert; git diff --check erfolgreich. Keine Anwendungscodeänderung, Installation oder Veröffentlichung der Cloud-Umgebung. Unabhängige Inhaltsprüfung und lokale Reader-Abnahme stehen aus; temporärer Prüfkopf im vorhandenen Markdown-Parser ist keine Reader-Abnahme. Alle neuen Texte bleiben review_pending.
+
+## 151. Router – it_0151
+
+Ausgearbeitet und strukturell geprüft: 703 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5787 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.rfc-editor.org/rfc/rfc1812.html
+- https://www.rfc-editor.org/rfc/rfc3022.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Fiktives Weiterleitungsmodell, keine Pakete, Geräteanmeldung, Routen- oder Freigabeänderung.
+
+Präzisierung gegenüber der Quelle: Routerrolle von Hardwareform, Funkzugang, NAT und Anwendungsproxy getrennt. IPv4-Weiterleitung und TTL anhand RFC 1812 erläutert; Heimgerät nicht als Garantie aller Netzfunktionen dargestellt.
+
+SHA-256: `a86398761ab7d5c27b5e04e2a154d17176f894603b711cf00300b6ce2439f1c2`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 152. Subnetz – it_0152
+
+Ausgearbeitet und strukturell geprüft: 643 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5653 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Network
+- https://www.rfc-editor.org/rfc/rfc4632.html
+- https://www.rfc-editor.org/rfc/rfc5737.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Nur lokale Adressrechnung; keine Schnittstellenzuweisung, Geräteabfrage oder Änderung von Netzen, Routen oder Filtern.
+
+Präzisierung gegenüber der Quelle: Subnetz als Präfixbereich statt physischer oder automatischer Sicherheitsgrenze erklärt. Blockgröße von frei nutzbarer Gerätezahl getrennt. Eigenen /24-Dokumentationsblock in vier /26-Blöcke geteilt und Zugehörigkeiten geprüft.
+
+SHA-256: `c4928bc704a85218f7f2942de0ea9cdf1bf57bb80b6e10b0ddf79a6de90a2d7d`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 153. CIDR – it_0153
+
+Ausgearbeitet und strukturell geprüft: 660 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5930 UTF-8-Bytes; 30 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/ipaddress.html#ipaddress.collapse_addresses
+- https://www.rfc-editor.org/rfc/rfc4291.html
+- https://www.rfc-editor.org/rfc/rfc4632.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine Route, Schnittstelle oder Filterregel eingerichtet; rechnerische Zusammenfassung nicht als reale Erreichbarkeit oder Routingabnahme ausgegeben.
+
+Präzisierung gegenüber der Quelle: CIDR über reine Schreibweise hinaus als klassenloses Zuteilungs- und Aggregationskonzept erklärt. Präfixlänge, Netzgrenze und Schnittstellenadresse getrennt. Zwei passend ausgerichtete /25-Dokumentationsblöcke rechnerisch zusammengefasst.
+
+SHA-256: `7f0d888a8a8e991856b5b4820fa55bd3a9851dd75281b03959c38db32a37aaaa`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 154. MAC-Adresse – it_0154
+
+Ausgearbeitet und strukturell geprüft: 660 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5873 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.networkmanager.dev/docs/api/latest/settings-802-11-wireless.html
+- https://www.rfc-editor.org/rfc/rfc9542.html
+
+Praktische Prüfung: ein vollständiges Python-Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Keine reale Schnittstelle, Herstellerabfrage, Adresszuweisung oder Netzwerkprofiländerung; keine Eindeutigkeit des Testwerts behauptet.
+
+Präzisierung gegenüber der Quelle: Hardwareadresse nicht als unveränderliche Geräteidentität dargestellt. Verbindungsebene, 48-Bit-Format und lokale/universelle Einordnung präzisiert; NetworkManager-Adresszuweisung anhand offizieller Dokumentation belegt. Eigene Bytes und zwei Adressbits geprüft.
+
+SHA-256: `e9b2e80d5a288fedc8f510ab76c08f058a97d7d6a2d523ae39b33ea492fe846b`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 155. ARP – it_0155
+
+Ausgearbeitet und strukturell geprüft: 716 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6016 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://man7.org/linux/man-pages/man7/arp.7.html
+- https://www.rfc-editor.org/rfc/rfc4861.html
+- https://www.rfc-editor.org/rfc/rfc826.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nur fiktive Zuordnung; keine ARP-Pakete, Nachbartabellen, Cache- oder Schnittstellenänderungen.
+
+Präzisierung gegenüber der Quelle: ARP auf passende lokale Protokoll-/Verbindungsadresszuordnung eingegrenzt; Route bestimmt nächsten Hop, nicht zwingend finales Ziel. Cache, Identitätsvertrauen und IPv6 Neighbor Discovery getrennt.
+
+SHA-256: `6ecd7c38560e90c19aef59bf5051a94505952ed730648da187e41a4836ed841b`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 156. DHCP – it_0156
+
+Ausgearbeitet und strukturell geprüft: 670 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5904 UTF-8-Bytes; 28 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.rfc-editor.org/rfc/rfc2131.html
+- https://www.rfc-editor.org/rfc/rfc2132.html
+- https://www.rfc-editor.org/rfc/rfc4861.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nur fiktive Nachrichtenfolge; kein Client oder Server gestartet, keine Adresse oder Lease angefordert und keine Netzprofile verändert.
+
+Präzisierung gegenüber der Quelle: DHCP auf Bereitstellung mehrerer Netzwerkparameter erweitert; Heimrouter nur als mögliche Serverrolle. Typischen anfänglichen IPv4-Ablauf von Erneuerung und IPv6-Verfahren getrennt.
+
+SHA-256: `504e7356ab2658d13555d0af069af79b2dbe037f444f28afe122e24c19ef11d7`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 157. Ping – it_0157
+
+Ausgearbeitet und strukturell geprüft: 677 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5695 UTF-8-Bytes; 28 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://man7.org/linux/man-pages/man8/ping.8.html
+- https://www.rfc-editor.org/rfc/rfc4443.html
+- https://www.rfc-editor.org/rfc/rfc792.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Keine Ping-Ausführung, öffentlichen oder lokalen Ziele, Verlustmessung oder ICMP-Konfigurationsänderung; Tabelle vollständig fiktiv.
+
+Präzisierung gegenüber der Quelle: Erreichbarkeit auf beobachteten ICMP-Echo-Austausch eingegrenzt; fehlende Antwort nicht mit sicherem Geräteausfall gleichgesetzt. RTT von Einwegzeit, Bandbreite und Anwendungsfunktion getrennt.
+
+SHA-256: `cdb50dc08dd7fb37bfef586dc62eeccedd2402fe8ead0e1dff68a12b4844c9a1`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 158. Traceroute – it_0158
+
+Ausgearbeitet und strukturell geprüft: 699 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5881 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://man7.org/linux/man-pages/man8/traceroute.8.html
+- https://www.rfc-editor.org/rfc/rfc1812.html
+- https://www.rfc-editor.org/rfc/rfc4443.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Keine Traceroute-, Ping- oder DNS-Anfrage; fiktive Tabelle ohne echte Zwischenstationen oder gemessene Laufzeiten.
+
+Präzisierung gegenüber der Quelle: Weganzeige als methoden- und zeitabhängige Probe interpretiert; Sternchen nicht als sicherer Defekt. RTT je Probe von Einzelsegmentlaufzeit getrennt, IPv4-TTL und IPv6-Hop-Limit eingeordnet.
+
+SHA-256: `d5013dd60b4c742496eaec296274e72b491a5c9b5093b8b67766cd27a86c0752`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 159. Firewall – it_0159
+
+Ausgearbeitet und strukturell geprüft: 682 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5859 UTF-8-Bytes; 28 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://firewalld.org/documentation/concepts.html
+- https://wiki.nftables.org/wiki-nftables/index.php/Netfilter_hooks
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nur erfundene Richtlinientabelle; keine Regeln, Statusabfragen oder Freigabeänderungen. NIST-Übersichtsabruf HTTP 403; erreichbare offizielle Projektquellen verwendet.
+
+Präzisierung gegenüber der Quelle: Firewall von Routing, NAT, Verschlüsselung und Anmeldung getrennt. Lokale Eingabe, Ausgabe und Weiterleitung sowie Zustandsbezug anhand offizieller firewalld-/nftables-Dokumentation erläutert.
+
+SHA-256: `b707fecb27171e5d0234f0604985caabfd987bedbffd7de2611ad135c3c5d56a`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 160. NAT – it_0160
+
+Ausgearbeitet und strukturell geprüft: 655 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 5955 UTF-8-Bytes; 29 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://www.rfc-editor.org/rfc/rfc2663.html
+- https://www.rfc-editor.org/rfc/rfc3022.html
+- https://www.rfc-editor.org/rfc/rfc5737.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Keine Übersetzungstabelle gelesen, Pakete, Portweiterleitungen oder Änderungen von NAT, Firewall oder Geräten.
+
+Präzisierung gegenüber der Quelle: NAT nicht auf privat-zu-öffentlich eingeengt; Basic NAT und NAPT unterschieden. Routing, Filterung, Identität und Verschlüsselung getrennt; Beispieltabelle ausdrücklich unvollständiges fiktives Modell.
+
+SHA-256: `f8f3d5d0d785232dbab21a1eccb518205e23601d1ddab56e679991bbd4f25c01`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## Gesicherter Zwischenstand nach Datensatz 160 – 21.11.2026
+
+**160 von 302** ausgearbeitet und strukturell geprüft; 142 fehlen. Nächster Datensatz: **it_0161 – VPN**. Die Fortsetzungsfreigabe bis 302 bleibt bestehen. Der an der Verarbeitungsgrenze gesicherte Stand ist keine Fertigmeldung; die gemeinsame Gesamtzusammenfassung bleibt bis nach 302 zurückgestellt.
+
+Branch: codex/linux-glossar-011-302. Ausgangscommit dieses Durchlaufs: d0848a417938d150f64f3020650588eadd926964 (140 Einträge). Zunächst wurde bestätigt, dass dieser Stand bereits committet und gepusht war. Die Einträge 141–150 wurden mit 60f77aa73625277d830ca531925a77a38ba7b382 gesichert und gepusht; danach folgten 151–160 strikt einzeln mit jeweiliger Recherche, Ausarbeitung, Prüfung und unmittelbarer Index-/Fortschrittsspeicherung.
+
+Gesamtprüfung erfolgreich für alle 160 Dokumente und Indexdatensätze: vereinbarte Originalquelle mit unveränderter SHA-256 und 302 eindeutigen IDs und Begriffen; ursprüngliches Indexschema, genaue Originalzuordnung und Kategorieableitung, vollständige Metadaten, lückenlose Quellreihenfolge, dokumentierte tatsächliche SHA-256-Prüfsummen, zehn Hauptabschnitte, geschlossene Codeblöcke, Parserlimits und interne Verweise. Linkbeschriftungen 141–160 zusätzlich mit Originalbegriffen verglichen. documented_records 160; source_urls sortierte duplikatfreie Vereinigung der genauen Quellen.
+
+Alle 111 vollständigen Python-Beispiele des Gesamtstands erneut erfolgreich ausgeführt: Assertions, Exitcodes und vollständige Standardausgaben. Die 20 neuen Texte dieses Durchlaufs enthalten fünf praktische Python-Prüfungen und 15 Gedankenbeispiele. Praktisch wurden ausschließlich eigene IPv6-/Präfix-/MAC-Werte und ein eigener TLS-Kontext untersucht. Keine Netzwerkverbindung oder TLS-Handshake in diesen Beispielen. Ping, Traceroute, DNS-, DHCP- und ARP-Abläufe sowie Firewall- und NAT-Tabellen sind ausdrücklich nicht ausgeführte Modelle. Keine Geräte, Konten, Dienste, Zertifikatsablagen, Routing-, Firewall-, NAT- oder Netzprofile verändert.
+
+Alle Dokumente 1–150 und ihre Indexdatensätze gegenüber 60f77aa unverändert; die Pilottexte zusätzlich unmittelbar gegen 688a832 geprüft. PROMPT.md unverändert. Der aktuelle Änderungsumfang enthält nur zehn neue Glossartexte, index.json und FORTSCHRITT.md; git diff --check erfolgreich. Im gesamten Durchlauf ausschließlich docs/linux-glossar/ geändert. Anwendung, Tests, Abhängigkeiten, Paketierung, Originalquelle und Befehlsdokumentationen unverändert. Keine zusätzlichen Worktrees oder Unteragenten. Keine Reader-Abnahme behauptet: Strukturprüfung weiterhin nur mit temporärem kompatiblem Kopf im vorhandenen Markdown-Parser. Inhaltliche Zweitprüfung und lokale Reader-Prüfung bleiben offen; review_pending bleibt erhalten. Kein Merge, Force-Push oder Veröffentlichen der Cloud-Umgebung.

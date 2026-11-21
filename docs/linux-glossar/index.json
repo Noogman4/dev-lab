@@ -4,7 +4,7 @@
   "source_catalog": "tools/it_lexikon_linux_hilfe.json",
   "source_sha256": "b3fb9bfe37d335ee6eaa89c89425f08c94e8efc6f698e7c520ffc81ed128fc24",
   "total_records": 302,
-  "documented_records": 150,
+  "documented_records": 160,
   "records": [
     {
       "source_record": 1,
@@ -3545,6 +3545,246 @@
         "https://www.rfc-editor.org/rfc/rfc5737.html"
       ],
       "status": "review_pending"
+    },
+    {
+      "source_record": 151,
+      "id": "it_0151",
+      "term": "Router",
+      "category": "Netzwerk",
+      "document": "it_0151.md",
+      "sha256": "a86398761ab7d5c27b5e04e2a154d17176f894603b711cf00300b6ce2439f1c2",
+      "source": {
+        "id": "it_0151",
+        "term": "Router",
+        "short": "Gerät, das Datenpakete zwischen Netzwerken weiterleitet.",
+        "example": "Der Heimrouter verbindet LAN und Internet.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.rfc-editor.org/rfc/rfc1812.html",
+        "https://www.rfc-editor.org/rfc/rfc3022.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 152,
+      "id": "it_0152",
+      "term": "Subnetz",
+      "category": "Netzwerk",
+      "document": "it_0152.md",
+      "sha256": "c4928bc704a85218f7f2942de0ea9cdf1bf57bb80b6e10b0ddf79a6de90a2d7d",
+      "source": {
+        "id": "it_0152",
+        "term": "Subnetz",
+        "short": "Ein Teilbereich eines IP-Netzwerks.",
+        "example": "192.168.1.0/24 ist ein Subnetz.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Network",
+        "https://www.rfc-editor.org/rfc/rfc4632.html",
+        "https://www.rfc-editor.org/rfc/rfc5737.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 153,
+      "id": "it_0153",
+      "term": "CIDR",
+      "category": "Netzwerk",
+      "document": "it_0153.md",
+      "sha256": "7f0d888a8a8e991856b5b4820fa55bd3a9851dd75281b03959c38db32a37aaaa",
+      "source": {
+        "id": "it_0153",
+        "term": "CIDR",
+        "short": "Schreibweise für IP-Netze mit Präfixlänge.",
+        "example": "192.168.1.0/24 nutzt CIDR.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.collapse_addresses",
+        "https://www.rfc-editor.org/rfc/rfc4291.html",
+        "https://www.rfc-editor.org/rfc/rfc4632.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 154,
+      "id": "it_0154",
+      "term": "MAC-Adresse",
+      "category": "Netzwerk",
+      "document": "it_0154.md",
+      "sha256": "e9b2e80d5a288fedc8f510ab76c08f058a97d7d6a2d523ae39b33ea492fe846b",
+      "source": {
+        "id": "it_0154",
+        "term": "MAC-Adresse",
+        "short": "Hardwareadresse einer Netzwerkschnittstelle.",
+        "example": "Eine Netzwerkkarte hat eine MAC-Adresse.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.networkmanager.dev/docs/api/latest/settings-802-11-wireless.html",
+        "https://www.rfc-editor.org/rfc/rfc9542.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 155,
+      "id": "it_0155",
+      "term": "ARP",
+      "category": "Netzwerk",
+      "document": "it_0155.md",
+      "sha256": "6ecd7c38560e90c19aef59bf5051a94505952ed730648da187e41a4836ed841b",
+      "source": {
+        "id": "it_0155",
+        "term": "ARP",
+        "short": "Protokoll zum Zuordnen von IPv4-Adressen zu MAC-Adressen.",
+        "example": "ARP findet die MAC-Adresse im lokalen Netz.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://man7.org/linux/man-pages/man7/arp.7.html",
+        "https://www.rfc-editor.org/rfc/rfc4861.html",
+        "https://www.rfc-editor.org/rfc/rfc826.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 156,
+      "id": "it_0156",
+      "term": "DHCP",
+      "category": "Netzwerk",
+      "document": "it_0156.md",
+      "sha256": "504e7356ab2658d13555d0af069af79b2dbe037f444f28afe122e24c19ef11d7",
+      "source": {
+        "id": "it_0156",
+        "term": "DHCP",
+        "short": "Protokoll zur automatischen Vergabe von IP-Adressen.",
+        "example": "Der Router vergibt per DHCP eine IP.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.rfc-editor.org/rfc/rfc2131.html",
+        "https://www.rfc-editor.org/rfc/rfc2132.html",
+        "https://www.rfc-editor.org/rfc/rfc4861.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 157,
+      "id": "it_0157",
+      "term": "Ping",
+      "category": "Netzwerk",
+      "document": "it_0157.md",
+      "sha256": "cdb50dc08dd7fb37bfef586dc62eeccedd2402fe8ead0e1dff68a12b4844c9a1",
+      "source": {
+        "id": "it_0157",
+        "term": "Ping",
+        "short": "Werkzeug zum Prüfen der Erreichbarkeit per ICMP.",
+        "example": "ping 1.1.1.1 testet Verbindung.",
+        "tags": [
+          "netzwerk",
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://man7.org/linux/man-pages/man8/ping.8.html",
+        "https://www.rfc-editor.org/rfc/rfc4443.html",
+        "https://www.rfc-editor.org/rfc/rfc792.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 158,
+      "id": "it_0158",
+      "term": "Traceroute",
+      "category": "Netzwerk",
+      "document": "it_0158.md",
+      "sha256": "d5013dd60b4c742496eaec296274e72b491a5c9b5093b8b67766cd27a86c0752",
+      "source": {
+        "id": "it_0158",
+        "term": "Traceroute",
+        "short": "Werkzeug zum Anzeigen des Wegs zu einem Ziel.",
+        "example": "traceroute example.com zeigt Zwischenstationen.",
+        "tags": [
+          "netzwerk",
+          "linux"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://man7.org/linux/man-pages/man8/traceroute.8.html",
+        "https://www.rfc-editor.org/rfc/rfc1812.html",
+        "https://www.rfc-editor.org/rfc/rfc4443.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 159,
+      "id": "it_0159",
+      "term": "Firewall",
+      "category": "Netzwerk",
+      "document": "it_0159.md",
+      "sha256": "b707fecb27171e5d0234f0604985caabfd987bedbffd7de2611ad135c3c5d56a",
+      "source": {
+        "id": "it_0159",
+        "term": "Firewall",
+        "short": "System zum Erlauben oder Blockieren von Netzwerkverkehr.",
+        "example": "Eine Firewall kann eingehende Ports sperren.",
+        "tags": [
+          "netzwerk",
+          "sicherheit"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://firewalld.org/documentation/concepts.html",
+        "https://wiki.nftables.org/wiki-nftables/index.php/Netfilter_hooks"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 160,
+      "id": "it_0160",
+      "term": "NAT",
+      "category": "Netzwerk",
+      "document": "it_0160.md",
+      "sha256": "f8f3d5d0d785232dbab21a1eccb518205e23601d1ddab56e679991bbd4f25c01",
+      "source": {
+        "id": "it_0160",
+        "term": "NAT",
+        "short": "Network Address Translation: Übersetzung privater zu öffentlichen IP-Adressen.",
+        "example": "Der Router nutzt NAT für mehrere Heimgeräte.",
+        "tags": [
+          "netzwerk"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://www.rfc-editor.org/rfc/rfc2663.html",
+        "https://www.rfc-editor.org/rfc/rfc3022.html",
+        "https://www.rfc-editor.org/rfc/rfc5737.html"
+      ],
+      "status": "review_pending"
     }
   ],
   "source_urls": [
@@ -3595,6 +3835,8 @@
     "https://docs.python.org/3.13/library/functools.html#functools.wraps",
     "https://docs.python.org/3.13/library/hashlib.html#usage",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Address",
+    "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.IPv4Network",
+    "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.collapse_addresses",
     "https://docs.python.org/3.13/library/ipaddress.html#ipaddress.ip_address",
     "https://docs.python.org/3.13/library/json.html#encoders-and-decoders",
     "https://docs.python.org/3.13/library/logging.handlers.html#logging.FileHandler",
@@ -3704,6 +3946,7 @@
     "https://docs.python.org/3.13/tutorial/floatingpoint.html#representation-error",
     "https://docs.python.org/3.13/tutorial/modules.html#modules",
     "https://docs.python.org/3.13/using/cmdline.html#cmdoption-OO",
+    "https://firewalld.org/documentation/concepts.html",
     "https://help.gnome.org/gnome-terminal/introduction.html",
     "https://invisible-island.net/xterm/xterm.html",
     "https://keepachangelog.com/en/1.1.0/",
@@ -3718,6 +3961,7 @@
     "https://man7.org/linux/man-pages/man5/crontab.5.html",
     "https://man7.org/linux/man-pages/man5/nsswitch.conf.5.html",
     "https://man7.org/linux/man-pages/man5/passwd.5.html",
+    "https://man7.org/linux/man-pages/man7/arp.7.html",
     "https://man7.org/linux/man-pages/man7/capabilities.7.html",
     "https://man7.org/linux/man-pages/man7/environ.7.html",
     "https://man7.org/linux/man-pages/man7/mount_namespaces.7.html",
@@ -3731,6 +3975,8 @@
     "https://man7.org/linux/man-pages/man8/cron.8.html",
     "https://man7.org/linux/man-pages/man8/ip-route.8.html",
     "https://man7.org/linux/man-pages/man8/logrotate.8.html",
+    "https://man7.org/linux/man-pages/man8/ping.8.html",
+    "https://man7.org/linux/man-pages/man8/traceroute.8.html",
     "https://manpages.debian.org/trixie/apt/apt-get.8.en.html",
     "https://manpages.debian.org/trixie/apt/apt-secure.8.en.html",
     "https://manpages.debian.org/trixie/apt/apt.8.en.html",
@@ -3780,6 +4026,7 @@
     "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/ttk_radiobutton.n",
     "https://raw.githubusercontent.com/tcltk/tk/core-8-6-branch/doc/ttk_style.n",
     "https://semver.org/spec/v2.0.0.html",
+    "https://wiki.nftables.org/wiki-nftables/index.php/Netfilter_hooks",
     "https://www.debian.org/doc/manuals/debian-handbook/sect.apt-get.en.html",
     "https://www.debian.org/intro/about",
     "https://www.debian.org/releases/",
@@ -3803,15 +4050,22 @@
     "https://www.gnu.org/software/make/manual/html_node/Introduction.html",
     "https://www.kernel.org/doc/html/latest/admin-guide/README.html",
     "https://www.networkmanager.dev/docs/api/latest/NetworkManager.html",
+    "https://www.networkmanager.dev/docs/api/latest/settings-802-11-wireless.html",
     "https://www.rfc-editor.org/rfc/rfc1034.html",
     "https://www.rfc-editor.org/rfc/rfc1035.html",
     "https://www.rfc-editor.org/rfc/rfc1122.html",
     "https://www.rfc-editor.org/rfc/rfc1812.html",
     "https://www.rfc-editor.org/rfc/rfc1918.html",
+    "https://www.rfc-editor.org/rfc/rfc2131.html",
+    "https://www.rfc-editor.org/rfc/rfc2132.html",
+    "https://www.rfc-editor.org/rfc/rfc2663.html",
+    "https://www.rfc-editor.org/rfc/rfc3022.html",
     "https://www.rfc-editor.org/rfc/rfc3596.html",
     "https://www.rfc-editor.org/rfc/rfc3849.html",
     "https://www.rfc-editor.org/rfc/rfc4291.html",
+    "https://www.rfc-editor.org/rfc/rfc4443.html",
     "https://www.rfc-editor.org/rfc/rfc4632.html",
+    "https://www.rfc-editor.org/rfc/rfc4861.html",
     "https://www.rfc-editor.org/rfc/rfc5424.html",
     "https://www.rfc-editor.org/rfc/rfc5425.html",
     "https://www.rfc-editor.org/rfc/rfc5737.html",
@@ -3820,8 +4074,10 @@
     "https://www.rfc-editor.org/rfc/rfc768.html",
     "https://www.rfc-editor.org/rfc/rfc7766.html",
     "https://www.rfc-editor.org/rfc/rfc791.html",
+    "https://www.rfc-editor.org/rfc/rfc792.html",
     "https://www.rfc-editor.org/rfc/rfc8085.html",
     "https://www.rfc-editor.org/rfc/rfc8200.html",
+    "https://www.rfc-editor.org/rfc/rfc826.html",
     "https://www.rfc-editor.org/rfc/rfc8446.html",
     "https://www.rfc-editor.org/rfc/rfc9000.html",
     "https://www.rfc-editor.org/rfc/rfc9110.html",
@@ -3833,6 +4089,7 @@
     "https://www.rfc-editor.org/rfc/rfc9325.html",
     "https://www.rfc-editor.org/rfc/rfc9499.html",
     "https://www.rfc-editor.org/rfc/rfc9525.html",
+    "https://www.rfc-editor.org/rfc/rfc9542.html",
     "https://www.riverbankcomputing.com/static/Docs/PyQt6/introduction.html",
     "https://www.riverbankcomputing.com/static/Docs/PyQt6/signals_slots.html",
     "https://www.rsyslog.com/doc/configuration/modules/omfile.html",
