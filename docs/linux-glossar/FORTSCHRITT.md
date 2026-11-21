@@ -4589,3 +4589,186 @@ Branch `codex/linux-glossar-011-302`; Ausgangscommit dieses Abschnitts `31c1886a
 Gesamtprüfung aller 250 Dokumente erfolgreich: Quelle unverändert mit erwartetem SHA-256, 302 eindeutige IDs/Begriffe; vollständige Originalzuordnung, Metadaten und Kategorieableitung; unverändertes Indexschema, lückenlose records und documented_records; genaue sortierte duplikatfreie Quellenvereinigung; zehn Hauptabschnitte, Codeblöcke, Größen-/Parserlimits, interne Verweise und tatsächliche Dokumentprüfsummen. Alle bisherigen 240 Texte und Indexdatensätze sowie PROMPT.md gegenüber dem Ausgangscommit unverändert, Pilottexte und Pilotindex zusätzlich gegen den Pilotcommit geprüft. Neue Linkbeschriftungen mit Katalogbegriffen abgeglichen. 166 vollständige Python-Beispiele und ein JavaScript-Beispiel erneut erfolgreich ausgeführt, Assertions, Exitcodes und vollständige Standardausgaben geprüft. Exakter Änderungsumfang neue Texte 241–250 sowie Index und Fortschritt; git diff --check erfolgreich.
 
 Sieben neue ausführbare Python-Beispiele: sichere SQLite-Wertbindung, lokale IP-Literalprüfung, HTML-/POSIX-Shell-Textdarstellung, eigener nicht registrierter Zufallswert ohne Inhaltsausgabe, zwei eigene Unit-Testfälle, temporärer SQLite-Dateirundlauf und kontrollierter Mock. Drei nicht ausgeführte Gedankenmodelle zu Keyring, allgemeinem Test und End-to-End-Test. Keine unsichere SQL-Variante oder echte Shell ausgeführt; keine Verbindungen oder echten Zugangsdaten verwendet. Kein Keyring gelesen/entsperrt, keine Browser-/GUI-Werkzeuge installiert, keine vorhandenen Anwendungstests verändert. Secret-Service-Quelle als abgerufenen Entwurf 0.2 gekennzeichnet. Keine echte Login-, Rechte-, Netzwerk-, End-to-End- oder Reader-Abnahme behauptet. Alle neuen Texte review_pending; fachliche Zweitprüfung und lokale Reader-Prüfung offen. Strukturprüfung im vorhandenen Markdown-Parser mit ausschließlich temporärem kompatiblem Kopf.
+
+## 251. Fixture – it_0251
+
+Ausgearbeitet und strukturell geprüft: 753 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 7098 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/tempfile.html#tempfile.TemporaryDirectory
+- https://docs.python.org/3.13/library/unittest.html#unittest.TestCase.addCleanup
+- https://docs.python.org/3.13/library/unittest.html#unittest.TestCase.setUp
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Zwei eigene unittest-Fälle mit jeweils frischer temporärer Textdatei ausgeführt; Ausgangsinhalt und abschließende Entfernung beider Ordner geprüft. Keine vorhandenen Tests oder Dateien verändert.
+
+Präzisierung gegenüber der Quelle: Fixture als verwaltete Ausgangsbedingungen mit Lebensdauer/Aufräumen erklärt; unittest-setUp und rechtzeitig registrierte Cleanups kontextualisiert. Temporäre Ablage keine Sandbox.
+
+SHA-256: `edcbcbc0b465cab3101172caa1cc3fdf2a62ee3a1e87eb55a7800ef83ee17c4e`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 252. Assertion – it_0252
+
+Ausgearbeitet und strukturell geprüft: 741 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6732 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/unittest.html#unittest.TestCase.assertEqual
+- https://docs.python.org/3.13/reference/simple_stmts.html#the-assert-statement
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigene minimale Python-Datei normal und mit -O gestartet; erwarteten AssertionError beziehungsweise dessen Wegfall kontrolliert, keine vorhandenen Tests/Sicherheitsprüfungen verändert.
+
+Präzisierung gegenüber der Quelle: Assertion als präzise Erwartung von Gleichheit/Wahrheit/Identität und produktiver Prüfung getrennt. Python-assert unter -O ausdrücklich nicht unverzichtbare Sicherheitskontrolle; Frameworkmethoden gesondert.
+
+SHA-256: `dc6db515543946724c0d10d334d85b2d0243e97064f4dd02b96ad9bd64843d8d`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 253. Regression – it_0253
+
+Ausgearbeitet und strukturell geprüft: 742 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6416 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/test.html
+- https://docs.python.org/3.13/library/unittest.html#organizing-test-code
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigene frühere und absichtlich verschlechterte Textfunktion verglichen; keine App-Regressionsmeldung, vorhandene Testsuite oder Leistungsprüfung.
+
+Präzisierung gegenüber der Quelle: Regression über Wiederkehr desselben Bugs hinaus als Verschlechterung früheren Verhaltens erklärt; Anforderungsänderung, Testfehlschlag und Ursache getrennt. Python-internes test-Paket nicht als App-Werkzeug verwendet.
+
+SHA-256: `835ebf6c8ebd6a26b3682647daf4fad4f2393f1bb996e4919376d73408507008`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 254. Linting – it_0254
+
+Ausgearbeitet und strukturell geprüft: 757 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6767 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/astral-sh/ruff/main/crates/ruff_linter/src/rules/pyflakes/rules/unused_import.rs
+- https://raw.githubusercontent.com/astral-sh/ruff/main/docs/linter.md
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Vorhandenes Ruff 0.17.5 prüft nur eigene temporäre kompilierbare Datei, F401 gezielt erkannt, Dateibytes unverändert; nichts installiert, keine App- oder Testkonfiguration verändert.
+
+Präzisierung gegenüber der Quelle: Linting von Syntaxprüfung, Formatter, Tests und Typprüfung getrennt. Ruff-Regelauswahl/Version und erwarteter Verstoß-Exitcode ausdrücklich eingeordnet; keine automatische Korrektur.
+
+SHA-256: `d691c90f26d0c8a77274b104f1642c14303d7f4dada88426c898d0cb3e38ce32`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 255. Formatter – it_0255
+
+Ausgearbeitet und strukturell geprüft: 775 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 7029 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://raw.githubusercontent.com/psf/black/main/docs/the_black_code_style/current_style.md
+- https://raw.githubusercontent.com/psf/black/main/docs/usage_and_configuration/the_basics.md
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Vorhandenes Black 26.10.1 auf einer eigenen temporären Quelldatei pro Aufruf geprüft; Formatänderung, gleicher AST und anschließender erfolgreicher --check kontrolliert, keine App-/Test-/Projektdateien verändert.
+
+Präzisierung gegenüber der Quelle: Formatter von Linter, Laufzeitprüfung und Review getrennt. Black-Version, Prüf-/Schreibmodus, Rückgabewerte und begrenzte AST-Kontrolle eingeordnet.
+
+SHA-256: `65baee888e58e12bcaf2fc8052d6aeca5b74f49ed4eef8d13f3f00343f80a071`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 256. Code Review – it_0256
+
+Ausgearbeitet und strukturell geprüft: 753 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6495 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://google.github.io/eng-practices/review/reviewer/looking-for.html
+- https://google.github.io/eng-practices/review/reviewer/standard.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht ausgeführtes Review-Modell; keine echte Fehlerstelle behauptet, Reviewer zugewiesen, Nachricht/Kommentar versandt oder unabhängige Glossar-/Reader-Freigabe behauptet.
+
+Präzisierung gegenüber der Quelle: Review als menschliche Beurteilung eines konkreten Stands erklärt; Tests, Werkzeuge, Stilwünsche und unabhängige Zweitprüfung getrennt. Google-Praktiken als organisationsbezogene Primärquelle eingeordnet.
+
+SHA-256: `31348b8a4f8691f2b277610b9eac0e4ab884782e810b9c86cb97a628638db125`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 257. CI – it_0257
+
+Ausgearbeitet und strukturell geprüft: 754 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6664 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.github.com/en/actions/get-started/continuous-integration
+- https://martinfowler.com/articles/continuousIntegration.html
+
+Gedankenbeispiel: keine praktische Ausführung vorgesehen oder behauptet. Nicht ausgeführtes Workflow-Modell; keine CI-Datei, manueller Lauf, Runner, Konten-/Secrets-/Berechtigungsänderung, Merge oder Veröffentlichung angelegt.
+
+Präzisierung gegenüber der Quelle: CI über automatische Tests hinaus als regelmäßige Integration mit Rückmeldung erklärt. Plattformauslöser, Commitbezug, übersprungene Prüfungen und Veröffentlichung getrennt.
+
+SHA-256: `3217a7953245a2e8ee935511dfc9a36a6299100297908b2ff5c883479bb3d21f`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 258. Coverage – it_0258
+
+Ausgearbeitet und strukturell geprüft: 749 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6713 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/trace.html#trace.Trace
+- https://raw.githubusercontent.com/nedbat/coveragepy/master/doc/branch.rst
+- https://raw.githubusercontent.com/nedbat/coveragepy/master/doc/howitworks.rst
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigene temporäre falsche Funktion vollständig im ausdrücklich gewählten Zeilenausschnitt erreicht und falsches Ergebnis nachgewiesen; Dateizuordnung für trace gesetzt. Keine Bibliothek installiert, App-/Testsuite-/CI-Coverage verändert.
+
+Präzisierung gegenüber der Quelle: Coverage als Ausführungsmaß mit erklärtem Nenner statt Korrektheitsbeweis erklärt; Zeilen-/Statement- und Branch-Abdeckung getrennt. Standard-trace-Modell keine coverage.py-/Projektmessung.
+
+SHA-256: `8e06d5e10ca878f24fd648ad083e986a05ade10bbd7e01536a0b2c9bda33628d`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 259. Thread – it_0259
+
+Ausgearbeitet und strukturell geprüft: 733 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6499 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/threading.html#gil-and-performance-considerations
+- https://docs.python.org/3.13/library/threading.html#threading.Thread.join
+- https://man7.org/linux/man-pages/man7/pthreads.7.html
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Eigener kurzlebiger Python-Thread mit gleicher PID, anderer Threadkennung und erwarteter Textausgabe geprüft; Ende kontrolliert, keine GUI-/Netzwerk-/Leistungs- oder allgemeine Synchronisierungsabnahme.
+
+Präzisierung gegenüber der Quelle: Thread von Prozessisolierung, Worker-Rolle und automatischer Beschleunigung getrennt. CPython-GIL-Aussagen auf Version/Build bezogen; join, Timeout, Ende und Erfolg unterschieden.
+
+SHA-256: `2c60ec78504fb2ea81037bbf1ac0a2f4877cfea302bee49ed3c4eee910e6c046`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## 260. Multithreading – it_0260
+
+Ausgearbeitet und strukturell geprüft: 746 durch Leerraum getrennte Wörter einschließlich Beispiel/Links; 6845 UTF-8-Bytes; 31 Darstellungsblöcke.
+
+Geprüfte Primärquellen:
+
+- https://docs.python.org/3.13/library/threading.html#barrier-objects
+- https://docs.python.org/3.13/library/threading.html#event-objects
+- https://docs.python.org/3.13/library/threading.html#gil-and-performance-considerations
+- https://docs.python.org/3.13/library/threading.html#lock-objects
+
+Praktische Prüfung: ein vollständiges ausführbares Beispiel, Exitcode 0; Ausgabe exakt wie dokumentiert. Zwei eigene Python-Worker mit Barrier/Event/Lock, erwarteten Werten und kontrolliertem Ende; keine CPU-Parallelitäts-, Leistungs-, GUI- oder Netzwerkprüfung.
+
+Präzisierung gegenüber der Quelle: Multithreading als nebenläufige und je nach Umgebung auch parallele Ausführung präzisiert. GIL versions-/buildbezogen; Event, Barrier, Lock, Reihenfolge, Beenden und Leistung getrennt.
+
+SHA-256: `0704ec621de1966aec9fc1a84574854cada25bfbeefa121d3c67c3e4e9f70bce`.
+
+Offen: unabhängige inhaltliche Prüfung sowie Reader-Zuordnung, Darstellung, Suche, Code-Kopieren und getrennter Lesestatus.
+
+## Sicherungspunkt nach Eintrag 260
+
+Branch `codex/linux-glossar-011-302`; Ausgangscommit dieses Abschnitts `f73d71ac19e08fed01c3da9e3473396167fa68b3`. Einträge 251–260 einzeln in Quellreihenfolge recherchiert, geschrieben und geprüft; Index und Fortschritt nach jedem Abschluss gespeichert. Tatsächlicher Stand: 260 von 302; 42 fehlen. Nächster Eintrag: `it_0261` – Process Fork. Freigabe bis 302 bleibt aktiv; gemeinsame Gesamtzusammenfassung noch offen.
+
+Gesamtprüfung aller 260 Dokumente erfolgreich: Quelle mit erwartetem SHA-256 unverändert, 302 eindeutige IDs/Begriffe; vollständige Originalzuordnung, Metadaten, Kategorieableitung, unverändertes Indexschema, lückenlose records und documented_records; sortierte duplikatfreie Vereinigung der genauen Eintragsquellen; zehn Hauptabschnitte, Codeblöcke, Größen-/Parserlimits, interne Verweise und tatsächliche Dokumentprüfsummen. Alle bisherigen 250 Texte und Indexdatensätze sowie PROMPT.md gegenüber dem Ausgangscommit unverändert; Pilottexte und Pilotindex zusätzlich gegen den Pilotcommit geprüft. Neue semantische Linkbeschriftungen stimmen mit Originalbegriffen überein. 174 vollständige Python-Beispiele und ein JavaScript-Beispiel erneut erfolgreich ausgeführt; Assertions, Exitcodes und exakte Ausgaben kontrolliert. Ausschließlich neue Texte 251–260 sowie Index und Fortschritt verändert; git diff --check erfolgreich.
+
+Acht neue praktische Python-Beispiele: Fixture samt Cleanup, assert mit/ohne Optimierung, eigenes Regressionsmodell, Linting, Formatierung, begrenzte Zeilenaufzeichnung, Thread und Multithreading. Vorhandenes Ruff 0.17.5 und Black 26.10.1 ausschließlich an eigenen temporären Quelldateien geprüft; Black pro Aufruf mit einer Quelldatei und eigener Konfiguration, ohne Cache. Erwartete Unterprozess-Verstoßcodes ausdrücklich kontrolliert. Keine Tools installiert, Projektdateien formatiert oder bestehende Tests verändert. Coverage-Demonstration verwendet Standardbibliothek trace und erklärt ihren Umfang; keine App-Coverage gemessen. Eigene Threads beendet, Ressourcen aufgeräumt. Code Review und CI bleiben ausdrücklich nicht ausgeführte Gedankenmodelle; keine Reviewer-Kommentare, manuellen Workflows, Berechtigungsänderungen oder Veröffentlichungen ausgelöst. Alle neuen Texte review_pending; unabhängige inhaltliche Prüfung und lokale Reader-Abnahme weiterhin offen. Temporäre Kopf-/Markdown-Strukturprüfung ist keine Reader-Abnahme.

@@ -4,7 +4,7 @@
   "source_catalog": "tools/it_lexikon_linux_hilfe.json",
   "source_sha256": "b3fb9bfe37d335ee6eaa89c89425f08c94e8efc6f698e7c520ffc81ed128fc24",
   "total_records": 302,
-  "documented_records": 250,
+  "documented_records": 260,
   "records": [
     {
       "source_record": 1,
@@ -5920,6 +5920,243 @@
         "https://docs.python.org/3.13/library/unittest.mock.html#unittest.mock.Mock.side_effect"
       ],
       "status": "review_pending"
+    },
+    {
+      "source_record": 251,
+      "id": "it_0251",
+      "term": "Fixture",
+      "category": "Testing",
+      "document": "it_0251.md",
+      "sha256": "edcbcbc0b465cab3101172caa1cc3fdf2a62ee3a1e87eb55a7800ef83ee17c4e",
+      "source": {
+        "id": "it_0251",
+        "term": "Fixture",
+        "short": "Vorbereitete Testdaten oder Testumgebung.",
+        "example": "Eine Fixture erstellt temporäre Dateien.",
+        "tags": [
+          "testing"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/tempfile.html#tempfile.TemporaryDirectory",
+        "https://docs.python.org/3.13/library/unittest.html#unittest.TestCase.addCleanup",
+        "https://docs.python.org/3.13/library/unittest.html#unittest.TestCase.setUp"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 252,
+      "id": "it_0252",
+      "term": "Assertion",
+      "category": "Testing",
+      "document": "it_0252.md",
+      "sha256": "dc6db515543946724c0d10d334d85b2d0243e97064f4dd02b96ad9bd64843d8d",
+      "source": {
+        "id": "it_0252",
+        "term": "Assertion",
+        "short": "Prüfbehauptung in einem Test.",
+        "example": "assert result == True prüft das Ergebnis.",
+        "tags": [
+          "testing"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/unittest.html#unittest.TestCase.assertEqual",
+        "https://docs.python.org/3.13/reference/simple_stmts.html#the-assert-statement"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 253,
+      "id": "it_0253",
+      "term": "Regression",
+      "category": "Testing",
+      "document": "it_0253.md",
+      "sha256": "835ebf6c8ebd6a26b3682647daf4fad4f2393f1bb996e4919376d73408507008",
+      "source": {
+        "id": "it_0253",
+        "term": "Regression",
+        "short": "Ein Fehler, der nach Änderungen wieder auftritt.",
+        "example": "Ein bereits behobener Bug taucht erneut auf.",
+        "tags": [
+          "testing"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/test.html",
+        "https://docs.python.org/3.13/library/unittest.html#organizing-test-code"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 254,
+      "id": "it_0254",
+      "term": "Linting",
+      "category": "Testing",
+      "document": "it_0254.md",
+      "sha256": "d691c90f26d0c8a77274b104f1642c14303d7f4dada88426c898d0cb3e38ce32",
+      "source": {
+        "id": "it_0254",
+        "term": "Linting",
+        "short": "Automatische Prüfung von Code-Stil und einfachen Fehlern.",
+        "example": "ruff oder flake8 können Python-Code linten.",
+        "tags": [
+          "testing",
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://raw.githubusercontent.com/astral-sh/ruff/main/crates/ruff_linter/src/rules/pyflakes/rules/unused_import.rs",
+        "https://raw.githubusercontent.com/astral-sh/ruff/main/docs/linter.md"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 255,
+      "id": "it_0255",
+      "term": "Formatter",
+      "category": "Testing",
+      "document": "it_0255.md",
+      "sha256": "65baee888e58e12bcaf2fc8052d6aeca5b74f49ed4eef8d13f3f00343f80a071",
+      "source": {
+        "id": "it_0255",
+        "term": "Formatter",
+        "short": "Werkzeug zur automatischen Code-Formatierung.",
+        "example": "black formatiert Python-Code.",
+        "tags": [
+          "testing",
+          "python"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://raw.githubusercontent.com/psf/black/main/docs/the_black_code_style/current_style.md",
+        "https://raw.githubusercontent.com/psf/black/main/docs/usage_and_configuration/the_basics.md"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 256,
+      "id": "it_0256",
+      "term": "Code Review",
+      "category": "Testing",
+      "document": "it_0256.md",
+      "sha256": "31348b8a4f8691f2b277610b9eac0e4ab884782e810b9c86cb97a628638db125",
+      "source": {
+        "id": "it_0256",
+        "term": "Code Review",
+        "short": "Prüfung von Code durch eine andere Person.",
+        "example": "Ein Review findet Fehler und verbessert Lesbarkeit.",
+        "tags": [
+          "testing"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://google.github.io/eng-practices/review/reviewer/looking-for.html",
+        "https://google.github.io/eng-practices/review/reviewer/standard.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 257,
+      "id": "it_0257",
+      "term": "CI",
+      "category": "Testing",
+      "document": "it_0257.md",
+      "sha256": "3217a7953245a2e8ee935511dfc9a36a6299100297908b2ff5c883479bb3d21f",
+      "source": {
+        "id": "it_0257",
+        "term": "CI",
+        "short": "Continuous Integration: automatische Tests bei Änderungen.",
+        "example": "GitHub Actions kann Tests bei jedem Push ausführen.",
+        "tags": [
+          "testing"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.github.com/en/actions/get-started/continuous-integration",
+        "https://martinfowler.com/articles/continuousIntegration.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 258,
+      "id": "it_0258",
+      "term": "Coverage",
+      "category": "Testing",
+      "document": "it_0258.md",
+      "sha256": "8e06d5e10ca878f24fd648ad083e986a05ade10bbd7e01536a0b2c9bda33628d",
+      "source": {
+        "id": "it_0258",
+        "term": "Coverage",
+        "short": "Messung, welcher Code durch Tests ausgeführt wird.",
+        "example": "80 Prozent Coverage heißt nicht automatisch fehlerfrei.",
+        "tags": [
+          "testing"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/trace.html#trace.Trace",
+        "https://raw.githubusercontent.com/nedbat/coveragepy/master/doc/branch.rst",
+        "https://raw.githubusercontent.com/nedbat/coveragepy/master/doc/howitworks.rst"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 259,
+      "id": "it_0259",
+      "term": "Thread",
+      "category": "Concurrency",
+      "document": "it_0259.md",
+      "sha256": "2c60ec78504fb2ea81037bbf1ac0a2f4877cfea302bee49ed3c4eee910e6c046",
+      "source": {
+        "id": "it_0259",
+        "term": "Thread",
+        "short": "Ein Ausführungsstrang innerhalb eines Prozesses.",
+        "example": "Ein Thread kann im Hintergrund scannen, während die GUI reagiert.",
+        "tags": [
+          "concurrency"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/threading.html#gil-and-performance-considerations",
+        "https://docs.python.org/3.13/library/threading.html#threading.Thread.join",
+        "https://man7.org/linux/man-pages/man7/pthreads.7.html"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 260,
+      "id": "it_0260",
+      "term": "Multithreading",
+      "category": "Concurrency",
+      "document": "it_0260.md",
+      "sha256": "0704ec621de1966aec9fc1a84574854cada25bfbeefa121d3c67c3e4e9f70bce",
+      "source": {
+        "id": "it_0260",
+        "term": "Multithreading",
+        "short": "Mehrere Threads laufen scheinbar gleichzeitig.",
+        "example": "GUI und Netzwerkprüfung können getrennte Threads nutzen.",
+        "tags": [
+          "concurrency"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/threading.html#barrier-objects",
+        "https://docs.python.org/3.13/library/threading.html#event-objects",
+        "https://docs.python.org/3.13/library/threading.html#gil-and-performance-considerations",
+        "https://docs.python.org/3.13/library/threading.html#lock-objects"
+      ],
+      "status": "review_pending"
     }
   ],
   "source_urls": [
@@ -5943,6 +6180,7 @@
     "https://docs.djangoproject.com/en/5.2/intro/overview/",
     "https://docs.djangoproject.com/en/5.2/topics/http/sessions/",
     "https://docs.fedoraproject.org/en-US/quick-docs/dnf/",
+    "https://docs.github.com/en/actions/get-started/continuous-integration",
     "https://docs.github.com/en/pull-requests/how-tos/create-pull-requests/changing-the-stage-of-a-pull-request",
     "https://docs.github.com/en/pull-requests/how-tos/work-with-forks/syncing-a-fork",
     "https://docs.github.com/en/pull-requests/reference/forks",
@@ -6056,6 +6294,13 @@
     "https://docs.python.org/3.13/library/subprocess.html#subprocess.TimeoutExpired",
     "https://docs.python.org/3.13/library/subprocess.html#subprocess.run",
     "https://docs.python.org/3.13/library/sys.html#sys.implementation",
+    "https://docs.python.org/3.13/library/tempfile.html#tempfile.TemporaryDirectory",
+    "https://docs.python.org/3.13/library/test.html",
+    "https://docs.python.org/3.13/library/threading.html#barrier-objects",
+    "https://docs.python.org/3.13/library/threading.html#event-objects",
+    "https://docs.python.org/3.13/library/threading.html#gil-and-performance-considerations",
+    "https://docs.python.org/3.13/library/threading.html#lock-objects",
+    "https://docs.python.org/3.13/library/threading.html#threading.Thread.join",
     "https://docs.python.org/3.13/library/time.html#time.perf_counter",
     "https://docs.python.org/3.13/library/tkinter.html#a-hello-world-program",
     "https://docs.python.org/3.13/library/tkinter.html#architecture",
@@ -6072,14 +6317,18 @@
     "https://docs.python.org/3.13/library/tkinter.ttk.html#tkinter.ttk.Style.theme_create",
     "https://docs.python.org/3.13/library/tkinter.ttk.html#ttk-widgets",
     "https://docs.python.org/3.13/library/tomllib.html#tomllib.load",
+    "https://docs.python.org/3.13/library/trace.html#trace.Trace",
     "https://docs.python.org/3.13/library/traceback.html#traceback.extract_tb",
     "https://docs.python.org/3.13/library/typing.html",
     "https://docs.python.org/3.13/library/typing.html#typing.Final",
     "https://docs.python.org/3.13/library/typing.html#typing.Protocol",
     "https://docs.python.org/3.13/library/unittest.html",
     "https://docs.python.org/3.13/library/unittest.html#basic-example",
+    "https://docs.python.org/3.13/library/unittest.html#organizing-test-code",
+    "https://docs.python.org/3.13/library/unittest.html#unittest.TestCase.addCleanup",
     "https://docs.python.org/3.13/library/unittest.html#unittest.TestCase.assertEqual",
     "https://docs.python.org/3.13/library/unittest.html#unittest.TestCase.assertRaises",
+    "https://docs.python.org/3.13/library/unittest.html#unittest.TestCase.setUp",
     "https://docs.python.org/3.13/library/unittest.mock.html#auto-speccing",
     "https://docs.python.org/3.13/library/unittest.mock.html#unittest.mock.Mock.side_effect",
     "https://docs.python.org/3.13/library/urllib.parse.html#urllib.parse.urlsplit",
@@ -6117,6 +6366,7 @@
     "https://docs.python.org/3.13/reference/lexical_analysis.html#comments",
     "https://docs.python.org/3.13/reference/lexical_analysis.html#encoding-declarations",
     "https://docs.python.org/3.13/reference/simple_stmts.html#expression-statements",
+    "https://docs.python.org/3.13/reference/simple_stmts.html#the-assert-statement",
     "https://docs.python.org/3.13/reference/simple_stmts.html#the-import-statement",
     "https://docs.python.org/3.13/reference/simple_stmts.html#the-return-statement",
     "https://docs.python.org/3.13/tutorial/appendix.html#executable-python-scripts",
@@ -6151,6 +6401,8 @@
     "https://dom.spec.whatwg.org/#introduction-to-dom-events",
     "https://fetch.spec.whatwg.org/#http-cors-protocol",
     "https://firewalld.org/documentation/concepts.html",
+    "https://google.github.io/eng-practices/review/reviewer/looking-for.html",
+    "https://google.github.io/eng-practices/review/reviewer/standard.html",
     "https://help.gnome.org/gnome-terminal/introduction.html",
     "https://html.spec.whatwg.org/multipage/form-elements.html#the-button-element",
     "https://html.spec.whatwg.org/multipage/introduction.html",
@@ -6183,6 +6435,7 @@
     "https://man7.org/linux/man-pages/man7/path_resolution.7.html",
     "https://man7.org/linux/man-pages/man7/pid_namespaces.7.html",
     "https://man7.org/linux/man-pages/man7/pipe.7.html",
+    "https://man7.org/linux/man-pages/man7/pthreads.7.html",
     "https://man7.org/linux/man-pages/man7/socket.7.html",
     "https://man7.org/linux/man-pages/man7/symlink.7.html",
     "https://man7.org/linux/man-pages/man7/unix.7.html",
@@ -6198,6 +6451,7 @@
     "https://manpages.debian.org/trixie/apt/sources.list.5.en.html",
     "https://manpages.debian.org/trixie/dpkg-dev/deb.5.en.html",
     "https://manpages.debian.org/trixie/dpkg/dpkg-deb.1.en.html",
+    "https://martinfowler.com/articles/continuousIntegration.html",
     "https://martinfowler.com/articles/injection.html",
     "https://martinfowler.com/bliki/DefinitionOfRefactoring.html",
     "https://netfilter.org/projects/nftables/manpage.html",
@@ -6233,6 +6487,8 @@
     "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.md",
     "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Secrets_Management_Cheat_Sheet.md",
     "https://raw.githubusercontent.com/OWASP/CheatSheetSeries/master/cheatsheets/Session_Management_Cheat_Sheet.md",
+    "https://raw.githubusercontent.com/astral-sh/ruff/main/crates/ruff_linter/src/rules/pyflakes/rules/unused_import.rs",
+    "https://raw.githubusercontent.com/astral-sh/ruff/main/docs/linter.md",
     "https://raw.githubusercontent.com/django/django/stable/5.2.x/docs/howto/deployment/checklist.txt",
     "https://raw.githubusercontent.com/git/git/master/Documentation/git-add.adoc",
     "https://raw.githubusercontent.com/git/git/master/Documentation/git-branch.adoc",
@@ -6255,6 +6511,10 @@
     "https://raw.githubusercontent.com/github/docs/main/content/repositories/releasing-projects-on-github/about-releases.md",
     "https://raw.githubusercontent.com/htop-dev/htop/main/htop.1.in",
     "https://raw.githubusercontent.com/kubernetes/website/main/content/en/docs/concepts/workloads/controllers/deployment.md",
+    "https://raw.githubusercontent.com/nedbat/coveragepy/master/doc/branch.rst",
+    "https://raw.githubusercontent.com/nedbat/coveragepy/master/doc/howitworks.rst",
+    "https://raw.githubusercontent.com/psf/black/main/docs/the_black_code_style/current_style.md",
+    "https://raw.githubusercontent.com/psf/black/main/docs/usage_and_configuration/the_basics.md",
     "https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/discussions/distribution-package-vs-import-package.rst",
     "https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/guides/creating-and-discovering-plugins.rst",
     "https://raw.githubusercontent.com/pypa/packaging.python.org/main/source/specifications/dependency-specifiers.rst",
