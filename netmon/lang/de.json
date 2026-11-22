@@ -1,4 +1,8 @@
 {
+    "backup_btn_open_netmon_manager": "NetMon verwalten öffnen",
+    "backup_netmon_manager_missing": "Für die Verwaltung wird das Paket netmon-manager benötigt.",
+    "backup_netmon_manager_failed": "Start fehlgeschlagen. {detail}",
+    "backup_netmon_manager_hint": "NetMon, Radio und Secure Browser vor der Vollsicherung oder einem Paketwechsel schließen.",
     "tab_settings": "Setup",
     "tab_log": "Log",
     "tab_trace": "Trace",

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import subprocess
 import tkinter as tk
-from tkinter import ttk
+from tkinter import messagebox, ttk
 
 from ...config.constants import NETMON_SUPPORT_EMAIL
 from ..widgets.scrollable_form import ScrollableForm
@@ -879,6 +880,38 @@ def build_settings_maintenance(app, general_tab) -> None:
         )
 
 
+def open_manager(app):
+    title = app.tr("backup_btn_open_netmon_manager", "NetMon verwalten öffnen")
+    try:
+        subprocess.Popen(
+            ["/usr/bin/netmon-manage"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except FileNotFoundError:
+        messagebox.showinfo(
+            title,
+            app.tr(
+                "backup_netmon_manager_missing",
+                "Für die Verwaltung wird das Paket netmon-manager benötigt.",
+            ),
+            parent=app,
+        )
+        return False
+    except OSError as exc:
+        messagebox.showerror(
+            title,
+            app.tr(
+                "backup_netmon_manager_failed", "Start fehlgeschlagen. {detail}"
+            ).format(detail=exc.strerror or str(exc)),
+            parent=app,
+        )
+        return False
+    return True
+
+
 def build_settings_backup(app, tab) -> None:
     """Build the settings backup overview and action controls."""
     app.settings_backup_tab = tab
@@ -1016,6 +1049,21 @@ def build_settings_backup(app, tab) -> None:
     )
     app.btn_backup_netmon_open_folder.grid(
         row=2, column=1, sticky="ew", padx=(6, 6), pady=(0, 6)
+    )
+    app.btn_backup_netmon_manager = ttk.Button(
+        netmon_group,
+        text=app.tr("backup_btn_open_netmon_manager", "NetMon verwalten öffnen"),
+        command=lambda: open_manager(app),
+    )
+    app.btn_backup_netmon_manager.grid(
+        row=4, column=0, columnspan=2, sticky="ew", pady=(2, 6)
+    )
+    app.add_tooltip(
+        app.btn_backup_netmon_manager,
+        app.tr(
+            "backup_netmon_manager_hint",
+            "NetMon, Radio und Secure Browser vor der Vollsicherung oder einem Paketwechsel schließen.",
+        ),
     )
     app.refresh_netmon_backup_folder_options()
 

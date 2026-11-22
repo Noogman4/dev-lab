@@ -1,4 +1,8 @@
 {
+    "backup_btn_open_netmon_manager": "Open NetMon Manager",
+    "backup_netmon_manager_missing": "NetMon Manager requires the netmon-manager package.",
+    "backup_netmon_manager_failed": "Could not open NetMon Manager. {detail}",
+    "backup_netmon_manager_hint": "Close NetMon, Radio and Secure Browser before creating a full backup or changing package versions.",
     "tab_settings": "Setup",
     "tab_log": "Log",
     "tab_trace": "Trace",

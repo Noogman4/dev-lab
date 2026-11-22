@@ -10,6 +10,7 @@ from unittest.mock import Mock
 import pytest
 
 from netmon.app import App
+from netmon.ui.tabs import settings_tab
 from netmon.ui.tabs.download_scan_tab import build_download_scan_content
 from netmon.ui.tabs.settings_tab import build_settings_backup, build_settings_content
 from tests.test_terminal_dock_v39 import open_dock, workspace as workspace
@@ -84,7 +85,9 @@ def visible(form, widget):
 
 
 @pytest.mark.parametrize("workspace", [False, "natural"], indirect=True)
-def test_setup_all_subpages_and_scan_are_bounded_scrollable_forms(workspace):
+def test_setup_all_subpages_and_scan_are_bounded_scrollable_forms(
+    workspace, monkeypatch
+):
     root, host, app, errors = prepare(workspace)
     global_wheel = root.bind_all("<Button-5>")
     app.nb.select(app.tab_settings)
@@ -124,6 +127,25 @@ def test_setup_all_subpages_and_scan_are_bounded_scrollable_forms(workspace):
             assert combo.get() == "Deutsch"
             combo.event_generate("<MouseWheel>", delta=120)
             root.update()
+        if name == "backup":
+            manager = app.btn_backup_netmon_manager
+            assert manager.winfo_y() > app.btn_backup_netmon_export.winfo_y()
+            assert manager.grid_info()["columnspan"] == 2
+            restore = app.__dict__.get("btn_backup_netmon_restore")
+            if restore is not None:
+                assert manager.winfo_y() > restore.winfo_y()
+                assert manager.winfo_width() == restore.winfo_width()
+            launch_manager = Mock()
+            with monkeypatch.context() as patches:
+                patches.setattr(settings_tab.subprocess, "Popen", launch_manager)
+                manager.invoke()
+            launch_manager.assert_called_once_with(
+                ["/usr/bin/netmon-manage"],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
         # Notebook headings stay fixed while only this subpage scrolls.
         assert app.settings_nb.winfo_rooty() < form.canvas.winfo_rooty()
     App.return_to_guided_tour_tab(app)
