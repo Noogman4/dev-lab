@@ -1,4 +1,5 @@
 from contextlib import ExitStack, contextmanager
+from ipaddress import ip_network
 import json
 import os
 from pathlib import Path
@@ -7,6 +8,7 @@ import socket
 import subprocess
 import sys
 import tarfile
+from threading import Event
 import tempfile
 from types import SimpleNamespace
 
@@ -15,6 +17,7 @@ import pytest
 from netmon.modules.secure_browser import (
     container_launcher,
     container_migration,
+    network_policy,
     sandbox,
     session,
 )
@@ -274,11 +277,23 @@ def test_secure_browser_migration_backs_up_closed_profile_before_switching(
     assert desktop.read_bytes() == original_desktop
 
 
-@pytest.mark.parametrize("network_outcome", ["ready", "failed", "lost"])
+@pytest.mark.parametrize(
+    "network_outcome", ["ready", "failed", "lost", "filter_failed", "addresses_changed"]
+)
 def test_browser_waits_for_isolated_network_without_fallback(
-    monkeypatch, network_outcome
+    monkeypatch, network_outcome, request
 ):
     calls = []
+    stack = ExitStack()
+    request.addfinalizer(stack.close)
+    monitor, signal = sandbox._pipe(stack)
+
+    def install_filter(net_ns, user_ns):
+        assert (net_ns, user_ns) == (3001, 3002)
+        assert not select.select([browser.start_fd], [], [], 0)[0]
+        calls.append("filter")
+        if network_outcome == "filter_failed":
+            raise sandbox.BrowserSandboxError("Browser-Netzwerkfilter fehlgeschlagen")
 
     class Browser:
         def poll(self):
@@ -314,7 +329,7 @@ def test_browser_waits_for_isolated_network_without_fallback(
             try:
                 yield browser
             finally:
-                if network_outcome == "failed":
+                if network_outcome in {"failed", "filter_failed", "addresses_changed"}:
                     assert not select.select([browser.start_fd], [], [], 0)[0]
                 os.close(browser.start_fd)
         else:
@@ -332,10 +347,14 @@ def test_browser_waits_for_isolated_network_without_fallback(
             assert not select.select([browser.start_fd], [], [], 0)[0]
             if network_outcome != "failed":
                 os.write(fds[0], b"1")
+            if network_outcome == "addresses_changed":
+                signal.write(b"1")
             yield Network()
 
     monkeypatch.setattr(sandbox, "_network_user_namespace", user_namespace)
     monkeypatch.setattr(sandbox, "_process", process)
+    monkeypatch.setattr(sandbox, "_install_network_filter", install_filter)
+    monkeypatch.setattr(network_policy, "host_address_monitor", lambda: monitor)
 
     def start_and_poll():
         with (
@@ -347,9 +366,63 @@ def test_browser_waits_for_isolated_network_without_fallback(
     if network_outcome == "ready":
         start_and_poll()
     else:
-        with pytest.raises(sandbox.BrowserSandboxError, match="Browser-Netzwerk"):
+        with pytest.raises(
+            sandbox.BrowserSandboxError, match="Browser-Netzwerk|Host-Adressen"
+        ):
             start_and_poll()
-    assert calls == [sandbox._BWRAP, sandbox._NSENTER]
+    expected = [sandbox._BWRAP, "filter"]
+    if network_outcome != "filter_failed":
+        expected.append(sandbox._NSENTER)
+    assert calls == expected
+
+
+def test_host_address_change_stops_network_even_during_link_handoff():
+    terminated = Event()
+
+    class Network:
+        terminate = terminated.set
+
+    with ExitStack() as stack:
+        monitor, signal = sandbox._pipe(stack)
+        sandbox._stop_network_on_address_change(stack, monitor, Network())
+        signal.write(b"1")
+        assert terminated.wait(2)
+
+
+def test_installs_filter_with_pinned_browser_namespaces(monkeypatch):
+    local_nets = [ip_network("8.9.10.0/24"), ip_network("2001:4860:1234::/64")]
+    monkeypatch.setattr(network_policy, "host_networks", lambda *_args: local_nets)
+
+    def install(command, **kwargs):
+        assert command == [
+            sandbox._NSENTER,
+            "--user=/proc/self/fd/3002",
+            "--net=/proc/self/fd/3001",
+            "--preserve-credentials",
+            "--",
+            network_policy.NFT,
+            "-f",
+            "-",
+        ]
+        assert kwargs["pass_fds"] == (3001, 3002)
+        assert kwargs["check"] is True
+        rules = kwargs["input"]
+        assert "policy drop;" in rules
+        assert "ip daddr 10.0.2.3 meta l4proto { tcp, udp } th dport 53 accept" in rules
+        for cidr in (
+            "10.0.0.0/8",
+            "169.254.0.0/16",
+            "192.168.0.0/16",
+            "8.9.10.0/24",
+            "2001:4860:1234::/64",
+        ):
+            assert cidr in rules
+        assert "ip6 daddr 2000::/3" in rules
+        raise subprocess.CalledProcessError(1, command)
+
+    monkeypatch.setattr(sandbox.subprocess, "run", install)
+    with pytest.raises(sandbox.BrowserSandboxError, match="Netzwerkfilter"):
+        sandbox._install_network_filter(3001, 3002)
 
 
 def test_launcher_declines_the_regular_session_bus_before_starting(monkeypatch):

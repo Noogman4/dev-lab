@@ -90,9 +90,10 @@ für bestehende Profile zu prüfen.
 `sandbox.run_link()` startet die separat bereitgestellte Firefox-Binärdatei mit
 Bubblewrap unter Wayland. Es bindet ein eigenes Profil und einen Downloadordner
 ein. Der Aufrufer stellt die geprüfte Firefox-Basis und den privaten D-Bus bereit.
-Bubblewrap, `slirp4netns`, `nsenter` und ein für den Benutzer zugängliches
-TUN-Gerät müssen vorhanden sein. Firefox startet erst, wenn das isolierte
-IPv4-Netzwerk bereit ist. Fehler gehen an den Aufrufer zurück.
+Bubblewrap, `slirp4netns`, `nsenter`, `nft`, `ip` und ein für den Benutzer
+zugängliches TUN-Gerät müssen vorhanden sein. Firefox startet erst, wenn
+das isolierte IPv4-Netzwerk mit installiertem Zielfilter bereit ist.
+Fehler gehen an den Aufrufer zurück.
 
 Unter Wayland verwendet der geschützte Start den Socket der Sitzung. In einer
 lokalen X11-Sitzung öffnet NetMon ein Weston-Fenster und bindet dessen privaten
@@ -117,13 +118,14 @@ Namensräume werden dem Netzwerkhelfer über offene Dateideskriptoren übergeben
 Damit entfällt der zusätzliche `unshare`-Aufruf im AppArmor-Profil des
 Browserprozesses.
 
-Auf dem Zorin-Kernel mit aktivem AppArmor-Profil lud der neue Startweg eine
-lokale Testseite in einem isolierten Testnetz mit separatem Wayland-Display.
+Vor Einführung des Zielfilters lud der Startweg auf dem Zorin-Kernel mit
+aktivem AppArmor-Profil eine lokale Testseite in einem isolierten Testnetz
+mit separatem Wayland-Display.
 Bei einem Firefox-Inhaltsprozess war Seccomp aktiv. Der Test nutzte ein
 temporäres Profil und ein vom Desktop getrenntes Netzwerk.
 
-Im QEMU-Gast ohne externe Netzwerkkarte und Host-Freigaben wurden mit Firefox
-ESR 153.7.0 die getrennten Mount- und Netzwerk-Namensräume, ein Hauptprozess
+Beim damaligen Test im QEMU-Gast ohne externe Netzwerkkarte und Host-Freigaben
+wurden mit Firefox ESR 153.7.0 die getrennten Mount- und Netzwerk-Namensräume, ein Hauptprozess
 ohne Linux-Capabilities und der interne Seccomp-Filter eines Inhaltsprozesses
 geprüft. Die lokale Testseite war per DNS erreichbar. Der zweite Link kam im
 laufenden Profil an, erkennbar am bereits gesetzten Cookie. Firefox speicherte
@@ -131,9 +133,13 @@ eine Testdatei im eigenen Downloadordner. Eine separate TCP-Probe aus dem
 Browser-Namensraum erreichte den Test-Webserver, während der Zugriff über das
 Gateway auf den Loopback-Testdienst des Gasts scheiterte.
 
-Der DNS-Proxy von `slirp4netns` benutzt den Resolver des Systems. Die Sperre
-gilt für die Gateway-Adresse. LAN-Zugriffe und den tatsächlichen DNS-/VPN-Weg
-auf dem Desktop gilt es gesondert zu prüfen.
+Der Zielfilter gilt im eigenen Browser-Netzwerk-Namensraum für IPv4 und IPv6.
+Er sperrt private, link-lokale und weitere reservierte Zielbereiche sowie die
+beim Start direkt angeschlossenen Netze des Hosts. Zu dem von `slirp4netns`
+bereitgestellten DNS-Proxy sind nur TCP und UDP auf Port 53 freigegeben.
+Der Proxy verwendet den Resolver des Systems. Meldet der Kernel während der
+Sitzung eine Änderung an Host-Adressen, beendet NetMon die Netzwerkverbindung
+der Sandbox.
 [Netzwerkoptionen von slirp4netns](https://github.com/rootless-containers/slirp4netns/blob/v1.2.1/slirp4netns.1.md#filtering-connections)
 
 ## Sandbox für Secure Browser
@@ -145,8 +151,8 @@ Richtlinien. Die Auswahl im Tab bestimmt weiterhin, ob der Domainfilter aktiv
 ist. Bei einem Startfehler bleibt der Browser geschlossen. Eine Aktualisierung
 des Starters übernimmt den bereits gewählten Sandbox-Startmodus.
 
-Das NetMon-DEB verlangt `bubblewrap`, `slirp4netns`, `dbus-daemon`, `dbus-bin`
-und `util-linux`. Das separate `netmon-web-browser-runtime` wird empfohlen und
+Das NetMon-DEB verlangt `bubblewrap`, `slirp4netns`, `dbus-daemon`, `dbus-bin`,
+`util-linux`, `nftables` und `iproute2`. Das separate `netmon-web-browser-runtime` wird empfohlen und
 liefert die verwaltete Firefox-Basis für die unterstützte Architektur. Die
 Firefox-Kopiervorlage aus „Zusätzliche Komponenten“ liegt im Dokumente-Ordner
 und wird nur für ältere Profile verwendet. Der Preflight prüft die geschützte

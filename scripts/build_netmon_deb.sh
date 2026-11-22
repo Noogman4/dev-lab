@@ -11,9 +11,9 @@ MAINTAINER="Mr. Happy <netmon.proglab@protonmail.ch>"
 TEST_BUILD=0
 PACKAGE_SUMMARY="Linux-Netzwerkmonitor mit Security-, VPN- und Radio-Funktionen"
 PYTHON_DEPENDS="python3 (>= 3.11), python3-tk, python3-psutil, python3-pil, python3-pil.imagetk"
-FEATURE_TOOLS="network-manager, systemd-resolved, dnsutils, wireguard-tools, ufw, traceroute, mtr, nmap, iproute2, iftop, htop, lynis, rkhunter, clamav, clamav-freshclam, speedtest-cli, mpv, pipewire-bin, librsvg2-2 (>= 2.46), libcairo2, whois, python3-keyring, python3-gi, gir1.2-vte-2.91"
+FEATURE_TOOLS="network-manager, systemd-resolved, dnsutils, wireguard-tools, ufw, traceroute, mtr, nmap, iftop, htop, lynis, rkhunter, clamav, clamav-freshclam, speedtest-cli, mpv, pipewire-bin, librsvg2-2 (>= 2.46), libcairo2, whois, python3-keyring, python3-gi, gir1.2-vte-2.91"
 EXTRA_TOOLS="wireshark, tshark, projectm, projectm-pulseaudio, python3-pypdf2, python3-docx, python3-openpyxl, python3-pygame, python3-pgzero, sudo, gnome-keyring"
-BROWSER_DEPENDS="bubblewrap (>= 0.9.0), slirp4netns (>= 1.2.1), dbus-daemon, dbus-bin"
+BROWSER_DEPENDS="bubblewrap (>= 0.9.0), slirp4netns (>= 1.2.1), dbus-daemon, dbus-bin, util-linux, nftables, iproute2"
 DEPENDENCIES="$PYTHON_DEPENDS, udisks2, cryptsetup, $BROWSER_DEPENDS"
 RELATIONSHIPS="Recommends: netmon-manager (>= 1.0.0~beta1), netmon-web-browser-runtime, weston, $FEATURE_TOOLS
 Suggests: $EXTRA_TOOLS"

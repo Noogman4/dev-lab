@@ -13,10 +13,13 @@ import select
 import stat
 import subprocess
 import tempfile
+from threading import Thread
 import time
 from urllib.parse import urlsplit
 
 from netmon.core.private_logs import _private_directory
+
+from . import network_policy
 
 _BWRAP = "/usr/bin/bwrap"
 _SLIRP = "/usr/bin/slirp4netns"
@@ -240,6 +243,59 @@ def _network_user_namespace(stack, child_pid):
     return net_ns, user_ns
 
 
+def _install_network_filter(net_ns, user_ns):
+    # Bubblewrap's outer UID mapping gives this helper CAP_NET_ADMIN only in
+    # the private network namespace. Keep the mapped credentials on entry.
+    try:
+        host_networks = network_policy.host_networks(_HOST_ENV, _START_TIMEOUT)
+        subprocess.run(
+            [
+                _NSENTER,
+                f"--user=/proc/self/fd/{user_ns}",
+                f"--net=/proc/self/fd/{net_ns}",
+                "--preserve-credentials",
+                "--",
+                network_policy.NFT,
+                "-f",
+                "-",
+            ],
+            input=network_policy.ruleset(host_networks),
+            text=True,
+            env=_HOST_ENV,
+            pass_fds=(net_ns, user_ns),
+            timeout=_START_TIMEOUT,
+            check=True,
+        )
+    except (
+        OSError,
+        subprocess.SubprocessError,
+        KeyError,
+        TypeError,
+        ValueError,
+    ) as exc:
+        raise BrowserSandboxError(
+            "Der Netzwerkfilter der Browser-Sandbox konnte nicht eingerichtet werden."
+        ) from exc
+
+
+def _stop_network_on_address_change(stack, monitor, network):
+    cancel_read, cancel_write = _pipe(stack)
+
+    def watch():
+        try:
+            readable, _, _ = select.select([monitor, cancel_read], [], [])
+            if cancel_read in readable:
+                return
+        except (OSError, ValueError):
+            pass
+        network.terminate()
+
+    watcher = Thread(target=watch, name="browser-address-monitor", daemon=True)
+    watcher.start()
+    stack.callback(watcher.join)
+    stack.callback(cancel_write.close)
+
+
 @contextmanager
 def _networked_browser(stack, command, fds):
     info_read, info_write = _pipe(stack)
@@ -268,6 +324,8 @@ def _networked_browser(stack, command, fds):
             "Die Browser-Sandbox hat keine gültige Prozess-ID gemeldet."
         ) from exc
     net_ns, user_ns = _network_user_namespace(stack, child_pid)
+    monitor = stack.enter_context(network_policy.host_address_monitor())
+    _install_network_filter(net_ns, user_ns)
     # Bubblewrap maps the caller to UID 0 while setting up /dev/pts, then
     # launches Firefox as the original UID. slirp needs that outer mapping
     # for its own sandbox. Only the helper joins it, keeping host networking.
@@ -289,7 +347,7 @@ def _networked_browser(stack, command, fds):
                 "--exit-fd",
                 str(exit_read.fileno()),
                 f"/proc/self/fd/{net_ns}",
-                "tap0",
+                network_policy.SLIRP_INTERFACE,
             ],
             (ready_write.fileno(), exit_read.fileno(), net_ns, user_ns),
         )
@@ -304,6 +362,11 @@ def _networked_browser(stack, command, fds):
             raise BrowserSandboxError(
                 "Das isolierte Browser-Netzwerk konnte nicht starten."
             )
+        if select.select([monitor], [], [], 0)[0]:
+            raise BrowserSandboxError(
+                "Die Host-Adressen haben sich beim Browser-Start geändert."
+            )
+        _stop_network_on_address_change(stack, monitor, network)
         start_write.write(b"1")
         start_write.close()
         yield browser, network
@@ -327,7 +390,7 @@ def _browser_running(browser, network):
 
 
 def _require_network_tools():
-    for tool in (_BWRAP, _SLIRP, _NSENTER):
+    for tool in (_BWRAP, _SLIRP, _NSENTER, network_policy.IP, network_policy.NFT):
         if not os.access(tool, os.X_OK):
             raise BrowserSandboxError(f"Sandbox-Werkzeug fehlt: {Path(tool).name}")
     if not os.access("/dev/net/tun", os.R_OK | os.W_OK):
@@ -380,7 +443,9 @@ def _launch_link(
                 "group": f"browser:x:{os.getgid()}:\n",
                 "nsswitch.conf": "passwd: files\ngroup: files\nhosts: files dns\n",
                 "hosts": "127.0.0.1 localhost\n::1 localhost\n",
-                "resolv.conf": "nameserver 10.0.2.3\noptions timeout:2 attempts:2\n",
+                "resolv.conf": (
+                    f"nameserver {network_policy.SLIRP_DNS}\noptions timeout:2 attempts:2\n"
+                ),
                 "gtk-3.0/settings.ini": (
                     f"[Settings]\ngtk-decoration-layout={_GTK_WINDOW_BUTTONS}\n"
                 ),
@@ -426,7 +491,7 @@ def _launch_link(
                 yield processes
     except OSError as exc:
         raise BrowserSandboxError(
-            "Sandbox-Start fehlgeschlagen. Bubblewrap, slirp4netns, Firefox und Wayland prüfen."
+            "Sandbox-Start fehlgeschlagen. Bubblewrap, slirp4netns, nftables, Firefox und Wayland prüfen."
         ) from exc
 
 
