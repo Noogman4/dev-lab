@@ -18,7 +18,8 @@ MAX_MANIFEST_BYTES = 64 * 1024
 MAX_FILES = 64
 MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024
 MAX_TOTAL_BYTES = 4 * 1024 * 1024 * 1024
-NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,254}\Z")
+# "~" only for Debian public-beta versions such as netmon_1.1.22~beta1_all.deb.
+NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._~-]{0,254}\Z")
 ENTRY = re.compile(rb"([0-9a-fA-F]{64}) [ *]([^\r\n]+)\Z")
 
 

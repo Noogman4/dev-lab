@@ -4,6 +4,7 @@ set -euo pipefail
 # No caller-selected package, executable search path or user-data authority.
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 readonly NETMON_PACKAGE=netmon
+readonly NETMON_MANAGER_PACKAGE=netmon-manager
 NETMON_LANG_CODE="${NETMON_LANG_CODE:-}"
 USER_CLEANUP_MODE=execute
 
@@ -155,6 +156,36 @@ tr_msg() {
     de:cancelled|*:cancelled) printf '%s' "Abgebrochen." ;;
     en:finished) printf '%s' "NetMon uninstallation completed." ;;
     de:finished|*:finished) printf '%s' "NetMon-Deinstallation abgeschlossen." ;;
+    en:mode_title) printf '%s' "Choose an operation:" ;;
+    de:mode_title|*:mode_title) printf '%s' "Gewünschten Ablauf wählen:" ;;
+    en:mode_update) printf '%s' "1) Update from a local .deb (verified backup, retain user data)" ;;
+    de:mode_update|*:mode_update) printf '%s' "1) Aktualisieren mit lokaler .deb (geprüftes Backup, Benutzerdaten behalten)" ;;
+    en:mode_keep) printf '%s' "2) Uninstall — retain settings and personal files (default)" ;;
+    de:mode_keep|*:mode_keep) printf '%s' "2) Deinstallieren – Einstellungen und persönliche Dateien behalten (Standard)" ;;
+    en:mode_delete) printf '%s' "3) Uninstall — delete user data after reviewing exact paths" ;;
+    de:mode_delete|*:mode_delete) printf '%s' "3) Deinstallieren – Benutzerdaten nach genauer Pfadprüfung löschen" ;;
+    en:mode_cancel) printf '%s' "0) Cancel" ;;
+    de:mode_cancel|*:mode_cancel) printf '%s' "0) Abbrechen" ;;
+    en:keep_binding) printf '%s' "Settings, documents, browser profiles, VPN slots and profile files will be retained." ;;
+    de:keep_binding|*:keep_binding) printf '%s' "Einstellungen, Dokumente, Browserprofile, VPN-Slots und Profildateien bleiben erhalten." ;;
+    en:removal_tunnels) printf '%s' "Package removal may disconnect verified NetMon-owned WireGuard tunnels; saved profiles are retained unless explicitly selected for deletion." ;;
+    de:removal_tunnels|*:removal_tunnels) printf '%s' "Beim Entfernen können nachweislich NetMon-eigene WireGuard-Tunnel getrennt werden; gespeicherte Profile bleiben ohne ausdrückliche Löschwahl erhalten." ;;
+    en:invalid_plan) printf '%s' "Conflicting choices: retaining data forbids profile, browser and VPN deletion." ;;
+    de:invalid_plan|*:invalid_plan) printf '%s' "Widersprüchliche Auswahl: Daten behalten verbietet das Löschen von Profilen, Browsern und VPN-Daten." ;;
+    en:package_path) printf '%s' "Absolute path to the new NetMon .deb: " ;;
+    de:package_path|*:package_path) printf '%s' "Absoluter Pfad zur neuen NetMon-.deb: " ;;
+    en:backup_parent) printf '%s' "Backup destination (Enter accepts the displayed default): " ;;
+    de:backup_parent|*:backup_parent) printf '%s' "Sicherungsordner (Enter übernimmt den angezeigten Vorschlag): " ;;
+    en:operation_duration) printf '%s' "Preparation, backup, verification and installation may take several minutes depending on the data and storage device. Please keep the terminal open until completion. Individual steps may take longer without a new progress message." ;;
+    de:operation_duration|*:operation_duration) printf '%s' "Vorbereitung, Sicherung, Prüfung und Installation können je nach Datenmenge und Datenträger mehrere Minuten dauern. Bitte das Terminal bis zum Abschluss geöffnet lassen. Einzelne Schritte können länger ohne neue Fortschrittsmeldung dauern." ;;
+    en:invalid_package) printf '%s' "Update requires an installed NetMon and a newer netmon package for this architecture." ;;
+    de:invalid_package|*:invalid_package) printf '%s' "Für das Update werden ein installiertes NetMon und ein neueres netmon-Paket für diese Architektur benötigt." ;;
+    en:update_summary) printf '%s' "Verified backup; update directly in place. Personal data and optional packages are retained." ;;
+    de:update_summary|*:update_summary) printf '%s' "Backup geprüft; direkte Paketaktualisierung. Benutzerdaten und optionale Pakete bleiben erhalten." ;;
+    en:local_package_warning) printf '%s' "Install only a .deb from a trusted source. This local workflow does not verify a publisher signature." ;;
+    de:local_package_warning|*:local_package_warning) printf '%s' "Nur eine .deb aus vertrauenswürdiger Quelle verwenden. Dieser lokale Ablauf prüft keine Herausgebersignatur." ;;
+    en:custom_documents_manual) printf '%s' "External or redirected Documents folder retained; review it manually:" ;;
+    de:custom_documents_manual|*:custom_documents_manual) printf '%s' "Externer oder umgeleiteter Dokumentenordner bleibt erhalten; bitte manuell prüfen:" ;;
     *) printf '%s' "$key" ;;
   esac
 }
@@ -207,7 +238,7 @@ find_running_netmon_processes() {
     return 0
   fi
 
-  local pattern='(^|[[:space:]])(/usr/bin/netmon|python3[[:space:]]+-m[[:space:]]+netmon|/(opt|usr/lib)/netmon/.*/main\.py|netmon/main\.py|netmon_radio_app\.py|netmon\.netmon_radio_app)([[:space:]]|$)'
+  local pattern='(^|[[:space:]])(/usr/bin/netmon|([^[:space:]]*/)?python3(\.[0-9]+)*[[:space:]]+-m[[:space:]]+netmon(\.main|\.netmon_radio_app)?|([^[:space:]]*/)?netmon/(main|app)\.py|([^[:space:]]*/)?netmon_radio_app\.py|netmon\.netmon_radio_app)([[:space:]]|$)'
   local current_pid="$$"
   local line=""
   local found=0
@@ -302,6 +333,23 @@ target_home() {
   printf '%s\n' "$canonical"
 }
 
+run_user_lifecycle() {
+  case "${1:-}" in documents|backup) ;; *) return 1 ;; esac
+  local user_name user_home
+  user_name="$(target_user)" || return 1
+  user_home="$(target_home)" || return 1
+  local command=(/usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin LANG=C.UTF-8
+    HOME="$user_home" USER="$user_name" LOGNAME="$user_name"
+    /usr/bin/python3 -I -c
+    'import sys; sys.path.insert(0, "/usr/lib/netmon-manager"); from netmon.core.lifecycle import main; sys.exit(main())')
+  if is_root; then
+    [[ "$(id -u "$user_name")" != 0 ]] || return 1
+    /usr/sbin/runuser -u "$user_name" -- "${command[@]}" "$@"
+  else
+    "${command[@]}" "$@"
+  fi
+}
+
 collect_document_dirs() {
   local doc_roots=()
   while IFS= read -r item; do
@@ -324,6 +372,17 @@ collect_document_root_dirs() {
   user_home="$(target_home)" || return 1
   # Never turn an inherited XDG override into a privileged deletion target.
   docs_dirs+=("$user_home/Documents" "$user_home/Dokumente")
+  # Read the saved XDG setting as the account, never trust a caller override.
+  # Deletion remains unprivileged and confined to the passwd-verified home.
+  local configured canonical
+  if configured="$(run_user_lifecycle documents 2>/dev/null)" && [[ -n "$configured" ]]; then
+    canonical="$(realpath -m -- "$configured")" || return 1
+    if [[ "$configured" != *[[:cntrl:]]* && "$configured" == "$canonical" && "$canonical" == "$user_home/"* ]]; then
+      docs_dirs+=("$configured")
+    else
+      warn "$(tr_msg custom_documents_manual) $configured"
+    fi
+  fi
 
   local unique=()
   local item=""
@@ -531,7 +590,7 @@ from pathlib import Path
 import stat
 import sys
 
-helper = Path("/usr/lib/netmon/netmon/core/nm_ownership.py")
+helper = Path("/usr/lib/netmon-manager/netmon/core/nm_ownership.py")
 try:
     for path in [*reversed(helper.parents), helper]:
         info = path.lstat()
@@ -595,7 +654,7 @@ check_firewall_transaction() {
   if [[ -e /var/lib/netmon/ufw-snapshot || -L /var/lib/netmon/ufw-snapshot ]]; then
     if ! /usr/bin/python3 -I -c '
 import os, stat, sys
-path = "/usr/lib/netmon/netmon/core/ufw_snapshot.py"
+path = "/usr/lib/netmon-manager/netmon/core/ufw_snapshot.py"
 current = "/"
 for part in [""] + path.strip("/").split("/"):
     current = os.path.join(current, part)
@@ -677,6 +736,28 @@ purge_netmon_package() {
   fi
 }
 
+remove_manager_only() {
+  say "NetMon verwalten / Manage NetMon: $NETMON_MANAGER_PACKAGE"
+  say "Nur die Verwaltung entfernen. NetMon, Benutzerdaten und externe Sicherungen bleiben erhalten."
+  say "Remove management only. NetMon, personal data and external backups are retained."
+  prompt_yes_no "NetMon verwalten wirklich entfernen? / Really remove management?" "n" || {
+    say "$(tr_msg cancelled)"
+    return 0
+  }
+  require_cmd apt-get
+  apt-get remove -y "$NETMON_MANAGER_PACKAGE"
+}
+
+remove_selected_packages() {
+  local app="$1" manager="$2"
+  local packages=()
+  [[ "$app" != ja ]] || packages+=("$NETMON_PACKAGE")
+  [[ "$manager" != ja ]] || packages+=("$NETMON_MANAGER_PACKAGE")
+  (( ${#packages[@]} )) || return 0
+  require_cmd apt-get
+  apt-get remove -y "${packages[@]}"
+}
+
 print_summary() {
   local user_name user_home
   user_name="$(target_user)" || return 1
@@ -714,6 +795,106 @@ print_summary() {
   say ""
 }
 
+select_operation() {
+  local answer
+  say "$(tr_msg mode_title)" >&2
+  say "$(tr_msg mode_update)" >&2
+  say "$(tr_msg mode_keep)" >&2
+  say "$(tr_msg mode_delete)" >&2
+  say "$(tr_msg mode_cancel)" >&2
+  while true; do
+    printf '> ' >&2
+    read -r answer || { printf 'cancel\n'; return; }
+    case "$answer" in
+      1) printf 'update\n'; return ;;
+      2|'') printf 'keep\n'; return ;;
+      3) printf 'delete\n'; return ;;
+      0) printf 'cancel\n'; return ;;
+    esac
+  done
+}
+
+validate_uninstall_choices() {
+  local mode="$1"
+  shift
+  [[ "$mode" == keep || "$mode" == delete ]] || return 1
+  if [[ "$mode" == keep ]]; then
+    local choice
+    for choice in "$@"; do
+      [[ "$choice" == nein ]] || { warn "$(tr_msg invalid_plan)"; return 1; }
+    done
+  fi
+}
+
+stage_update_package() {
+  # The root-owned snapshot prevents replacing the chosen package after review.
+  /usr/bin/python3 -I -c '
+import hashlib, os, stat, sys
+source, destination = sys.argv[1:]
+fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+with os.fdopen(fd, "rb") as incoming:
+    before = os.fstat(incoming.fileno())
+    if not stat.S_ISREG(before.st_mode) or not 0 < before.st_size <= 4 * 1024**3:
+        raise ValueError("Not a regular DEB within the size limit")
+    with open(destination, "xb") as outgoing:
+        remaining = before.st_size
+        while remaining:
+            chunk = incoming.read(min(1024 * 1024, remaining))
+            if not chunk:
+                raise ValueError("Package became shorter while copying")
+            outgoing.write(chunk)
+            remaining -= len(chunk)
+        if incoming.read(1):
+            raise ValueError("Package grew while copying")
+        outgoing.flush()
+        os.fsync(outgoing.fileno())
+    after = os.fstat(incoming.fileno())
+    if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+        raise ValueError("Package changed while copying")
+with open(destination, "rb") as stream:
+    print(hashlib.file_digest(stream, "sha256").hexdigest())
+' "$1" "$2"
+}
+
+perform_update() (
+  local package_path staging='' snapshot digest candidate installed architecture documents parent receipt
+  trap '[[ -z "$staging" ]] || rm -rf -- "$staging"' EXIT
+  ensure_netmon_not_running
+  check_firewall_transaction || return 1
+  printf '%s' "$(tr_msg package_path)"
+  read -r package_path || return 1
+  [[ "$package_path" == /* && "$package_path" != *[[:cntrl:]]* ]] || return 1
+  say "$(tr_msg operation_duration)"
+  staging="$(mktemp -d /var/tmp/netmon-update.XXXXXXXX)" || return 1
+  snapshot="$staging/netmon.deb"
+  digest="$(stage_update_package "$package_path" "$snapshot")" || return 1
+  candidate="$(dpkg-deb -f "$snapshot" Version)" || return 1
+  architecture="$(dpkg-deb -f "$snapshot" Architecture)" || return 1
+  installed="$(dpkg-query -W -f='${Version}' netmon)" || return 1
+  if [[ "$(dpkg-deb -f "$snapshot" Package)" != netmon ]] ||
+    [[ "$(dpkg-query -W -f='${Status}' netmon)" != 'install ok installed' ]] ||
+    { [[ "$architecture" != all ]] && [[ "$architecture" != "$(dpkg --print-architecture)" ]]; } ||
+    ! dpkg --compare-versions "$candidate" gt "$installed"; then
+    warn "$(tr_msg invalid_package)"
+    return 1
+  fi
+  documents="$(run_user_lifecycle documents)" || return 1
+  printf '%s\n' "$documents/NetMon-Sicherungen"
+  printf '%s' "$(tr_msg backup_parent)"
+  read -r parent || return 1
+  parent="${parent:-$documents/NetMon-Sicherungen}"
+  receipt="$(run_user_lifecycle backup --parent "$parent")" || return 1
+  say "$(tr_msg update_summary)"
+  say "NetMon: $installed -> $candidate"
+  printf 'Paket / package: %s\nSHA256: %s\nBackup: %s\n' "$package_path" "$digest" "$receipt"
+  warn "$(tr_msg local_package_warning)"
+  prompt_yes_no "$(tr_msg prompt_execute_now)" "n" || { say "$(tr_msg cancelled)"; return 0; }
+  ensure_netmon_not_running
+  check_firewall_transaction || return 1
+  # No uninstall step. apt is forbidden from removing other packages to solve dependencies.
+  apt-get --no-remove install --no-install-recommends "$snapshot"
+)
+
 main() {
   if [[ "${1:-}" == --user-cleanup ]]; then
     # This private entry can only perform allowlisted, unprivileged file work.
@@ -723,10 +904,35 @@ main() {
     run_user_cleanup "$@"
     return
   fi
+  local requested_operation='' remove_manager=nein
+  if [[ $# -gt 0 ]]; then
+    [[ ( $# == 2 || $# == 3 ) && "$1" == --mode ]] || return 1
+    case "$2" in keep|delete|manager) requested_operation="$2" ;; *) return 1 ;; esac
+    if [[ $# == 3 ]]; then
+      [[ "$2" == delete && "$3" == --remove-manager ]] || return 1
+      remove_manager=ja
+    fi
+  fi
   ensure_root "$@"
   target_home >/dev/null || { warn "Benutzer-Home konnte nicht sicher ermittelt werden."; return 1; }
   detect_netmon_language
+  if [[ "$requested_operation" == manager ]]; then
+    remove_manager_only
+    return
+  fi
   check_firewall_transaction || return 1
+  local operation
+  if [[ -n "$requested_operation" ]]; then
+    operation="$requested_operation"
+  else
+    operation="$(select_operation)" || return 1
+  fi
+  case "$operation" in
+    update) perform_update; return ;;
+    keep|delete) ;;
+    cancel) say "$(tr_msg cancelled)"; return 0 ;;
+    *) return 1 ;;
+  esac
 
   local remove_package="ja"
   local remove_launchers="ja"
@@ -745,18 +951,29 @@ main() {
   say "$(tr_msg uninstaller_intro_2)"
   say ""
   warn "$(tr_msg uninstaller_warn_optional_resets)"
+  warn "$(tr_msg removal_tunnels)"
+  [[ "$operation" != keep ]] || say "$(tr_msg keep_binding)"
   say ""
 
   prompt_yes_no "$(tr_msg prompt_remove_package)" "y" && remove_package="ja" || remove_package="nein"
   prompt_yes_no "$(tr_msg prompt_remove_launchers)" "y" && remove_launchers="ja" || remove_launchers="nein"
-  prompt_yes_no "$(tr_msg prompt_remove_user_files)" "n" && remove_user_files="ja" || remove_user_files="nein"
-  prompt_yes_no "$(tr_msg prompt_remove_secure_browsers)" "n" && remove_secure_browsers="ja" || remove_secure_browsers="nein"
-  prompt_yes_no "$(tr_msg prompt_remove_wireguard_artifacts)" "n" && remove_wireguard_artifacts="ja" || remove_wireguard_artifacts="nein"
-  prompt_yes_no "$(tr_msg prompt_remove_all_wireguard_confs)" "n" && remove_all_wireguard_confs="ja" || remove_all_wireguard_confs="nein"
-  prompt_yes_no "$(tr_msg prompt_remove_nm_connections)" "n" && remove_nm_vpn_connections="ja" || remove_nm_vpn_connections="nein"
+  if [[ "$operation" == delete ]]; then
+    remove_user_files="ja"
+    prompt_yes_no "$(tr_msg prompt_remove_secure_browsers)" "n" && remove_secure_browsers="ja" || remove_secure_browsers="nein"
+    prompt_yes_no "$(tr_msg prompt_remove_wireguard_artifacts)" "n" && remove_wireguard_artifacts="ja" || remove_wireguard_artifacts="nein"
+    prompt_yes_no "$(tr_msg prompt_remove_all_wireguard_confs)" "n" && remove_all_wireguard_confs="ja" || remove_all_wireguard_confs="nein"
+    prompt_yes_no "$(tr_msg prompt_remove_nm_connections)" "n" && remove_nm_vpn_connections="ja" || remove_nm_vpn_connections="nein"
+  fi
+  if [[ "$operation" == delete && "$remove_manager" != ja ]]; then
+    prompt_yes_no "NetMon verwalten ebenfalls entfernen? / Also remove management?" "n" && remove_manager=ja || remove_manager=nein
+  fi
+  # Keeping data never removes management; removing both requires App removal.
+  [[ "$remove_manager" != ja || ( "$operation" == delete && "$remove_package" == ja ) ]] || return 1
   say "$(tr_msg dns_reset_blocked)"
   prompt_yes_no "$(tr_msg prompt_reset_firewall)" "n" && reset_firewall="ja" || reset_firewall="nein"
   prompt_yes_no "$(tr_msg prompt_purge_optional)" "n" && purge_optional="ja" || purge_optional="nein"
+  validate_uninstall_choices "$operation" "$remove_user_files" "$remove_secure_browsers" \
+    "$remove_wireguard_artifacts" "$remove_all_wireguard_confs" "$remove_nm_vpn_connections" || return 1
 
   print_summary \
     "$remove_package" \
@@ -769,6 +986,7 @@ main() {
     "$reset_dns_nm" \
     "$reset_firewall" \
     "$purge_optional" || return 1
+  say "NetMon verwalten / Manage NetMon entfernen: $(choice_label "$remove_manager")"
 
   prompt_yes_no "$(tr_msg prompt_execute_now)" "n" || {
     say "$(tr_msg cancelled)"
@@ -778,6 +996,8 @@ main() {
 
   ensure_netmon_not_running
   check_firewall_transaction || return 1
+  validate_uninstall_choices "$operation" "$remove_user_files" "$remove_secure_browsers" \
+    "$remove_wireguard_artifacts" "$remove_all_wireguard_confs" "$remove_nm_vpn_connections" || return 1
 
   [[ "$remove_launchers" == "ja" ]] && run_checked_cleanup remove_user_launchers
   [[ "$remove_nm_vpn_connections" == "ja" ]] && run_checked_cleanup remove_netmon_nm_connections
@@ -792,7 +1012,11 @@ main() {
   [[ "$reset_dns_nm" == "ja" ]] && run_checked_cleanup reset_netmon_dns_changes
   [[ "$reset_firewall" == "ja" ]] && run_checked_cleanup reset_ufw
   [[ "$purge_optional" == "ja" ]] && run_checked_cleanup purge_optional_packages
-  [[ "$remove_package" == "ja" ]] && run_checked_cleanup purge_netmon_package
+  if [[ "$remove_manager" == ja ]]; then
+    run_checked_cleanup remove_selected_packages "$remove_package" "$remove_manager"
+  elif [[ "$remove_package" == ja ]]; then
+    run_checked_cleanup purge_netmon_package
+  fi
 
   say ""
   say "$(tr_msg finished)"

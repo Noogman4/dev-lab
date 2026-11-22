@@ -1,6 +1,21 @@
 # Changelog
 
-Automatisch aus der Git-Historie des Repositories erzeugt.
+Release-Hinweise und Eintraege aus der Git-Historie des Repositories.
+
+## 2026-11-22 - Version 1.1.22~beta4 (Git-Teststand)
+
+- Geschützter Browser unter X11 mit privatem Weston und separater Firefox-Laufzeit.
+- Deutsch und Englisch für Quiz, Radio-Mehrfachaufnahme und weitere NetMon-Bereiche abgeglichen.
+- IPv6-Ampel als Statusanzeige und gemeinsamer UFW-Logging-Level in Ampel und Firewall-Übersicht.
+
+## 2026-11-16 - Version 1.1.22~beta1 (NetMon 1.1.22 Public Beta 1)
+
+- Public Beta 1 auf Basis des bisherigen lokalen Teststands vorbereitet.
+- Paketkennung `1.1.22~beta1`; die Beta wird vor der spaeteren endgueltigen Version `1.1.22` eingeordnet.
+- Versionsvergleich und Update-Hinweise unterstuetzen Beta 1, weitere Betas und den Wechsel zur endgueltigen Version.
+- Optionaler Beta-Kanal haelt bestehende stabile Installationen auf ihrer stabilen Versionslinie.
+- Vorhandene Snapshot-, Release-Beleg-, Minisign- und Manifestpruefungen gelten auch fuer die Beta.
+- Signierte Release-Artefakte und der gemeinsame Beta-Gesamtlauf bleiben vor der Veroeffentlichung erforderlich.
 
 ## 2026-11-07 - Version 1.1.22 (Teststand)
 

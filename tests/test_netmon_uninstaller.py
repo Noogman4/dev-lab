@@ -163,7 +163,7 @@ purge_netmon_package() { printf 'PACKAGE-REMOVED\\n'; }
 main
 """
     for execute, expect_package in [("y", True), ("n", False)]:
-        answers = ["y", "n", "n", "n", "n", "n", "n", "n", "n", execute]
+        answers = ["2", "y", "n", "n", "n", execute]
         result = subprocess.run(
             ["bash", "-c", command, "test", str(SCRIPT)],
             input="\n".join(answers) + "\n",
@@ -191,7 +191,7 @@ def test_privileged_launcher_validates_before_exec(monkeypatch, capsys):
     # Execute the actual guard with a synthetic filesystem view. Neither the
     # interpreter nor a privileged installed script is executed by this test.
     launcher = launcher.replace("from pathlib import Path", "")
-    helper = "/usr/lib/netmon/netmon/core/nm_ownership.py"
+    helper = "/usr/lib/netmon-manager/netmon/core/nm_ownership.py"
     for damage in [
         None,
         "helper_symlink",
@@ -221,7 +221,8 @@ def test_privileged_launcher_validates_before_exec(monkeypatch, capsys):
                 is_file = self.path == helper
                 mode = (stat.S_IFREG | 0o644) if is_file else (stat.S_IFDIR | 0o755)
                 if (damage == "helper_symlink" and is_file) or (
-                    damage == "parent_symlink" and self.path == "/usr/lib/netmon"
+                    damage == "parent_symlink"
+                    and self.path == "/usr/lib/netmon-manager"
                 ):
                     mode = stat.S_IFLNK | 0o777
                 if damage == "writable" and is_file:

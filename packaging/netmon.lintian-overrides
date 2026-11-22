@@ -1,4 +1,9 @@
-# Ubuntu Lintian 2.117 reports a troff segfault, while both pages pass
-# gzip -t and render cleanly with man --warnings and groff -mandoc.
+# Ubuntu Lintian 2.117 reports a troff segfault, while this page passes
+# gzip -t and renders cleanly with man --warnings and groff -mandoc.
 netmon: groff-message * [usr/share/man/man1/netmon.1.gz*]
-netmon: groff-message * [usr/share/man/man1/netmon-uninstall.1.gz*]
+# Removal checks run with root authority. Fixed interpreter paths protect both
+# the UFW recovery check and the VPN cleanup from PATH-selected Python.
+netmon: command-with-path-in-maintainer-script /usr/bin/python3 (plain script) [prerm:*]
+# The application uses dpkg-query's public interface, with a fixed --admindir
+# so an ambient DPKG_ADMINDIR cannot substitute another installation database.
+netmon: uses-dpkg-database-directly [usr/lib/netmon/netmon/app.py]

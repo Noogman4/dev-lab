@@ -6,7 +6,12 @@ from __future__ import annotations
 import argparse
 import json
 
-from read_netmon_version import ROOT, read_netmon_version
+from read_netmon_version import (
+    ROOT,
+    is_release_version,
+    latest_metadata_error,
+    read_netmon_version,
+)
 
 
 def main() -> int:
@@ -19,6 +24,11 @@ def main() -> int:
     options = parser.parse_args()
     version = read_netmon_version()
     errors: list[str] = []
+    if not is_release_version(version):
+        errors.append(
+            f"netmon/config/constants.py: {version!r} ist weder Release "
+            "(1.1.22) noch Public Beta (1.1.22~beta1)"
+        )
 
     public_key_path = ROOT / "docs" / "security" / "netmonroots.minisign.pub"
     public_key_lines = [
@@ -37,11 +47,9 @@ def main() -> int:
     if not options.package_only:
         latest_path = ROOT / "site" / "latest-version.json"
         latest = json.loads(latest_path.read_text(encoding="utf-8"))
-        if latest.get("version") != version:
-            errors.append(
-                f"{latest_path.relative_to(ROOT)}: erwartet Version {version}, "
-                f"gefunden {latest.get('version')!r}"
-            )
+        error = latest_metadata_error(latest, version)
+        if error:
+            errors.append(f"site/{error}")
 
     required_snippets = {
         "README.md": [f"netmon_{version}_all.deb"],

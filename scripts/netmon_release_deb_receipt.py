@@ -20,7 +20,7 @@ import sys
 import tarfile
 from pathlib import Path
 
-from read_netmon_version import ROOT
+from read_netmon_version import ROOT, is_release_version
 
 SCHEMA = "netmon-release-deb/1"
 PACKAGE = "netmon"
@@ -28,7 +28,6 @@ TEST_BUILD_DOC = "./usr/share/doc/netmon/TEST-BUILD.md"
 RECEIPT_SUFFIX = ".release.json"
 MAX_RECEIPT_BYTES = 4096
 RECEIPT_KEYS = {"schema", "kind", "package", "version", "filename", "sha256", "commit"}
-RELEASE_VERSION = re.compile(r"^[0-9]+(\.[0-9]+)+$")
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 # Every repository path build_netmon_deb.sh reads tracked content from.
 PACKAGE_INPUTS = (
@@ -51,6 +50,10 @@ PACKAGE_INPUTS = (
     "README-DNS-INTEGRATION.md",
     "THIRD_PARTY_NOTICES.md",
     "docs/DNS-F1-F6-REPORT.md",
+    "docs/linux-befehlsdatenbank",
+    "docs/linux-glossar",
+    "docs/linux-komponenten",
+    "docs/linux-quiz",
 )
 
 
@@ -136,7 +139,8 @@ def _sha256(deb):
 
 
 def _require_release_identity(deb, version):
-    if not RELEASE_VERSION.fullmatch(version):
+    # Final releases and public betas (1.1.22~beta1); never test suffixes.
+    if not is_release_version(version):
         raise ReceiptError(f"Keine offizielle Release-Version: {version!r}")
     if deb.name != f"{PACKAGE}_{version}_all.deb":
         raise ReceiptError("Unexpected release DEB filename")

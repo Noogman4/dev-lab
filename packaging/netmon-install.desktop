@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=NetMon verwalten
+Name[en]=Manage NetMon
+Comment=Installation, Update und Entfernung
+Comment[en]=Install, update or remove NetMon
+Exec=/usr/bin/netmon-manage
+Icon=netmon-manager
+Terminal=false
+NoDisplay=true
+Categories=System;
+StartupNotify=true
+Keywords=install;update;backup;NetMon;

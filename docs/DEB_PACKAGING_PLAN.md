@@ -2,7 +2,13 @@
 
 Diese Datei beschreibt die Soll-Struktur fuer `netmon` als `.deb` auf Basis des aktuellen Repository-Stands.
 
-Aktueller dokumentierter Paketstand: `1.1.22`.
+Aktueller dokumentierter Paketstand: `1.1.22~beta4` (NetMon 1.1.22 Beta 4).
+
+Der Git-Testbuild verwendet einen sauberen Checkout und `scripts/build_netmon_deb.sh --release`.
+Das lokale Archiv `netmon/features/Code-the-Classics.zip` ist eine separate Build-Eingabe.
+Der Build prüft die Kopie im Paket gegen `packaging/fun-assets.sha256`.
+Für den geschützten Browser unter X11 werden `weston` und das separate Paket
+`netmon-web-browser-runtime` benötigt. `netmon-manager` liefert „NetMon verwalten“.
 
 ## Ziel
 

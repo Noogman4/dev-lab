@@ -16,7 +16,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from read_netmon_version import ROOT, read_netmon_version
+from read_netmon_version import ROOT, latest_metadata_error, read_netmon_version
 
 BUNDLE_NAMES = {
     "site": "netmonroots_public_html.zip",
@@ -378,7 +378,7 @@ def verify_bundle(
         } | {"dist/SHA256SUMS", "dist/SHA256SUMS.minisig"}:
             raise ValueError("Unexpected release payload identity")
         latest = json.loads(contents["latest-version.json"])
-        if not isinstance(latest, dict) or latest.get("version") != version:
+        if latest_metadata_error(latest, version):
             raise ValueError("Release version mismatch")
         with tempfile.TemporaryDirectory(prefix="netmon-release-verify-") as temporary:
             target = Path(temporary)
