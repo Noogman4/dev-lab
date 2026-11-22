@@ -381,8 +381,13 @@ class LinuxHelpReader(ttk.Frame):
         self.status.set(f"{self.match_position + 1} / {len(self.matches)}")
 
     def open_source(self, url):
+        from netmon.features.web_browser_controller import route_if_enabled
+
         if not source_url(url):
             return False
+        protected = route_if_enabled(self._root(), url)
+        if protected is not None:
+            return protected
         for argv in (["/usr/bin/xdg-open", url], ["/usr/bin/gio", "open", url]):
             try:
                 subprocess.Popen(

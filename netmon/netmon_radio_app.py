@@ -3498,7 +3498,13 @@ class NetMonRadioApp(tk.Tk):
         return False
 
     def _open_projectm_preset_source_page(self):
+        from netmon.features.web_browser_controller import route_radio_if_enabled
+
         url = PROJECTM_PRESET_SOURCE_URL
+
+        protected = route_radio_if_enabled(self, url)
+        if protected is not None:
+            return protected
         for command in (["xdg-open", url], ["gio", "open", url]):
             executable = shutil.which(str(command[0] or "").strip())
             if not executable:
@@ -5308,12 +5314,18 @@ class NetMonRadioApp(tk.Tk):
         return popup
 
     def open_radio_database_website(self, website_id):
+        from netmon.features.web_browser_controller import route_radio_if_enabled
+
         if not isinstance(website_id, str):
             return False
         website = RADIO_DATABASE_WEBSITES.get(website_id)
         if website is None:
             return False
         _label, url = website
+
+        protected = route_radio_if_enabled(self, url)
+        if protected is not None:
+            return protected
         for command in (["/usr/bin/xdg-open", url], ["/usr/bin/gio", "open", url]):
             try:
                 subprocess.Popen(

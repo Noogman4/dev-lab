@@ -826,7 +826,7 @@ class SecureBrowserManager:
                 f"- Menüname: {normalized_menu_name}",
                 f"- Icon-Modus: {normalized_icon_mode}",
                 f"- Erlaubte Domains: {', '.join(allowed_domains)}",
-                "- Startmodus: ./firefox/firefox --no-remote --profile ./profile",
+                "- Startmodus: Bubblewrap mit eigener Firefox-Basis",
                 "- Sicherheitsmodus: nur Entwurf, keine Dateien geschrieben",
                 f"- {status_line}",
                 "",

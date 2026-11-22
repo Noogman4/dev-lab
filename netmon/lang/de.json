@@ -254,6 +254,7 @@
     "settings_start_vpn_profile_label": "VPN Profil:",
     "settings_start_activation_label": "Auto-Aktivierung:",
     "settings_start_killswitch": "Killswitch",
+    "settings_netmon_browser": "Eigenen Browser aktivieren",
     "settings_start_security_monitoring": "Sicherheitsmonitoring",
     "settings_start_dot": "DoT",
     "settings_start_ui_label": "UI:",

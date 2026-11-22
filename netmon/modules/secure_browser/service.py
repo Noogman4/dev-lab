@@ -27,6 +27,7 @@ from tools.secure_browser_manager.browser_container_builder import (
 )
 
 from .models import BrowserContainer
+from . import sandbox, session
 
 LOGGER = logging.getLogger(__name__)
 
@@ -327,6 +328,7 @@ class SecureBrowserService:
         child_lock: dict[str, object] | None = None,
     ) -> dict[str, object]:
         payload: dict[str, object] = {
+            "default_source_firefox_dir": str(session.FIREFOX_DIR),
             "containers": [
                 {
                     "name": name,
@@ -340,14 +342,12 @@ class SecureBrowserService:
                     "allow_password_manager": allow_password_manager,
                     "keep_cookies": keep_cookies,
                     "enable_website_filter": enable_website_filter,
+                    "sandboxed": True,
                 }
-            ]
+            ],
         }
-        source_dir = self.get_default_source_firefox_dir()
         if child_lock:
             payload["containers"][0]["child_lock"] = dict(child_lock)
-        if source_dir is not None:
-            payload["default_source_firefox_dir"] = str(source_dir)
         return payload
 
     def _write_generated_create_config(self, payload: dict[str, object]) -> Path:
@@ -378,7 +378,6 @@ class SecureBrowserService:
         keep_cookies: bool = True,
         enable_website_filter: bool = True,
     ) -> dict[str, str]:
-        source_dir = self.get_default_source_firefox_dir()
         generated_config = self.build_generated_create_config(
             name=name,
             homepage_url=homepage_url,
@@ -403,7 +402,7 @@ class SecureBrowserService:
             "tool_config": "<generierte-create-config>",
             "command": command,
             "payload": json.dumps(generated_config, indent=2, ensure_ascii=True),
-            "source_firefox_dir": str(source_dir) if source_dir is not None else "",
+            "source_firefox_dir": str(session.FIREFOX_DIR),
         }
 
     def run_create_dry_run(
@@ -438,6 +437,10 @@ class SecureBrowserService:
         specs = module.validate_config_payload(payload, self.get_default_base_dir())
         discovered = self._discover_all_containers(module)
         source_problems = module.select_missing_sources(specs, discovered)
+        if not self._is_valid_source_firefox_dir(session.FIREFOX_DIR):
+            source_problems.append(
+                "Die Firefox-Basis aus netmon-web-browser-runtime fehlt."
+            )
         dry_run_lines = module.build_apply_plan(
             specs,
             discovered,
@@ -492,6 +495,17 @@ class SecureBrowserService:
         enable_website_filter: bool = True,
         child_lock: dict[str, object] | None = None,
     ) -> dict[str, object]:
+        try:
+            runtime = session._managed_runtime(session.FIREFOX_DIR)
+            if not all(
+                (runtime / name).is_file() and os.access(runtime / name, os.X_OK)
+                for name in ("firefox", "firefox-bin")
+            ):
+                raise sandbox.BrowserSandboxError("Die Firefox-Binärdateien fehlen.")
+        except sandbox.BrowserSandboxError as exc:
+            raise ValueError(f"{exc} Bitte netmon-web-browser-runtime prüfen.") from exc
+        session._wayland_socket()
+        sandbox._require_network_tools()
         config_path = self._write_generated_create_config(
             self.build_generated_create_config(
                 name=name,

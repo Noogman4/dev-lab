@@ -117,7 +117,16 @@ def build_settings_general_system(
             app.var_start_security_monitoring,
             None,
         ),
+        (
+            8,
+            "settings_netmon_browser",
+            "Eigenen Browser aktivieren",
+            app.__dict__.get("var_netmon_browser"),
+            getattr(app, "on_netmon_browser_toggle", None),
+        ),
     ):
+        if variable is None:
+            continue
         check = ttk.Checkbutton(
             system_group, text=app.tr(key, fallback), variable=variable, command=command
         )

@@ -1015,9 +1015,14 @@ def open_local_target(app, target):
 
 
 def open_external_target(app, target):
+    from netmon.features.web_browser_controller import route_if_enabled
+
     url = normalize_external_url_target(target)
     if not url:
         raise RuntimeError("Ungültige oder unsichere URL (nur HTTP/HTTPS erlaubt).")
+    protected = route_if_enabled(app, url)
+    if protected is not None:
+        return protected
     if has_cmd("xdg-open"):
         subprocess.Popen(
             ["xdg-open", url],

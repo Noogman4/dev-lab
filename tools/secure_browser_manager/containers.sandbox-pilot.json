@@ -1,0 +1,14 @@
+{
+  "default_source_firefox_dir": "/opt/netmon-web-browser/firefox",
+  "containers": [
+    {
+      "name": "firefox-SandboxPilot",
+      "menu_name": "Secure Browser Sandbox-Test",
+      "allowed_domains": ["netmonroots.com"],
+      "homepage_url": "https://netmonroots.com/",
+      "icon_mode": "default",
+      "security_profile": "strict",
+      "sandboxed": true
+    }
+  ]
+}

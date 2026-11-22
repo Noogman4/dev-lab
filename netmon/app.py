@@ -3025,6 +3025,9 @@ class App(TkBase):
 
         self.settings = self._default_settings_payload()
         self.load_settings()
+        self.var_netmon_browser = tk.BooleanVar(
+            master=self, value=self.settings["netmon_browser_enabled"] is True
+        )
         self.debug_network_logging = bool(
             self.settings.get("debug_network_logging", False)
         )
@@ -6448,6 +6451,8 @@ class App(TkBase):
             return False
 
     def _open_url_with_xdg_open(self, target, label="URL"):
+        from netmon.features.web_browser_controller import route_if_enabled
+
         target = str(target or "").strip()
         if not target:
             return False
@@ -6460,6 +6465,9 @@ class App(TkBase):
                 f"{label} nicht geöffnet: unzulässiges URL-Schema in {target}"
             )
             return False
+        protected = route_if_enabled(self, target)
+        if protected is not None:
+            return protected
         if not shutil.which("xdg-open"):
             self.log_safe(f"{label} öffnen nicht verfügbar: xdg-open fehlt.")
             return False
@@ -20780,6 +20788,7 @@ class App(TkBase):
                 "theme_studio_default_profile_name", "My Theme"
             ),
             "tooltips_enabled": True,
+            "netmon_browser_enabled": False,
             "auto_log_clear": False,
             "debug_network_logging": False,
             "strict_protection": True,
@@ -20913,6 +20922,7 @@ class App(TkBase):
                 or self.tr("theme_studio_default_profile_name", "My Theme")
             ),
             "tooltips_enabled": bool(self.settings.get("tooltips_enabled", True)),
+            "var_netmon_browser": self.settings.get("netmon_browser_enabled") is True,
             "var_auto_log_clear": bool(self.settings.get("auto_log_clear", False)),
             "var_debug_network_logging": bool(
                 self.settings.get("debug_network_logging", False)
@@ -21220,6 +21230,13 @@ class App(TkBase):
         )
 
         update_base_network_settings_from_app(self, new_language=new_language)
+        self.settings["netmon_browser_enabled"] = bool(
+            app_var_value(
+                self,
+                "var_netmon_browser",
+                self.settings.get("netmon_browser_enabled") is True,
+            )
+        )
         update_theme_logging_settings_from_app(
             self,
             new_theme=new_theme,
@@ -21243,6 +21260,10 @@ class App(TkBase):
                 )
             )
         self.log(self.tr("log_settings_applied", "Einstellungen übernommen."))
+
+    def on_netmon_browser_toggle(self):
+        self.settings["netmon_browser_enabled"] = self.var_netmon_browser.get()
+        self.save_settings(log_success=False)
 
     def _finalize_settings_application(self, new_language: str) -> None:
         """Apply runtime state and persist an already synchronized settings payload."""

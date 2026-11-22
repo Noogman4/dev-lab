@@ -1,0 +1,47 @@
+@-moz-document url("chrome://browser/content/browser.xhtml") {
+  #navigator-toolbox::before {
+    content: "NetmonRoots Browser";
+    display: flex;
+    align-items: center;
+    min-height: 58px;
+    padding-inline: 66px 10px;
+    color: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    background: url("file:///etc/netmon-browser.png") 10px center / 48px 48px no-repeat;
+    pointer-events: none;
+  }
+
+  :root[inFullscreen] #navigator-toolbox::before {
+    display: none;
+  }
+
+  /* Firefox hides existing controls when GTK supplies a close-only layout. */
+  :root[customtitlebar]:not([inFullscreen], [popup-window], [sizemode="fullscreen"]) {
+    #navigator-toolbox .titlebar-buttonbox-container {
+      order: 0;
+    }
+
+    #navigator-toolbox .titlebar-buttonbox {
+      --max-titlebar-button-position: 2;
+    }
+
+    #navigator-toolbox .titlebar-min {
+      --titlebar-button-position: 0;
+      display: flex !important;
+    }
+
+    #navigator-toolbox :is(.titlebar-max, .titlebar-restore) {
+      --titlebar-button-position: 1;
+    }
+
+    &:not([sizemode="maximized"]) #navigator-toolbox .titlebar-max,
+    &[sizemode="maximized"] #navigator-toolbox .titlebar-restore {
+      display: flex !important;
+    }
+
+    #navigator-toolbox .titlebar-close {
+      --titlebar-button-position: 2;
+    }
+  }
+}

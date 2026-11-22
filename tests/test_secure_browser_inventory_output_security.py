@@ -345,3 +345,111 @@ def test_real_builder_child_uses_private_inventory(inventory_case, monkeypatch, 
     assert outputs and not outputs[0].parent.exists()
     assert sentinel.read_bytes() == b"unchanged sentinel"
     assert config.read_bytes() == before
+
+
+@pytest.fixture
+def search_only_temporary_root(tmp_path):
+    if not hasattr(os, "O_PATH") or os.geteuid() == 0:
+        pytest.skip("Requires Linux path descriptors and unprivileged permissions")
+    ancestor = tmp_path / "search-only"
+    private = ancestor / "private"
+    private.mkdir(parents=True, mode=0o700)
+    ancestor.chmod(0o111)
+    try:
+        with pytest.raises(PermissionError):
+            os.open(ancestor, os.O_RDONLY | os.O_DIRECTORY)
+        yield private
+        assert stat.S_IMODE(ancestor.stat().st_mode) == 0o111
+        assert stat.S_IMODE(private.stat().st_mode) == 0o700
+    finally:
+        ancestor.chmod(0o700)
+
+
+def test_maintenance_handles_search_only_ancestors(search_only_temporary_root):
+    private = search_only_temporary_root
+    output = private / "inventory.md"
+    builder.write_inventory(output, private, [])
+    assert builder.maintenance_read(output).startswith(b"# Firefox Container Inventory")
+    assert stat.S_IMODE(output.stat().st_mode) == 0o600
+    backup = builder.backup_existing_file(output)
+    assert backup.read_bytes() == output.read_bytes()
+    with builder.maintenance_directory(private) as descriptor:
+        # The returned final descriptor must still support directory enumeration.
+        assert "inventory.md" in os.listdir(descriptor)
+    builder.maintenance_unlink(output)
+    assert not output.exists()
+
+
+def test_search_only_ancestor_does_not_allow_symlink_redirects(
+    search_only_temporary_root, tmp_path
+):
+    private = search_only_temporary_root
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    sentinel = outside / "inventory.md"
+    sentinel.write_bytes(b"outside sentinel")
+    (private / "linked").symlink_to(outside, target_is_directory=True)
+    with pytest.raises(OSError):
+        builder.write_inventory(private / "linked/inventory.md", private, [])
+    assert sentinel.read_bytes() == b"outside sentinel"
+
+
+def test_real_create_child_with_inventory_under_search_only_ancestor(
+    inventory_case, search_only_temporary_root, tmp_path, monkeypatch
+):
+    service, sentinel, _, config = inventory_case
+    private = search_only_temporary_root
+    monkeypatch.setattr("tempfile.tempdir", str(private))
+    home = tmp_path / "synthetic-home"
+    home.mkdir(mode=0o700)
+    monkeypatch.setenv("HOME", str(home))
+    source = tmp_path / "synthetic-firefox"
+    source.mkdir()
+    binary = source / "firefox"
+    binary.write_text("#!/bin/sh\nexit 0\n")
+    binary.chmod(0o700)
+    config.write_text(
+        json.dumps(
+            {
+                "containers": [
+                    {
+                        "name": "Proton",
+                        "allowed_domains": ["www.proton.com"],
+                        "source_firefox_dir": str(source),
+                        "icon_mode": "default",
+                    }
+                ]
+            }
+        )
+    )
+    import subprocess
+
+    original = subprocess.run
+    observed = []
+
+    def run(command, **kwargs):
+        inventory = Path(command[command.index("--inventory") + 1])
+        observed.append(inventory)
+        assert inventory.parent.parent == private
+        assert stat.S_IMODE(inventory.parent.stat().st_mode) == 0o700
+        return original(command, **kwargs)
+
+    monkeypatch.setattr("netmon.modules.secure_browser.service.subprocess.run", run)
+    dry_run = service._run_builder_command(_command(service, config, []))
+    assert dry_run["ok"], dry_run["stderr"]
+    target = service.get_default_base_dir() / "Proton"
+    assert not target.exists()
+    applied = service._run_builder_command(_command(service, config, ["--apply"]))
+    assert applied["ok"], applied["stderr"]
+    assert (target / "firefox/firefox").read_bytes() == binary.read_bytes()
+    assert (target / "policies.json").is_file()
+    assert (
+        home / ".local/share/applications/netmon-secure-browser-proton.desktop"
+    ).is_file()
+    assert list(target.parent.glob("browser-container-builder-backups/*/plan.json"))
+    before = (target / "policies.json").read_bytes()
+    second = service._run_builder_command(_command(service, config, ["--apply"]))
+    assert not second["ok"]  # an existing browser must still stop creation
+    assert (target / "policies.json").read_bytes() == before
+    assert sentinel.read_bytes() == b"unchanged sentinel"
+    assert len(set(observed)) == 3 and all(not p.parent.exists() for p in observed)

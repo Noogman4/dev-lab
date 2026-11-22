@@ -73,6 +73,8 @@ CONTAINER_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 DEFAULT_ICON_MODE = "favicon"
 DEFAULT_THEME_ICON = "firefox"
 WEBSITE_FILTER_BLOCK_PATTERN = "<all_urls>"
+SANDBOX_MODULE = "netmon.modules.secure_browser.container_launcher"
+SANDBOX_START_COMMAND = f'exec /usr/bin/python3 -EsB -m {SANDBOX_MODULE} "$SCRIPT_DIR"'
 FAVICON_TIMEOUT_SECONDS = 10
 FAVICON_REQUEST_HEADERS = {
     "User-Agent": (
@@ -246,6 +248,7 @@ class ContainerSpec:
     keep_cookies: bool | None = None
     enable_website_filter: bool | None = None
     child_lock: dict[str, Any] | None = None
+    sandboxed: bool = False
 
 
 @dataclass
@@ -709,7 +712,9 @@ def detect_start_command(start_script: Path | None) -> str | None:
     script_text = read_text_if_small(start_script)
     for line in script_text.splitlines():
         stripped = line.strip()
-        if "firefox" in stripped and not stripped.startswith("#"):
+        if (
+            "firefox" in stripped or SANDBOX_MODULE in stripped
+        ) and not stripped.startswith("#"):
             return stripped
     return f"bash {start_script}"
 
@@ -735,7 +740,7 @@ def build_risk_hints(
         )
     if start_command is None:
         risks.append("Kein Startbefehl erkannt.")
-    else:
+    elif SANDBOX_MODULE not in start_command:
         if "--no-remote" not in start_command:
             risks.append("Startbefehl nutzt kein --no-remote.")
         if "--profile" not in start_command:
@@ -1869,6 +1874,8 @@ def build_user_js_content(spec: ContainerSpec) -> str:
 
 
 def build_start_script(spec: ContainerSpec) -> str:
+    if spec.sandboxed:
+        return build_sandbox_start_script()
     wm_class = shlex.quote(get_spec_wm_class(spec))
     return f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -2012,7 +2019,9 @@ if __name__ == "__main__":
 """
 
 
-def build_backup_script(spec: ContainerSpec) -> str:
+def build_backup_script(
+    spec: ContainerSpec, *, source_directory: Path | None = None
+) -> str:
     # Keep the generated helper standalone: installed containers need no NetMon imports.
     helper = r"""import datetime
 import os
@@ -2077,9 +2086,14 @@ try:
 finally:
     os.close(root)
 """
+    directory = (
+        shlex.quote(os.fspath(source_directory))
+        if source_directory is not None
+        else '"$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)"'
+    )
     return (
         "#!/usr/bin/env bash\nset -euo pipefail\numask 077\n"
-        'SCRIPT_DIR="$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)"\n'
+        f"SCRIPT_DIR={directory}\n"
         f"python3 - \"$SCRIPT_DIR\" {shlex.quote(spec.name)} <<'NETMON_BACKUP_PY'\n"
         + helper
         + "NETMON_BACKUP_PY\n"
@@ -2093,6 +2107,11 @@ def build_container_readme(spec: ContainerSpec) -> str:
     menu_filename = get_menu_filename(spec)
     menu_name = get_menu_name(spec)
     notes = spec.notes or "Keine zusaetzlichen Hinweise."
+    start_mode = (
+        "Bubblewrap mit eigener Firefox-Basis und privatem Profil"
+        if spec.sandboxed
+        else "`./firefox/firefox --no-remote --profile ./profile`"
+    )
     return f"""# {spec.name}
 
 Separater Firefox-Standalone-Container mit eigenem Profil und eigener Startlogik.
@@ -2130,7 +2149,7 @@ Separater Firefox-Standalone-Container mit eigenem Profil und eigener Startlogik
 
 ## Hinweise
 
-- Standardstart: `./firefox/firefox --no-remote --profile ./profile`
+- Standardstart: {start_mode}
 - `WebsiteFilter` blockiert standardmaessig alle Seiten und erlaubt nur die Ausnahmen aus `policies.json`.
 - Port-spezifische Ziele wie `netmonroots.com:2083` koennen von Firefox `WebsiteFilter` nicht exakt nach Port eingeschraenkt werden.
 - Cookies werden beim Beenden geloescht.
@@ -2165,9 +2184,23 @@ StartupWMClass={get_spec_wm_class(spec)}
 """
 
 
+def build_sandbox_start_script() -> str:
+    app_root = shlex.quote(str(Path(__file__).resolve().parents[2]))
+    return f"""#!/bin/sh
+set -eu
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+cd {app_root}
+{SANDBOX_START_COMMAND}
+"""
+
+
 def build_existing_start_script(
     container: DiscoveredContainer, profile_path: Path
 ) -> str:
+    if detect_start_command(container.root_dir / "start.sh") == SANDBOX_START_COMMAND:
+        if profile_path != container.root_dir / "profile":
+            raise ValueError("Der Sandbox-Starter benötigt ein internes Profil.")
+        return build_sandbox_start_script()
     wm_class = shlex.quote(get_container_wm_class(container))
     profile_arg = shlex.quote(str(profile_path))
     return f"""#!/usr/bin/env bash
@@ -2408,25 +2441,28 @@ def validate_config_payload(
                 "password_hash": str(child_lock["password_hash"]),
                 "iterations": iterations,
             }
-        specs.append(
-            ContainerSpec(
-                name=name,
-                path=path,
-                allowed_domains=normalized_allowed_domains,
-                source_firefox_dir=source,
-                homepage_url=homepage_url,
-                new_tab_url=new_tab_url,
-                menu_name=menu_name,
-                icon_mode=icon_mode,
-                custom_icon_path=custom_icon_path,
-                notes=notes,
-                security_profile=security_profile,
-                allow_password_manager=allow_password_manager,
-                keep_cookies=keep_cookies,
-                enable_website_filter=enable_website_filter,
-                child_lock=child_lock,
-            )
+        sandboxed = entry.get("sandboxed", False)
+        if not isinstance(sandboxed, bool):
+            raise ValueError(f"{name}: sandboxed muss true oder false sein.")
+        spec = ContainerSpec(
+            name=name,
+            path=path,
+            allowed_domains=normalized_allowed_domains,
+            source_firefox_dir=source,
+            homepage_url=homepage_url,
+            new_tab_url=new_tab_url,
+            menu_name=menu_name,
+            icon_mode=icon_mode,
+            custom_icon_path=custom_icon_path,
+            notes=notes,
+            security_profile=security_profile,
+            allow_password_manager=allow_password_manager,
+            keep_cookies=keep_cookies,
+            enable_website_filter=enable_website_filter,
+            child_lock=child_lock,
+            sandboxed=sandboxed,
         )
+        specs.append(spec)
     return specs
 
 
@@ -2777,6 +2813,7 @@ def build_apply_plan(
                 f"- {spec.name}",
                 f"  Ziel: {target}",
                 f"  Firefox-Quelle: {source}",
+                f"  Startmodus: {'Bubblewrap' if spec.sandboxed else 'Firefox direkt'}",
                 f"  Domains: {', '.join(spec.allowed_domains)}",
                 f"  Icon-Modus: {icon_plan.mode}",
                 f"  Icon-Domain: {icon_plan.source_domain if icon_plan.source_domain else 'nicht erkannt'}",
@@ -2865,7 +2902,12 @@ def maintenance_directory(path: Path, *, create: bool = False):
     if ".." in path.parts:
         raise ValueError(f"Unsicherer Wartungspfad: {path}")
     path = Path(os.path.abspath(path))
-    fd = os.open(path.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    # Like passive scans, traversal needs search permission, not directory read
+    # permission (e.g. /tmp/user is legitimately 0711). Keep every component
+    # anchored and refuse symlinks; only the final directory must be readable.
+    traverse_flags = flags | getattr(os, "O_PATH", 0)
+    fd = os.open(path.anchor, traverse_flags)
     try:
         for part in path.parts[1:]:
             if create:
@@ -2873,11 +2915,12 @@ def maintenance_directory(path: Path, *, create: bool = False):
                     os.mkdir(part, mode=0o700, dir_fd=fd)
                 except FileExistsError:
                     pass
-            next_fd = os.open(
-                part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd
-            )
+            next_fd = os.open(part, traverse_flags, dir_fd=fd)
             os.close(fd)
             fd = next_fd
+        next_fd = os.open(".", flags, dir_fd=fd)
+        os.close(fd)
+        fd = next_fd
         yield fd
     finally:
         os.close(fd)
@@ -2941,9 +2984,9 @@ def _maintenance_identity(info):
     )
 
 
-def maintenance_read(path: Path) -> bytes:
+def maintenance_read(path: Path, *, limit: int | None = None) -> bytes:
     with maintenance_directory(path.parent) as directory:
-        return _maintenance_read_at(directory, path.name)[0]
+        return _maintenance_read_at(directory, path.name, limit=limit)[0]
 
 
 def maintenance_write(
