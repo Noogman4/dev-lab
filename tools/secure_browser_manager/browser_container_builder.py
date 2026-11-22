@@ -187,6 +187,7 @@ DEFAULT_CONTAINERS = [
         "name": "firefox-Amazon",
         "allowed_domains": [
             "amazon.de",
+            "www.amazon.de",
             "amazon.com",
             "media-amazon.com",
             "ssl-images-amazon.com",
@@ -196,6 +197,7 @@ DEFAULT_CONTAINERS = [
         "name": "firefox-Netflix",
         "allowed_domains": [
             "netflix.com",
+            "www.netflix.com",
             "nflxvideo.net",
             "nflximg.net",
         ],
@@ -354,7 +356,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help=(
             "Repair policies.json and user.js for existing containers using the "
-            "current domain/subdomain rules without changing profile data, "
+            "current exact-host rules without changing profile data, "
             "binary, launcher, or menu entry."
         ),
     )
@@ -948,20 +950,8 @@ def make_match_patterns(domain: str) -> list[str]:
     if normalized_domain is None:
         return []
     host, _, port = normalized_domain.partition(":")
-    patterns: list[str] = []
-    if port:
-        patterns.append(f"https://{host}/*")
-        return patterns
-    patterns.append(f"*://{host}/*")
-    base_host = host.removeprefix("www.")
-    if host.startswith("www.") and base_host:
-        patterns.append(f"*://{base_host}/*")
-    elif "." in host:
-        patterns.append(f"*://www.{host}/*")
-    wildcard_host = base_host or host
-    if "." in wildcard_host:
-        patterns.append(f"*://*.{wildcard_host}/*")
-    return patterns
+    scheme = "https" if port else "*"
+    return [f"{scheme}://{host}/*"]
 
 
 def resolve_security_profile(spec: ContainerSpec) -> dict[str, object]:
@@ -1585,29 +1575,17 @@ def build_repair_policy_spec(container: DiscoveredContainer) -> ContainerSpec:
         if isinstance(known_domains, list)
         else []
     )
-    existing_domains = list(container.domains)
+    existing_homepage_url = read_existing_homepage_url(container)
+    existing_domains = merge_allowed_domains(
+        [existing_homepage_url] if existing_homepage_url else [],
+        read_existing_allowed_domains(container),
+    )
     fallback_domains = PROFILE_MATCH_RULES.get(container.name, [])
     allowed_domains = merge_allowed_domains(
         existing_domains,
         bundle_domains or fallback_domains,
     )
-    existing_homepage_url = read_existing_homepage_url(container)
-    existing_homepage_host = (
-        urlparse(existing_homepage_url).hostname if existing_homepage_url else None
-    )
-    if existing_homepage_host:
-        existing_domains = merge_allowed_domains(
-            [existing_homepage_host], existing_domains
-        )
-    homepage_domain = (
-        existing_homepage_host
-        if existing_homepage_host
-        else (
-            existing_domains[0]
-            if existing_domains
-            else (allowed_domains[0] if allowed_domains else "")
-        )
-    )
+    homepage_domain = allowed_domains[0] if allowed_domains else ""
     homepage_url = (
         existing_homepage_url
         if existing_homepage_url
@@ -1622,8 +1600,8 @@ def build_repair_policy_spec(container: DiscoveredContainer) -> ContainerSpec:
         new_tab_url="about:blank",
         menu_name=REGISTER_EXISTING_MENU_NAMES.get(container.name),
         notes=(
-            "Reparierter Bestandscontainer mit aktualisierten Domain- und "
-            "Subdomain-Regeln in policies.json und user.js."
+            "Reparierter Bestandscontainer mit aktualisierten Regeln für einzelne "
+            "Hosts in policies.json und user.js."
         ),
     )
     return ContainerSpec(

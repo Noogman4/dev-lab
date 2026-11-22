@@ -82,6 +82,31 @@ def test_invalid_config_and_form_allowlists_fail_in_full(tmp_path, domains):
         )
 
 
+@pytest.mark.parametrize(
+    "host", ["trusted.github.io", "www.trusted.github.io", "login.example.co.uk"]
+)
+def test_new_profile_only_allows_the_start_host_and_explicit_additions(tmp_path, host):
+    manager = SecureBrowserManager()
+    start_url = f"https://{host}"
+    defaults = manager.derive_create_defaults(start_url)
+    assert defaults["allowed_domains"] == [host]
+    resolved = manager._resolve_create_inputs(
+        "", start_url, f"{host}, accounts.example.com", "", "", ""
+    )
+    spec = builder.ContainerSpec(
+        "firefox-Test",
+        tmp_path,
+        resolved["allowed_domains"],
+        None,
+        homepage_url=start_url,
+    )
+    website_filter = builder.build_policies_payload(spec)["policies"]["WebsiteFilter"]
+    assert website_filter == {
+        "Block": ["<all_urls>"],
+        "Exceptions": [f"*://{host}/*", "*://accounts.example.com/*"],
+    }
+
+
 def test_invalid_direct_spec_cannot_create_partial_container(tmp_path):
     root = tmp_path / "firefox-Test"
     spec = builder.ContainerSpec("firefox-Test", root, ["*"], tmp_path / "source")
@@ -146,18 +171,38 @@ def test_generated_and_appended_exceptions_stay_scoped(tmp_path):
     payload = builder.build_policies_payload(spec)
     website_filter = payload["policies"]["WebsiteFilter"]
     assert website_filter["Block"] == ["<all_urls>"]
-    assert set(website_filter["Exceptions"]) == {
+    assert website_filter["Exceptions"] == ["*://www.example.com/*"]
+    manager = SecureBrowserManager()
+    rendered = manager.append_policy_exception_json(
+        json.dumps(payload), "www.example.com"
+    )
+    rendered = manager.append_policy_exception_json(
+        rendered, "https://bücher.de:2083/mail"
+    )
+    assert json.loads(rendered)["policies"]["WebsiteFilter"]["Exceptions"] == [
         "*://www.example.com/*",
-        "*://example.com/*",
-        "*://*.example.com/*",
-    }
-    rendered = SecureBrowserManager().append_policy_exception_json(
-        json.dumps(payload), "https://bücher.de:2083/mail"
+        "https://xn--bcher-kva.de:2083/mail*",
+    ]
+
+
+@pytest.mark.parametrize("legacy_wildcard", [False, True])
+def test_inventory_flags_broad_saved_domain_rules_without_rewriting(
+    tmp_path, legacy_wildcard
+):
+    container = BrowserContainer(
+        "firefox-Test", tmp_path, tmp_path / "firefox/firefox", tmp_path / "profile", ""
     )
-    assert (
-        "https://xn--bcher-kva.de:2083/mail*"
-        in json.loads(rendered)["policies"]["WebsiteFilter"]["Exceptions"]
-    )
+    policy = tmp_path / "firefox/distribution/policies.json"
+    policy.parent.mkdir(parents=True)
+    pattern = "*://*.github.io/*" if legacy_wildcard else "*://trusted.github.io/*"
+    original = json.dumps({"policies": {"WebsiteFilter": {"Exceptions": [pattern]}}})
+    policy.write_text(original)
+
+    hints = SecureBrowserService().derive_risk_hints(container)
+
+    assert any("Subdomain-Gruppen" in hint for hint in hints) is legacy_wildcard
+    assert policy.read_text() == original
+    assert not (tmp_path / "policies.json").exists()
 
 
 def test_explicit_compatible_profile_remains_available(tmp_path):

@@ -9,7 +9,6 @@ from urllib.parse import urlparse
 def normalize_allowed_domain(value: str) -> str | None:
     """Accept a concrete DNS/IPv4 host, optionally supplied as an HTTP(S) URL.
 
-    Wildcards belong only in generated subdomain patterns, never in user input.
     IPv6 authorities are unsupported by the existing pattern generator.
     """
     if not isinstance(value, str) or any(
@@ -64,7 +63,7 @@ def validate_website_filter(payload: dict) -> None:
     """Ensure filter exceptions remain anchored to concrete hostnames.
 
     An explicitly absent WebsiteFilter (compatible profile) remains supported.
-    Generated '*.example.com' patterns are allowed; global host masks are not.
+    Existing '*.example.com' patterns are still accepted when reading policies.
     """
     policies = payload.get("policies", {})
     if not isinstance(policies, dict):

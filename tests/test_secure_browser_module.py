@@ -656,35 +656,24 @@ def test_secure_browser_manager_derives_create_defaults_from_website():
     assert derived["menu_name"] == "Sparkasse Ulm De"
 
 
-def test_secure_browser_manager_derives_known_domain_bundle_for_netflix():
+def test_secure_browser_manager_uses_netflix_name_and_exact_start_host():
     manager = SecureBrowserManager(service=SimpleNamespace())
 
     derived = manager.derive_create_defaults("https://www.netflix.com")
 
     assert derived["homepage_url"] == "https://www.netflix.com"
     assert derived["container_name"] == "firefox-netflix"
-    assert derived["allowed_domains"] == [
-        "netflix.com",
-        "nflxvideo.net",
-        "nflximg.net",
-    ]
+    assert derived["allowed_domains"] == ["www.netflix.com"]
     assert derived["menu_name"] == "Netflix"
 
 
-def test_secure_browser_manager_derives_known_domain_bundle_for_openai():
+def test_secure_browser_manager_uses_openai_name_and_exact_start_host():
     manager = SecureBrowserManager(service=SimpleNamespace())
 
     derived = manager.derive_create_defaults("https://chatgpt.com")
 
     assert derived["container_name"] == "firefox-openai"
-    assert derived["allowed_domains"] == [
-        "chatgpt.com",
-        "openai.com",
-        "platform.openai.com",
-        "auth.openai.com",
-        "oaistatic.com",
-        "oaiusercontent.com",
-    ]
+    assert derived["allowed_domains"] == ["chatgpt.com"]
     assert derived["menu_name"] == "OpenAI"
 
 
@@ -695,11 +684,7 @@ def test_secure_browser_manager_derives_defaults_for_explicit_port_url():
 
     assert derived["homepage_url"] == "https://hs21.name.tools:2083"
     assert derived["container_name"] == "firefox-hs21-name-tools"
-    assert derived["allowed_domains"] == [
-        "hs21.name.tools:2083",
-        "hs21.name.tools",
-        "name.tools",
-    ]
+    assert derived["allowed_domains"] == ["hs21.name.tools:2083"]
 
 
 def test_secure_browser_manager_normalizes_url_like_allowed_domains():

@@ -60,6 +60,7 @@
       "menu_name": "Amazon",
       "icon_mode": "favicon",
       "allowed_domains": [
+        "www.amazon.de",
         "amazon.de",
         "amazon.com",
         "media-amazon.com",
@@ -74,6 +75,7 @@
       "menu_name": "Netflix",
       "icon_mode": "favicon",
       "allowed_domains": [
+        "www.netflix.com",
         "netflix.com",
         "nflxvideo.net",
         "nflximg.net"

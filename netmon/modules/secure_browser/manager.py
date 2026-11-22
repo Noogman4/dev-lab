@@ -21,17 +21,6 @@ from .service import SecureBrowserService
 
 LOGGER = logging.getLogger(__name__)
 
-COMMON_THIRD_LEVEL_SUFFIXES = {
-    "co.uk",
-    "org.uk",
-    "gov.uk",
-    "ac.uk",
-    "co.jp",
-    "com.au",
-    "net.au",
-    "org.au",
-}
-
 LOGIN_SUBDOMAIN_PREFIXES = {
     "account",
     "accounts",
@@ -71,95 +60,16 @@ class SecureBrowserManager:
     POLICY_EDIT_CONFIRM_TOKEN = "SAVE"
     WEBSITE_FILTER_BLOCK_PATTERN = "<all_urls>"
     CONTAINER_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
-    CREATE_DOMAIN_BUNDLES = {
-        "github.com": {
-            "domains": [
-                "github.com",
-                "githubusercontent.com",
-                "githubassets.com",
-            ],
-            "slug": "github",
-            "display_name": "GitHub",
-        },
-        "chatgpt.com": {
-            "domains": [
-                "chatgpt.com",
-                "openai.com",
-                "platform.openai.com",
-                "auth.openai.com",
-                "oaistatic.com",
-                "oaiusercontent.com",
-            ],
-            "slug": "openai",
-            "display_name": "OpenAI",
-        },
-        "openai.com": {
-            "domains": [
-                "chatgpt.com",
-                "openai.com",
-                "platform.openai.com",
-                "auth.openai.com",
-                "oaistatic.com",
-                "oaiusercontent.com",
-            ],
-            "slug": "openai",
-            "display_name": "OpenAI",
-        },
-        "name.com": {
-            "domains": [
-                "name.com",
-                "www.name.com",
-            ],
-            "slug": "namecom",
-            "display_name": "Name.com",
-        },
-        "cpanel.netmonroots.com": {
-            "domains": [
-                "netmonroots.com",
-                "cpanel.netmonroots.com",
-                "netmonroots.com:2083",
-            ],
-            "slug": "cpanel",
-            "display_name": "cPanel",
-        },
-        "netmonroots.com": {
-            "domains": [
-                "netmonroots.com",
-                "cpanel.netmonroots.com",
-                "netmonroots.com:2083",
-            ],
-            "slug": "cpanel",
-            "display_name": "cPanel",
-        },
-        "amazon.de": {
-            "domains": [
-                "amazon.de",
-                "amazon.com",
-                "media-amazon.com",
-                "ssl-images-amazon.com",
-            ],
-            "slug": "amazon",
-            "display_name": "Amazon",
-        },
-        "amazon.com": {
-            "domains": [
-                "amazon.de",
-                "amazon.com",
-                "media-amazon.com",
-                "ssl-images-amazon.com",
-            ],
-            "slug": "amazon",
-            "display_name": "Amazon",
-        },
-        "netflix.com": {
-            "domains": [
-                "netflix.com",
-                "nflxvideo.net",
-                "nflximg.net",
-            ],
-            "slug": "netflix",
-            "display_name": "Netflix",
-        },
+    CREATE_SITE_NAMES = {
+        "github.com": ("github", "GitHub"),
+        "chatgpt.com": ("openai", "OpenAI"),
+        "openai.com": ("openai", "OpenAI"),
+        "name.com": ("namecom", "Name.com"),
+        "cpanel.netmonroots.com": ("cpanel", "cPanel"),
+        "netmonroots.com": ("cpanel", "cPanel"),
+        "amazon.de": ("amazon", "Amazon"),
+        "amazon.com": ("amazon", "Amazon"),
+        "netflix.com": ("netflix", "Netflix"),
     }
 
     def __init__(self, service: SecureBrowserService | None = None, tr=None) -> None:
@@ -332,77 +242,29 @@ class SecureBrowserManager:
         return normalized
 
     @classmethod
-    def _derive_known_bundle(cls, host_without_port: str) -> dict[str, object] | None:
-        host = host_without_port.lower()
-        candidates = [host, host.removeprefix("www.")]
-        host_parts = [part for part in host.removeprefix("www.").split(".") if part]
+    def _derive_site_name(cls, host: str) -> tuple[str, str]:
+        base_host = host.removeprefix("www.")
+        candidates = [host, base_host]
+        host_parts = base_host.split(".")
         if len(host_parts) > 2 and host_parts[0] in LOGIN_SUBDOMAIN_PREFIXES:
             candidates.append(".".join(host_parts[1:]))
         for candidate in candidates:
-            if candidate in cls.CREATE_DOMAIN_BUNDLES:
-                return dict(cls.CREATE_DOMAIN_BUNDLES[candidate])
-        return None
-
-    @staticmethod
-    def _guess_domain_scope(host_without_port: str) -> list[str]:
-        host = host_without_port.lower().removeprefix("www.")
-        parts = [part for part in host.split(".") if part]
-        if len(parts) < 2:
-            return [host] if host else []
-        candidate_root = ".".join(parts[-2:])
-        if len(parts) >= 3:
-            candidate_suffix = ".".join(parts[-2:])
-            if candidate_suffix in COMMON_THIRD_LEVEL_SUFFIXES and len(parts) >= 3:
-                candidate_root = ".".join(parts[-3:])
-        domains = [host]
-        if candidate_root not in domains:
-            domains.append(candidate_root)
-        if host_without_port.startswith("www.") and host_without_port not in domains:
-            domains.insert(0, host_without_port.lower())
-        return domains
+            if candidate in cls.CREATE_SITE_NAMES:
+                return cls.CREATE_SITE_NAMES[candidate]
+        slug = re.sub(r"[^a-z0-9]+", "-", base_host).strip("-") or "neu"
+        return slug, " ".join(part.capitalize() for part in slug.split("-"))
 
     @classmethod
     def derive_create_defaults(cls, website_url: str) -> dict[str, object]:
         normalized_url = cls.normalize_website_url(website_url)
-        parsed = urlparse(normalized_url)
-        host = parsed.netloc.lower()
-        host_without_port = host.split(":", 1)[0]
-        explicit_port = parsed.port
-        host_base = host_without_port.removeprefix("www.")
-        known_bundle = cls._derive_known_bundle(host_without_port)
-        if known_bundle and known_bundle.get("homepage_url"):
-            normalized_url = str(known_bundle["homepage_url"])
-        slug = (
-            str(known_bundle["slug"])
-            if known_bundle and known_bundle.get("slug")
-            else re.sub(r"[^a-z0-9]+", "-", host_base).strip("-") or "neu"
-        )
-        container_name = f"firefox-{slug}"
-        allowed_domains = (
-            list(known_bundle["domains"])
-            if known_bundle and isinstance(known_bundle.get("domains"), list)
-            else None
-        )
-        if not allowed_domains:
-            allowed_domains = (
-                cls._guess_domain_scope(host_without_port)
-                if host_without_port
-                else ["example.com"]
-            )
-        if explicit_port and host_without_port:
-            with_port = f"{host_without_port}:{explicit_port}"
-            if with_port not in allowed_domains:
-                allowed_domains.insert(0, with_port)
-        display_name = (
-            str(known_bundle["display_name"])
-            if known_bundle and known_bundle.get("display_name")
-            else " ".join(part.capitalize() for part in slug.split("-") if part)
-            or "Browser"
-        )
+        allowed_host = normalize_allowed_domain(normalized_url)
+        if allowed_host is None:
+            raise ValueError("Ungültige HTTP(S)-Startadresse für den Secure Browser.")
+        slug, display_name = cls._derive_site_name(allowed_host.partition(":")[0])
         return {
             "homepage_url": normalized_url,
-            "container_name": container_name,
-            "allowed_domains": allowed_domains,
+            "container_name": f"firefox-{slug}",
+            "allowed_domains": [allowed_host],
             "menu_name": display_name,
             "security_profile": cls.CREATE_DEFAULT_SECURITY_PROFILE,
             "allow_password_manager": True,
@@ -1298,7 +1160,7 @@ class SecureBrowserManager:
             f"- Bestätigungscode erforderlich: {self.REPAIR_POLICY_CONFIRM_TOKEN}",
             f"- Eingegebener Code: {token or 'leer'}",
             "- Modus: Dry-Run intern, ohne Schreibzugriffe",
-            "- Wirkung: policies.json und user.js werden auf das aktuelle Domain-/Subdomain-Schema angehoben",
+            "- Die Reparatur schreibt die Regeln für einzelne Hosts in policies.json und user.js.",
             "- Schutz: keine Änderung an Binary, Launcher, Menüeintrag oder Cookies/Profildaten",
             "",
             *lines,
@@ -1742,23 +1604,11 @@ class SecureBrowserManager:
         host = normalized.partition(":")[0]
         if "." not in host:
             raise ValueError("Ungültige URL oder Domain für die Ausnahme.")
-        port = parsed.port
         path = parsed.path or "/"
         normalized_path = path if path.startswith("/") else f"/{path}"
-        if port:
-            return [f"{parsed.scheme or 'https'}://{host}:{port}{normalized_path}*"]
-        patterns = [f"{parsed.scheme or '*'}://{host}{normalized_path}*"]
-        if normalized_path == "/":
-            patterns = [f"*://{host}/*"]
-            base_host = host.removeprefix("www.")
-            if host.startswith("www.") and base_host:
-                patterns.append(f"*://{base_host}/*")
-            elif "." in host:
-                patterns.append(f"*://www.{host}/*")
-            wildcard_host = base_host or host
-            if "." in wildcard_host:
-                patterns.append(f"*://*.{wildcard_host}/*")
-        return patterns
+        if parsed.port or normalized_path != "/":
+            return [f"{parsed.scheme}://{normalized}{normalized_path}*"]
+        return [f"*://{host}/*"]
 
     def append_policy_exception_json(self, content: str, url_or_domain: str) -> str:
         try:

@@ -151,6 +151,12 @@ Richtlinien. Die Auswahl im Tab bestimmt weiterhin, ob der Domainfilter aktiv
 ist. Bei einem Startfehler bleibt der Browser geschlossen. Eine Aktualisierung
 des Starters übernimmt den bereits gewählten Sandbox-Startmodus.
 
+Beim Anlegen eines gefilterten Profils schlägt NetMon den Host der Startseite vor.
+Weitere Hosts, etwa für die Anmeldung, können einzeln eingetragen und in der
+Vorschau geprüft werden. Jede erzeugte Regel gilt für den jeweiligen Host.
+Die Risiko-Hinweise in der Inventur markieren gespeicherte Richtlinien mit
+Subdomain-Wildcards. Solche Einträge lassen sich im Whitelist-Editor überprüfen.
+
 Das NetMon-DEB verlangt `bubblewrap`, `slirp4netns`, `dbus-daemon`, `dbus-bin`,
 `util-linux`, `nftables` und `iproute2`. Das separate `netmon-web-browser-runtime` wird empfohlen und
 liefert die verwaltete Firefox-Basis für die unterstützte Architektur. Die
