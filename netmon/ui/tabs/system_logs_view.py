@@ -1,8 +1,8 @@
-"""System-Logs sub-tab: read-only Linux logs, anonymised hand-over to Chad.
+"""System-Logs sub-tab: read-only Linux logs and anonymised analysis prompts.
 
 Logs are read in a worker thread (never in the Tk main thread) and only when
 the user opens the sub-tab or presses refresh. Nothing is sent anywhere
-automatically: the Chad button shows the anonymised text first.
+automatically: the analysis actions show a preview first.
 """
 
 from __future__ import annotations
@@ -13,8 +13,10 @@ from tkinter import ttk
 
 try:
     from netmon.core import system_logs
+    from netmon.ui.widgets.text_analysis import TextAnalysisActions
 except ModuleNotFoundError:  # pragma: no cover - legacy flat layout
     from core import system_logs
+    from ui.widgets.text_analysis import TextAnalysisActions
 
 RANGE_LABELS = (
     ("boot", "Dieser Start"),
@@ -42,7 +44,6 @@ class SystemLogsView:
         self.raw_text = ""
         self.source_key = system_logs.SOURCES[0].key
         self.loaded_key = None  # source of the text currently shown (snapshot)
-        self.preview = None
         self._worker_busy = False  # at most one reader thread at a time
         self._pending = False  # a newer request waits for the running one
 
@@ -84,10 +85,10 @@ class SystemLogsView:
             command=self.open_chad_preview,
         )
         self.btn_chad.pack(side="right")
-        self.btn_copy = ttk.Button(
-            top, text=_tr(app, "syslogs_copy", "Kopieren"), command=self.copy_text
+        self.btn_clear = ttk.Button(
+            top, text=_tr(app, "btn_clear", "Leeren"), command=self.clear_text
         )
-        self.btn_copy.pack(side="right", padx=(0, 6))
+        self.btn_clear.pack(side="right", padx=(0, 6))
         self.range_box.bind("<<ComboboxSelected>>", lambda _e: self.refresh())
         self.lines_box.bind("<<ComboboxSelected>>", lambda _e: self.refresh())
 
@@ -98,6 +99,9 @@ class SystemLogsView:
             self.sources.insert("end", source.label)
         self.sources.selection_set(0)
         self.sources.bind("<<ListboxSelect>>", self._source_selected)
+        play_command = app.__dict__.get("_click_sound_command")
+        if play_command:
+            self.sources.bind("<Button-1>", self._play_source_click, add="+")
         self.sources.pack(side="left", fill="y", padx=(0, 6))
         text_frame = ttk.Frame(body)
         text_frame.pack(side="left", fill="both", expand=True)
@@ -134,6 +138,9 @@ class SystemLogsView:
         ttk.Label(self.frame, textvariable=self.status_var, anchor="w").pack(
             fill="x", pady=(6, 0)
         )
+        self.text_actions = TextAnalysisActions(
+            app, self.text, self.status_var, self._analysis_title, visible_end="end-2c"
+        )
 
     # ── loading ─────────────────────────────────────────────────────────────
 
@@ -155,6 +162,13 @@ class SystemLogsView:
         except ValueError:
             return system_logs.DEFAULT_LINES
         return value if value in system_logs.LINE_CHOICES else system_logs.DEFAULT_LINES
+
+    def _play_source_click(self, event):
+        bounds = self.sources.bbox(self.sources.nearest(event.y))
+        if bounds:
+            _, y, _, height = bounds
+            if y <= event.y < y + height:
+                self.sources.tk.call(self.app._click_sound_command)
 
     def _source_selected(self, _event=None):
         selection = self.sources.curselection()
@@ -206,7 +220,7 @@ class SystemLogsView:
                 self.frame.after(50, poll)
                 return
             self._worker_busy = False
-            if self._pending or generation != self.generation:
+            if self._pending:
                 self._pending = False
                 self._start(self.generation)
                 return
@@ -264,92 +278,28 @@ class SystemLogsView:
 
     # ── actions ─────────────────────────────────────────────────────────────
 
+    def clear_text(self):
+        self.generation += 1  # Discard a result still being read.
+        self._pending = False
+        self.raw_text = ""
+        self.loaded_key = None
+        self._render()
+        self.status_var.set(_tr(self.app, "syslogs_cleared", "Anzeige geleert."))
+
     def current_text(self):
-        try:
-            selected = self.text.get("sel.first", "sel.last")
-        except tk.TclError:
-            selected = ""
-        return selected.strip() or "\n".join(self._filtered_lines())
+        return self.text_actions.current_text()
 
-    def copy_text(self):
-        text = self.current_text()
-        if text:
-            self.app.clipboard_clear()
-            self.app.clipboard_append(text)
-
-    def open_chad_preview(self):
-        text = self.current_text()
-        if not text.strip():
-            self.status_var.set(
-                _tr(self.app, "syslogs_empty", "Kein Log-Text vorhanden.")
-            )
-            return None
-        anonymized, counts = system_logs.anonymize_for_ai(text)
-        anonymized, truncated = system_logs.truncate_for_ai(anonymized)
-        # Label from the snapshot actually shown, not from a pending selection.
+    def _analysis_title(self):
+        # Use the source of the displayed snapshot, even while a refresh is pending.
         label = (
             system_logs.resolve_source(self.loaded_key).label
             if self.loaded_key
             else "System-Log"
         )
-        if self.preview is not None:
-            try:
-                self.preview.destroy()
-            except tk.TclError:
-                pass
-        window = tk.Toplevel(self.frame)
-        window.title(
-            _tr(self.app, "syslogs_preview_title", "Vorschau für Chad (anonymisiert)")
-        )
-        window.geometry("820x520")
-        summary = ", ".join(
-            f"{kind}: {count}" for kind, count in sorted(counts.items())
-        )
-        info = _tr(
-            self.app,
-            "syslogs_preview_info",
-            "Ersetzt: {summary}. Bitte prüfen – nur dieser Text wird an Chad übergeben.",
-        ).format(summary=summary or "nichts")
-        if truncated:
-            info += " " + _tr(
-                self.app, "syslogs_truncated", "Gekürzt auf die neuesten Zeilen."
-            )
-        ttk.Label(window, text=info, wraplength=780, justify="left").pack(
-            fill="x", padx=10, pady=(10, 4)
-        )
-        preview = tk.Text(window, wrap="none", font=("Courier", 10))
-        preview.insert("1.0", anonymized)
-        preview.configure(state="disabled")
-        preview.pack(fill="both", expand=True, padx=10)
-        buttons = ttk.Frame(window)
-        buttons.pack(fill="x", padx=10, pady=10)
+        return f"System-Log: {label}"
 
-        def hand_over():
-            self.app.prepare_chad_analysis(f"System-Log: {label}", anonymized)
-            window.destroy()
-            self.preview = None
-            self.status_var.set(
-                _tr(
-                    self.app,
-                    "syslogs_handed_over",
-                    "Anonymisiert an den Chad-Tab übergeben.",
-                )
-            )
-
-        ttk.Button(
-            buttons,
-            text=_tr(self.app, "syslogs_hand_over", "An Chad übergeben"),
-            command=hand_over,
-        ).pack(side="right")
-        ttk.Button(
-            buttons,
-            text=_tr(self.app, "syslogs_cancel", "Abbrechen"),
-            command=window.destroy,
-        ).pack(side="right", padx=(0, 6))
-        window.preview_text = anonymized
-        window.hand_over = hand_over
-        self.preview = window
-        return window
+    def open_chad_preview(self, *, external=False):
+        return self.text_actions.open_preview(external=external)
 
 
 def build_system_logs_view(app, parent):

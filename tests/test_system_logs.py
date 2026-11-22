@@ -8,6 +8,7 @@ from tkinter import ttk
 
 import pytest
 
+from netmon.app import App
 from netmon.core import system_logs as logs
 from netmon.ui.tabs import system_logs_view as view_module
 
@@ -168,8 +169,19 @@ def test_truncation_keeps_the_newest_lines():
 def view(monkeypatch):
     root = tk.Tk()
     root.withdraw()
+    app = App.__new__(App)
+    app.tk, app._w, app.children = root.tk, root._w, root.children
+    app.tr = lambda _key, fallback: fallback
+    root.click_sounds = []
+    root.click_sound_enabled = tk.BooleanVar(root, value=True)
+
+    def play():
+        if root.click_sound_enabled.get():
+            root.click_sounds.append("click")
+
+    app._click_sound_command = root.register(play)
     handed = []
-    root.prepare_chad_analysis = lambda title, text: handed.append((title, text))
+    app.prepare_chad_analysis = lambda title, text: handed.append((title, text))
     reads = []
 
     def read_source(key, range_key, lines):
@@ -184,7 +196,7 @@ def view(monkeypatch):
     monkeypatch.setattr(logs.getpass, "getuser", lambda: "happy")
     notebook = ttk.Notebook(root)
     notebook.pack()
-    built = view_module.build_system_logs_view(root, notebook)
+    built = view_module.build_system_logs_view(app, notebook)
     notebook.add(built.frame, text="System-Logs")
     root.update()
     yield root, built, reads, handed
@@ -221,6 +233,37 @@ def test_stale_result_is_dropped(view):
     assert "OLD" not in built.text.get("1.0", "end")
 
 
+def test_clear_empties_the_view_and_discards_pending_reads(view, monkeypatch):
+    root, built, reads, _handed = view
+    built.on_shown()
+    _wait(lambda: built.raw_text, root)
+    read_source = logs.read_source
+    release = threading.Event()
+
+    def blocked(*args):
+        assert release.wait(5)
+        return read_source(*args)
+
+    monkeypatch.setattr(logs, "read_source", blocked)
+    built.btn_refresh.invoke()
+    built.btn_refresh.invoke()
+    assert built.btn_clear.cget("text") == "Leeren"
+    built.btn_clear.invoke()
+    assert built.current_text() == "" and built.loaded_key is None
+    assert built.status_var.get() == "Anzeige geleert."
+    built.filter_var.set("warning")
+    assert built.current_text() == ""
+
+    release.set()
+    _wait(lambda: not built._worker_busy, root)
+    assert built.current_text() == "" and len(reads) == 2
+    assert built.status_var.get() == "Anzeige geleert."
+
+    built.btn_refresh.invoke()
+    _wait(lambda: built.current_text() == "warning: slow", root)
+    assert len(reads) == 3
+
+
 def test_filter_and_source_selection(view):
     root, built, reads, _handed = view
     built.on_shown()
@@ -248,6 +291,169 @@ def test_chad_preview_shows_only_anonymised_text_and_hands_over_once(view):
     window.hand_over()
     assert len(handed) == 1 and handed[0][0].startswith("System-Log: ")
     assert handed[0][1] == shown
+
+
+def test_clicking_log_sources_plays_the_configured_sound(view, monkeypatch):
+    root, built, _reads, _handed = view
+    refreshes = []
+    monkeypatch.setattr(built, "refresh", lambda: refreshes.append(built.source_key))
+    root.deiconify()
+    root.update()
+    sources = built.sources
+
+    def click(y):
+        sources.event_generate("<ButtonPress-1>", x=5, y=y)
+        sources.event_generate("<ButtonRelease-1>", x=5, y=y)
+
+    def row_middle(index):
+        _, y, _, height = sources.bbox(index)
+        return y + height // 2
+
+    assert root.click_sounds == []
+    click(row_middle(1))
+    assert root.click_sounds == ["click"]
+    assert refreshes == ["kernel"]
+    click(row_middle(1))
+    assert root.click_sounds == ["click", "click"]
+    click(sources.winfo_height() - 5)
+    assert root.click_sounds == ["click", "click"]
+
+    root.click_sound_enabled.set(False)
+    click(row_middle(0))
+    assert refreshes[-1] == "system"
+    assert root.click_sounds == ["click", "click"]
+
+
+def test_log_context_menu_copies_display_or_selection_and_prepares_prompts(view):
+    root, built, reads, handed = view
+    assert built._deliver(
+        built.generation,
+        "system",
+        True,
+        "visible first line\nvisible proglab sshd: from 192.168.1.20 user happy\nhidden",
+    )
+    built.filter_var.set("visible")
+    root.deiconify()
+    root.update()
+    menu = built.text_actions.menu
+
+    def open_menu():
+        built.text.event_generate("<Button-3>", x=12, y=12)
+        root.update()
+        assert menu.winfo_ismapped()
+
+    def choose(index):
+        menu.invoke(index)
+        menu.unpost()
+
+    open_menu()
+    assert root.click_sounds == ["click"]
+    assert menu.entrycget(1, "state") == "disabled"
+    menu.invoke(1)
+    assert root.click_sounds == ["click"]
+    menu.unpost()
+
+    built.text.tag_add("sel", "2.0", "2.end")
+    open_menu()
+    assert built.text.tag_ranges("sel")
+    assert menu.entrycget(1, "state") == "normal"
+    choose(0)
+    all_text = root.clipboard_get()
+    assert all_text == (
+        "visible first line\nvisible proglab sshd: from 192.168.1.20 user happy"
+    )
+    assert built.text.get("sel.first", "sel.last") == all_text
+    assert root.click_sounds == ["click"] * 3
+
+    built.text.tag_remove("sel", "1.0", "end")
+    built.text.tag_add("sel", "2.0", "2.end")
+    open_menu()
+    choose(1)
+    assert root.clipboard_get() == all_text.splitlines()[1]
+    assert root.click_sounds == ["click"] * 5
+
+    open_menu()
+    choose(3)
+    preview = built.text_actions.preview
+    assert handed == []
+    assert preview.preview_text == "visible [HOST] sshd: from LAN-IP-1 user [USER]"
+    assert root.click_sounds == ["click"] * 7
+    preview.hand_over()
+    assert handed == [(f"System-Log: {logs.SOURCES[0].label}", preview.preview_text)]
+
+    open_menu()
+    choose(4)
+    preview = built.text_actions.preview
+    assert root.click_sounds == ["click"] * 9
+    assert root.clipboard_get() == all_text.splitlines()[1]
+    assert "NETMON-DATEN: BEGINN" in preview.preview_text
+    assert "[HOST]" in preview.preview_text and "LAN-IP-1" in preview.preview_text
+    for excluded in ("proglab", "192.168.1.20", "happy", "first line", "hidden"):
+        assert excluded not in preview.preview_text
+    preview.hand_over()
+    assert root.clipboard_get() == preview.preview_text
+    assert len(handed) == 1 and reads == []
+
+    root.click_sound_enabled.set(False)
+    open_menu()
+    choose(0)
+    assert root.clipboard_get() == all_text
+    assert root.click_sounds == ["click"] * 9
+
+
+@pytest.mark.skipif(
+    os.environ.get("NETMON_TEST_ISOLATED") != "1", reason="Private Xvfb"
+)
+def test_copy_all_with_native_mouse_and_paste_in_another_window(view):
+    from tests.test_terminal_dock_v39 import PrivateKeys
+
+    root, built, _reads, _handed = view
+    viewer = tk.Tk()
+    viewer.withdraw()
+    keys = PrivateKeys()
+    try:
+        shown = "\n".join(f"{i:03d} ÄÖÜ " + "x" * 160 for i in range(500))
+        assert built._deliver(built.generation, "system", True, shown)
+        root.geometry("1120x620+100+100")
+        root.deiconify()
+        root.bind("<Button-1>", built.app._handle_app_click_for_context_menu, add="+")
+        viewer.clipboard_clear()
+        viewer.clipboard_append("old clipboard")
+        root.update()
+        root.focus_force()
+        root.update()
+
+        keys.t.XTestFakeMotionEvent(
+            keys.display,
+            -1,
+            built.text.winfo_rootx() + 45,
+            built.text.winfo_rooty() + 40,
+            0,
+        )
+        keys.t.XTestFakeButtonEvent(keys.display, 3, 1, 0)
+        keys.t.XTestFakeButtonEvent(keys.display, 3, 0, 0)
+        keys.x.XSync(keys.display, False)
+        _wait(built.text_actions.menu.winfo_ismapped, root)
+
+        menu = built.text_actions.menu
+        keys.click(menu, x=18, y=menu.yposition(0) + 5)
+        keys.x.XSync(keys.display, False)
+        _wait(lambda: not menu.winfo_ismapped(), root)
+        assert built.text.get("sel.first", "sel.last") == shown
+        assert root.focus_get() is built.text
+        target = tk.Text(viewer)
+        target.pack()
+        viewer.deiconify()
+        root.update()
+        target.focus_force()
+        root.update()
+        keys.shortcut(["Control_L"], "v")
+        keys.x.XSync(keys.display, False)
+        _wait(lambda: target.get("1.0", "end-1c") != "", root)
+        assert target.get("1.0", "end-1c") == shown
+    finally:
+        keys.close()
+        viewer.destroy()
 
 
 def test_log_tab_has_two_subtabs_and_loads_lazily(monkeypatch):
@@ -293,6 +499,11 @@ def test_log_tab_has_two_subtabs_and_loads_lazily(monkeypatch):
         app.log_subtabs.select(app.tab_log_system)
         root.update()
         _wait(lambda: reads, root)
+        system_tabs = app.tab_log_system.winfo_children()[0]
+        assert [system_tabs.tab(t, "text") for t in system_tabs.tabs()] == [
+            "Protokolle",
+            "Systemdateien",
+        ]
     finally:
         root.destroy()
 

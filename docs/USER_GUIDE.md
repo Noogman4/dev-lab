@@ -180,6 +180,16 @@ Eine hohe CPU-Auslastung bedeutet normalerweise, dass ClamAV noch arbeitet. `cla
 - **Screenshot-Platzhalter:** Screenshot-Platzhalter: Log-Tab mit Sprunglink.
 - **Typische Anwendung:** Typische Nutzung: Statusmeldungen lesen und aus dem Log direkt in relevante Tabs springen.
 
+Unter **Log → System-Logs → Systemdateien** kannst du nach Dateien und in ihren
+Inhalten suchen. Per Rechtsklick lassen sich Texte kopieren und nach einer Vorschau
+an Chad übergeben oder als Prompt für einen externen Chat vorbereiten.
+
+- **Einhängepunkte** zeigt `fstab` und, falls vorhanden, `crypttab`.
+- **Netzwerk & DNS** hebt in `nsswitch.conf` die Zeile `hosts:` hervor.
+- **Firewall** zeigt gespeicherte Regeldateien von nftables, iptables-persistent
+  und UFW. Die Anzeige ist schreibgeschützt. Für geschützte Dateien gibt es im
+  installierten NetMon die Aktion **Mit Adminrechten lesen**.
+
 ### Theme Studio
 
 - **Zweck:** Der Tools-Untertab `Theme Studio` dient zum Anpassen des Pop-Testprofils.

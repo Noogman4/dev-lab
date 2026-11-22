@@ -245,21 +245,32 @@ def build_log_tab(app):
     )
 
     try:
+        from netmon.ui.tabs.system_files_view import SystemFilesView
         from netmon.ui.tabs.system_logs_view import build_system_logs_view
     except ModuleNotFoundError:  # legacy flat layout
+        from ui.tabs.system_files_view import SystemFilesView
         from ui.tabs.system_logs_view import build_system_logs_view
 
-    view = build_system_logs_view(app, app.log_subtabs)
-    app.tab_log_system = view.frame
+    app.tab_log_system = ttk.Frame(app.log_subtabs)
     app.log_subtabs.add(
         app.tab_log_system, text=app.tr("tab_log_system", "System-Logs")
     )
+    system_tabs = ttk.Notebook(app.tab_log_system)
+    system_tabs.pack(fill="both", expand=True)
+    view = build_system_logs_view(app, system_tabs)
+    files = SystemFilesView(app, system_tabs)
+    system_tabs.add(view.frame, text=app.tr("tab_system_log_entries", "Protokolle"))
+    system_tabs.add(files.frame, text=app.tr("tab_system_files", "Systemdateien"))
 
     def _subtab_changed(_event=None):
         try:
             if app.log_subtabs.select() == str(app.tab_log_system):
-                view.on_shown()
+                if system_tabs.select() == str(files.frame):
+                    files.on_shown()
+                else:
+                    view.on_shown()
         except tk.TclError:
             pass
 
     app.log_subtabs.bind("<<NotebookTabChanged>>", _subtab_changed, add="+")
+    system_tabs.bind("<<NotebookTabChanged>>", _subtab_changed, add="+")
