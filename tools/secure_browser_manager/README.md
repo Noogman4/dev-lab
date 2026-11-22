@@ -111,13 +111,11 @@ konfigurierten Ausnahmen zu erlauben. Port-genaue Freigaben wie
 Builder dokumentiert dieses Risiko in den generierten Container-README-Dateien.
 
 `allowed_domains` akzeptiert konkrete DNS-/IPv4-Hosts, optional mit Port oder als
-HTTP(S)-URL. Wildcards wie `*` und `*.example.com` sowie ungueltige Hosts werden
-abgewiesen; ein ungueltiger Eintrag bricht die gesamte Eingabe ab. Der Builder
-erzeugt Subdomain-Muster selbst. Generierte Policies und der Policy-Editor
-verweigern globale Ausnahmen wie `*://*/*` und `<all_urls>`. Das ausdruecklich
-ungefilterte Profil `compatible` bleibt verfuegbar. Bereits erzeugte Container
-werden durch ein Code-Update nicht automatisch umgeschrieben; ihre Ausnahmen
-muessen bei Bedarf korrigiert und die Policies neu gespeichert werden.
+HTTP(S)-URL. Der Builder erzeugt eine Ausnahme fuer jeden einzeln angegebenen
+Host. Wildcards und ungueltige Hosts in `allowed_domains` brechen die Eingabe
+ab. Das Profil `compatible` steht fuer einen ausdruecklich ungefilterten Browser.
+Die Inventur markiert Subdomain-Wildcards in bereits gespeicherten Regeln.
+Ausnahmen lassen sich im Policy-Editor pruefen und gezielt korrigieren.
 
 ## Nutzung
 

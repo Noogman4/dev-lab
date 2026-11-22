@@ -865,7 +865,34 @@ class SecureBrowserService:
             risks.append("Menüeintrag verweist auf fehlende Datei")
         if not self._exists_and_executable(container.binary_path):
             risks.append("Firefox-Binary fehlt oder ist nicht ausführbar")
+        for path in self._get_policy_paths(container):
+            try:
+                payload = json.loads(read_text_if_small(path))
+            except (OSError, ValueError, RecursionError):
+                continue
+            if isinstance(payload, dict) and self._has_subdomain_wildcards(payload):
+                risks.append(
+                    "Domainfilter erlaubt ganze Subdomain-Gruppen. Ausnahmen prüfen."
+                )
+                break
         return risks or ["Keine offensichtlichen Risiken erkannt"]
+
+    @staticmethod
+    def _has_subdomain_wildcards(payload: dict) -> bool:
+        policies = payload.get("policies")
+        website_filter = (
+            policies.get("WebsiteFilter") if isinstance(policies, dict) else None
+        )
+        exceptions = (
+            website_filter.get("Exceptions")
+            if isinstance(website_filter, dict)
+            else None
+        )
+        return isinstance(exceptions, list) and any(
+            isinstance(pattern, str)
+            and pattern.startswith(("*://*.", "http://*.", "https://*."))
+            for pattern in exceptions
+        )
 
     def _read_preview(self, path: Path) -> str:
         if not path.is_file():

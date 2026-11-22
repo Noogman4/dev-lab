@@ -227,15 +227,13 @@ def test_build_policies_payload_blocks_all_and_allows_domains() -> None:
     assert payload["policies"]["OverrideFirstRunPage"] == ""
     assert payload["policies"]["OverridePostUpdatePage"] == ""
     assert website_filter["Block"] == ["<all_urls>"]
-    assert "*://openai.com/*" in website_filter["Exceptions"]
-    assert "*://*.openai.com/*" in website_filter["Exceptions"]
-    assert "*://platform.openai.com/*" in website_filter["Exceptions"]
-    assert "*://*.platform.openai.com/*" in website_filter["Exceptions"]
-    assert "*://oaistatic.com/*" in website_filter["Exceptions"]
-    assert "*://*.oaistatic.com/*" in website_filter["Exceptions"]
-    assert "*://oaiusercontent.com/*" in website_filter["Exceptions"]
-    assert "*://*.oaiusercontent.com/*" in website_filter["Exceptions"]
-    assert "https://netmonroots.com/*" in website_filter["Exceptions"]
+    assert website_filter["Exceptions"] == [
+        "*://openai.com/*",
+        "*://platform.openai.com/*",
+        "*://oaistatic.com/*",
+        "*://oaiusercontent.com/*",
+        "https://netmonroots.com/*",
+    ]
 
 
 def test_get_known_container_defaults_matches_login_subdomain_generically() -> None:
@@ -292,12 +290,8 @@ def test_existing_allowed_domains_prefer_builder_metadata(tmp_path: Path) -> Non
     assert builder.read_existing_allowed_domains(container) == ["www.example.com"]
 
 
-def test_make_match_patterns_for_www_domain_includes_base_and_subdomains() -> None:
-    patterns = builder.make_match_patterns("www.netflix.com")
-
-    assert "*://www.netflix.com/*" in patterns
-    assert "*://netflix.com/*" in patterns
-    assert "*://*.netflix.com/*" in patterns
+def test_make_match_patterns_for_www_domain_only_includes_exact_host() -> None:
+    assert builder.make_match_patterns("www.netflix.com") == ["*://www.netflix.com/*"]
 
 
 def test_make_match_patterns_normalizes_url_like_domain_input() -> None:
@@ -1639,12 +1633,40 @@ def test_repair_policy_apply_updates_existing_policy_and_user_js(
     exceptions = policies["policies"]["WebsiteFilter"]["Exceptions"]
     assert "*://www.netflix.com/*" in exceptions
     assert "*://netflix.com/*" in exceptions
-    assert "*://*.netflix.com/*" in exceptions
     assert "*://nflxvideo.net/*" in exceptions
-    assert "*://*.nflxvideo.net/*" in exceptions
+    assert all("://*." not in exception for exception in exceptions)
     assert 'user_pref("browser.startup.homepage", "https://netflix.com");' in (
         root_dir / "user.js"
     ).read_text(encoding="utf-8")
+
+
+def test_policy_repair_keeps_explicit_start_host_and_saved_allowlist(tmp_path: Path):
+    container = builder.DiscoveredContainer(
+        name="Custom",
+        root_dir=tmp_path,
+        binary_path=tmp_path / "firefox/firefox",
+        version="1.0",
+        profile_path=tmp_path / "profile",
+        start_command=None,
+        domains=["history.example.com"],
+        purpose=None,
+        risk_hints=[],
+    )
+    (tmp_path / "policies.json").write_text(
+        json.dumps(
+            {
+                "_builder_metadata": {
+                    "homepage_url": "https://www.example.net",
+                    "allowed_domains": ["login.example.net"],
+                }
+            }
+        )
+    )
+
+    spec = builder.build_repair_policy_spec(container)
+
+    assert spec.homepage_url == "https://www.example.net"
+    assert spec.allowed_domains == ["www.example.net", "login.example.net"]
 
 
 def test_cleanup_menu_keeps_same_visible_name_for_distinct_containers(
