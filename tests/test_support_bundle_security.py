@@ -169,6 +169,24 @@ def test_regular_report_and_log_are_preserved(export_tree):
     assert content["files/crash.log"] == b"normal log"
 
 
+def test_manifest_lists_unique_archive_members_without_local_paths(export_tree):
+    _, reports, logs, state, _ = export_tree
+    write_private(reports / "netmon-report.json", b"{}")
+    write_private(logs / "runtime.log", b"documents log")
+    write_private(state / "logs" / "runtime.log", b"state log")
+
+    with zipfile.ZipFile(bundle.create_support_package()) as archive:
+        manifest = json.loads(archive.read("manifest.json"))
+        assert archive.namelist() == ["manifest.json", *manifest["files"]]
+        assert manifest["files"] == [
+            "files/netmon-report.json",
+            "files/runtime.log",
+            "files/runtime.2.log",
+        ]
+        assert archive.read("files/runtime.log") == b"documents log"
+        assert archive.read("files/runtime.2.log") == b"state log"
+
+
 @pytest.mark.parametrize("replacement", ["symlink", "fifo", "regular"])
 def test_swap_between_stat_and_open_is_rejected(export_tree, monkeypatch, replacement):
     _, reports, _, _, secret = export_tree

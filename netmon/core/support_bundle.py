@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import stat
 import zipfile
@@ -162,15 +163,34 @@ def support_bundle_inputs() -> list[str]:
         return files
 
 
+def _archive_member_names(paths) -> list[str]:
+    names = []
+    used = set()
+    for path in paths:
+        basename = os.path.basename(str(path))
+        filename = re.sub(r"[^A-Za-z0-9._-]", "_", basename)
+        if filename in {"", ".", ".."}:
+            filename = "file"
+        stem, extension = os.path.splitext(filename)
+        name = f"files/{filename}"
+        number = 2
+        while name in used:
+            name = f"files/{stem}.{number}{extension}"
+            number += 1
+        names.append(name)
+        used.add(name)
+    return names
+
+
 def build_support_manifest(*, metadata: dict | None = None, files=None) -> dict:
-    normalized_files = [str(path) for path in (files or [])]
+    """Describe support files by their names inside the ZIP."""
     return {
         "created_at": datetime.now(timezone.utc).isoformat(),
         "netmon_version": NETMON_APP_VERSION,
         "os": current_os_label(),
         "system": redact_diagnostic_value(diagnostic_system_info()),
         "metadata": redact_diagnostic_value(dict(metadata or {})),
-        "files": normalized_files,
+        "files": _archive_member_names(files or ()),
     }
 
 
@@ -212,10 +232,10 @@ def create_support_package(*, metadata: dict | None = None) -> str:
                     "manifest.json",
                     json.dumps(manifest, indent=2, ensure_ascii=False),
                 )
-                for path, source in sources:
-                    with archive.open(
-                        "files/" + os.path.basename(path), "w"
-                    ) as destination:
+                for name, (_path, source) in zip(
+                    manifest["files"], sources, strict=True
+                ):
+                    with archive.open(name, "w") as destination:
                         shutil.copyfileobj(source, destination, length=64 * 1024)
         return package_path
 

@@ -68,7 +68,7 @@ def test_build_support_manifest_redacts_metadata(monkeypatch):
             "email": "sven@example.invalid",
             "detail": "api_key=secret123",
         },
-        files=["/tmp/report.json"],
+        files=["/srv/local-users/synthetic-user/Documents/report.json"],
     )
 
     assert manifest["os"] == "Test OS"
@@ -76,4 +76,4 @@ def test_build_support_manifest_redacts_metadata(monkeypatch):
     assert manifest["system"]["token"] == "[REDACTED]"
     assert manifest["metadata"]["email"] == "[EMAIL_REDACTED]"
     assert manifest["metadata"]["detail"] == "api_key=[REDACTED]"
-    assert manifest["files"] == ["/tmp/report.json"]
+    assert manifest["files"] == ["files/report.json"]
