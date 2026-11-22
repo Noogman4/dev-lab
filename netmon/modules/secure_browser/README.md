@@ -94,9 +94,21 @@ Bubblewrap, `slirp4netns`, `nsenter` und ein für den Benutzer zugängliches
 TUN-Gerät müssen vorhanden sein. Firefox startet erst, wenn das isolierte
 IPv4-Netzwerk bereit ist. Fehler gehen an den Aufrufer zurück.
 
-Der geschützte Start benötigt einen Wayland-Socket. In einer reinen X11-Sitzung
-meldet NetMon den fehlenden Wayland-Zugang. Wenn **Eigenen Browser aktivieren**
-ausgeschaltet ist, öffnet NetMon Weblinks weiterhin im System-Standardbrowser.
+Unter Wayland verwendet der geschützte Start den Socket der Sitzung. In einer
+lokalen X11-Sitzung öffnet NetMon ein Weston-Fenster und bindet dessen privaten
+Wayland-Socket in die Browser-Sandbox ein. Weston läuft als normaler Benutzer
+mit dem X11-Backend und einem eigenen Laufzeitordner. Firefox erhält den
+privaten Wayland-Socket. Der X11-Socket und die X11-Zugangsdaten des Desktops
+bleiben außerhalb der Browser-Sandbox. Andere Anwendungen mit Zugriff auf
+dieselbe X11-Sitzung können weiterhin auf Eingaben oder Fensterinhalte zugreifen.
+NetMon setzt Titel und Symbol seines Weston-Fensters über X11. Der NetmonRoots-Schriftzug und das Logo bleiben im Browser
+sichtbar, wenn Weston das Fenster intern im Wayland-Vollbild anzeigt.
+
+Wenn der Weston-Start scheitert, kann der Benutzer den betreffenden Weblink
+einmalig im Standardbrowser außerhalb der Sandbox öffnen. „Nein“ ist
+vorausgewählt. Secure-Browser-Profile zeigen in diesem Fall einen Startfehler.
+Bei ausgeschalteter Option **Eigenen Browser aktivieren** öffnet NetMon Weblinks
+direkt im System-Standardbrowser.
 
 Bubblewrap richtet die Benutzerzuordnung für Firefox vor dem Start der
 Binärdatei ein. Der Netzwerkhelfer benutzt für seine eigene Sandbox den
@@ -135,14 +147,19 @@ des Starters übernimmt den bereits gewählten Sandbox-Startmodus.
 
 Das NetMon-DEB verlangt `bubblewrap`, `slirp4netns`, `dbus-daemon`, `dbus-bin`
 und `util-linux`. Das separate `netmon-web-browser-runtime` wird empfohlen und
-liefert die verwaltete Firefox-Basis für die unterstützte Architektur. Bei
-lokalen DEBs kann APT beide Pakete gemeinsam installieren, wenn beide Dateien
-angegeben werden. Der Tab prüft vor dem Anlegen die Firefox-Basis, die Wayland-
-Sitzung und die Sandbox-Werkzeuge einschließlich TUN-Zugriff.
+liefert die verwaltete Firefox-Basis für die unterstützte Architektur. Die
+Firefox-Kopiervorlage aus „Zusätzliche Komponenten“ liegt im Dokumente-Ordner
+und wird nur für ältere Profile verwendet. Der Preflight prüft die geschützte
+Laufzeit unter `/opt/netmon-web-browser/firefox` mit demselben Check wie der
+Browserstart. Bei lokalen DEBs kann APT beide Pakete gemeinsam installieren, wenn beide Dateien
+angegeben werden. Unter X11 benötigt der Browser zusätzlich das Paket
+`weston`. Der Tab prüft vor dem Anlegen die Firefox-Basis, die Voraussetzungen
+der aktuellen Grafiksitzung und die Sandbox-Werkzeuge einschließlich TUN-Zugriff.
 
 `tools/secure_browser_manager/containers.sandbox-pilot.json` enthält einen
-Testbrowser für die NetMonRoots-Website. Die Sandbox benötigt eine Wayland-Sitzung
-und die installierte Firefox-Basis unter `/opt/netmon-web-browser/firefox`.
+Testbrowser für die NetMonRoots-Website. Der Starter nutzt den grafischen
+Startpfad der aktuellen Sitzung und die installierte Firefox-Basis unter
+`/opt/netmon-web-browser/firefox`.
 In einer QEMU-VM öffneten zwei Testbrowser mit den Befehlen aus ihren
 Desktop-Einträgen parallel ihre jeweils freigegebene lokale Seite. Eine
 Weiterleitung auf eine gesperrte Domain wurde abgefangen. Der erste Browser

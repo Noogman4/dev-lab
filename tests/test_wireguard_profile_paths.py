@@ -24,7 +24,7 @@ def configure(home, text):
 
 
 @pytest.mark.parametrize("variable", ["$HOME", "${HOME}"])
-def test_system_documents_setting_wins_for_profiles_without_moving_settings(
+def test_system_documents_setting_is_shared_without_moving_settings_in_path_getters(
     home, variable
 ):
     (home / "Documents").mkdir(mode=0o700)
@@ -37,7 +37,7 @@ def test_system_documents_setting_wins_for_profiles_without_moving_settings(
     assert state.get_netmon_wireguard_dir() == str(expected)
     assert vpn.netmon_wireguard_profiles_dir() == str(expected)
     assert expected.is_dir()
-    assert state.get_netmon_documents_dir() == str(home / "Documents" / "NetMon")
+    assert state.get_netmon_documents_dir() == str(home / "Dokumente" / "NetMon")
     assert settings.read_text() == '{"existing":true}'
     assert not (home / "Dokumente" / "NetMon" / "Config").exists()
 

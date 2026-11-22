@@ -13,8 +13,10 @@ except ModuleNotFoundError:
     psutil = None
 
 try:
+    from netmon.core import passive_sudo
     from netmon.core.command import run_cmd
 except ModuleNotFoundError:
+    from core import passive_sudo
     from core.command import run_cmd
 
 try:
@@ -1254,9 +1256,14 @@ def build_security_chad_summary(app) -> str:
     return _build_security_chad_summary(app, include_technical_sections=True)
 
 
-def read_ufw_log_tail(lines=1200):
-    rc, out = run_cmd(
-        ["sudo", "-n", "tail", "-n", str(lines), "/var/log/ufw.log"], timeout=8
+def read_ufw_log_tail(lines=1200, *, app=None):
+    def read():
+        return run_cmd(
+            ["sudo", "-n", "tail", "-n", str(lines), "/var/log/ufw.log"], timeout=8
+        )
+
+    rc, out = (
+        passive_sudo.read(app, "ufw-log-tail", read) if app is not None else read()
     )
     if rc != 0:
         rc, out = run_cmd(["tail", "-n", str(lines), "/var/log/ufw.log"], timeout=8)

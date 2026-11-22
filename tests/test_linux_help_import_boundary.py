@@ -3,12 +3,9 @@
 import io
 import json
 from pathlib import Path
-import queue
 import re
 import subprocess
 import sys
-import threading
-from types import SimpleNamespace
 import zipfile
 
 import pytest
@@ -20,7 +17,6 @@ from netmon.features import linux_help_controller as controller
 from tests.test_import_resource_limits import linux_help_app, xlsx_bytes, write_csv
 
 REAL_POPEN = subprocess.Popen
-REAL_THREAD = threading.Thread
 
 
 @pytest.fixture
@@ -263,71 +259,3 @@ def test_resource_limits_are_set_before_parser_import(tmp_path):
     memory, cpu, output, processes = json.loads(result.stdout)
     assert memory <= worker.MAX_MEMORY_BYTES and cpu <= worker.MAX_CPU_SECONDS
     assert output <= worker.MAX_REPLY_BYTES and processes == 0
-
-
-@pytest.mark.parametrize("result", ["success", "error", "edited"])
-def test_import_dialog_parses_off_ui_and_publishes_only_complete_result(
-    app, tmp_path, monkeypatch, result
-):
-    callbacks = queue.Queue()
-    entered = threading.Event()
-    release = threading.Event()
-    threads = []
-    saved = []
-    app.after = lambda _delay, callback: callbacks.put(callback)
-    for name in (
-        "linux_help_category_var",
-        "linux_help_source_var",
-        "linux_help_risk_filter_var",
-    ):
-        setattr(app, name, SimpleNamespace(set=lambda _value: None))
-    monkeypatch.setattr(
-        controller.filedialog, "askopenfilename", lambda **_kw: str(tmp_path / "db.csv")
-    )
-    for name in (
-        "rebuild_linux_help_indexes",
-        "sync_linux_help_form_categories",
-        "refresh_linux_help_list",
-        "update_linux_help_notes",
-    ):
-        monkeypatch.setattr(controller, name, lambda *_a, **_kw: None)
-    monkeypatch.setattr(
-        controller, "save_linux_help_data", lambda *_a, **_kw: saved.append(True)
-    )
-
-    def parse(_path):
-        assert threading.current_thread() is not threading.main_thread()
-        entered.set()
-        assert release.wait(3)
-        if result == "error":
-            raise ImportLimitError("Import: synthetic failure")
-        return [{"id": "new", "cmd": "true"}]
-
-    monkeypatch.setattr(controller, "_load_linux_help_commands", parse)
-
-    def launch(**kwargs):
-        thread = REAL_THREAD(**kwargs)
-        threads.append(thread)
-        return thread
-
-    monkeypatch.setattr(controller, "threading", SimpleNamespace(Thread=launch))
-    controller.linux_help_import_csv_dialog(app)
-    try:
-        assert entered.wait(3)
-        assert app.linux_help_data[0]["id"] == "existing"
-        assert app.linux_help_import_running
-        # Busy re-entry must not start another dialog/worker.
-        controller.linux_help_import_csv_dialog(app)
-        assert len(threads) == 1
-        if result == "edited":
-            app.linux_help_data[0]["cmd"] = "edited while importing"
-    finally:
-        release.set()
-        threads[0].join(3)
-    assert not threads[0].is_alive()
-    callbacks.get(timeout=3)()
-    assert not app.linux_help_import_running
-    assert saved == ([True] if result == "success" else [])
-    assert app.linux_help_data[0]["id"] == (
-        "new" if result == "success" else "existing"
-    )

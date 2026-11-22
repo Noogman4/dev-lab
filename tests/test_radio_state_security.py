@@ -11,7 +11,6 @@ from netmon.core import private_state
 from netmon.core import private_logs
 from netmon import netmon_radio_core as radio
 
-
 STATE_NAMES = (
     "radio_host_state.json",
     "radio_attach_request.json",

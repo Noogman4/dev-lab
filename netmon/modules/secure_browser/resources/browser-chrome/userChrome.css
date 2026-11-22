@@ -16,6 +16,13 @@
     display: none;
   }
 
+  /* Weston fills its nested window using the Wayland fullscreen state. */
+  @media -moz-pref("browser.netmon.nestedX11") {
+    :root[inFullscreen]:not([inDOMFullscreen]) #navigator-toolbox::before {
+      display: flex;
+    }
+  }
+
   /* Firefox hides existing controls when GTK supplies a close-only layout. */
   :root[customtitlebar]:not([inFullscreen], [popup-window], [sizemode="fullscreen"]) {
     #navigator-toolbox .titlebar-buttonbox-container {

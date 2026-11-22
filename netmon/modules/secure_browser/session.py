@@ -2,10 +2,12 @@
 
 from contextlib import ExitStack, contextmanager
 import fcntl
+import logging
 from functools import partial
 import os
 from pathlib import Path
 from queue import Empty, Full, Queue, SimpleQueue
+import re
 import select
 import stat
 import subprocess
@@ -27,6 +29,8 @@ FIREFOX_DIR = Path("/opt/netmon-web-browser/firefox")
 _DAEMON = "/usr/bin/dbus-daemon"
 _SEND = "/usr/bin/dbus-send"
 _SETPRIV = "/usr/bin/setpriv"
+_WESTON = "/usr/bin/weston"
+_WESTON_SOCKET = "wayland-0"
 _BUS_CONFIGURATION = b"""<busconfig>
   <type>session</type>
   <listen>%s</listen>
@@ -39,6 +43,10 @@ _BUS_CONFIGURATION = b"""<busconfig>
 </busconfig>"""
 
 
+class X11DisplayError(BrowserSandboxError):
+    """The nested display could not be started for this request."""
+
+
 class _ProfileBusy(BrowserSandboxError):
     pass
 
@@ -48,8 +56,15 @@ def _managed_runtime(path):
     for entry in (*reversed(path.parents), path):
         try:
             info = entry.lstat()
+        except FileNotFoundError as exc:
+            raise BrowserSandboxError(
+                f"Die eigene Firefox-Basis fehlt unter {path}. "
+                "Bitte das Paket netmon-web-browser-runtime installieren."
+            ) from exc
         except OSError as exc:
-            raise BrowserSandboxError("Die eigene Firefox-Basis fehlt.") from exc
+            raise BrowserSandboxError(
+                f"Die eigene Firefox-Basis unter {path} konnte nicht gelesen werden."
+            ) from exc
         if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
             raise BrowserSandboxError("Die eigene Firefox-Basis ist nicht geschützt.")
     for entry in path.rglob("*"):
@@ -60,30 +75,180 @@ def _managed_runtime(path):
             or info.st_mode & 0o022
         ):
             raise BrowserSandboxError("Die eigene Firefox-Basis ist nicht geschützt.")
+    if not all(
+        (path / name).is_file() and os.access(path / name, os.X_OK)
+        for name in ("firefox", "firefox-bin")
+    ):
+        raise BrowserSandboxError(
+            f"Die Firefox-Basis unter {path} ist unvollständig oder nicht ausführbar. "
+            "Bitte das Paket netmon-web-browser-runtime prüfen."
+        )
     return path
 
 
-def _wayland_socket():
+def managed_runtime_error():
+    """Return the protected browser's startup error for the preflight, if any."""
+    try:
+        _managed_runtime(FIREFOX_DIR)
+    except (BrowserSandboxError, OSError) as exc:
+        return str(exc)
+    return ""
+
+
+def _private_runtime_dir():
     runtime = Path(os.environ.get("XDG_RUNTIME_DIR", ""))
-    display = os.environ.get("WAYLAND_DISPLAY", "")
-    if (
-        not runtime.is_absolute()
-        or ".." in runtime.parts
-        or not display
-        or Path(display).name != display
-        or display in {".", ".."}
-    ):
-        raise BrowserSandboxError("Der eigene Browser benötigt eine Wayland-Sitzung.")
+    if not runtime.is_absolute() or ".." in runtime.parts:
+        raise BrowserSandboxError("Der Browser benötigt einen privaten Laufzeitordner.")
     info = runtime.lstat()
     if (
         not stat.S_ISDIR(info.st_mode)
         or info.st_uid != os.getuid()
         or info.st_mode & 0o077
     ):
-        raise BrowserSandboxError("Der Wayland-Laufzeitordner ist nicht privat.")
-    path = runtime / display
+        raise BrowserSandboxError("Der Browser-Laufzeitordner ist nicht privat.")
+    return runtime
+
+
+def _wayland_socket():
+    display = os.environ.get("WAYLAND_DISPLAY", "")
+    if not display or Path(display).name != display or display in {".", ".."}:
+        raise BrowserSandboxError("Der eigene Browser benötigt eine Wayland-Sitzung.")
+    path = _private_runtime_dir() / display
     sandbox._owned_socket(path)
     return path
+
+
+def _uses_nested_display():
+    return os.environ.get(
+        "XDG_SESSION_TYPE", ""
+    ).lower() == "x11" and not os.environ.get("WAYLAND_DISPLAY")
+
+
+def _weston_env():
+    if os.getuid() == 0:
+        raise BrowserSandboxError("NetMon startet Weston nur als regulärer Benutzer.")
+    display = os.environ.get("DISPLAY", "")
+    if not re.fullmatch(r"(?:unix)?:[0-9]+(?:\.[0-9]+)?", display):
+        raise X11DisplayError("Für Weston ist eine lokale X11-Anzeige erforderlich.")
+    for executable in (_WESTON, _SETPRIV):
+        if not os.access(executable, os.X_OK):
+            raise X11DisplayError(
+                f"Für den geschützten Start unter X11 fehlt {Path(executable).name}."
+            )
+    return {
+        **sandbox._HOST_ENV,
+        "DISPLAY": display,
+        "XAUTHORITY": os.environ.get("XAUTHORITY") or str(Path.home() / ".Xauthority"),
+    }
+
+
+def _check_display_requirements():
+    if _uses_nested_display():
+        _weston_env()
+        _private_runtime_dir()
+    else:
+        _wayland_socket()
+
+
+def _wait_for_weston(path, process):
+    deadline = time.monotonic() + sandbox._START_TIMEOUT
+    while time.monotonic() < deadline:
+        status = process.poll()
+        if status is not None:
+            raise BrowserSandboxError(
+                f"Weston konnte nicht gestartet werden (Status {status})."
+            )
+        try:
+            sandbox._owned_socket(path)
+        except FileNotFoundError:
+            time.sleep(0.05)
+        else:
+            return
+    raise BrowserSandboxError("Weston hat keinen Wayland-Socket bereitgestellt.")
+
+
+def _brand_weston_window(log_path, title, env):
+    """Set desktop metadata on the window created by this Weston instance."""
+    try:
+        with log_path.open("rb") as log:
+            # Weston reports the XID before it opens the Wayland listener.
+            match = re.search(
+                rb"\bx11 output [0-9]+\s*x[0-9]+, window id ([0-9]+)\n",
+                log.read(16384),
+            )
+        if match is None:
+            return
+        xid = int(match[1])
+        if not 0 < xid <= 0xFFFFFFFF:
+            return
+
+        subprocess.run(
+            [
+                "/usr/bin/python3",
+                "-I",
+                "-B",
+                str(Path(__file__).with_name("x11_window.py")),
+                str(xid),
+                title,
+                str(sandbox._BROWSER_ICON),
+            ],
+            env=env,
+            stdin=subprocess.DEVNULL,
+            timeout=2,
+            check=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        logging.getLogger(__name__).warning("Could not set Weston window metadata")
+
+
+@contextmanager
+def _display_socket(*, title="NetmonRoots Browser"):
+    if not _uses_nested_display():
+        yield _wayland_socket(), None
+        return
+
+    env = _weston_env()
+    with ExitStack() as stack:
+        try:
+            runtime = stack.enter_context(
+                tempfile.TemporaryDirectory(prefix="nmw-", dir=_private_runtime_dir())
+            )
+            path = Path(runtime) / _WESTON_SOCKET
+            log_path = path.with_name("weston.log")
+            process = stack.enter_context(
+                sandbox._process(
+                    [
+                        _SETPRIV,
+                        "--no-new-privs",
+                        "--pdeathsig",
+                        "TERM",
+                        _WESTON,
+                        "--backend=x11-backend.so",
+                        "--shell=kiosk-shell.so",
+                        "--no-config",
+                        "--use-pixman",
+                        "--idle-time=0",
+                        f"--socket={_WESTON_SOCKET}",
+                        f"--log={log_path}",
+                    ],
+                    (),
+                    env={**env, "XDG_RUNTIME_DIR": runtime},
+                )
+            )
+            _wait_for_weston(path, process)
+        except (OSError, BrowserSandboxError) as exc:
+            raise X11DisplayError(
+                f"Weston-Anzeige konnte nicht eingerichtet werden. {exc}"
+            ) from exc
+        _brand_weston_window(log_path, title, env)
+        yield path, process
+
+
+def _display_running(process):
+    status = process.poll() if process is not None else None
+    if status not in (None, 0):
+        raise BrowserSandboxError(f"Weston wurde unerwartet beendet (Status {status}).")
+    return status is None
 
 
 @contextmanager
@@ -183,7 +348,7 @@ def _firefox_has_bus_name(path):
     return reply.returncode == 0 and b"org.mozilla." in reply.stdout
 
 
-def _browser_policies(state_dir, runtime):
+def _browser_policies(state_dir, runtime, *, nested_x11=False):
     spec = ContainerSpec(
         name="NetMon Browser",
         path=state_dir,
@@ -219,6 +384,11 @@ def _browser_policies(state_dir, runtime):
             "Status": "user",
         }
     }
+    if nested_x11:
+        policies["Preferences"]["browser.netmon.nestedX11"] = {
+            "Value": True,
+            "Status": "locked",
+        }
     return {"policies": policies}
 
 
@@ -264,7 +434,9 @@ class BrowserSession:
                 self._serve(first)
             except (BrowserSandboxError, OSError) as exc:
                 if not self._stop.is_set():
-                    self._errors.put(str(exc))
+                    self._errors.put(
+                        (str(exc), first if isinstance(exc, X11DisplayError) else None)
+                    )
 
     def _serve(self, first):
         deadline = time.monotonic() + 30
@@ -287,19 +459,25 @@ class BrowserSession:
 
     def _serve_profile(self, directory, first):
         runtime = _managed_runtime(self.browser_dir)
-        wayland = _wayland_socket()
-        policies = _browser_policies(self.state_dir, runtime)
         with (
             link_socket.listen(directory) as listener,
+            _display_socket() as (wayland, display_process),
             _private_bus(wayland.parent) as (bus, daemon),
         ):
+            policies = _browser_policies(
+                self.state_dir, runtime, nested_x11=display_process is not None
+            )
             args = (runtime, self.state_dir, wayland, bus)
             handoff = partial(self._handoff, args, policies=policies)
             with sandbox._launch_link(
                 *args, first, policies=policies, brand=True
             ) as primary:
                 ready_deadline = time.monotonic() + 30
-                while not self._stop.wait(0.25) and sandbox._browser_running(*primary):
+                while (
+                    not self._stop.wait(0.25)
+                    and _display_running(display_process)
+                    and sandbox._browser_running(*primary)
+                ):
                     if daemon.poll() is not None:
                         raise BrowserSandboxError(
                             "Der private Browser-D-Bus ist beendet."
@@ -319,7 +497,7 @@ class BrowserSession:
                         try:
                             handoff(self._links.get_nowait())
                         except BrowserSandboxError as exc:
-                            self._errors.put(str(exc))
+                            self._errors.put((str(exc), None))
 
     def _handoff(self, args, url, *, policies):
         if self._stop.is_set():

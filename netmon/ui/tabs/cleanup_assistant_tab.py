@@ -536,7 +536,9 @@ class CleanupAssistantTab:
             compact_meta_row.columnconfigure(1, weight=1)
 
             count_var = tk.StringVar(
-                value=self.app.tr("cleanup_module_counts_default", "Files/folders: - / -")
+                value=self.app.tr(
+                    "cleanup_module_counts_default", "Files/folders: - / -"
+                )
             )
             self.module_count_vars[module.module_id] = count_var
             ttk.Label(
@@ -579,7 +581,9 @@ class CleanupAssistantTab:
             ).grid(row=5, column=0, sticky="ew", pady=(0, 8))
 
             action_var = tk.StringVar(
-                value=self.app.tr("cleanup_module_action_default", "Last action: none yet")
+                value=self.app.tr(
+                    "cleanup_module_action_default", "Last action: none yet"
+                )
             )
             self.module_action_vars[module.module_id] = action_var
             ttk.Label(
@@ -1517,9 +1521,9 @@ class CleanupAssistantTab:
         self._set_module_var(
             "module_findings_vars",
             module_id,
-            self.app.tr("cleanup_module_findings_value", "Top findings: {value}").format(
-                value=self._top_findings_summary_for_result(module, result)
-            ),
+            self.app.tr(
+                "cleanup_module_findings_value", "Top findings: {value}"
+            ).format(value=self._top_findings_summary_for_result(module, result)),
         )
         self._configure_module_button(
             "module_detail_buttons", module_id, state="normal"
@@ -1671,28 +1675,24 @@ class CleanupAssistantTab:
         if module.module_id == "user_cache":
             cache_candidates = result.get("cache_candidates") or []
             if cache_candidates:
-                return (
-                    self.tr(
-                        "cleanup_detail_cache_summary",
-                        "{count} cache area(s), largest finding {name} ({size})",
-                    ).format(
-                        count=len(cache_candidates),
-                        name=Path(cache_candidates[0]["path"]).name,
-                        size=human_size(cache_candidates[0]["size_bytes"]),
-                    )
+                return self.tr(
+                    "cleanup_detail_cache_summary",
+                    "{count} cache area(s), largest finding {name} ({size})",
+                ).format(
+                    count=len(cache_candidates),
+                    name=Path(cache_candidates[0]["path"]).name,
+                    size=human_size(cache_candidates[0]["size_bytes"]),
                 )
         if module.module_id == "temporary_files":
             temp_candidates = result.get("temp_candidates") or []
             if temp_candidates:
-                return (
-                    self.tr(
-                        "cleanup_detail_temp_summary",
-                        "{count} user-related temp candidate(s), largest finding {name} ({size})",
-                    ).format(
-                        count=len(temp_candidates),
-                        name=Path(temp_candidates[0]["path"]).name,
-                        size=human_size(temp_candidates[0]["size_bytes"]),
-                    )
+                return self.tr(
+                    "cleanup_detail_temp_summary",
+                    "{count} user-related temp candidate(s), largest finding {name} ({size})",
+                ).format(
+                    count=len(temp_candidates),
+                    name=Path(temp_candidates[0]["path"]).name,
+                    size=human_size(temp_candidates[0]["size_bytes"]),
                 )
         if not existing_paths:
             return self.tr(
@@ -1811,7 +1811,9 @@ class CleanupAssistantTab:
             lines.append(f"- {path}")
 
         existing_paths = result.get("existing_paths") or []
-        lines.extend(["", f"{self.tr('cleanup_label_existing_sources', 'Existing sources')}:"])
+        lines.extend(
+            ["", f"{self.tr('cleanup_label_existing_sources', 'Existing sources')}:"]
+        )
         if existing_paths:
             for path in existing_paths:
                 lines.append(f"- {path}")
@@ -1865,9 +1867,7 @@ class CleanupAssistantTab:
             if result.get("existing_paths"):
                 targets.append(
                     {
-                        "label": self.tr(
-                            "cleanup_target_system_logs", "System logs"
-                        ),
+                        "label": self.tr("cleanup_target_system_logs", "System logs"),
                         "path": str(result["existing_paths"][0]),
                     }
                 )
@@ -2254,9 +2254,11 @@ class CleanupAssistantTab:
                 "cleanup_prepare_top_findings",
                 "Top findings: {value}",
             ).format(
-                value=self._top_findings_summary_for_result(module, result)
-                if module
-                else "-"
+                value=(
+                    self._top_findings_summary_for_result(module, result)
+                    if module
+                    else "-"
+                )
             ),
             "",
             f"{self.tr('cleanup_group_candidates', 'Candidates')}:",
@@ -2695,7 +2697,9 @@ class CleanupAssistantTab:
         if self._can_execute_cleanup(module_id):
             ttk.Button(
                 actions,
-                text=self.app.tr("cleanup_btn_confirm_cleanup", "Bereinigung bestätigen"),
+                text=self.app.tr(
+                    "cleanup_btn_confirm_cleanup", "Bereinigung bestätigen"
+                ),
                 command=_confirm_preparation,
             ).pack(side="right", padx=(0, 8))
         else:

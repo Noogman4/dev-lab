@@ -108,7 +108,7 @@ def build_dns_tab(app):
 
     ttk.Button(
         dns_expert_row2,
-        text=app.tr("dns_btn_leak_check", "DNS-Leak-Check"),
+        text=app.tr("dns_btn_leak_check", "DNS-Konfiguration prüfen"),
         command=app.run_dns_leak_check,
     ).grid(row=0, column=0, sticky="ew", padx=(0, 4))
 

@@ -267,10 +267,12 @@ from pathlib import Path
 from netmon.app import App
 from netmon.main import _temporary_app_smoke_patches, _cancel_pending_after_callbacks
 home = Path(os.environ['HOME'])
-config = home / 'Documents/NetMon/Config'
+legacy = home / 'Documents/NetMon/Config'
+config = home / 'Dokumente/NetMon/Config'
 settings = config / 'config.json'
 privacy = config / 'netmon_privacy.json'
-before = {p: (p.read_bytes(), p.stat().st_mtime_ns) for p in (settings, privacy)}
+before = {p: (p.read_bytes(), p.stat().st_mtime_ns) for p in (legacy / 'config.json', legacy / 'netmon_privacy.json')}
+target_before = {p: (p.read_bytes(), p.stat().st_mtime_ns) for p in (settings, privacy) if p.is_file()}
 with _temporary_app_smoke_patches(App):
     app = App()
     try:
@@ -278,14 +280,17 @@ with _temporary_app_smoke_patches(App):
         app.update()
         assert app._app_theme['name'] == os.environ['EXPECTED_THEME'], app._app_theme['name']
         for path, (content, mtime) in before.items():
-            if path == settings and os.environ.get('NEW_FIRST_SEEN'):
-                saved = json.loads(path.read_text())
-                assert saved['donation_popup_first_seen_at'] > 0
-                for key, value in json.loads(content).items():
-                    assert saved[key] == value, key
-                continue
-            assert path.read_bytes() == content, f'startup rewrote {path.name}'
-            assert path.stat().st_mtime_ns == mtime, f'startup persisted {path.name}'
+            assert path.read_bytes() == content, f'startup rewrote legacy {path.name}'
+            assert path.stat().st_mtime_ns == mtime, f'startup persisted legacy {path.name}'
+        if os.environ.get('NEW_FIRST_SEEN'):
+            saved = json.loads(settings.read_text())
+            assert saved['donation_popup_first_seen_at'] > 0
+            for key, value in json.loads(before[legacy / 'config.json'][0]).items():
+                assert saved[key] == value, key
+        else:
+            for path, (content, mtime) in target_before.items():
+                assert path.read_bytes() == content, f'startup rewrote {path.name}'
+                assert path.stat().st_mtime_ns == mtime, f'startup persisted {path.name}'
         if os.environ.get('SWITCH_THEME'):
             app.select_theme(os.environ['SWITCH_THEME'])
             assert app._app_theme['name'] == os.environ['SWITCH_THEME']
@@ -318,6 +323,8 @@ def test_retained_gui_preferences_are_read_only_until_explicit_change(
     tmp_path, settings_theme, privacy_theme, expected, switch
 ):
     home = tmp_path / "home"
+    home.mkdir(mode=0o700)
+    (home / "Documents").mkdir(mode=0o700)
     config = home / "Documents/NetMon/Config"
     config.mkdir(parents=True)
     settings = {
@@ -345,6 +352,7 @@ def test_retained_gui_preferences_are_read_only_until_explicit_change(
         XDG_CONFIG_HOME=str(home / ".config"),
         XDG_STATE_HOME=str(home / ".local/state"),
         XDG_CACHE_HOME=str(home / ".cache"),
+        XDG_DOCUMENTS_DIR=str(home / "Dokumente"),
         EXPECTED_THEME=expected,
         SWITCH_THEME=switch,
         PYTHONPATH=str(ROOT),
@@ -365,6 +373,8 @@ def test_first_seen_initialization_is_saved_once_after_preferences_load(
     tmp_path, theme
 ):
     home = tmp_path / "home"
+    home.mkdir(mode=0o700)
+    (home / "Documents").mkdir(mode=0o700)
     config = home / "Documents/NetMon/Config"
     config.mkdir(parents=True)
     (config / "config.json").write_text(json.dumps({"theme": theme, "language": "de"}))
@@ -377,6 +387,7 @@ def test_first_seen_initialization_is_saved_once_after_preferences_load(
         XDG_CONFIG_HOME=str(home / ".config"),
         XDG_STATE_HOME=str(home / ".local/state"),
         XDG_CACHE_HOME=str(home / ".cache"),
+        XDG_DOCUMENTS_DIR=str(home / "Dokumente"),
         EXPECTED_THEME=theme,
         NEW_FIRST_SEEN="1",
         SWITCH_THEME="",

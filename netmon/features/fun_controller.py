@@ -12,7 +12,6 @@ except ModuleNotFoundError:
     from core.utils import call_in_ui_thread
 
 
-
 def _tr(app, key, default):
     try:
         return app.tr(key, default)
@@ -299,7 +298,12 @@ def start_selected_game(app):
         return False
     game_path = str(game.get("path", "") or "").strip()
     if not _is_allowed_game_launcher_path(app, game_path):
-        _set_fun_status(app, "fun_status_start_failed", "Start fehlgeschlagen: {error}", error="unsicherer Spielpfad")
+        _set_fun_status(
+            app,
+            "fun_status_start_failed",
+            "Start fehlgeschlagen: {error}",
+            error="unsicherer Spielpfad",
+        )
         return False
 
     try:

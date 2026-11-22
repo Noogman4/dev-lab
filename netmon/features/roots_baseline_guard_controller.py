@@ -2188,11 +2188,15 @@ def _refresh_baseline_created_status(app, payload: dict[str, object] | None = No
         app,
         "roots_baseline_created_var",
         (
-            _tr(app, "roots_status_created_value", "Baseline erstellt am: {timestamp}").format(
-                timestamp=created_at
-            )
+            _tr(
+                app, "roots_status_created_value", "Baseline erstellt am: {timestamp}"
+            ).format(timestamp=created_at)
             if created_at
-            else _tr(app, "roots_status_created_default", "Baseline erstellt am: noch nicht erstellt")
+            else _tr(
+                app,
+                "roots_status_created_default",
+                "Baseline erstellt am: noch nicht erstellt",
+            )
         ),
     )
 
@@ -2204,11 +2208,17 @@ def _refresh_baseline_updated_status(app, payload: dict[str, object] | None = No
         app,
         "roots_baseline_updated_var",
         (
-            _tr(app, "roots_status_updated_value", "Zuletzt aktualisiert am: {timestamp}").format(
-                timestamp=updated_at
-            )
+            _tr(
+                app,
+                "roots_status_updated_value",
+                "Zuletzt aktualisiert am: {timestamp}",
+            ).format(timestamp=updated_at)
             if updated_at
-            else _tr(app, "roots_status_updated_default", "Zuletzt aktualisiert am: noch nicht aktualisiert")
+            else _tr(
+                app,
+                "roots_status_updated_default",
+                "Zuletzt aktualisiert am: noch nicht aktualisiert",
+            )
         ),
     )
 
@@ -2220,11 +2230,15 @@ def _refresh_baseline_checked_status(app, payload: dict[str, object] | None = No
         app,
         "roots_baseline_checked_var",
         (
-            _tr(app, "roots_status_checked_value", "Letzte Prüfung am: {timestamp}").format(
-                timestamp=checked_at
-            )
+            _tr(
+                app, "roots_status_checked_value", "Letzte Prüfung am: {timestamp}"
+            ).format(timestamp=checked_at)
             if checked_at
-            else _tr(app, "roots_status_checked_default", "Letzte Prüfung am: noch nicht durchgeführt")
+            else _tr(
+                app,
+                "roots_status_checked_default",
+                "Letzte Prüfung am: noch nicht durchgeführt",
+            )
         ),
     )
 
@@ -2238,8 +2252,16 @@ def _refresh_last_root_action_status(
     _set_stringvar(
         app,
         "roots_last_root_action_var",
-        _tr(app, "roots_status_last_root_action_value", "Letzte Aktion mit Root: {value}").format(
-            value=_tr(app, "value_yes", "ja") if used_root else _tr(app, "value_no", "nein")
+        _tr(
+            app,
+            "roots_status_last_root_action_value",
+            "Letzte Aktion mit Root: {value}",
+        ).format(
+            value=(
+                _tr(app, "value_yes", "ja")
+                if used_root
+                else _tr(app, "value_no", "nein")
+            )
         ),
     )
 
@@ -2487,11 +2509,13 @@ def read_roots_baseline_guard_current_state(app):
                 timestamp=now
             ),
             app.tr("roots_history_read_with_root", "Read with root: {value}").format(
-                value=app.tr("value_yes", "YES") if use_root else app.tr("value_no", "NO")
+                value=(
+                    app.tr("value_yes", "YES") if use_root else app.tr("value_no", "NO")
+                )
             ),
-            app.tr("roots_history_captured_entries", "Captured entries: {count}").format(
-                count=len(rows)
-            ),
+            app.tr(
+                "roots_history_captured_entries", "Captured entries: {count}"
+            ).format(count=len(rows)),
             app.tr("roots_history_read_hints", "Read hints: {count}").format(
                 count=hints
             ),
@@ -2616,7 +2640,9 @@ def create_roots_baseline_guard_baseline(app):
                 "roots_history_baseline_created_with_root",
                 "Baseline created with root: {value}",
             ).format(
-                value=app.tr("value_yes", "YES") if use_root else app.tr("value_no", "NO")
+                value=(
+                    app.tr("value_yes", "YES") if use_root else app.tr("value_no", "NO")
+                )
             ),
             app.tr("roots_history_found_changes", "Found changes: {count}").format(
                 count=0
@@ -2774,11 +2800,9 @@ def check_roots_baseline_guard_baseline(app):
     if ignored_parts:
         ignored_suffix = " Ausgeblendet wurden: " + ", ".join(ignored_parts) + "."
     if rows:
-        info_text = (
-            app.tr(
-                "roots_info_check_completed_with_results",
-                "Prüfung abgeschlossen. Wähle einen Eintrag aus der Tabelle, um Pfad, Bereich und Bewertung im Detail zu prüfen.",
-            )
+        info_text = app.tr(
+            "roots_info_check_completed_with_results",
+            "Prüfung abgeschlossen. Wähle einen Eintrag aus der Tabelle, um Pfad, Bereich und Bewertung im Detail zu prüfen.",
         )
         info_text += ignored_suffix
         _set_info_text(app, info_text)
@@ -2800,7 +2824,9 @@ def check_roots_baseline_guard_baseline(app):
                 timestamp=now
             ),
             app.tr("roots_history_check_with_root", "Check with root: {value}").format(
-                value=app.tr("value_yes", "YES") if use_root else app.tr("value_no", "NO")
+                value=(
+                    app.tr("value_yes", "YES") if use_root else app.tr("value_no", "NO")
+                )
             ),
             app.tr("roots_history_found_changes", "Found changes: {count}").format(
                 count=len(rows)
@@ -2821,9 +2847,9 @@ def check_roots_baseline_guard_baseline(app):
                 "roots_history_ignored_by_whitelist",
                 "Ignored by whitelist: {count}",
             ).format(count=ignored_by_whitelist),
-            app.tr("roots_history_accepted_changes", "Accepted changes: {count}").format(
-                count=0
-            ),
+            app.tr(
+                "roots_history_accepted_changes", "Accepted changes: {count}"
+            ).format(count=0),
         ],
     )
     payload["last_check_at"] = now
@@ -3096,9 +3122,9 @@ def show_last_roots_baseline_guard_comparison(app):
             app.tr("roots_history_found_changes", "Found changes: {count}").format(
                 count=len(rows)
             ),
-            app.tr("roots_history_accepted_changes", "Accepted changes: {count}").format(
-                count=0
-            ),
+            app.tr(
+                "roots_history_accepted_changes", "Accepted changes: {count}"
+            ).format(count=0),
         ],
     )
     try:
@@ -3902,10 +3928,12 @@ def load_roots_baseline_guard_demo_cases(app):
             app.tr("roots_history_notice_count", "Hinweise: {count}").format(
                 count=hints
             ),
-            app.tr("roots_history_source_internal_cases", "Quelle: interne Praxisfälle"),
-            app.tr("roots_history_real_system_check", "Echter Systemcheck: {value}").format(
-                value=app.tr("value_no", "nein")
+            app.tr(
+                "roots_history_source_internal_cases", "Quelle: interne Praxisfälle"
             ),
+            app.tr(
+                "roots_history_real_system_check", "Echter Systemcheck: {value}"
+            ).format(value=app.tr("value_no", "nein")),
         ],
     )
     try:

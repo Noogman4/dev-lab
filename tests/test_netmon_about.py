@@ -11,6 +11,7 @@ import pytest
 from netmon import app as app_module
 from netmon.app import App, DARK_THEME, LIGHT_THEME
 from netmon.config.constants import NETMON_APP_VERSION, NETMON_SUPPORT_EMAIL
+from netmon.core.release_version import display_version
 from netmon.services.lang_service import LangService
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -121,7 +122,7 @@ def test_about_fallback_includes_support_contact(monkeypatch, language):
     title, text = showinfo.call_args.args
     assert title == app.lang["about_title"]
     assert f"Support: {NETMON_SUPPORT_EMAIL}" in text
-    assert NETMON_APP_VERSION in text
+    assert display_version(NETMON_APP_VERSION) in text
 
 
 @pytest.mark.parametrize("failure", ["missing_opener", "launch_failure"])

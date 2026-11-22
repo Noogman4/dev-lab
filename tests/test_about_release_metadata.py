@@ -16,7 +16,6 @@ from netmon.core import release_metadata as metadata
 from netmon.app import App
 from netmon import app as app_module
 
-
 UNSAFE_UPDATE_URLS = [
     "http://attacker.invalid\\@netmonroots.com/update",
     "https://attacker.invalid\\@netmonroots.com/update",

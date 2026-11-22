@@ -148,19 +148,40 @@ def pytest_runtest_protocol(item, nextitem):
         return (yield)
     tk_class = tkinter.Tk
     original_init = tk_class.__init__
+    original_destroy = tk_class.destroy
     created = False
+    initial_scaling = None
 
     @wraps(original_init)
     def track_init(self, *args, **kwargs):
-        nonlocal created
+        nonlocal created, initial_scaling
         created = True
-        return original_init(self, *args, **kwargs)
+        result = original_init(self, *args, **kwargs)
+        if initial_scaling is None:
+            try:
+                initial_scaling = float(self.tk.call("tk", "scaling"))
+            except tkinter.TclError:
+                pass  # Tk(useTk=False) creates only a Tcl interpreter.
+        return result
+
+    @wraps(original_destroy)
+    def restore_scaling_and_destroy(self):
+        # Tk scaling is shared by roots on this private display. App startup
+        # must not change geometry expectations of later, unrelated tests.
+        if initial_scaling is not None:
+            try:
+                self.tk.call("tk", "scaling", initial_scaling)
+            except tkinter.TclError:
+                pass
+        return original_destroy(self)
 
     tk_class.__init__ = track_init
+    tk_class.destroy = restore_scaling_and_destroy
     try:
         return (yield)
     finally:
         tk_class.__init__ = original_init
+        tk_class.destroy = original_destroy
         # destroy() closes Tk windows, but Python cycles may still own the Tcl
         # interpreter. Reclaim test leftovers here, after all fixture teardown,
         # before the next test can trigger collection in a worker thread.

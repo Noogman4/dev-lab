@@ -88,7 +88,7 @@ def test_attach_all_chad_context_menus_registers_expected_targets():
 def test_attach_chad_context_menu_source_contains_paste_action():
     source = inspect.getsource(App.attach_chad_context_menu)
 
-    assert 'label="Einfügen"' in source
+    assert 'paste_label = "Einfügen"' in source
     assert "def paste_from_clipboard" in source
     assert "_show_chad_activation_required_popup" in source
 

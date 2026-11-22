@@ -40,12 +40,27 @@ if NETMON_REPO_ROOT not in sys.path:
 from netmon.core.archive_limits import (  # noqa: E402 - needs the repo path above
     copy_limited,
 )
-from netmon.core import projectm_archive  # noqa: E402 - needs the repo path above
+from netmon.core import (  # noqa: E402 - needs the repo path above
+    passive_sudo,
+    projectm_archive,
+)
+from netmon.services import firewall_listener_service  # noqa: E402
 from netmon.core.import_limits import load_bounded_json  # noqa: E402
 from netmon.core.tk_input_method import x_input_method_bypass  # noqa: E402
+from netmon.ui.button_sound import (  # noqa: E402
+    bind_status_click_sound,
+    bind_status_menu_click_sound,
+    install_button_sound,
+)
 from netmon.core.release_metadata import (  # noqa: E402
     fetch_release_metadata,
     is_trusted_release_url,
+)
+from netmon.core.release_version import (  # noqa: E402
+    compare_release_versions,
+    display_version,
+    is_prerelease,
+    is_release_version,
 )
 
 try:
@@ -993,13 +1008,13 @@ DEPENDENCIES = {
         "pip_packages": [],
     },
     "secure_browser_firefox_source": {
-        "label": "Secure Browser Firefox-Basis",
+        "label": "Firefox-Kopiervorlage für ältere Secure-Browser-Profile",
         "category": "Secure Browser",
-        "description": "Lädt eine kopierbare Firefox-Basis nach Dokumente/NetMon/Secure Browser/firefox-base",
+        "description": "Speichert eine Firefox-Kopiervorlage in Dokumente. Der geschützte Start benötigt das Paket netmon-web-browser-runtime.",
         "type": "file_feature",
         "install_method": "url_tar_import",
         "install_url": FIREFOX_STANDALONE_LINUX_X64_URL,
-        "target_dir": "~/Documents/NetMon/Secure Browser/firefox-base/firefox",
+        "target_dir": "Secure Browser/firefox-base/firefox",
         "checks": ["secure_browser_firefox_source"],
         "apt_packages": [],
         "pip_packages": [],
@@ -1133,10 +1148,10 @@ DEPENDENCIES = {
     "code_the_classics_files": {
         "label": "Code the Classics Spiele",
         "category": "Optionale Features",
-        "description": "Installiert/Importiert die Code-the-Classics Spielesammlung in ~/.local/share/netmon/fun/code_the_classics/",
+        "description": "Installiert/Importiert die Code-the-Classics Spielesammlung im NetMon-Dokumentenordner unter Fun/code_the_classics/",
         "type": "file_feature",
         "install_method": "zip_import",
-        "target_dir": "~/.local/share/netmon/fun/code_the_classics",
+        "target_dir": "Fun/code_the_classics",
         "checks": ["code_the_classics_files"],
         "apt_packages": [],
         "pip_packages": [],
@@ -1339,48 +1354,19 @@ try:
         get_netmon_config_dir,
         get_netmon_documents_dir,
         get_netmon_documents_subdir,
+        get_netmon_fun_dir,
         get_netmon_state_dir,
     )
+    from netmon.core.user_files import prepare_user_files
 except ModuleNotFoundError:
-    try:
-        from core.state import (
-            get_netmon_config_dir,
-            get_netmon_documents_dir,
-            get_netmon_documents_subdir,
-            get_netmon_state_dir,
-        )
-    except ModuleNotFoundError:
-
-        def _xdg_dir(env_name: str, default_suffix: str) -> str:
-            base = (os.environ.get(env_name) or "").strip()
-            if not base:
-                base = os.path.expanduser(default_suffix)
-            path = os.path.join(base, "netmon")
-            try:
-                os.makedirs(path, exist_ok=True)
-            except Exception:
-                pass
-            return path
-
-        def get_netmon_config_dir() -> str:
-            return _xdg_dir("XDG_CONFIG_HOME", "~/.config")
-
-        def get_netmon_state_dir() -> str:
-            return _xdg_dir("XDG_STATE_HOME", "~/.local/state")
-
-        def get_netmon_documents_dir() -> str:
-            return os.path.join(os.path.expanduser("~/Documents"), "NetMon")
-
-        def get_netmon_documents_subdir(*parts: str) -> str:
-            path = os.path.join(
-                get_netmon_documents_dir(),
-                *[str(part or "").strip() for part in parts if str(part or "").strip()],
-            )
-            try:
-                os.makedirs(path, exist_ok=True)
-            except Exception:
-                pass
-            return path
+    from core.state import (
+        get_netmon_config_dir,
+        get_netmon_documents_dir,
+        get_netmon_documents_subdir,
+        get_netmon_fun_dir,
+        get_netmon_state_dir,
+    )
+    from core.user_files import prepare_user_files
 
 
 try:
@@ -2478,6 +2464,7 @@ class App(TkBase):
         self.maxsize(screen_width, screen_height)
 
     def __init__(self, start_theme: str | None = None):
+        prepare_user_files()
         if tk is None:
             raise RuntimeError("tkinter is not available")
         with x_input_method_bypass():
@@ -2707,7 +2694,8 @@ class App(TkBase):
         self._preferred_theme_name = "dark"
 
         self.title(
-            f"NetMon-Roots - Firewall, VPN, DNS, Trace    Version {NETMON_APP_VERSION}"
+            "NetMon-Roots - Firewall, VPN, DNS, Trace    Version "
+            f"{display_version(NETMON_APP_VERSION)}"
         )
 
         # Start always on the primary monitor when xrandr exposes it.
@@ -2811,14 +2799,10 @@ class App(TkBase):
         self.linux_help_visible_commands = []
         self.linux_help_visible_command_ids = []
         self.linux_help_selected_id = ""
-        self.linux_help_documents = []
-        self.linux_help_document_ids = []
-        self.linux_help_document_selected_id = ""
         self.linux_help_dirty = False
         self.linux_help_data_path = ""
         self.linux_help_glossary_path = ""
         self.linux_help_glossary_seed_path = ""
-        self.linux_help_import_path = ""
         self.linux_help_detail_name_var = tk.StringVar(value="–")
         self.linux_help_detail_category_var = tk.StringVar(value="–")
         self.linux_help_detail_syntax_var = tk.StringVar(value="–")
@@ -2949,9 +2933,7 @@ class App(TkBase):
             self.radio_settings_path = os.path.join(
                 self.netmon_config_dir, RADIO_SETTINGS_CONFIG_FILE
             )
-        self.fun_games_dir = os.path.expanduser(
-            "~/.local/share/netmon/fun/code_the_classics"
-        )
+        self.fun_games_dir = get_netmon_fun_dir()
         self.netmon_config_path = _prepare_documents_config_path(
             self.netmon_config_dir, "config.json"
         )
@@ -3017,7 +2999,7 @@ class App(TkBase):
             self.netmon_state_dir,
             "roots_baseline_guard_whitelist.json",
         )
-        self.packet_capture_dir = os.path.join(self.netmon_state_dir, "captures")
+        self.packet_capture_dir = get_netmon_documents_subdir("Captures")
         try:
             os.makedirs(self.packet_capture_dir, exist_ok=True)
         except Exception:
@@ -3025,8 +3007,14 @@ class App(TkBase):
 
         self.settings = self._default_settings_payload()
         self.load_settings()
+        self.var_button_sound = tk.BooleanVar(
+            master=self, value=bool(self.settings["button_sound_enabled"])
+        )
         self.var_netmon_browser = tk.BooleanVar(
             master=self, value=self.settings["netmon_browser_enabled"] is True
+        )
+        self._click_sound_command = install_button_sound(
+            self, enabled=self.var_button_sound.get
         )
         self.debug_network_logging = bool(
             self.settings.get("debug_network_logging", False)
@@ -3506,7 +3494,7 @@ class App(TkBase):
                 legacy_root, SECURITY_BASELINE_FILE
             ),
             os.path.join(
-                self.netmon_state_dir, "logs", "speedtest_history.jsonl"
+                get_netmon_documents_subdir("Logs"), "speedtest_history.jsonl"
             ): os.path.join(legacy_repo_root, "logs", "speedtest_history.jsonl"),
         }
         for new_path, old_path in migration_map.items():
@@ -4516,6 +4504,7 @@ class App(TkBase):
             "<Button-3>",
             lambda e: self.show_vpn_profile_menu(e),
         )
+        bind_status_click_sound(vpn_status_value_label)
         try:
             self.add_tooltip(
                 self.l_vpn[2],
@@ -4837,10 +4826,10 @@ class App(TkBase):
             textvariable=self.ufw_logging_status_var,
         )
         self.l_ufw_log_status.pack(side="left", padx=(8, 0))
+        bind_status_click_sound(self.l_ufw_log_status)
         self._bind_light_click(self.l_dot, "dot")
         self._bind_light_click(self.l_ks, "killswitch")
         self._bind_light_click(self.l_sec, "security")
-        self._bind_light_click(self.l_ipv6, "ipv6")
         self._bind_light_click(self.l_ssh, "ssh")
         self._bind_light_click(self.l_ufw_log, "ufw_logging")
         self.l_dot[2].bind(
@@ -6271,11 +6260,25 @@ class App(TkBase):
             self.attach_local_mousewheel_binding(widget_name)
 
     def on_close(self):
+        if self.__dict__.get("_netmon_backup_busy", False):
+            messagebox.showinfo(
+                self.tr("backup_group_netmon", "NetMon-Sicherung"),
+                self.tr(
+                    "backup_wait_before_exit",
+                    "Die Sicherung/Wiederherstellung läuft noch. Bitte vor dem Beenden den Abschluss abwarten.",
+                ),
+                parent=self,
+            )
+            return
         if bool(self.__dict__.get("_netmon_closing", False)):
             try:
                 self.destroy()
             except Exception:
                 pass
+            return
+        from netmon.features import radio_multi_recording_controller as multi_recording
+
+        if not multi_recording.confirm_close(self):
             return
         self._netmon_closing = True
         terminal_dock = self.__dict__.get("terminal_dock")
@@ -6488,6 +6491,11 @@ class App(TkBase):
         return tuple(int(part) for part in parts)
 
     def _compare_version_strings(self, left, right):
+        # Release and public-beta versions compare like dpkg/APT, so
+        # 1.1.22~beta1 < 1.1.22~beta2 < 1.1.22 (a beta never outranks its
+        # final release). Anything else keeps the old numeric fallback.
+        if is_release_version(left) and is_release_version(right):
+            return compare_release_versions(left, right)
         left_parts = list(self._normalize_version_tuple(left))
         right_parts = list(self._normalize_version_tuple(right))
         if not left_parts and not right_parts:
@@ -6509,6 +6517,19 @@ class App(TkBase):
         version = str(data.get("version", "") or "").strip()
         if not version:
             raise ValueError("Versionsdatei enthält keine Version.")
+        # Public-beta channel: only installations that run a beta follow an
+        # optional "beta" entry, and only while it is newer than the stable
+        # one. Stable installations never get pointed at a beta this way.
+        beta = data.get("beta")
+        if is_prerelease(str(NETMON_APP_VERSION or "").strip()) and isinstance(
+            beta, dict
+        ):
+            beta_version = beta.get("version")
+            if is_prerelease(beta_version) and (
+                not is_release_version(version)
+                or compare_release_versions(beta_version, version) > 0
+            ):
+                data, version = beta, beta_version
         fallback_url = getattr(self, "netmon_roots_downloads_url", "") or getattr(
             self, "netmon_roots_homepage", ""
         )
@@ -6565,7 +6586,10 @@ class App(TkBase):
                     status_text = self.tr(
                         "about_update_status_newer",
                         "Neue Version gefunden: {latest} (installiert: {current}).",
-                    ).format(latest=latest_version, current=current_version)
+                    ).format(
+                        latest=display_version(latest_version),
+                        current=display_version(current_version),
+                    )
 
                     def handle_newer():
                         self._set_about_version_status(status_text)
@@ -6591,12 +6615,15 @@ class App(TkBase):
                     status_text = self.tr(
                         "about_update_status_current",
                         "NetMon ist aktuell. Installiert und online: {version}.",
-                    ).format(version=current_version)
+                    ).format(version=display_version(current_version))
                 else:
                     status_text = self.tr(
                         "about_update_status_local_newer",
                         "Lokale Version ist neuer als der Website-Hinweis ({current} > {latest}).",
-                    ).format(current=current_version, latest=latest_version)
+                    ).format(
+                        current=display_version(current_version),
+                        latest=display_version(latest_version),
+                    )
 
                 self.after(0, lambda: self._set_about_version_status(status_text))
             except Exception as exc:
@@ -8056,14 +8083,6 @@ class App(TkBase):
                         "body": (
                             "This table combines command, risk, root requirement, tags, "
                             "and short description in a structured overview."
-                        ),
-                    },
-                    {
-                        "target": "btn_linux_help_send_terminal",
-                        "title": "Send to terminal",
-                        "body": (
-                            "This sends the currently selected command directly "
-                            "to an external terminal for further work."
                         ),
                     },
                     {
@@ -10936,6 +10955,11 @@ class App(TkBase):
         self._apply_ttk_theme(theme)
         self._apply_tk_widget_theme(self, theme)
 
+        # The panel is built before startup selects the final host palette.
+        # Refresh its Radio-specific styles as well as the shared ttk defaults.
+        if self.__dict__.get("radio_embedded_panel") is not None:
+            self._sync_radio_theme_to_current_theme()
+
         if self._theme_toggle_btn is not None:
             self._theme_name_var.set(self._get_theme_toggle_label(theme["name"]))
             self.after(0, self._position_theme_button)
@@ -11347,6 +11371,7 @@ class App(TkBase):
                     lambda _event, light_key=key: self.on_light_click(light_key),
                     add="+",
                 )
+                bind_status_click_sound(part)
             except Exception:
                 pass
             try:
@@ -11406,10 +11431,6 @@ class App(TkBase):
             tab = self.__dict__.get("tab_dns")
             if nb is not None and tab is not None:
                 nb.select(tab)
-        elif key == "ipv6":
-            target = self.__dict__.get("tab_system")
-            if target is not None:
-                self._select_system_tab(target)
 
     def show_firewall_menu(self, event):
         menu = tk.Menu(self, tearoff=0)
@@ -11477,7 +11498,6 @@ class App(TkBase):
             pass
         try:
             self.set_ufw_logging(level)
-            self.after(900, self.refresh_firewall_transparency_view)
         except Exception as e:
             self.log_safe(f"Firewall Logging Fehler: {e}")
 
@@ -12003,8 +12023,7 @@ class App(TkBase):
             else:
                 self.log_safe(f"Security: Fehler beim Setzen von Logging: {out}")
 
-            self.after(500, self.update_ufw_logging_light)
-            self.after(650, self.refresh_firewall_transparency_view)
+            self.after(0, self.refresh_firewall_transparency_view)
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -12139,10 +12158,7 @@ class App(TkBase):
 
     def _runtime_log_paths(self):
         paths = []
-        for candidate in (
-            self._runtime_log_documents_path(),
-            self._runtime_log_path(),
-        ):
+        for candidate in (self._runtime_log_documents_path(),):
             candidate = str(candidate or "").strip()
             if candidate and candidate not in paths:
                 paths.append(candidate)
@@ -12228,10 +12244,7 @@ class App(TkBase):
                 pass
 
     def _network_debug_log_path(self):
-        base = str(getattr(self, "netmon_state_dir", "") or "").strip()
-        if not base:
-            return ""
-        return os.path.join(base, "logs", "network_debug.log")
+        return os.path.join(get_netmon_documents_subdir("Logs"), "network_debug.log")
 
     def open_network_debug_log_file(self):
         path = self._network_debug_log_path()
@@ -13823,15 +13836,22 @@ class App(TkBase):
         return status
 
     def show_dns_guard_details(self):
-        current = self.get_current_dns()
-        allowed = self.get_allowed_dns()
+        service = self._dns_control_service()
+        if service is None:
+            return
+        snapshot = service.read_dns_snapshot()
+        allowed = self.rebuild_dns_guard_whitelist(snapshot)
+        text = service.build_dns_status_report(snapshot=snapshot, tr=self.tr)
+        text += "\n\n" + self.tr(
+            "dns_report_allowed", "Allowed DNS for the selected profile:"
+        )
+        text += "\n" + ("\n".join(allowed) if allowed else "–")
+        text += "\n\n" + self.tr(
+            "dns_report_check_scope",
+            "Configuration check only; actual DNS traffic was not measured.",
+        )
         messagebox.showinfo(
-            "DNS Guard Details",
-            "Current DNS:\n"
-            + ("\n".join(current) if current else "-")
-            + "\n\nAllowed DNS:\n"
-            + ("\n".join(allowed) if allowed else "-"),
-            parent=self,
+            self.tr("dns_guard_details_title", "DNS Guard Details"), text, parent=self
         )
 
     def dns_guard_ui_loop(self):
@@ -14491,6 +14511,8 @@ class App(TkBase):
         )
 
     def _auto_dns_control_available(self):
+        if passive_sudo.paused(self):
+            return False
         return has_cmd("sudo") and check_sudo_nopasswd()
 
     def _show_auto_dns_policy_result(self, title: str, text: str):
@@ -16294,6 +16316,10 @@ class App(TkBase):
         )
         return False
 
+    def on_button_sound_toggle(self):
+        self.settings["button_sound_enabled"] = self.var_button_sound.get()
+        self.save_settings(log_success=False)
+
     def on_tooltip_toggle(self):
         tooltips_var = self.__dict__.get("tooltips_enabled")
         if tooltips_var is None:
@@ -17351,6 +17377,10 @@ class App(TkBase):
         panel = self.__dict__.get("radio_embedded_panel")
         target = panel if panel is not None else self
         try:
+            self.radio_settings["theme"] = theme_name
+        except Exception:
+            pass
+        try:
             target.radio_settings["theme"] = theme_name
         except Exception:
             pass
@@ -17410,6 +17440,10 @@ class App(TkBase):
         )
 
     def open_radio_external_app(self):
+        from netmon.features import radio_multi_recording_controller as multi_recording
+
+        if multi_recording.blocked_handover(self):
+            return False
         self._record_diagnostic_action(
             "Radio loslösen",
             "radio",
@@ -17537,6 +17571,10 @@ class App(TkBase):
         return proc is not None
 
     def reattach_radio_app(self, handover_payload=None):
+        from netmon.features import radio_multi_recording_controller as multi_recording
+
+        if multi_recording.blocked_handover(self):
+            return False
         self._record_diagnostic_action(
             "Radio anheften",
             "radio",
@@ -17579,28 +17617,7 @@ class App(TkBase):
                 with open(self.radio_settings_path, "r", encoding="utf-8") as handle:
                     radio_settings = json.load(handle)
                 if isinstance(radio_settings, dict):
-                    theme_name = self._normalize_theme_name(
-                        radio_settings.get("theme", "light")
-                    )
                     self.radio_settings.update(radio_settings)
-                    self.settings["theme"] = theme_name
-                    theme_choice_var = self.__dict__.get("var_theme_choice")
-                    if theme_choice_var is not None:
-                        try:
-                            theme_choice_var.set(
-                                self._get_theme_display_name(theme_name)
-                            )
-                        except Exception:
-                            pass
-                    self.apply_theme(theme_name, log_change=False, persist=False)
-                    try:
-                        self.save_settings()
-                    except Exception:
-                        pass
-                    try:
-                        self.update_idletasks()
-                    except Exception:
-                        pass
             except Exception:
                 pass
         self._log_radio_theme_diagnostic("after_reattach_theme_apply")
@@ -17634,9 +17651,11 @@ class App(TkBase):
                     target,
                     handover_payload,
                     auto_play=True,
+                    theme_source=self,
                 )
             except Exception:
                 pass
+        self._sync_radio_theme_to_current_theme()
         return True
 
     def _poll_radio_attach_request(self):
@@ -19567,7 +19586,7 @@ class App(TkBase):
         return result["ok"]
 
     def _get_about_display_version(self):
-        fallback = NETMON_APP_VERSION or "folgt"
+        fallback = display_version(NETMON_APP_VERSION) or "folgt"
         # A checkout must not borrow the version of another installed copy.
         if os.path.realpath(__file__) != "/usr/lib/netmon/netmon/app.py":
             return fallback
@@ -19590,7 +19609,7 @@ class App(TkBase):
                 and len(version) <= 128
                 and re.fullmatch(r"[0-9][0-9A-Za-z.+:~\-]*", version)
             ):
-                return version
+                return display_version(version)
         except Exception:
             pass
         return fallback
@@ -20788,6 +20807,7 @@ class App(TkBase):
                 "theme_studio_default_profile_name", "My Theme"
             ),
             "tooltips_enabled": True,
+            "button_sound_enabled": True,
             "netmon_browser_enabled": False,
             "auto_log_clear": False,
             "debug_network_logging": False,
@@ -20922,6 +20942,7 @@ class App(TkBase):
                 or self.tr("theme_studio_default_profile_name", "My Theme")
             ),
             "tooltips_enabled": bool(self.settings.get("tooltips_enabled", True)),
+            "var_button_sound": bool(self.settings.get("button_sound_enabled", True)),
             "var_netmon_browser": self.settings.get("netmon_browser_enabled") is True,
             "var_auto_log_clear": bool(self.settings.get("auto_log_clear", False)),
             "var_debug_network_logging": bool(
@@ -21990,6 +22011,8 @@ class App(TkBase):
         except Exception:
             return entries
         for name in child_names:
+            if name in {"Migration", "Wiederherstellungen"}:
+                continue
             path = os.path.join(base_dir, name)
             if not os.path.isdir(path):
                 continue
@@ -22135,109 +22158,14 @@ class App(TkBase):
         return opened
 
     def export_netmon_documents_backup(self):
-        selected = self._netmon_backup_selected_entries()
-        if not selected:
-            messagebox.showinfo(
-                self.tr("backup_netmon_export_title", "NetMon-Sicherung exportieren"),
-                self.tr(
-                    "backup_netmon_export_no_selection",
-                    "Es sind keine NetMon-Ordner für den Export ausgewählt.",
-                ),
-                parent=self,
-            )
-            self.backup_status_var.set(
-                "NetMon-Sicherung nicht gestartet: keine Auswahl."
-            )
-            return False
+        from netmon.features.user_backup_controller import export_documents
 
-        target_root = filedialog.askdirectory(
-            title=self.tr(
-                "backup_netmon_export_target_title",
-                "Externes Ziel für NetMon-Sicherung wählen",
-            ),
-            initialdir=os.path.expanduser("~"),
-        )
-        if not target_root:
-            self.backup_status_var.set("NetMon-Sicherung abgebrochen.")
-            return False
-        target_root = os.path.abspath(os.path.expanduser(target_root))
+        return export_documents(self)
 
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        export_dir = os.path.join(target_root, f"netmon_documents_backup_{timestamp}")
-        self._append_backup_log(
-            "NetMon-Sicherung gestartet:\n"
-            + f"- Ziel: {export_dir}\n"
-            + "\n".join(f"- {item['label']}: {item['path']}" for item in selected),
-            clear=False,
-        )
-        copied = []
-        try:
-            os.makedirs(export_dir, exist_ok=False)
-            if selected[0].get("key") == "__all__":
-                target_path = os.path.join(export_dir, "NetMon")
-                shutil.copytree(
-                    selected[0]["path"],
-                    target_path,
-                    dirs_exist_ok=True,
-                    symlinks=True,
-                    copy_function=shutil.copy2,
-                )
-                copied.append({"label": "NetMon komplett", "target": target_path})
-            else:
-                for item in selected:
-                    target_path = os.path.join(
-                        export_dir, os.path.basename(item["path"])
-                    )
-                    shutil.copytree(
-                        item["path"],
-                        target_path,
-                        dirs_exist_ok=True,
-                        symlinks=True,
-                        copy_function=shutil.copy2,
-                    )
-                    copied.append({"label": item["label"], "target": target_path})
+    def restore_netmon_documents_backup(self):
+        from netmon.features.user_backup_controller import restore_documents
 
-            manifest = {
-                "created_at": datetime.now().isoformat(timespec="seconds"),
-                "export_dir": export_dir,
-                "selection": copied,
-            }
-            manifest_path = os.path.join(
-                export_dir, "netmon_documents_backup_manifest.json"
-            )
-            ok, err = safe_write_json(
-                manifest_path,
-                manifest,
-                indent=2,
-                ensure_ascii=False,
-            )
-            if not ok:
-                raise RuntimeError(
-                    str(err or "Manifest konnte nicht geschrieben werden.")
-                )
-        except Exception as exc:
-            self.backup_status_var.set("NetMon-Sicherung fehlgeschlagen.")
-            self._append_backup_log(f"NetMon-Sicherung fehlgeschlagen:\n- {exc}")
-            messagebox.showerror(
-                self.tr("backup_netmon_export_title", "NetMon-Sicherung exportieren"),
-                self.tr(
-                    "backup_netmon_export_failed",
-                    "Die NetMon-Sicherung konnte nicht exportiert werden.",
-                )
-                + f"\n\n{exc}",
-                parent=self,
-            )
-            return False
-
-        self.backup_status_var.set(
-            f"NetMon-Sicherung exportiert: {os.path.basename(export_dir)}"
-        )
-        self._append_backup_log(
-            "NetMon-Sicherung abgeschlossen:\n"
-            + f"- Ziel: {export_dir}\n"
-            + "\n".join(f"- {item['label']} -> {item['target']}" for item in copied)
-        )
-        return True
+        return restore_documents(self)
 
     def _latest_timeshift_snapshot_directory(self) -> str:
         candidate_roots = [
@@ -25247,6 +25175,11 @@ class App(TkBase):
 
     def _show_context_menu(self, menu, event):
         self._close_active_context_menu()
+        bind_status_menu_click_sound(
+            menu,
+            getattr(event, "widget", None),
+            self.__dict__.get("_click_sound_command"),
+        )
         self._active_context_menu = menu
         self._schedule_active_context_menu_close()
         try:
@@ -25339,6 +25272,13 @@ class App(TkBase):
         return "break"
 
     def _paste_text_widget_clipboard(self, text_widget, _event=None):
+        if text_widget is self.__dict__.get("chad_analysis_text"):
+            if not chad_controller.ensure_chad_enabled(self):
+                return "break"
+            text_widget = self.__dict__.get("chad_chat_input")
+            if text_widget is None:
+                return "break"
+
         try:
             if str(text_widget.cget("state")) == "disabled":
                 return "break"
@@ -25628,18 +25568,6 @@ class App(TkBase):
 
         menu = tk.Menu(widget, tearoff=0)
 
-        def _is_disabled():
-            try:
-                return str(widget.cget("state")) == "disabled"
-            except Exception:
-                return False
-
-        def _is_readonly():
-            try:
-                return str(widget.cget("state")) == "readonly"
-            except Exception:
-                return False
-
         def _run_virtual_event(sequence):
             try:
                 widget.event_generate(sequence)
@@ -25670,12 +25598,6 @@ class App(TkBase):
             _run_virtual_event("<<Copy>>")
 
         def paste_text():
-            if _is_disabled() or _is_readonly():
-                return
-
-            if _run_virtual_event("<<Paste>>"):
-                return
-
             if hasattr(widget, "tag_ranges"):
                 self._paste_text_widget_clipboard(widget)
             else:
@@ -25777,29 +25699,7 @@ class App(TkBase):
             self.clipboard_append(selected)
 
         def paste_from_clipboard():
-            try:
-                if str(text_widget.cget("state")) == "disabled":
-                    return
-            except Exception:
-                pass
-
-            try:
-                text_widget.focus_force()
-            except Exception:
-                pass
-
-            try:
-                text_widget.event_generate("<<Paste>>")
-                return
-            except Exception:
-                pass
-
-            try:
-                pasted = self.clipboard_get()
-                if pasted:
-                    text_widget.insert("insert", pasted)
-            except Exception:
-                pass
+            self._paste_text_widget_clipboard(text_widget)
 
         def select_all():
             try:
@@ -25887,7 +25787,12 @@ class App(TkBase):
             self.prepare_chad_analysis("Lynis Übersetzung Deutsch", prompt)
 
         menu.add_command(label="Kopieren", command=copy_selection)
-        menu.add_command(label="Einfügen", command=paste_from_clipboard)
+        paste_label = "Einfügen"
+        if text_widget is self.__dict__.get("chad_analysis_text"):
+            paste_label = self.tr(
+                "chad_menu_paste_into_input", "In Chat-Eingabe einfügen"
+            )
+        menu.add_command(label=paste_label, command=paste_from_clipboard)
         menu.add_command(label="Alles auswählen", command=select_all)
         menu.add_separator()
         menu.add_command(
@@ -26154,18 +26059,6 @@ class App(TkBase):
                 ),
             )
 
-    def _validate_linux_help_command_for_terminal(self, cmd: str) -> tuple[bool, str]:
-        if not isinstance(cmd, str):
-            return False, "Befehl ist kein gültiger Textwert."
-        text = cmd.strip()
-        if not text:
-            return False, "Befehl ist leer."
-        if "\x00" in text:
-            return False, "Befehl enthält ungültige Nullbytes."
-        if "\n" in text or "\r" in text:
-            return False, "Mehrzeilige Befehle sind hier nicht erlaubt."
-        return True, ""
-
     def _build_external_terminal_command(self, script: str):
         try:
             return maintenance_terminal_command(script)
@@ -26277,9 +26170,6 @@ class App(TkBase):
     def import_linux_help_csv(self, path):
         return linux_help_controller.import_linux_help_csv(self, path)
 
-    def export_linux_help_csv(self, path):
-        linux_help_controller.export_linux_help_csv(self, path)
-
     def load_linux_help_data(self):
         return linux_help_controller.load_linux_help_data(self)
 
@@ -26334,44 +26224,14 @@ class App(TkBase):
     def copy_linux_help_chad_prompt(self):
         return linux_help_controller.copy_linux_help_chad_prompt(self)
 
-    def copy_linux_help_pdf_prompt(self):
-        return linux_help_controller.copy_linux_help_pdf_prompt(self)
+    def copy_linux_help_markdown_prompt(self):
+        return linux_help_controller.copy_linux_help_markdown_prompt(self)
 
     def send_linux_help_to_chad(self):
         return linux_help_controller.send_linux_help_to_chad(self)
 
-    def send_linux_help_command_to_terminal(self):
-        return linux_help_controller.send_linux_help_command_to_terminal(self)
-
     def reload_linux_help_data(self):
         linux_help_controller.reload_linux_help_data(self)
-
-    def reload_linux_help_documents(self, select_id=""):
-        return linux_help_controller.reload_linux_help_documents(
-            self,
-            select_id=select_id,
-        )
-
-    def on_linux_help_document_select(self, _event=None):
-        return linux_help_controller.on_linux_help_document_select(self, _event)
-
-    def show_linux_help_document_menu(self, event):
-        return linux_help_controller.show_linux_help_document_menu(self, event)
-
-    def open_selected_linux_help_pdf(self):
-        return linux_help_controller.open_selected_linux_help_pdf(self)
-
-    def copy_selected_linux_help_document_prompt(self):
-        return linux_help_controller.copy_selected_linux_help_document_prompt(self)
-
-    def delete_selected_linux_help_document(self):
-        return linux_help_controller.delete_selected_linux_help_document(self)
-
-    def open_linux_help_documents_folder(self):
-        return linux_help_controller.open_linux_help_documents_folder(self)
-
-    def import_linux_help_pdf_dialog(self):
-        return linux_help_controller.import_linux_help_pdf_dialog(self)
 
     def _set_dot_profile_choice_safe(self, choice):
         dot_controller.set_dot_profile_choice_safe(self, choice)
@@ -29822,7 +29682,7 @@ class App(TkBase):
         security_monitoring_controller.security_update_status(self, color)
 
     def _read_ufw_log_tail(self, lines=1200):
-        return security_monitoring_controller.read_ufw_log_tail(lines=lines)
+        return security_monitoring_controller.read_ufw_log_tail(lines=lines, app=self)
 
     def _parse_ufw_block_line(self, line):
         return security_monitoring_controller.parse_ufw_block_line(
@@ -29974,32 +29834,16 @@ class App(TkBase):
         security_monitoring_controller.security_poll_async(self)
 
     def _security_query_log_level(self):
-        # Runs in the Tk refresh: no failing sudo during its backoff, and plain
-        # `ufw status` only as root (it is refused otherwise and only costs time).
-        attempts = []
-        if not firewall_controller.sudo_status_backoff_active(self):
-            attempts.append(["sudo", "-n", "ufw", "status", "verbose"])
-        if os.geteuid() == 0:
-            attempts.append(["ufw", "status", "verbose"])
-
-        for cmd in attempts:
-            try:
-                rc, out = run_cmd(cmd, timeout=12)
-            except Exception as e:
-                self.log(
-                    f"Security: UFW-Level-Abfrage fehlgeschlagen (cmd={' '.join(cmd)}): {e}"
-                )
-                continue
-            if cmd[0] == "sudo":
-                firewall_controller.note_ufw_status_result(self, rc, out)
-
-            if rc != 0 or not out:
-                continue
-
-            level = self._parse_ufw_logging_level(out)
-            if level != "–":
-                return level
-
+        try:
+            rc, out = self._read_ufw_status(verbose=True)
+            if rc == 0 and out:
+                return self._parse_ufw_logging_level(out)
+            if os.geteuid() == 0:
+                rc, out = run_cmd(["ufw", "status", "verbose"], timeout=12)
+                if rc == 0 and out:
+                    return self._parse_ufw_logging_level(out)
+        except Exception as exc:
+            self.log(f"Security: UFW-Level-Abfrage fehlgeschlagen: {exc}")
         return "–"
 
     def _parse_ufw_logging_level(self, text):
@@ -30026,7 +29870,8 @@ class App(TkBase):
         return "–"
 
     def refresh_security_log_level(self, log_failures=False):
-        level = self._security_query_log_level()
+        with passive_sudo.observation(self):
+            level = self._security_query_log_level()
         self.security_log_level = level
         level_var = self.__dict__.get("security_level_var")
         if level_var is not None:
@@ -30053,7 +29898,11 @@ class App(TkBase):
         return None
 
     def update_ufw_logging_light(self):
-        level = self._security_query_log_level()
+        with passive_sudo.observation(self):
+            level = self._security_query_log_level()
+        self._render_ufw_logging_level(level)
+
+    def _render_ufw_logging_level(self, level):
         self.security_log_level = level
 
         level_var = self.__dict__.get("security_level_var")
@@ -30062,6 +29911,25 @@ class App(TkBase):
                 level_var.set(f"Logging: {level}")
             except Exception:
                 pass
+
+        for var_name, key, fallback in (
+            (
+                "firewall_tab_logging_var",
+                "firewall_tab_logging_value",
+                "Logging: {value}",
+            ),
+            (
+                "firewall_tab_logging_menu_var",
+                "firewall_tab_logging_menu_value",
+                "UFW Logging: {value}",
+            ),
+        ):
+            var = self.__dict__.get(var_name)
+            if var is not None:
+                try:
+                    var.set(self.tr(key, fallback).format(value=level))
+                except Exception:
+                    pass
 
         status_var = self.__dict__.get("ufw_logging_status_var")
         portscan_ip = self._active_ufw_portscan_ip()
@@ -30683,6 +30551,7 @@ class App(TkBase):
             self.log("Sudo-Auth: 'sudo' nicht gefunden.")
             return False
         if check_sudo_nopasswd():
+            passive_sudo.reset(self)
             return True
         ok = renew_sudo_timestamp(self)
         if not ok:
@@ -30691,6 +30560,7 @@ class App(TkBase):
             else:
                 self.log("Sudo-Auth abgebrochen.")
             return False
+        passive_sudo.reset(self)
         if reason:
             self.log(f"Sudo-Auth erneuert für: {reason}.")
         else:
@@ -30702,6 +30572,7 @@ class App(TkBase):
             self.log(self.tr("sudo_auth_sudo_missing", "Sudo auth: 'sudo' not found."))
             return
         if check_sudo_nopasswd():
+            passive_sudo.reset(self)
             self.log(
                 self.tr(
                     "sudo_auth_session_already_valid",
@@ -30710,6 +30581,7 @@ class App(TkBase):
             )
             return
         if renew_sudo_timestamp(self):
+            passive_sudo.reset(self)
             self.log(
                 self.tr(
                     "sudo_auth_session_enabled",
@@ -32547,6 +32419,7 @@ class App(TkBase):
             os.path.abspath(os.path.expanduser(self.netmon_config_dir)),
             os.path.abspath(os.path.expanduser(self.netmon_state_dir)),
             os.path.abspath(os.path.expanduser("~/.local/share/netmon")),
+            os.path.abspath(get_netmon_fun_dir()),
         ]
         for root in allowed_roots:
             if target == root or target.startswith(root + os.sep):
@@ -33745,6 +33618,15 @@ class App(TkBase):
         )
 
     def _log_preflight_manual_summary(self, checks):
+        from netmon.modules.secure_browser import session as browser_session
+
+        runtime_error = browser_session.managed_runtime_error()
+        if runtime_error:
+            self.log(f"Geschützte Firefox-Laufzeit: {runtime_error}")
+        else:
+            self._log_preflight_tool_state(
+                "Geschützte Firefox-Laufzeit", True, str(browser_session.FIREFOX_DIR)
+            )
         ordered_tools = [
             ("traceroute", "traceroute"),
             ("mtr", "mtr"),
@@ -33767,7 +33649,10 @@ class App(TkBase):
             ("whois", "whois"),
             ("nvidia-smi", "nvidia-smi"),
             ("mpv (Radio)", "mpv"),
-            ("Secure Browser Firefox-Basis", "secure_browser_firefox_source"),
+            (
+                "Firefox-Kopiervorlage für ältere Profile",
+                "secure_browser_firefox_source",
+            ),
             ("projectM Visualizer", "projectm_visualizer"),
             ("python3 (Fun)", "python3"),
         ]
@@ -34302,7 +34187,17 @@ class App(TkBase):
         privacy_profile = active_profile or selected_profile
         privacy_enabled = True
         privacy_hint = ""
-        if privacy_profile and not self.profile_supports_ipv6(privacy_profile):
+        supported = (
+            vpn_controller.profile_ipv6_display_state(self, privacy_profile)
+            if privacy_profile
+            else True
+        )
+        if supported is None:
+            privacy_enabled = False
+            privacy_hint = (
+                "IPv6-Profilstatus unbekannt – Leserechte oder sudo-Freigabe fehlen"
+            )
+        elif not supported:
             privacy_enabled = False
             if active_profile:
                 privacy_hint = (
@@ -36055,21 +35950,15 @@ class App(TkBase):
         return ""
 
     def _classify_firewall_listener_scope(self, host):
-        text = str(host or "").strip().lower()
-        if not text:
-            return "unknown"
-        if text in {"224.0.0.251", "ff02::fb"}:
-            return "multicast"
-        if text in {"127.0.0.1", "::1", "localhost"}:
-            return "local only"
-        if text.startswith("127.") or text == "::1":
-            return "local only"
+        text = str(host or "").strip().lower().split("%", 1)[0]
         if text in {"0.0.0.0", "*", "::", "[::]"}:
             return "external"
         try:
             addr = ipaddress.ip_address(text)
         except ValueError:
-            return "external"
+            return "unknown"
+        if addr.is_multicast:
+            return "multicast"
         if addr.is_loopback:
             return "local only"
         if addr.is_private or addr.is_link_local:
@@ -36088,6 +35977,8 @@ class App(TkBase):
         if not match:
             return None
         proto = match.group("proto").lower()
+        if proto in {"tcp6", "udp6"}:
+            proto = proto[:-1]
         local = match.group("local") or ""
         process_info = match.group("extra") or ""
         host, port = self._parse_firewall_listener_address(local)
@@ -36095,14 +35986,13 @@ class App(TkBase):
             return None
         process_name = "-"
         process_pid = "-"
-        proc_match = re.search(r'"([^"]+)"', process_info)
+        # uid/ino/sk/cgroup are socket metadata, never process names.
+        proc_match = re.search(
+            r'users:\(\(\s*"([^"\n]+)"(?:,\s*pid=(\d+))?', process_info
+        )
         if proc_match:
             process_name = proc_match.group(1)
-        elif process_info:
-            process_name = process_info.strip()
-        pid_match = re.search(r"\bpid=(\d+)\b", process_info)
-        if pid_match:
-            process_pid = pid_match.group(1)
+            process_pid = proc_match.group(2) or "-"
         cgroup_value = self._parse_firewall_listener_cgroup(process_info)
         if self._is_netmon_app_scope(cgroup_value):
             process_name = "NetMon"
@@ -36117,29 +36007,24 @@ class App(TkBase):
         }
 
     def _listener_matches_firewall_rule(self, listener, rules):
-        listener_port = str(listener.get("port") or "")
-        listener_proto = str(listener.get("proto") or "").lower()
-        for rule in list(rules or []):
-            if str(rule.get("policy") or "").upper() != "ALLOW":
-                continue
-            if str(rule.get("direction") or "").upper() not in {"", "IN"}:
-                continue
-            rule_port = str(rule.get("port") or "").strip()
-            rule_proto = str(rule.get("proto") or "").lower().strip()
-            if rule_port and rule_port != listener_port:
-                continue
-            if rule_proto and rule_proto != listener_proto:
-                continue
-            return True
-        return False
+        # Display-only compatibility helper; scoped/unknown matches aren't a
+        # general inbound allow. Never use this for a firewall mutation.
+        verdict = firewall_listener_service.assess_inbound(
+            listener, rules, status="active"
+        )
+        return verdict["state"] == "allowed" and verdict["basis"] == "rule"
 
     def _build_firewall_rule_assessment(self, rule):
         category = str(rule.get("category") or "")
         policy = str(rule.get("policy") or "").upper()
-        direction = str(rule.get("direction") or "").upper() or "-"
+        direction = str(rule.get("direction") or "").upper() or "IN"
         source = str(rule.get("from") or "-").strip() or "-"
         target = str(rule.get("display") or rule.get("to") or "-").strip() or "-"
         family = "IPv6" if bool(rule.get("is_ipv6")) else "IPv4"
+        iface = str(rule.get("interface") or "").strip()
+        if iface:
+            target = f"{target} on {iface}"
+            direction = f"{direction} via {iface}"
 
         source_label = source
         if source_label in {"Anywhere", "Anywhere (v6)", "-"}:
@@ -36147,7 +36032,7 @@ class App(TkBase):
         else:
             source_label = f"{source_label} ({family})"
 
-        if policy == "DENY":
+        if policy in {"DENY", "REJECT"}:
             return {
                 "target_label": f"{target} ({family})",
                 "source_label": source_label,
@@ -36155,12 +36040,19 @@ class App(TkBase):
                 "note": "blocked",
                 "priority": "ok",
             }
-        if category == "interface":
-            iface = str(rule.get("interface") or "-").strip() or "-"
+        if policy == "LIMIT":
             return {
                 "target_label": f"{target} ({family})",
                 "source_label": source_label,
-                "direction_label": f"{direction} via {iface}",
+                "direction_label": direction,
+                "note": "rate limited",
+                "priority": "check",
+            }
+        if category == "interface":
+            return {
+                "target_label": f"{target} ({family})",
+                "source_label": source_label,
+                "direction_label": direction,
                 "note": "interface rule",
                 "priority": "check",
             }
@@ -36173,7 +36065,7 @@ class App(TkBase):
                 "priority": "check",
             }
         if category == "standard_port":
-            if source in {"Anywhere", "Anywhere (v6)", "-"}:
+            if source in {"Anywhere", "Anywhere (v6)"} and direction in {"IN", "-"}:
                 return {
                     "target_label": f"{target} ({family})",
                     "source_label": source_label,
@@ -36199,6 +36091,21 @@ class App(TkBase):
     def _translate_firewall_listener_rating(self, text):
         raw = str(text or "").strip()
         mapping = {
+            "WireGuard listen-port association": (
+                "firewall_listener_rating_wireguard",
+                "WireGuard – Zuordnung über Listen-Port",
+                "WireGuard listen-port association",
+            ),
+            "inbound allowed by UFW configuration": (
+                "firewall_listener_rating_inbound_allowed",
+                "IN laut UFW-Konfiguration erlaubt; Erreichbarkeit ungeprüft",
+                "IN allowed by UFW configuration; reachability untested",
+            ),
+            "inbound restricted by UFW configuration": (
+                "firewall_listener_rating_inbound_restricted",
+                "IN laut UFW-Konfiguration eingeschränkt; Wirksamkeit ungeprüft",
+                "IN restricted by UFW configuration; effectiveness untested",
+            ),
             "bound locally only": (
                 "firewall_listener_rating_local_only",
                 "nur lokal gebunden",
@@ -36206,17 +36113,17 @@ class App(TkBase):
             ),
             "reachable in the LAN": (
                 "firewall_listener_rating_lan_reachable",
-                "im LAN erreichbar",
+                "an lokale/LAN-Adresse gebunden; Erreichbarkeit ungeprüft",
                 "reachable in the LAN",
             ),
             "externally reachable, often intentional": (
                 "firewall_listener_rating_external_often_intentional",
-                "extern erreichbar, oft beabsichtigt",
+                "an nicht lokale Adresse gebunden; Erreichbarkeit ungeprüft",
                 "externally reachable, often intentional",
             ),
             "externally reachable, review recommended": (
                 "firewall_listener_rating_external_review",
-                "extern erreichbar, Prüfung empfohlen",
+                "an nicht lokale Adresse gebunden; Erreichbarkeit ungeprüft",
                 "externally reachable, review recommended",
             ),
             "allowed, verify scope": (
@@ -36226,7 +36133,7 @@ class App(TkBase):
             ),
             "mDNS/multicast in the local network": (
                 "firewall_listener_rating_multicast_local",
-                "mDNS/Multicast im lokalen Netz",
+                "Multicast-Bindung; Reichweite ungeprüft",
                 "mDNS/multicast in the local network",
             ),
             "active locally, probably filtered externally": (
@@ -36268,6 +36175,11 @@ class App(TkBase):
     def _translate_firewall_rule_note(self, text):
         raw = str(text or "").strip()
         mapping = {
+            "rate limited": (
+                "firewall_rule_note_rate_limited",
+                "Rate begrenzt",
+                "rate limited",
+            ),
             "blocked": (
                 "firewall_rule_note_blocked",
                 "blockiert",
@@ -36304,80 +36216,95 @@ class App(TkBase):
             return self.tr(key, default_de)
         return raw
 
-    def _build_firewall_listener_assessment(self, listener, rules):
+    def _build_firewall_listener_assessment(
+        self, listener, rules, *, status="unknown", default_in="-"
+    ):
         scope = str(listener.get("scope") or "unknown")
-        allowed = self._listener_matches_firewall_rule(listener, rules)
-        process_name = str(listener.get("process") or "-").strip() or "-"
-        port_value = int(listener.get("port") or 0)
-        proto_value = str(listener.get("proto") or "").strip().lower()
-
-        if self._is_netmon_listener(listener):
-            kind_label = "UDP-Port" if proto_value == "udp" else "Port"
-            if scope == "external":
-                return {
-                    "firewall": "self",
-                    "rating": f"{kind_label} gehoert zu NetMon selbst, pruefen ob Bindung auf alle Interfaces noetig ist",
-                    "priority": "check",
-                }
-            return {
-                "firewall": "self",
-                "rating": "gehoert zu NetMon selbst",
-                "priority": "ok",
-            }
-
-        if scope == "local only":
-            return {
-                "firewall": "local",
-                "rating": "bound locally only",
-                "priority": "ok",
-            }
-        if scope == "lan/local" and allowed:
-            return {
-                "firewall": "allowed",
-                "rating": "reachable in the LAN",
-                "priority": "check",
-            }
-        if allowed and scope == "external":
-            if process_name in {"sshd", "ssh", "openvpn", "wg-quick", "wireguard"}:
-                return {
-                    "firewall": "allowed",
-                    "rating": "externally reachable, often intentional",
-                    "priority": "check",
-                }
-            return {
-                "firewall": "allowed",
-                "rating": "externally reachable, review recommended",
-                "priority": "warn",
-            }
-        if allowed:
-            return {
-                "firewall": "allowed",
-                "rating": "allowed, verify scope",
-                "priority": "check",
-            }
+        verdict = firewall_listener_service.assess_inbound(
+            listener, rules, status=status, default_in=default_in
+        )
+        state = verdict["state"]
+        if verdict["basis"] == "rule":
+            firewall = f"UFW: {verdict['policy']} IN"
+        elif verdict["basis"] == "default" and state != "unknown":
+            firewall = f"UFW: Standard IN {verdict['policy']}"
+        elif state == "inactive":
+            firewall = self.tr("firewall_listener_ufw_inactive", "UFW inaktiv")
+        elif state == "conditional":
+            firewall = self.tr(
+                "firewall_listener_ufw_conditional",
+                "UFW IN: bedingt (Quelle/Interface/Ziel unklar)",
+            )
+        else:
+            firewall = self.tr("firewall_listener_ufw_unknown", "UFW IN: unbekannt")
+        firewall_detail = firewall
+        if verdict["basis"] == "rule":
+            firewall = f"IN {verdict['policy']}"
+        elif verdict["basis"] == "default" and state != "unknown":
+            firewall = f"IN {verdict['policy']}*"
+        elif state == "conditional":
+            firewall = self.tr("firewall_listener_ufw_conditional_short", "IN bedingt")
+        elif state == "unknown":
+            firewall = self.tr("firewall_listener_ufw_unknown_short", "IN unklar")
+        priority = "check" if state in {"unknown", "conditional", "limited"} else "ok"
         if scope == "multicast":
-            return {
-                "firewall": "multicast",
-                "rating": "mDNS/multicast in the local network",
-                "priority": "ok",
-            }
-        if scope == "lan/local":
-            return {
-                "firewall": "local/lan",
-                "rating": "active locally, probably filtered externally",
-                "priority": "ok",
-            }
-        if port_value in {53, 67, 68, 123, 5353}:
-            return {
-                "firewall": "unclear",
-                "rating": "system service, check context",
-                "priority": "check",
-            }
+            rating, priority = "mDNS/multicast in the local network", "ok"
+        elif scope == "local only":
+            firewall_detail = self.tr(
+                "firewall_listener_local_path", "lokale Bindung; UFW-Pfad ungeprüft"
+            )
+            firewall = self.tr("firewall_listener_local_short", "lokal / unklar")
+            rating, priority = "bound locally only", "ok"
+        elif listener.get("wireguard_interfaces"):
+            rating, priority = "WireGuard listen-port association", "ok"
+        elif self._is_netmon_listener(listener):
+            rating = "gehoert zu NetMon selbst"
+        elif state == "allowed":
+            rating, priority = "inbound allowed by UFW configuration", "check"
+        elif state == "blocked":
+            rating = "inbound restricted by UFW configuration"
+        else:
+            rating = "listening locally, allow state unclear"
         return {
-            "firewall": "filtered/unclear",
-            "rating": "listening locally, allow state unclear",
-            "priority": "check",
+            "firewall": firewall,
+            "firewall_detail": firewall_detail,
+            "rating": rating,
+            "priority": priority,
+            "inbound_state": state,
         }
+
+    def _firewall_wireguard_listen_ports(self):
+        # Ask only for listen-port: no dump, private keys, peers or config files.
+        cmd = ["wg", "show", "all", "listen-port"]
+        try:
+            rc, output = run_cmd(cmd, timeout=5)
+            if rc != 0:
+                rc, output = passive_sudo.read(
+                    self,
+                    "firewall-wg-listen-ports",
+                    lambda: run_cmd(["sudo", "-n", *cmd], timeout=5),
+                )
+            return (
+                firewall_listener_service.wireguard_listen_ports(output)
+                if rc == 0
+                else {}
+            )
+        except Exception:
+            return {}
+
+    def _firewall_binding_label(self, listener):
+        host = str(listener.get("host") or "-")
+        if host in {"0.0.0.0", "::", "*"}:
+            return self.tr("firewall_listener_bind_all", "alle Schnittstellen")
+        return {
+            "local only": self.tr("firewall_listener_bind_loopback", "Loopback"),
+            "lan/local": self.tr("firewall_listener_bind_local", "lokale/LAN-Adresse"),
+            "multicast": self.tr("firewall_listener_bind_multicast", "Multicast"),
+            "external": self.tr("firewall_listener_bind_public", "öffentliche Adresse"),
+        }.get(
+            listener.get("scope"),
+            self.tr("firewall_listener_bind_unknown", "Bindung unklar"),
+        )
 
     def _collect_firewall_transparency_snapshot(self):
         snapshot = {
@@ -36388,6 +36315,7 @@ class App(TkBase):
             "rule_count": 0,
             "external_open_count": 0,
             "listener_count": 0,
+            "listener_readable": False,
             "last_check": self.tr(
                 "firewall_listener_last_check_none",
                 "Noch kein Check",
@@ -36465,39 +36393,78 @@ class App(TkBase):
 
         listener_rows = []
         listener_cmds = [
+            ["sudo", "-n", "ss", "-lntupeH"],
             ["ss", "-lntupeH"],
             ["ss", "-lntupH"],
             ["ss", "-lntuH"],
         ]
         for cmd in listener_cmds:
             try:
-                rc_listen, out_listen = run_cmd(cmd, timeout=8)
+                if cmd[0] == "sudo":
+                    rc_listen, out_listen = passive_sudo.read(
+                        self,
+                        "firewall-listeners",
+                        lambda: run_cmd(cmd, timeout=8),
+                    )
+                else:
+                    rc_listen, out_listen = run_cmd(cmd, timeout=8)
             except Exception:
                 continue
-            if rc_listen != 0 or not out_listen:
+            if rc_listen != 0:
                 continue
+            candidate_rows = []
             for raw_line in str(out_listen or "").splitlines():
-                parsed_listener = self._parse_firewall_listener_line(raw_line)
-                if parsed_listener is None:
-                    continue
-                if parsed_listener["proto"] not in {"tcp", "udp"}:
-                    continue
-                if parsed_listener["port"] <= 0:
-                    continue
-                assessment = self._build_firewall_listener_assessment(
-                    parsed_listener, structured_rules
-                )
-                parsed_listener["firewall"] = str(assessment.get("firewall") or "-")
-                parsed_listener["rating"] = self._translate_firewall_listener_rating(
-                    assessment.get("rating") or "-"
-                )
-                parsed_listener["priority"] = str(assessment.get("priority") or "check")
-                parsed_listener["owner_note"] = self._describe_firewall_listener_owner(
-                    parsed_listener
-                )
-                listener_rows.append(parsed_listener)
+                item = self._parse_firewall_listener_line(raw_line)
+                if item and item["proto"] in {"tcp", "udp"} and item["port"] > 0:
+                    candidate_rows.append(item)
+            if str(out_listen or "").strip() and not candidate_rows:
+                continue
+            listener_rows = candidate_rows
+            snapshot["listener_readable"] = True
+            snapshot["listener_source"] = (
+                "sudo ss" if cmd[0] == "sudo" else "ss (unprivileged)"
+            )
             break
 
+        wg_ports = (
+            self._firewall_wireguard_listen_ports()
+            if any(
+                item["proto"] == "udp" and item["process"] == "-"
+                for item in listener_rows
+            )
+            else {}
+        )
+        for item in listener_rows:
+            interfaces = (
+                wg_ports.get(item["port"], ()) if item["proto"] == "udp" else ()
+            )
+            if interfaces and item["process"] == "-" and item["scope"] != "multicast":
+                item["process"] = "WireGuard"
+                item["wireguard_interfaces"] = interfaces
+                item["owner_note"] = self.tr(
+                    "firewall_listener_wireguard_owner",
+                    "WireGuard: {interfaces}; Zuordnung über UDP-Listen-Port, ohne PID",
+                ).format(interfaces=", ".join(interfaces))
+            else:
+                item["owner_note"] = self._describe_firewall_listener_owner(item)
+            assessment = self._build_firewall_listener_assessment(
+                item,
+                structured_rules,
+                status=snapshot["status_label"],
+                default_in=snapshot["default_in"],
+            )
+            item["firewall"] = assessment["firewall"]
+            item["firewall_detail"] = assessment["firewall_detail"]
+            item["inbound_state"] = assessment["inbound_state"]
+            item["rating"] = self._translate_firewall_listener_rating(
+                assessment["rating"]
+            )
+            item["priority"] = assessment["priority"]
+            item["binding"] = self._firewall_binding_label(item)
+            item["reachability"] = self.tr(
+                "firewall_listener_reachability_untested",
+                "Erreichbarkeit: nicht getestet",
+            )
         listener_rows.sort(
             key=lambda item: (int(item.get("port") or 0), item.get("proto") or "")
         )
@@ -36506,8 +36473,8 @@ class App(TkBase):
         snapshot["external_open_count"] = sum(
             1
             for item in listener_rows
-            if str(item.get("scope") or "") != "local only"
-            and str(item.get("firewall") or "") == "allowed"
+            if str(item.get("scope") or "") not in {"local only", "multicast"}
+            and item.get("inbound_state") == "allowed"
         )
 
         scan = dict(self.__dict__.get("port_reality_last_scan", {}) or {})
@@ -36559,7 +36526,7 @@ class App(TkBase):
             ).format(count=snapshot["listener_count"]),
             self.tr(
                 "firewall_transparency_external_allowed",
-                "Externally allowed: {count}",
+                "UFW IN allowed (listeners): {count}",
             ).format(count=snapshot["external_open_count"]),
             self.tr(
                 "firewall_transparency_last_reality_check",
@@ -36571,15 +36538,15 @@ class App(TkBase):
         special_count = 0
         for rule in structured_rules:
             assessment = self._build_firewall_rule_assessment(rule)
-            rule["note"] = str(assessment.get("note") or "-")
-            rule["note"] = self._translate_firewall_rule_note(rule["note"])
+            note_code = str(assessment.get("note") or "-")
+            rule["note"] = self._translate_firewall_rule_note(note_code)
             rule["direction_label"] = str(assessment.get("direction_label") or "-")
             rule["source_label"] = str(assessment.get("source_label") or "-")
             rule["target_label"] = str(assessment.get("target_label") or "-")
             rule["priority"] = str(assessment.get("priority") or "check")
-            if rule["note"] == "global allow":
+            if note_code == "global allow":
                 global_allow_count += 1
-            elif rule["note"] == "blocked":
+            elif note_code == "blocked":
                 deny_count += 1
             else:
                 special_count += 1
@@ -36588,11 +36555,11 @@ class App(TkBase):
                 "",
                 self.tr(
                     "firewall_transparency_global_allows",
-                    "Global allows: {count}",
+                    "Global IN allows: {count}",
                 ).format(count=global_allow_count),
                 self.tr(
                     "firewall_transparency_block_rules",
-                    "Block rules: {count}",
+                    "Explicit DENY/REJECT rules: {count}",
                 ).format(count=deny_count),
                 self.tr(
                     "firewall_transparency_special_rules",
@@ -36653,11 +36620,45 @@ class App(TkBase):
                 state = str(item.get("state") or "unknown").strip() or "unknown"
                 shown = PORT_REALITY_DISPLAY_MAP.get(state, state)
                 summary_lines.append(f"- Port {port} -> {shown}")
+        summary_lines.extend(
+            [
+                "",
+                self.tr(
+                    "firewall_listener_ufw_legend",
+                    "Firewall-Spalte: * = UFW-Standardrichtlinie; bedingt = Quelle, Interface oder Ziel nicht eindeutig zuordenbar.",
+                ),
+                self.tr(
+                    "firewall_listener_assessment_limits",
+                    "UFW-Abschätzung aus Status/Regeln; weitere Firewall-Regeln, Routing/NAT und IPv6-Wirksamkeit ungeprüft. Externe Erreichbarkeit der Listener nicht getestet.",
+                ),
+            ]
+        )
+        if not snapshot["listener_readable"]:
+            summary_lines.append(
+                self.tr(
+                    "firewall_listener_query_failed",
+                    "Listener-Abfrage fehlgeschlagen; die Anzahl 0 bestätigt keine Abwesenheit von Listenern.",
+                )
+            )
+        elif snapshot.get("listener_source") != "sudo ss":
+            summary_lines.append(
+                self.tr(
+                    "firewall_listener_unprivileged",
+                    "Listener aus unprivilegiertem ss; Prozess-/PID-Zuordnung kann unvollständig sein.",
+                )
+            )
+        if results:
+            summary_lines.append(
+                self.tr(
+                    "firewall_listener_separate_test",
+                    "Der obige Port-Test betrifft sein angegebenes Ziel; keine Zuordnung zu lokalen Listenern bestätigt.",
+                )
+            )
         if not structured_rules:
             summary_lines.append(
                 self.tr(
                     "firewall_transparency_no_rules_note",
-                    "Note: no UFW rules detected or status not readable.",
+                    "No explicit rules recorded; check UFW status and default policies above.",
                 )
             )
         snapshot["summary_lines"] = summary_lines
@@ -36665,6 +36666,7 @@ class App(TkBase):
 
     def refresh_firewall_transparency_view(self):
         snapshot = self._collect_firewall_transparency_snapshot()
+        self._render_ufw_logging_level(snapshot["logging"])
         for var_name, value in [
             (
                 "firewall_tab_status_var",
@@ -36685,12 +36687,6 @@ class App(TkBase):
                 ),
             ),
             (
-                "firewall_tab_logging_var",
-                self.tr("firewall_tab_logging_value", "Logging: {value}").format(
-                    value=snapshot["logging"]
-                ),
-            ),
-            (
                 "firewall_tab_rule_count_var",
                 self.tr("firewall_tab_rules_value", "Rules: {count}").format(
                     count=snapshot["rule_count"]
@@ -36700,7 +36696,7 @@ class App(TkBase):
                 "firewall_tab_external_open_var",
                 self.tr(
                     "firewall_tab_external_ports_value",
-                    "External ports: {count}",
+                    "UFW IN allowed: {count}",
                 ).format(count=snapshot["external_open_count"]),
             ),
             (
@@ -36723,17 +36719,6 @@ class App(TkBase):
                     var.set(value)
                 except Exception:
                     pass
-        logging_menu_var = self.__dict__.get("firewall_tab_logging_menu_var")
-        if logging_menu_var is not None:
-            try:
-                logging_menu_var.set(
-                    self.tr(
-                        "firewall_tab_logging_menu_value", "UFW Logging: {value}"
-                    ).format(value=snapshot["logging"])
-                )
-            except Exception:
-                pass
-
         rules_table = self.__dict__.get("firewall_rules_table")
         if rules_table is not None:
             try:
@@ -36745,7 +36730,15 @@ class App(TkBase):
                         "",
                         "end",
                         values=(
-                            str(rule.get("policy") or "-"),
+                            " ".join(
+                                filter(
+                                    None,
+                                    [
+                                        str(rule.get("policy") or "-"),
+                                        str(rule.get("direction") or "IN"),
+                                    ],
+                                )
+                            ),
                             str(
                                 rule.get("target_label")
                                 or rule.get("display")
@@ -36768,7 +36761,9 @@ class App(TkBase):
                 listeners_table.delete(*listeners_table.get_children())
                 for item in snapshot["listeners"]:
                     bind_label = str(item.get("host") or "-")
-                    scope = str(item.get("scope") or "").strip()
+                    scope = str(
+                        item.get("binding") or self._firewall_binding_label(item)
+                    ).strip()
                     if scope:
                         bind_label = f"{bind_label} ({scope})"
                     owner_note = str(item.get("owner_note") or "").strip()
@@ -36784,7 +36779,18 @@ class App(TkBase):
                             str(item.get("pid") or "-"),
                             bind_label,
                             str(item.get("firewall") or "-"),
-                            str(item.get("rating") or "-"),
+                            " | ".join(
+                                filter(
+                                    None,
+                                    [
+                                        self.tr(
+                                            "firewall_listener_test_pending_short",
+                                            "nicht getestet",
+                                        ),
+                                        str(item.get("rating") or "-"),
+                                    ],
+                                )
+                            ),
                         ),
                     )
             except Exception:
@@ -36820,8 +36826,17 @@ class App(TkBase):
                     " | ".join(
                         [
                             str(rule.get("policy") or "-"),
-                            str(rule.get("direction") or "-") or "-",
-                            str(rule.get("display") or rule.get("to") or "-"),
+                            str(
+                                rule.get("direction_label")
+                                or rule.get("direction")
+                                or "IN"
+                            ),
+                            str(
+                                rule.get("target_label")
+                                or rule.get("display")
+                                or rule.get("to")
+                                or "-"
+                            ),
                             str(rule.get("from") or "-"),
                         ]
                     )
@@ -36839,9 +36854,20 @@ class App(TkBase):
                             f"{item.get('port', '-')}/{item.get('proto', '-')}",
                             str(item.get("process") or "-"),
                             str(item.get("host") or "-"),
-                            str(item.get("firewall") or "-"),
+                            str(
+                                item.get("firewall_detail")
+                                or item.get("firewall")
+                                or "-"
+                            ),
                             str(item.get("rating") or "-"),
                             str(item.get("owner_note") or "-"),
+                            str(
+                                item.get("reachability")
+                                or self.tr(
+                                    "firewall_listener_reachability_untested",
+                                    "Erreichbarkeit: nicht getestet",
+                                )
+                            ),
                         ]
                     )
                 )
@@ -36889,7 +36915,10 @@ class App(TkBase):
             ("firewall_tab_default_out_var", "Outgoing: -"),
             ("firewall_tab_logging_var", "Logging: -"),
             ("firewall_tab_rule_count_var", "Rules: 0"),
-            ("firewall_tab_external_open_var", "External ports: 0"),
+            (
+                "firewall_tab_external_open_var",
+                self.tr("firewall_status_external_ports_default", "UFW IN allowed: 0"),
+            ),
             ("firewall_tab_listener_count_var", "Local listeners: 0"),
             ("firewall_tab_last_check_var", "Last check: -"),
         ]:
@@ -37221,7 +37250,7 @@ class App(TkBase):
 
     def _append_port_check_debug_log(self, payload):
         try:
-            log_dir = os.path.join(self.netmon_state_dir, "logs")
+            log_dir = get_netmon_documents_subdir("Logs")
             log_path = os.path.join(log_dir, "port_check_debug.log")
             record = dict(payload or {})
             record["ts"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -41110,19 +41139,7 @@ class App(TkBase):
                 "dns_health_service_missing",
                 "=== DNS Health Check ===\n\nDNS-Control-Service nicht verfügbar.",
             )
-        result = service.build_dns_health_report(out or "", tr=self.tr)
-        replacements = {
-            "=== DNS Health Check ===": "=== DNS-Health-Prüfung ===",
-            "✔ Active DNS server: ": "✔ Aktiver DNS-Server: ",
-            "✔ DNS-over-TLS: active": "✔ DNS-over-TLS: aktiv",
-            "○ DNSSEC: active (fallback possible)": "○ DNSSEC: aktiv (Fallback möglich)",
-            "=== Result ===": "=== Ergebnis ===",
-            "✖ DNS configuration shows issues": "✖ DNS-Konfiguration zeigt Probleme",
-            "✖ Possible DNS conflict detected": "✖ Möglicher DNS-Konflikt erkannt",
-        }
-        for source, target in replacements.items():
-            result = result.replace(source, target)
-        return result
+        return service.build_dns_health_report(out or "", tr=self.tr)
 
     def run_dns_health_check(self):
         self.nb.select(self.tab_dns)
@@ -41210,34 +41227,12 @@ class App(TkBase):
                 "dns_leak_service_missing",
                 "=== DNS Leak Check ===\n\nDNS-Control-Service nicht verfügbar.",
             )
-        result = service.build_dns_leak_check_result(
+        return service.build_dns_leak_check_result(
             resolvectl_output=resolvectl_output,
             dns_servers=dns_servers,
             public_ip=public_ip,
             tr=self.tr,
         )
-        replacements = {
-            "=== DNS Leak Check ===": "=== DNS-Leak-Prüfung ===",
-            "Public IP: ": "Öffentliche IP: ",
-            "VPN detected: YES": "VPN erkannt: JA",
-            "VPN detected: NO": "VPN erkannt: NEIN",
-            "DNS servers:": "DNS-Server:",
-            "Leak detected: YES": "Leak erkannt: JA",
-            "Leak detected: NO": "Leak erkannt: NEIN",
-            "Risk: ": "Risiko: ",
-            "Recommendation:": "Empfehlung:",
-            "high": "hoch",
-            "medium": "mittel",
-            "low": "niedrig",
-            "OK / VPN DNS exclusively active": "OK / VPN-DNS exklusiv aktiv",
-            "OK / leak-free": "OK / leakfrei",
-            "VPN not active": "VPN nicht aktiv",
-            "VPN DNS active, no action needed": "VPN-DNS aktiv, keine Aktion nötig",
-            "VPN not active; no VPN leak to assess": "VPN nicht aktiv; kein VPN-Leak zu bewerten",
-        }
-        for source, target in replacements.items():
-            result = result.replace(source, target)
-        return result
 
     def run_dns_leak_check(self, quiet: bool = False):
         if not quiet:
@@ -41642,136 +41637,20 @@ class App(TkBase):
         self.log("DNS-Status aktualisiert")
         result_queue = queue.Queue(maxsize=1)
 
+        selected_dns = self.get_selected_user_dns()
+
         def build_dns_status_text(resolved_active, resolvectl_output):
-            evaluation = self.evaluate_dns_policy(resolvectl_output)
             service = self._dns_control_service()
-            primary_dns = ""
-            fallback_dns = ""
-
-            for line in (resolvectl_output or "").splitlines():
-                stripped = line.strip()
-                if stripped.startswith("Current DNS Server:"):
-                    value = stripped.split(":", 1)[1].strip().split()[0]
-                    primary_dns = (
-                        service.normalize_dns_server(value) if service else value
-                    )
-                elif stripped.startswith("DNS Servers:") and not fallback_dns:
-                    raw_servers = [
-                        token.strip()
-                        for token in stripped.split(":", 1)[1].strip().split()
-                        if token.strip()
-                    ]
-                    normalized = [
-                        service.normalize_dns_server(token) if service else token
-                        for token in raw_servers
-                    ]
-                    normalized = [token for token in normalized if token]
-                    if not primary_dns and normalized:
-                        primary_dns = normalized[0]
-                    fallback_candidates = [
-                        token for token in normalized if token != primary_dns
-                    ]
-                    if fallback_candidates:
-                        fallback_dns = fallback_candidates[0]
-
-            dnssec_active = bool(
-                evaluation.get("dnssec_strict")
-                or evaluation.get("dnssec_allow_downgrade")
+            if service is None:
+                return self.tr(
+                    "dns_leak_service_missing", "DNS control service not available."
+                )
+            return service.build_dns_status_report(
+                resolvectl_output,
+                resolved_active=resolved_active,
+                selected_dns=selected_dns,
+                tr=self.tr,
             )
-            dnssec_mode = evaluation.get("dnssec_mode") or "unknown"
-            dot_active = bool(evaluation.get("dot_active"))
-
-            lines = [self.tr("dns_status_report_title", "=== DNS Status ==="), ""]
-            lines.append(
-                self.tr("dns_status_resolved_active", "✔ systemd-resolved: aktiv")
-                if resolved_active
-                else self.tr(
-                    "dns_status_resolved_inactive",
-                    "✖ systemd-resolved nicht aktiv",
-                )
-            )
-            if primary_dns:
-                lines.append(
-                    self.tr("dns_status_primary_dns", "✔ Aktiver DNS: {dns}").format(
-                        dns=primary_dns
-                    )
-                )
-            else:
-                lines.append(
-                    self.tr(
-                        "dns_status_no_dns_server", "✖ Kein DNS-Server konfiguriert"
-                    )
-                )
-            if fallback_dns:
-                lines.append(
-                    self.tr(
-                        "dns_status_fallback_dns", "✔ Weiterer DNS-Server: {dns}"
-                    ).format(dns=fallback_dns)
-                )
-            lines.append(
-                self.tr("dns_status_dot_active", "✔ DNS-over-TLS: aktiv")
-                if dot_active
-                else self.tr(
-                    "dns_status_dot_inactive",
-                    "○ DNS-over-TLS: ausgeschaltet",
-                )
-            )
-            lines.append(
-                (
-                    self.tr("dns_status_dnssec_strict", "✔ DNSSEC: aktiv (Strict Mode)")
-                    if dnssec_mode == "yes"
-                    else (
-                        self.tr(
-                            "dns_status_dnssec_fallback",
-                            "○ DNSSEC: optional (allow-downgrade)",
-                        )
-                        if dnssec_mode == "allow-downgrade"
-                        else (
-                            self.tr(
-                                "dns_status_dnssec_disabled", "✖ DNSSEC: deaktiviert"
-                            )
-                            if dnssec_mode == "no"
-                            else (
-                                self.tr("dns_status_dnssec_active", "✔ DNSSEC: aktiv")
-                                if dnssec_active
-                                else self.tr(
-                                    "dns_status_dnssec_unclear",
-                                    "○ DNSSEC: Status unklar",
-                                )
-                            )
-                        )
-                    )
-                )
-            )
-            lines.extend(["", self.tr("result_section_title", "=== Ergebnis ===")])
-            if resolved_active and primary_dns and dot_active and dnssec_active:
-                lines.append(
-                    self.tr("dns_status_system_stable", "✔ DNS-System läuft stabil")
-                )
-            elif (
-                resolved_active
-                and primary_dns
-                and not dot_active
-                and evaluation.get("vpn_state") == "inactive"
-                and not evaluation.get("policy_unknown", True)
-                and not evaluation.get("conflict")
-                and set(self._normalized_dns_values(evaluation.get("active_dns")))
-                == set(self._normalized_dns_values(self.get_selected_user_dns()))
-            ):
-                lines.append(
-                    self.tr(
-                        "dns_status_plain_configured",
-                        "○ DNS konfiguriert – DNS-over-TLS ausgeschaltet",
-                    )
-                )
-            else:
-                lines.append(
-                    self.tr(
-                        "dns_status_system_limited",
-                        "✖ DNS-System eingeschränkt",
-                    )
-                )
-            return "\n".join(lines)
 
         def job():
             if has_cmd("resolvectl"):
@@ -42323,12 +42202,6 @@ class App(TkBase):
     def linux_help_delete_selected(self):
         linux_help_controller.linux_help_delete_selected(self)
 
-    def linux_help_import_csv_dialog(self):
-        linux_help_controller.linux_help_import_csv_dialog(self)
-
-    def linux_help_export_csv_dialog(self):
-        linux_help_controller.linux_help_export_csv_dialog(self)
-
     def _update_dot_light_safe(self):
         dot_controller.update_dot_light_safe(self)
 
@@ -42731,7 +42604,7 @@ if __name__ == "__main__":
     import traceback as _bootstrap_traceback
 
     def get_startup_error_log_path():
-        return os.path.join(get_netmon_state_dir(), "startup_error.log")
+        return os.path.join(get_netmon_documents_subdir("Logs"), "startup_error.log")
 
     def _report_bootstrap_failure(exc: BaseException):
         log_path = get_startup_error_log_path()

@@ -11,9 +11,13 @@ def test_local_mousewheel_bindings_are_present():
     assert 'widget.bind("<MouseWheel>", _on_mousewheel, add="+")' in app_source
     assert 'widget.bind("<Button-4>", _on_wheel_up, add="+")' in app_source
     assert 'widget.bind("<Button-5>", _on_wheel_down, add="+")' in app_source
-    assert 'widget.bind("<Shift-MouseWheel>", _on_shift_mousewheel, add="+")' in app_source
+    assert (
+        'widget.bind("<Shift-MouseWheel>", _on_shift_mousewheel, add="+")' in app_source
+    )
     assert 'widget.bind("<Shift-Button-4>", _on_shift_wheel_up, add="+")' in app_source
-    assert 'widget.bind("<Shift-Button-5>", _on_shift_wheel_down, add="+")' in app_source
+    assert (
+        'widget.bind("<Shift-Button-5>", _on_shift_wheel_down, add="+")' in app_source
+    )
     assert 'widget.bind("<Button-1>", _focus_widget, add="+")' in app_source
     assert "focus_required = True" in app_source
     assert "if focus_required and not _widget_has_focus():" in app_source

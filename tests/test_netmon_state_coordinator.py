@@ -34,4 +34,7 @@ def test_state_coordinator_finalize_restore_state():
     }
 
     assert c.finalize_internet_restore_state(pending, restore_complete=False) == pending
-    assert c.finalize_internet_restore_state(pending, restore_complete=True) == c.default_internet_suspend_state()
+    assert (
+        c.finalize_internet_restore_state(pending, restore_complete=True)
+        == c.default_internet_suspend_state()
+    )

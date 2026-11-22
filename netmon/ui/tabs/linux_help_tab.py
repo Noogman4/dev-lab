@@ -6,14 +6,39 @@ import tkinter as tk
 from tkinter import ttk
 
 try:
-    from netmon.features.linux_help_controller import open_linux_help_reader
+    from netmon.ui.linux_help_components import open_linux_help_components
+    from netmon.ui.linux_help_resources import open_linux_help_resources
 except ModuleNotFoundError:
-    from features.linux_help_controller import open_linux_help_reader
+    from ui.linux_help_components import open_linux_help_components
+    from ui.linux_help_resources import open_linux_help_resources
 
 try:
-    from netmon.ui.tabs.security_tabs import _install_vertical_pane_drag_markers
-except (ImportError, ModuleNotFoundError):
-    from ui.tabs.security_tabs import _install_vertical_pane_drag_markers
+    from netmon.features.linux_help_quiz_controller import (
+        initialize_linux_help_quiz,
+        open_linux_help_quiz,
+    )
+except ModuleNotFoundError:
+    from features.linux_help_quiz_controller import (
+        initialize_linux_help_quiz,
+        open_linux_help_quiz,
+    )
+
+try:
+    from netmon.features.linux_help_controller import (
+        open_linux_help_reader,
+        open_linux_help_prompt,
+        import_linux_help_markdown_dialog,
+        reset_linux_help_reading,
+        style_linux_help_reading,
+    )
+except ModuleNotFoundError:
+    from features.linux_help_controller import (
+        open_linux_help_reader,
+        open_linux_help_prompt,
+        import_linux_help_markdown_dialog,
+        reset_linux_help_reading,
+        style_linux_help_reading,
+    )
 
 
 def _bind_if_callable(widget, sequence: str, callback, *, add=None):
@@ -148,38 +173,8 @@ def build_linux_help_tab(app):
     )
     app.btn_linux_help_clear_filters.grid(row=0, column=6, sticky="ew")
 
-    actions_row = ttk.Frame(filter_frame)
-    actions_row.grid(row=2, column=0, sticky="ew")
-    for column in range(4):
-        actions_row.columnconfigure(column, weight=1)
-
-    app.btn_linux_help_reload = ttk.Button(
-        actions_row,
-        text=app.tr("btn_reload", "Reload"),
-        command=app.reload_linux_help_data,
-    )
-    app.btn_linux_help_reload.grid(row=0, column=0, sticky="ew", padx=(0, 8))
-    app.btn_linux_help_import = ttk.Button(
-        actions_row,
-        text=app.tr("btn_import_csv", "Import CSV/XLSX"),
-        command=app.linux_help_import_csv_dialog,
-    )
-    app.btn_linux_help_import.grid(row=0, column=1, sticky="ew", padx=(0, 8))
-    app.btn_linux_help_export = ttk.Button(
-        actions_row,
-        text=app.tr("btn_export_csv", "Export CSV"),
-        command=app.linux_help_export_csv_dialog,
-    )
-    app.btn_linux_help_export.grid(row=0, column=2, sticky="ew", padx=(0, 8))
-    app.btn_linux_help_send_terminal = ttk.Button(
-        actions_row,
-        text=app.tr("linux_help_btn_send_terminal", "Send to terminal"),
-        command=app.send_linux_help_command_to_terminal,
-    )
-    app.btn_linux_help_send_terminal.grid(row=0, column=3, sticky="ew")
-
     help_row = ttk.Frame(filter_frame)
-    help_row.grid(row=3, column=0, sticky="ew", pady=(6, 0))
+    help_row.grid(row=2, column=0, sticky="ew", pady=(6, 0))
     help_row.columnconfigure(0, weight=1)
 
     help_hint = ttk.Label(
@@ -193,10 +188,170 @@ def build_linux_help_tab(app):
     )
     help_hint.grid(row=0, column=0, sticky="w")
 
-    manage_row = ttk.Frame(filter_frame)
-    manage_row.grid(row=4, column=0, sticky="ew", pady=(6, 0))
+    top_pane = ttk.Frame(app.tab_linux_help)
+    top_pane.grid(row=2, column=0, sticky="nsew")
+    top_pane.columnconfigure(0, weight=1)
+    top_pane.rowconfigure(0, weight=1)
+
+    table_frame = ttk.LabelFrame(
+        top_pane,
+        text=app.tr("linux_help_group_commands", "Command overview"),
+        padding=8,
+    )
+    table_frame.grid(row=0, column=0, sticky="nsew")
+    table_frame.columnconfigure(0, weight=1)
+    table_frame.rowconfigure(1, weight=1)
+
+    reading_actions = ttk.Frame(table_frame)
+    reading_actions.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
     for column in range(3):
-        manage_row.columnconfigure(column, weight=1)
+        reading_actions.columnconfigure(column, weight=1, uniform="reading_actions")
+    app.linux_help_bookmarks_only_var = tk.BooleanVar(master=app.tab_linux_help)
+    app.linux_help_bookmarks_filter = ttk.Checkbutton(
+        reading_actions,
+        text=app.tr("linux_help_bookmarks_only", "Nur Lesezeichen"),
+        variable=app.linux_help_bookmarks_only_var,
+        command=app.refresh_linux_help_list,
+    )
+    app.linux_help_bookmarks_filter.grid(row=0, column=0, sticky="w")
+    prompt_label = app.tr("linux_help_btn_md_prompt", "MD-Prompt erstellen …")
+    resources_label = app.tr("linux_help_resources_button", "Benutzte Libraries")
+    center_button_width = max(len(prompt_label), len(resources_label))
+    app.btn_linux_help_prompt_top = ttk.Button(
+        reading_actions,
+        text=prompt_label,
+        width=center_button_width,
+        command=lambda: open_linux_help_prompt(app),
+    )
+    app.btn_linux_help_prompt_top.grid(row=0, column=1, padx=8)
+    app.btn_linux_help_resources = ttk.Button(
+        reading_actions,
+        text=resources_label,
+        width=center_button_width,
+        command=lambda: open_linux_help_resources(app),
+    )
+    app.btn_linux_help_resources.grid(row=1, column=1, padx=8, pady=(6, 0))
+    reset_label = app.tr("linux_help_reading_reset", "Lesestatus zurücksetzen…")
+    components_label = app.tr("linux_help_components", "Linux Komponenten")
+    right_button_width = max(len(reset_label), len(components_label))
+    app.btn_linux_help_reset_reading = ttk.Button(
+        reading_actions,
+        text=reset_label,
+        width=right_button_width,
+        command=lambda: reset_linux_help_reading(app),
+    )
+    app.btn_linux_help_reset_reading.grid(row=0, column=2, sticky="e")
+    app.btn_linux_help_components = ttk.Button(
+        reading_actions,
+        text=components_label,
+        width=right_button_width,
+        command=lambda: open_linux_help_components(app),
+    )
+    app.btn_linux_help_components.grid(row=1, column=2, sticky="e", pady=(6, 0))
+
+    app.btn_linux_help_quiz = ttk.Button(
+        reading_actions,
+        text=app.tr("linux_help_quiz_open", "Lernquiz …"),
+        command=lambda: open_linux_help_quiz(app),
+    )
+    app.btn_linux_help_quiz.grid(row=1, column=0, sticky="w", pady=(6, 0))
+
+    columns = ("category", "source", "risk", "root", "tags", "summary", "reading")
+    app.linux_help_tree = ttk.Treeview(
+        table_frame,
+        columns=columns,
+        show="tree headings",
+        selectmode="browse",
+        height=14,
+        displaycolumns=(
+            "reading",
+            "category",
+            "source",
+            "risk",
+            "root",
+            "tags",
+            "summary",
+        ),
+    )
+    app.linux_help_tree.heading("#0", text=app.tr("linux_help_col_command", "Command"))
+    app.linux_help_tree.heading(
+        "category", text=app.tr("linux_help_col_category", "Category")
+    )
+    app.linux_help_tree.heading(
+        "source", text=app.tr("linux_help_col_source", "Source")
+    )
+    app.linux_help_tree.heading("risk", text=app.tr("linux_help_col_risk", "Risk"))
+    app.linux_help_tree.heading("root", text=app.tr("linux_help_col_root", "Root"))
+    app.linux_help_tree.heading("tags", text=app.tr("linux_help_col_tags", "Tags"))
+    app.linux_help_tree.heading(
+        "summary", text=app.tr("linux_help_col_summary", "Summary")
+    )
+    app.linux_help_tree.heading(
+        "reading", text=app.tr("linux_help_reading_column", "Lesestatus")
+    )
+    app.linux_help_tree.column("#0", width=180, stretch=True, anchor="w")
+    app.linux_help_tree.column("category", width=120, stretch=False, anchor="w")
+    app.linux_help_tree.column("source", width=110, stretch=False, anchor="w")
+    app.linux_help_tree.column("risk", width=110, stretch=False, anchor="w")
+    app.linux_help_tree.column("root", width=80, stretch=False, anchor="center")
+    app.linux_help_tree.column("tags", width=180, stretch=True, anchor="w")
+    app.linux_help_tree.column("summary", width=300, stretch=True, anchor="w")
+    app.linux_help_tree.column("reading", width=115, stretch=False, anchor="w")
+    app.linux_help_tree.grid(row=1, column=0, sticky="nsew")
+    app.linux_help_tree.bind(
+        "<<ThemeChanged>>", lambda _event: style_linux_help_reading(app), add="+"
+    )
+    app.linux_help_tree.bind("<<TreeviewSelect>>", app.on_linux_help_select)
+    app.linux_help_tree.bind(
+        "<Double-1>",
+        lambda event: open_linux_help_reader(app, event),
+    )
+    app.linux_help_tree.bind(
+        "<Return>", lambda event: open_linux_help_reader(app, event)
+    )
+    app.linux_help_tree.bind("<Button-3>", app.show_linux_help_tree_menu)
+
+    tree_scroll_y = ttk.Scrollbar(
+        table_frame, orient="vertical", command=app.linux_help_tree.yview
+    )
+    tree_scroll_y.grid(row=1, column=1, sticky="ns")
+    app.linux_help_tree.configure(yscrollcommand=tree_scroll_y.set)
+
+    tree_scroll_x = ttk.Scrollbar(
+        table_frame, orient="horizontal", command=app.linux_help_tree.xview
+    )
+    tree_scroll_x.grid(row=2, column=0, sticky="ew")
+    app.linux_help_tree.configure(xscrollcommand=tree_scroll_x.set)
+
+    bottom_pane = ttk.Frame(app.tab_linux_help, padding=(0, 8, 0, 0))
+    bottom_pane.grid(row=3, column=0, sticky="ew")
+    bottom_pane.columnconfigure(0, weight=1)
+    app.linux_help_text = None
+    app.linux_help_risk_canvas = None
+    app.linux_help_risk_dot = None
+    app.linux_help_reader_window = None
+
+    documents_frame = ttk.LabelFrame(
+        bottom_pane,
+        text=app.tr("linux_help_document_management", "Dokumentationen verwalten"),
+        padding=8,
+    )
+    documents_frame.grid(row=0, column=0, sticky="nsew")
+    documents_frame.columnconfigure(0, weight=0)
+    documents_frame.columnconfigure(1, weight=1)
+
+    ttk.Label(
+        documents_frame,
+        text=app.tr(
+            "linux_help_entry_actions_hint",
+            "Actions for the selected entry above:",
+        ),
+    ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
+
+    manage_row = ttk.Frame(documents_frame)
+    manage_row.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 8))
+    for column in range(3):
+        manage_row.columnconfigure(column, weight=1, uniform="entry_actions")
 
     app.btn_linux_help_new = ttk.Button(
         manage_row,
@@ -215,202 +370,30 @@ def build_linux_help_tab(app):
         text=app.tr("btn_delete", "Delete"),
         command=app.linux_help_delete_selected,
     )
-    app.btn_linux_help_delete.grid(row=0, column=2, sticky="ew", padx=(0, 12))
-
-    manage_hint_row = ttk.Frame(filter_frame)
-    manage_hint_row.grid(row=5, column=0, sticky="ew", pady=(4, 0))
-    manage_hint_row.columnconfigure(0, weight=1)
-
-    ttk.Label(
-        manage_hint_row,
-        text=app.tr(
-            "linux_help_manage_hint",
-            "You can create your own additions via the popup and save them directly in the NetMon database.",
-        ),
-        justify="left",
-        wraplength=900,
-    ).grid(row=0, column=0, sticky="w")
-
-    app.linux_help_main_pane = ttk.Panedwindow(
-        app.tab_linux_help,
-        orient="vertical",
-    )
-    app.linux_help_main_pane.grid(row=2, column=0, sticky="nsew")
-
-    top_pane = ttk.Frame(app.linux_help_main_pane, padding=(0, 0, 0, 6))
-    top_pane.columnconfigure(0, weight=1)
-    top_pane.rowconfigure(0, weight=1)
-    app.linux_help_main_pane.add(top_pane, weight=1)
-
-    table_frame = ttk.LabelFrame(
-        top_pane,
-        text=app.tr("linux_help_group_commands", "Command overview"),
-        padding=8,
-    )
-    table_frame.grid(row=0, column=0, sticky="nsew")
-    table_frame.columnconfigure(0, weight=1)
-    table_frame.rowconfigure(0, weight=1)
-
-    columns = ("category", "source", "risk", "root", "tags", "summary")
-    app.linux_help_tree = ttk.Treeview(
-        table_frame,
-        columns=columns,
-        show="tree headings",
-        selectmode="browse",
-        height=14,
-    )
-    app.linux_help_tree.heading("#0", text=app.tr("linux_help_col_command", "Command"))
-    app.linux_help_tree.heading(
-        "category", text=app.tr("linux_help_col_category", "Category")
-    )
-    app.linux_help_tree.heading(
-        "source", text=app.tr("linux_help_col_source", "Source")
-    )
-    app.linux_help_tree.heading("risk", text=app.tr("linux_help_col_risk", "Risk"))
-    app.linux_help_tree.heading("root", text=app.tr("linux_help_col_root", "Root"))
-    app.linux_help_tree.heading("tags", text=app.tr("linux_help_col_tags", "Tags"))
-    app.linux_help_tree.heading(
-        "summary", text=app.tr("linux_help_col_summary", "Summary")
-    )
-    app.linux_help_tree.column("#0", width=180, stretch=True, anchor="w")
-    app.linux_help_tree.column("category", width=120, stretch=False, anchor="w")
-    app.linux_help_tree.column("source", width=110, stretch=False, anchor="w")
-    app.linux_help_tree.column("risk", width=110, stretch=False, anchor="w")
-    app.linux_help_tree.column("root", width=80, stretch=False, anchor="center")
-    app.linux_help_tree.column("tags", width=180, stretch=True, anchor="w")
-    app.linux_help_tree.column("summary", width=300, stretch=True, anchor="w")
-    app.linux_help_tree.grid(row=0, column=0, sticky="nsew")
-    app.linux_help_tree.bind("<<TreeviewSelect>>", app.on_linux_help_select)
-    app.linux_help_tree.bind(
-        "<Double-1>",
-        lambda event: open_linux_help_reader(app, event),
-    )
-    app.linux_help_tree.bind(
-        "<Return>", lambda event: open_linux_help_reader(app, event)
-    )
-    app.linux_help_tree.bind("<Button-3>", app.show_linux_help_tree_menu)
-
-    tree_scroll_y = ttk.Scrollbar(
-        table_frame, orient="vertical", command=app.linux_help_tree.yview
-    )
-    tree_scroll_y.grid(row=0, column=1, sticky="ns")
-    app.linux_help_tree.configure(yscrollcommand=tree_scroll_y.set)
-
-    tree_scroll_x = ttk.Scrollbar(
-        table_frame, orient="horizontal", command=app.linux_help_tree.xview
-    )
-    tree_scroll_x.grid(row=1, column=0, sticky="ew")
-    app.linux_help_tree.configure(xscrollcommand=tree_scroll_x.set)
-
-    bottom_pane = ttk.Frame(app.linux_help_main_pane, padding=(0, 6, 0, 0))
-    bottom_pane.columnconfigure(0, weight=1)
-    bottom_pane.rowconfigure(0, weight=1)
-    app.linux_help_main_pane.add(bottom_pane, weight=0)
-    # Selection updates metadata only; reading happens explicitly in the popup.
-    app.linux_help_text = None
-    app.linux_help_risk_canvas = None
-    app.linux_help_risk_dot = None
-    app.linux_help_reader_window = None
-
-    documents_frame = ttk.LabelFrame(
-        bottom_pane,
-        text=app.tr("linux_help_document_management", "Dokumentationen verwalten"),
-        padding=8,
-    )
-    documents_frame.grid(row=0, column=0, sticky="nsew")
-    documents_frame.columnconfigure(0, weight=0)
-    documents_frame.columnconfigure(1, weight=1)
-    documents_frame.rowconfigure(1, weight=1)
+    app.btn_linux_help_delete.grid(row=0, column=2, sticky="ew")
 
     documents_actions = ttk.Frame(documents_frame)
-    documents_actions.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 8))
-    for column in range(4):
-        documents_actions.columnconfigure(column, weight=1)
+    documents_actions.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(0, 8))
+    for column in range(3):
+        documents_actions.columnconfigure(column, weight=1, uniform="document_actions")
 
-    app.btn_linux_help_import_pdf = ttk.Button(
+    app.btn_linux_help_import_markdown = ttk.Button(
         documents_actions,
-        text=app.tr("linux_help_btn_import_pdf", "PDF importieren"),
-        command=app.import_linux_help_pdf_dialog,
+        text=app.tr("linux_help_btn_import_markdown", "Markdown importieren (.md)"),
+        command=lambda: import_linux_help_markdown_dialog(app),
     )
-    app.btn_linux_help_import_pdf.grid(row=0, column=0, sticky="ew", padx=(0, 8))
-    app.btn_linux_help_reload_docs = ttk.Button(
+    app.btn_linux_help_import_markdown.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+    app.btn_linux_help_prompt_bottom = ttk.Button(
         documents_actions,
-        text=app.tr("btn_reload", "Reload"),
-        command=app.reload_linux_help_documents,
+        text=app.tr("linux_help_btn_md_prompt", "MD-Prompt erstellen …"),
+        command=lambda: open_linux_help_prompt(app),
     )
-    app.btn_linux_help_reload_docs.grid(row=0, column=1, sticky="ew", padx=(0, 8))
-    app.btn_linux_help_open_pdf = ttk.Button(
+    app.btn_linux_help_prompt_bottom.grid(row=0, column=1, sticky="ew", padx=(0, 8))
+    app.btn_linux_help_reload = ttk.Button(
         documents_actions,
-        text=app.tr("linux_help_btn_open_pdf", "PDF oeffnen"),
-        command=app.open_selected_linux_help_pdf,
+        text=app.tr("linux_help_btn_reload_all", "Reload all"),
+        command=app.reload_linux_help_data,
     )
-    app.btn_linux_help_open_pdf.grid(row=0, column=2, sticky="ew", padx=(0, 8))
-    app.btn_linux_help_open_docs_folder = ttk.Button(
-        documents_actions,
-        text=app.tr("linux_help_btn_open_docs_folder", "Ordner oeffnen"),
-        command=app.open_linux_help_documents_folder,
-    )
-    app.btn_linux_help_open_docs_folder.grid(row=0, column=3, sticky="ew")
-
-    documents_list_frame = ttk.Frame(documents_frame)
-    documents_list_frame.grid(row=1, column=0, sticky="nsew", padx=(0, 8))
-    documents_list_frame.columnconfigure(0, weight=1)
-    documents_list_frame.rowconfigure(0, weight=1)
-
-    app.linux_help_documents_listbox = tk.Listbox(
-        documents_list_frame,
-        exportselection=False,
-        height=3,
-    )
-    app.linux_help_documents_listbox.grid(row=0, column=0, sticky="nsew")
-    app.linux_help_documents_listbox.bind(
-        "<<ListboxSelect>>",
-        app.on_linux_help_document_select,
-    )
-    app.linux_help_documents_listbox.bind(
-        "<Double-1>",
-        lambda _event: app.open_selected_linux_help_pdf(),
-    )
-    app.linux_help_documents_listbox.bind(
-        "<Button-3>",
-        app.show_linux_help_document_menu,
-    )
-    documents_list_scroll = ttk.Scrollbar(
-        documents_list_frame,
-        orient="vertical",
-        command=app.linux_help_documents_listbox.yview,
-    )
-    documents_list_scroll.grid(row=0, column=1, sticky="ns")
-    app.linux_help_documents_listbox.configure(yscrollcommand=documents_list_scroll.set)
-
-    documents_preview_frame = ttk.Frame(documents_frame)
-    documents_preview_frame.grid(row=1, column=1, sticky="nsew")
-    documents_preview_frame.columnconfigure(0, weight=1)
-    documents_preview_frame.rowconfigure(0, weight=1)
-
-    app.linux_help_documents_text = tk.Text(
-        documents_preview_frame,
-        wrap="word",
-        height=3,
-        relief="flat",
-        bd=0,
-    )
-    app.linux_help_documents_text.grid(row=0, column=0, sticky="nsew")
-    documents_preview_scroll = ttk.Scrollbar(
-        documents_preview_frame,
-        orient="vertical",
-        command=app.linux_help_documents_text.yview,
-    )
-    documents_preview_scroll.grid(row=0, column=1, sticky="ns")
-    app.linux_help_documents_text.configure(
-        yscrollcommand=documents_preview_scroll.set,
-        state="disabled",
-    )
-
-    _install_vertical_pane_drag_markers(
-        app.tab_linux_help,
-        app.linux_help_main_pane,
-        min_pane_size=120,
-    )
+    app.btn_linux_help_reload.grid(row=0, column=2, sticky="ew")
     app.reload_linux_help_data()
-    app.reload_linux_help_documents()
+    initialize_linux_help_quiz(app)

@@ -1,24 +1,74 @@
-.TH NETMON-UNINSTALL 1 "November 2026" "NetMon 1.1.22" "User Commands"
+.TH NETMON-UNINSTALL 1 "November 2026" "NetMon 1.1.22~beta4" "User Commands"
 .SH NAME
 netmon-uninstall \- guided removal utility for NetMon
 .SH SYNOPSIS
 .B netmon-uninstall
 .SH DESCRIPTION
+The desktop entry Manage NetMon (NetMon verwalten) opens a shared graphical
+window for installation/update, removal keeping personal data, or removal
+deleting personal data. Opening this window changes nothing. Selecting an
+operation opens the appropriate terminal assistant with its existing prompts
+and final confirmation. The former separate installation desktop entry is hidden.
+.PP
 .B netmon-uninstall
-opens an interactive terminal workflow for removing the NetMon package and,
-only after explicit confirmation, optional NetMon configuration or runtime
-data. User data is not removed by the Debian package's normal removal scripts.
+opens an interactive terminal workflow with three separate operations:
+update from a local DEB, uninstall while retaining user data (the default),
+or uninstall with explicitly confirmed user-data deletion.
+User data is not removed by the Debian package's normal removal scripts.
+.PP
+The graphical entry passes --mode keep or --mode delete to preselect the
+removal operation. This does not bypass its final confirmation.
+.SH UPDATE
+The separate netmon-install command provides the shared installation/update
+assistant, including first installation. Its standalone netmon-install.py copy
+also works before NetMon is installed or with versions lacking this menu.
+Run that starter without sudo; it requests privileges only for package installation.
+Direct APT installation does not invoke an interactive backup dialog.
+.PP
+Supply the absolute path of a trusted local netmon DEB. The utility requires
+a higher package version and the native or all architecture. It copies the
+DEB into a private root-owned staging directory before reviewing its metadata.
+A full versioned backup is created and every payload hash is checked using
+the invoking account's permissions. The default backup parent is
+NetMon-Sicherungen beside the active NetMon document directory.
+Backup failure aborts the update. The final summary shows the package version,
+package hash and backup result and requires confirmation.
+.PP
+APT installs the staged package directly with --no-remove and
+--no-install-recommends. No uninstall, profile cleanup, firewall reset or
+optional-package removal is performed by this update operation. A failed
+installation is reported; no automatic restore or package rollback is attempted.
+This is a local-package workflow, not a downloader or publisher-signature verifier.
+.SH RETAIN OR DELETE USER DATA
+Retaining data forbids all browser, user VPN-file, system WireGuard-profile and
+NetworkManager VPN-deletion choices. Settings, favorites, slots and profile files
+remain available for reinstallation. Optional firewall reset and dependency
+removal remain separately confirmed operations.
+.PP
+The delete-data operation previews exact file targets before the final
+confirmation. Secure Browser removal remains a separate explicit choice in
+this operation. Backups outside the listed NetMon data directories are retained.
 .SH PACKAGE AND USER TARGETS
 The package target is fixed to netmon. Caller overrides of NETMON_PACKAGE,
 HOME and XDG_DOCUMENTS_DIR do not select privileged removal targets.
 The invoking account is checked against the system account database; its home
 directory is obtained from that database. User-file cleanup runs with that
 account's permissions in a clean environment. Root-account user data is retained.
-Only Documents and Dokumente below that home are considered automatically;
-custom or external document locations require separate manual review.
+Documents and Dokumente below that home are considered automatically, together
+with a saved XDG document directory below the same home. The saved XDG setting
+is read without inherited XDG environment overrides and without root privileges.
+External or redirected document directories are reported and retained for
+separate manual review.
 The final summary displays the package, account, home and requested file targets.
 Symlink redirects and paths outside the verified home are refused.
 .SH WIREGUARD OWNERSHIP
+Before package removal or deconfiguration, NetMon stops its own wg-quick
+tunnels using protected creation receipts and the saved original teardown
+configuration. Changed identities or unsafe teardown data abort removal;
+the helper and evidence remain installed. Package upgrades do not disconnect
+these tunnels. Unproven legacy and foreign interfaces are retained and require
+separate administrator review. Saved VPN profile files are not deleted.
+.PP
 Automatic NetworkManager cleanup requires a protected NetMon creation receipt,
 an unchanged root-owned keyfile, and a matching WireGuard UUID. The current
 names and exact UUIDs are displayed for separate confirmation. User profile

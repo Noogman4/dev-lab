@@ -81,6 +81,12 @@ class SecureBrowserService:
     def run_preflight_checks(self) -> list[str]:
         checks: list[str] = []
         checks.extend(self._check_tool_artifacts())
+        runtime_error = session.managed_runtime_error()
+        checks.append(
+            f"- Geschützte Firefox-Laufzeit: {runtime_error}"
+            if runtime_error
+            else f"- Geschützte Firefox-Laufzeit: OK ({session.FIREFOX_DIR})"
+        )
         checks.extend(self._check_firefox_runtime())
         checks.extend(self._check_firefox_source())
         checks.extend(self._check_menu_target())
@@ -93,10 +99,10 @@ class SecureBrowserService:
             return [f"- Firefox-Laufzeit: OK ({firefox_binary})"]
         if self.get_default_source_firefox_dir() is not None:
             return [
-                "- Firefox-Laufzeit: HINWEIS (Befehl 'firefox' nicht gefunden; lokale Secure-Browser-Firefox-Basis wird verwendet)"
+                "- Firefox-Laufzeit: HINWEIS (System-Firefox fehlt; eine Kopiervorlage für ältere Profile ist vorhanden)"
             ]
         return [
-            "- Firefox-Laufzeit: FEHLT (Befehl 'firefox' nicht gefunden; Secure Browser kann lokal nicht gestartet werden)"
+            "- Firefox-Laufzeit: FEHLT (System-Firefox und Kopiervorlage für ältere Profile fehlen)"
         ]
 
     def _check_tool_artifacts(self) -> list[str]:
@@ -437,10 +443,9 @@ class SecureBrowserService:
         specs = module.validate_config_payload(payload, self.get_default_base_dir())
         discovered = self._discover_all_containers(module)
         source_problems = module.select_missing_sources(specs, discovered)
-        if not self._is_valid_source_firefox_dir(session.FIREFOX_DIR):
-            source_problems.append(
-                "Die Firefox-Basis aus netmon-web-browser-runtime fehlt."
-            )
+        runtime_error = session.managed_runtime_error()
+        if runtime_error:
+            source_problems.append(runtime_error)
         dry_run_lines = module.build_apply_plan(
             specs,
             discovered,
@@ -496,15 +501,10 @@ class SecureBrowserService:
         child_lock: dict[str, object] | None = None,
     ) -> dict[str, object]:
         try:
-            runtime = session._managed_runtime(session.FIREFOX_DIR)
-            if not all(
-                (runtime / name).is_file() and os.access(runtime / name, os.X_OK)
-                for name in ("firefox", "firefox-bin")
-            ):
-                raise sandbox.BrowserSandboxError("Die Firefox-Binärdateien fehlen.")
+            session._managed_runtime(session.FIREFOX_DIR)
         except sandbox.BrowserSandboxError as exc:
-            raise ValueError(f"{exc} Bitte netmon-web-browser-runtime prüfen.") from exc
-        session._wayland_socket()
+            raise ValueError(str(exc)) from exc
+        session._check_display_requirements()
         sandbox._require_network_tools()
         config_path = self._write_generated_create_config(
             self.build_generated_create_config(

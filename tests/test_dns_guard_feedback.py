@@ -510,4 +510,4 @@ def test_unknown_vpn_is_visible_in_status_and_leak_report(network):
         resolvectl_output="", dns_servers=[], public_ip="-"
     )
     assert "status unknown" in report and "VPN not active" not in report
-    assert "Leak detected: unknown" in report
+    assert "DNS routing conflict: unknown" in report

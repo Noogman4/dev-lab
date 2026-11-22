@@ -95,10 +95,10 @@ def _pipe(stack):
 
 
 @contextmanager
-def _process(command, fds):
+def _process(command, fds, *, env=_HOST_ENV):
     process = subprocess.Popen(
         command,
-        env=_HOST_ENV,
+        env=env,
         stdin=subprocess.DEVNULL,
         pass_fds=fds,
         start_new_session=True,

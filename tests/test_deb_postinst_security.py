@@ -82,8 +82,7 @@ def _simulate_postinst(package, tmp_path, home, *, skel_documents="Documents"):
     state = tmp_path / "system-state"
     state.mkdir()
     translated = postinst.read_text()
-    assert translated.count(f'ASSET_DIR="{original_assets}"') == 1
-    assert translated.count('seed_netmon_log_pics_for_home "/etc/skel"') == 1
+    assert "seed_netmon_log_pics_for_home" not in translated
     translated = translated.replace(original_assets, str(assets))
     translated = translated.replace('"/etc/skel"', f'"{skel}"')
     if name == "main":
@@ -134,8 +133,8 @@ def test_generated_postinst_has_no_sudo_user_or_ownership_operations(package):
     assert "USER_HOME" not in text
     assert "getent" not in text
     assert not re.search(r"\b(?:chown|chgrp)\b", text)
-    assert 'seed_netmon_log_pics_for_home "/etc/skel"' in text
-    assert 'documents_root_for_home "$HOME_DIR"' in text
+    assert "seed_netmon_log_pics_for_home" not in text
+    assert "documents_root_for_home" not in text
     assert "update-desktop-database /usr/share/applications" in text
 
 
@@ -248,7 +247,7 @@ def test_simulated_postinst_preserves_user_files_and_symlink_targets(
 
 
 @pytest.mark.parametrize("documents", ["Documents", "Dokumente"])
-def test_skeleton_seed_and_desktop_refresh_remain_functional(
+def test_postinst_preserves_skeleton_while_desktop_refresh_remains_functional(
     package, tmp_path, documents
 ):
     home = tmp_path / "untouched-home"
@@ -258,7 +257,7 @@ def test_skeleton_seed_and_desktop_refresh_remain_functional(
         package, tmp_path, home, skel_documents=documents
     )
     assert calls == ["update-desktop-database"]
-    assert (skeleton / "new.png").read_bytes() == b"synthetic new image"
+    assert not (skeleton / "new.png").exists()
     assert (skeleton / "keep.jpg").read_bytes() == b"existing skeleton image"
     assert _manifest(home) == before
 

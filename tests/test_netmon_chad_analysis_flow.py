@@ -665,7 +665,7 @@ def test_build_chad_analysis_prompt_adds_focus_priorities():
 
     prompt = chad_controller.build_chad_analysis_prompt(
         app,
-        "Security Analyse",
+        "Freie Analyse",
         "demo",
     )
 

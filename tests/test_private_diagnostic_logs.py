@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from netmon import main
+from netmon import app as app_module, main
 from netmon.app import App
 from netmon.core import crash, diagnostics, private_logs, state
 
@@ -33,6 +33,11 @@ def log_case(tmp_path, monkeypatch):
     ]
     app._network_debug_log_path = lambda: str(runtime / "logs" / "network_debug.log")
     monkeypatch.setattr(main, "get_netmon_documents_dir", lambda: str(docs))
+    monkeypatch.setattr(
+        app_module,
+        "get_netmon_documents_subdir",
+        lambda *parts: str(docs.joinpath(*parts)),
+    )
     monkeypatch.setattr(diagnostics, "get_netmon_documents_dir", lambda: str(docs))
     monkeypatch.setattr(diagnostics, "diagnostic_system_info", lambda: {})
     monkeypatch.setattr(
@@ -47,7 +52,7 @@ def log_case(tmp_path, monkeypatch):
         "runtime-clear": [Path(path) for path in app._runtime_log_paths()],
         "network": [Path(app._network_debug_log_path())],
         "network-clear": [Path(app._network_debug_log_path())],
-        "port": [runtime / "logs" / "port_check_debug.log"],
+        "port": [docs / "Logs" / "port_check_debug.log"],
         "startup": [docs / "diagnostics" / "startup_error.log"],
         "crash": [Path(crash.CRASH_LOG_PATH)],
         "report": [report],

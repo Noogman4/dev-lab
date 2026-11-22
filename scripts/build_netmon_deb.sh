@@ -11,14 +11,39 @@ MAINTAINER="Mr. Happy <netmon.proglab@protonmail.ch>"
 TEST_BUILD=0
 PACKAGE_SUMMARY="Linux-Netzwerkmonitor mit Security-, VPN- und Radio-Funktionen"
 PYTHON_DEPENDS="python3 (>= 3.11), python3-tk, python3-psutil, python3-pil, python3-pil.imagetk"
-FEATURE_TOOLS="network-manager, systemd-resolved, dnsutils, wireguard-tools, ufw, traceroute, mtr, nmap, iproute2, iftop, htop, lynis, rkhunter, clamav, clamav-freshclam, speedtest-cli, mpv, pipewire-bin, whois, python3-keyring, python3-gi, gir1.2-vte-2.91"
+FEATURE_TOOLS="network-manager, systemd-resolved, dnsutils, wireguard-tools, ufw, traceroute, mtr, nmap, iproute2, iftop, htop, lynis, rkhunter, clamav, clamav-freshclam, speedtest-cli, mpv, pipewire-bin, librsvg2-2 (>= 2.46), libcairo2, whois, python3-keyring, python3-gi, gir1.2-vte-2.91"
 EXTRA_TOOLS="wireshark, tshark, projectm, projectm-pulseaudio, python3-pypdf2, python3-docx, python3-openpyxl, python3-pygame, python3-pgzero, sudo, gnome-keyring"
 BROWSER_DEPENDS="bubblewrap (>= 0.9.0), slirp4netns (>= 1.2.1), dbus-daemon, dbus-bin"
 DEPENDENCIES="$PYTHON_DEPENDS, udisks2, cryptsetup, $BROWSER_DEPENDS"
-RELATIONSHIPS="Recommends: netmon-web-browser-runtime, $FEATURE_TOOLS
+RELATIONSHIPS="Recommends: netmon-manager (>= 1.0.0~beta1), netmon-web-browser-runtime, weston, $FEATURE_TOOLS
 Suggests: $EXTRA_TOOLS"
 RELEASE_BUILD=0
 RELEASE_COMMIT=""
+WITH_PROJECTM_ADAPTERS=0
+if [[ $# == 1 && "$1" == "--with-projectm-adapters" ]]; then
+  # Local machine-specific test package. This lane never gets a release receipt.
+  WITH_PROJECTM_ADAPTERS=1
+  PKG_ARCH="$(dpkg --print-architecture)"
+  if [[ "$PKG_ARCH" != "amd64" ]]; then
+    echo "The current projectM adapters support amd64 only." >&2
+    exit 2
+  fi
+  DEPENDENCIES+=", libc6 (>= 2.34), libstdc++6 (>= 13.2.0), libgcc-s1, libgl1, libegl1, libx11-6"
+  python3 -I - "$ROOT_DIR" <<'PY'
+import sys
+
+sys.path.insert(0, sys.argv[1])
+from netmon.core import projectm_frontend, projectm_native
+
+payload = projectm_frontend.PAYLOAD
+for validate in (projectm_native.artifact, projectm_native.gpu_artifact):
+    binary = validate(payload)
+    header = binary.read_bytes()[:20]
+    if header[:6] != b"\x7fELF\x02\x01" or header[18:20] != b"\x3e\x00":
+        raise ValueError("projectM adapter is not an amd64 ELF executable")
+PY
+  shift
+fi
 if [[ $# == 1 && "$1" == "--release" ]]; then
   # Official lane: only a clean, committed package source gets a receipt that
   # the signed production bundles accept. Plain local builds never get one.
@@ -28,9 +53,10 @@ if [[ $# == 1 && "$1" == "--release" ]]; then
 fi
 if (( $# )); then
   if [[ "$1" == "--help" && $# == 1 ]]; then
-    echo "Usage: $0 [--release | --test-version ${DOCS_VERSION}~v4dnstestYYYYMMDD.N]"
+    echo "Usage: $0 [--release | --with-projectm-adapters | --test-version ${DOCS_VERSION}~v4dnstestYYYYMMDD.N]"
     echo "  --release  official build from a clean commit, with release receipt"
     echo "  (none)     local test build; never accepted by signed release bundles"
+    echo "  --with-projectm-adapters  local amd64 build with verified existing adapters"
     exit 0
   fi
   if [[ "$1" != "--test-version" || $# != 2 ]]; then
@@ -47,7 +73,14 @@ if (( $# )); then
   TEST_BUILD=1
   PACKAGE_SUMMARY="TESTBUILD NetMon V4 DNS (DHCP/ISP-Freigabe gesperrt)"
   DEPENDENCIES="$PYTHON_DEPENDS, $BROWSER_DEPENDS"
-  RELATIONSHIPS="Suggests: $FEATURE_TOOLS, $EXTRA_TOOLS, udisks2, cryptsetup, netmon-web-browser-runtime"
+  RELATIONSHIPS="Suggests: $FEATURE_TOOLS, $EXTRA_TOOLS, udisks2, cryptsetup, netmon-web-browser-runtime, weston"
+fi
+
+# The split manager owns launchers that old combined packages still ship.
+# Do not generate a new split App with an old, incompatible package identity.
+if ! dpkg --compare-versions "$PKG_VERSION" ge '1.1.22~beta3'; then
+  echo "Split packaging requires App version >= 1.1.22~beta3. Raise release metadata consistently first." >&2
+  exit 2
 fi
 
 BUILD_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/netmon-debbuild.XXXXXX")"
@@ -132,7 +165,77 @@ copy_file "$ROOT_DIR/netmon/netmon_radio_app.py" "$APP_PY_ROOT/netmon_radio_app.
 copy_file "$ROOT_DIR/netmon/netmon_radio_core.py" "$APP_PY_ROOT/netmon_radio_core.py"
 copy_file "$ROOT_DIR/tools/netmon-linux-befehlsdatenbank-v1.csv" "$APP_PY_ROOT/linux-befehle.csv"
 copy_file "$ROOT_DIR/tools/netmon-linux-befehlsdatenbank-v1.csv" "$APP_PY_ROOT/netmon-linux-befehlsdatenbank-v1.csv"
-copy_file "$ROOT_DIR/docs/linux-befehlsdatenbank/7z.md" "$APP_ROOT/docs/linux-befehlsdatenbank/7z.md"
+# Ship exactly the validated catalog and its documents, without review backups.
+python3 -I - "$ROOT_DIR" "$APP_ROOT" <<'LINUX_HELP_DOCS'
+import hashlib
+from pathlib import Path
+import sys
+
+root, target = map(Path, sys.argv[1:])
+sys.path.insert(0, str(root))
+from netmon.services import linux_help_markdown_service as markdown
+
+records, _sources = markdown._catalog(str(markdown.DOCUMENT_DIR))
+output = target / "docs/linux-befehlsdatenbank"
+output.mkdir(parents=True, exist_ok=True)
+output.parent.chmod(0o755)
+output.chmod(0o755)
+for record in records.values():
+    entry = {"id": record["id"], "name": record["name"], "cmd": record["name"]}
+    if markdown.load_command_document(entry) is None:
+        raise ValueError("Missing Linux command documentation")
+    data = markdown._read_regular(
+        markdown.DOCUMENT_DIR / record["document"], markdown.MAX_BYTES
+    )
+    if hashlib.sha256(data).hexdigest() != record["sha256"]:
+        raise ValueError("Linux command documentation changed during packaging")
+    destination = output / record["document"]
+    destination.write_bytes(data)
+    destination.chmod(0o644)
+(output / "index.json").write_bytes(
+    markdown._read_regular(
+        markdown.DOCUMENT_DIR / "index.json", markdown.MAX_CATALOG_BYTES
+    )
+)
+(output / "index.json").chmod(0o644)
+LINUX_HELP_DOCS
+python3 -I - "$ROOT_DIR" "$APP_ROOT" <<'LINUX_GLOSSARY_DOCS'
+import hashlib
+from pathlib import Path
+import sys
+
+root, target = map(Path, sys.argv[1:])
+sys.path.insert(0, str(root))
+from netmon.services import linux_help_glossary_service as glossary
+from netmon.services import linux_help_markdown_service as markdown
+
+records, _sources = glossary.catalog()
+output = target / "docs/linux-glossar"
+output.mkdir(parents=True, exist_ok=True)
+output.parent.chmod(0o755)
+output.chmod(0o755)
+for record in records.values():
+    entry = {"id": record["id"], "name": record["term"], "entry_type": "glossary"}
+    if glossary.load_glossary_document(entry) is None:
+        raise ValueError("Missing glossary documentation")
+    data = markdown._read_regular(
+        glossary.DOCUMENT_DIR / record["document"], markdown.MAX_BYTES
+    )
+    if hashlib.sha256(data).hexdigest() != record["sha256"]:
+        raise ValueError("Glossary documentation changed during packaging")
+    destination = output / record["document"]
+    destination.write_bytes(data)
+    destination.chmod(0o644)
+(output / "index.json").write_bytes(
+    markdown._read_regular(
+        glossary.DOCUMENT_DIR / "index.json", markdown.MAX_CATALOG_BYTES
+    )
+)
+(output / "index.json").chmod(0o644)
+LINUX_GLOSSARY_DOCS
+copy_file "$ROOT_DIR/docs/linux-komponenten/Zorin-OS-Komponenten.md" "$APP_ROOT/docs/linux-komponenten/Zorin-OS-Komponenten.md"
+copy_file "$ROOT_DIR/docs/linux-komponenten/Linux-Mint-Komponenten.md" "$APP_ROOT/docs/linux-komponenten/Linux-Mint-Komponenten.md"
+copy_file "$ROOT_DIR/docs/linux-quiz/questions.json" "$APP_ROOT/docs/linux-quiz/questions.json"
 copy_file_if_exists "$ROOT_DIR/netmon_radio_app.py" "$APP_ROOT/netmon_radio_app.py"
 
 copy_tree "$ROOT_DIR/netmon/config" "$APP_PY_ROOT/config"
@@ -143,6 +246,35 @@ copy_tree "$ROOT_DIR/netmon/lang" "$APP_PY_ROOT/lang"
 copy_tree "$ROOT_DIR/netmon/modules" "$APP_PY_ROOT/modules"
 copy_tree "$ROOT_DIR/netmon/services" "$APP_PY_ROOT/services"
 copy_tree "$ROOT_DIR/netmon/ui" "$APP_PY_ROOT/ui"
+if (( WITH_PROJECTM_ADAPTERS )); then
+  copy_tree "$ROOT_DIR/netmon/native/projectm_pcm" "$APP_PY_ROOT/native/projectm_pcm"
+  rm -f "$APP_PY_ROOT/native/projectm_pcm/.gitignore"
+  python3 -I - "$APP_PY_ROOT/native/projectm_pcm/build" <<'PY'
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+import sys
+
+directory = Path(sys.argv[1])
+for executable, metadata in (
+    ("pcm-renderer", "build.json"),
+    ("egl-renderer", "egl-build.json"),
+):
+    binary, manifest = directory / executable, directory / metadata
+    if binary.is_symlink() or manifest.is_symlink():
+        raise ValueError("Adapter staging refuses symbolic links")
+    record = json.loads(manifest.read_text())
+    before = hashlib.sha256(binary.read_bytes()).hexdigest()
+    if before != record["binary_sha256"]:
+        raise ValueError("Adapter changed before package staging")
+    subprocess.run(["/usr/bin/strip", "--strip-unneeded", str(binary)], check=True)
+    record["unstripped_binary_sha256"] = before
+    record["packaging_transform"] = "strip --strip-unneeded"
+    record["binary_sha256"] = hashlib.sha256(binary.read_bytes()).hexdigest()
+    manifest.write_text(json.dumps(record, indent=2) + "\n")
+PY
+fi
 
 # Runtime tool assets referenced by the application via repo-relative paths.
 copy_file "$ROOT_DIR/tools/__init__.py" "$TOOLS_ROOT/__init__.py"
@@ -166,6 +298,12 @@ copy_tree_if_exists "$ROOT_DIR/tools/Log-Pics" "$ASSETS_ROOT/log-pics"
 # Bundled fun assets consumed via fixed system paths.
 copy_file "$ROOT_DIR/netmon/features/Code-the-Classics.zip" \
   "$FUN_ASSETS_ROOT/Code-the-Classics.zip"
+if (( RELEASE_BUILD )); then
+  (
+    cd "$FUN_ASSETS_ROOT"
+    sha256sum --check "$ROOT_DIR/packaging/fun-assets.sha256"
+  )
+fi
 
 # Bundled documentation for About dialog and offline reference.
 copy_file_if_exists \
@@ -202,7 +340,6 @@ else
   gzip -9n -c "$ROOT_DIR/packaging/changelog" > "$DOCS_ROOT/changelog.gz"
 fi
 gzip -9n -c "$ROOT_DIR/packaging/netmon.1" > "$MAN_ROOT/netmon.1.gz"
-gzip -9n -c "$ROOT_DIR/packaging/netmon-uninstall.1" > "$MAN_ROOT/netmon-uninstall.1.gz"
 
 # Remove transient Python caches from copied trees.
 find "$APP_ROOT" -type d \( -name "__pycache__" -o -name ".pytest_cache" -o -name ".ruff_cache" \) -prune -exec rm -rf {} +
@@ -218,7 +355,6 @@ export PYTHONPATH="$NETMON_HOME${PYTHONPATH:+:$PYTHONPATH}"
 exec /usr/bin/python3 -m netmon "$@"
 EOF
 chmod 755 "$PKG_DIR/usr/bin/netmon"
-install -m 0755 "$ROOT_DIR/scripts/netmon_uninstall_menu.sh" "$PKG_DIR/usr/bin/netmon-uninstall"
 
 # Desktop entry
 cat > "$PKG_DIR/usr/share/applications/netmon.desktop" <<'EOF'
@@ -236,19 +372,6 @@ StartupWMClass=NetMon
 Keywords=network;security;firewall;VPN;DNS;diagnostics;
 EOF
 
-cat > "$PKG_DIR/usr/share/applications/netmon-uninstall.desktop" <<'EOF'
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=NetMon entfernen
-Comment=NetMon deinstallieren und Reste bereinigen
-Exec=/usr/bin/netmon-uninstall
-Icon=netmon
-Terminal=true
-Categories=System;Settings;
-StartupNotify=true
-Keywords=uninstall;remove;NetMon;
-EOF
 
 if (( TEST_BUILD )); then
   sed -i 's/^Name=NetMon$/Name=NetMon V4 DNS Test/' "$PKG_DIR/usr/share/applications/netmon.desktop"
@@ -293,47 +416,9 @@ if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
 fi
 
-ASSET_DIR="/usr/share/netmon/assets/log-pics"
-
-# Legacy DNS state is deliberately left untouched by package hooks.
-
-seed_log_pics_dir() {
-  TARGET_DIR="$1"
-  [ -n "$TARGET_DIR" ] || return 0
-  mkdir -p "$TARGET_DIR" >/dev/null 2>&1 || return 0
-  if [ -d "$ASSET_DIR" ]; then
-    find "$ASSET_DIR" -maxdepth 1 -type f \
-      \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" \) | while IFS= read -r SRC; do
-      BASENAME="$(basename "$SRC")"
-      if [ ! -e "$TARGET_DIR/$BASENAME" ]; then
-        cp "$SRC" "$TARGET_DIR/$BASENAME" >/dev/null 2>&1 || true
-      fi
-    done
-  fi
-}
-
-documents_root_for_home() {
-  HOME_DIR="$1"
-  [ -n "$HOME_DIR" ] || return 1
-  if [ -d "$HOME_DIR/Documents" ]; then
-    printf '%s\n' "$HOME_DIR/Documents"
-    return 0
-  fi
-  if [ -d "$HOME_DIR/Dokumente" ]; then
-    printf '%s\n' "$HOME_DIR/Dokumente"
-    return 0
-  fi
-  printf '%s\n' "$HOME_DIR/Documents"
-}
-
-seed_netmon_log_pics_for_home() {
-  HOME_DIR="$1"
-  DOC_ROOT="$(documents_root_for_home "$HOME_DIR")"
-  [ -n "$DOC_ROOT" ] || return 0
-  seed_log_pics_dir "$DOC_ROOT/NetMon/Log-Pics"
-}
-
-seed_netmon_log_pics_for_home "/etc/skel"
+# Personal resources are prepared as the user on first launch, using XDG
+# Documents. Package hooks must not create an English Documents directory in
+# /etc/skel or write into existing home directories.
 
 exit 0
 EOF
@@ -372,6 +457,30 @@ JSON
         exit 1
       fi
     fi
+    # Stop only tunnels created by NetMon, using the protected creation receipt
+    # and original teardown snapshot. Never infer ownership from a profile name.
+    if [ -e /var/lib/netmon/wg-quick-ownership ] || [ -L /var/lib/netmon/wg-quick-ownership ]; then
+      echo "NetMon: Trenne nachweislich von NetMon gestartete WireGuard-Verbindungen."
+      if ! /usr/bin/python3 -I -c '
+import os, stat, sys
+path = "/usr/lib/netmon/netmon/core/nm_ownership.py"
+current = "/"
+for part in [""] + path.strip("/").split("/"):
+    current = os.path.join(current, part)
+    info = os.lstat(current)
+    if info.st_uid != 0 or info.st_mode & 0o022:
+        sys.exit("Unprotected VPN removal helper")
+    if current == path:
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            sys.exit("Unsafe VPN removal helper")
+    elif not stat.S_ISDIR(info.st_mode):
+        sys.exit("Unsafe VPN helper directory")
+os.execv("/usr/bin/python3", ["/usr/bin/python3", "-I", path, "wg-cleanup"])
+'; then
+        echo "NetMon: VPN konnte nicht sicher getrennt werden. Deinstallation abgebrochen; Hilfsprogramm und Eigentumsnachweise bleiben erhalten." >&2
+        exit 1
+      fi
+    fi
     ;;
 esac
 exit 0
@@ -385,10 +494,13 @@ chmod 0755 \
   "$PKG_DIR/DEBIAN/postinst" \
   "$PKG_DIR/DEBIAN/prerm" \
   "$PKG_DIR/usr/bin/netmon" \
-  "$PKG_DIR/usr/bin/netmon-uninstall" \
   "$APP_PY_ROOT/app.py" \
   "$APP_PY_ROOT/core/rkhunter_manager.py" \
   "$TOOLS_ROOT/secure_browser_manager/browser_container_builder.py"
+if (( WITH_PROJECTM_ADAPTERS )); then
+  chmod 0755 "$APP_PY_ROOT/native/projectm_pcm/build/pcm-renderer" \
+    "$APP_PY_ROOT/native/projectm_pcm/build/egl-renderer"
+fi
 
 # Debian binary packages conventionally carry checksums for installed files.
 (

@@ -41,9 +41,7 @@ def build_connections_tab(app):
     ttk.Label(
         conn_filter_grid,
         text=app.tr("connections_label_freetext", "Free text:"),
-    ).grid(
-        row=0, column=0, sticky="w", padx=(0, 6), pady=(0, 6)
-    )
+    ).grid(row=0, column=0, sticky="w", padx=(0, 6), pady=(0, 6))
     app.conn_filter = tk.StringVar(value="")
     app.conn_filter_entry = ttk.Entry(conn_filter_grid, textvariable=app.conn_filter)
     app.conn_filter_entry.grid(row=0, column=1, sticky="ew", padx=(0, 12), pady=(0, 6))
@@ -51,9 +49,7 @@ def build_connections_tab(app):
     ttk.Label(
         conn_filter_grid,
         text=app.tr("connections_label_process", "Process:"),
-    ).grid(
-        row=0, column=2, sticky="w", padx=(0, 6), pady=(0, 6)
-    )
+    ).grid(row=0, column=2, sticky="w", padx=(0, 6), pady=(0, 6))
     app.conn_process_filter_entry = ttk.Entry(
         conn_filter_grid,
         textvariable=app.conn_process_filter_var,
@@ -77,9 +73,7 @@ def build_connections_tab(app):
     ttk.Label(
         conn_filter_grid,
         text=app.tr("connections_label_state", "State:"),
-    ).grid(
-        row=1, column=0, sticky="w", padx=(0, 6), pady=(0, 6)
-    )
+    ).grid(row=1, column=0, sticky="w", padx=(0, 6), pady=(0, 6))
     app.conn_state_filter_entry = ttk.Entry(
         conn_filter_grid,
         textvariable=app.conn_state_filter_var,
@@ -121,7 +115,9 @@ def build_connections_tab(app):
         text=app.tr("btn_refresh_connections", "Refresh connections"),
         command=app.connections_async,
     )
-    app.btn_conn_tab_refresh.grid(row=2, column=0, sticky="ew", padx=(0, 8), pady=(0, 6))
+    app.btn_conn_tab_refresh.grid(
+        row=2, column=0, sticky="ew", padx=(0, 8), pady=(0, 6)
+    )
     app.btn_conn_tab_arp = ttk.Button(
         conn_actions,
         text=app.tr("btn_arp_table", "ARP table (arp -a)"),

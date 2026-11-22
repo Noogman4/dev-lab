@@ -5,14 +5,54 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import threading
+from contextlib import contextmanager
 from datetime import datetime
 
 _RATE_UNITS = ["B/s", "KiB/s", "MiB/s", "GiB/s"]
 _SIZE_UNITS = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"]
+_RESTORE_WRITE_PROTECTION = frozenset()
+_USER_JSON_WRITE_LOCK = threading.RLock()
+
+
+def protect_user_json_writes(root, *, enabled=True):
+    """Freeze a restored personal tree in this process until restart (or failure)."""
+    global _RESTORE_WRITE_PROTECTION
+    root = os.path.abspath(root)
+    with _USER_JSON_WRITE_LOCK:
+        if enabled:
+            _RESTORE_WRITE_PROTECTION = _RESTORE_WRITE_PROTECTION | {root}
+        else:
+            _RESTORE_WRITE_PROTECTION = _RESTORE_WRITE_PROTECTION - {root}
 
 
 def safe_write_json(path, payload, *, indent=2, ensure_ascii=False) -> tuple[bool, str]:
     """Atomically write JSON data to disk."""
+    try:
+        with user_json_write_scope(path):
+            return _safe_write_json(
+                path, payload, indent=indent, ensure_ascii=ensure_ascii
+            )
+    except Exception as exc:
+        return False, str(exc)
+
+
+@contextmanager
+def user_json_write_scope(path):
+    """Serialize writers with the restore freeze, including private reading state."""
+    with _USER_JSON_WRITE_LOCK:
+        path = os.path.abspath(path)
+        if any(
+            path == root or path.startswith(root + os.sep)
+            for root in _RESTORE_WRITE_PROTECTION
+        ):
+            raise PermissionError(
+                "NetMon-Wiederherstellung: Speichern bis zum Neustart gesperrt."
+            )
+        yield
+
+
+def _safe_write_json(path, payload, *, indent, ensure_ascii):
     tmp_path = ""
     try:
         abs_path = os.path.abspath(path)

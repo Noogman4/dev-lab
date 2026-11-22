@@ -246,11 +246,10 @@ def test_build_firewall_listener_assessment_marks_netmon_scope_as_self_check():
         [],
     )
 
-    assert result == {
-        "firewall": "self",
-        "rating": "UDP-Port gehoert zu NetMon selbst, pruefen ob Bindung auf alle Interfaces noetig ist",
-        "priority": "check",
-    }
+    assert result["firewall"] == "IN unklar"
+    assert result["rating"] == "gehoert zu NetMon selbst"
+    assert result["inbound_state"] == "unknown"
+    assert result["priority"] == "check"
 
 
 def test_describe_firewall_listener_owner_uses_netmon_app_scope():

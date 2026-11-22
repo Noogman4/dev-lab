@@ -947,6 +947,18 @@ def test_netmon_backup_item_toggle_disables_full_selection():
 
 
 def test_export_netmon_documents_backup_copies_selected_folders(monkeypatch, tmp_path):
+    from netmon.features import user_backup_controller as controller
+
+    class ImmediateThread:
+        def __init__(self, *, target, daemon):
+            self.target = target
+
+        def start(self):
+            self.target()
+
+    monkeypatch.setattr(controller.threading, "Thread", ImmediateThread)
+    monkeypatch.setattr(controller, "call_in_ui_thread", lambda app, fn: fn())
+
     class _Var:
         def __init__(self, value):
             self.value = value
@@ -966,7 +978,7 @@ def test_export_netmon_documents_backup_copies_selected_folders(monkeypatch, tmp
     (logs_dir / "latest.log").write_text("hello", encoding="utf-8")
 
     export_root = tmp_path / "external"
-    export_root.mkdir()
+    export_root.mkdir(mode=0o700)
     info_calls = []
     error_calls = []
     log_entries = []
@@ -983,6 +995,7 @@ def test_export_netmon_documents_backup_copies_selected_folders(monkeypatch, tmp
     app._append_backup_log = lambda text, clear=False: log_entries.append((text, clear))
 
     monkeypatch.setattr(app_module, "get_netmon_documents_dir", lambda: str(docs_dir))
+    monkeypatch.setattr(controller, "netmon_documents_path", lambda: str(docs_dir))
     monkeypatch.setattr(
         app_module.filedialog, "askdirectory", lambda **_kwargs: str(export_root)
     )
@@ -1002,28 +1015,25 @@ def test_export_netmon_documents_backup_copies_selected_folders(monkeypatch, tmp
     export_dirs = sorted(export_root.glob("netmon_documents_backup_*"))
     assert result is True
     assert error_calls == []
-    assert info_calls == []
+    assert len(info_calls) == 1
     assert len(export_dirs) == 1
     exported_dir = export_dirs[0]
-    assert (exported_dir / "Config" / "config.json").read_text(
+    assert (exported_dir / "NetMon" / "Config" / "config.json").read_text(
         encoding="utf-8"
     ) == '{"ok": true}'
-    assert not (exported_dir / "Logs").exists()
+    assert not (exported_dir / "NetMon" / "Logs").exists()
 
     manifest = json.loads(
         (exported_dir / "netmon_documents_backup_manifest.json").read_text(
             encoding="utf-8"
         )
     )
-    assert manifest["export_dir"] == str(exported_dir)
-    assert manifest["selection"] == [
-        {
-            "label": "Config",
-            "target": str(exported_dir / "Config"),
-        }
-    ]
-    assert "NetMon-Sicherung exportiert" in app.backup_status_var.get()
-    assert len(log_entries) == 2
+    assert manifest["format_version"] == manifest["data_version"] == 1
+    assert manifest["source_root"] == str(docs_dir)
+    assert manifest["selection"] == ["Config"]
+    assert [entry["path"] for entry in manifest["files"]] == ["Config/config.json"]
+    assert "Versionierte NetMon-Sicherung erstellt" in app.backup_status_var.get()
+    assert len(log_entries) == 1
 
 
 def test_is_trusted_update_url_accepts_only_netmonroots_https():

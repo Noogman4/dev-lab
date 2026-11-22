@@ -76,6 +76,64 @@ def test_pasted_multiline_text_grows_to_cap_and_clear_shrinks(chad_app):
     assert int(field.cget("height")) == 3
 
 
+@pytest.mark.parametrize("source", ["history menu", "history shortcut", "input menu"])
+def test_paste_goes_to_chad_composer(chad_app, source):
+    root, app = chad_app
+    app.send_chad_chat_message = Mock()
+    history = app.chad_analysis_text
+    field = app.chad_chat_input
+    controller.append_to_chad_output(app, "Chad Antwort", "Vorhandener Verlauf")
+    existing_history = history.get("1.0", "end-1c")
+    app.attach_all_chad_context_menus()
+    content = "System-Log: Beispiel\nEine zweite Zeile mit Umlauten äöü."
+    root.clipboard_clear()
+    root.clipboard_append(content)
+    root.update()
+
+    if source == "history shortcut":
+        history.focus_force()
+        root.update()
+        history.event_generate("<Control-v>")
+    else:
+        widget, menu = (
+            (history, history._chad_context_menu)
+            if source == "history menu"
+            else (field, field._netmon_context_menu)
+        )
+        if source == "history menu":
+            assert menu.entrycget(1, "label") == "In Chat-Eingabe einfügen"
+        widget.event_generate("<Button-3>", x=12, y=10)
+        root.update()
+        assert menu.winfo_ismapped()
+        y = menu.yposition(1) + 4
+        menu.event_generate("<Enter>", x=10, y=y)
+        menu.event_generate("<Motion>", x=10, y=y)
+        menu.event_generate("<Button-1>", x=10, y=y)
+        menu.event_generate("<ButtonRelease-1>", x=10, y=y)
+    root.update()
+
+    assert field.get("1.0", "end-1c") == content
+    assert root.focus_get() is field
+    assert history.get("1.0", "end-1c") == existing_history
+    assert str(history.cget("state")) == "disabled"
+    app.send_chad_chat_message.assert_not_called()
+
+
+def test_paste_from_history_leaves_draft_when_chad_disabled(chad_app):
+    root, app = chad_app
+    app.attach_all_chad_context_menus()
+    app.chad_chat_input.insert("1.0", "Entwurf")
+    app.chad_enabled_var.set(False)
+    controller.update_chad_controls_state(app)
+    root.clipboard_clear()
+    root.clipboard_append("Log aus der Zwischenablage")
+
+    app.chad_analysis_text._chad_context_menu.invoke(1)
+
+    assert app.chad_chat_input.get("1.0", "end-1c") == "Entwurf"
+    assert app.chad_analysis_status_var.get() == "Chad-Anbindung ist deaktiviert."
+
+
 def test_soft_wrapping_and_window_resize_update_height_without_changing_text(chad_app):
     root, app = chad_app
     field = app.chad_chat_input

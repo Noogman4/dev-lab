@@ -35,12 +35,15 @@ def account(tmp_path):
 
 def passwd_view(home):
     # Functions are explicit test doubles, not inherited environment functions.
-    return r"""
+    return (
+        r"""
 getent() {
   [[ "$1" == passwd && ( "$2" == 1234 || "$2" == synthetic ) ]] || return 1
   printf 'synthetic:x:1234:1234:Test:%s:/bin/false\n' "$FIXTURE_HOME"
 }
-""" + f"FIXTURE_HOME={shlex.quote(str(home))}\n"
+"""
+        + f"FIXTURE_HOME={shlex.quote(str(home))}\n"
+    )
 
 
 @pytest.mark.parametrize("override", ["other-package", "--purge", "netmon dark", ""])
@@ -169,10 +172,13 @@ def test_root_dispatch_drops_privileges_and_discards_environment(
     copy = tmp_path / "uninstaller.sh"
     copy.write_text(SCRIPT.read_text().replace("/usr/sbin/runuser", str(fake)))
     result = run_shell(
-        passwd_view(account) + """
+        passwd_view(account)
+        + """
 is_root() { return 0; }
 id() { [[ "$1" == -u ]] && printf '1234\n'; }
-run_user_cleanup """ + mode + " remove_user_data ja",
+run_user_cleanup """
+        + mode
+        + " remove_user_data ja",
         script=copy,
         env={
             "SUDO_USER": "synthetic",
@@ -284,7 +290,9 @@ def test_menu_previews_targets_before_confirmation_and_stops_on_unsafe_paths(
         outside = tmp_path / "outside"
         outside.mkdir()
         (account / "Documents").symlink_to(outside, target_is_directory=True)
-    body = passwd_view(account) + """
+    body = (
+        passwd_view(account)
+        + """
 ensure_root() { :; }
 detect_netmon_language() { NETMON_LANG_CODE=en; }
 check_firewall_transaction() { return 0; }
@@ -293,10 +301,11 @@ ensure_netmon_not_running() { printf UNSAFE; }
 purge_netmon_package() { printf UNSAFE; }
 main
 """
+    )
     env = dict(os.environ, SUDO_USER="synthetic", SUDO_UID="1234")
     result = subprocess.run(
         ["/bin/bash", "-p", "-c", 'source "$1"\n' + body, "fixture", str(SCRIPT)],
-        input="y\ny\ny\nn\ny\nn\nn\nn\nn\nn\n",
+        input="3\ny\ny\nn\ny\nn\nn\nn\nn\nn\n",
         env=env,
         capture_output=True,
         text=True,

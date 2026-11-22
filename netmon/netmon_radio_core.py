@@ -15,6 +15,7 @@ import time
 from dataclasses import dataclass
 
 try:
+    from netmon.core.private_logs import ensure_private_log_directory
     from netmon.core.private_state import (
         private_state_key,
         private_state_lock,
@@ -23,6 +24,7 @@ try:
         write_private_json,
     )
 except ModuleNotFoundError:
+    from core.private_logs import ensure_private_log_directory
     from core.private_state import (
         private_state_key,
         private_state_lock,
@@ -48,12 +50,14 @@ try:
     from netmon.core.state import (
         get_netmon_config_dir,
         get_netmon_documents_dir,
+        get_netmon_documents_subdir,
         get_netmon_state_dir,
     )
 except ModuleNotFoundError:
     from core.state import (
         get_netmon_config_dir,
         get_netmon_documents_dir,
+        get_netmon_documents_subdir,
         get_netmon_state_dir,
     )
 
@@ -118,11 +122,9 @@ def radio_runtime_desktop_entry_path() -> str:
 
 def radio_user_data_dir() -> str:
     path = os.path.join(get_netmon_documents_dir(), "Radio")
-    try:
-        os.makedirs(path, exist_ok=True)
-    except Exception:
-        pass
-    return path
+    # Senderimporte uses the same private path contract. Older versions could
+    # create this ancestor with group-write bits from the process umask.
+    return ensure_private_log_directory(path)
 
 
 def _migrate_radio_user_file(legacy_path: str, target_path: str) -> None:
@@ -1164,7 +1166,7 @@ def launch_radio_app(
     desktop_launch = False
     command = list(direct_command)
     launcher_log_path = os.path.join(
-        build_radio_paths().state_dir, "radio_launcher_start.log"
+        get_netmon_documents_subdir("Logs"), "radio_launcher_start.log"
     )
     log_handle = None
     try:

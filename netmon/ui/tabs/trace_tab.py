@@ -45,9 +45,7 @@ def build_trace_tab(app):
     ttk.Label(
         trace_form,
         text=app.tr("trace_label_target_selection", "Zielauswahl:"),
-    ).grid(
-        row=0, column=0, sticky="e", padx=(0, 8), pady=(0, 6)
-    )
+    ).grid(row=0, column=0, sticky="e", padx=(0, 8), pady=(0, 6))
     app.trace_tab_target_combo = ttk.Combobox(
         trace_form,
         textvariable=app.trace_target,
@@ -60,9 +58,7 @@ def build_trace_tab(app):
     ttk.Label(
         trace_form,
         text=app.tr("trace_label_manual_target", "Freies Ziel / IP:"),
-    ).grid(
-        row=1, column=0, sticky="e", padx=(0, 8)
-    )
+    ).grid(row=1, column=0, sticky="e", padx=(0, 8))
     app.trace_manual_target_entry = ttk.Entry(
         trace_form,
         textvariable=app.trace_manual_target_var,

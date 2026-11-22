@@ -57,7 +57,6 @@ def run_container(container):
     if os.getuid() == 0:
         raise BrowserSandboxError("NetMon startet Firefox nur als regulärer Benutzer.")
     runtime = session._managed_runtime(session.FIREFOX_DIR)
-    wayland = session._wayland_socket()
     with session._lock_profile(container):
         if detect_start_command(container / "start.sh") != SANDBOX_START_COMMAND:
             raise BrowserSandboxError(
@@ -71,12 +70,18 @@ def run_container(container):
                 check=True,
             )
         with (
+            session._display_socket(title="Secure Browser") as (
+                wayland,
+                display_process,
+            ),
             session._private_bus(wayland.parent) as (bus, daemon),
             sandbox._launch_link(
                 runtime, container, wayland, bus, None, policies=policies
             ) as processes,
         ):
-            while sandbox._browser_running(*processes):
+            while session._display_running(
+                display_process
+            ) and sandbox._browser_running(*processes):
                 if daemon.poll() is not None:
                     raise BrowserSandboxError("Der private Browser-D-Bus ist beendet.")
                 time.sleep(0.25)

@@ -118,6 +118,13 @@ def build_settings_general_system(
             None,
         ),
         (
+            7,
+            "settings_button_sound",
+            "Klickton für Bedienelemente",
+            app.var_button_sound,
+            app.on_button_sound_toggle,
+        ),
+        (
             8,
             "settings_netmon_browser",
             "Eigenen Browser aktivieren",
@@ -588,9 +595,16 @@ def build_settings_support(app, support_tab) -> None:
             email=NETMON_SUPPORT_EMAIL
         ),
         font=("TkDefaultFont", 14, "bold"),
+        foreground="#ff4040",
         wraplength=760,
         justify="left",
+        cursor="hand2",
+        takefocus=True,
     )
+    for event in ("<Button-1>", "<Return>", "<space>"):
+        app.support_contact_label.bind(
+            event, lambda _event: app.open_netmon_support_email()
+        )
     app.support_contact_label.pack(anchor="w", pady=(0, 12))
     support_group = ttk.LabelFrame(
         support_tab,
@@ -1032,7 +1046,7 @@ def build_settings_backup(app, tab) -> None:
         netmon_group,
         text=app.tr(
             "backup_netmon_hint",
-            "Eigene NetMon-Ordner aus Dokumente/NetMon extern sichern. Bei 'NetMon-Ordner komplett' werden die Einzelordner abgewählt.",
+            "Eigene NetMon-Ordner aus Dokumente/NetMon extern sichern. Bei 'NetMon-Ordner komplett' werden die Einzelordner abgewählt. Sicherung, Prüfung und Wiederherstellung können je nach Datenmenge mehrere Minuten dauern.",
         ),
         justify="left",
         wraplength=840,
@@ -1058,6 +1072,16 @@ def build_settings_backup(app, tab) -> None:
     )
     app.btn_backup_netmon_open_folder.grid(
         row=2, column=1, sticky="ew", padx=(6, 6), pady=(0, 6)
+    )
+    app.btn_backup_netmon_restore = ttk.Button(
+        netmon_group,
+        text=app.tr(
+            "backup_btn_restore_netmon", "NetMon-Sicherung prüfen / wiederherstellen"
+        ),
+        command=app.restore_netmon_documents_backup,
+    )
+    app.btn_backup_netmon_restore.grid(
+        row=3, column=0, columnspan=2, sticky="ew", pady=(2, 6)
     )
     app.btn_backup_netmon_manager = ttk.Button(
         netmon_group,

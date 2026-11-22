@@ -119,7 +119,12 @@ def test_dot_test_hint_text_warns_for_unclear_or_failed_runtime_test():
         )
         == "Hinweis: Für den DoT-Test Killswitch kurz AUS schalten."
     )
-    assert dot_controller._dot_test_hint_text({"enabled": True, "text": "Test: erfolgreich"}) == ""
+    assert (
+        dot_controller._dot_test_hint_text(
+            {"enabled": True, "text": "Test: erfolgreich"}
+        )
+        == ""
+    )
 
 
 def test_collect_dot_status_treats_timeouts_as_unclear(monkeypatch):
@@ -157,7 +162,10 @@ def test_collect_dot_status_treats_timeouts_as_unclear(monkeypatch):
         if args == ["resolvectl", "dns"]:
             return 0, "Global: 1.1.1.1#cloudflare-dns.com"
         if args == ["resolvectl", "status"]:
-            return 0, "DNSOverTLS setting: yes\nCurrent DNS Server: 1.1.1.1#cloudflare-dns.com"
+            return (
+                0,
+                "DNSOverTLS setting: yes\nCurrent DNS Server: 1.1.1.1#cloudflare-dns.com",
+            )
         if args == ["resolvectl", "query", "example.com"]:
             return 124, "Command timed out"
         raise AssertionError(args)

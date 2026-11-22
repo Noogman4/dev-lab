@@ -325,7 +325,7 @@ def test_fun_integration_hooks_are_present():
     preflight_source = inspect.getsource(App.preflight_dependencies)
     manual_summary_source = inspect.getsource(App._log_preflight_manual_summary)
 
-    assert "self.fun_games_dir = os.path.expanduser(" in init_source
+    assert "self.fun_games_dir = get_netmon_fun_dir()" in init_source
     assert 'self.fun_status_var = tk.StringVar(value="Fun: bereit")' in init_source
     assert "build_fun_tab(self)" in init_source
     assert "self.stop_running_fun_game()" in close_source

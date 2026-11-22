@@ -13,7 +13,12 @@ from netmon.features import vpn_controller as vpn
 
 
 @pytest.fixture(autouse=True)
-def private_profile_creation():
+def private_profile_creation(tmp_path, monkeypatch):
+    # Import review also publishes a user-library copy. Fake NM alone does not
+    # isolate that write: always keep the library inside this test's directory.
+    directory = tmp_path / "wireguard-profiles"
+    directory.mkdir(mode=0o700)
+    monkeypatch.setattr(vpn, "netmon_wireguard_profiles_dir", lambda: str(directory))
     # Synthetic secret-bearing profiles should have deployment-safe permissions.
     previous = os.umask(0o077)
     try:
@@ -433,6 +438,9 @@ def test_gui_owned_import_passes_bytes_not_user_path(store, tmp_path, monkeypatc
 
     monkeypatch.setattr(vpn, "_owned_nm_command", command)
     vpn.import_wireguard_paths_to_networkmanager(app, [str(source)])
+    assert (
+        tmp_path / "wireguard-profiles/gui.conf"
+    ).read_bytes() == source.read_bytes()
     assert calls == [
         ("import", vpn.wireguard_import.ProfileSnapshot.read(source).payload())
     ]

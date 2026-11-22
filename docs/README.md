@@ -1,6 +1,6 @@
 # NetMon
 
-Dokumentierter Paket- und App-Stand: `1.1.22`.
+Dokumentierter Paket- und App-Stand: `1.1.22~beta4` (NetMon 1.1.22 Beta 4).
 
 NetMon ist eine Linux-GUI fuer Netzwerk-, DNS-, Firewall-, VPN-, Security-, Radio- und Hilfsfunktionen. Der Startpfad liegt in `netmon/main.py`, die Hauptoberflaeche in `netmon/app.py`, und die Funktionslogik ist in Controller-, Service- und Tab-Module aufgeteilt.
 
@@ -27,7 +27,7 @@ NetMon kombiniert klassische Netzwerk-Werkzeuge, DNS-/DoT-Steuerung, Firewall- u
 - About-Dialog mit Online-Versionspruefung gegen `netmonroots.com` und automatischer Weiterleitung auf die Downloadseite bei neueren Website-Releases.
 - Support-/Diagnosebereich mit lokalem Supportpaket-Export und sichtbarem Datenschutzhinweis vor dem Versand.
 - Paketierter Deinstaller mit optionaler Bereinigung von NetMon-, WireGuard-, NetworkManager- und Testsystem-Resten.
-- Aktueller Security-Audit-Stand fuer die Produktdoku: Runde 12 auf Basis von `1.1.21`; die PDF-Fassung von Runde 11 bleibt als Archiv erhalten.
+- Aktueller Security-Audit-Stand fuer die Produktdoku: [Runde 13](SECURITY_AUDIT_2026_R13.md) auf Basis von `1.1.22` bis Commit `9f788603` (13. November 2026); 82 Findings behoben, 3 Restrisiken akzeptiert. Spaetere Beta-Aenderungen sind gesondert zu pruefen. R12 und R11 bleiben als Archiv erhalten.
 
 ## Screenshots
 
@@ -53,7 +53,7 @@ NetMon kombiniert klassische Netzwerk-Werkzeuge, DNS-/DoT-Steuerung, Firewall- u
 
 ### Debian-Paketstand
 
-- Aktueller Test-/Paketstand in diesem Repository: `1.1.21`
+- Aktueller Test-/Paketstand in diesem Repository: `1.1.22~beta4` (Beta 4)
 - Build-Skript: `scripts/build_netmon_deb.sh`
 - Offizielles Release-DEB nur mit `scripts/build_netmon_deb.sh --release` aus einem
   committeten, sauberen Paketquellstand. Dabei entsteht
@@ -70,7 +70,7 @@ NetMon kombiniert klassische Netzwerk-Werkzeuge, DNS-/DoT-Steuerung, Firewall- u
   - `netmon.png`
   - `netmon-radio.png` als Radio-spezifisches Asset
   - Secure-Browser-Manager und dessen Builder-/Policy-Ressourcen
-  - aktuelle HTML-/PDF-Dokumentation fuer Version `1.1.21`
+  - aktuelle HTML-/PDF-Dokumentation fuer Version `1.1.22~beta4`
 
 ### Beispiel-Setup unter Linux
 

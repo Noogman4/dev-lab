@@ -1,6 +1,6 @@
 # NetMon Roots
 
-> **Lokaler Teststand 1.1.22:** Paket `netmon_1.1.22_all.deb`, Branch `release/netmon-1.1.22-test`. Herkunft und Prüfgrenzen: [Teststand](docs/NETMON-1.1.22-TEST.md).
+> **NetMon 1.1.22 Beta 4:** Paket `netmon_1.1.22~beta4_all.deb`. Git-Teststand und Build-Eingaben: [Paketierung](docs/DEB_PACKAGING_PLAN.md).
 
 **NetMon Roots** is an all-in-one Linux network and security toolkit that combines network diagnostics, DNS management, firewall control, VPN support, security monitoring, AI-assisted analysis, radio features, and system utilities in a single graphical application.
 
@@ -85,7 +85,7 @@ or from the GitHub Releases page.
 Install the package:
 
 ```bash
-sudo dpkg -i netmon_1.1.21_all.deb
+sudo dpkg -i netmon_1.1.22~beta4_all.deb
 sudo apt -f install
 ```
 

@@ -1,198 +1,206 @@
-"""Storage helpers for generated Linux help documents."""
-
-from __future__ import annotations
+"""Private Markdown storage for the single Linux-help entry list."""
 
 from datetime import datetime
 import json
 import os
-import shutil
+import re
+import stat
+import uuid
 
 try:
     from netmon.core.state import get_netmon_documents_subdir
-    from netmon.core.utils import safe_write_json
+    from netmon.core.utils import safe_write_json, user_json_write_scope
+    from netmon.services.linux_help_library_markdown import (
+        parse_library_markdown,
+        split_markdown,
+    )
+    from netmon.services.linux_help_markdown_service import MAX_BYTES
 except ModuleNotFoundError:
     from core.state import get_netmon_documents_subdir
-    from core.utils import safe_write_json
-
-try:
-    from netmon.services.linux_help_document_service import (
-        build_linux_help_document_preview,
-        build_linux_help_pdf_lines,
+    from core.utils import safe_write_json, user_json_write_scope
+    from services.linux_help_library_markdown import (
+        parse_library_markdown,
+        split_markdown,
     )
-    from netmon.services.linux_help_pdf_service import render_text_pdf
-except ModuleNotFoundError:
-    from services.linux_help_document_service import (
-        build_linux_help_document_preview,
-        build_linux_help_pdf_lines,
-    )
-    from services.linux_help_pdf_service import render_text_pdf
+    from services.linux_help_markdown_service import MAX_BYTES
 
 
-def linux_help_documents_dir() -> str:
-    return get_netmon_documents_subdir("LinuxHelp")
+def linux_help_markdown_dir():
+    return get_netmon_documents_subdir("LinuxHelp", "markdown")
 
 
-def linux_help_pdfs_dir() -> str:
-    return get_netmon_documents_subdir("LinuxHelp", "pdfs")
-
-
-def linux_help_meta_dir() -> str:
+def linux_help_meta_dir():
     return get_netmon_documents_subdir("LinuxHelp", "meta")
 
 
-def _slugify(text: str) -> str:
-    cleaned = "".join(
-        char.lower() if char.isalnum() else "_" for char in str(text or "").strip()
+def _read_regular(path, limit):
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "rb") as handle:
+        info = os.fstat(handle.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
+            raise ValueError("Keine reguläre Datei oder Datei zu groß.")
+        raw = handle.read(limit + 1)
+    if len(raw) > limit:
+        raise ValueError("Dokument ist zu groß.")
+    return raw
+
+
+def _document_path(metadata, kind):
+    identifier = metadata.get("id")
+    if not isinstance(identifier, str) or not re.fullmatch(r"[\w-]{1,150}", identifier):
+        raise ValueError("Ungültige Dokumentkennung.")
+    directory, suffix = {
+        "markdown": (linux_help_markdown_dir, ".md"),
+        "json": (linux_help_meta_dir, ".json"),
+    }[kind]
+    path = os.path.join(directory(), identifier + suffix)
+    if os.path.islink(path):
+        raise ValueError("Dokumentverknüpfungen werden nicht unterstützt.")
+    return path
+
+
+def read_linux_help_markdown(metadata):
+    return _read_regular(_document_path(metadata, "markdown"), MAX_BYTES).decode(
+        "utf-8-sig"
     )
-    while "__" in cleaned:
-        cleaned = cleaned.replace("__", "_")
-    return cleaned.strip("_") or "linux_help"
 
 
-def _document_id(command_name: str, moment: datetime | None = None) -> str:
-    stamp = (moment or datetime.now()).strftime("%Y-%m-%d_%H%M%S")
-    return f"{_slugify(command_name)}_{stamp}"
+def load_linux_help_markdown(metadata):
+    return parse_library_markdown(read_linux_help_markdown(metadata), metadata)
 
 
-def create_linux_help_document_bundle(
-    document: dict,
-    *,
-    generator: str = "manual",
-    language: str = "de",
-    moment: datetime | None = None,
-) -> dict:
-    payload = dict(document or {})
-    doc_id = _document_id(payload.get("command_name") or payload.get("title") or "", moment)
-    pdf_path = os.path.join(linux_help_pdfs_dir(), f"{doc_id}.pdf")
-    json_path = os.path.join(linux_help_meta_dir(), f"{doc_id}.json")
-
-    preview_text = build_linux_help_document_preview(payload)
-    pdf_lines = build_linux_help_pdf_lines(payload)
-    render_text_pdf(pdf_lines, pdf_path, title=str(payload.get("title") or "").strip())
-
-    metadata = {
-        "id": doc_id,
-        "title": str(payload.get("title") or "").strip(),
-        "command_name": str(payload.get("command_name") or "").strip(),
-        "command": str(payload.get("command") or "").strip(),
-        "category": str(payload.get("category") or "").strip(),
-        "risk_level": str(payload.get("risk_level") or "").strip(),
-        "root_required": bool(payload.get("root_required")),
-        "tags": list(payload.get("tags") or []),
-        "summary": str(payload.get("summary") or "").strip(),
-        "source_prompt": str(payload.get("source_prompt") or "").strip(),
-        "preview_text": preview_text,
-        "generator": str(generator or "manual").strip() or "manual",
-        "language": str(language or "de").strip() or "de",
-        "created_at": (moment or datetime.now()).isoformat(timespec="seconds"),
-        "pdf_path": pdf_path,
-        "json_path": json_path,
-    }
-    ok, err = safe_write_json(json_path, metadata, indent=2, ensure_ascii=False)
-    if not ok:
-        raise RuntimeError(f"LinuxHelp-Metadaten konnten nicht gespeichert werden: {err}")
-    return metadata
-
-
-def import_linux_help_pdf(path: str, *, title: str = "", command_name: str = "") -> dict:
-    source = str(path or "").strip()
-    if not source or not os.path.isfile(source):
-        raise FileNotFoundError(source or "missing path")
-    if not source.lower().endswith(".pdf"):
-        raise ValueError("Nur PDF-Dateien werden unterstuetzt.")
-
-    now = datetime.now()
-    inferred_name = command_name or os.path.splitext(os.path.basename(source))[0]
-    doc_id = _document_id(inferred_name, now)
-    target_pdf = os.path.join(linux_help_pdfs_dir(), f"{doc_id}.pdf")
-    json_path = os.path.join(linux_help_meta_dir(), f"{doc_id}.json")
-    shutil.copy2(source, target_pdf)
-
-    metadata = {
-        "id": doc_id,
-        "title": title or os.path.basename(source),
-        "command_name": inferred_name,
-        "command": "",
-        "category": "",
-        "risk_level": "unknown",
-        "root_required": False,
-        "tags": [],
-        "summary": "Importierte PDF-Dokumentation.",
-        "source_prompt": "",
-        "preview_text": (
-            "Importierte Linux-Hilfe-PDF.\n\n"
-            f"Datei: {os.path.basename(target_pdf)}\n"
-            "Fuer importierte PDFs ist keine interne Textvorschau vorhanden."
+def inspect_markdown_import(path):
+    if os.path.splitext(str(path))[1].lower() not in (".md", ".markdown"):
+        raise ValueError("Bitte eine Markdown-Datei auswählen.")
+    text = _read_regular(path, MAX_BYTES).decode("utf-8-sig")
+    title = re.search(r"^#\s+(.+)$", text, re.M)
+    fallback = (
+        title[1].strip() if title else os.path.splitext(os.path.basename(path))[0]
+    )
+    document = parse_library_markdown(text, {"name": fallback})
+    fields, _body = split_markdown(text)
+    meta = document.metadata
+    entry = {
+        "id": fields.get("id", ""),
+        "entry_type": meta["entry_type"],
+        "name": meta["name"],
+        "category": meta["category"],
+        "cmd": meta.get("command", ""),
+        "tags": meta.get("tags", []),
+        "related": meta.get("related", []),
+        "risk": meta.get("risk_level", "unknown"),
+        "root_required": meta.get("root_required", False),
+        "info": next(
+            (block.text[:300] for block in document.blocks if block.kind == "text"),
+            "",
         ),
-        "generator": "import",
-        "language": "de",
-        "created_at": now.isoformat(timespec="seconds"),
-        "pdf_path": target_pdf,
-        "json_path": json_path,
+        "explanation": "",
     }
-    ok, err = safe_write_json(json_path, metadata, indent=2, ensure_ascii=False)
-    if not ok:
-        raise RuntimeError(f"LinuxHelp-Importmetadaten konnten nicht gespeichert werden: {err}")
+    return text, entry
+
+
+def save_linux_help_markdown(text, entry=None, *, title="", command_name=""):
+    """Publish a new immutable revision; callers link it only after saving JSON."""
+    parse_library_markdown(text)
+    moment = datetime.now().isoformat(timespec="seconds")
+    identifier = "md_" + uuid.uuid4().hex
+    name = (entry or {}).get("name") or command_name or title or "Dokumentation"
+    metadata = {
+        "id": identifier,
+        "title": title or name,
+        "command_name": command_name or name,
+        "created_at": moment,
+        "format": "markdown",
+    }
+    if entry is not None:
+        metadata["entry"] = {
+            key: value for key, value in entry.items() if key != "markdown_id"
+        }
+    path = _document_path(metadata, "markdown")
+    meta_path = _document_path(metadata, "json")
+    metadata.update(markdown_path=path, json_path=meta_path)
+    with user_json_write_scope(path):
+        descriptor = os.open(
+            path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600
+        )
+        try:
+            with os.fdopen(descriptor, "wb") as handle:
+                handle.write(text.encode("utf-8"))
+                handle.flush()
+                os.fsync(handle.fileno())
+            ok, error = safe_write_json(
+                meta_path, metadata, indent=2, ensure_ascii=False
+            )
+            if not ok:
+                raise RuntimeError(
+                    "Markdown-Metadaten konnten nicht gespeichert werden: " + str(error)
+                )
+        except Exception:
+            os.unlink(path)
+            raise
     return metadata
 
 
-def list_linux_help_documents() -> list[dict]:
+def import_linux_help_markdown(path, *, title="", command_name=""):
+    text, inferred = inspect_markdown_import(path)
+    return save_linux_help_markdown(
+        text,
+        title=title or inferred["name"],
+        command_name=command_name or inferred["name"],
+    )
+
+
+def get_linux_help_document_by_id(document_id):
+    metadata = {"id": document_id}
+    try:
+        payload = json.loads(
+            _read_regular(
+                _document_path(metadata, "json"), 2 * MAX_BYTES + 16384
+            ).decode("utf-8")
+        )
+    except FileNotFoundError:
+        return None
+    if not isinstance(payload, dict) or payload.get("id") != document_id:
+        raise ValueError("Ungültige Markdown-Metadaten.")
+    if not payload.get("markdown_path"):
+        return None
+    payload["markdown_path"] = _document_path(metadata, "markdown")
+    payload["json_path"] = _document_path(metadata, "json")
+    return payload
+
+
+def list_linux_help_documents():
     entries = []
-    meta_dir = linux_help_meta_dir()
-    for name in sorted(os.listdir(meta_dir), reverse=True):
+    for name in sorted(os.listdir(linux_help_meta_dir()))[:4096]:
         if not name.endswith(".json"):
             continue
-        path = os.path.join(meta_dir, name)
         try:
-            with open(path, "r", encoding="utf-8") as handle:
-                payload = json.load(handle)
-        except Exception:
+            item = get_linux_help_document_by_id(name[:-5])
+            if item is not None:
+                _read_regular(_document_path(item, "markdown"), MAX_BYTES)
+                entries.append(item)
+        except (OSError, ValueError, RecursionError):
             continue
-        if not isinstance(payload, dict):
-            continue
-        payload.setdefault("json_path", path)
-        entries.append(payload)
-    entries.sort(key=lambda item: str(item.get("created_at") or ""), reverse=True)
     return entries
 
 
-def get_linux_help_document_by_id(document_id: str) -> dict | None:
-    target = str(document_id or "").strip()
-    if not target:
-        return None
-    for item in list_linux_help_documents():
-        if str(item.get("id") or "").strip() == target:
-            return item
-    return None
-
-
-def delete_linux_help_document(document_id: str) -> dict:
-    """Delete one Linux help PDF bundle and return deletion details."""
+def delete_linux_help_document(document_id):
     metadata = get_linux_help_document_by_id(document_id)
-    if not metadata:
-        raise FileNotFoundError(str(document_id or "").strip() or "missing document id")
-
-    deleted = []
-    missing = []
-    errors = []
-    for key in ("pdf_path", "json_path"):
-        path = str(metadata.get(key) or "").strip()
-        if not path:
-            continue
-        if not os.path.isfile(path):
-            missing.append(path)
-            continue
+    if metadata is None:
+        raise FileNotFoundError("Markdown-Dokument fehlt.")
+    paths = [_document_path(metadata, kind) for kind in ("markdown", "json")]
+    # Validate every existing target before removing either member of the bundle.
+    for path in paths:
         try:
-            os.remove(path)
-            deleted.append(path)
-        except OSError as exc:
-            errors.append(f"{path}: {exc}")
-
-    if errors:
-        raise RuntimeError("; ".join(errors))
-    return {
-        "id": metadata.get("id") or "",
-        "title": metadata.get("title") or metadata.get("command_name") or "",
-        "deleted": deleted,
-        "missing": missing,
-    }
+            _read_regular(path, 2 * MAX_BYTES + 16384)
+        except FileNotFoundError:
+            pass
+    deleted, missing = [], []
+    with user_json_write_scope(paths[0]):
+        for path in paths:
+            try:
+                os.unlink(path)
+                deleted.append(path)
+            except FileNotFoundError:
+                missing.append(path)
+    return {"id": document_id, "deleted": deleted, "missing": missing}

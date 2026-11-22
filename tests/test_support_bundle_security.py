@@ -39,7 +39,7 @@ def archived_bytes():
         return {name: archive.read(name) for name in archive.namelist()}
 
 
-@pytest.mark.parametrize("slot", range(6))
+@pytest.mark.parametrize("slot", range(8))
 def test_every_candidate_symlink_is_excluded(export_tree, slot):
     _docs, reports, logs, state, secret = export_tree
     paths = [
@@ -47,6 +47,8 @@ def test_every_candidate_symlink_is_excluded(export_tree, slot):
         reports / "startup_error.log",
         reports / "crash.log",
         logs / "runtime.log",
+        logs / "network_debug.log",
+        logs / "startup_error.log",
         state / "logs" / "runtime.log",
         state / "logs" / "network_debug.log",
     ]
@@ -54,6 +56,12 @@ def test_every_candidate_symlink_is_excluded(export_tree, slot):
     content = archived_bytes()
     assert not any(secret.read_bytes() in value for value in content.values())
     assert json.loads(content["manifest.json"])["files"] == []
+
+
+def test_central_network_debug_log_is_included(export_tree):
+    _, _, logs, _, _ = export_tree
+    write_private(logs / "network_debug.log", b"synthetic central network log")
+    assert b"synthetic central network log" in archived_bytes().values()
 
 
 def test_latest_report_ignores_newer_symlink(export_tree):

@@ -1,4 +1,4 @@
-"""Read-only Markdown pilot, renderer interactions and legacy-view fallback."""
+"""Read-only Markdown renderer interactions and short-reference fallback."""
 
 import json
 import os
@@ -57,7 +57,7 @@ def test_real_pilot_contains_ten_sections_and_separate_code_and_table_blocks():
         {"name": "ls", "cmd": "ls"},
     ],
 )
-def test_only_exact_pilot_can_select_a_document(item):
+def test_only_exact_catalog_identity_can_select_a_document(item):
     assert markdown.load_command_document(item) is None
 
 
@@ -116,6 +116,9 @@ def test_reader_input_limits_fail_instead_of_partial_render(monkeypatch, failure
 
 
 def test_local_file_is_bounded_and_symlink_or_fifo_is_not_read(monkeypatch, tmp_path):
+    (tmp_path / "index.json").write_bytes(
+        (markdown.DOCUMENT_DIR / "index.json").read_bytes()
+    )
     monkeypatch.setattr(markdown, "DOCUMENT_DIR", tmp_path)
     assert markdown.load_command_document(ENTRY) is None
     target = tmp_path / "other.md"
@@ -253,7 +256,7 @@ def test_document_selection_falls_back_without_changing_the_catalog(root, monkey
         linux_help_tree=tree,
         linux_help_data=[
             dict(ENTRY),
-            {"id": "ls", "name": "ls", "cmd": "ls", "info": "Dateien auflisten"},
+            {"id": "ls", "name": "ls", "cmd": "ls -l", "info": "Dateien auflisten"},
         ],
         tr=lambda _key, fallback: fallback,
     )
@@ -314,21 +317,12 @@ def test_linux_tab_double_click_uses_existing_reader_and_compact_management(root
         "refresh_linux_help_list",
         "clear_linux_help_filters",
         "reload_linux_help_data",
-        "linux_help_import_csv_dialog",
-        "linux_help_export_csv_dialog",
-        "send_linux_help_command_to_terminal",
         "linux_help_new_entry",
         "linux_help_edit_selected",
         "linux_help_delete_selected",
         "on_linux_help_select",
         "show_linux_help_tree_menu",
         "attach_chad_context_menu",
-        "import_linux_help_pdf_dialog",
-        "reload_linux_help_documents",
-        "open_selected_linux_help_pdf",
-        "open_linux_help_documents_folder",
-        "on_linux_help_document_select",
-        "show_linux_help_document_menu",
     ):
         setattr(app, name, lambda *_a, **_k: None)
     app.linux_help_data = [dict(ENTRY)]
@@ -357,13 +351,17 @@ def test_linux_tab_double_click_uses_existing_reader_and_compact_management(root
     root.update()
     assert app.linux_help_text is None
     assert not hasattr(app, "linux_help_detail_notebook")
-    assert app.linux_help_documents_text.winfo_exists()
-    assert app.btn_linux_help_import_pdf.winfo_exists()
+    assert not hasattr(app, "linux_help_documents_text")
+    assert app.btn_linux_help_import_markdown.winfo_exists()
+    assert (
+        app.btn_linux_help_import_markdown.cget("text") == "Markdown importieren (.md)"
+    )
+    assert app.btn_linux_help_reload.cget("text") == "Alles neu laden"
     assert app.linux_help_tree.winfo_exists()
     app.linux_help_tree.event_generate("<<TreeviewSelect>>")
     root.update()
     assert app.linux_help_reader_window is None
-    assert int(app.linux_help_documents_text.cget("height")) == 3
+    assert not hasattr(app, "linux_help_documents_listbox")
     if os.environ.get("NETMON_TEST_ISOLATED") == "1":
         from PIL import ImageGrab
 

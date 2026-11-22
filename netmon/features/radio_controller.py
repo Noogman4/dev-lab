@@ -19,6 +19,9 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from tkinter import filedialog, messagebox, simpledialog
+from types import SimpleNamespace
+
+from netmon.core.state import get_netmon_documents_subdir
 
 try:
     from netmon.core.radio_directory import (
@@ -34,12 +37,24 @@ _RECORDING_LOCK_INIT = threading.Lock()
 _PLAYBACK_LOCK_INIT = threading.Lock()
 
 try:
-    from netmon.core import radio_catalog, radio_sandbox, stall_log
+    from netmon.core import (
+        radio_catalog,
+        radio_random,
+        radio_sandbox,
+        radio_station_filters,
+        stall_log,
+    )
     from netmon.core.import_limits import read_bounded_text
     from netmon.core.radio_homepage import normalize_homepage_url
     from netmon.core.log_redaction import escape_log_controls, format_log_message
 except ModuleNotFoundError:
-    from core import radio_catalog, radio_sandbox, stall_log
+    from core import (
+        radio_catalog,
+        radio_random,
+        radio_sandbox,
+        radio_station_filters,
+        stall_log,
+    )
     from core.import_limits import read_bounded_text
     from core.radio_homepage import normalize_homepage_url
     from core.log_redaction import escape_log_controls, format_log_message
@@ -66,11 +81,17 @@ def default_radio_settings():
         "last_search": "",
         "station_list_columns": ["name", "genre", "bitrate"],
         "recordings_dir": "",
+        "system_folder_path": "",
         "playlist_entries": [],
         "playlist_path": "",
         "playlists_dir": "",
         "projectm_preset_import_dir": "",
         "projectm_preset_download_url": "",
+        "random_interval_minutes": radio_random.DEFAULT_INTERVAL_MINUTES,
+        "random_history": [],
+        "random_filter": radio_station_filters.normalize_filter(),
+        "multi_recording_minutes": 60,
+        "multi_recording_station_ids": [],
     }
 
 
@@ -307,10 +328,7 @@ def _slugify_station_id(text: str) -> str:
 
 
 def _default_recordings_dir(app) -> str:
-    base = str(getattr(app, "netmon_state_dir", "") or "").strip()
-    if not base:
-        base = tempfile.gettempdir()
-    return os.path.join(base, "radio_recordings")
+    return get_netmon_documents_subdir("Radio", "Aufnahmen")
 
 
 def _default_playlist_path(app) -> str:
@@ -318,10 +336,7 @@ def _default_playlist_path(app) -> str:
 
 
 def _default_playlists_dir(app) -> str:
-    base = str(getattr(app, "netmon_state_dir", "") or "").strip()
-    if not base:
-        base = tempfile.gettempdir()
-    return os.path.join(base, "radio_playlists")
+    return get_netmon_documents_subdir("Radio", "Playlisten")
 
 
 def _radio_recordings_dir(app) -> str:
@@ -751,6 +766,11 @@ def save_radio_settings(app):
                 or getattr(app, "radio_settings", {}).get("recordings_dir", "")
                 or _default_recordings_dir(app)
             ).strip(),
+            "system_folder_path": str(
+                getattr(app, "radio_system_folder_path", "")
+                or getattr(app, "radio_settings", {}).get("system_folder_path", "")
+                or ""
+            ).strip(),
             "playlist_entries": [
                 str(item).strip()
                 for item in list(getattr(app, "radio_playlist_entries", []) or [])
@@ -778,6 +798,12 @@ def save_radio_settings(app):
             ).strip(),
         }
     )
+    payload.update(
+        radio_random.saved_settings(getattr(app, "radio_settings", {}) or {})
+    )
+    from netmon.core.radio_multi_recording import saved_settings as multi_settings
+
+    payload.update(multi_settings(getattr(app, "radio_settings", {}) or {}))
     app.radio_settings = payload
     ok, err = safe_write_json(
         app.radio_settings_path,
@@ -791,6 +817,70 @@ def save_radio_settings(app):
         except Exception:
             pass
     return ok
+
+
+def radio_random_mode(app):
+    mode = vars(app).get("_radio_random_mode")
+    if mode is not None:
+        return mode
+
+    def persist(settings):
+        previous = dict(getattr(app, "radio_settings", {}) or {})
+        app.radio_settings = dict(getattr(app, "radio_settings", {}) or {})
+        app.radio_settings.update(settings)
+        if save_radio_settings(app):
+            return True
+        app.radio_settings = previous
+        return False
+
+    def changed():
+        refresh = getattr(app, "refresh_radio_random_ui", None)
+        if callable(refresh):
+            refresh()
+
+    mode = radio_random.RandomRadio(
+        getattr(app, "radio_settings", {}) or {},
+        stations=lambda: getattr(app, "radio_db", []) or [],
+        normalize=normalize_station_entry,
+        play=lambda station_id, token: play_radio_station(
+            app, station_id, random_token=token
+        ),
+        schedule=app.after,
+        cancel=app.after_cancel,
+        save=persist,
+        abort=lambda token: stop_radio_playback(app, random_token=token),
+        changed=changed,
+    )
+    app._radio_random_mode = mode
+    app.radio_settings.update(mode.settings())
+    bind = getattr(app, "bind", None)
+    if callable(bind):
+        bind(
+            "<Destroy>",
+            lambda event: mode.stop() if event.widget is app else None,
+            add="+",
+        )
+    return mode
+
+
+def stop_radio_random(app, reason="off"):
+    mode = vars(app).get("_radio_random_mode")
+    if mode is None or not mode.active:
+        return False
+    if threading.current_thread() is not threading.main_thread():
+        return _schedule_ui(app, lambda: mode.stop(reason))
+    return mode.stop(reason)
+
+
+def toggle_radio_random(app):
+    mode = radio_random_mode(app)
+    if mode.active:
+        mode.stop()
+        return False
+    if _recording_busy(app):
+        mode.stop("recording")
+        return False
+    return mode.start(str(getattr(app, "radio_current_station_id", "") or ""))
 
 
 def _normalize_radio_theme_name(theme_name, fallback="light"):
@@ -911,9 +1001,18 @@ def build_radio_handover_payload(app):
     return payload
 
 
-def apply_radio_handover_payload(app, payload, *, auto_play=False):
+def apply_radio_handover_payload(app, payload, *, auto_play=False, theme_source=None):
     if not isinstance(payload, dict):
         return False
+    # Embedded Radio follows the current host palette, never the detached sender.
+    if theme_source is None:
+        theme_source = getattr(app, "radio_host_app", None)
+    if theme_source is not None:
+        theme_name = _radio_theme_name_from_app(theme_source)
+        theme_palette = _radio_theme_palette_from_app(theme_source)
+    else:
+        theme_name = payload.get("theme")
+        theme_palette = payload.get("theme_palette")
     settings = default_radio_settings()
     settings.update(getattr(app, "radio_settings", {}) or {})
     station_id = str(payload.get("current_station_id", "") or "").strip()
@@ -921,7 +1020,7 @@ def apply_radio_handover_payload(app, payload, *, auto_play=False):
     settings.update(
         {
             "theme": _normalize_radio_theme_name(
-                payload.get("theme", settings.get("theme", "light")),
+                theme_name,
                 settings.get("theme", "light"),
             ),
             "volume": max(
@@ -948,11 +1047,12 @@ def apply_radio_handover_payload(app, payload, *, auto_play=False):
         }
     )
     app.radio_settings = settings
-    settings["theme"] = _apply_radio_theme_setting(
-        app,
-        settings.get("theme", "light"),
-        payload.get("theme_palette"),
-    )
+    if app is not theme_source:
+        settings["theme"] = _apply_radio_theme_setting(
+            app,
+            settings.get("theme", "light"),
+            theme_palette,
+        )
     app.radio_current_station_id = station_id
     station = payload.get("current_station")
     # Einzige Stelle, an der ein Station-Dict frueher ohne
@@ -1208,11 +1308,23 @@ def _radio_output_ready(app):
 def _radio_output_hint(app):
     """Short status-row hint; the detailed reason is shown by the dialog."""
     ready = _radio_output_ready(app)
+    notice = getattr(app, "radio_notice_var", None)
+    if notice is not None:
+        notice.set(
+            ""
+            if ready
+            else _tr(
+                app,
+                "radio_output_setup_notice",
+                "Geschützter Ton ist noch nicht eingerichtet.\n"
+                "Radioeinstellungen → „Ton einrichten…“",
+            )
+        )
     button = getattr(app, "radio_output_button_var", None)
     if button is not None:
         try:
             button.set(
-                _tr(app, "radio_output_button_ready", "✓ Ton geschützt")
+                _tr(app, "radio_output_button_ready", "✓ Ton einrichten…")
                 if ready
                 else _tr(app, "radio_output_button_setup", "Ton einrichten…")
             )
@@ -1223,7 +1335,7 @@ def _radio_output_hint(app):
     return _tr(
         app,
         "radio_output_missing_short",
-        "Geschützte Tonausgabe fehlt – oben einrichten.",
+        "Geschützte Tonausgabe fehlt – in den Radioeinstellungen einrichten.",
     )
 
 
@@ -2005,6 +2117,12 @@ def _set_radio_folder_browser_mode_and_path(app, mode, target_dir):
     app.radio_folder_browser_mode = mode
     if mode == "system":
         app.radio_system_folder_path = target_dir
+        settings = dict(getattr(app, "radio_settings", {}) or {})
+        if settings.get("system_folder_path", "") != target_dir:
+            settings["system_folder_path"] = target_dir
+            app.radio_settings = settings
+            if getattr(app, "radio_settings_path", None):
+                save_radio_settings(app)
     _set_current_radio_folder_browser_path(app, target_dir)
 
 
@@ -2020,7 +2138,11 @@ def _navigate_radio_folder_browser_to(
         _push_radio_folder_browser_history(app, current_entry)
         _clear_radio_folder_browser_forward_history(app)
     _set_radio_folder_browser_mode_and_path(app, next_entry[0], next_entry[1])
-    return _reload_radio_folder_browser(app, announce_text=announce_text)
+    loaded = _reload_radio_folder_browser(app, announce_text=announce_text)
+    show_folder = getattr(app, "show_radio_folder_main_view", None)
+    if loaded and callable(show_folder):
+        show_folder(next_entry[0])
+    return loaded
 
 
 def _folder_browser_entries_for_path(app, mode, target_dir):
@@ -2035,6 +2157,8 @@ def _folder_browser_entries_for_path(app, mode, target_dir):
     dir_entries = []
     file_entries = []
     for name in names:
+        if mode == "recordings" and name.startswith(".netmon-aufnahme-pruefung-"):
+            continue
         entry_path = os.path.join(path, name)
         if os.path.isdir(entry_path):
             dir_entries.append(entry_path)
@@ -2042,7 +2166,7 @@ def _folder_browser_entries_for_path(app, mode, target_dir):
         if mode == "playlists":
             if os.path.isfile(entry_path) and str(name).lower().endswith(".m3u"):
                 file_entries.append(entry_path)
-        elif mode == "system":
+        elif mode in {"system", "recordings"}:
             if os.path.isfile(entry_path) and _is_audio_file_path(entry_path):
                 file_entries.append(entry_path)
         else:
@@ -3159,6 +3283,7 @@ def _play_local_audio_file(app, path, *, station_name, title_text):
     path = str(path or "").strip()
     if not path or not os.path.isfile(path):
         return False
+    stop_radio_random(app)
     try:
         volume = int(getattr(app, "radio_volume_var").get() or 50)
     except Exception:
@@ -3456,6 +3581,17 @@ def start_radio_recording(app):
     target_path = _recording_file_path(app, station)
     with _recording_lock(app):
         busy = _recording_busy(app)
+        multi = vars(app).get("_radio_multi_recording")
+        if multi is not None and multi.active_count >= 10:
+            _recording_status_text(
+                app,
+                _tr(
+                    app,
+                    "radio_multi_single_limit",
+                    "Höchstens zehn gleichzeitige Aufnahmen. Mehrfachaufnahme prüfen.",
+                ),
+            )
+            return False
         if not busy:
             generation = int(getattr(app, "radio_record_generation", 0)) + 1
             app.radio_record_generation = generation
@@ -3467,6 +3603,7 @@ def start_radio_recording(app):
     if busy:
         _recording_status_text(app, "Aufnahme läuft, startet oder wird beendet.")
         return False
+    stop_radio_random(app, "recording")
     _recording_status_text(app, "Geschützte Aufnahme wird vorbereitet...")
     refresh_radio_recording_ui(app)
 
@@ -3933,13 +4070,29 @@ def _wait_for_radio_process(app, proc, station_name, request=None):
             app.radio_ipc_path = ""
             refresh_radio_source_ui(app)
             update_radio_header(app)
+            mode = vars(app).get("_radio_random_mode")
+            if mode is not None:
+                mode.failed(
+                    getattr(request, "random_token", None),
+                    terminal=bool(getattr(proc, "output_lost", False)),
+                    ended=rc == 0,
+                )
 
     _schedule_ui(app, finalize)
 
 
-def stop_radio_playback(app, *, async_mode=True, clear_current=False):
+def stop_radio_playback(
+    app, *, async_mode=True, clear_current=False, random_token=None
+):
     from netmon import netmon_projectm_sidecar
 
+    if random_token is not None:
+        with _radio_playback_lock(app):
+            request = vars(app).get("radio_playback_request")
+            if getattr(request, "random_token", None) != random_token:
+                return False
+    else:
+        stop_radio_random(app)
     netmon_projectm_sidecar.invalidate_projectm_playback(app)
     with _radio_playback_lock(app):
         generation = vars(app).get("radio_play_generation", 0) + 1
@@ -4113,7 +4266,7 @@ def on_radio_search_changed(app, *_args):
 def on_radio_volume_preview(app, _value=None):
     value = 50
     try:
-        value = int(getattr(app, "radio_volume_var").get() or 50)
+        value = int(getattr(app, "radio_volume_var").get())
     except Exception:
         value = 50
     for target in _radio_targets(app):
@@ -4176,11 +4329,78 @@ def apply_radio_equalizer(app):
     return _send_mpv_command(app, ["set_property", "af", filter_spec])
 
 
+def _queue_radio_control_change(app, property_name, value):
+    """Coalesce GUI edits; only the worker waits for the pinned player socket."""
+    proc = getattr(app, "radio_proc", None)
+    if proc is None:
+        return False
+    state = vars(app).get("_radio_control_updates")
+    if state is None:
+        state = {"pending": {}, "active": None, "scheduled": False}
+        app._radio_control_updates = state
+    state["pending"][property_name] = (
+        proc,
+        _radio_ipc_path(app),
+        value,
+        getattr(app, "radio_current_station_id", ""),
+    )
+    if state["scheduled"]:
+        return True
+
+    def poll():
+        active = state["active"]
+        if active is not None:
+            future, previous_proc, name, station_id = active
+            if not future.done():
+                app.after(20, poll)
+                return
+            state["active"] = None
+            if (
+                not future.result()
+                and getattr(app, "radio_proc", None) is previous_proc
+                and name not in state["pending"]
+                and station_id
+            ):
+                play_radio_station(app, station_id)
+        while state["pending"]:
+            name = next(iter(state["pending"]))
+            previous_proc, path, latest, station_id = state["pending"].pop(name)
+            if getattr(app, "radio_proc", None) is not previous_proc:
+                continue
+            future = concurrent.futures.Future()
+            state["active"] = (future, previous_proc, name, station_id)
+
+            def send():
+                # Snapshots only: no Tk variable reads or callbacks in this thread.
+                try:
+                    applied = getattr(
+                        app, "radio_proc", None
+                    ) is previous_proc and _send_mpv_command(
+                        SimpleNamespace(radio_ipc_path=path),
+                        ["set_property", name, latest],
+                    )
+                except Exception:
+                    applied = False
+                future.set_result(bool(applied))
+
+            threading.Thread(target=send, daemon=True).start()
+            app.after(20, poll)
+            return
+        state["scheduled"] = False
+
+    state["scheduled"] = True
+    app.after(0, poll)
+    return True
+
+
 def commit_radio_eq_change(app, _event=None):
     on_radio_eq_preview(app)
     save_radio_settings(app)
     if getattr(app, "radio_proc", None) is None:
         return False
+    if callable(_app_callback(app, "after")):
+        return _queue_radio_control_change(app, "af", radio_eq_filter_spec(app))
+    # Non-GUI callers retain the synchronous controller API.
     applied = apply_radio_equalizer(app)
     if applied:
         return True
@@ -4194,6 +4414,10 @@ def commit_radio_volume_change(app, _event=None):
     on_radio_volume_preview(app)
     save_radio_settings(app)
     if getattr(app, "radio_proc", None) is not None:
+        if callable(_app_callback(app, "after")):
+            return _queue_radio_control_change(
+                app, "volume", max(0, min(100, int(app.radio_volume_var.get())))
+            )
         applied = apply_radio_volume(app)
         if not applied:
             station_id = getattr(app, "radio_current_station_id", "")
@@ -4599,6 +4823,17 @@ def download_radio_db(app):
                 source_results,
                 len(rows),
             )
+            from netmon.core.radio_station_import import merge_imported_stations
+
+            rows, _, _ = merge_imported_stations(
+                rows,
+                [
+                    station
+                    for station in _app_value(app, "radio_db", [])
+                    if station.get("custom")
+                ],
+            )
+            summary["merged_total"] = len(rows)
 
             if not save_radio_db(app, stations=rows):
                 raise RuntimeError("radio_db konnte nicht gespeichert werden")
@@ -4769,6 +5004,9 @@ def load_radio_runtime(app):
     app.radio_recordings_dir = str(
         settings.get("recordings_dir", "") or _default_recordings_dir(app)
     ).strip()
+    app.radio_system_folder_path = str(
+        settings.get("system_folder_path", "") or ""
+    ).strip()
     app.radio_playlist_entries = [
         str(item).strip()
         for item in list(settings.get("playlist_entries", []) or [])
@@ -4818,7 +5056,19 @@ def load_radio_runtime(app):
 
 def search_radio(app, query):
     db = list(getattr(app, "radio_db", []) or load_radio_db(app))
-    return _search_station_rows(db, query)
+    return _search_station_rows(db, query) if str(query or "").strip() else db
+
+
+def radio_station_source_rows(app):
+    search = getattr(app, "radio_search_var", None)
+    try:
+        query = search.get() if search is not None else ""
+    except Exception:
+        query = ""
+    if _favorites_view_enabled(app):
+        rows = list(getattr(app, "radio_favorites", []) or [])
+        return _search_station_rows(rows, query) if str(query or "").strip() else rows
+    return search_radio(app, query)
 
 
 def refresh_radio_favorites_list(app):
@@ -4855,9 +5105,7 @@ def refresh_radio_favorites_list(app):
 
 def _page_status_text(app, total_count, page_count, current_page):
     if total_count <= 0:
-        if _favorites_view_enabled(app):
-            return _tr(app, "radio_result_count", "Treffer: {count}").format(count=0)
-        return _tr(app, "radio_search_idle", "Suche starten.")
+        return _tr(app, "radio_result_count", "Treffer: {count}").format(count=0)
     return _tr(
         app,
         "radio_result_page_count",
@@ -4899,15 +5147,25 @@ def _visible_radio_page_rows(app):
 
 def _set_radio_reachability_button_state(app, *, running=False):
     button = getattr(app, "radio_reachability_button", None)
-    if button is None:
-        return
-    try:
-        button.configure(
-            state="disabled" if running else "normal",
-            text="Prüfe..." if running else "Erreichbarkeit prüfen",
-        )
-    except Exception:
-        pass
+    text = (
+        _tr(app, "radio_checking", "Prüfe...")
+        if running
+        else _tr(app, "radio_btn_check_reachability", "Erreichbarkeit prüfen")
+    )
+    if button is not None:
+        try:
+            button.configure(state="disabled" if running else "normal", text=text)
+        except Exception:
+            pass
+    menu = getattr(app, "radio_manage_menu", None)
+    index = getattr(app, "radio_reachability_menu_index", None)
+    if menu is not None and index is not None:
+        try:
+            menu.entryconfigure(
+                index, state="disabled" if running else "normal", label=text
+            )
+        except Exception:
+            pass
 
 
 def _probe_radio_station_reachability(row, timeout=4.0):
@@ -5202,6 +5460,10 @@ def update_radio_results_table(app):
         except Exception:
             pass
 
+    refresh_tiles = getattr(app, "refresh_radio_favorite_tiles", None)
+    if callable(refresh_tiles):
+        refresh_tiles(page_rows, current_selection)
+
     count_var = getattr(app, "radio_list_status_var", None)
     if count_var is not None:
         try:
@@ -5212,27 +5474,19 @@ def update_radio_results_table(app):
 
 
 def refresh_radio_station_table(app, *, reset_page=False):
-    query = ""
-    search_var = getattr(app, "radio_search_var", None)
-    if search_var is not None:
-        try:
-            query = search_var.get()
-        except Exception:
-            query = ""
-
-    if _favorites_view_enabled(app):
-        favorites = list(getattr(app, "radio_favorites", []) or [])
-        rows = (
-            _search_station_rows(favorites, query)
-            if str(query or "").strip()
-            else favorites
-        )
-    else:
-        rows = search_radio(app, query)
+    rows = radio_station_source_rows(app)
+    criteria = radio_station_filters.normalize_filter(
+        getattr(app, "radio_station_filter", None)
+    )
+    if criteria["categories"] or criteria["minimum_bitrate"] or criteria.get("country"):
+        rows = radio_station_filters.filter_stations(rows, criteria)
     app.radio_search_results = rows
     if reset_page:
         app.radio_search_page = 0
     update_radio_results_table(app)
+    refresh = getattr(app, "refresh_radio_station_filter_ui", None)
+    if callable(refresh):
+        refresh()
 
 
 def update_radio_header(app):
@@ -5346,12 +5600,21 @@ def _resolve_target_station(app, station_id=""):
     return None
 
 
-def play_radio_station(app, station_id=""):
+def play_radio_station(app, station_id="", *, random_token=None):
+    mode = vars(app).get("_radio_random_mode")
+    if random_token is None:
+        stop_radio_random(app)
+    elif mode is None or not mode.owns(random_token):
+        return False
     if not radio_available(app):
         update_radio_dependency_state(app)
         return False
 
-    station = _resolve_target_station(app, station_id=station_id)
+    station = (
+        normalize_station_entry(_radio_db_index(app).get(station_id))
+        if random_token is not None
+        else _resolve_target_station(app, station_id=station_id)
+    )
     if station is None:
         set_radio_status(
             app,
@@ -5368,6 +5631,7 @@ def play_radio_station(app, station_id=""):
     except Exception:
         pass
     request = _begin_radio_playback(app)
+    request.random_token = random_token
     if getattr(request, "handover_station_id", "") == station["id"]:
         preserved_title = getattr(request, "handover_title", "")
     _set_radio_light(app, "yellow")
@@ -5397,6 +5661,8 @@ def play_radio_station(app, station_id=""):
         _set_radio_title_text(
             app, preserved_title or _tr(app, "radio_header_title_idle", "Titel: -")
         )
+        if mode is not None:
+            mode.started(random_token)
         threading.Thread(
             target=_poll_radio_metadata, args=(app, proc), daemon=True
         ).start()
@@ -5413,6 +5679,8 @@ def play_radio_station(app, station_id=""):
             app,
             _tr(app, "radio_header_title_error", "Titel: Fehler / keine Verbindung"),
         )
+        if mode is not None:
+            mode.failed(random_token)
 
     def worker():
         _run_radio_playback_request(
@@ -5487,7 +5755,8 @@ def add_to_favorites(app, station):
     favorites = list(getattr(app, "radio_favorites", []) or [])
     if normalized["id"] not in {item.get("id", "") for item in favorites}:
         favorites.append(normalized)
-    save_radio_favorites(app, favorites=favorites)
+    if not save_radio_favorites(app, favorites=favorites):
+        return False
     app.radio_favorites = favorites
     refresh_radio_favorites_list(app)
     return True
@@ -5553,8 +5822,9 @@ def toggle_selected_favorite(app):
     return True
 
 
-def delete_selected_station(app):
-    station = _resolve_target_station(app, _selected_station_id(app))
+def delete_selected_station(app, *, station=None, allow_catalog=False, parent=None):
+    if station is None:
+        station = _resolve_target_station(app, _selected_station_id(app))
     if station is None:
         set_radio_status(
             app,
@@ -5563,7 +5833,7 @@ def delete_selected_station(app):
             ),
         )
         return False
-    if not bool(station.get("custom")):
+    if not allow_catalog and not bool(station.get("custom")):
         set_radio_status(
             app,
             _tr(
@@ -5576,26 +5846,47 @@ def delete_selected_station(app):
 
     if not messagebox.askyesno(
         _tr(app, "radio_delete_title", "Radio-Sender löschen"),
-        _tr(
-            app,
-            "radio_delete_prompt",
-            "Soll '{name}' wirklich gelöscht werden?",
+        (
+            _tr(
+                app,
+                "radio_history_delete_prompt",
+                "Delete '{name}' from the entire local station list and favorites? The history remains.",
+            )
+            if allow_catalog
+            else _tr(
+                app, "radio_delete_prompt", "Soll '{name}' wirklich gelöscht werden?"
+            )
         ).format(name=station.get("name", "")),
-        parent=app,
+        parent=parent if parent is not None else app,
     ):
         return False
 
     station_id = str(station.get("id", "") or "").strip()
-    app.radio_db = [
+    old_db = list(getattr(app, "radio_db", []) or [])
+    old_favorites = list(getattr(app, "radio_favorites", []) or [])
+    if allow_catalog:
+        matches = [row for row in old_db if row.get("id") == station_id]
+        if len(matches) != 1 or matches[0] != station:
+            return False
+    database = [
         item
         for item in list(getattr(app, "radio_db", []) or [])
         if item.get("id") != station_id
     ]
-    app.radio_favorites = [
+    favorites = [
         item
         for item in list(getattr(app, "radio_favorites", []) or [])
         if item.get("id") != station_id
     ]
+
+    if not save_radio_db(app, stations=database):
+        return False
+    app.radio_favorites = favorites
+    if not save_radio_favorites(app, favorites=favorites):
+        app.radio_favorites = old_favorites
+        save_radio_db(app, stations=old_db)
+        return False
+    app.radio_db, app.radio_favorites = database, favorites
 
     if getattr(app, "radio_current_station_id", "") == station_id:
         stop_radio_playback(app, async_mode=False, clear_current=True)
@@ -5605,8 +5896,6 @@ def delete_selected_station(app):
     ):
         clear_custom_station_form(app)
 
-    save_radio_db(app)
-    save_radio_favorites(app)
     refresh_radio_ui(app)
     set_radio_status(
         app,

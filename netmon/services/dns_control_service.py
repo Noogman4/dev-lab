@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+from functools import partial
 import os
 import re
 import threading
@@ -752,94 +753,256 @@ class DNSControlService:
             "resolver_label": resolver_label,
         }
 
-    def build_dns_health_report(self, resolvectl_output: str, tr=None) -> str:
-        def _tr(key: str, fallback: str) -> str:
-            if callable(tr):
-                try:
-                    return tr(key, fallback)
-                except Exception:
-                    return fallback
-            return fallback
+    @staticmethod
+    def _report_tr(tr, key, fallback):
+        if callable(tr):
+            try:
+                return tr(key, fallback)
+            except Exception:
+                pass
+        return fallback
 
-        evaluation = self.evaluate_dns_policy(resolvectl_output=resolvectl_output)
-        active_dns = list(evaluation.get("active_dns") or [])
-        primary_dns = active_dns[0] if active_dns else ""
-        fallback_dns = active_dns[1] if len(active_dns) > 1 else ""
-        dnssec_active = bool(
-            evaluation.get("dnssec_strict") or evaluation.get("dnssec_allow_downgrade")
+    def dns_report_view(self, resolvectl_output="", *, snapshot=None):
+        """Presentation only: keep configured addresses separate from DNS routes."""
+        snapshot = (
+            snapshot
+            if snapshot is not None
+            else self.parse_dns_snapshot(resolvectl_output)
         )
-        dot_active = bool(evaluation.get("dot_active"))
-        conflict = bool(evaluation.get("conflict"))
-        warnings = list(evaluation.get("warnings") or [])
-
-        lines = [_tr("dns_health_report_title", "=== DNS Health Check ==="), ""]
-
-        if primary_dns:
-            lines.append(
-                _tr("dns_health_primary_dns", "✔ Active DNS server: {dns}").format(
-                    dns=primary_dns
+        evaluation = self.evaluate_dns_snapshot(snapshot)
+        vpn = evaluation["vpn_active"]
+        sections = [snapshot["global"], *snapshot["links"]]
+        selected = [
+            section
+            for section in sections
+            if section["dns_servers"]
+            and section.get("dns_scope") is not False
+            and (bool(section.get("is_vpn")) if vpn else True)
+        ]
+        # Read security flags from the displayed resolver contexts, so global
+        # DoT/DNSSEC cannot claim protection for a VPN link with those flags off.
+        contexts = {"Global": []}
+        header = "Global"
+        for line in snapshot["text"].splitlines():
+            stripped = line.strip()
+            if stripped == "Global" or stripped.startswith("Link "):
+                header = stripped
+                contexts.setdefault(header, [])
+            contexts[header].append(line)
+        preferred, dot_modes, dnssec_modes = [], [], []
+        for section in selected:
+            text = "\n".join(contexts.get(section.get("header", "Global"), []))
+            first = section.get("current_dns_server", "")
+            if not first:
+                match = re.search(r"(?m)^\s*DNS Servers:\s*([^\s]+)", text)
+                first = self.normalize_dns_server(match[1]) if match else ""
+            preferred.extend([first] if first else [])
+            preferred.extend(section["dns_servers"])
+            lower = text.lower()
+            dot_modes.append(
+                True
+                if any(
+                    value in lower
+                    for value in (
+                        "+dnsovertls",
+                        "dns over tls: yes",
+                        "dnsovertls setting: yes",
+                        "dnsovertls=yes",
+                    )
+                )
+                else (
+                    False
+                    if any(
+                        value in lower
+                        for value in (
+                            "-dnsovertls",
+                            "dns over tls: no",
+                            "dnsovertls setting: no",
+                            "dnsovertls=no",
+                        )
+                    )
+                    else None
                 )
             )
+            dnssec_modes.append(self.detect_dnssec_mode(text))
+        preferred = list(dict.fromkeys(preferred))
+        effective = (
+            sorted(set(evaluation["vpn_dns"] + evaluation["global_dns"]))
+            if vpn
+            else list(snapshot["active_dns"])
+        )
+        return {
+            "evaluation": evaluation,
+            "preferred_dns": preferred,
+            "other_dns": (
+                sorted(set(snapshot["active_dns"]) - set(preferred)) if vpn else []
+            ),
+            "effective_dns": [] if evaluation["policy_unknown"] else effective,
+            "dot_active": (
+                all(dot_modes) if dot_modes and None not in dot_modes else None
+            ),
+            "dnssec_mode": (
+                dnssec_modes[0]
+                if dnssec_modes and len(set(dnssec_modes)) == 1
+                else "unknown"
+            ),
+        }
+
+    def dns_report_server_lines(self, view, tr=None):
+        t = partial(self._report_tr, tr)
+        evaluation = view["evaluation"]
+        preferred = view["preferred_dns"]
+        if preferred:
+            key, label = (
+                ("dns_report_vpn_dns", "✔ VPN DNS: {dns}")
+                if evaluation["vpn_active"]
+                else ("dns_status_primary_dns", "✔ Active DNS: {dns}")
+            )
+            lines = [t(key, label).format(dns=preferred[0])]
+            if len(preferred) > 1:
+                key, label = (
+                    ("dns_report_more_vpn_dns", "Additional VPN DNS: {dns}")
+                    if evaluation["vpn_active"]
+                    else ("dns_status_fallback_dns", "✔ Additional DNS server: {dns}")
+                )
+                lines.append(t(key, label).format(dns=", ".join(preferred[1:])))
         else:
+            lines = [t("dns_status_no_dns_server", "✖ No DNS server set")]
+        if view["other_dns"]:
             lines.append(
-                _tr("dns_health_no_primary_dns", "✖ No active DNS server detected")
+                t(
+                    "dns_report_other_configured", "Other configured DNS servers: {dns}"
+                ).format(dns=", ".join(view["other_dns"]))
             )
-
-        if fallback_dns:
+            if evaluation["only_vpn_dns"]:
+                lines.append(
+                    t(
+                        "dns_report_vpn_route_hint",
+                        "General DNS queries prefer the VPN according to the routing configuration.",
+                    )
+                )
+        if evaluation["split_ifaces"]:
             lines.append(
-                _tr("dns_health_fallback_dns", "✔ Fallback DNS: {dns}").format(
-                    dns=fallback_dns
+                t(
+                    "dns_report_split_hint",
+                    "Domain-specific DNS routes are also configured; DNS use can differ by domain.",
                 )
             )
+        if evaluation["global_dns"] and evaluation["vpn_active"]:
+            lines.append(
+                t("dns_report_competing_dns", "Competing DNS routes: {dns}").format(
+                    dns=", ".join(evaluation["global_dns"])
+                )
+            )
+        return lines
 
+    def dns_report_result_lines(
+        self, view, *, resolved_active=True, selected_dns=None, tr=None
+    ):
+        t = partial(self._report_tr, tr)
+        evaluation = view["evaluation"]
+        if resolved_active is False or not view["preferred_dns"]:
+            return [t("dns_status_system_limited", "✖ DNS system is limited")]
+        if evaluation["policy_unknown"]:
+            return [
+                t(
+                    "dns_report_unknown",
+                    "○ VPN/DNS status unknown; routing cannot be assessed",
+                )
+            ]
+        if evaluation["conflict"]:
+            return [
+                t("dns_health_result_conflict", "✖ DNS configuration shows issues"),
+                t(
+                    "dns_health_result_conflict_hint",
+                    "✖ Possible DNS conflict detected",
+                ),
+            ]
+        if evaluation["vpn_active"]:
+            return [
+                t(
+                    "dns_report_vpn_preferred",
+                    "✔ VPN DNS preferred according to the routing configuration",
+                )
+            ]
+        if (
+            selected_dns is not None
+            and not view["dot_active"]
+            and set(evaluation["active_dns"])
+            != {self.normalize_dns_server(d) for d in selected_dns}
+        ):
+            return [t("dns_status_system_limited", "✖ DNS system is limited")]
+        if view["dot_active"] and view["dnssec_mode"] in {"yes", "allow-downgrade"}:
+            return [t("dns_status_system_stable", "✔ DNS system is stable")]
+        if view["dot_active"] is False:
+            return [
+                t("dns_status_plain_configured", "○ DNS configured – DNS-over-TLS off")
+            ]
+        return [
+            t(
+                "dns_report_configured",
+                "○ DNS configured; check the optional security settings separately",
+            )
+        ]
+
+    def build_dns_status_report(
+        self,
+        resolvectl_output="",
+        *,
+        snapshot=None,
+        resolved_active=None,
+        selected_dns=None,
+        tr=None,
+        health=False,
+    ):
+        t = partial(self._report_tr, tr)
+        view = self.dns_report_view(resolvectl_output, snapshot=snapshot)
+        lines = [
+            (
+                t("dns_health_report_title", "=== DNS Health Check ===")
+                if health
+                else t("dns_status_report_title", "=== DNS Status ===")
+            ),
+            "",
+        ]
+        if resolved_active is not None:
+            lines.append(
+                t("dns_status_resolved_active", "✔ systemd-resolved: active")
+                if resolved_active
+                else t("dns_status_resolved_inactive", "✖ systemd-resolved not active")
+            )
+        lines.extend(self.dns_report_server_lines(view, tr=tr))
+        dot = view["dot_active"]
         lines.append(
-            _tr("dns_health_dot_active", "✔ DNS-over-TLS: active")
-            if dot_active
-            else _tr("dns_health_dot_inactive", "✖ DNS-over-TLS not active")
+            t("dns_status_dot_active", "✔ DNS-over-TLS: active")
+            if dot is True
+            else (
+                t("dns_status_dot_inactive", "○ DNS-over-TLS: off")
+                if dot is False
+                else t("dns_report_dot_unknown", "○ DNS-over-TLS: status unclear")
+            )
         )
-
-        if evaluation.get("dnssec_strict"):
-            lines.append(
-                _tr("dns_health_dnssec_strict", "✔ DNSSEC: active (Strict Mode)")
+        mode = view["dnssec_mode"]
+        key, fallback = {
+            "yes": ("dns_status_dnssec_strict", "✔ DNSSEC: active (Strict Mode)"),
+            "allow-downgrade": (
+                "dns_status_dnssec_fallback",
+                "○ DNSSEC: optional (allow-downgrade)",
+            ),
+            "no": ("dns_status_dnssec_disabled", "○ DNSSEC: disabled"),
+        }.get(mode, ("dns_status_dnssec_unclear", "○ DNSSEC: status unclear"))
+        lines.extend(
+            [t(key, fallback), "", t("result_section_title", "=== Result ===")]
+        )
+        lines.extend(
+            self.dns_report_result_lines(
+                view, resolved_active=resolved_active, selected_dns=selected_dns, tr=tr
             )
-        elif evaluation.get("dnssec_allow_downgrade"):
-            lines.append(
-                _tr(
-                    "dns_health_dnssec_fallback",
-                    "○ DNSSEC: active (fallback possible)",
-                )
-            )
-        else:
-            lines.append(_tr("dns_health_dnssec_unavailable", "✖ DNSSEC unavailable"))
+        )
+        return "\n".join(lines)
 
-        lines.extend(["", _tr("result_section_title", "=== Result ===")])
-        if primary_dns and dot_active and dnssec_active and not conflict:
-            lines.append(_tr("dns_health_result_stable", "✔ DNS configuration stable"))
-            lines.append(_tr("dns_health_result_no_issues", "✔ No anomalies detected"))
-        else:
-            if conflict:
-                lines.append(
-                    _tr("dns_health_result_conflict", "✖ DNS-Konfiguration auffällig")
-                )
-                lines.append(
-                    _tr(
-                        "dns_health_result_conflict_hint",
-                        "✖ Möglicher DNS-Konflikt erkannt",
-                    )
-                )
-            else:
-                lines.append(
-                    _tr("dns_health_result_limited", "✖ DNS configuration limited")
-                )
-                if warnings:
-                    lines.append(
-                        f"✖ {self._translate_policy_warning(warnings[0], tr=tr)}"
-                    )
-                else:
-                    lines.append(
-                        _tr("dns_health_result_issues", "✖ Anomalies detected")
-                    )
-        return "\n".join(lines).rstrip()
+    def build_dns_health_report(self, resolvectl_output: str, tr=None) -> str:
+        return self.build_dns_status_report(resolvectl_output, tr=tr, health=True)
 
     def build_dns_leak_check_result(
         self,
@@ -857,8 +1020,9 @@ class DNSControlService:
                     return fallback
             return fallback
 
-        evaluation = self.evaluate_dns_policy(resolvectl_output=resolvectl_output)
-        leak = bool(evaluation["leak"])
+        view = self.dns_report_view(resolvectl_output)
+        evaluation = view["evaluation"]
+        leak = bool(evaluation["conflict"])
         only_vpn_dns = bool(evaluation["only_vpn_dns"])
         multiple_dns_sources = bool(evaluation["multiple_dns_sources"])
 
@@ -873,13 +1037,13 @@ class DNSControlService:
                 risk = _tr("dns_leak_risk_high", "high")
                 status = _tr(
                     "dns_leak_status_leak_detected",
-                    "Leak detected / public DNS additionally active",
+                    "Competing DNS routes detected / possible DNS leak",
                 )
             elif only_vpn_dns:
                 risk = _tr("dns_leak_risk_low", "low")
                 status = _tr(
                     "dns_leak_status_vpn_only",
-                    "OK / VPN DNS exclusively active",
+                    "OK / VPN DNS preferred according to routing configuration",
                 )
             elif multiple_dns_sources:
                 risk = _tr("dns_leak_risk_medium", "medium")
@@ -889,13 +1053,13 @@ class DNSControlService:
                 )
             else:
                 risk = _tr("dns_leak_risk_low", "low")
-                status = _tr("dns_leak_status_ok", "OK / leak-free")
+                status = _tr("dns_leak_status_ok", "No DNS routing conflict detected")
         else:
             risk = _tr("dns_leak_risk_low", "low")
             status = _tr("dns_leak_status_vpn_inactive", "VPN not active")
 
         lines = [
-            _tr("dns_leak_report_title", "=== DNS Leak Check ==="),
+            _tr("dns_leak_report_title", "=== DNS Configuration Check ==="),
             "",
             _tr("dns_leak_public_ip", "Public IP: {ip}").format(
                 ip=public_ip or _tr("dns_leak_unknown", "unknown")
@@ -912,20 +1076,22 @@ class DNSControlService:
                 )
             ),
             "",
-            _tr("dns_leak_dns_servers", "DNS servers:"),
         ]
-        if dns_servers:
-            for dns in dns_servers:
-                lines.append(f"- {dns}")
-        else:
-            lines.append(
-                f"- {_tr('dns_leak_no_dns_servers', 'No DNS servers detected')}"
-            )
+        lines.extend(self.dns_report_server_lines(view, tr=tr))
+        lines.extend(
+            [
+                "",
+                _tr(
+                    "dns_report_check_scope",
+                    "Configuration check only; actual DNS traffic was not measured.",
+                ),
+            ]
+        )
 
         lines.extend(
             [
                 "",
-                _tr("dns_leak_detected", "Leak detected: {value}").format(
+                _tr("dns_leak_detected", "DNS routing conflict: {value}").format(
                     value=(
                         _tr("dns_leak_unknown", "unknown")
                         if evaluation["policy_unknown"]
@@ -967,7 +1133,7 @@ class DNSControlService:
             )
         elif only_vpn_dns:
             lines.append(
-                f"- {_tr('dns_leak_action_none_needed', 'VPN DNS active, no action needed')}"
+                f"- {_tr('dns_leak_action_none_needed', 'VPN DNS routing matches; no configuration change recommended')}"
             )
         elif not evaluation["vpn_active"]:
             lines.append(

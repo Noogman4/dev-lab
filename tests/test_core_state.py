@@ -3,15 +3,17 @@ from pathlib import Path
 from netmon.core import state
 
 
-def test_config_and_state_dirs_use_xdg_home(monkeypatch, tmp_path):
+def test_settings_are_central_and_runtime_state_uses_xdg_home(monkeypatch, tmp_path):
     config_home = tmp_path / "config-home"
     state_home = tmp_path / "state-home"
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
     monkeypatch.setenv("XDG_STATE_HOME", str(state_home))
+    monkeypatch.setenv("XDG_DOCUMENTS_DIR", str(tmp_path / "docs"))
 
-    assert state.get_netmon_config_dir() == str(config_home / "netmon")
+    assert state.get_netmon_config_dir() == str(tmp_path / "docs/NetMon/Config")
     assert state.get_netmon_state_dir() == str(state_home / "netmon")
-    assert (config_home / "netmon").is_dir()
+    assert (tmp_path / "docs/NetMon/Config").is_dir()
+    assert not (config_home / "netmon").exists()
     assert (state_home / "netmon").is_dir()
 
 
@@ -27,7 +29,9 @@ def test_xdg_documents_dir_wins_over_home_candidates(monkeypatch, tmp_path):
     assert (docs_home / "NetMon").is_dir()
 
 
-def test_documents_dir_prefers_documents_over_dokumente(monkeypatch, tmp_path):
+def test_documents_dir_prefers_dokumente_over_existing_english_directory(
+    monkeypatch, tmp_path
+):
     home = tmp_path / "home"
     home.mkdir(mode=0o700)
     (home / "Documents").mkdir(mode=0o700)
@@ -35,7 +39,7 @@ def test_documents_dir_prefers_documents_over_dokumente(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.delenv("XDG_DOCUMENTS_DIR", raising=False)
 
-    assert state.get_netmon_documents_dir() == str(home / "Documents" / "NetMon")
+    assert state.get_netmon_documents_dir() == str(home / "Dokumente" / "NetMon")
 
 
 def test_documents_dir_uses_dokumente_when_documents_missing(monkeypatch, tmp_path):

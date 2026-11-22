@@ -138,7 +138,7 @@ def test_dedicated_browser_reuses_strict_policy_with_general_web_access():
     assert "WebsiteFilter" not in policy
 
 
-def test_browser_requires_wayland_even_if_x11_display_exists(tmp_path, monkeypatch):
+def test_native_wayland_lookup_requires_a_display_name(tmp_path, monkeypatch):
     monkeypatch.setenv("DISPLAY", ":1")
     monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
     monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
@@ -158,13 +158,67 @@ def test_missing_provisioned_runtime_is_reported_without_starting(monkeypatch):
     monkeypatch.setattr(Path, "lstat", trusted_root)
     monkeypatch.setattr(
         session,
-        "_wayland_socket",
+        "_display_socket",
         lambda: pytest.fail("Started before checking the runtime"),
     )
     browser = session.BrowserSession(Path("/unused"), browser_dir=missing)
     browser.open("https://example.org/")
     try:
-        assert browser._errors.get(timeout=5) == "Die eigene Firefox-Basis fehlt."
+        assert browser._errors.get(timeout=5) == (
+            f"Die eigene Firefox-Basis fehlt unter {missing}. "
+            "Bitte das Paket netmon-web-browser-runtime installieren.",
+            None,
+        )
     finally:
         browser.close()
         browser._worker.join(timeout=5)
+
+
+@pytest.mark.parametrize("confirmed", [False, True])
+def test_x11_link_fallback_requires_confirmation(monkeypatch, confirmed):
+    url = "https://example.org/link"
+    browser = SimpleNamespace(take_error=lambda: ("Weston fehlt.", url))
+    app = SimpleNamespace(
+        _web_browser_session=browser,
+        tr=lambda _key, default: default,
+        after=lambda *_args: None,
+    )
+    opens = []
+
+    def ask(_title, message, **kwargs):
+        assert "Weston fehlt." in message
+        assert "außerhalb der NetMon-Sandbox" in message
+        assert kwargs["default"] == routing.messagebox.NO
+        return confirmed
+
+    monkeypatch.setattr(routing.messagebox, "askyesno", ask)
+    monkeypatch.setattr(
+        routing.subprocess, "Popen", lambda argv, **_kwargs: opens.append(argv)
+    )
+    routing._poll_errors(app, browser)
+    assert opens == ([["/usr/bin/xdg-open", url]] if confirmed else [])
+
+
+def test_browser_reports_x11_start_error_for_the_requested_link(tmp_path, monkeypatch):
+    def fail(_directory, _url):
+        raise session.X11DisplayError("Weston fehlt.")
+
+    browser = session.BrowserSession(tmp_path)
+    monkeypatch.setattr(browser, "_serve", lambda url: fail(None, url))
+    url = "https://example.org/link"
+    browser.open(url)
+    try:
+        assert browser._errors.get(timeout=5) == ("Weston fehlt.", url)
+    finally:
+        browser.close()
+        browser._worker.join(timeout=5)
+
+
+def test_nested_x11_keeps_brand_visible_in_weston_fullscreen_only():
+    pref = "browser.netmon.nestedX11"
+    state_dir = Path("/state")
+    runtime = Path("/firefox")
+    wayland = session._browser_policies(state_dir, runtime)
+    x11 = session._browser_policies(state_dir, runtime, nested_x11=True)
+    assert pref not in wayland["policies"]["Preferences"]
+    assert x11["policies"]["Preferences"][pref] == {"Value": True, "Status": "locked"}

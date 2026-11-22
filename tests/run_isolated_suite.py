@@ -17,6 +17,9 @@ os.environ["PYTHONPYCACHEPREFIX"] = "/nonexistent"
 
 
 def main():
+    # Fixture parents must not inherit the caller's group-writable umask.
+    # This affects only this test process and its isolated children.
+    os.umask(0o022)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--probe", action="store_true")
     parser.add_argument("--radio-sandbox-probe", action="store_true")
@@ -34,6 +37,7 @@ def main():
     parser.add_argument("--projectm-pixel-benchmark", action="store_true")
     parser.add_argument("--projectm-pixel-ui-probe", action="store_true")
     parser.add_argument("--php", type=Path)
+    parser.add_argument("--caddy", type=Path)
     parser.add_argument("--output-dir", type=Path)
     options, pytest_args = parser.parse_known_args()
     root = Path(__file__).resolve().parents[1]
@@ -85,6 +89,7 @@ def main():
                 options.projectm_frontend_probe,
                 options.projectm_ui_probe,
                 options.php,
+                options.caddy,
                 pytest_args,
                 sum(
                     (
@@ -118,6 +123,7 @@ def main():
                 options.projectm_display_probe,
                 options.projectm_frontend_probe,
                 options.php,
+                options.caddy,
                 pytest_args,
             )
         ):
@@ -137,6 +143,7 @@ def main():
                 options.projectm_audio_probe,
                 options.projectm_display_probe and options.projectm_frontend_probe,
                 options.php,
+                options.caddy,
                 pytest_args,
             )
         ):
@@ -154,6 +161,7 @@ def main():
                 options.radio_projectm_handover_probe,
                 options.radio_security_probe,
                 options.php,
+                options.caddy,
                 pytest_args,
             )
         ):
@@ -167,7 +175,13 @@ def main():
         or options.radio_projectm_handover_probe
         or options.radio_security_probe
     ):
-        if options.probe or options.radio_sandbox_probe or options.php or pytest_args:
+        if (
+            options.probe
+            or options.radio_sandbox_probe
+            or options.php
+            or options.caddy
+            or pytest_args
+        ):
             parser.error("Radio stream probe does not accept other test options")
         if (
             sum(
@@ -191,7 +205,7 @@ def main():
             security=options.radio_security_probe,
         )
     if options.radio_sandbox_probe:
-        if options.probe or options.php or pytest_args:
+        if options.probe or options.php or options.caddy or pytest_args:
             parser.error(
                 "Radio probe does not accept pytest, PHP or other probe options"
             )
@@ -297,6 +311,16 @@ def main():
         php = options.php.resolve(strict=True)
         command += ["--ro-bind", str(php), "/opt/test-php"]
         environment["NETMON_TEST_PHP"] = "/opt/test-php"
+    if options.caddy:
+        caddy = options.caddy.resolve(strict=True)
+        command += [
+            "--dir",
+            "/opt/netmon-test-tools",
+            "--ro-bind",
+            str(caddy),
+            "/opt/netmon-test-tools/caddy",
+        ]
+        environment["PATH"] = "/opt/netmon-test-tools:" + environment["PATH"]
     for key, value in environment.items():
         command += ["--setenv", key, value]
     python = str(root / ".venv/bin/python")
@@ -345,6 +369,8 @@ def main():
 
 PROBE = """
 import os, pathlib
+mask = os.umask(0o022)
+assert mask == 0o022
 assert os.geteuid() != 0
 assert os.readlink('/proc/self/ns/net') != os.environ['NETMON_PARENT_NET_NS']
 assert 'NoNewPrivs:\\t1' in pathlib.Path('/proc/self/status').read_text()

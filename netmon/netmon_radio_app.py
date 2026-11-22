@@ -15,16 +15,31 @@ import tempfile
 import threading
 import tkinter as tk
 import types
-from tkinter import filedialog, messagebox, simpledialog, ttk
+from tkinter import filedialog, font as tkfont, messagebox, simpledialog, ttk
 
 from netmon.core import icon_http, projectm_archive, radio_logo, radio_sandbox
+from netmon.core import radio_station_filters
 from netmon.core.log_redaction import format_log_message
 from netmon.core.private_logs import open_private_log
+from netmon.core.state import get_netmon_documents_subdir
+from netmon.core.user_files import prepare_user_files
+from netmon.features import radio_station_import_controller
+from netmon.features import radio_multi_recording_controller as multi_recording
 from netmon.core.privilege_launcher import (
     maintenance_terminal_command,
     terminal_environment,
 )
-from netmon.ui import projectm_pixel_window
+from netmon.ui import projectm_pixel_window, radio_random as radio_random_ui
+from netmon.ui.radio_manage import StationManagePopup
+from netmon.ui.radio_filters import StationFilterWindow, filter_summary
+from netmon.ui.radio_favorites import (
+    RadioFavoriteTiles,
+    fit_name,
+    fit_logo_dimensions,
+    fit_logo_image,
+    logo_homepage,
+    logo_key,
+)
 
 _LOGO_WORKERS = threading.BoundedSemaphore(2)
 
@@ -316,6 +331,23 @@ RADIO_DATABASE_EXCLUSIVE_COUNTRY_SOURCE_IDS = {
     "radio_browser_country_jp_exact",
     "radio_browser_country_br_exact",
 }
+
+
+def _build_station_import_actions(app, parent):
+    app.radio_xspf_import_button = ttk.Button(
+        parent,
+        text=app.tr("radio_xspf_import_button", "Senderdatei importieren"),
+        command=lambda: radio_station_import_controller.import_station_file_dialog(app),
+    )
+    app.radio_xspf_import_button.grid(row=1, column=0, sticky="w", pady=(6, 0))
+    app.radio_xspf_folder_button = ttk.Button(
+        parent,
+        text=app.tr("radio_xspf_folder_button", "Senderimport-Ordner"),
+        command=lambda: radio_station_import_controller.open_station_import_folder(app),
+    )
+    app.radio_xspf_folder_button.grid(
+        row=1, column=1, columnspan=2, sticky="w", padx=(12, 0), pady=(6, 0)
+    )
 
 
 def _standalone_radio_pane_drag_state() -> dict[str, int | bool]:
@@ -1280,9 +1312,7 @@ def _init_radio_runtime_paths(app, *, paths_builder=build_radio_paths) -> None:
     app.radio_favorites_path = paths.radio_favorites_path
     app.radio_settings_path = paths.radio_settings_path
     app.radio_log_path = os.path.join(
-        app.netmon_state_dir,
-        "logs",
-        "netmon_radio_app.log",
+        get_netmon_documents_subdir("Logs"), "netmon_radio_app.log"
     )
     app.radio_logo_cache_dir = os.path.join(
         app.netmon_state_dir,
@@ -1301,6 +1331,7 @@ def _init_radio_runtime_data_state(
     app.radio_db = []
     app.radio_favorites = []
     app.radio_search_results = []
+    app.radio_station_filter = radio_station_filters.normalize_filter()
     app.radio_settings = settings_builder()
 
 
@@ -1400,6 +1431,7 @@ def _init_radio_ui_recording_runtime_state(app) -> None:
     app.radio_record_transport_button = None
     app.radio_record_panel_button = None
     app.radio_record_settings_button = None
+    app.radio_output_setup_button = None
     app.radio_record_settings_window = None
     app.radio_record_start_button = None
     app.radio_record_stop_button = None
@@ -1451,7 +1483,9 @@ def _init_radio_ui_playlist_runtime_state(app) -> None:
     app.radio_system_folder_button = None
     app.radio_playlist_files_entries = []
     app.radio_system_folder_entries = []
-    app.radio_system_folder_path = ""
+    app.radio_system_folder_path = str(
+        app.radio_settings.get("system_folder_path", "") or ""
+    ).strip()
     app.radio_folder_browser_mode = "recordings"
     app.radio_folder_browser_current_path = ""
     app.radio_folder_browser_back_history = []
@@ -1523,6 +1557,7 @@ def _init_radio_ui_header_vars(
         value=app.tr("radio_header_title_idle", "Title: -")
     )
     app.radio_handover_title = ""
+    app.radio_notice_var = string_var_builder(value="")
     app.radio_stream_url_var = string_var_builder(
         value=app.tr("radio_stream_url_default", "Stream URL: -")
     )
@@ -1841,6 +1876,7 @@ class NetMonRadioApp(tk.Tk):
         start_theme: str | None = None,
         started_from: str | None = None,
     ):
+        prepare_user_files()
         super().__init__(className="NetMonRadio")
         self._apply_window_icon()
         self.title("NetMon Radio")
@@ -2121,7 +2157,7 @@ class NetMonRadioApp(tk.Tk):
             label="Einfügen", command=lambda: widget.event_generate("<<Paste>>")
         )
         widget.bind(
-            "<Button-3>",
+            "<ButtonRelease-3>",
             lambda event: self._show_context_menu(menu, event),
             add="+",
         )
@@ -2187,6 +2223,8 @@ class NetMonRadioApp(tk.Tk):
         return available and not transition_pending
 
     def attach_radio_to_netmon(self):
+        if multi_recording.blocked_handover(self):
+            return False
         if not self.refresh_radio_attach_state():
             return False
         try:
@@ -2250,6 +2288,8 @@ class NetMonRadioApp(tk.Tk):
         return True
 
     def detach_radio_from_netmon(self):
+        if multi_recording.blocked_handover(self):
+            return False
         callback = getattr(self, "radio_detach_callback", None)
         if callable(callback):
             try:
@@ -2409,6 +2449,58 @@ class NetMonRadioApp(tk.Tk):
         self._app_theme = theme
         self._apply_ttk_theme(theme)
         self._apply_tk_widget_theme(self, theme)
+        tiles = vars(self).get("radio_favorite_tiles")
+        if tiles is not None:
+            tiles.apply_theme(theme)
+        self.style.configure(
+            "RadioView.TButton",
+            background=theme["tab_bg"],
+            foreground=theme["fg"],
+            padding=(14, 7),
+        )
+        self.style.map(
+            "RadioView.TButton",
+            background=[
+                ("selected", theme["select_bg"]),
+                ("active", theme["tab_selected_bg"]),
+            ],
+            foreground=[("selected", theme["select_fg"])],
+        )
+        self.style.configure(
+            "RadioMuted.TLabel",
+            background=theme["panel_bg"],
+            foreground=theme["muted_fg"],
+        )
+        self.style.configure("RadioTransport.TButton", padding=(10, 10), borderwidth=0)
+        self.style.configure(
+            "RadioManage.TMenubutton",
+            padding=(12, 7),
+            background=theme["tab_bg"],
+            foreground=theme["fg"],
+        )
+        self.style.map(
+            "RadioManage.TMenubutton", background=[("active", theme["tab_selected_bg"])]
+        )
+        self.style.configure(
+            "RadioPanel.TLabelframe",
+            borderwidth=0,
+            relief="flat",
+            labelmargins=(vars(self).get("_radio_main_heading_inset", 8), 0, 0, 4),
+            background=theme["panel_bg"],
+        )
+        self.style.configure(
+            "RadioPanel.TLabelframe.Label",
+            foreground=theme["muted_fg"],
+            background=theme["panel_bg"],
+        )
+        record = vars(self).get("radio_record_transport_button")
+        if record is not None:
+            record.configure(
+                **radio_controller._record_button_colors(
+                    radio_controller._recording_busy(self),
+                    bool(vars(self).get("radio_record_blink_on", False)),
+                )
+            )
         try:
             self.radio_theme_name_var.set(self._theme_button_label(theme["name"]))
         except Exception:
@@ -2513,6 +2605,15 @@ class NetMonRadioApp(tk.Tk):
             fieldbackground=theme["entry_bg"],
             foreground=theme["entry_fg"],
             bordercolor=theme["border"],
+            insertcolor=theme["entry_fg"],
+        )
+        style.configure(
+            "TSpinbox",
+            fieldbackground=theme["entry_bg"],
+            background=theme["entry_bg"],
+            foreground=theme["entry_fg"],
+            bordercolor=theme["border"],
+            arrowcolor=theme["fg"],
             insertcolor=theme["entry_fg"],
         )
         style.configure(
@@ -3022,6 +3123,16 @@ class NetMonRadioApp(tk.Tk):
                     highlightbackground=theme["border"],
                     highlightthickness=0,
                 )
+            elif klass == "Menu":
+                widget.configure(
+                    bg=theme["panel_bg"],
+                    fg=theme["fg"],
+                    activebackground=theme["select_bg"],
+                    activeforeground=theme["select_fg"],
+                    disabledforeground=theme["muted_fg"],
+                    bd=0,
+                    relief="flat",
+                )
         except Exception:
             pass
         for child in widget.winfo_children():
@@ -3052,6 +3163,8 @@ class NetMonRadioApp(tk.Tk):
     def _radio_logo_size(self, variant="main"):
         if variant == "mini":
             return (88, 88)
+        if vars(self).get("radio_compact_player", False):
+            return (96, 96)
         return (110, 110) if self.radio_embedded_mode else (170, 170)
 
     def _fit_tk_photoimage(self, image, *, size):
@@ -3203,27 +3316,40 @@ class NetMonRadioApp(tk.Tk):
                 ("mini", 2),
             ):
                 width, height, pixels = images[index]
+                size = self._radio_logo_size(variant)
                 if Image is not None and ImageTk is not None:
                     # Fixed bounded RGBA buffer, no file/container decoder.
                     image = Image.frombytes("RGBA", (width, height), pixels)
+                    image = fit_logo_image(image, size)
                     rendered[variant] = ImageTk.PhotoImage(image)
                 else:
-                    image = tk.PhotoImage(width=width, height=height)
+                    target_width, target_height = fit_logo_dimensions(
+                        width, height, size
+                    )
+                    offset_x = (size[0] - target_width) // 2
+                    offset_y = (size[1] - target_height) // 2
+                    image = tk.PhotoImage(width=size[0], height=size[1])
                     rows = []
-                    for y in range(height):
+                    for y in range(target_height):
+                        source_y = y * height // target_height
                         colors = [
                             "#"
                             + pixels[
-                                (y * width + x) * 4 : (y * width + x) * 4 + 3
+                                (source_y * width + x * width // target_width)
+                                * 4 : (source_y * width + x * width // target_width)
+                                * 4
+                                + 3
                             ].hex()
-                            for x in range(width)
+                            for x in range(target_width)
                         ]
                         rows.append("{" + " ".join(colors) + "}")
-                    image.put(" ".join(rows))
-                    for y in range(height):
-                        for x in range(width):
-                            if pixels[(y * width + x) * 4 + 3] < 128:
-                                image.transparency_set(x, y, True)
+                    image.put(" ".join(rows), to=(offset_x, offset_y))
+                    for y in range(target_height):
+                        source_y = y * height // target_height
+                        for x in range(target_width):
+                            source_x = x * width // target_width
+                            if pixels[(source_y * width + source_x) * 4 + 3] < 128:
+                                image.transparency_set(offset_x + x, offset_y + y, True)
                     rendered[variant] = image
             if request_key != getattr(self, "_radio_logo_request_key", ""):
                 return
@@ -3246,7 +3372,7 @@ class NetMonRadioApp(tk.Tk):
                 pass
 
     def _download_station_logo(
-        self, logo_url, cache_path, request_key, *, cached_path=None
+        self, logo_url, cache_path, request_key, *, cached_path=None, homepage=""
     ):
         temporary = None
         try:
@@ -3264,7 +3390,13 @@ class NetMonRadioApp(tk.Tk):
                     raw = handle.read(radio_logo.INPUT_BYTES + 1)
                 payload = radio_sandbox.decode_logo(raw)
             else:
-                payload = radio_sandbox.fetch_logo(logo_url)
+                if logo_url.startswith("homepage:"):
+                    homepage, logo_url = logo_url[len("homepage:") :], ""
+                payload = (
+                    radio_sandbox.fetch_logo(logo_url, homepage=homepage)
+                    if homepage
+                    else radio_sandbox.fetch_logo(logo_url)
+                )
             radio_logo.validate_pixels(payload)
             os.makedirs(self.radio_logo_cache_dir, exist_ok=True)
             with tempfile.NamedTemporaryFile(
@@ -3276,7 +3408,10 @@ class NetMonRadioApp(tk.Tk):
                 handle.flush()
             os.replace(temporary, cache_path)
             temporary = None
-        except Exception:
+        except Exception as error:
+            logger = getattr(self, "_log_radio_logo_error", None)
+            if callable(logger):
+                logger(radio_sandbox.logo_error_code(error))
 
             def placeholder():
                 if request_key == getattr(self, "_radio_logo_request_key", ""):
@@ -3302,8 +3437,18 @@ class NetMonRadioApp(tk.Tk):
         except Exception:
             pass
 
+    def _log_radio_logo_error(self, code):
+        try:
+            # Only a fixed category; no sender URL, query, cookie or remote text.
+            self.log("Radio-Icon: " + radio_sandbox.LogoError(code).code)
+        except Exception:
+            pass
+
     def refresh_radio_station_logo(self, station):
         logo_url = self._station_logo_url(station)
+        if not logo_url and isinstance(station, dict):
+            logo_url = logo_key(station)
+        homepage = logo_homepage(station) if isinstance(station, dict) else ""
         station_id = ""
         if isinstance(station, dict):
             station_id = str(station.get("id", "") or "").strip()
@@ -3327,8 +3472,15 @@ class NetMonRadioApp(tk.Tk):
 
         def download():
             try:
+                if request_key != self._radio_logo_request_key:
+                    return
                 if cached_path is None:
-                    self._download_station_logo(logo_url, cache_path, request_key)
+                    if homepage:
+                        self._download_station_logo(
+                            logo_url, cache_path, request_key, homepage=homepage
+                        )
+                    else:
+                        self._download_station_logo(logo_url, cache_path, request_key)
                 else:
                     self._download_station_logo(
                         logo_url, cache_path, request_key, cached_path=cached_path
@@ -3501,7 +3653,6 @@ class NetMonRadioApp(tk.Tk):
         from netmon.features.web_browser_controller import route_radio_if_enabled
 
         url = PROJECTM_PRESET_SOURCE_URL
-
         protected = route_radio_if_enabled(self, url)
         if protected is not None:
             return protected
@@ -3764,7 +3915,7 @@ class NetMonRadioApp(tk.Tk):
 
         ttk.Button(
             frame,
-            text=self.tr("close", "Close"),
+            text=self.tr("btn_close", "Close"),
             command=_close,
         ).grid(row=6, column=0, sticky="e", pady=(10, 0))
         return popup
@@ -3901,6 +4052,9 @@ class NetMonRadioApp(tk.Tk):
         try:
             canvas.configure(scrollregion=canvas.bbox("all"))
             canvas.itemconfigure("content", width=canvas.winfo_width())
+            canvas.itemconfigure(
+                "content", height=self._radio_content_height(canvas.winfo_height())
+            )
         except Exception:
             pass
 
@@ -3910,8 +4064,22 @@ class NetMonRadioApp(tk.Tk):
             return
         try:
             canvas.itemconfigure("content", width=event.width)
+            canvas.itemconfigure(
+                "content",
+                height=self._radio_content_height(event.height),
+            )
         except Exception:
             pass
+
+    def _radio_content_height(self, available):
+        controls = vars(self).get("radio_player_controls")
+        navigation = vars(self).get("radio_main_navigation")
+        if controls is None or navigation is None:
+            return available
+        # Let the lists shrink into the viewport; only very short windows
+        # need the outer scrollbar to keep player and navigation reachable.
+        minimum = controls.winfo_reqheight() + 180
+        return max(available, minimum)
 
     def _on_mousewheel(self, event):
         canvas = getattr(self, "_scroll_canvas", None)
@@ -4011,43 +4179,12 @@ class NetMonRadioApp(tk.Tk):
         return "break"
 
     def _build_ui(self):
-        # source markers:
-        # text=("Start" if embedded else "projectM starten")
-        # text=("Stop" if embedded else "projectM stoppen")
-        # text="projectM installieren"
-        # text="Radio anheften"
-        # text="Miniplayer"
-        # text="Datenbanken"
-        # text="Erreichbarkeit prüfen"
-        # text="Sender hinzufügen"
-        # text="Steuerung & EQ"
-        # text="EQ"
-        # label="Bass"
-        # label="Mitten"
-        # label="Höhen"
-        # label="Aufnahme starten"
-        # label="Aufnahme stoppen"
-        # self.radio_station_table.heading("#0", text="Ampel")
-        # text="Beliebige Felder an- oder abwählen."
-        # popup.title("Datenbanken")
-        # text="Senderdatenbanken an- oder abwählen."
-        # text="Exklusive Länderdatenbanken"
-        # text="Alle auswählen"
-        # text="Exklusivmodus"
-        # text="Andere Datenbanken"
-        # ttk.Separator(source_frame, orient="horizontal")
-        # text="Datenbank aktualisieren"
-        # image=self.radio_status_indicator_images.get("unknown")
-        # text="Aktueller Sender"
         embedded = bool(getattr(self, "radio_embedded_mode", False))
         compact_layout = embedded or bool(getattr(self, "_radio_compact_layout", False))
         outer_pad = 3 if compact_layout else 12
         section_pad = 6 if compact_layout else 8
         controls_pad = 8 if compact_layout else 12
-        search_pad = 3 if compact_layout else 12
-        search_entry_pad = 4 if compact_layout else 6
-        volume_length = 180 if compact_layout else 220
-        eq_length = 116 if compact_layout else 150
+        self._radio_main_heading_inset = controls_pad
         station_table_height = 18 if compact_layout else 28
         self.columnconfigure(0, weight=1)
         self._scroll_canvas = None
@@ -4091,18 +4228,14 @@ class NetMonRadioApp(tk.Tk):
         else:
             self.rowconfigure(0, weight=0)
             self.rowconfigure(1, weight=0)
-            self.rowconfigure(2, weight=1)
+            self.rowconfigure(2, weight=0)
 
         controls_row = 0
         main_row = 1
         content_parent.rowconfigure(main_row, weight=1)
         content_parent.rowconfigure(controls_row, weight=0)
 
-        controls = ttk.LabelFrame(
-            content_parent,
-            text=self.tr("radio_group_player", "Player"),
-            padding=controls_pad,
-        )
+        controls = ttk.Frame(content_parent, padding=controls_pad)
         controls.grid(
             row=controls_row,
             column=0,
@@ -4110,283 +4243,71 @@ class NetMonRadioApp(tk.Tk):
             padx=outer_pad,
             pady=(0, 6 if embedded else outer_pad),
         )
-        controls.columnconfigure(0, weight=1)
-
-        player_top = ttk.Frame(controls)
-        player_top.grid(row=1, column=0, sticky="ew")
-        player_top.columnconfigure(0, weight=1)
-
-        playback_eq_frame = ttk.LabelFrame(
-            player_top,
-            text=self.tr("radio_group_controls_eq", "Controls & EQ"),
-            padding=section_pad,
-        )
-        playback_eq_frame.grid(row=0, column=0, sticky="ew")
-        playback_eq_frame.columnconfigure(0, weight=5, minsize=360)
-        playback_eq_frame.columnconfigure(1, weight=2, minsize=160)
-
-        playback_frame = ttk.LabelFrame(
-            playback_eq_frame,
-            text=self.tr("radio_group_controls", "Controls"),
-            padding=section_pad,
-        )
-        playback_frame.grid(row=0, column=0, sticky="nsew", padx=(0, outer_pad))
-        playback_frame.columnconfigure(0, weight=1)
-        self._set_radio_logo_placeholder(self.tr("radio_logo_placeholder", "No logo"))
-        button_row = ttk.Frame(playback_frame)
-        button_row.grid(row=0, column=0, pady=(0, 0))
-        ttk.Button(button_row, text="⏮", width=7, command=self.radio_previous).grid(
-            row=0, column=0, sticky="w"
-        )
-        ttk.Button(button_row, text="▶", width=7, command=self.radio_play).grid(
-            row=0, column=1, sticky="w", padx=(8, 0)
-        )
-        self.radio_record_transport_button = tk.Button(
-            button_row,
-            text="⏺",
-            width=7,
-            relief="flat",
-            bd=0,
-            bg="#b32020",
-            fg="#ffffff",
-            activebackground="#d83a3a",
-            activeforeground="#ffffff",
-            command=self.toggle_radio_recording,
-        )
-        self.radio_record_transport_button.grid(
-            row=0, column=2, sticky="w", padx=(8, 0)
-        )
-        ttk.Button(
-            button_row,
-            text="■",
-            width=7,
-            command=lambda: self.stop_radio_playback(async_mode=True),
-        ).grid(row=0, column=3, sticky="w", padx=(8, 0))
-        ttk.Button(button_row, text="⏭", width=7, command=self.radio_next).grid(
-            row=0, column=4, sticky="w", padx=(8, 0)
-        )
-        volume_row = ttk.Frame(playback_frame)
-        volume_row.grid(row=1, column=0, pady=(10, 0))
-        ttk.Label(volume_row, textvariable=self.radio_volume_label_var).grid(
-            row=0, column=0, sticky="e", padx=(0, 8)
-        )
-        volume = ttk.Scale(
-            volume_row,
-            from_=0,
-            to=100,
-            orient="horizontal",
-            variable=self.radio_volume_var,
-            command=self.on_radio_volume_preview,
-            length=volume_length,
-        )
-        volume.grid(row=0, column=1, sticky="w")
-        volume.bind("<ButtonRelease-1>", self.commit_radio_volume_change)
-        volume.bind("<KeyRelease>", self.commit_radio_volume_change)
-        volume.bind("<MouseWheel>", self._on_radio_volume_mousewheel)
-        volume.bind("<Button-4>", self._on_radio_volume_mousewheel)
-        volume.bind("<Button-5>", self._on_radio_volume_mousewheel)
-        ttk.Label(volume_row, textvariable=self.radio_volume_label_var).grid(
-            row=0, column=2, sticky="w", padx=(8, 0)
-        )
-        eq_frame = ttk.LabelFrame(
-            playback_eq_frame,
-            text=self.tr("radio_group_eq", "EQ"),
-            padding=section_pad,
-        )
-        eq_frame.grid(row=0, column=1, sticky="nsew")
-        eq_frame.columnconfigure(1, weight=1)
-        eq_frame.columnconfigure(2, weight=0)
-        self._build_eq_slider(
-            eq_frame,
-            row=0,
-            label=self.tr("radio_eq_bass", "Bass"),
-            variable=self.radio_eq_bass_var,
-            value_variable=self.radio_eq_bass_label_var,
-            slider_length=eq_length,
-        )
-        self._build_eq_slider(
-            eq_frame,
-            row=1,
-            label=self.tr("radio_eq_mid", "Mid"),
-            variable=self.radio_eq_mid_var,
-            value_variable=self.radio_eq_mid_label_var,
-            slider_length=eq_length,
-        )
-        self._build_eq_slider(
-            eq_frame,
-            row=2,
-            label=self.tr("radio_eq_treble", "Treble"),
-            variable=self.radio_eq_treble_var,
-            value_variable=self.radio_eq_treble_label_var,
-            slider_length=eq_length,
-        )
-        details_row = ttk.Frame(controls)
-        details_row.grid(row=0, column=0, sticky="ew", pady=(0, outer_pad))
-        details_row.columnconfigure(0, weight=1)
-        details_frame = ttk.LabelFrame(
-            details_row,
-            text=self.tr("radio_group_current_station", "Current station"),
-            padding=section_pad,
-        )
-        details_frame.grid(row=0, column=0, sticky="nsew")
-        details_frame.columnconfigure(1, weight=1)
-        details_frame.columnconfigure(2, weight=0)
-        self.radio_logo_label = ttk.Label(
-            details_frame,
-            text=self.tr("radio_logo_placeholder", "No logo"),
-            anchor="center",
-            padding=(4, 4),
-        )
-        self.radio_logo_label.grid(
-            row=0,
-            column=0,
-            rowspan=5,
-            sticky="nw",
-            padx=(0, outer_pad if embedded else 12),
-        )
-        ttk.Label(
-            details_frame,
-            textvariable=self.radio_source_var,
-            justify="left",
-        ).grid(row=0, column=1, sticky="w")
-        ttk.Label(
-            details_frame,
-            textvariable=self.radio_title_var,
-            justify="left",
-        ).grid(row=1, column=1, sticky="w", pady=(6, 0))
-        ttk.Label(
-            details_frame,
-            textvariable=self.radio_bitrate_var,
-            justify="left",
-        ).grid(row=2, column=1, sticky="w", pady=(6, 0))
-        ttk.Label(
-            details_frame,
-            textvariable=self.radio_record_status_var,
-            justify="left",
-        ).grid(row=3, column=1, sticky="w", pady=(10, 0))
-        self.radio_miniplayer_button = ttk.Button(
-            details_frame,
-            text=self.tr("radio_btn_miniplayer", "Miniplayer"),
-            command=self.open_radio_miniplayer,
-        )
-        self.radio_miniplayer_button.grid(
-            row=0,
-            column=2,
-            sticky="ne",
-            padx=(12, 0),
-        )
-        if embedded:
-            self.radio_detach_button = ttk.Button(
-                details_frame,
-                text=self.tr("radio_btn_detach", "Detach radio"),
-                command=self.detach_radio_from_netmon,
-            )
-            self.radio_detach_button.grid(
-                row=1,
-                column=2,
-                sticky="ne",
-                padx=(12, 0),
-                pady=(8, 0),
-            )
-        else:
-            self.radio_attach_button = ttk.Button(
-                details_frame,
-                text=self.tr("radio_btn_attach", "Attach radio"),
-                command=self.attach_radio_to_netmon,
-            )
-            self.radio_attach_button.grid(
-                row=1,
-                column=2,
-                sticky="ne",
-                padx=(12, 0),
-                pady=(8, 0),
-            )
-        if getattr(self, "radio_output_button_var", None) is None:
-            self.radio_output_button_var = tk.StringVar(
-                value=self.tr("radio_output_button_setup", "Ton einrichten…")
-            )
-        # Protected FIFO output: state is shown on the button itself.
-        self.radio_output_setup_button = ttk.Button(
-            details_frame,
-            textvariable=self.radio_output_button_var,
-            command=self.manage_protected_radio_output,
-        )
-        self.radio_output_setup_button.grid(
-            row=2,
-            column=2,
-            sticky="ne",
-            padx=(12, 0),
-            pady=(8, 0),
-        )
-        self.radio_database_count_label = ttk.Label(
-            details_frame,
-            textvariable=self.radio_database_count_var,
-            justify="right",
-        )
-        self.radio_database_count_label.grid(
-            row=3,
-            column=2,
-            sticky="ne",
-            padx=(12, 0),
-            pady=(6, 0),
-        )
+        self.radio_player_controls = controls
+        self._build_compact_radio_player(controls)
         main = ttk.Frame(content_parent, padding=(outer_pad, 0, outer_pad, outer_pad))
         main.grid(row=main_row, column=0, sticky="nsew")
         main.columnconfigure(0, weight=1)
         main.rowconfigure(0, weight=1)
-        main_pane = None
-        if not embedded:
-            main_pane = ttk.Panedwindow(main, orient="vertical")
-            main_pane.grid(row=0, column=0, sticky="nsew")
-            self.radio_main_pane = main_pane
-            self.radio_main_pane_marker = _install_pane_drag_marker(main, main_pane)
-        else:
-            self.radio_main_pane = None
-            self.radio_main_pane_marker = None
+        self.radio_main_pane = None
+        self.radio_main_pane_marker = None
+        navigation = ttk.Frame(self.radio_player_left_block)
+        navigation.grid(row=4, column=0, sticky="sew")
+        self.radio_main_navigation = navigation
+        self.radio_main_view_buttons = {}
+        self.radio_main_view = "radio"
+        self.radio_folder_view_paths = {}
+        for column, (key, title_key, fallback) in enumerate(
+            (
+                ("radio", "radio_view_radio", "Radio"),
+                ("media", "radio_view_media", "Local media"),
+                ("recordings", "radio_view_recordings", "Recordings"),
+                ("playlist", "radio_view_playlist", "Playlist"),
+            )
+        ):
+            button = ttk.Button(
+                navigation,
+                text=self.tr(title_key, fallback),
+                style="RadioView.TButton",
+                command=lambda view=key: self.show_radio_main_view(view),
+            )
+            button.grid(row=0, column=column, sticky="w", padx=(0, 6))
+            self.radio_main_view_buttons[key] = button
 
-        station_parent = main_pane if main_pane is not None else main
+        def layout_navigation(event=None):
+            available = event.width if event is not None else navigation.winfo_width()
+            row = column = used = 0
+            for button in self.radio_main_view_buttons.values():
+                width = button.winfo_reqwidth() + 6
+                if column and used + width > available:
+                    row += 1
+                    column = used = 0
+                button.grid(
+                    row=row,
+                    column=column,
+                    sticky="w",
+                    padx=(0, 6),
+                    pady=(4 if row else 0, 0),
+                )
+                column += 1
+                used += width
+
+        navigation.bind("<Configure>", layout_navigation, add="+")
+        pages = ttk.Frame(main)
+        pages.grid(row=0, column=0, sticky="nsew")
+        pages.columnconfigure(0, weight=1)
+        pages.rowconfigure(0, weight=1)
+        station_parent = pages
         station_frame = ttk.LabelFrame(
             station_parent,
             text=self.tr("radio_station_list", "Station list"),
             padding=section_pad,
+            style="RadioPanel.TLabelframe",
         )
-        if main_pane is None:
-            station_frame.grid(row=0, column=0, sticky="nsew")
+        station_frame.grid(row=0, column=0, sticky="nsew")
         station_frame.columnconfigure(0, weight=1)
         station_frame.rowconfigure(2, weight=1)
-        action_row = ttk.Frame(station_frame)
-        action_row.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
-        ttk.Button(
-            action_row,
-            textvariable=self.radio_toggle_favorites_text_var,
-            command=self.toggle_radio_favorites_view,
-        ).grid(row=0, column=0, sticky="w")
-        self.radio_reachability_button = ttk.Button(
-            action_row,
-            text=self.tr("radio_btn_check_reachability", "Check reachability"),
-            command=self.check_visible_radio_station_reachability,
-        )
-        self.radio_reachability_button.grid(row=0, column=1, sticky="w", padx=(12, 0))
-        ttk.Button(
-            action_row,
-            text=self.tr("radio_custom_add_button", "Add station"),
-            command=self.open_new_custom_radio_station_editor,
-        ).grid(row=0, column=2, sticky="w", padx=(12, 0))
-        search_row = ttk.Frame(station_frame, padding=search_pad)
-        search_row.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 8))
-        ttk.Label(
-            search_row,
-            text=self.tr("radio_search_label", "Search:"),
-        ).grid(row=0, column=0, sticky="w")
-        search = ttk.Entry(search_row, textvariable=self.radio_search_var, width=48)
-        search.grid(
-            row=0,
-            column=1,
-            sticky="w",
-            padx=(search_entry_pad, 0),
-        )
-        search.bind("<KeyRelease>", self.on_radio_search_changed)
-        self.attach_text_context_menu(search)
+        self._build_compact_station_toolbar(station_frame)
         self.radio_station_table = ttk.Treeview(
             station_frame,
             columns=("name", "genre", "bitrate"),
@@ -4407,7 +4328,7 @@ class NetMonRadioApp(tk.Tk):
             self.on_radio_station_clicked,
         )
         self.radio_station_table.bind(
-            "<Button-3>", self.show_radio_station_context_menu
+            "<ButtonRelease-3>", self.show_radio_station_context_menu
         )
         station_scroll = ttk.Scrollbar(
             station_frame,
@@ -4425,6 +4346,19 @@ class NetMonRadioApp(tk.Tk):
             yscrollcommand=station_scroll.set,
             xscrollcommand=station_scroll_x.set,
         )
+        self.radio_station_scroll = station_scroll
+        self.radio_station_scroll_x = station_scroll_x
+        self.radio_favorite_tiles = RadioFavoriteTiles(
+            station_frame,
+            cache_dir=self.radio_logo_cache_dir,
+            limiter=_LOGO_WORKERS,
+            on_select=self._select_radio_favorite_tile,
+            on_play=lambda key: radio_controller.play_radio_station(self, key),
+            on_context=self._show_radio_favorite_context_menu,
+            theme=self._theme_with_palette(self._start_theme_name),
+            on_logo_error=self._log_radio_logo_error,
+        )
+        self.radio_favorite_tiles.canvas.configure(yscrollcommand=station_scroll.set)
         status_row = ttk.Frame(station_frame)
         status_row.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(6, 0))
         status_row.columnconfigure(0, weight=1)
@@ -4460,38 +4394,12 @@ class NetMonRadioApp(tk.Tk):
             justify="right",
         ).grid(row=0, column=1, sticky="e")
 
-        playlist_parent = (
-            main_pane if main_pane is not None else (main if not embedded else controls)
-        )
-        # legacy source reference:
-        # playlist_parent = main_pane if main_pane is not None else (main if not embedded else controls)
-        playlist_grid_kwargs = {
-            "row": 1 if not embedded else 2,
-            "column": 0,
-            "sticky": "nsew" if not embedded else "ew",
-            "pady": (outer_pad, 0),
-        }
-        if embedded:
-            external_playlist_parent = getattr(
-                getattr(self, "radio_host_app", None),
-                "radio_tab_bottom_section",
-                None,
-            )
-            if external_playlist_parent is not None:
-                for child in external_playlist_parent.winfo_children():
-                    try:
-                        child.destroy()
-                    except Exception:
-                        pass
-                playlist_parent = external_playlist_parent
-                playlist_grid_kwargs = {"row": 0, "column": 0, "sticky": "nsew"}
         playlist_frame = ttk.LabelFrame(
-            playlist_parent,
-            text=self.tr("radio_group_local_media", "Local media"),
+            pages,
+            text=self.tr("radio_view_playlist", "Playlist"),
             padding=section_pad,
+            style="RadioPanel.TLabelframe",
         )
-        if main_pane is None:
-            playlist_frame.grid(**playlist_grid_kwargs)
         playlist_frame.columnconfigure(0, weight=1)
         playlist_frame.rowconfigure(1, weight=1)
         playlist_buttons = ttk.Frame(playlist_frame)
@@ -4520,20 +4428,31 @@ class NetMonRadioApp(tk.Tk):
             command=self.load_radio_playlist_from_file,
         )
         self.radio_playlist_load_button.grid(row=0, column=3, sticky="w", padx=(6, 0))
-        media_pane = ttk.Panedwindow(playlist_frame, orient="vertical")
-        media_pane.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
-        self.radio_media_pane = media_pane
-        self.radio_media_pane_marker = _install_pane_drag_marker(
-            playlist_frame, media_pane, y_offset=12
-        )
-        playlist_pane = ttk.Frame(media_pane)
+        self.radio_media_pane = None
+        self.radio_media_pane_marker = None
+        playlist_pane = ttk.Frame(playlist_frame)
+        playlist_pane.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
         playlist_pane.columnconfigure(0, weight=1)
         playlist_pane.rowconfigure(0, weight=1)
-        folder_pane = ttk.Frame(media_pane)
+        folder_frame = ttk.LabelFrame(
+            pages,
+            text=self.tr("radio_view_recordings", "Recordings"),
+            padding=section_pad,
+            style="RadioPanel.TLabelframe",
+        )
+        folder_frame.columnconfigure(0, weight=1)
+        folder_frame.rowconfigure(0, weight=1)
+        folder_pane = ttk.Frame(folder_frame)
+        folder_pane.grid(row=0, column=0, sticky="nsew")
         folder_pane.columnconfigure(0, weight=1)
         folder_pane.rowconfigure(2, weight=1)
-        media_pane.add(playlist_pane, weight=3)
-        media_pane.add(folder_pane, weight=2)
+        self.radio_folder_page = folder_frame
+        self.radio_main_views = {
+            "radio": station_frame,
+            "playlist": playlist_frame,
+            "media": folder_frame,
+            "recordings": folder_frame,
+        }
         playlist_browser = ttk.Frame(playlist_pane)
         playlist_browser.grid(row=0, column=0, sticky="nsew")
         playlist_browser.columnconfigure(0, weight=1)
@@ -4562,32 +4481,25 @@ class NetMonRadioApp(tk.Tk):
         ).grid(row=1, column=0, sticky="w", pady=(6, 0))
         folder_buttons = ttk.Frame(folder_pane)
         folder_buttons.grid(row=0, column=0, sticky="w")
-        self.radio_playlist_add_button = ttk.Button(
-            folder_buttons,
-            text=self.tr(
-                "radio_btn_open_recordings_folder",
-                "Open recording folder",
-            ),
-            command=self.open_radio_recordings_dir,
-        )
-        self.radio_playlist_add_button.grid(row=0, column=0, sticky="w")
-        self.radio_playlist_folder_button = ttk.Button(
-            folder_buttons,
-            text=self.tr(
-                "radio_btn_open_playlist_folder",
-                "Open playlist folder",
-            ),
-            command=self.open_radio_playlists_dir,
-        )
-        self.radio_playlist_folder_button.grid(row=0, column=1, sticky="w", padx=(6, 0))
+        self.radio_folder_source_buttons = folder_buttons
         self.radio_system_folder_button = ttk.Button(
             folder_buttons,
-            text=self.tr("radio_btn_open_system_folder", "Open system folder"),
+            text=self.tr("radio_btn_choose_media_folder", "Choose media folder"),
             command=self.open_radio_system_dir,
         )
-        self.radio_system_folder_button.grid(row=0, column=2, sticky="w", padx=(6, 0))
+        self.radio_system_folder_button.grid(row=0, column=0, sticky="w")
         recordings_header = ttk.Frame(folder_pane)
         recordings_header.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+        self.radio_folder_browser_header = recordings_header
+        self.radio_multi_recording_button = ttk.Button(
+            recordings_header,
+            text=self.tr("radio_multi_open", "Mehrfachaufnahme …"),
+            command=lambda: multi_recording.open_window(self),
+        )
+        self.radio_multi_recording_button.grid(
+            row=1, column=3, columnspan=3, sticky="e", pady=(6, 0)
+        )
+        self.radio_multi_recording_button.grid_remove()
         recordings_header.columnconfigure(1, weight=1)
         recordings_header.columnconfigure(2, weight=0)
         recordings_header.columnconfigure(3, weight=0)
@@ -4687,7 +4599,7 @@ class NetMonRadioApp(tk.Tk):
             self.delete_selected_radio_folder_browser_entry_key,
         )
         self.radio_recordings_listbox.bind(
-            "<Button-3>",
+            "<ButtonRelease-3>",
             self.show_radio_folder_browser_context_menu,
         )
         self.radio_folder_browser_menu = tk.Menu(
@@ -4701,144 +4613,8 @@ class NetMonRadioApp(tk.Tk):
             label=self.tr("radio_folder_menu_start_playlist", "Start playlist"),
             command=self.start_selected_radio_folder_browser_playlist,
         )
-        if main_pane is not None:
-            main_pane.add(station_frame, weight=3)
-            main_pane.add(playlist_frame, weight=2)
-
-        projectm_frame = ttk.LabelFrame(
-            player_top,
-            text=self.tr("radio_group_projectm", "projectM visualizer"),
-            padding=section_pad,
-        )
-        projectm_frame.grid(row=1, column=0, sticky="ew", pady=(outer_pad, 0))
-        projectm_frame.columnconfigure(0, weight=1)
-        projectm_frame.columnconfigure(1, weight=1)
-        projectm_frame.columnconfigure(2, weight=1)
-        preset_wraplength = 640 if embedded else 820
-
-        projectm_actions = ttk.Frame(projectm_frame)
-        projectm_actions.grid(row=0, column=0, columnspan=3, sticky="ew")
-        projectm_actions.columnconfigure(0, weight=1)
-        projectm_actions.columnconfigure(1, weight=1)
-        projectm_actions.columnconfigure(2, weight=1)
-
-        ttk.Button(
-            projectm_actions,
-            text=(
-                self.tr("radio_btn_start", "Start")
-                if embedded
-                else self.tr("radio_projectm_btn_start", "Start projectM")
-            ),
-            command=self.open_projectm_visualizer_test,
-        ).grid(row=0, column=0, sticky="ew", padx=(0, 6))
-        ttk.Button(
-            projectm_actions,
-            text=(
-                self.tr("radio_btn_stop", "Stop")
-                if embedded
-                else self.tr("radio_projectm_btn_stop", "Stop projectM")
-            ),
-            command=self.close_projectm_visualizer_test,
-        ).grid(row=0, column=1, sticky="ew", padx=6)
-        if embedded:
-            self.radio_record_settings_button = ttk.Button(
-                projectm_actions,
-                text="⚙",
-                width=3,
-                command=self.open_radio_record_settings_popup,
-            )
-        else:
-            self.radio_record_settings_button = ttk.Button(
-                projectm_actions,
-                text=self.tr(
-                    "radio_projectm_btn_install",
-                    "Install projectM",
-                ),
-                command=self.install_projectm_visualizer,
-            )
-            self.radio_projectm_install_button = self.radio_record_settings_button
-        self.radio_record_settings_button.grid(
-            row=0,
-            column=2,
-            sticky="ew",
-            padx=(6, 0),
-        )
-
-        self.radio_projectm_preset_open_button = ttk.Button(
-            projectm_actions,
-            text=self.tr(
-                "radio_projectm_btn_open_presets",
-                "Open NetMon presets",
-            ),
-            command=self.open_projectm_preset_folder,
-        )
-        self.radio_projectm_preset_open_button.grid(
-            row=1,
-            column=0,
-            sticky="ew",
-            padx=(0, 6),
-            pady=(6, 0),
-        )
-        self.radio_projectm_preset_import_button = ttk.Button(
-            projectm_actions,
-            text=self.tr(
-                "radio_projectm_btn_manage_presets",
-                "Preset manager",
-            ),
-            command=self.open_projectm_preset_manager,
-        )
-        self.radio_projectm_preset_import_button.grid(
-            row=1,
-            column=1,
-            sticky="ew",
-            padx=6,
-            pady=(6, 0),
-        )
-        self.radio_database_button = ttk.Button(
-            projectm_actions,
-            text=self.tr("radio_database_window_title", "Databases"),
-            command=self.open_radio_database_sources_popup,
-        )
-        self.radio_database_button.grid(
-            row=1,
-            column=2,
-            sticky="ew",
-            padx=(6, 0),
-            pady=(6, 0),
-        )
-        if not getattr(self, "radio_embedded_mode", False):
-            ttk.Label(
-                projectm_frame,
-                textvariable=self.radio_attach_status_var,
-                justify="left",
-            ).grid(row=3, column=0, columnspan=3, sticky="w", pady=(8, 0))
-        else:
-            self.radio_attach_button = None
-
-        ttk.Label(
-            projectm_frame,
-            textvariable=self.radio_projectm_preset_var,
-            justify="left",
-            wraplength=preset_wraplength,
-        ).grid(
-            row=(1 if embedded else 4),
-            column=0,
-            columnspan=3,
-            sticky="w",
-            pady=(8, 0),
-        )
-        ttk.Label(
-            projectm_frame,
-            textvariable=self.radio_projectm_preset_hint_var,
-            justify="left",
-            wraplength=preset_wraplength,
-        ).grid(
-            row=(2 if embedded else 5),
-            column=0,
-            columnspan=3,
-            sticky="w",
-            pady=(4, 0),
-        )
+        self._set_radio_main_view("radio")
+        self.show_all_radio_stations(save=False)
 
         self.radio_station_menu = tk.Menu(self.radio_station_table, tearoff=0)
         self.radio_station_menu.add_command(
@@ -4857,6 +4633,10 @@ class NetMonRadioApp(tk.Tk):
         self.radio_station_menu.add_command(
             label=self.tr("radio_menu_start_recording", "Start recording"),
             command=self.start_radio_recording,
+        )
+        self.radio_station_menu.add_command(
+            label=self.tr("radio_multi_add", "Zur Mehrfachaufnahme hinzufügen"),
+            command=lambda: multi_recording.add_selected(self),
         )
         self.radio_station_menu.add_command(
             label=self.tr("radio_menu_stop_recording", "Stop recording"),
@@ -4881,7 +4661,669 @@ class NetMonRadioApp(tk.Tk):
             command=self.delete_selected_radio_station,
         )
 
+    def _build_compact_radio_player(self, parent):
+        self.radio_compact_player = True
+        parent.columnconfigure(0, weight=1)
+        left_block = ttk.Frame(parent)
+        left_block.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
+        left_block.columnconfigure(0, weight=1)
+        left_block.rowconfigure(4, weight=1)
+        self.radio_player_left_block = left_block
+        control_block = ttk.Frame(parent)
+        control_block.grid(row=0, column=1, sticky="nsew")
+        control_block.columnconfigure(0, weight=1)
+        control_block.rowconfigure(2, weight=1)
+        self.radio_player_control_block = control_block
+        info = ttk.Frame(left_block)
+        info.grid(row=0, column=0, sticky="new")
+        info.columnconfigure(1, weight=1)
+        self.radio_logo_label = ttk.Label(info, anchor="center")
+        self.radio_logo_label.grid(row=0, column=0, rowspan=2, padx=(0, 10))
+        self._set_radio_logo_placeholder()
+        logo_column_width = self.radio_logo_label.winfo_reqwidth() + 10
+        info.columnconfigure(0, minsize=logo_column_width)
+        name_font = tkfont.Font(root=info, font=("TkDefaultFont", 11, "bold"))
+        self.radio_station_name_label = ttk.Label(
+            info,
+            width=24,
+            font=name_font,
+            anchor="nw",
+            justify="left",
+        )
+        self.radio_station_name_label.grid(row=0, column=1, rowspan=2, sticky="new")
+
+        def update_station_name(*_args):
+            label = self.radio_station_name_label
+            # Keep the full shared station value; only this label is shortened.
+            text = fit_name(
+                self.radio_now_playing_var.get(),
+                name_font,
+                max(1, label.winfo_width() - 4),
+                max_lines=3,
+            )
+            if label.cget("text") != text:
+                label.configure(text=text)
+
+        name_trace = self.radio_now_playing_var.trace_add("write", update_station_name)
+        self.radio_station_name_label.bind("<Configure>", update_station_name)
+        self.radio_station_name_label.bind(
+            "<Destroy>",
+            lambda _event: self.radio_now_playing_var.trace_remove("write", name_trace),
+        )
+        update_station_name()
+        self.radio_title_label = ttk.Label(
+            left_block,
+            textvariable=self.radio_title_var,
+            width=24,
+            style="RadioMuted.TLabel",
+        )
+        self.radio_title_label.grid(row=1, column=0, sticky="ew")
+        player_stack = ttk.Frame(control_block)
+        player_stack.grid(row=0, column=0, sticky="new")
+        player_stack.columnconfigure(0, weight=1)
+        transport = ttk.Frame(player_stack)
+        transport.grid(row=0, column=0, sticky="ew")
+        self.radio_transport_buttons = {}
+        for column, (key, text, command) in enumerate(
+            (
+                ("previous", "⏮", self.radio_previous),
+                ("play", "▶", self.radio_play),
+                ("record", "⏺", self.toggle_radio_recording),
+                ("stop", "■", lambda: self.stop_radio_playback(async_mode=True)),
+                ("next", "⏭", self.radio_next),
+            )
+        ):
+            if key == "record":
+                control = tk.Button(
+                    transport,
+                    text=text,
+                    width=4,
+                    pady=8,
+                    relief="flat",
+                    bd=0,
+                    bg="#b32020",
+                    fg="#ffffff",
+                    activebackground="#d83a3a",
+                    activeforeground="#ffffff",
+                    command=command,
+                )
+                self.radio_record_transport_button = control
+            else:
+                control = ttk.Button(
+                    transport,
+                    text=text,
+                    width=4,
+                    style="RadioTransport.TButton",
+                    command=command,
+                )
+            transport.columnconfigure(column, weight=1, uniform="transport")
+            control.grid(
+                row=0,
+                column=column,
+                sticky="nsew",
+                padx=(0, 4 if column < 4 else 0),
+            )
+            self.radio_transport_buttons[key] = control
+        volume_row = ttk.Frame(player_stack)
+        volume_row.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+        volume_row.columnconfigure(1, weight=1)
+        ttk.Label(volume_row, text="0%").grid(row=0, column=0, sticky="w")
+        volume = ttk.Scale(
+            volume_row,
+            from_=0,
+            to=100,
+            orient="horizontal",
+            variable=self.radio_volume_var,
+            command=self.on_radio_volume_preview,
+            length=110,
+        )
+        volume.grid(row=0, column=1, sticky="ew", padx=(8, 8))
+        ttk.Label(volume_row, textvariable=self.radio_volume_label_var, width=4).grid(
+            row=0, column=2, sticky="w"
+        )
+        self.radio_compact_volume = volume
+        volume.bind("<ButtonRelease-1>", self.commit_radio_volume_change)
+        volume.bind("<KeyRelease>", self.commit_radio_volume_change)
+        for event in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+            volume.bind(event, self._on_radio_volume_mousewheel)
+        equalizer = volume_row
+        self.radio_inline_equalizer = equalizer
+        equalizer.columnconfigure(1, weight=1)
+        for row, (key, label, variable, value) in enumerate(
+            (
+                (
+                    "radio_eq_bass",
+                    "Bass",
+                    self.radio_eq_bass_var,
+                    self.radio_eq_bass_label_var,
+                ),
+                (
+                    "radio_eq_mid",
+                    "Mid",
+                    self.radio_eq_mid_var,
+                    self.radio_eq_mid_label_var,
+                ),
+                (
+                    "radio_eq_treble",
+                    "Treble",
+                    self.radio_eq_treble_var,
+                    self.radio_eq_treble_label_var,
+                ),
+            )
+        ):
+            self._build_eq_slider(
+                equalizer,
+                row=row + 1,
+                label=self.tr(key, label),
+                variable=variable,
+                value_variable=value,
+                slider_length=120,
+            )
+        self.radio_record_settings_button = ttk.Button(
+            control_block,
+            text=self.tr("radio_tool_settings", "Recording and radio settings"),
+            command=lambda: self.open_radio_record_settings_popup(),
+        )
+        self.radio_record_settings_button.grid(
+            row=1, column=0, sticky="ew", pady=(6, 0)
+        )
+        detail_actions = ttk.Frame(control_block)
+        detail_actions.grid(row=2, column=0, sticky="nsew", pady=(6, 0))
+        detail_actions.rowconfigure(1, weight=1)
+        detail_actions.columnconfigure(0, weight=1, uniform="radio_actions")
+        detail_actions.columnconfigure(1, minsize=6)
+        detail_actions.columnconfigure(2, weight=1, uniform="radio_actions")
+        self.radio_player_details_button = ttk.Button(
+            detail_actions,
+            text=self.tr("radio_show_details", "Show details"),
+            command=lambda: self.open_radio_toolbox("details"),
+            style="TButton",
+        )
+        self.radio_player_details_button.grid(row=0, column=0, sticky="ew")
+        self.radio_miniplayer_button = ttk.Button(
+            detail_actions,
+            text=self.tr("radio_btn_miniplayer", "Miniplayer"),
+            command=lambda: self.open_radio_miniplayer(),
+            style="TButton",
+        )
+        self.radio_miniplayer_button.grid(row=1, column=0, sticky="sew", pady=(6, 0))
+        self.radio_attach_button = None
+        self.radio_detach_button = None
+        if self.radio_embedded_mode:
+            self.radio_detach_button = ttk.Button(
+                detail_actions,
+                text=self.tr("radio_btn_detach", "Detach radio"),
+                command=lambda: self.detach_radio_from_netmon(),
+            )
+            host_action = self.radio_detach_button
+        else:
+            self.radio_attach_button = ttk.Button(
+                detail_actions,
+                text=self.tr("radio_btn_attach", "Attach radio"),
+                command=lambda: self.attach_radio_to_netmon(),
+            )
+            host_action = self.radio_attach_button
+        host_action.grid(row=0, column=2, sticky="ew")
+        visualizer = ttk.Button(
+            detail_actions,
+            text=self.tr("radio_tool_visualizer", "Visualization"),
+            command=lambda: self.open_radio_toolbox("visualizer"),
+            style="TButton",
+        )
+        visualizer.grid(row=1, column=2, sticky="sew", pady=(6, 0))
+        self.radio_player_tool_buttons = {"visualizer": visualizer}
+        self.radio_record_summary = ttk.Label(
+            left_block,
+            textvariable=self.radio_record_status_var,
+            width=24,
+            anchor="w",
+            style="RadioMuted.TLabel",
+        )
+        self.radio_record_summary.grid(row=2, column=0, sticky="nsew")
+        notice_font = tkfont.nametofont("TkDefaultFont", root=left_block)
+        self.radio_notice_area = ttk.Frame(
+            left_block, height=2 * notice_font.metrics("linespace") + 4
+        )
+        self.radio_notice_area.grid(row=3, column=0, sticky="ew")
+        self.radio_notice_area.columnconfigure(0, weight=1)
+        self.radio_notice_area.rowconfigure(0, weight=1)
+        self.radio_notice_area.grid_propagate(False)
+        self.radio_notice_label = ttk.Label(
+            self.radio_notice_area,
+            textvariable=self.radio_notice_var,
+            font=notice_font,
+            width=24,
+            anchor="nw",
+            justify="left",
+        )
+        self.radio_notice_label.grid(row=0, column=0, sticky="nsew", pady=(2, 0))
+        radio_controller._radio_output_hint(self)
+
+        def align_recording_row(_event=None):
+            # Title and recording occupy full-width text rows below the logo.
+            line_height = max(
+                widget.winfo_reqheight() for widget in equalizer.grid_slaves(row=3)
+            )
+            left_block.rowconfigure(1, minsize=line_height)
+            left_block.rowconfigure(2, minsize=line_height)
+            settings_row_height = max(
+                line_height, self.radio_record_settings_button.winfo_reqheight() + 6
+            )
+            control_block.rowconfigure(1, minsize=settings_row_height)
+
+        player_stack.bind("<Configure>", align_recording_row, add="+")
+        self.radio_player_details_button.bind(
+            "<Configure>", align_recording_row, add="+"
+        )
+        self.radio_record_settings_button.bind(
+            "<Configure>", align_recording_row, add="+"
+        )
+        align_recording_row()
+
+        left_block.bind(
+            "<Configure>",
+            lambda event: self.radio_record_summary.configure(
+                wraplength=max(120, event.width)
+            ),
+            add="+",
+        )
+
+    def _build_compact_station_toolbar(self, parent):
+        toolbar = ttk.Frame(parent)
+        toolbar.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 8))
+        toolbar.columnconfigure(1, weight=1)
+        selectors = ttk.Frame(toolbar)
+        selectors.grid(row=0, column=0, sticky="w", padx=(0, 10))
+        self.radio_favorite_selectors = {}
+        for column, (enabled, key, fallback) in enumerate(
+            (
+                (True, "radio_compact_favorites", "Favorites"),
+                (False, "radio_compact_all", "All stations"),
+            )
+        ):
+            button = ttk.Button(
+                selectors,
+                text=self.tr(key, fallback),
+                style="RadioView.TButton",
+                command=lambda value=enabled: (
+                    self.set_radio_favorites_view(True)
+                    if value
+                    else self.show_all_radio_stations()
+                ),
+            )
+            button.grid(row=0, column=column, padx=(0, 4))
+            self.radio_favorite_selectors[enabled] = button
+        search_row = ttk.Frame(toolbar)
+        search_row.grid(row=0, column=1, columnspan=2, sticky="ew")
+        search_row.columnconfigure(1, weight=1)
+        ttk.Label(search_row, text=self.tr("radio_search_label", "Search:")).grid(
+            row=0, column=0, padx=(0, 6)
+        )
+        search = ttk.Entry(search_row, textvariable=self.radio_search_var, width=16)
+        search.grid(row=0, column=1, sticky="ew")
+        search.bind("<KeyRelease>", self.on_radio_search_changed)
+        self.attach_text_context_menu(search)
+        self.radio_compact_search = search
+        self.radio_station_filter_window = None
+        self.radio_station_filter_text = tk.StringVar(self)
+        self.radio_station_filter_button = ttk.Button(
+            toolbar,
+            text=self.tr("radio_filter_button", "Filter…"),
+            style="RadioView.TButton",
+            command=self.open_radio_station_filter,
+        )
+        self.radio_station_filter_button.grid(row=1, column=0, sticky="w", pady=(6, 0))
+        summary = ttk.Label(
+            toolbar, textvariable=self.radio_station_filter_text, width=1
+        )
+        summary.grid(row=1, column=1, sticky="ew", padx=(0, 8), pady=(6, 0))
+        summary.bind(
+            "<Configure>",
+            lambda event: summary.configure(wraplength=max(80, event.width)),
+        )
+        manage = ttk.Button(
+            toolbar,
+            text=self.tr("radio_manage_stations", "Manage stations"),
+            style="RadioManage.TMenubutton",
+            command=lambda: self.radio_manage_popup.toggle(),
+        )
+        manage.grid(row=1, column=2, sticky="e", pady=(6, 0))
+        self.radio_manage_button = manage
+        menu = tk.Menu(manage, tearoff=0)
+        self.radio_manage_menu = menu
+        menu.add_command(label=self.radio_database_count_var.get(), state="disabled")
+        menu.add_separator()
+        actions = (
+            (
+                "add",
+                "radio_custom_add_button",
+                "Add station",
+                self.open_new_custom_radio_station_editor,
+            ),
+            (
+                "import",
+                "radio_xspf_import_button",
+                "Import station file",
+                lambda: radio_station_import_controller.import_station_file_dialog(
+                    self
+                ),
+            ),
+            (
+                "imports",
+                "radio_xspf_folder_button",
+                "Station import folder",
+                lambda: radio_station_import_controller.open_station_import_folder(
+                    self
+                ),
+            ),
+            (
+                "databases",
+                "radio_database_window_title",
+                "Databases",
+                self.open_radio_database_sources_popup,
+            ),
+            (
+                "reachability",
+                "radio_btn_check_reachability",
+                "Check reachability",
+                self.check_visible_radio_station_reachability,
+            ),
+            (
+                "station",
+                "radio_selected_station_actions",
+                "Selected station actions…",
+                self.show_selected_radio_station_actions,
+            ),
+        )
+        self.radio_manage_actions = {}
+        for name, key, fallback, command in actions:
+            menu.add_command(label=self.tr(key, fallback), command=command)
+            self.radio_manage_actions[name] = menu.index("end")
+        self.radio_reachability_menu_index = self.radio_manage_actions["reachability"]
+        menu.configure(postcommand=self._refresh_radio_manage_menu)
+        self.radio_manage_popup = StationManagePopup(self)
+
+    def _refresh_radio_manage_menu(self):
+        self.radio_manage_menu.entryconfigure(
+            0, label=self.radio_database_count_var.get()
+        )
+        radio_controller._set_radio_reachability_button_state(
+            self, running=bool(getattr(self, "radio_reachability_check_running", False))
+        )
+
+    def toggle_radio_random(self):
+        return radio_controller.toggle_radio_random(self)
+
+    def open_radio_random_popup(self):
+        return radio_random_ui.open_popup(self)
+
+    def refresh_radio_random_ui(self):
+        return radio_random_ui.refresh_controls(self)
+
+    def set_radio_favorites_view(self, enabled):
+        if bool(self.radio_show_favorites_var.get()) != bool(enabled):
+            return self.toggle_radio_favorites_view()
+        return bool(enabled)
+
+    def show_all_radio_stations(self, *, save=True):
+        window = vars(self).get("radio_station_filter_window")
+        if window is not None and window.winfo_exists():
+            window.close()
+        self.radio_station_filter = radio_station_filters.normalize_filter()
+        self.radio_search_var.set("")
+        self.radio_context_station_id = ""
+        self.radio_show_favorites_var.set(False)
+        radio_controller.refresh_radio_station_table(self, reset_page=True)
+        if save:
+            radio_controller.save_radio_settings(self)
+        return True
+
+    def open_radio_station_filter(self):
+        window = vars(self).get("radio_station_filter_window")
+        if window is not None and window.winfo_exists():
+            window.lift()
+            return window
+        self.radio_station_filter_window = StationFilterWindow(
+            self,
+            self,
+            self.radio_station_filter,
+            self.apply_radio_station_filter,
+            hint=self.tr(
+                "radio_station_filter_hint",
+                "No checked category means all categories. Filters apply immediately together with the search text.",
+            ),
+            stations=lambda: radio_controller.radio_station_source_rows(self),
+            countries=True,
+        )
+        return self.radio_station_filter_window
+
+    def apply_radio_station_filter(self, criteria):
+        self.radio_station_filter = radio_station_filters.normalize_filter(criteria)
+        radio_controller.refresh_radio_station_table(self, reset_page=True)
+        return True
+
+    def refresh_radio_station_filter_ui(self):
+        if vars(self).get("radio_station_filter_text") is None:
+            return
+        criteria = self.radio_station_filter
+        self.radio_station_filter_text.set(filter_summary(self, criteria))
+        active = (
+            criteria["categories"]
+            or criteria["minimum_bitrate"]
+            or criteria.get("country")
+        )
+        self.radio_station_filter_button.state(
+            ["selected"] if active else ["!selected"]
+        )
+        window = vars(self).get("radio_station_filter_window")
+        if window is not None and window.winfo_exists():
+            window.preview()
+
+    def show_selected_radio_station_actions(self):
+        selection = self.radio_station_table.selection()
+        key = str(
+            selection[0] if selection else self.radio_station_table.focus()
+        ).strip()
+        if not key:
+            return
+        self.radio_context_station_id = key
+        event = tk.Event()
+        event.x_root = self.radio_manage_button.winfo_rootx()
+        event.y_root = (
+            self.radio_manage_button.winfo_rooty()
+            + self.radio_manage_button.winfo_height()
+        )
+        self._show_context_menu(self.radio_station_menu, event)
+
+    def close_radio_toolbox(self):
+        window = vars(self).get("radio_toolbox_window")
+        if window is not None:
+            try:
+                window.destroy()
+            except tk.TclError:
+                pass
+        self.radio_toolbox_window = None
+        self.radio_toolbox_kind = ""
+        self.radio_player_details = None
+        self.radio_projectm_install_button = None
+        for key in ("visualizer",):
+            button = vars(self).get("radio_player_tool_buttons", {}).get(key)
+            if button is not None:
+                try:
+                    button.state(["!selected"])
+                except tk.TclError:
+                    pass
+
+    def _position_radio_toolbox(self):
+        window = vars(self).get("radio_toolbox_window")
+        if window is None or not window.winfo_exists():
+            return
+        anchor = (
+            self.radio_player_details_button
+            if self.radio_toolbox_kind == "details"
+            else self.radio_player_tool_buttons[self.radio_toolbox_kind]
+        )
+        window.update_idletasks()
+        width = window.winfo_reqwidth()
+        height = window.winfo_reqheight()
+        x = min(anchor.winfo_rootx(), max(0, window.winfo_screenwidth() - width - 12))
+        y = min(
+            anchor.winfo_rooty() + anchor.winfo_height() + 6,
+            max(0, window.winfo_screenheight() - height - 44),
+        )
+        window.geometry(f"+{max(0, x)}+{max(0, y)}")
+
+    def open_radio_toolbox(self, kind):
+        titles = {
+            "details": self.tr("radio_details_title", "Radio details"),
+            "visualizer": self.tr("radio_tool_visualizer", "Visualization"),
+        }
+        if kind not in titles:
+            return False
+        previous = vars(self).get("radio_toolbox_window")
+        if (
+            previous is not None
+            and previous.winfo_exists()
+            and self.radio_toolbox_kind == kind
+        ):
+            self.close_radio_toolbox()
+            return False
+        self.close_radio_toolbox()
+        window = tk.Toplevel(self)
+        self.radio_toolbox_window = window
+        self.radio_toolbox_kind = kind
+        window.title(titles[kind])
+        window.transient(self.winfo_toplevel())
+        window.resizable(False, False)
+        window.protocol("WM_DELETE_WINDOW", self.close_radio_toolbox)
+        window.bind("<Escape>", lambda _event: self.close_radio_toolbox())
+        box = ttk.Frame(window, padding=14)
+        box.pack(fill="both", expand=True)
+        header = ttk.Frame(box)
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        header.columnconfigure(0, weight=1)
+        ttk.Label(header, text=titles[kind], font=("TkDefaultFont", 12, "bold")).grid(
+            row=0, column=0, sticky="w"
+        )
+        ttk.Button(header, text="×", width=3, command=self.close_radio_toolbox).grid(
+            row=0, column=1, sticky="e"
+        )
+        body = ttk.Frame(box)
+        body.grid(row=1, column=0, sticky="ew")
+        body.columnconfigure(0, weight=1)
+        self.radio_toolbox_actions = {}
+
+        def action(name, key, fallback, command):
+            control = ttk.Button(body, text=self.tr(key, fallback), command=command)
+            control.grid(
+                row=len(self.radio_toolbox_actions), column=0, sticky="ew", pady=(0, 6)
+            )
+            self.radio_toolbox_actions[name] = control
+            return control
+
+        def details(row, variables):
+            area = ttk.Frame(body, padding=(0, 8, 0, 0))
+            area.grid(row=row + 1, column=0, sticky="ew")
+            for index, variable in enumerate(variables):
+                ttk.Label(
+                    area,
+                    textvariable=variable,
+                    wraplength=370,
+                    justify="left",
+                    style="RadioMuted.TLabel",
+                ).grid(row=index, column=0, sticky="w", pady=3)
+            area.grid_remove()
+
+            def toggle():
+                if area.winfo_manager():
+                    area.grid_remove()
+                    control.configure(
+                        text=self.tr("radio_show_details", "Show details")
+                    )
+                else:
+                    area.grid()
+                    control.configure(
+                        text=self.tr("radio_hide_details", "Hide details")
+                    )
+                self._position_radio_toolbox()
+
+            control = ttk.Button(
+                body, text=self.tr("radio_show_details", "Show details"), command=toggle
+            )
+            control.grid(row=row, column=0, sticky="w", pady=(6, 0))
+            self.radio_toolbox_details_button = control
+            self.radio_toolbox_details = area
+
+        if kind == "details":
+            self.radio_player_details = body
+            for row, variable in enumerate(
+                (
+                    self.radio_source_var,
+                    self.radio_stream_url_var,
+                    self.radio_bitrate_var,
+                    self.radio_database_count_var,
+                    self.radio_attach_status_var,
+                )
+            ):
+                ttk.Label(
+                    body,
+                    textvariable=variable,
+                    wraplength=370,
+                    justify="left",
+                    style="RadioMuted.TLabel",
+                ).grid(row=row, column=0, sticky="w", pady=3)
+        elif kind == "visualizer":
+            action(
+                "start",
+                "radio_projectm_btn_start",
+                "Start projectM",
+                self.open_projectm_visualizer_test,
+            )
+            action(
+                "stop",
+                "radio_projectm_btn_stop",
+                "Stop projectM",
+                self.close_projectm_visualizer_test,
+            )
+            action(
+                "presets",
+                "radio_projectm_btn_manage_presets",
+                "Preset manager",
+                self.open_projectm_preset_manager,
+            )
+            self.radio_projectm_preset_open_button = action(
+                "folder",
+                "radio_projectm_btn_open_presets",
+                "Open NetMon presets",
+                self.open_projectm_preset_folder,
+            )
+            self.radio_projectm_preset_import_button = self.radio_toolbox_actions[
+                "presets"
+            ]
+            self.radio_projectm_install_button = action(
+                "install",
+                "radio_projectm_btn_install",
+                "Install projectM",
+                self.install_projectm_visualizer,
+            )
+            ttk.Label(
+                body, textvariable=self.radio_projectm_status_var, wraplength=370
+            ).grid(row=5, column=0, sticky="w", pady=6)
+            details(
+                6, (self.radio_projectm_preset_var, self.radio_projectm_preset_hint_var)
+            )
+            self._refresh_projectm_status()
+        theme = self._app_theme or self._theme_with_palette(self._start_theme_name)
+        self._apply_tk_widget_theme(window, theme)
+        if kind in self.radio_player_tool_buttons:
+            self.radio_player_tool_buttons[kind].state(["selected"])
+        self._position_radio_toolbox()
+        return True
+
     def _on_close(self):
+        if not multi_recording.confirm_close(self):
+            return
+        self.close_radio_toolbox()
         vars(self)["_projectm_closing"] = True
         try:
             self.close_radio_miniplayer()
@@ -5322,7 +5764,6 @@ class NetMonRadioApp(tk.Tk):
         if website is None:
             return False
         _label, url = website
-
         protected = route_radio_if_enabled(self, url)
         if protected is not None:
             return protected
@@ -5979,6 +6420,103 @@ class NetMonRadioApp(tk.Tk):
     def on_radio_station_clicked(self, event):
         return radio_controller.play_station_from_click(self, event)
 
+    def _set_radio_main_view(self, view):
+        pages = vars(self).get("radio_main_views", {})
+        if view not in pages:
+            return False
+        previous = self.radio_main_view
+        self.cancel_radio_folder_browser_drag()
+        for page in set(pages.values()):
+            page.grid_remove()
+        pages[view].grid(row=0, column=0, sticky="nsew")
+        self.radio_main_view = view
+        for key, button in self.radio_main_view_buttons.items():
+            button.state(["selected"] if key == view else ["!selected"])
+        tiles = vars(self).get("radio_favorite_tiles")
+        if tiles is not None and view != "radio":
+            tiles.deactivate()
+        if view == "radio" and previous != "radio":
+            radio_controller.refresh_radio_station_table(self)
+        return True
+
+    def show_radio_main_view(self, view):
+        if view == "radio":
+            self.show_all_radio_stations()
+            return self._set_radio_main_view(view)
+        if view == "playlist":
+            return self._set_radio_main_view(view)
+        if view == "recordings":
+            mode = "recordings"
+            root = radio_controller._radio_recordings_dir(self)
+        elif view == "media":
+            mode = "system"
+            root = str(self.radio_system_folder_path or "")
+            if not root or not os.path.isdir(root):
+                return self.open_radio_system_dir()
+        else:
+            return False
+        path = self.radio_folder_view_paths.get(mode, root)
+        if not os.path.isdir(
+            path
+        ) or not radio_controller._radio_folder_browser_path_within_root(path, root):
+            path = root
+        if mode == "recordings" and not os.path.isdir(path):
+            return self.open_radio_recordings_dir()
+        return radio_controller._navigate_radio_folder_browser_to(self, mode, path)
+
+    def show_radio_folder_main_view(self, mode):
+        if not vars(self).get("radio_main_views"):
+            return
+        self.radio_folder_view_paths[mode] = self.radio_folder_browser_current_path
+        view = "recordings" if mode == "recordings" else "media"
+        title = (
+            self.tr("radio_view_recordings", "Recordings")
+            if view == "recordings"
+            else self.tr("radio_view_media", "Local media")
+        )
+        self.radio_folder_page.configure(text=title)
+        if view == "recordings":
+            self.radio_folder_source_buttons.grid_remove()
+            self.radio_multi_recording_button.grid()
+            self.radio_folder_browser_header.grid_configure(pady=0)
+        else:
+            self.radio_folder_source_buttons.grid()
+            self.radio_multi_recording_button.grid_remove()
+            self.radio_folder_browser_header.grid_configure(pady=(10, 0))
+        self._set_radio_main_view(view)
+
+    def _select_radio_favorite_tile(self, station_id):
+        self.radio_context_station_id = ""
+        self.radio_station_table.selection_set(station_id)
+        self.radio_station_table.focus(station_id)
+
+    def _show_radio_favorite_context_menu(self, station_id, event):
+        self.radio_context_station_id = station_id
+        return self._show_context_menu(self.radio_station_menu, event)
+
+    def refresh_radio_favorite_tiles(self, rows, selected=""):
+        enabled = radio_controller._favorites_view_enabled(self)
+        for value, button in vars(self).get("radio_favorite_selectors", {}).items():
+            button.state(["selected"] if value == enabled else ["!selected"])
+        tiles = vars(self).get("radio_favorite_tiles")
+        if tiles is None:
+            return
+        if vars(self).get("radio_main_view", "radio") != "radio":
+            tiles.deactivate()
+            return
+        if radio_controller._favorites_view_enabled(self):
+            self.radio_station_table.grid_remove()
+            self.radio_station_scroll_x.grid_remove()
+            tiles.grid(row=2, column=0, sticky="nsew")
+            self.radio_station_scroll.configure(command=tiles.canvas.yview)
+            tiles.show_stations(rows, selected)
+        else:
+            tiles.deactivate()
+            tiles.grid_remove()
+            self.radio_station_table.grid()
+            self.radio_station_scroll_x.grid()
+            self.radio_station_scroll.configure(command=self.radio_station_table.yview)
+
     def open_projectm_visualizer_test(self):
         status = netmon_projectm_sidecar.launch_projectm_sidecar(self)
         self._refresh_projectm_status()
@@ -6014,6 +6552,7 @@ class NetMonRadioApp(tk.Tk):
         if existing is not None:
             try:
                 if existing.winfo_exists():
+                    radio_controller._radio_output_hint(self)
                     existing.deiconify()
                     existing.lift()
                     existing.focus_force()
@@ -6023,7 +6562,7 @@ class NetMonRadioApp(tk.Tk):
 
         popup = tk.Toplevel(self)
         popup.title(self.tr("radio_settings_title", "Settings"))
-        popup.transient(self)
+        popup.transient(self.winfo_toplevel())
         popup.resizable(True, True)
         popup.columnconfigure(0, weight=1)
         popup.rowconfigure(0, weight=1)
@@ -6116,11 +6655,28 @@ class NetMonRadioApp(tk.Tk):
             justify="left",
             wraplength=420,
         ).grid(row=4, column=0, sticky="w", pady=(6, 0))
+
+        def _open_station_database():
+            _close_popup()
+            self.open_radio_database_sources_popup()
+
         ttk.Button(
             body,
-            text=self.tr("radio_settings_update_station_data", "Refresh station data"),
-            command=self.download_radio_db,
+            text=self.tr("radio_settings_station_database", "Station database"),
+            command=_open_station_database,
         ).grid(row=5, column=0, sticky="w", pady=(12, 0))
+
+        if vars(self).get("radio_output_button_var") is None:
+            self.radio_output_button_var = tk.StringVar(
+                value=self.tr("radio_output_button_setup", "Set up audio…")
+            )
+        self.radio_output_setup_button = ttk.Button(
+            body,
+            textvariable=self.radio_output_button_var,
+            command=self.manage_protected_radio_output,
+        )
+        self.radio_output_setup_button.grid(row=6, column=0, sticky="w", pady=(12, 0))
+        radio_controller._radio_output_hint(self)
 
         def _close_popup():
             try:
@@ -6128,9 +6684,10 @@ class NetMonRadioApp(tk.Tk):
             except Exception:
                 pass
             self.radio_record_settings_window = None
+            self.radio_output_setup_button = None
 
         ttk.Button(body, text=self.tr("btn_close", "Close"), command=_close_popup).grid(
-            row=6, column=0, sticky="e", pady=(14, 0)
+            row=7, column=0, sticky="e", pady=(14, 0)
         )
         popup.protocol("WM_DELETE_WINDOW", _close_popup)
         self.radio_record_settings_window = popup
@@ -6912,6 +7469,7 @@ class RadioMiniPlayerWindow:
 
 class NetMonRadioPanel(ttk.Frame):
     def __init__(self, parent, *, on_detach=None, host_app=None):
+        prepare_user_files()
         super().__init__(parent)
         for name, value in NetMonRadioApp.__dict__.items():
             if name.startswith("__") or name in {"__init__", "_on_close"}:
@@ -6931,10 +7489,16 @@ class NetMonRadioPanel(ttk.Frame):
         self._build_ui()
         self._register_radio_miniplayer_var_traces()
         radio_controller.on_radio_eq_preview(self)
-        self.apply_theme(
-            self._start_theme_name
-            or str(self.radio_settings.get("theme", "light") or "light")
-        )
+        if host_app is not None:
+            self.apply_theme_palette(
+                radio_controller._radio_theme_name_from_app(host_app),
+                radio_controller._radio_theme_palette_from_app(host_app),
+            )
+        else:
+            self.apply_theme(
+                self._start_theme_name
+                or str(self.radio_settings.get("theme", "light") or "light")
+            )
         self.refresh_radio_ui()
         self._refresh_projectm_status()
         self.bind_all("<Button-1>", self._dismiss_active_context_menu, add="+")
@@ -6944,6 +7508,11 @@ class NetMonRadioPanel(ttk.Frame):
         if getattr(self, "_radio_panel_destroying", False):
             return super().destroy()
         self._radio_panel_destroying = True
+        multi_recording.shutdown(self)
+        try:
+            self.close_radio_toolbox()
+        except Exception:
+            pass
         try:
             self.stop_radio_recording()
         except Exception:

@@ -466,25 +466,27 @@ def _build_radio_tab_scaffold(
     *,
     body_builder=_build_radio_tab_body,
     status_var_factory=_radio_launcher_status_var,
-    pane_builder=_build_radio_tab_pane,
-    sections_builder=_build_radio_pane_sections,
-    bottom_callback_factory=_make_radio_bottom_placeholder_callback,
-    pane_sections_adder=_add_radio_pane_sections,
+    frame_factory=ttk.Frame,
     state_initializer=_init_radio_tab_state,
 ):
     body = body_builder(app)
     app.radio_launcher_status_var = status_var_factory(app)
-    pane = pane_builder(app, body)
-    top_section, host, bottom_section = sections_builder(pane, app)
-    show_bottom_placeholder = bottom_callback_factory(app, bottom_section)
-    pane_sections_adder(pane, top_section, bottom_section)
+    host = frame_factory(body)
+    host.grid(row=0, column=0, sticky="nsew")
+    _configure_single_cell_expand(host)
+    app.radio_tab_pane = None
+    app.radio_tab_pane_marker = None
+
+    def show_bottom_placeholder():
+        # There is no separate bottom pane; detach/reattach clears only the host.
+        pass
+
     state_initializer(
         app,
         host=host,
-        top_section=top_section,
-        bottom_section=bottom_section,
+        top_section=host,
+        bottom_section=host,
     )
-    show_bottom_placeholder()
     return host, show_bottom_placeholder
 
 

@@ -83,7 +83,7 @@ def migrate_container(container, *, apply=False):
             "Bitte einen absoluten Secure-Browser-Ordner als Benutzer angeben."
         )
     runtime = session._managed_runtime(session.FIREFOX_DIR)
-    session._wayland_socket()
+    session._check_display_requirements()
     sandbox._require_network_tools()
     profile = container / "profile"
     with (

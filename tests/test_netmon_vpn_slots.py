@@ -328,7 +328,7 @@ def test_app_init_uses_documents_security_guard_paths():
         in init_source
     )
     assert (
-        'self.packet_capture_dir = os.path.join(self.netmon_state_dir, "captures")'
+        'self.packet_capture_dir = get_netmon_documents_subdir("Captures")'
         in init_source
     )
 

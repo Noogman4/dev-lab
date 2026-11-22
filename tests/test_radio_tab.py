@@ -2939,85 +2939,68 @@ def test_make_radio_launcher_refresh_callback_invokes_refresher_each_time():
     assert calls == ["refresh", "refresh"]
 
 
-def test_build_radio_tab_scaffold_builds_sections_initializes_and_shows_bottom():
+def test_build_radio_tab_scaffold_uses_one_expanding_host_without_split():
     events = []
     app = type("DummyApp", (), {})()
-    body = object()
-    status_var = object()
-    pane = object()
-    top_section = object()
-    host = object()
-    bottom_section = object()
+    body, status_var = object(), object()
 
-    def show_bottom_placeholder():
-        events.append("show_bottom")
+    class Host:
+        def __init__(self, parent):
+            assert parent is body
 
-    result = radio_tab._build_radio_tab_scaffold(
+        def grid(self, **kwargs):
+            events.append(("grid", kwargs))
+
+        def columnconfigure(self, column, **kwargs):
+            events.append(("column", column, kwargs))
+
+        def rowconfigure(self, row, **kwargs):
+            events.append(("row", row, kwargs))
+
+    host, show_bottom = radio_tab._build_radio_tab_scaffold(
         app,
-        body_builder=lambda app_arg: events.append(("body", app_arg)) or body,
-        status_var_factory=lambda app_arg: events.append(("status", app_arg))
-        or status_var,
-        pane_builder=lambda app_arg, body_arg: events.append(
-            ("pane", app_arg, body_arg)
-        )
-        or pane,
-        sections_builder=lambda pane_arg, app_arg: events.append(
-            ("sections", pane_arg, app_arg)
-        )
-        or (top_section, host, bottom_section),
-        bottom_callback_factory=lambda app_arg, bottom_arg: events.append(
-            ("bottom_callback", app_arg, bottom_arg)
-        )
-        or show_bottom_placeholder,
-        pane_sections_adder=lambda pane_arg, top_arg, bottom_arg: events.append(
-            ("add", pane_arg, top_arg, bottom_arg)
-        ),
-        state_initializer=lambda app_arg, **kwargs: events.append(
-            ("state", app_arg, kwargs)
-        ),
+        body_builder=lambda _app: body,
+        status_var_factory=lambda _app: status_var,
+        frame_factory=Host,
     )
-
-    assert result == (host, show_bottom_placeholder)
+    assert app.radio_tab_host is host
+    assert app.radio_tab_top_section is host
+    assert app.radio_tab_bottom_section is host
+    assert app.radio_tab_pane is None and app.radio_tab_pane_marker is None
     assert app.radio_launcher_status_var is status_var
     assert events == [
-        ("body", app),
-        ("status", app),
-        ("pane", app, body),
-        ("sections", pane, app),
-        ("bottom_callback", app, bottom_section),
-        ("add", pane, top_section, bottom_section),
-        (
-            "state",
-            app,
-            {
-                "host": host,
-                "top_section": top_section,
-                "bottom_section": bottom_section,
-            },
-        ),
-        "show_bottom",
+        ("grid", {"row": 0, "column": 0, "sticky": "nsew"}),
+        ("column", 0, {"weight": 1}),
+        ("row", 0, {"weight": 1}),
     ]
+    show_bottom()
+    assert len(events) == 3
 
 
-def test_build_radio_tab_scaffold_returns_host_and_bottom_callback():
+def test_build_radio_tab_scaffold_returns_host_and_noop_bottom_callback():
     app = type("DummyApp", (), {})()
-    host = object()
 
-    def show_bottom_placeholder():
-        pass
+    class Host:
+        def __init__(self, _parent):
+            pass
 
-    result = radio_tab._build_radio_tab_scaffold(
+        def grid(self, **kwargs):
+            pass
+
+        def columnconfigure(self, *args, **kwargs):
+            pass
+
+        def rowconfigure(self, *args, **kwargs):
+            pass
+
+    host, callback = radio_tab._build_radio_tab_scaffold(
         app,
         body_builder=lambda _app: "body",
         status_var_factory=lambda _app: "status",
-        pane_builder=lambda _app, _body: "pane",
-        sections_builder=lambda _pane, _app: ("top", host, "bottom"),
-        bottom_callback_factory=lambda _app, _bottom: show_bottom_placeholder,
-        pane_sections_adder=lambda _pane, _top, _bottom: None,
-        state_initializer=lambda _app, **_kwargs: None,
+        frame_factory=Host,
     )
-
-    assert result == (host, show_bottom_placeholder)
+    assert host is app.radio_tab_host
+    assert callback() is None
 
 
 def test_install_radio_launcher_refresh_wires_assigns_and_runs_refresh():

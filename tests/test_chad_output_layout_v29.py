@@ -15,6 +15,7 @@ def chad_app():
     root = tk.Tk()
     root.geometry("820x480")
     app = App.__new__(App)
+    app.tk, app._w, app.children = root.tk, root._w, root.children
     app.lang = {}
     app._app_theme = {}
     app.tab_chad_analysis = ttk.Frame(root, padding=10)
@@ -30,7 +31,6 @@ def chad_app():
     ):
         setattr(app, name, tk.StringVar(master=root, value="Status fixture"))
     app.chad_output_filter_var = tk.StringVar(master=root, value="Alles")
-    app.attach_copy_paste_context_menu = lambda *args: None
     app._apply_chad_chat_theme = lambda *args: None
     app._update_chad_controls_state = lambda *args: None
     app.chad_output_entries = []

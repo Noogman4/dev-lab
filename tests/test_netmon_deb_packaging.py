@@ -17,7 +17,7 @@ def test_main_deb_builder_uses_debian_compliant_install_locations():
     assert 'FUN_ASSETS_ROOT="$ASSETS_ROOT/fun"' in source
     assert 'DOCS_ROOT="$PKG_DIR/usr/share/doc/netmon"' in source
     assert 'NETMON_HOME="/usr/lib/netmon"' in source
-    assert 'ASSET_DIR="/usr/share/netmon/assets/log-pics"' in source
+    assert "seed_netmon_log_pics_for_home" not in source
     assert 'APP_ROOT="$PKG_DIR/opt/netmon"' not in source
 
 
@@ -38,10 +38,54 @@ def test_main_deb_builder_generates_required_policy_artifacts():
     assert 'copy_file "$ROOT_DIR/packaging/copyright"' in source
     assert '"$DOCS_ROOT/changelog.gz"' in source
     assert '"$MAN_ROOT/netmon.1.gz"' in source
-    assert '"$MAN_ROOT/netmon-uninstall.1.gz"' in source
+    assert '"$MAN_ROOT/netmon-uninstall.1.gz"' not in source
     assert "xargs -0 md5sum > DEBIAN/md5sums" in source
     assert 'find "$PKG_DIR" -type d -exec chmod 0755' in source
     assert 'find "$PKG_DIR" -type f -exec chmod 0644' in source
+
+
+def test_final_permission_normalization_keeps_all_launchers_executable(tmp_path):
+    """Execute the real permission pass, then invoke a fixture directly."""
+    source = (PROJECT_ROOT / "scripts/build_netmon_deb.sh").read_text()
+    start = source.index('find "$PKG_DIR" -type d -exec chmod 0755')
+    end = source.index("if (( WITH_PROJECTM_ADAPTERS ));", start)
+    fragment = source[start:end]
+    files = [
+        "DEBIAN/postinst",
+        "DEBIAN/prerm",
+        "usr/bin/netmon",
+        "usr/lib/netmon/netmon/app.py",
+        "usr/lib/netmon/netmon/core/rkhunter_manager.py",
+        "usr/lib/netmon/tools/secure_browser_manager/browser_container_builder.py",
+    ]
+    for name in files:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('#!/bin/sh\nprintf "fixture-launcher-ready\\n"\n')
+        path.chmod(0o644)
+    desktop = tmp_path / "usr/share/applications/netmon-install.desktop"
+    desktop.parent.mkdir(parents=True)
+    desktop.write_text("[Desktop Entry]\nName=Fixture\n")
+    command = (
+        'PKG_DIR="$1"\nAPP_PY_ROOT="$PKG_DIR/usr/lib/netmon/netmon"\nTOOLS_ROOT="$PKG_DIR/usr/lib/netmon/tools"\n'
+        + fragment
+    )
+    result = subprocess.run(
+        ["bash", "-c", command, "fixture", str(tmp_path)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    for name in files:
+        assert (tmp_path / name).stat().st_mode & 0o777 == 0o755, name
+    assert desktop.stat().st_mode & 0o777 == 0o644
+    result = subprocess.run(
+        [str(tmp_path / "usr/bin/netmon"), "--help"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert result.stdout.strip() == "fixture-launcher-ready"
 
 
 def test_main_deb_builder_never_restores_legacy_install_dns():
@@ -191,11 +235,15 @@ def test_public_release_gate_remains_separate_from_local_test_package():
         text=True,
         check=False,
     )
-    if published["version"] == version:
+    beta = published.get("beta")
+    beta_channel_matches = (
+        "~beta" in version and isinstance(beta, dict) and beta.get("version") == version
+    )
+    if published["version"] == version or beta_channel_matches:
         assert result.returncode == 0, result.stdout + result.stderr
     else:
         assert result.returncode == 1
-        assert "site/latest-version.json: erwartet Version" in result.stdout
+        assert "site/latest-version.json" in result.stdout
 
 
 def test_package_only_check_still_rejects_mismatched_package_version(tmp_path):

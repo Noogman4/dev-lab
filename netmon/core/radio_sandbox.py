@@ -23,6 +23,7 @@ import socket
 import stat
 import struct
 import subprocess
+import sysconfig
 import tempfile
 import threading
 import time
@@ -42,6 +43,7 @@ LOGO = Path(__file__).with_name("radio_logo.py")
 PCM = Path(__file__).with_name("radio_pcm.py")
 ICON_HTTP = Path(__file__).with_name("icon_http.py")
 ICON_PAYLOAD = Path(__file__).with_name("icon_payload.py")
+SVG = Path(__file__).with_name("radio_svg.py")
 PILLOW = Path("/usr/lib/python3/dist-packages/PIL")
 IPC_PATH = "/run/control/mpv.sock"
 _ENV = {"PATH": "/usr/bin:/bin", "LC_ALL": "C.UTF-8", "HOME": "/nonexistent"}
@@ -139,6 +141,40 @@ _SCOPES = itertools.count()
 
 class RadioSandboxError(RuntimeError):
     """The protected playback could not be started; never retry unprotected."""
+
+
+class LogoError(RadioSandboxError):
+    """A fixed diagnostic category safe to record without the source URL."""
+
+    def __init__(self, code):
+        self.code = (
+            code
+            if code
+            in {
+                "timeout",
+                "blocked_url",
+                "http",
+                "network",
+                "image_format",
+                "image_limits",
+                "image_data",
+                "runtime",
+                "invalid_reply",
+                "missing",
+            }
+            else "runtime"
+        )
+        super().__init__("Radio-Icon: " + self.code)
+
+
+def logo_error_code(error):
+    if isinstance(error, LogoError):
+        return error.code
+    if isinstance(
+        error, (TimeoutError, subprocess.TimeoutExpired)
+    ) or "Zeitlimit" in str(error):
+        return "timeout"
+    return "runtime"
 
 
 def available() -> bool:
@@ -265,7 +301,9 @@ def _recording_sandbox_command(directory, runtime):
 class RecordingProcess:
     """Own a fixed pipe-only encoder and source until both have been reaped."""
 
-    def __init__(self, encoder, source, temporary, output_path, progress_fd):
+    def __init__(
+        self, encoder, source, temporary, output_path, progress_fd, metadata_fd=None
+    ):
         self._process = encoder
         self._source_process = source
         self._temporary = temporary
@@ -282,6 +320,53 @@ class RecordingProcess:
         self.ready = False
         self.size_limit_reached = False
         self._progress_file = os.fdopen(progress_fd, "rb", buffering=0)
+        self._metadata_file = (
+            os.fdopen(metadata_fd, "rb", buffering=0)
+            if metadata_fd is not None
+            else None
+        )
+        self._metadata_buffer = bytearray()
+        self._titles = []
+
+    def progress(self):
+        """Owner-thread snapshot; never poll/reap children from the Tk thread."""
+        return self._progress_time / 1_000_000, self._progress_size
+
+    def take_titles(self):
+        titles, self._titles = self._titles, []
+        return titles
+
+    def _drain_metadata(self):
+        if self._metadata_file is None:
+            return
+        try:
+            self._metadata_buffer.extend(os.read(self._metadata_file.fileno(), 8192))
+        except BlockingIOError:
+            return
+        while b"\n" in self._metadata_buffer:
+            line, _, rest = self._metadata_buffer.partition(b"\n")
+            self._metadata_buffer = bytearray(rest)
+            if len(line) > 4096:
+                raise RadioSandboxError("Ungültige Aufnahme-Metadaten.")
+            try:
+                item = json.loads(line)
+            except (ValueError, UnicodeError) as exc:
+                raise RadioSandboxError("Ungültige Aufnahme-Metadaten.") from exc
+            title = (
+                item.get("title")
+                if isinstance(item, dict) and set(item) == {"title"}
+                else None
+            )
+            if (
+                not isinstance(title, str)
+                or not 0 < len(title) <= 512
+                or not title.isprintable()
+            ):
+                raise RadioSandboxError("Ungültige Aufnahme-Metadaten.")
+            if len(self._titles) < 64:
+                self._titles.append(title)
+        if len(self._metadata_buffer) > 4096:
+            raise RadioSandboxError("Ungültige Aufnahme-Metadaten.")
 
     @property
     def pid(self):
@@ -318,6 +403,14 @@ class RecordingProcess:
             if self._result is not None:
                 return self._result
             self._drain_progress()
+            try:
+                self._drain_metadata()
+            except (RadioSandboxError, ValueError, UnicodeError, RecursionError):
+                self._failure = 1
+                self._metadata_buffer.clear()
+                self._metadata_file.close()
+                self._metadata_file = None
+                self.kill()
             result = self._process.poll()
             source_result = self._source_process.poll()
             if source_result is not None:
@@ -345,6 +438,8 @@ class RecordingProcess:
                         size = 0
                     self.size_limit_reached = size >= RECORDING_MAX_BYTES
                 self._progress_file.close()
+                if self._metadata_file is not None:
+                    self._metadata_file.close()
                 self._temporary.cleanup()
             return self._result
 
@@ -376,7 +471,7 @@ class RecordingProcess:
                     child.kill()
 
 
-def start_recording(url, output_path, *, work_root=None):
+def start_recording(url, output_path, *, work_root=None, metadata=False):
     """Return only after bounded positive encoder progress; no unsafe retry."""
     if (
         not recording_available()
@@ -393,19 +488,35 @@ def start_recording(url, output_path, *, work_root=None):
     temporary = tempfile.TemporaryDirectory(prefix="record-", dir=work_root)
     source = encoder = owner = None
     descriptor = read_fd = write_fd = progress_fd = None
+    metadata_fd = None
     try:
         directory = Path(temporary.name)
         _prepare_directory(directory)
         request = directory / "request.json"
-        request.write_text(json.dumps({"url": url}))
+        request.write_text(
+            json.dumps({"url": url, **({"mode": "record"} if metadata else {})})
+        )
         request.chmod(0o600)
         progress_path = directory / "progress"
         os.mkfifo(progress_path, 0o600)
         progress_fd = os.open(progress_path, os.O_RDWR | os.O_NONBLOCK | os.O_CLOEXEC)
         descriptor, actual_path = _recording_target(output_path)
         read_fd, write_fd = os.pipe()
+        fetch_command = _fetch_command(directory, None, stdlib, source_runtime)
+        if metadata:
+            metadata_path = directory / "metadata"
+            os.mkfifo(metadata_path, 0o600)
+            metadata_fd = os.open(
+                metadata_path, os.O_RDWR | os.O_NONBLOCK | os.O_CLOEXEC
+            )
+            index = fetch_command.index("--")
+            fetch_command[index:index] = [
+                "--bind",
+                str(metadata_path),
+                "/run/record-metadata",
+            ]
         source = subprocess.Popen(
-            _limited(_fetch_command(directory, None, stdlib, source_runtime), "fetch"),
+            _limited(fetch_command, "fetch"),
             cwd="/",
             env=_quota_env(),
             stdin=subprocess.DEVNULL,
@@ -425,8 +536,10 @@ def start_recording(url, output_path, *, work_root=None):
         for fd in (descriptor, read_fd, write_fd):
             os.close(fd)
         descriptor = read_fd = write_fd = None
-        owner = RecordingProcess(encoder, source, temporary, actual_path, progress_fd)
-        progress_fd = None
+        owner = RecordingProcess(
+            encoder, source, temporary, actual_path, progress_fd, metadata_fd
+        )
+        progress_fd = metadata_fd = None
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
             result = owner.poll()
@@ -446,10 +559,12 @@ def start_recording(url, output_path, *, work_root=None):
                 child.wait(timeout=3)
         if owner is not None:
             owner._progress_file.close()
+            if owner._metadata_file is not None:
+                owner._metadata_file.close()
         temporary.cleanup()
         raise
     finally:
-        for fd in (descriptor, read_fd, write_fd, progress_fd):
+        for fd in (descriptor, read_fd, write_fd, progress_fd, metadata_fd):
             if fd is not None:
                 os.close(fd)
 
@@ -932,7 +1047,9 @@ def prepared_preset_bundle(path):
                     process.wait(timeout=3)
 
 
-def _read_process_reply(process, timeout, limit, *, cancelled=None):
+def _read_process_reply(
+    process, timeout, limit, *, cancelled=None, allow_failure=False
+):
     deadline = time.monotonic() + timeout
     output = bytearray()
     with selectors.DefaultSelector() as selected:
@@ -956,7 +1073,7 @@ def _read_process_reply(process, timeout, limit, *, cancelled=None):
     if cancelled is not None and cancelled():
         raise RadioSandboxError("Radio-Abruf wurde entwertet.")
     process.wait(timeout=max(0.001, deadline - time.monotonic()))
-    if process.returncode != 0:
+    if process.returncode != 0 and not allow_failure:
         raise RadioSandboxError("Geschützter Radio-Abruf fehlgeschlagen.")
     return bytes(output)
 
@@ -1070,7 +1187,7 @@ def _logo_runtime():
             "-X",
             "pycache_prefix=/nonexistent",
             "-c",
-            "import sys,json; sys.path.insert(0,'/usr/lib/python3/dist-packages'); "
+            "import sys,json,ctypes; sys.path.insert(0,'/usr/lib/python3/dist-packages'); "
             "from PIL import Image,PngImagePlugin,JpegImagePlugin,GifImagePlugin,WebPImagePlugin,IcoImagePlugin; "
             "print(json.dumps([m.__file__ for m in sys.modules.values() "
             "if str(getattr(m,'__file__','')).endswith('.so')]))",
@@ -1095,7 +1212,27 @@ def _logo_runtime():
     return stdlib, tuple(sorted(runtime))
 
 
-def _logo_command(directory, stdlib, runtime, *, fetch):
+@lru_cache(maxsize=1)
+def _svg_runtime():
+    """Resolve fixed SVG libraries without making raster support depend on them."""
+    multiarch = str(sysconfig.get_config_var("MULTIARCH") or "")
+    if not re.fullmatch(r"[a-zA-Z0-9_-]+", multiarch):
+        return (), ()
+    libraries = tuple(
+        Path("/usr/lib") / multiarch / name
+        for name in ("librsvg-2.so.2", "libcairo.so.2", "libgobject-2.0.so.0")
+    )
+    if not all(path.is_file() for path in (*libraries, SVG)):
+        return (), ()
+    try:
+        runtime = {item for library in libraries for item in _runtime_files(library)}
+    except (RadioSandboxError, OSError):
+        return (), ()
+    return libraries, tuple(sorted(runtime))
+
+
+def _logo_command(directory, stdlib, runtime, *, fetch, discover=False):
+    libraries, svg_runtime = ((), ()) if fetch else _svg_runtime()
     command = _sandbox_command(
         [
             str(PYTHON),
@@ -1105,10 +1242,10 @@ def _logo_command(directory, stdlib, runtime, *, fetch):
             "-X",
             "pycache_prefix=/nonexistent",
             "/run/logo.py",
-            "--fetch" if fetch else "--decode",
+            "--discover" if discover else "--fetch" if fetch else "--decode",
         ],
         directory,
-        runtime,
+        tuple(sorted(set(runtime) | set(svg_runtime))),
         None,
         local_file=None,
         network_source=fetch,
@@ -1144,6 +1281,14 @@ def _logo_command(directory, stdlib, runtime, *, fetch):
             str(PILLOW),
             str(PILLOW),
         ]
+        if SVG.is_file():
+            binds += ["--ro-bind", str(SVG), "/run/netmon/core/radio_svg.py"]
+        for library in libraries:
+            binds += [
+                "--ro-bind",
+                str(library.resolve(strict=True)),
+                "/run/svg/" + library.name,
+            ]
     command[command.index("--") : command.index("--")] = binds
     return _bounded_tmp(command, HELPER_TMPFS)
 
@@ -1156,12 +1301,20 @@ def _logo_policy():
     return policy
 
 
+def _logo_time_left(deadline):
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise LogoError("timeout")
+    return remaining
+
+
 def _run_logo(*, url=None, raw=None, timeout=8, work_root=None):
     radio_logo = _logo_policy()
 
     timeout = float(timeout)
     if not 0 < timeout <= 10:
         raise RadioSandboxError("Ungültiges Logo-Zeitlimit.")
+    deadline = time.monotonic() + timeout
     if url is not None:
         if not isinstance(url, str) or not 0 < len(url) <= 4096 or raw is not None:
             raise RadioSandboxError("Ungültige Logo-Adresse.")
@@ -1172,12 +1325,12 @@ def _run_logo(*, url=None, raw=None, timeout=8, work_root=None):
     ):
         raise RadioSandboxError("Geschützte Logo-Verarbeitung fehlt.")
     stdlib, runtime = _logo_runtime()
+    _logo_time_left(deadline)
     with tempfile.TemporaryDirectory(prefix="logo-", dir=work_root) as name:
         directory = Path(name)
         _prepare_directory(directory)
         source = process = handle = None
         read_fd = write_fd = None
-        deadline = time.monotonic() + timeout
         try:
             if url is not None:
                 request = directory / "request.json"
@@ -1185,8 +1338,12 @@ def _run_logo(*, url=None, raw=None, timeout=8, work_root=None):
                 request.chmod(0o600)
                 read_fd, write_fd = os.pipe()
                 source_stdlib, source_runtime = _fetch_runtime()
+                source_command = _logo_command(
+                    directory, source_stdlib, source_runtime, fetch=True
+                )
+                _logo_time_left(deadline)
                 source = subprocess.Popen(
-                    _logo_command(directory, source_stdlib, source_runtime, fetch=True),
+                    source_command,
                     cwd="/",
                     env=_ENV,
                     stdin=subprocess.DEVNULL,
@@ -1201,8 +1358,10 @@ def _run_logo(*, url=None, raw=None, timeout=8, work_root=None):
                 path.chmod(0o600)
                 handle = path.open("rb")
                 input_stream = handle
+            decoder_command = _logo_command(directory, stdlib, runtime, fetch=False)
+            _logo_time_left(deadline)
             process = subprocess.Popen(
-                _logo_command(directory, stdlib, runtime, fetch=False),
+                decoder_command,
                 cwd="/",
                 env=_ENV,
                 stdin=input_stream,
@@ -1216,13 +1375,17 @@ def _run_logo(*, url=None, raw=None, timeout=8, work_root=None):
             read_fd = write_fd = None
             reply = _read_process_reply(
                 process,
-                max(0.001, deadline - time.monotonic()),
+                _logo_time_left(deadline),
                 radio_logo.MAX_REPLY_BYTES,
+                allow_failure=True,
             )
+            _check_logo_error(reply)
+            if process.returncode != 0:
+                raise LogoError("runtime")
             if source is not None:
-                source.wait(timeout=max(0.001, deadline - time.monotonic()))
+                source.wait(timeout=_logo_time_left(deadline))
                 if source.returncode != 0:
-                    raise RadioSandboxError("Geschützter Logoabruf fehlgeschlagen.")
+                    raise LogoError("network")
             radio_logo.validate_pixels(reply)
             return reply
         finally:
@@ -1239,8 +1402,105 @@ def _run_logo(*, url=None, raw=None, timeout=8, work_root=None):
                     os.close(descriptor)
 
 
-def fetch_logo(url, *, timeout=8, work_root=None):
-    return _run_logo(url=url, timeout=timeout, work_root=work_root)
+def _check_logo_error(reply):
+    policy = _logo_policy()
+    if reply.startswith(policy.ERROR_MAGIC):
+        try:
+            code = reply[len(policy.ERROR_MAGIC) :].decode("ascii")
+        except UnicodeError:
+            code = "invalid_reply"
+        raise LogoError(code if code in policy.ERROR_CODES else "invalid_reply")
+
+
+def _discover_logo_urls(homepage, *, timeout, work_root):
+    from netmon.core import icon_http
+
+    deadline = time.monotonic() + timeout
+    try:
+        homepage = icon_http.parse_url(homepage).url
+    except (ValueError, UnicodeError) as error:
+        raise LogoError("blocked_url") from error
+    stdlib, runtime = _fetch_runtime()
+    _logo_time_left(deadline)
+    with tempfile.TemporaryDirectory(prefix="logo-page-", dir=work_root) as name:
+        directory = Path(name)
+        _prepare_directory(directory)
+        request = directory / "request.json"
+        request.write_text(json.dumps({"url": homepage}))
+        request.chmod(0o600)
+        command = _logo_command(directory, stdlib, runtime, fetch=True, discover=True)
+        _logo_time_left(deadline)
+        process = subprocess.Popen(
+            command,
+            cwd="/",
+            env=_ENV,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+        )
+        try:
+            raw = _read_process_reply(
+                process, _logo_time_left(deadline), 16384, allow_failure=True
+            )
+            _check_logo_error(raw)
+            if process.returncode != 0:
+                raise LogoError("runtime")
+            try:
+                urls = json.loads(raw)
+                if (
+                    not isinstance(urls, list)
+                    or len(urls) > _logo_policy().MAX_ICON_CANDIDATES
+                ):
+                    raise ValueError("Invalid candidate list")
+                return [icon_http.parse_url(url).url for url in urls]
+            except (ValueError, UnicodeError, TypeError) as error:
+                raise LogoError("invalid_reply") from error
+        finally:
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=3)
+            process.stdout.close()
+
+
+def fetch_logo(url, *, homepage="", timeout=8, work_root=None):
+    """Share one deadline between direct icon, homepage and fallback candidates."""
+    timeout = float(timeout)
+    if not 0 < timeout <= 10:
+        raise LogoError("timeout")
+    deadline = time.monotonic() + timeout
+    failure = LogoError("missing")
+    if url:
+        try:
+            # A broken direct URL must leave time to discover and decode a
+            # replacement. Without a homepage the direct icon keeps its budget.
+            direct_timeout = min(3.0, timeout * 0.4) if homepage else timeout
+            return _run_logo(url=url, timeout=direct_timeout, work_root=work_root)
+        except Exception as error:
+            failure = LogoError(logo_error_code(error))
+    if homepage and time.monotonic() < deadline:
+        try:
+            urls = _discover_logo_urls(
+                homepage,
+                timeout=min(2.0, _logo_time_left(deadline) / 2),
+                work_root=work_root,
+            )
+            candidates = list(
+                dict.fromkeys(candidate for candidate in urls if candidate != url)
+            )
+            for index, candidate in enumerate(candidates):
+                try:
+                    return _run_logo(
+                        url=candidate,
+                        # Reserve a share for later candidates as well.
+                        timeout=_logo_time_left(deadline) / (len(candidates) - index),
+                        work_root=work_root,
+                    )
+                except Exception as error:
+                    failure = LogoError(logo_error_code(error))
+        except Exception as error:
+            failure = LogoError(logo_error_code(error))
+    raise failure
 
 
 def decode_logo(raw, *, timeout=8, work_root=None):
