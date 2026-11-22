@@ -164,7 +164,7 @@ def test_create_support_package_logs_file_count_only(monkeypatch, tmp_path):
     with zipfile.ZipFile(package_path) as archive:
         assert archive.read("files/netmon-report.json") == b"{}"
         manifest = json.loads(archive.read("manifest.json"))
-        assert manifest["files"] == [str(report_path)]
+        assert manifest["files"] == ["files/netmon-report.json"]
 
 
 # ── Runde-11-Haertungen ──────────────────────────────────────────────────────
