@@ -1,9 +1,6 @@
 import inspect
-import os
 
 from netmon.features import linux_help_controller
-from netmon.services import linux_help_document_service
-from netmon.services import linux_help_library_service
 from netmon.services import linux_help_prompt_service
 from tools import netmon
 
@@ -209,68 +206,6 @@ def test_app_init_sets_netmon_config_dir_before_linux_help_data_path():
     assert config_idx < linux_help_path_idx
 
 
-def test_validate_linux_help_command_for_terminal_rejects_multiline():
-    app = netmon.App.__new__(netmon.App)
-
-    ok, reason = app._validate_linux_help_command_for_terminal("ls -la\npwd")
-
-    assert ok is False
-    assert "Mehrzeilige" in reason
-
-
-def test_send_linux_help_command_to_terminal_sends_safe_selected_command(monkeypatch):
-    from types import SimpleNamespace
-
-    monkeypatch.setattr(
-        linux_help_controller,
-        "messagebox",
-        SimpleNamespace(askyesno=lambda *args, **kwargs: True),
-    )
-
-    class DummyText:
-        def __init__(self):
-            self.value = ""
-
-        def delete(self, *_args):
-            self.value = ""
-
-        def insert(self, *_args):
-            self.value += _args[-1]
-
-    class DummyVar:
-        def __init__(self, value=""):
-            self.value = value
-
-        def get(self):
-            return self.value
-
-        def set(self, value):
-            self.value = value
-
-    app = netmon.App.__new__(netmon.App)
-    app.linux_help_selected_id = "ls"
-    app.linux_help_status_var = DummyVar("")
-    app.linux_help_text = DummyText()
-    app.log_messages = []
-    app.log = app.log_messages.append
-    app.get_linux_help_command_by_id = lambda _id: {
-        "id": "ls",
-        "name": "ls",
-        "category": "Dateien",
-        "cmd": "ls -la",
-        "risk": "safe",
-        "enabled": True,
-    }
-    app._open_command_in_external_terminal = lambda cmd: "xterm"
-
-    assert app.send_linux_help_command_to_terminal() is True
-    assert "external terminal" in app.linux_help_status_var.get()
-    assert "Terminal: xterm" in app.linux_help_text.value
-    assert any(
-        "Linux help: command sent to terminal" in msg for msg in app.log_messages
-    )
-
-
 def test_selected_linux_help_id_prefers_tree_selection():
     class DummyTree:
         def selection(self):
@@ -350,8 +285,7 @@ def test_linux_help_chad_title_prefers_name_then_command():
     )
     assert (
         linux_help_controller._linux_help_chad_title(
-            app,
-            {"name": "Algorithm", "entry_type": "glossary"}
+            app, {"name": "Algorithm", "entry_type": "glossary"}
         )
         == "Explain glossary term: Algorithm"
     )
@@ -446,8 +380,8 @@ def test_selected_linux_help_chad_payload_returns_empty_when_nothing_selected():
     )
 
 
-def test_build_linux_help_pdf_prompt_contains_command_context():
-    prompt = linux_help_prompt_service.build_linux_help_pdf_prompt(
+def test_build_linux_help_markdown_prompt_contains_command_context():
+    prompt = linux_help_prompt_service.build_linux_help_markdown_prompt(
         {
             "name": "unlzma",
             "cmd": "unlzma -k archiv.tar.lzma",
@@ -467,104 +401,3 @@ def test_build_linux_help_pdf_prompt_contains_command_context():
     assert "unlzma [OPTIONEN] [DATEI]" in prompt
     assert "LZMA-Dateien entpacken" in prompt
     assert "Risikostufe: 🟢 Sicher" in prompt
-
-
-def test_linux_help_document_bundle_writes_pdf_and_metadata(tmp_path, monkeypatch):
-    target_root = tmp_path / "Documents"
-
-    def fake_documents_subdir(*parts):
-        path = target_root.joinpath(*parts)
-        path.mkdir(parents=True, exist_ok=True)
-        return str(path)
-
-    monkeypatch.setattr(
-        linux_help_library_service,
-        "get_netmon_documents_subdir",
-        fake_documents_subdir,
-    )
-
-    document = linux_help_document_service.build_linux_help_document(
-        {
-            "name": "unlzma",
-            "cmd": "unlzma -k archiv.tar.lzma",
-            "category": "Archive",
-            "info": "LZMA-Dateien entpacken",
-            "syntax": "unlzma [OPTIONEN] [DATEI]",
-            "example": "unlzma --help",
-            "explanation": "Entpackt die Datei und behaelt das Original.",
-            "warning_text": "Speicherplatz vorher pruefen.",
-            "risk": "safe",
-            "root_required": False,
-            "tags": "archive,compression",
-        },
-        source_prompt="Beispiel-Prompt",
-    )
-
-    metadata = linux_help_library_service.create_linux_help_document_bundle(document)
-
-    assert metadata["id"].startswith("unlzma_")
-    assert os.path.isfile(metadata["pdf_path"])
-    assert os.path.isfile(metadata["json_path"])
-    assert metadata["source_prompt"] == "Beispiel-Prompt"
-    assert metadata["summary"] == "LZMA-Dateien entpacken"
-
-
-def test_import_linux_help_pdf_creates_library_entry(tmp_path, monkeypatch):
-    source_pdf = tmp_path / "hilfe.pdf"
-    source_pdf.write_bytes(b"%PDF-1.4\n%%EOF\n")
-    target_root = tmp_path / "Documents"
-
-    def fake_documents_subdir(*parts):
-        path = target_root.joinpath(*parts)
-        path.mkdir(parents=True, exist_ok=True)
-        return str(path)
-
-    monkeypatch.setattr(
-        linux_help_library_service,
-        "get_netmon_documents_subdir",
-        fake_documents_subdir,
-    )
-
-    metadata = linux_help_library_service.import_linux_help_pdf(str(source_pdf))
-
-    assert metadata["generator"] == "import"
-    assert os.path.isfile(metadata["pdf_path"])
-    assert os.path.isfile(metadata["json_path"])
-    assert "Importierte Linux-Hilfe-PDF" in metadata["preview_text"]
-
-
-def test_delete_linux_help_document_removes_pdf_and_metadata(tmp_path, monkeypatch):
-    target_root = tmp_path / "Documents"
-
-    def fake_documents_subdir(*parts):
-        path = target_root.joinpath(*parts)
-        path.mkdir(parents=True, exist_ok=True)
-        return str(path)
-
-    monkeypatch.setattr(
-        linux_help_library_service,
-        "get_netmon_documents_subdir",
-        fake_documents_subdir,
-    )
-
-    document = linux_help_document_service.build_linux_help_document(
-        {
-            "name": "ls",
-            "cmd": "ls -la",
-            "category": "Dateien",
-            "info": "Dateien anzeigen",
-            "syntax": "ls [OPTIONEN]",
-            "example": "ls -la",
-            "risk": "safe",
-        }
-    )
-    metadata = linux_help_library_service.create_linux_help_document_bundle(document)
-
-    result = linux_help_library_service.delete_linux_help_document(metadata["id"])
-
-    assert result["id"] == metadata["id"]
-    assert metadata["pdf_path"] in result["deleted"]
-    assert metadata["json_path"] in result["deleted"]
-    assert not os.path.exists(metadata["pdf_path"])
-    assert not os.path.exists(metadata["json_path"])
-    assert linux_help_library_service.get_linux_help_document_by_id(metadata["id"]) is None

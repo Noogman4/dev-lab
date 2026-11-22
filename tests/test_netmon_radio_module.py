@@ -204,10 +204,10 @@ def test_load_radio_runtime_bootstraps_defaults_into_user_config(tmp_path):
     assert app.radio_settings["volume"] == 50
     assert app.radio_settings["station_list_columns"] == ["name", "genre", "bitrate"]
     assert app.radio_volume_var.get() == 50
-    assert app.radio_recordings_dir.endswith("radio_recordings")
+    assert app.radio_recordings_dir.endswith("Radio/Aufnahmen")
     assert app.radio_playlist_entries == []
     assert app.radio_playlist_path.endswith("radio_playlist.m3u")
-    assert app.radio_playlists_dir.endswith("radio_playlists")
+    assert app.radio_playlists_dir.endswith("Radio/Playlisten")
 
 
 def test_build_radio_paths_uses_documents_dir_for_radio_user_files(
@@ -504,7 +504,7 @@ def test_search_radio_matches_name_tags_and_limits_results():
     assert [item["id"] for item in radio_controller.search_radio(app, "world")] == [
         "two"
     ]
-    assert radio_controller.search_radio(app, "") == []
+    assert radio_controller.search_radio(app, "") == app.radio_db
     assert len(radio_controller.search_radio(app, "bulk")) == 280
 
 
@@ -607,15 +607,21 @@ def test_read_radio_stream_title_falls_back_to_icy_fetch():
         radio_controller._fetch_icy_stream_title = original_fetch_icy_title
 
 
-def test_add_to_favorites_saves_full_station_payload():
+def test_add_to_favorites_saves_full_station_payload(monkeypatch):
     app = type("DummyApp", (), {})()
     app.radio_favorites = []
     app.radio_favorites_path = "/tmp/radio-favorites.json"
     calls = []
     app.log = lambda _message: None
-    radio_controller.refresh_radio_favorites_list = lambda _app: calls.append("refresh")
-    radio_controller.save_radio_favorites = (
-        lambda _app, favorites=None: calls.append(list(favorites or [])) or True
+    monkeypatch.setattr(
+        radio_controller,
+        "refresh_radio_favorites_list",
+        lambda _app: calls.append("refresh"),
+    )
+    monkeypatch.setattr(
+        radio_controller,
+        "save_radio_favorites",
+        lambda _app, favorites=None: calls.append(list(favorites or [])) or True,
     )
 
     station = {
@@ -1427,15 +1433,17 @@ def test_add_custom_station_updates_existing_custom_station_when_editing():
         radio_controller.save_radio_settings = original_save_settings
 
 
-def test_toggle_radio_favorites_view_updates_filter_state():
+def test_toggle_radio_favorites_view_updates_filter_state(monkeypatch):
     app = type("DummyApp", (), {})()
     app.radio_show_favorites_var = DummyVar(False)
     app.radio_toggle_favorites_text_var = DummyVar("")
     app.tr = lambda _key, default=None: default
 
     calls = []
-    radio_controller.refresh_radio_station_table = (
-        lambda _app, reset_page=False: calls.append("refresh")
+    monkeypatch.setattr(
+        radio_controller,
+        "refresh_radio_station_table",
+        lambda _app, reset_page=False: calls.append("refresh"),
     )
 
     assert radio_controller.toggle_radio_favorites_view(app) is True
@@ -1637,219 +1645,21 @@ def test_app_header_source_contains_compact_radio_player():
     assert "self.copyright_label = tk.Label(\n            header_right," in source
 
 
-def test_standalone_radio_app_ui_contains_player_and_projectm():
-    source = inspect.getsource(netmon_radio_app.NetMonRadioApp._build_ui)
-    marker_source = inspect.getsource(netmon_radio_app._install_pane_drag_marker)
-    menu_source = inspect.getsource(netmon_radio_app.NetMonRadioApp.__init__)
-    theme_source = inspect.getsource(
-        netmon_radio_app.NetMonRadioApp._apply_tk_widget_theme
-    )
-    init_source = inspect.getsource(netmon_radio_app.NetMonRadioApp.__init__)
-    window_source = inspect.getsource(
+def test_standalone_radio_window_keeps_compact_geometry_and_handover():
+    # Widget structure and command routing are exercised with actual Tk widgets
+    # in test_radio_compact_chrome.py, rather than pinning the old nested layout.
+    init = inspect.getsource(netmon_radio_app.NetMonRadioApp.__init__)
+    geometry = inspect.getsource(
         netmon_radio_app.NetMonRadioApp._configure_compact_standalone_window
     )
-    app_source = inspect.getsource(netmon_radio_app.NetMonRadioApp)
-
-    assert 'self.title("NetMon Radio")' in init_source
-    assert "self._radio_compact_layout = True" in init_source
-    assert "self._configure_compact_standalone_window()" in init_source
-    assert 'self.state("zoomed")' not in init_source
-    assert 'if self._started_from == "netmon_detach":' in init_source
-    assert "self.after(120, self._ensure_standalone_window_visible)" in init_source
-    assert "compact_layout = embedded or bool(" in source
-    assert "station_table_height = 18 if compact_layout else 28" in source
-    assert (
-        "screen_height = max(int(self.winfo_screenheight() or 900), 900)"
-        in window_source
-    )
-    assert "int(screen_height * 0.86)" in window_source
-    assert 'self.geometry(f"{width}x{height}+{x}+{y}")' in window_source
-    assert "self.maxsize(width, max_height)" in window_source
-    assert "self.resizable(False, True)" in window_source
-    assert 'text="⛶"' not in marker_source
-    assert "top_expand" not in marker_source
-    assert "bottom_expand" not in marker_source
-    assert "marker_width = min(66, max(width - 24, 42))" in marker_source
-    assert "y_offset=12" in source
-    assert "self._scroll_canvas = None" in source
-    assert "content_parent = self" in source
-    assert "canvas = tk.Canvas(self, highlightthickness=0, bd=0)" in source
-    assert (
-        'scrollbar = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)'
-        in source
-    )
-    assert "content_parent = ttk.Frame(canvas)" in source
-    assert 'widget.bind("<MouseWheel>", self._on_mousewheel, add="+")' in source
-    assert 'text=("Start" if embedded else "projectM starten")' in source
-    assert 'text=("Stop" if embedded else "projectM stoppen")' in source
-    assert 'text="projectM installieren"' in source
-    assert 'text="Radio anheften"' in source
-    assert 'text="Miniplayer"' in source
-    assert 'text="Datenbanken"' in source
-    assert "textvariable=self.radio_database_count_var" in source
-    assert 'text="Erreichbarkeit prüfen"' in source
-    assert 'text="Sender hinzufügen"' in source
-    assert "command=self.open_new_custom_radio_station_editor" in source
-    assert "ttk.Progressbar(" in app_source
-    assert "textvariable=self.radio_database_progress_status_var" in app_source
-    assert "details_frame.columnconfigure(2, weight=0)" in source
-    assert 'sticky="ne"' in source
-    assert 'text="Steuerung & EQ"' in source
-    assert 'text="EQ"' in source
-    assert "action_row = ttk.Frame(station_frame)" in source
-    assert "search_row = ttk.Frame(station_frame, padding=search_pad)" in source
-    assert (
-        "search = ttk.Entry(search_row, textvariable=self.radio_search_var, width=48)"
-        in source
-    )
-    assert "textvariable=self.radio_toggle_favorites_text_var" in source
-    assert 'sticky="w"' in source
-    assert ').grid(row=0, column=2, sticky="w", padx=(12, 0))' in source
-    assert "top = ttk.Frame(content_parent, padding=search_pad)" not in source
-    assert ').pack(side="left", padx=(14, 0))' not in source
-    assert 'main_pane = ttk.Panedwindow(main, orient="vertical")' in source
-    assert (
-        "self.radio_main_pane_marker = _install_pane_drag_marker(main, main_pane)"
-        in source
-    )
-    assert "main_pane.add(station_frame, weight=3)" in source
-    assert "main_pane.add(playlist_frame, weight=2)" in source
-    assert (
-        "playlist_parent = main_pane if main_pane is not None else (main if not embedded else controls)"
-        in source
-    )
-    assert '"row": 1 if not embedded else 2,' in source
-    assert "status_row.columnconfigure(0, weight=1)" in source
-    assert "radio_page_frame = ttk.Frame(status_row)" in source
-    assert 'radio_page_frame.place(relx=0.5, rely=0.5, anchor="center")' in source
-    assert 'text="←"' in source
-    assert "textvariable=self.radio_page_indicator_var" in source
-    assert 'text="→"' in source
-    assert 'label="Bass"' in source
-    assert 'label="Mitten"' in source
-    assert 'label="Höhen"' in source
-    assert "self.radio_station_table = ttk.Treeview(" in source
-    assert 'columns=("name", "genre", "bitrate")' in source
-    assert 'show=("tree", "headings")' in source
-    assert 'self.radio_station_table.heading("#0", text="Ampel")' in source
-    assert 'self.radio_station_table.grid(row=2, column=0, sticky="nsew")' in source
-    assert 'text="Beliebige Felder an- oder abwählen."' in app_source
-    assert '"tags": {"title": "Tags"' in inspect.getsource(radio_controller)
-    assert "radio_controller.configure_radio_station_table_columns(self)" in source
-    assert "stretch=False," in inspect.getsource(
-        radio_controller.configure_radio_station_table_columns
-    )
-    assert (
-        'table.tag_configure("ampel_online", foreground="#2fb344")'
-        in inspect.getsource(radio_controller.configure_radio_station_table_columns)
-    )
-    assert '("url", "URL", 520)' not in source
-    assert (
-        'label="Aufnahme starten"' in source
-        or 'label="Aufnahme starten"' in menu_source
-    )
-    assert (
-        'label="Aufnahme stoppen"' in source
-        or 'label="Aufnahme stoppen"' in menu_source
-    )
-    assert "height=9" in source
-    assert 'elif klass == "Listbox":' in theme_source
-    assert 'bg=theme["tree_bg"]' in theme_source
-    assert 'fg=theme["tree_fg"]' in theme_source
-    assert "def open_radio_miniplayer(self):" in app_source
-    assert "def _start_standalone_resize(self, event):" in app_source
-    assert "def _resize_standalone_height(self, event):" in app_source
-    assert "def _ensure_standalone_window_visible(self):" in app_source
-    assert "owner = self.winfo_toplevel() if embedded else self" in app_source
-    assert "mini = tk.Toplevel(owner)" in app_source
-    assert "mini.resizable(True, True)" in app_source
-    assert "mini.minsize(mini_width, mini_height)" in app_source
-    assert "mini.maxsize(mini_width * 2, mini_height * 2)" in app_source
-    assert "owner.withdraw()" in app_source
-    assert 'window.wm_state("normal")' in app_source
-    assert "window.after(80, _finalize_restore)" in app_source
-    assert 'window.attributes("-topmost", True)' in app_source
-    assert "self.withdraw()" in app_source
-    assert 'fallback = getattr(host_app, "open_radio_external_app", None)' in app_source
-    assert "_restore_window(owner)" in app_source
-    assert "_restore_window(self)" in app_source
-    assert "def check_visible_radio_station_reachability(self):" in app_source
-    assert "def open_radio_database_sources_popup(self):" in app_source
-    assert "RADIO_DATABASE_SOURCES" in inspect.getsource(netmon_radio_app)
-    assert "radio_browser_country_de_exact" in inspect.getsource(netmon_radio_app)
-    assert "radio_browser_country_at_exact" in inspect.getsource(netmon_radio_app)
-    assert "radio_browser_country_us_exact" in inspect.getsource(netmon_radio_app)
-    assert 'popup.title("Datenbanken")' in app_source
-    assert 'popup.geometry("980x760")' in app_source
-    assert 'text="Exklusive Länderdatenbanken"' in app_source
-    assert 'text="Alle auswählen"' in app_source
-    assert 'text="Exklusivmodus"' in app_source
-    assert 'text="Andere Datenbanken"' in app_source
-    assert (
-        "source_canvas = tk.Canvas(source_wrap, highlightthickness=0, bd=0)"
-        in app_source
-    )
-    assert 'orient="vertical"' in app_source
-    assert "command=source_canvas.yview" in app_source
-    assert 'ttk.Separator(source_frame, orient="horizontal")' in app_source
-    assert 'text="Datenbank aktualisieren"' in app_source
-    assert "action_row = ttk.Frame(body)" in app_source
-    assert "self.radio_database_progressbar.grid(" in app_source
-    assert 'image=self.radio_status_indicator_images.get("unknown")' in app_source
-    assert "self.check_radio_database_source_reachability()" in app_source
-    assert "def check_radio_database_source_reachability(self):" in app_source
-    assert "def on_radio_database_select_all_changed(self):" in app_source
-    assert "def on_radio_database_exclusive_mode_changed(self):" in app_source
-    assert "def on_radio_database_source_toggle(self, source_id):" in app_source
-    assert "def _sync_radio_database_select_all_state(self):" in app_source
-    assert "def open_new_custom_radio_station_editor(self):" in app_source
-    assert "def set_radio_database_import_progress(" in app_source
-    assert "def show_radio_database_import_summary(self, summary):" in app_source
-    assert "radio_controller.clear_custom_station_form(self)" in app_source
-    assert "return self.download_radio_db()" in app_source
-    assert "radio_controller.open_radio_tab(host_app)" in app_source
-    assert (
-        'widget.bind("<Double-Button-1>", self.restore_from_radio_miniplayer, add="+")'
-        in app_source
-    )
-    assert (
-        'widget.bind("<B1-Motion>", self._drag_radio_miniplayer, add="+")' in app_source
-    )
-    assert 'orient="horizontal",' in source
-    assert "command=self.radio_station_table.xview," in source
-    assert "xscrollcommand=station_scroll_x.set," in source
-    assert 'self.radio_station_table.bind(\n            "<ButtonRelease-1>",' in source
-    assert "self.radio_logo_label = ttk.Label(" in source
-    assert 'text="Aktueller Sender"' in source
-    assert "textvariable=self.radio_source_var" in source
-    assert "textvariable=self.radio_title_var" in source
-    assert "textvariable=self.radio_bitrate_var" in source
-    assert (
-        "self.radio_detach_button = ttk.Button(\n                details_frame,"
-        in source
-    )
-    assert "self.radio_detach_button.grid(\n                row=1," in source
-    assert (
-        "self.radio_attach_button = ttk.Button(\n                details_frame,"
-        in source
-    )
-    assert "self.radio_attach_button.grid(\n                row=1," in source
-    assert (
-        "self.radio_database_button = ttk.Button(\n            projectm_actions,"
-        in source
-    )
-    assert "self.radio_database_button.grid(\n            row=1," in source
-    assert (
-        'details_row.grid(row=0, column=0, sticky="ew", pady=(0, outer_pad))' in source
-    )
-    assert 'player_top.grid(row=1, column=0, sticky="ew")' in source
-    assert 'playback_eq_frame.grid(row=0, column=0, sticky="ew")' in source
-    assert (
-        'projectm_frame.grid(row=1, column=0, sticky="ew", pady=(outer_pad, 0))'
-        in source
-    )
-    assert "projectm_actions.columnconfigure(2, weight=1)" in source
-    assert 'projectm_frame.grid(row=0, column=2, sticky="nsew")' not in source
+    assert 'self.title("NetMon Radio")' in init
+    assert "self._radio_compact_layout = True" in init
+    assert "self._configure_compact_standalone_window()" in init
+    assert 'if self._started_from == "netmon_detach":' in init
+    assert "self.after(120, self._ensure_standalone_window_visible)" in init
+    assert "self.maxsize(width, max_height)" in geometry
+    assert "self.resizable(False, True)" in geometry
+    assert 'self.state("zoomed")' not in init
     assert "self._append_log_file(text)" in inspect.getsource(
         netmon_radio_app.NetMonRadioApp.log
     )
@@ -4262,7 +4072,7 @@ def test_init_radio_runtime_paths_initializes_radio_paths():
     assert app.radio_stations_path == "/tmp/stations.json"
     assert app.radio_favorites_path == "/tmp/favorites.json"
     assert app.radio_settings_path == "/tmp/settings.json"
-    assert app.radio_log_path == "/tmp/netmon-state/logs/netmon_radio_app.log"
+    assert app.radio_log_path.endswith("/NetMon/Logs/netmon_radio_app.log")
     assert app.radio_logo_cache_dir == "/tmp/netmon-state/radio_station_logos"
 
 
@@ -4459,6 +4269,7 @@ def test_init_radio_ui_playlist_runtime_state_initializes_fresh_state():
             "playlist_entries": ["one.mp3"],
             "playlist_path": " /tmp/list.m3u ",
             "playlists_dir": " /tmp/lists ",
+            "system_folder_path": " /tmp/media ",
         }
     )
     other = SimpleNamespace(radio_settings={})
@@ -4481,7 +4292,8 @@ def test_init_radio_ui_playlist_runtime_state_initializes_fresh_state():
     assert app.radio_system_folder_button is None
     assert app.radio_playlist_files_entries == []
     assert app.radio_system_folder_entries == []
-    assert app.radio_system_folder_path == ""
+    assert app.radio_system_folder_path == "/tmp/media"
+    assert other.radio_system_folder_path == ""
     assert app.radio_folder_browser_mode == "recordings"
     assert app.radio_folder_browser_current_path == ""
     assert app.radio_folder_browser_back_history == []
@@ -4585,6 +4397,7 @@ def test_init_radio_ui_header_vars_initializes_translated_values():
     assert app.radio_title_var.get() == "Titel: -"
     assert app.radio_header_status_var.get() == "Titel: -"
     assert app.radio_handover_title == ""
+    assert app.radio_notice_var.get() == ""
     assert app.radio_stream_url_var.get() == "Stream: -"
     assert app.radio_bitrate_var.get() == "Bitrate: -"
     assert app.radio_dependency_var.get() == "Bereit."
@@ -4594,6 +4407,7 @@ def test_init_radio_ui_header_vars_initializes_translated_values():
         "Radio aus",
         "Titel: -",
         "Titel: -",
+        "",
         "Stream: -",
         "Bitrate: -",
         "Bereit.",
@@ -5255,7 +5069,8 @@ def test_probe_radio_database_source_reachability_uses_protected_helper(monkeypa
 
 
 def test_parse_icecast_entries_from_xml_maps_station_fields():
-    rows = radio_controller._parse_icecast_entries_from_xml("""
+    rows = radio_controller._parse_icecast_entries_from_xml(
+        """
         <directory>
           <entry>
             <server_name>Ice Station</server_name>
@@ -5268,7 +5083,8 @@ def test_parse_icecast_entries_from_xml_maps_station_fields():
             <language>de</language>
           </entry>
         </directory>
-        """)
+        """
+    )
 
     assert len(rows) == 1
     assert rows[0]["name"] == "Ice Station"
@@ -6304,14 +6120,16 @@ def test_projectm_sidecar_prefers_pulseaudio_command_variants(monkeypatch):
 
 
 def test_projectm_sidecar_parses_optional_apt_candidates():
-    result = netmon_projectm_sidecar._parse_apt_policy_output("""
+    result = netmon_projectm_sidecar._parse_apt_policy_output(
+        """
 projectm-pulseaudio:
   Installed: (none)
   Candidate: 3.1.12-3
   Version table:
      3.1.12-3 500
         500 http://deb.debian.org/debian bookworm/main amd64 Packages
-""")
+"""
+    )
 
     assert result["installable"] is True
     assert result["available_packages"] == ["projectm-pulseaudio"]

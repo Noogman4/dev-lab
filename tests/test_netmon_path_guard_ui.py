@@ -75,8 +75,13 @@ def test_path_guard_ui_source_contains_ampel_and_status_label():
         'self.set_path_guard_light("warning", "PATH Guard: Risiko mittel")'
         in path_guard_source
     )
-    assert 'app.tab_path_guard = ttk.Frame(app.security_nb, padding=10)' in security_tabs_source
-    assert 'text=app.tr("security_tab_path_guard", "PATH-Guard")' in security_tabs_source
+    assert (
+        "app.tab_path_guard = ttk.Frame(app.security_nb, padding=10)"
+        in security_tabs_source
+    )
+    assert (
+        'text=app.tr("security_tab_path_guard", "PATH-Guard")' in security_tabs_source
+    )
     assert "app.path_guard_pane = ttk.Panedwindow(" in security_tabs_source
     assert "textvariable=app.path_guard_status_var" in security_tabs_source
     assert "app.path_guard_detail = tk.Text(" in security_tabs_source

@@ -1,11 +1,11 @@
 """Private PipeWire link-idempotence probe, via existing isolated starter.
 
-Reuses a frozen, previously tested server fixture read-only. All pw-dump and
+Uses the tracked private server fixture. All pw-dump and
 pw-link tools run inside that server's capsule. No host audio or restart.
 """
 
 from contextlib import ExitStack
-import importlib.util
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -18,19 +18,14 @@ def run(root, output):
         sys.path.insert(0, str(root))
     from netmon.core import radio_fifo_output as fifo
 
-    fixture = (
-        root / "backups/netmon-gpacat-step3-integration-20261109-claude/probe_base.py"
-    )
-    spec = importlib.util.spec_from_file_location("private_radio_link_fixture", fixture)
-    base = importlib.util.module_from_spec(spec)
-    argv = sys.argv
-    try:
-        sys.argv = [str(fixture), "unused-output"]
-        spec.loader.exec_module(base)
-    finally:
-        sys.argv = argv
-    base.OUT = output  # no writes into the frozen fixture
+    import radio_output_link_fixture as base
+
+    base.OUT = output
     result = {"status": "error", "host_audio": False, "host_restart": False}
+    result["fixture_sha256"] = {
+        name: hashlib.sha256((root / "tests" / name).read_bytes()).hexdigest()
+        for name in ("radio_output_link_fixture.py", "radio_output_link_worker.py")
+    }
     probe = None
     calls = []
     try:

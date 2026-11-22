@@ -8,14 +8,17 @@ def test_startup_guard_security_ui_source_is_present():
     source = inspect.getsource(build_security_tabs)
     startup_source = inspect.getsource(build_startup_guard_tab)
 
-    assert 'app.tab_startup_guard = ttk.Frame(app.security_nb, padding=10)' in source
+    assert "app.tab_startup_guard = ttk.Frame(app.security_nb, padding=10)" in source
     assert 'text=app.tr("security_tab_startup_guard", "Startup Guard")' in source
     assert "build_startup_guard_tab(app)" in source
 
     assert 'text=app.tr("startup_guard_group_basic", "Basis")' in startup_source
     assert 'text=app.tr("startup_guard_group_analysis", "Analyse")' in startup_source
     assert 'text=app.tr("startup_guard_group_trust", "Vertrauen")' in startup_source
-    assert 'text=app.tr("startup_guard_btn_baseline", "Baseline erstellen")' in startup_source
+    assert (
+        'text=app.tr("startup_guard_btn_baseline", "Baseline erstellen")'
+        in startup_source
+    )
     assert 'text=app.tr("startup_guard_btn_check", "Startup prüfen")' in startup_source
     assert 'text=app.tr("startup_guard_btn_clear", "Ergebnis leeren")' in startup_source
     assert "command=app.startup_guard_create_baseline" in startup_source
@@ -36,7 +39,7 @@ def test_startup_guard_security_ui_source_is_present():
     assert "app.startup_guard_tree = ttk.Treeview(" in startup_source
     assert "app.attach_startup_guard_tree_context_menu()" in startup_source
     assert "app.startup_guard_details_text = tk.Text(" in startup_source
-    assert 'app.startup_guard_tree.bind(' in startup_source
+    assert "app.startup_guard_tree.bind(" in startup_source
 
 
 def test_startup_guard_app_wrapper_uses_shared_builder():

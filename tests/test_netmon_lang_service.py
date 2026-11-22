@@ -210,7 +210,7 @@ def test_main_tabs_and_security_sections_use_translation_keys():
         chad_controller.send_chad_chat_message
     )
     assert "chad_file_dialog_title" in feature_source
-    assert "linux_help_confirm_send_title" in feature_source
+    assert "linux_help_status_sent_to_chad" in feature_source
     assert "dns_log_dnssec_started" in dnssec_source
     assert "startup_guard_status_check_running" in feature_source
     assert "security_log_filter_all" in feature_source
@@ -289,11 +289,12 @@ def test_trace_iftop_and_htop_summaries_use_translation_keys():
 def test_firewall_transparency_uses_translation_keys():
     firewall_source = inspect.getsource(App._collect_firewall_transparency_snapshot)
     refresh_source = inspect.getsource(App.refresh_firewall_transparency_view)
+    logging_source = inspect.getsource(App._render_ufw_logging_level)
 
     assert "firewall_transparency_active_rules" in firewall_source
     assert "firewall_transparency_no_rules_note" in firewall_source
     assert "firewall_tab_status_value" in refresh_source
-    assert "firewall_tab_logging_menu_value" in refresh_source
+    assert "firewall_tab_logging_menu_value" in logging_source
 
 
 def test_download_scan_and_chad_summary_use_translation_keys():
@@ -513,7 +514,7 @@ def test_german_repository_guard_and_lynis_strings_do_not_use_known_english_ui_l
     )
     assert de["dns_group_control"] == "DNS-Steuerung"
     assert de["dns_btn_health_check"] == "DNS-Health-Check"
-    assert de["dns_btn_leak_check"] == "DNS-Leak-Check"
+    assert de["dns_btn_leak_check"] == "DNS-Konfiguration prüfen"
     assert de["dns_control_report_title"] == "=== DNS-Steuerung ==="
     assert de["dns_leak_repair_title"] == "DNS-Leak-Reparatur"
     assert de["theme_header_light"] == "Design: Hell"

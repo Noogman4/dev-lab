@@ -528,6 +528,9 @@ def test_png_does_not_require_optional_pillow(monkeypatch):
 
 def test_radio_raw_cache_works_without_parent_pillow(tmp_path, monkeypatch):
     app = radio_stub(tmp_path)
+    app._radio_logo_size = lambda variant="main": (
+        (88, 88) if variant == "mini" else (96, 96)
+    )
     cache = tmp_path / "cache.pixels"
     cache.write_bytes(radio_pixels())
     monkeypatch.setattr(radio, "Image", None)
@@ -537,14 +540,16 @@ def test_radio_raw_cache_works_without_parent_pillow(tmp_path, monkeypatch):
     def photo(**kwargs):
         photos.append(kwargs)
         return SimpleNamespace(
-            put=lambda value: photos.append(value), transparency_set=lambda *_a: None
+            put=lambda value, **_position: photos.append(value),
+            transparency_set=lambda *_a: None,
         )
 
     monkeypatch.setattr(radio.tk, "PhotoImage", photo)
     radio.NetMonRadioApp._render_station_logo_file(app, str(cache), "station")
     assert app._radio_logo_loaded_key == "station" and not app.placeholders
-    assert photos[0] == {"width": 1, "height": 1}
-    assert photos[1] == "{#ff0000}"
+    assert photos[0] == {"width": 96, "height": 96}
+    assert photos[2] == {"width": 88, "height": 88}
+    assert set(photos[1].replace("{", "").replace("}", "").split()) == {"#ff0000"}
 
 
 def test_partial_cache_write_rolls_back(tmp_path, monkeypatch):

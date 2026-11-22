@@ -137,9 +137,9 @@ def enabled() -> bool:
 
 
 def path() -> str:
-    from netmon.core.state import get_netmon_state_dir
+    from netmon.core.state import get_netmon_documents_subdir
 
-    return os.path.join(get_netmon_state_dir(), "logs", "radio_stall.log")
+    return os.path.join(get_netmon_documents_subdir("Logs"), "radio_stall.log")
 
 
 def _open_private_log(target: str) -> int:

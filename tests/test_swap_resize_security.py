@@ -14,6 +14,33 @@ import pytest
 from netmon.core import swap_resize
 
 
+@pytest.fixture(autouse=True)
+def trusted_system_layout(monkeypatch):
+    """Model only system ownership; keep actual descriptors, modes and inodes."""
+    lstat_original, fstat_original = os.lstat, os.fstat
+    directories = {"/", "/usr", "/usr/sbin"}
+
+    def root_owned(info):
+        fields = list(info)
+        fields[4] = 0
+        return os.stat_result(fields)
+
+    def lstat(path, *args, **kwargs):
+        info = lstat_original(path, *args, **kwargs)
+        if os.fsdecode(path) in directories | {swap_resize.MKSWAP}:
+            return root_owned(info)
+        return info
+
+    def fstat(fd):
+        info = fstat_original(fd)
+        if os.readlink(f"/proc/self/fd/{fd}") in directories:
+            return root_owned(info)
+        return info
+
+    monkeypatch.setattr(swap_resize.os, "lstat", lstat)
+    monkeypatch.setattr(swap_resize.os, "fstat", fstat)
+
+
 class FakeLibc:
     """Records swap syscalls and resolves the magic link like the kernel."""
 
@@ -200,6 +227,30 @@ def test_mkswap_failure_reports_swap_off_and_removes_partial_file(swap_env):
         _resize(swap_env, libc, run=failing_mkswap)
     assert not os.path.lexists(swap_env["path"])
     assert [c[0] for c in libc.calls] == ["swapoff"]
+
+
+@pytest.mark.parametrize("fault", ["owner", "writable", "symlink"])
+def test_untrusted_mkswap_is_refused_before_swapoff(swap_env, monkeypatch, fault):
+    original = os.lstat
+
+    def untrusted(path, *args, **kwargs):
+        info = original(path, *args, **kwargs)
+        if os.fsdecode(path) != swap_resize.MKSWAP:
+            return info
+        fields = list(info)
+        if fault == "owner":
+            fields[4] = 1000
+        elif fault == "writable":
+            fields[0] |= stat.S_IWGRP
+        else:
+            fields[0] = stat.S_IFLNK | 0o777
+        return os.stat_result(fields)
+
+    monkeypatch.setattr(swap_resize.os, "lstat", untrusted)
+    libc = FakeLibc(swap_env["active"])
+    with pytest.raises(swap_resize.SwapResizeError, match="Unsicher"):
+        _resize(swap_env, libc)
+    assert libc.calls == []
 
 
 @pytest.mark.parametrize(

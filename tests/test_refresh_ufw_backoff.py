@@ -93,21 +93,20 @@ def test_backoff_duration_is_short_and_success_clears_it():
     assert "_ufw_sudo_backoff_until" not in app.__dict__
 
 
-def test_refresh_scope_shares_one_snapshot_per_flavour():
-    app = make_app([ACTIVE, (0, "Status: active\nLogging: on (low)\n")])
+def test_refresh_scope_shares_one_verbose_snapshot_for_all_displays():
+    verbose = (0, "Status: active\nLogging: on (low)\n")
+    app = make_app([verbose])
     fc.begin_refresh_scope(app)
     try:
-        assert fc.read_ufw_status(app) == ACTIVE
-        assert fc.read_ufw_status(app) == ACTIVE
-        assert len(app.calls) == 1
-        verbose = fc.read_ufw_status(app, verbose=True)
-        assert "Logging" in verbose[1] and len(app.calls) == 2
+        assert fc.read_ufw_status(app) == verbose
         assert fc.read_ufw_status(app, verbose=True) == verbose
-        assert len(app.calls) == 2
+        assert app._security_query_log_level() == "LOW"
+        assert len(app.calls) == 1
+        assert app.calls[0] == ["sudo", "-n", "ufw", "status", "verbose"]
     finally:
         fc.end_refresh_scope(app)
     fc.read_ufw_status(app)
-    assert len(app.calls) == 3  # outside a cycle every read is live
+    assert len(app.calls) == 2  # explicit reads always stay live
 
 
 def test_refresh_snapshot_is_invisible_to_other_threads():
@@ -164,7 +163,7 @@ def test_log_level_query_skips_sudo_during_backoff_and_plain_ufw_as_user(
     app.log = lambda *_: None
     calls = []
 
-    def run_cmd(cmd, timeout=0):
+    def run_cmd(cmd, timeout=0, text=True):
         calls.append(list(cmd))
         return SUDO_EN
 
@@ -190,7 +189,7 @@ def test_log_level_query_still_parses_a_working_sudo(monkeypatch):
     monkeypatch.setattr(
         netmon,
         "run_cmd",
-        lambda cmd, timeout=0: (0, "Status: active\nLogging: on (medium)\n"),
+        lambda cmd, timeout=0, text=True: (0, "Status: active\nLogging: on (medium)\n"),
     )
     monkeypatch.setattr(netmon.os, "geteuid", lambda: 1000)
     assert app._security_query_log_level().lower().startswith("on") or (
@@ -203,7 +202,7 @@ def test_log_level_query_tries_plain_ufw_only_as_root(monkeypatch):
     app.log = lambda *_: None
     calls = []
 
-    def run_cmd(cmd, timeout=0):
+    def run_cmd(cmd, timeout=0, text=True):
         calls.append(list(cmd))
         return (1, "ERROR: You need to be root")
 

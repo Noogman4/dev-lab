@@ -7,10 +7,12 @@ never requests from the decoder. No proxies, cookies, credentials or retries.
 import http.client
 import ipaddress
 import json
+import os
 import re
 import socket
 import ssl
 import sys
+import time
 from urllib.parse import unquote, urljoin, urlsplit, urlunsplit
 
 REDIRECTS = {301, 302, 303, 307, 308}
@@ -201,6 +203,58 @@ def read_icy_title(response):
     return " ".join(title.split())[:MAX_TITLE_CHARS]
 
 
+def _recording_body(response, destination, metadata):
+    """Strip bounded ICY blocks; only audio goes to the offline encoder."""
+    interval = response.getheader("icy-metaint")
+    if _icy_disabled(interval):
+        interval = None
+    elif (
+        not re.fullmatch(r"[0-9]{1,7}", interval)
+        or not 0 < int(interval) <= MAX_ICY_INTERVAL
+    ):
+        raise SourceError("Invalid ICY interval")
+    interval = int(interval) if interval is not None else None
+    remaining = interval
+    last_title = ""
+    last_sent = float("-inf")
+    while True:
+        chunk = response.read1(min(16384, remaining) if interval else 16384)
+        if not chunk:
+            if interval and remaining != interval:
+                raise SourceError("Incomplete ICY audio")
+            if response.length is not None and response.length > 0:
+                raise SourceError("Incomplete source body")
+            return
+        destination.write(chunk)
+        destination.flush()
+        if not interval:
+            continue
+        remaining -= len(chunk)
+        if remaining:
+            continue
+        length = _read_exact(response, 1)[0] * 16
+        raw = (
+            _read_exact(response, length).decode("utf-8", errors="replace").strip("\0")
+            if length
+            else ""
+        )
+        match = re.search(r"StreamTitle=['\"](.*?)['\"];", raw, flags=re.IGNORECASE)
+        title = (
+            " ".join("".join(c if c.isprintable() else " " for c in match[1]).split())[
+                :MAX_TITLE_CHARS
+            ]
+            if match
+            else ""
+        )
+        now = time.monotonic()
+        if title and title != last_title and now - last_sent >= 1:
+            metadata(
+                json.dumps({"title": title}, ensure_ascii=False).encode("utf-8") + b"\n"
+            )
+            last_title, last_sent = title, now
+        remaining = interval
+
+
 def _preset_url(url):
     if (
         not isinstance(url, str)
@@ -221,7 +275,7 @@ def _preset_url(url):
     )
 
 
-def transfer(url, destination, *, mode="stream", idle_timeout=None):
+def transfer(url, destination, *, mode="stream", idle_timeout=None, metadata=None):
     catalog = mode in {
         "catalog-json",
         "catalog-post",
@@ -240,6 +294,7 @@ def transfer(url, destination, *, mode="stream", idle_timeout=None):
     station = mode in {"probe-station", "probe-station-range"}
     if not probe and mode not in {
         "stream",
+        "record",
         "icy",
         "catalog-json",
         "catalog-post",
@@ -276,7 +331,9 @@ def transfer(url, destination, *, mode="stream", idle_timeout=None):
                 "User-Agent": "NetMon-Radio/1",
                 "Connection": "close",
                 "Accept-Encoding": "identity",
-                "Icy-MetaData": "1" if mode in {"icy", "probe-station-range"} else "0",
+                "Icy-MetaData": (
+                    "1" if mode in {"icy", "record", "probe-station-range"} else "0"
+                ),
             }
             if probe:
                 headers["Accept"] = "*/*"
@@ -378,6 +435,10 @@ def transfer(url, destination, *, mode="stream", idle_timeout=None):
                 )
                 destination.flush()
                 return
+            if mode == "record":
+                return _recording_body(
+                    response, destination, metadata or (lambda _data: None)
+                )
             interval = response.getheader("icy-metaint")
             if interval and not _icy_disabled(interval):
                 raise SourceError("Unexpected interleaved metadata refused")
@@ -468,7 +529,7 @@ def probe_reachability(url, *, mode):
 
 # CPU seconds per mode; live streams run for hours and are bounded by the
 # playback/recording scope (CPUQuota) instead of a cumulative CPU limit.
-CPU_SECONDS = {"stream": None, "preset": 120}
+CPU_SECONDS = {"stream": None, "record": None, "preset": 120}
 DEFAULT_CPU_SECONDS = 30
 
 
@@ -511,6 +572,24 @@ def main():
             result = probe_reachability(request["url"], mode=mode)
             sys.stdout.buffer.write(json.dumps({"reachable": result}).encode("utf-8"))
             sys.stdout.buffer.flush()
+        elif mode == "record":
+            descriptor = os.open(
+                "/run/record-metadata", os.O_WRONLY | os.O_NONBLOCK | os.O_NOFOLLOW
+            )
+            try:
+
+                def send_metadata(data):
+                    # Each line is below PIPE_BUF; a full pipe never blocks audio.
+                    try:
+                        os.write(descriptor, data)
+                    except BlockingIOError:
+                        pass
+
+                transfer(
+                    request["url"], sys.stdout.buffer, mode=mode, metadata=send_metadata
+                )
+            finally:
+                os.close(descriptor)
         else:
             transfer(
                 request["url"],

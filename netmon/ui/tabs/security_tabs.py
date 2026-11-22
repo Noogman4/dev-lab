@@ -3173,7 +3173,7 @@ def build_firewall_tab(app):
         value=app.tr("firewall_status_rule_count_default", "Regeln: 0")
     )
     app.firewall_tab_external_open_var = tk.StringVar(
-        value=app.tr("firewall_status_external_ports_default", "Externe Ports: 0")
+        value=app.tr("firewall_status_external_ports_default", "UFW IN erlaubt: 0")
     )
     app.firewall_tab_listener_count_var = tk.StringVar(
         value=app.tr("firewall_status_listener_count_default", "Lokale Listener: 0")

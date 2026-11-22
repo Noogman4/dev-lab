@@ -193,9 +193,8 @@ def parse_ss_lines(output: str):
 
         if not proc and cgroup:
             scope_name = cgroup.rsplit("/", 1)[-1]
-            if (
-                scope_name.startswith("app-gnome-netmon-")
-                and scope_name.endswith(".scope")
+            if scope_name.startswith("app-gnome-netmon-") and scope_name.endswith(
+                ".scope"
             ):
                 proc = "NetMon"
 

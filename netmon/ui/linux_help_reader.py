@@ -2,25 +2,32 @@
 
 from __future__ import annotations
 
+from bisect import bisect_right
 import re
 import subprocess
 import tkinter as tk
 from tkinter import font as tkfont, messagebox, ttk
 
 try:
+    from netmon.services.linux_help_glossary_service import linked_glossary_id
     from netmon.services.linux_help_markdown_service import source_url
 except ModuleNotFoundError:
+    from services.linux_help_glossary_service import linked_glossary_id
     from services.linux_help_markdown_service import source_url
 
 INLINE = re.compile(r"(`[^`\n]+`|\*\*[^*\n]+\*\*|(?<!!)\[[^]\n]+\]\([^()\s]+\))")
 
 
 class LinuxHelpReader(ttk.Frame):
-    def __init__(self, parent, *, tr=None, allow_popout=True):
+    def __init__(
+        self, parent, *, tr=None, allow_popout=True, source_validator=source_url
+    ):
         super().__init__(parent)
         self.tr = tr or (lambda _key, fallback: fallback)
+        self.source_validator = source_validator
         self.document = None
         self.entry = {}
+        self.on_glossary_link = None
         self.embedded = []
         self.cells = []
         self.code_buttons = []
@@ -130,58 +137,68 @@ class LinuxHelpReader(ttk.Frame):
         self.popout.configure(state="normal" if document else "disabled")
         if document:
             meta = document.metadata
-            risk = {
-                "safe": self.tr("linux_help_reader_safe", "überwiegend lesend"),
-                "caution": self.tr(
-                    "linux_help_reader_caution", "funktionsabhängig – mit Vorsicht"
-                ),
-                "danger": self.tr("linux_help_reader_danger", "gefährlich"),
-            }[meta["risk_level"]]
-            root = (
-                self.tr("label_yes", "Ja")
-                if meta["root_required"]
-                else self.tr("label_no", "Nein")
-            )
-            self.info.set(
-                f"{meta['name']} · {meta['category']} · Root: {root} · {risk}"
-            )
-            if self.entry.get("risk") and self.entry["risk"] != meta["risk_level"]:
-                self.status.set(
-                    self.tr(
-                        "linux_help_reader_risk_difference",
-                        "Hinweis: Die Risikoeinstufung der bisherigen Kurzinfo weicht von dieser Dokumentation ab.",
-                    )
-                )
-            for block in document.blocks:
-                if block.kind == "heading":
-                    mark = f"section_{len(self.headings)}_{self.text.index('end-1c')}"
-                    self.text.mark_set(mark, "end-1c")
-                    self.text.mark_gravity(mark, "left")
-                    if block.level == 2:
-                        self.headings.append((block.text, mark))
-                    self._inline(self.text, block.text, (f"h{min(3, block.level)}",))
-                    self.text.insert("end", "\n\n")
-                elif block.kind == "table":
-                    self._table(block.rows)
-                elif block.kind == "code":
-                    button = ttk.Button(
-                        self.text,
-                        text=self.tr("linux_help_reader_copy", "Code kopieren"),
-                        command=lambda code=block.text: self.copy_code(code),
-                    )
-                    self.code_buttons.append(button)
-                    self._window(button, stretch=False)
-                    self.text.insert("end", block.text + "\n\n", "code")
-                else:
-                    line = re.sub(r"^\s*- ", "• ", block.text)
-                    self._inline(self.text, line)
-                    self.text.insert("end", "\n\n")
+            if meta.get("entry_type") == "glossary":
+                kind = self.tr("linux_help_reader_glossary", "Glossarbegriff")
+                self.info.set(f"{meta['name']} · {meta['category']} · {kind}")
+            elif meta.get("entry_type") == "reference":
+                self.info.set(meta["name"])
+            else:
+                self._command_info(meta)
+            self._render_blocks(document)
         self.contents.configure(values=[title for title, _mark in self.headings])
         self.contents.set(self.tr("linux_help_reader_contents", "Inhaltsverzeichnis"))
         self.text.configure(state="disabled")
         self.text.yview_moveto(0)
         self._apply_theme()
         self._resize_windows()
+
+    def _command_info(self, meta):
+        risk = {
+            "safe": self.tr("linux_help_reader_safe", "überwiegend lesend"),
+            "caution": self.tr(
+                "linux_help_reader_caution", "funktionsabhängig – mit Vorsicht"
+            ),
+            "danger": self.tr("linux_help_reader_danger", "gefährlich"),
+        }[meta["risk_level"]]
+        root = (
+            self.tr("label_yes", "Ja")
+            if meta["root_required"]
+            else self.tr("label_no", "Nein")
+        )
+        self.info.set(f"{meta['name']} · {meta['category']} · Root: {root} · {risk}")
+        if self.entry.get("risk") and self.entry["risk"] != meta["risk_level"]:
+            self.status.set(
+                self.tr(
+                    "linux_help_reader_risk_difference",
+                    "Hinweis: Die Risikoeinstufung der bisherigen Kurzinfo weicht von dieser Dokumentation ab.",
+                )
+            )
+
+    def _render_blocks(self, document):
+        for block in document.blocks:
+            if block.kind == "heading":
+                mark = f"section_{len(self.headings)}_{self.text.index('end-1c')}"
+                self.text.mark_set(mark, "end-1c")
+                self.text.mark_gravity(mark, "left")
+                if block.level == 2:
+                    self.headings.append((block.text, mark))
+                self._inline(self.text, block.text, (f"h{min(3, block.level)}",))
+                self.text.insert("end", "\n\n")
+            elif block.kind == "table":
+                self._table(block.rows)
+            elif block.kind == "code":
+                button = ttk.Button(
+                    self.text,
+                    text=self.tr("linux_help_reader_copy", "Code kopieren"),
+                    command=lambda code=block.text: self.copy_code(code),
+                )
+                self.code_buttons.append(button)
+                self._window(button, stretch=False)
+                self.text.insert("end", block.text + "\n\n", "code")
+            else:
+                line = re.sub(r"^\s*- ", "• ", block.text)
+                self._inline(self.text, line)
+                self.text.insert("end", "\n\n")
 
     def _inline(self, widget, text, tags=()):
         position = 0
@@ -194,13 +211,14 @@ class LinuxHelpReader(ttk.Frame):
                 widget.insert("end", token[2:-2], (*tags, "bold"))
             else:
                 label, url = token[1:-1].split("](", 1)
-                if source_url(url):
+                identifier = self._glossary_target(url)
+                if identifier or self.source_validator(url):
                     tag = f"source_{len(self.links)}"
                     widget.tag_configure(tag, foreground=self._accent(), underline=True)
                     binding = widget.tag_bind(
                         tag,
                         "<Button-1>",
-                        lambda _e, target=url: self.open_source(target),
+                        lambda _e, target=url: self.open_link(target),
                     )
                     hover = widget.tag_bind(
                         tag, "<Enter>", lambda _e, target=url: self.status.set(target)
@@ -213,6 +231,24 @@ class LinuxHelpReader(ttk.Frame):
                     widget.insert("end", f"{label} ({url})", tags)
             position = match.end()
         widget.insert("end", text[position:], tags)
+
+    def _glossary_target(self, url):
+        if (
+            not callable(self.on_glossary_link)
+            or self.document is None
+            or self.document.metadata.get("entry_type") != "glossary"
+        ):
+            return ""
+        try:
+            return linked_glossary_id(url)
+        except (OSError, ValueError, RecursionError):
+            return ""
+
+    def open_link(self, url):
+        identifier = self._glossary_target(url)
+        if identifier:
+            return self.on_glossary_link(identifier)
+        return self.open_source(url)
 
     def _window(self, widget, *, stretch=True):
         mark = f"window_{len(self.embedded)}"
@@ -340,20 +376,33 @@ class LinuxHelpReader(ttk.Frame):
         self.match_position = -1
         query = self.query.get()
         self.searched_query = query
+        pattern = (
+            re.compile(re.escape(query), re.IGNORECASE)
+            if 0 < len(query) <= 256
+            else None
+        )
         for widget, mark in [(self.text, None), *self.cells]:
             widget.tag_remove("search_hit", "1.0", "end")
-            if not query or len(query) > 256:
+            if pattern is None or len(self.matches) == 500:
                 continue
-            start = "1.0"
-            count = tk.IntVar(master=self)
-            while len(self.matches) < 500:
-                found = widget.search(query, start, "end", nocase=True, count=count)
-                if not found:
+            # Tk 8.6 can crash when searching formatted text containing emoji.
+            content = widget.get("1.0", "end-1c")
+            line_starts = [
+                0,
+                *(newline.end() for newline in re.finditer("\n", content)),
+            ]
+            for match in pattern.finditer(content):
+                positions = []
+                for offset in match.span():
+                    line = bisect_right(line_starts, offset)
+                    prefix = content[line_starts[line - 1] : offset]
+                    column = self.tk.call("string", "length", prefix)
+                    positions.append(f"{line}.{column}")
+                start, end = positions
+                widget.tag_add("search_hit", start, end)
+                self.matches.append((widget, start, mark))
+                if len(self.matches) == 500:
                     break
-                end = f"{found}+{max(1, count.get())}c"
-                widget.tag_add("search_hit", found, end)
-                self.matches.append((widget, found, mark))
-                start = end
         self.matches.sort(
             key=lambda match: tuple(
                 int(part) for part in self.text.index(match[2] or match[1]).split(".")
@@ -383,7 +432,7 @@ class LinuxHelpReader(ttk.Frame):
     def open_source(self, url):
         from netmon.features.web_browser_controller import route_if_enabled
 
-        if not source_url(url):
+        if not self.source_validator(url):
             return False
         protected = route_if_enabled(self._root(), url)
         if protected is not None:
@@ -414,7 +463,11 @@ class LinuxHelpReader(ttk.Frame):
         if self.document is None:
             return None
         return open_reader_window(
-            self, tr=self.tr, document=self.document, entry=self.entry
+            self,
+            tr=self.tr,
+            document=self.document,
+            entry=self.entry,
+            on_glossary_link=self.on_glossary_link,
         )
 
 
@@ -427,6 +480,84 @@ def _style_short_info(window):
     )
 
 
+def set_reader_reading_state(window, state):
+    window.reading_state = dict(state or {"read": False})
+    window.read_var.set(window.reading_state["read"])
+    saved = bool(window.reading_state.get("bookmark"))
+    enabled = callable(window.on_reading_change)
+    window.bookmark_button.configure(
+        text=(
+            window.reader.tr("linux_help_bookmark_update", "★ Aktualisieren")
+            if saved
+            else window.reader.tr("linux_help_bookmark_set", "☆ Lesezeichen setzen")
+        ),
+        state="normal" if enabled else "disabled",
+    )
+    for button in (window.bookmark_jump_button, window.bookmark_remove_button):
+        button.configure(state="normal" if enabled and saved else "disabled")
+    window.read_button.configure(state="normal" if enabled else "disabled")
+
+
+def _change_reading(window, **changes):
+    result = (
+        window.on_reading_change(**changes)
+        if callable(window.on_reading_change)
+        else None
+    )
+    if result is None:
+        window.read_var.set(window.reading_state["read"])
+        window.reading_status.set(
+            window.reader.tr(
+                "linux_help_reading_failed",
+                "Lesestatus konnte nicht gespeichert werden.",
+            )
+        )
+        return False
+    set_reader_reading_state(window, result)
+    window.reading_status.set("")
+    return True
+
+
+def _save_bookmark(window):
+    documentation = window.notebook.select() == str(window.reader)
+    if documentation and window.reader.document is None:
+        window.reading_status.set(
+            window.reader.tr(
+                "linux_help_bookmark_unavailable",
+                "Die Dokumentation ist derzeit nicht verfügbar. Das Lesezeichen bleibt erhalten.",
+            )
+        )
+        return
+    widget = window.reader.text if documentation else window.short_info
+    _change_reading(
+        window,
+        bookmark={
+            "tab": "documentation" if documentation else "short_info",
+            "position": widget.yview()[0],
+        },
+    )
+
+
+def _jump_to_bookmark(window):
+    bookmark = window.reading_state.get("bookmark")
+    if bookmark is None:
+        return
+    documentation = bookmark["tab"] == "documentation"
+    if documentation and window.reader.document is None:
+        window.reading_status.set(
+            window.reader.tr(
+                "linux_help_bookmark_unavailable",
+                "Die Dokumentation ist derzeit nicht verfügbar. Das Lesezeichen bleibt erhalten.",
+            )
+        )
+        return
+    window.notebook.select(window.reader if documentation else window.short_frame)
+    window.update_idletasks()
+    widget = window.reader.text if documentation else window.short_info
+    widget.yview_moveto(bookmark["position"])
+    window.reading_status.set("")
+
+
 def open_reader_window(
     parent,
     *,
@@ -436,6 +567,9 @@ def open_reader_window(
     error_message="",
     tr=None,
     window=None,
+    reading_state=None,
+    on_reading_change=None,
+    on_glossary_link=None,
 ):
     """The existing reading window, now with quick-reference/documentation tabs."""
     tr = tr or (lambda _key, fallback: fallback)
@@ -472,18 +606,55 @@ def open_reader_window(
         window.short_frame.bind(
             "<<ThemeChanged>>", lambda _event: _style_short_info(window)
         )
+        footer = ttk.Frame(window)
+        footer.grid(row=1, column=0, sticky="ew", padx=10, pady=8)
+        footer.columnconfigure(0, weight=1)
+        window.reading_controls = ttk.Frame(footer)
+        window.reading_controls.grid(row=0, column=0, sticky="w")
+        window.bookmark_button = ttk.Button(
+            window.reading_controls, command=lambda: _save_bookmark(window)
+        )
+        window.bookmark_button.grid(row=0, column=0, padx=(0, 4))
+        window.bookmark_jump_button = ttk.Button(
+            window.reading_controls,
+            text=tr("linux_help_bookmark_jump", "Zum Lesezeichen"),
+            command=lambda: _jump_to_bookmark(window),
+        )
+        window.bookmark_jump_button.grid(row=0, column=1, padx=4)
+        window.bookmark_remove_button = ttk.Button(
+            window.reading_controls,
+            text=tr("linux_help_bookmark_remove", "Entfernen"),
+            command=lambda: _change_reading(window, bookmark=None),
+        )
+        window.bookmark_remove_button.grid(row=0, column=2, padx=4)
+        window.read_var = tk.BooleanVar(master=window)
+        window.read_button = ttk.Checkbutton(
+            window.reading_controls,
+            text=tr("linux_help_reading_read", "Gelesen"),
+            variable=window.read_var,
+            command=lambda: _change_reading(window, read=window.read_var.get()),
+        )
+        window.read_button.grid(row=0, column=3, padx=(8, 4))
         ttk.Button(
-            window, text=tr("btn_close", "Schließen"), command=window.destroy
-        ).grid(row=1, column=0, sticky="e", padx=10, pady=8)
+            footer, text=tr("btn_close", "Schließen"), command=window.destroy
+        ).grid(row=0, column=1, sticky="e", padx=(8, 0))
+        window.reading_status = tk.StringVar(master=window)
+        ttk.Label(footer, textvariable=window.reading_status, wraplength=620).grid(
+            row=1, column=0, columnspan=2, sticky="w"
+        )
         window.bind("<Escape>", lambda _event: window.destroy())
     title = item.get("name") or (document.metadata["name"] if document else "Linux")
     window.title(title + " – " + tr("linux_help_reader_title", "Dokumentation"))
     window.entry = item
+    window.on_reading_change = on_reading_change
+    window.reading_status.set("")
+    set_reader_reading_state(window, reading_state)
     window.short_info.configure(state="normal")
     window.short_info.delete("1.0", "end")
     window.short_info.insert("1.0", short_info or item.get("info") or title)
     window.short_info.configure(state="disabled")
     _style_short_info(window)
+    window.reader.on_glossary_link = on_glossary_link
     if document:
         window.reader.set_document(document, item)
         window.notebook.select(window.reader)

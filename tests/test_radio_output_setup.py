@@ -152,15 +152,8 @@ def test_foreign_dropin_is_neither_overwritten_nor_removed(env):
     assert p.dropin.read_text() == "context.modules = []\n"
 
 
-def test_setup_button_sits_in_player_section_below_detach():
-    source = (ROOT / "netmon/netmon_radio_app.py").read_text()
-    button = source.index("self.radio_output_setup_button = ttk.Button(")
-    block = source[button : source.index("self.radio_database_count_label", button)]
-    assert "details_frame," in block and "status_row" not in block
-    assert "textvariable=self.radio_output_button_var" in block
-    assert "command=self.manage_protected_radio_output" in block
-    assert "row=2," in block and "column=2," in block
-    assert "radio_controller.manage_protected_radio_output(self)" in source
+# Button placement and readiness are exercised with real Tk widgets in
+# test_settings_audio_setup_sits_below_refresh_and_tracks_readiness.
 
 
 class Var:
@@ -174,13 +167,19 @@ class Var:
 @pytest.mark.parametrize("ready", [True, False])
 def test_button_shows_state_and_status_row_stays_short(monkeypatch, ready):
     monkeypatch.setattr(radio, "_radio_output_ready", lambda app: ready)
-    app = SimpleNamespace(radio_output_button_var=Var())
+    app = SimpleNamespace(radio_output_button_var=Var(), radio_notice_var=Var())
     hint = radio._radio_output_hint(app)
     if ready:
-        assert hint == "" and app.radio_output_button_var.value == "✓ Ton geschützt"
+        assert hint == "" and app.radio_output_button_var.value == "✓ Ton einrichten…"
+        assert app.radio_notice_var.value == ""
     else:
         assert app.radio_output_button_var.value == "Ton einrichten…"
-        assert hint == "Geschützte Tonausgabe fehlt – oben einrichten."
+        assert len(app.radio_notice_var.value.splitlines()) == 2
+        assert "Radioeinstellungen" in app.radio_notice_var.value
+        assert (
+            hint
+            == "Geschützte Tonausgabe fehlt – in den Radioeinstellungen einrichten."
+        )
 
 
 def test_hint_without_button_variable_does_not_fail(monkeypatch):

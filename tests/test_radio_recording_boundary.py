@@ -474,6 +474,7 @@ def test_tk_keeps_running_during_recording_stop(live_recording, monkeypatch, clo
     app.after = root.after
     app.stop_radio_recording = lambda: radio.stop_radio_recording(app)
     app.close_radio_miniplayer = lambda: None
+    app.close_radio_toolbox = lambda: None
     app.close_custom_radio_station_editor = lambda: None
     app.close_projectm_visualizer_test = lambda: None
     app.stop_radio_playback = lambda **_k: None

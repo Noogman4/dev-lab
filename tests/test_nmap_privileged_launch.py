@@ -10,6 +10,31 @@ from netmon.app import App
 from netmon.core import trusted_sudo
 
 
+@pytest.fixture(autouse=True)
+def trusted_system_layout(monkeypatch):
+    """Keep real modes/types; model root ownership hidden by the user namespace."""
+    original = os.lstat
+    trusted = {
+        "/",
+        "/usr",
+        "/usr/bin",
+        "/usr/share",
+        "/usr/bin/sudo",
+        "/usr/bin/nmap",
+        "/usr/share/nmap",
+    }
+
+    def lstat(path, *args, **kwargs):
+        info = original(path, *args, **kwargs)
+        if os.fsdecode(path) in trusted:
+            fields = list(info)
+            fields[4] = 0
+            return os.stat_result(fields)
+        return info
+
+    monkeypatch.setattr(trusted_sudo.os, "lstat", lstat)
+
+
 class Var:
     def __init__(self, value=""):
         self.value = value

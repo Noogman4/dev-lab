@@ -245,7 +245,10 @@ def test_startup_guard_prompt_adds_cautious_focus():
 
     prompt = service.build_prompt("Startup Guard Eintrag Analyse", "Pfad: /tmp/run.sh")
 
-    assert "Behaupte nicht, dass etwas Malware ist." in prompt
+    assert (
+        "Behaupte keine Malware allein wegen eines unbekannten Namens oder temporären Pfads."
+        in prompt
+    )
     assert "/tmp" in prompt
 
 

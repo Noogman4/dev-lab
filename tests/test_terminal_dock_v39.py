@@ -26,6 +26,9 @@ def require_isolation():
 @pytest.fixture
 def workspace(monkeypatch, request):
     root = tk.Tk()
+    # This lightweight fixture bypasses App.__init__; match its compact scaling
+    # explicitly rather than inheriting a previous full-App test's display state.
+    root.tk.call("tk", "scaling", 0.90)
     callback_errors = []
     root.report_callback_exception = lambda *error: callback_errors.append(error)
     root.geometry("1280x800")

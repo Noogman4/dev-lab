@@ -709,6 +709,7 @@ def update_chad_controls_state(app):
         ("btn_chad_api_delete", "normal"),
         ("btn_chad_take_analysis", "normal"),
         ("btn_chad_import_file", "normal"),
+        ("btn_chad_system_prompt", "normal"),
         ("btn_chad_load_analysis", "normal"),
         ("btn_chad_save_analysis", "normal"),
         ("btn_chad_online", "normal"),
@@ -924,7 +925,16 @@ def filter_chad_analysis_input(app, raw_text: str) -> str:
     )
 
 
-def _build_chad_prompt_overrides(app) -> str:
+def _build_chad_prompt_overrides(app, source_name="") -> str:
+    from netmon.services.chad_tab_profiles import profile_for_title
+
+    allowed_focus = profile_for_title(source_name).focus
+
+    def focus_enabled(name, default=False):
+        return name in allowed_focus and _get_bool_setting(
+            app, f"chad_focus_{name}_var", default
+        )
+
     parts = []
     analysis_mode = _get_analysis_mode(app)
 
@@ -1008,35 +1018,35 @@ def _build_chad_prompt_overrides(app) -> str:
         )
 
     focus_items = []
-    if _get_bool_setting(app, "chad_focus_security_var", True):
+    if focus_enabled("security", True):
         focus_items.append(
             "Sicherheitsanalyse: priorisiere Schwachstellen, Angriffsindikatoren und missbräuchliches Verhalten."
         )
-    if _get_bool_setting(app, "chad_focus_dns_var", True):
+    if focus_enabled("dns", True):
         focus_items.append(
             "DNS Analyse: achte besonders auf Resolver-Konflikte, Manipulationssignale, DNS-Leaks und ungewöhnliche Namensauflösung."
         )
-    if _get_bool_setting(app, "chad_focus_network_var", True):
+    if focus_enabled("network", True):
         focus_items.append(
             "Netzwerkanalyse: priorisiere verdächtige Verbindungen, externe Kommunikation, Ports und Verkehrsmuster."
         )
-    if _get_bool_setting(app, "chad_focus_process_var", True):
+    if focus_enabled("process", True):
         focus_items.append(
             "Prozessanalyse: bewerte Prozesse, Eltern-Kind-Beziehungen, Binärpfade und verdächtiges Laufzeitverhalten genauer."
         )
-    if _get_bool_setting(app, "chad_focus_firewall_var", True):
+    if focus_enabled("firewall", True):
         focus_items.append(
             "Firewall Analyse: achte besonders auf Firewall-Regeln, Blockereignisse und Lücken in der Netzisolation."
         )
-    if _get_bool_setting(app, "chad_focus_performance_var"):
+    if focus_enabled("performance"):
         focus_items.append(
             "Performance Analyse: nenne auch Leistungsengpässe, Ressourcennutzung und Systemlast, wenn sie relevant sind."
         )
-    if _get_bool_setting(app, "chad_focus_optimization_var"):
+    if focus_enabled("optimization"):
         focus_items.append(
             "Systemoptimierung: gib bei Bedarf Hinweise zu Stabilisierung, Aufräumen und sinnvoller Optimierung."
         )
-    if _get_bool_setting(app, "chad_focus_rootkit_var"):
+    if focus_enabled("rootkit"):
         focus_items.append(
             "Rootkit Hinweise priorisieren: hebe versteckte Prozesse, Hooking, Persistenz und rootkit-typische Muster besonders deutlich hervor."
         )
@@ -1088,10 +1098,16 @@ def _format_chad_response_title(app, source_name: str = "") -> str:
 
 
 def build_chad_analysis_prompt(app, title: str, raw_text: str) -> str:
+    from netmon.services.chad_tab_profiles import profile_for_title
+
     service = app.__dict__.get("ai_service") or AiAnalysisService()
-    filtered_text = filter_chad_analysis_input(app, raw_text)
+    filtered_text = (
+        str(raw_text or "")
+        if profile_for_title(title).key == "system"
+        else filter_chad_analysis_input(app, raw_text)
+    )
     prompt = service.build_prompt(title, filtered_text)
-    return prompt + _build_chad_prompt_overrides(app)
+    return prompt + _build_chad_prompt_overrides(app, title)
 
 
 def _apply_prepared_chad_analysis(app, title: str, prompt: str):

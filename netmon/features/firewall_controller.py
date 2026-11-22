@@ -17,13 +17,13 @@ from tkinter import messagebox, ttk
 from . import vpn_controller
 
 try:
-    from netmon.core import nm_ownership
+    from netmon.core import nm_ownership, passive_sudo
     from netmon.core.killswitch_journal import KillswitchJournal as KillswitchJournal
     from netmon.core.killswitch_journal import PENDING
     from netmon.core.ufw_snapshot import UfwSnapshotClient as UfwSnapshotClient
     from netmon.core.ufw_snapshot import SnapshotError, valid_interface_name
 except ModuleNotFoundError:
-    from core import nm_ownership
+    from core import nm_ownership, passive_sudo
     from core.killswitch_journal import KillswitchJournal as KillswitchJournal
     from core.killswitch_journal import PENDING
     from core.ufw_snapshot import UfwSnapshotClient as UfwSnapshotClient
@@ -1080,7 +1080,8 @@ def cached_killswitch_state(app):
 
             def observe():
                 try:
-                    state = killswitch_state(app)
+                    with passive_sudo.observation(app):
+                        state = killswitch_state(app)
                     with lock:
                         if generation == app.__dict__.get(
                             "_killswitch_status_generation", 0
@@ -2041,10 +2042,7 @@ def killswitch_off(
     return True
 
 
-SUDO_STATUS_BACKOFF_SECONDS = 30.0
-_SUDO_PASSWORD_REQUIRED = re.compile(
-    r"^sudo: .*(password|passwort)", re.IGNORECASE | re.MULTILINE
-)
+SUDO_STATUS_BACKOFF_SECONDS = passive_sudo.BACKOFF_SECONDS
 
 
 def begin_refresh_scope(app) -> dict:
@@ -2063,8 +2061,8 @@ def end_refresh_scope(app) -> None:
 def refresh_scope(app):
     """The snapshot dict if the caller is the refresh that owns it, else None.
 
-    Other threads and every explicit operation (reconcile, switches, kill
-    switch, repairs) always read live and never see the sudo backoff.
+    Other threads do not inherit it. Explicit operations (reconcile, switches,
+    kill switch, repairs) read live; passive workers opt in separately.
     """
     if app is None:
         return None
@@ -2080,49 +2078,40 @@ def refresh_scope(app):
 
 
 def sudo_status_backoff_active(app) -> bool:
-    """True only for passive refresh reads after a recent sudo password failure."""
-    if refresh_scope(app) is None:
+    """Only explicitly passive callers see the shared authentication pause."""
+    if refresh_scope(app) is None and passive_sudo.current_app() is not app:
         return False
-    return time.monotonic() < float(app.__dict__.get("_ufw_sudo_backoff_until", 0.0))
+    return passive_sudo.paused(app)
 
 
 def note_ufw_status_result(app, rc, out) -> None:
-    """Remember a sudo password failure briefly; any success clears it.
-
-    Without this, the Tk refresh paid ~35 ms for a failing sudo three times
-    every 3 s (measured stall source in the visualizer window).
-    """
-    if app is None:
-        return
-    if rc == 0:
-        app.__dict__.pop("_ufw_sudo_backoff_until", None)
-    elif _SUDO_PASSWORD_REQUIRED.search(str(out or "")):
-        app.__dict__["_ufw_sudo_backoff_until"] = (
-            time.monotonic() + SUDO_STATUS_BACKOFF_SECONDS
-        )
+    if app is not None:
+        passive_sudo.note_result(app, rc, out)
 
 
 def read_ufw_status(app=None, verbose=False):
+    scope = refresh_scope(app)
+    passive = app is not None and (
+        scope is not None or passive_sudo.current_app() is app
+    )
+    # Verbose status is a superset used by firewall, SSH and logging displays.
     cmd = ["sudo", "-n", "ufw", "status"]
-    if verbose:
+    if verbose or passive:
         cmd.append("verbose")
     if app is None:
         return run_cmd(cmd, timeout=12 if verbose else 8)
-    # One refresh cycle shares a single status snapshot per flavour; only the
-    # refresh thread itself uses it (see refresh_scope).
-    scope = refresh_scope(app)
-    if isinstance(scope, dict) and verbose in scope:
-        return scope[verbose]
-    if sudo_status_backoff_active(app):
-        result = (1, "")
+    if scope is not None and "status" in scope:
+        return scope["status"]
+    if passive:
+        result = passive_sudo.read(
+            app, "ufw-status", lambda: _run_cmd(app, cmd, timeout=12), ttl=1.0
+        )
     else:
+        app.__dict__.pop("_passive_sudo_samples", None)
         result = _run_cmd(app, cmd, timeout=12 if verbose else 8)
-        try:
-            note_ufw_status_result(app, result[0], result[1])
-        except Exception:
-            pass
-    if isinstance(scope, dict):
-        scope[verbose] = result
+        note_ufw_status_result(app, result[0], result[1])
+    if scope is not None:
+        scope["status"] = result
     return result
 
 

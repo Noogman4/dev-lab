@@ -8,6 +8,7 @@ import pytest
 
 from netmon import app as app_module
 from netmon.app import App
+from netmon.core.release_version import display_version
 
 
 class Value:
@@ -146,8 +147,8 @@ def test_about_falls_back_when_installed_metadata_is_unusable(
     monkeypatch.setattr(app_module, "__file__", "/usr/lib/netmon/netmon/app.py")
     monkeypatch.setattr(app_module, "run_cmd", Mock(return_value=(status, output)))
     app = App.__new__(App)
-    assert (
-        app._get_about_program_system_info()["netmon"] == app_module.NETMON_APP_VERSION
+    assert app._get_about_program_system_info()["netmon"] == display_version(
+        app_module.NETMON_APP_VERSION
     )
 
 
@@ -158,8 +159,8 @@ def test_about_checkout_does_not_borrow_unrelated_installed_version(monkeypatch)
     )
     monkeypatch.setattr(app_module, "run_cmd", command)
     app = App.__new__(App)
-    assert (
-        app._get_about_program_system_info()["netmon"] == app_module.NETMON_APP_VERSION
+    assert app._get_about_program_system_info()["netmon"] == display_version(
+        app_module.NETMON_APP_VERSION
     )
     command.assert_not_called()
 

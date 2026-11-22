@@ -6,9 +6,9 @@ import tkinter as tk
 from tkinter import ttk
 
 try:
-    from netmon.features import chad_composer, chad_controller
+    from netmon.features import chad_composer, chad_controller, chad_system_context
 except ModuleNotFoundError:
-    from features import chad_composer, chad_controller
+    from features import chad_composer, chad_controller, chad_system_context
 
 
 def build_chad_tab(app):
@@ -74,6 +74,20 @@ def build_chad_analysis_header_and_composer(app):
         command=app.run_chad_online_analysis,
     )
     app.btn_chad_online.grid(row=0, column=2, sticky="w", padx=(0, 6))
+    app.btn_chad_system_prompt = ttk.Button(
+        top,
+        text=app.tr("chad_btn_system_prompt", "Systemcheck-Prompt"),
+        command=lambda: chad_system_context.prepare_system_prompt(app),
+    )
+    app.btn_chad_system_prompt.grid(row=1, column=0, sticky="w", pady=(4, 0))
+    ttk.Label(
+        top,
+        text=app.tr(
+            "chad_system_prompt_hint",
+            "Vorhandene Tab-Daten; startet keinen neuen Scan.",
+        ),
+        wraplength=260,
+    ).grid(row=1, column=1, columnspan=2, sticky="w", padx=(12, 0), pady=(4, 0))
 
     composer_input_frame = ttk.Frame(composer_frame)
     composer_input_frame.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(6, 0))

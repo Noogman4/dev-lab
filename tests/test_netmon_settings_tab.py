@@ -120,7 +120,11 @@ def test_reset_status_environment_preserves_unexpected_command_guard(tmp_path, c
         "    reset_status_environment, passive_dns_service, passive_dns_status,\n"
         "    app_module, App,\n"
         ")\n\n"
-        "def test_expected_block(reset_status_environment):\n"
+        "def test_expected_block(reset_status_environment, monkeypatch):\n"
+        "    from netmon.core import trusted_sudo\n"
+        "    # Reach the subprocess guard independently of namespace ownership.\n"
+        "    monkeypatch.setattr(trusted_sudo, 'trusted_sudo_path', lambda: '/usr/bin/sudo')\n"
+        "    monkeypatch.setattr(trusted_sudo, 'trusted_nmcli_path', lambda: '/usr/bin/nmcli')\n"
         "    reset_status_environment(App.__new__(App))\n"
         "    try:\n"
         f"        app_module.run_cmd({command!r})\n"
@@ -177,6 +181,7 @@ def test_load_settings_updates_defaults_from_config(tmp_path):
     assert app.settings["chad_preview_popup"] is True
     assert app.settings["start_network_mode"] == "system"
     assert app.settings["startup_guard_autorun"] is True
+    assert app.settings["button_sound_enabled"] is True
 
 
 def test_apply_settings_from_ui_updates_runtime_and_persists():
@@ -811,6 +816,7 @@ def test_reset_settings_to_defaults_restores_defaults(
         "start_security_monitoring": True,
         "start_dot": True,
         "theme": "dark",
+        "button_sound_enabled": False,
         "auto_log_clear": True,
         "debug_network_logging": True,
         "strict_protection": False,
@@ -864,6 +870,7 @@ def test_reset_settings_to_defaults_restores_defaults(
     app.var_start_dot = DummyVar(True)
     app.var_theme_choice = DummyVar("Dark")
     app.var_auto_log_clear = DummyVar(True)
+    app.var_button_sound = DummyVar(False)
     app.var_debug_network_logging = DummyVar(True)
     app.var_ufw_logging_default = DummyVar("high")
     app.var_auto_switch_to_chad = DummyVar(False)
@@ -937,6 +944,7 @@ def test_reset_settings_to_defaults_restores_defaults(
     assert app.var_start_security_monitoring.get() is False
     assert app.var_start_dot.get() is False
     assert app.var_theme_choice.get() == "Dark"
+    assert app.var_button_sound.get() is True
     assert app.var_auto_log_clear.get() is False
     assert app.var_debug_network_logging.get() is False
     assert app.var_ufw_logging_default.get() == "keep"

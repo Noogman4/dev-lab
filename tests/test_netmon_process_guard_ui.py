@@ -7,7 +7,7 @@ from netmon.ui.tabs.security_tabs import build_security_tabs
 def test_process_guard_security_ui_source_is_present():
     source = inspect.getsource(build_security_tabs)
 
-    assert 'app.tab_process_guard = ttk.Frame(app.security_nb, padding=10)' in source
+    assert "app.tab_process_guard = ttk.Frame(app.security_nb, padding=10)" in source
     assert 'text=app.tr("security_tab_process_guard", "Process Guard")' in source
     assert "textvariable=app.process_guard_monitoring_status_var" in source
     assert "textvariable=app.process_guard_filter_status_var" in source
@@ -38,7 +38,10 @@ def test_process_guard_security_ui_source_is_present():
     assert "app.attach_process_guard_tree_context_menu()" in source
     assert 'text=app.tr("process_guard_details_title", "Details")' in source
     assert "app.process_guard_detail = tk.Text(" in source
-    assert 'app.process_guard_tree.bind("<<TreeviewSelect>>", app.on_process_guard_select)' in source
+    assert (
+        'app.process_guard_tree.bind("<<TreeviewSelect>>", app.on_process_guard_select)'
+        in source
+    )
 
 
 def test_process_guard_app_wrappers_are_present():
@@ -48,7 +51,10 @@ def test_process_guard_app_wrappers_are_present():
     assert "self.process_guard_monitoring_status_var = tk.StringVar(" in app_source
     assert "self.process_guard_filter_status_var = tk.StringVar(" in app_source
     assert "self.process_guard_visible_count_var = tk.StringVar(" in app_source
-    assert "self.l_process_guard = self.make_light(amp_extra, \"Process Guard\")" in app_source
+    assert (
+        'self.l_process_guard = self.make_light(amp_extra, "Process Guard")'
+        in app_source
+    )
     assert "def run_process_guard_check(self):" in app_source
     assert "def start_process_guard_monitoring(self):" in app_source
     assert "def stop_process_guard_monitoring(self):" in app_source

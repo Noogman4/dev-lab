@@ -31,11 +31,16 @@ except ModuleNotFoundError:
     )
 
 try:
-    from netmon.core import manual_wireguard, nm_ownership, wireguard_import
+    from netmon.core import (
+        manual_wireguard,
+        nm_ownership,
+        passive_sudo,
+        wireguard_import,
+    )
     from netmon.core.command import run_cmd, run_cmd_with_input
     from netmon.core.nm_import_session import ImportSession
 except ModuleNotFoundError:
-    from core import manual_wireguard, nm_ownership, wireguard_import
+    from core import manual_wireguard, nm_ownership, passive_sudo, wireguard_import
     from core.command import run_cmd, run_cmd_with_input
     from core.nm_import_session import ImportSession
 
@@ -3478,7 +3483,14 @@ def read_wg_profile_text(app, profile_name):
     path = app._wg_profile_path(profile_name)
     if not path:
         return 1, ""
-    rc, out = run_cmd(["sudo", "-n", "cat", path], timeout=5)
+
+    def read():
+        return run_cmd(["sudo", "-n", "cat", path], timeout=5)
+
+    if passive_sudo.current_app() is app:
+        rc, out = passive_sudo.read(app, "wg-profile", read)
+    else:
+        rc, out = read()
     if rc != 0:
         rc, out = run_cmd(["cat", path], timeout=5)
     return rc, out
@@ -3514,6 +3526,7 @@ def list_wg_profiles(app):
 
 
 def refresh_wg_profiles(app):
+    app.__dict__.pop("_profile_ipv6_display_sample", None)
     profiles = app.list_wg_profiles()
     app.wg_profiles = profiles
     if app.__dict__.get("isp_stealth_vpn_combo") is not None:
@@ -3543,13 +3556,42 @@ def reload_wg_profiles(app):
         app.log("WireGuard-Profile: keine gefunden")
 
 
+def profile_ipv6_display_state(app, profile_name):
+    """Cache only derived IPv6 metadata, never WireGuard configuration text."""
+    path = app._wg_profile_path(profile_name)
+    try:
+        info = os.stat(path)
+        identity = (
+            info.st_dev,
+            info.st_ino,
+            info.st_size,
+            info.st_mtime_ns,
+            info.st_ctime_ns,
+        )
+    except (OSError, TypeError):
+        identity = None
+    signature = (profile_name, path, identity)
+    sample = app.__dict__.get("_profile_ipv6_display_sample")
+    if sample and sample[0] == signature and time.monotonic() - sample[1] < 30:
+        return sample[2]
+    with passive_sudo.observation(app):
+        supported = app.profile_supports_ipv6(profile_name)
+    if supported is not None:
+        app.__dict__["_profile_ipv6_display_sample"] = (
+            signature,
+            time.monotonic(),
+            supported,
+        )
+    return supported
+
+
 def profile_supports_ipv6(app, profile_name):
     if not profile_name:
         return False
 
     rc, out = app._read_wg_profile_text(profile_name)
     if rc != 0:
-        return False
+        return None if passive_sudo.current_app() is app else False
 
     def has_ipv6_token(token):
         value = (token or "").strip()

@@ -7,7 +7,6 @@ import io
 import json
 import os
 import re
-import threading
 import tkinter as tk
 from tkinter import ttk
 
@@ -22,13 +21,15 @@ except Exception:
     load_workbook = None
 
 try:
-    from netmon.core.utils import safe_write_json, call_in_ui_thread
+    from netmon.core.utils import safe_write_json
     from netmon.core.docx_archive import open_validated_xlsx
     from netmon.core.import_limits import ImportLimitError, read_bounded_text
+    from netmon.services.linux_help_reading_service import ReadingState
 except ModuleNotFoundError:
-    from core.utils import safe_write_json, call_in_ui_thread
+    from core.utils import safe_write_json
     from core.docx_archive import open_validated_xlsx
     from core.import_limits import ImportLimitError, read_bounded_text
+    from services.linux_help_reading_service import ReadingState
 
 # Bounds for user-selected CSV/XLSX command databases (shipped DB: ~180 KiB,
 # ~700 rows). XLSX archive bounds come from docx_archive (OOXML validator).
@@ -43,39 +44,37 @@ try:
     from netmon.services.linux_help_library_service import (
         delete_linux_help_document,
         get_linux_help_document_by_id,
-        import_linux_help_pdf,
+        inspect_markdown_import,
+        save_linux_help_markdown,
+        read_linux_help_markdown,
+        load_linux_help_markdown,
         list_linux_help_documents,
-        linux_help_documents_dir,
     )
-    from netmon.services.linux_help_prompt_service import build_linux_help_pdf_prompt
-    from netmon.services.linux_help_viewer_service import (
-        build_linux_help_library_preview,
+    from netmon.services.linux_help_library_markdown import (
+        split_markdown,
+        format_entry_markdown,
+    )
+    from netmon.services.linux_help_prompt_service import (
+        build_linux_help_markdown_prompt,
     )
 except ModuleNotFoundError:
     from services.linux_help_library_service import (
         delete_linux_help_document,
         get_linux_help_document_by_id,
-        import_linux_help_pdf,
+        inspect_markdown_import,
+        save_linux_help_markdown,
+        read_linux_help_markdown,
+        load_linux_help_markdown,
         list_linux_help_documents,
-        linux_help_documents_dir,
     )
-    from services.linux_help_prompt_service import build_linux_help_pdf_prompt
-    from services.linux_help_viewer_service import build_linux_help_library_preview
+    from services.linux_help_library_markdown import (
+        split_markdown,
+        format_entry_markdown,
+    )
+    from services.linux_help_prompt_service import build_linux_help_markdown_prompt
 
 
 NETMON_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-LINUX_HELP_EXPORT_FIELDS = [
-    "category",
-    "name",
-    "info",
-    "cmd",
-    "syntax",
-    "example",
-    "explanation",
-    "root_required",
-    "tags",
-    "risk",
-]
 RISK_UI = {
     "safe": ("linux_help_risk_safe", "🟢 Safe", "green"),
     "caution": ("linux_help_risk_caution", "🟡 Admin", "#d8a106"),
@@ -844,6 +843,8 @@ def normalize_linux_help_entry(app, raw, existing_ids=None):
         "root_required": root_required,
         "enabled": enabled,
     }
+    if isinstance(item.get("markdown_id"), str):
+        normalized["markdown_id"] = item["markdown_id"]
     return normalized
 
 
@@ -859,7 +860,7 @@ def normalize_linux_help_glossary_entry(app, raw, existing_ids=None):
         if isinstance(related, (list, tuple, set))
         else linux_help_tag_text(str(related or ""))
     )
-    return {
+    normalized = {
         "id": linux_help_make_id(
             {"id": item.get("id") or term, "name": term}, existing_ids=existing_ids
         ),
@@ -879,10 +880,14 @@ def normalize_linux_help_glossary_entry(app, raw, existing_ids=None):
         "related": related_text,
     }
 
+    if isinstance(item.get("markdown_id"), str):
+        normalized["markdown_id"] = item["markdown_id"]
+    return normalized
+
 
 def _serialize_linux_help_glossary_entry(item):
     entry = dict(item or {})
-    return {
+    serialized = {
         "id": str(entry.get("id") or "").strip(),
         "term": str(entry.get("name") or entry.get("term") or "").strip(),
         "short": str(entry.get("info") or entry.get("short") or "").strip(),
@@ -902,6 +907,10 @@ def _serialize_linux_help_glossary_entry(item):
         "enabled": bool(entry.get("enabled", True)),
         "category": str(entry.get("category") or "").strip(),
     }
+
+    if entry.get("markdown_id"):
+        serialized["markdown_id"] = entry["markdown_id"]
+    return serialized
 
 
 def rebuild_linux_help_indexes(app):
@@ -1083,18 +1092,6 @@ def import_linux_help_csv(app, path):
     return commands
 
 
-def export_linux_help_csv(app, path):
-    with open(path, "w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=LINUX_HELP_EXPORT_FIELDS)
-        writer.writeheader()
-        for item in app.linux_help_data:
-            row = dict(item)
-            row["root_required"] = "yes" if item.get("root_required") else "no"
-            writer.writerow(
-                {field: row.get(field, "") for field in LINUX_HELP_EXPORT_FIELDS}
-            )
-
-
 def load_linux_help_data(app):
     data_path = app.linux_help_data_path
     if os.path.isfile(data_path):
@@ -1109,12 +1106,14 @@ def load_linux_help_data(app):
             app.linux_help_data.append(normalized)
         rebuild_linux_help_indexes(app)
         load_linux_help_glossary(app)
+        adopt_personal_markdown(app)
         set_linux_help_dirty(app, False)
         return app.linux_help_data
 
     commands = import_linux_help_csv(app, linux_help_csv_path())
     save_linux_help_data(app, update_status=False)
     load_linux_help_glossary(app)
+    adopt_personal_markdown(app)
     set_linux_help_dirty(app, False)
     return commands
 
@@ -1341,7 +1340,124 @@ def clear_linux_help_filters(app):
     _app_var_set(app, "linux_help_category_var", _linux_help_all_categories_label(app))
     _app_var_set(app, "linux_help_source_var", _linux_help_all_sources_label(app))
     _app_var_set(app, "linux_help_risk_filter_var", _linux_help_all_risks_label(app))
+    _app_var_set(app, "linux_help_bookmarks_only_var", False)
     refresh_linux_help_list(app)
+
+
+def _reading_state(app):
+    state = _app_value(app, "linux_help_reading_state")
+    if state is None:
+        state = ReadingState()
+        app.linux_help_reading_state = state
+    return state
+
+
+def _reading_label(app, item):
+    value = _reading_state(app).get(item)
+    label = (
+        _tr(app, "linux_help_reading_read", "Gelesen")
+        if value["read"]
+        else _tr(app, "linux_help_reading_unread", "Ungelesen")
+    )
+    return ("★ · " if value.get("bookmark") else "") + label
+
+
+def style_linux_help_reading(app):
+    tree = _app_value(app, "linux_help_tree")
+    if not isinstance(tree, ttk.Treeview):
+        return
+    style = ttk.Style(tree)
+    background = style.lookup("Treeview", "background") or "#ffffff"
+    base = tree.winfo_rgb(background)
+    accent = tree.winfo_rgb("#408cd0")
+    color = "#" + "".join(
+        f"{round((a * .82 + b * .18) / 257):02x}" for a, b in zip(base, accent)
+    )
+    tree.tag_configure("linux_help_read", background=color)
+
+
+def _refresh_reading_marks(app):
+    tree = _app_value(app, "linux_help_tree")
+    if tree is not None:
+        if _app_var_get(app, "linux_help_bookmarks_only_var", False):
+            refresh_linux_help_list(app)
+        else:
+            for item in _app_value(app, "linux_help_visible_commands", []):
+                row = item.get("id", "")
+                if not tree.exists(row):
+                    continue
+                tags = [
+                    tag for tag in tree.item(row, "tags") if tag != "linux_help_read"
+                ]
+                if _reading_state(app).get(item)["read"]:
+                    tags.append("linux_help_read")
+                tree.item(row, tags=tags)
+                if "reading" in tree["columns"]:
+                    tree.set(row, "reading", _reading_label(app, item))
+    for name in ("linux_help_reader_window",):
+        window = _app_value(app, name)
+        if window is not None and window.winfo_exists():
+            try:
+                from netmon.ui.linux_help_reader import set_reader_reading_state
+            except ModuleNotFoundError:
+                from ui.linux_help_reader import set_reader_reading_state
+            set_reader_reading_state(window, _reading_state(app).get(window.entry))
+
+
+def change_linux_help_reading(app, item, **changes):
+    try:
+        result = _reading_state(app).change(item, **changes)
+    except (OSError, ValueError, UnicodeError, RecursionError):
+        _app_var_set(
+            app,
+            "linux_help_status_var",
+            _tr(
+                app,
+                "linux_help_reading_failed",
+                "Lesestatus konnte nicht gespeichert werden.",
+            ),
+        )
+        return None
+    _refresh_reading_marks(app)
+    return result
+
+
+def reset_linux_help_reading(app):
+    if messagebox is None or not messagebox.askyesno(
+        _tr(app, "linux_help_reading_reset_title", "Lesestatus zurücksetzen"),
+        _tr(
+            app,
+            "linux_help_reading_reset_prompt",
+            "Alle Erklärungen als ungelesen markieren? Die Lesezeichen bleiben erhalten.",
+        ),
+        parent=app.linux_help_tree.winfo_toplevel(),
+        default="no",
+    ):
+        return False
+    try:
+        _reading_state(app).change(reset_read=True)
+    except (OSError, ValueError, UnicodeError, RecursionError):
+        _app_var_set(
+            app,
+            "linux_help_status_var",
+            _tr(
+                app,
+                "linux_help_reading_failed",
+                "Lesestatus konnte nicht gespeichert werden.",
+            ),
+        )
+        return False
+    _refresh_reading_marks(app)
+    _app_var_set(
+        app,
+        "linux_help_status_var",
+        _tr(
+            app,
+            "linux_help_reading_reset_done",
+            "Lesestatus zurückgesetzt. Lesezeichen bleiben erhalten.",
+        ),
+    )
+    return True
 
 
 def refresh_linux_help_list(app, category=None):
@@ -1363,6 +1479,10 @@ def refresh_linux_help_list(app, category=None):
     risk_filter = _risk_filter_value(app)
     if risk_filter:
         commands = [item for item in commands if item.get("risk") == risk_filter]
+    if _app_var_get(app, "linux_help_bookmarks_only_var", False):
+        commands = [
+            item for item in commands if _reading_state(app).get(item).get("bookmark")
+        ]
 
     app.linux_help_visible_commands = commands
     app.linux_help_visible_command_ids = [item.get("id", "") for item in commands]
@@ -1370,30 +1490,39 @@ def refresh_linux_help_list(app, category=None):
     tree = _app_value(app, "linux_help_tree")
     listbox = _app_value(app, "linux_help_listbox")
     if tree is not None:
+        style_linux_help_reading(app)
         tree.delete(*tree.get_children())
         for item in commands:
             _risk_key, risk_label, _fill = RISK_UI.get(
                 item.get("risk"),
                 RISK_UI["unknown"],
             )
+            values = (
+                item.get("category") or "–",
+                _source_label(
+                    app, "glossary" if _is_glossary_item(item) else "command"
+                ),
+                risk_label,
+                (
+                    _tr(app, "label_yes", "Yes")
+                    if item.get("root_required")
+                    else _tr(app, "label_no", "No")
+                ),
+                item.get("tags") or "–",
+                item.get("info") or "–",
+            )
+            if "reading" in tree["columns"]:
+                values += (_reading_label(app, item),)
             tree.insert(
                 "",
                 "end",
                 iid=item.get("id", ""),
                 text=item.get("name") or item.get("cmd") or "–",
-                values=(
-                    item.get("category") or "–",
-                    _source_label(
-                        app, "glossary" if _is_glossary_item(item) else "command"
-                    ),
-                    risk_label,
-                    (
-                        _tr(app, "label_yes", "Yes")
-                        if item.get("root_required")
-                        else _tr(app, "label_no", "No")
-                    ),
-                    item.get("tags") or "–",
-                    item.get("info") or "–",
+                values=values,
+                tags=(
+                    ("linux_help_read",)
+                    if _reading_state(app).get(item)["read"]
+                    else ()
                 ),
             )
     elif listbox is not None:
@@ -1512,7 +1641,7 @@ def on_linux_help_select(app, _event=None):
     update_linux_help_notes(app, item)
 
 
-def open_linux_help_reader(app, event=None):
+def open_linux_help_reader(app, event=None, *, command_id=None):
     tree = _app_value(app, "linux_help_tree")
     if event is not None and getattr(event, "num", None) == 1 and tree is not None:
         row = tree.identify_row(event.y)
@@ -1520,18 +1649,16 @@ def open_linux_help_reader(app, event=None):
             return "break"
         tree.selection_set(row)
         tree.focus(row)
-    item = _resolve_linux_help_item(app)
+    item = _resolve_linux_help_item(app, command_id)
     if item is None:
         return "break" if event is not None else None
     try:
-        from netmon.services.linux_help_markdown_service import load_command_document
         from netmon.ui.linux_help_reader import open_reader_window
     except ModuleNotFoundError:
-        from services.linux_help_markdown_service import load_command_document
         from ui.linux_help_reader import open_reader_window
     error_message = ""
     try:
-        document = load_command_document(item)
+        document = load_entry_document(item)
     except (OSError, ValueError, UnicodeError, RecursionError):
         document = None
         error_message = _tr(
@@ -1550,8 +1677,23 @@ def open_linux_help_reader(app, event=None):
         short_info=build_linux_help_notes_text(app, item),
         document=document,
         error_message=error_message,
+        reading_state=_reading_state(app).get(item),
+        on_reading_change=lambda **changes: change_linux_help_reading(
+            app, item, **changes
+        ),
+        on_glossary_link=lambda identifier: open_linux_help_reader(
+            app, command_id=identifier
+        ),
     )
     app.linux_help_reader_window = window
+    if change_linux_help_reading(app, item, read=True) is None:
+        window.reading_status.set(
+            _tr(
+                app,
+                "linux_help_reading_failed",
+                "Lesestatus konnte nicht gespeichert werden.",
+            )
+        )
     if created:
         attach_menu = _app_value(app, "attach_chad_context_menu")
         if callable(attach_menu):
@@ -1684,22 +1826,25 @@ def linux_help_delete_selected(app):
         )
         if not confirmed:
             return
-    if _is_glossary_item(target):
-        app.linux_help_glossary = [
-            item
-            for item in app.linux_help_glossary
-            if item.get("id") != app.linux_help_selected_id
-        ]
-        rebuild_linux_help_glossary_indexes(app)
-        save_linux_help_glossary(app, update_status=False)
-    else:
-        app.linux_help_data = [
-            item
-            for item in app.linux_help_data
-            if item.get("id") != app.linux_help_selected_id
-        ]
-        rebuild_linux_help_indexes(app)
-        save_linux_help_data(app, update_status=False)
+    kind = "glossary" if _is_glossary_item(target) else "command"
+    attribute = "linux_help_glossary" if kind == "glossary" else "linux_help_data"
+    previous = list(getattr(app, attribute))
+    updated = [item for item in previous if item is not target]
+    try:
+        _write_entry_list(app, kind, updated)
+        if target.get("markdown_id"):
+            try:
+                if get_linux_help_document_by_id(target["markdown_id"]) is not None:
+                    delete_linux_help_document(target["markdown_id"])
+            except Exception:
+                _write_entry_list(app, kind, previous)
+                raise
+    except (OSError, ValueError, RuntimeError) as exc:
+        _app_var_set(app, "linux_help_status_var", str(exc))
+        return False
+    setattr(app, attribute, updated)
+    rebuild_linux_help_indexes(app)
+    rebuild_linux_help_glossary_indexes(app)
     app.linux_help_selected_id = ""
     sync_linux_help_form_categories(app)
     refresh_linux_help_list(app)
@@ -1733,6 +1878,35 @@ def open_linux_help_entry_dialog(app, item=None, is_new=False):
         _is_glossary_item(base)
         or str(base.get("entry_type") or "").strip().lower() == "glossary"
     )
+    try:
+        if is_new:
+            markdown_body = ""
+        elif base.get("markdown_id"):
+            metadata = get_linux_help_document_by_id(base["markdown_id"])
+            if metadata is None:
+                raise FileNotFoundError("Eigene Markdown-Datei fehlt.")
+            markdown_body = split_markdown(read_linux_help_markdown(metadata))[1]
+        else:
+            document = load_entry_document(base) if not is_new else None
+            markdown_body = (
+                split_markdown(document.source)[1]
+                if document
+                else (
+                    "# "
+                    + (base.get("name") or "Neuer Eintrag")
+                    + "\n\n"
+                    + (base.get("explanation") or base.get("info") or "")
+                    + "\n"
+                )
+            )
+    except (OSError, ValueError, UnicodeError, RecursionError) as exc:
+        if messagebox is not None:
+            messagebox.showerror(
+                _tr(app, "linux_help_reader_title", "Dokumentation"),
+                str(exc),
+                parent=app,
+            )
+        return None
     dialog = tk.Toplevel(app)
     dialog.title(
         app.tr(
@@ -1893,8 +2067,25 @@ def open_linux_help_entry_dialog(app, item=None, is_new=False):
         variable=enabled_var,
     ).pack(side="left", padx=(14 if not is_glossary else 0, 0))
 
-    editors = ttk.Frame(shell)
-    editors.grid(row=1, column=0, sticky="nsew", pady=(10, 0))
+    notebook = ttk.Notebook(shell)
+    notebook.grid(row=1, column=0, sticky="nsew", pady=(10, 0))
+    markdown_frame = ttk.Frame(notebook, padding=8)
+    markdown_frame.columnconfigure(0, weight=1)
+    markdown_frame.rowconfigure(0, weight=1)
+    markdown_text = tk.Text(markdown_frame, wrap="word", undo=True, height=12)
+    markdown_text.grid(row=0, column=0, sticky="nsew")
+    scrollbar = ttk.Scrollbar(
+        markdown_frame, orient="vertical", command=markdown_text.yview
+    )
+    scrollbar.grid(row=0, column=1, sticky="ns")
+    markdown_text.configure(yscrollcommand=scrollbar.set)
+    markdown_text.insert("1.0", markdown_body)
+    dialog.markdown_text = markdown_text
+    notebook.add(markdown_frame, text="Markdown (.md)")
+    editors = ttk.Frame(notebook)
+    notebook.add(
+        editors, text=app.tr("linux_help_edit_notes_tab", "Kurzinfo und Hinweise")
+    )
     editors.columnconfigure(0, weight=1)
     editors.columnconfigure(1, weight=1)
     editors.rowconfigure(0, weight=1)
@@ -1952,9 +2143,7 @@ def open_linux_help_entry_dialog(app, item=None, is_new=False):
             "explanation": explanation_text.get("1.0", "end").strip(),
             "warning_text": warning_text.get("1.0", "end").strip(),
         }
-        if (not is_glossary and (not raw["name"] or not raw["cmd"])) or (
-            is_glossary and not raw["name"]
-        ):
+        if not raw["name"]:
             if messagebox is not None:
                 messagebox.showwarning(
                     app.tr("linux_help_dialog_validation_title", "Incomplete input"),
@@ -1967,7 +2156,7 @@ def open_linux_help_entry_dialog(app, item=None, is_new=False):
                         (
                             "Please fill at least the glossary term."
                             if is_glossary
-                            else "Please fill at least name and command."
+                            else "Please fill at least the name."
                         ),
                     ),
                     parent=dialog,
@@ -1986,31 +2175,20 @@ def open_linux_help_entry_dialog(app, item=None, is_new=False):
             if is_glossary
             else normalize_linux_help_entry(app, raw, existing_ids=existing_ids)
         )
-        if target is None:
-            if is_glossary:
-                app.linux_help_glossary.append(normalized)
-            else:
-                app.linux_help_data.append(normalized)
-        else:
-            target.clear()
-            target.update(normalized)
-        if is_glossary:
-            rebuild_linux_help_glossary_indexes(app)
-            save_linux_help_glossary(app, update_status=False)
-        else:
-            rebuild_linux_help_indexes(app)
-            save_linux_help_data(app, update_status=False)
-        sync_linux_help_form_categories(app)
-        app.linux_help_category_var.set(_linux_help_all_categories_label(app))
-        refresh_linux_help_list(app)
-        if hasattr(app, "linux_help_tree") and app.linux_help_tree is not None:
-            try:
-                app.linux_help_tree.selection_set(normalized["id"])
-                app.linux_help_tree.focus(normalized["id"])
-            except Exception:
-                pass
-        app.linux_help_selected_id = normalized["id"]
-        on_linux_help_select(app)
+        try:
+            body = markdown_text.get("1.0", "end-1c")
+            if not body.strip():
+                body = "# " + normalized["name"] + "\n\n" + raw["explanation"] + "\n"
+            saved = save_entry_markdown(app, normalized, body, target=target)
+            _show_saved_entry(app, saved)
+        except (OSError, ValueError, UnicodeError, RuntimeError, RecursionError) as exc:
+            if messagebox is not None:
+                messagebox.showerror(
+                    _tr(app, "linux_help_reader_title", "Dokumentation"),
+                    str(exc),
+                    parent=dialog,
+                )
+            return
         set_linux_help_dirty(app, True)
         app.linux_help_status_var.set(
             app.tr(
@@ -2033,12 +2211,16 @@ def open_linux_help_entry_dialog(app, item=None, is_new=False):
         text=app.tr("btn_cancel", "Cancel"),
         command=_close_dialog,
     ).pack(side="right")
-    ttk.Button(
+    dialog.save_button = ttk.Button(
         buttons,
         text=app.tr("btn_save", "Save"),
         command=_save_dialog,
-    ).pack(side="right", padx=(0, 8))
+    )
+    dialog.save_button.pack(side="right", padx=(0, 8))
 
+    apply_colors = _app_value(app, "_apply_tk_widget_theme")
+    if callable(apply_colors) and _app_value(app, "_app_theme"):
+        apply_colors(dialog, app._app_theme)
     dialog.protocol("WM_DELETE_WINDOW", _close_dialog)
     try:
         dialog.update_idletasks()
@@ -2046,6 +2228,8 @@ def open_linux_help_entry_dialog(app, item=None, is_new=False):
         dialog.focus_force()
     except Exception:
         pass
+
+    return dialog
 
 
 def copy_linux_help_chad_prompt(app):
@@ -2069,7 +2253,7 @@ def copy_linux_help_chad_prompt(app):
     return True
 
 
-def copy_linux_help_pdf_prompt(app):
+def copy_linux_help_markdown_prompt(app):
     item = _get_selected_linux_help_item(app)
     if item is None:
         app.linux_help_status_var.set(
@@ -2079,13 +2263,13 @@ def copy_linux_help_pdf_prompt(app):
             )
         )
         return False
-    prompt = build_linux_help_pdf_prompt(item, language="de")
+    prompt = build_linux_help_markdown_prompt(item, language="de")
     app.clipboard_clear()
     app.clipboard_append(prompt)
     app.linux_help_status_var.set(
         app.tr(
-            "linux_help_status_pdf_prompt_copied",
-            "Linux help: PDF prompt copied to clipboard.",
+            "linux_help_status_markdown_prompt_copied",
+            "Linux help: Markdown prompt copied to clipboard.",
         )
     )
     return True
@@ -2154,8 +2338,20 @@ def show_linux_help_tree_menu(app, event):
         command=lambda: copy_linux_help_chad_prompt(app),
     )
     menu.add_command(
-        label=app.tr("linux_help_menu_copy_pdf_prompt", "Als Prompt mit PDF"),
-        command=lambda: copy_linux_help_pdf_prompt(app),
+        label=app.tr(
+            "linux_help_menu_copy_markdown_prompt", "Als Markdown-Prompt kopieren"
+        ),
+        command=lambda: copy_linux_help_markdown_prompt(app),
+    )
+    menu.add_separator()
+    was_read = _reading_state(app).get(item)["read"]
+    menu.add_command(
+        label=(
+            _tr(app, "linux_help_mark_unread", "Als ungelesen markieren")
+            if was_read
+            else _tr(app, "linux_help_mark_read", "Als gelesen markieren")
+        ),
+        command=lambda: change_linux_help_reading(app, item, read=not was_read),
     )
     menu.add_separator()
     menu.add_command(
@@ -2173,92 +2369,6 @@ def show_linux_help_tree_menu(app, event):
         except Exception:
             pass
     return "break"
-
-
-def linux_help_import_csv_dialog(app):
-    if filedialog is None or _app_value(app, "linux_help_import_running", False):
-        return
-    path = filedialog.askopenfilename(
-        parent=app,
-        title=app.tr("linux_help_import_csv_title", "Import Linux command database"),
-        filetypes=[
-            (app.tr("filetype_data", "Databases"), "*.csv *.xlsx"),
-            (app.tr("filetype_csv", "CSV files"), "*.csv"),
-            (app.tr("filetype_excel", "Excel files"), "*.xlsx"),
-            (app.tr("filetype_all", "All files"), "*.*"),
-        ],
-        initialfile=os.path.basename(linux_help_csv_path()),
-    )
-    if not path:
-        return
-    app.linux_help_import_running = True
-    original = [dict(item) for item in _app_value(app, "linux_help_data", [])]
-    app.linux_help_status_var.set(
-        _tr(app, "linux_help_status_importing", "Linux help: importing...")
-    )
-
-    def finish(commands=None, error=None):
-        app.linux_help_import_running = False
-        if error is not None or app.linux_help_data != original:
-            app.linux_help_status_var.set(
-                app.tr("linux_help_status_import_failed", "Linux help: import failed.")
-            )
-            update_linux_help_notes(
-                app,
-                None,
-                extra_error=str(error or "Data changed during import; please retry."),
-            )
-            return
-        app.linux_help_import_path = path
-        app.linux_help_data = commands
-        rebuild_linux_help_indexes(app)
-        set_linux_help_dirty(app, True)
-        sync_linux_help_form_categories(app)
-        app.linux_help_category_var.set(_linux_help_all_categories_label(app))
-        app.linux_help_source_var.set(_linux_help_all_sources_label(app))
-        app.linux_help_risk_filter_var.set(_linux_help_all_risks_label(app))
-        refresh_linux_help_list(app)
-        save_linux_help_data(app, update_status=False)
-        app.linux_help_status_var.set(
-            app.tr(
-                "linux_help_status_imported_count",
-                "Linux help: {count} entries imported.",
-            ).format(count=len(commands))
-        )
-
-    def job():
-        try:
-            commands = _load_linux_help_commands(path)
-        except Exception as exc:
-            call_in_ui_thread(app, lambda error=exc: finish(error=error))
-        else:
-            call_in_ui_thread(app, lambda: finish(commands=commands))
-
-    try:
-        threading.Thread(target=job, daemon=True).start()
-    except Exception as exc:
-        finish(error=exc)
-
-
-def linux_help_export_csv_dialog(app):
-    if filedialog is None:
-        return
-    path = filedialog.asksaveasfilename(
-        parent=app,
-        title=app.tr("linux_help_export_csv_title", "Export Linux database"),
-        defaultextension=".csv",
-        filetypes=[
-            (app.tr("filetype_csv", "CSV files"), "*.csv"),
-            (app.tr("filetype_all", "All files"), "*.*"),
-        ],
-        initialfile="linux_befehlsdatenbank_export.csv",
-    )
-    if not path:
-        return
-    export_linux_help_csv(app, path)
-    app.linux_help_status_var.set(
-        app.tr("linux_help_status_exported", "Linux help: CSV exported.")
-    )
 
 
 def reload_linux_help_data(app):
@@ -2298,457 +2408,294 @@ def reload_linux_help_data(app):
             "{count} glossary entries loaded.",
         ).format(count=len(_app_value(app, "linux_help_glossary", []) or []))
     )
-    reload_linux_help_documents(app)
 
 
-def _select_linux_help_document_in_listbox(app, document_id: str) -> bool:
-    listbox = getattr(app, "linux_help_documents_listbox", None)
-    ids = list(getattr(app, "linux_help_document_ids", []) or [])
-    target = str(document_id or "").strip()
-    if listbox is None or not target or target not in ids:
-        return False
+def load_entry_document(item):
+    if item.get("markdown_id"):
+        metadata = get_linux_help_document_by_id(item["markdown_id"])
+        if metadata is None:
+            raise FileNotFoundError("Eigene Markdown-Dokumentation fehlt.")
+        metadata["entry"] = item
+        return load_linux_help_markdown(metadata)
     try:
-        index = ids.index(target)
-        listbox.selection_clear(0, "end")
-        listbox.selection_set(index)
-        listbox.activate(index)
-        listbox.see(index)
-        app.linux_help_document_selected_id = target
-        return True
-    except Exception:
-        return False
+        from netmon.services import linux_help_glossary_service as glossary
+        from netmon.services import linux_help_markdown_service as markdown
+    except ModuleNotFoundError:
+        from services import linux_help_glossary_service as glossary
+        from services import linux_help_markdown_service as markdown
+    return (
+        glossary.load_glossary_document(item)
+        if _is_glossary_item(item)
+        else markdown.load_command_document(item)
+    )
 
 
-def update_linux_help_document_preview(app, metadata=None, *, extra_error: str = ""):
-    widget = getattr(app, "linux_help_documents_text", None)
-    if metadata:
-        text = build_linux_help_library_preview(metadata)
+def _write_entry_list(app, kind, items):
+    if kind == "glossary":
+        path = app.linux_help_glossary_path
+        payload = {
+            "name": "IT-Lexikon fuer Linux Hilfe",
+            "version": "0.1.0",
+            "language": "de",
+            "entries": [_serialize_linux_help_glossary_entry(item) for item in items],
+        }
     else:
-        lines = [
-            _tr(
-                app,
-                "linux_help_documents_placeholder",
-                "Noch keine Linux-Hilfe-PDF ausgewaehlt.",
-            ),
-            "",
-            _tr(
-                app,
-                "linux_help_documents_placeholder_hint",
-                "Erzeuge ueber das Kontextmenue oder den Button eine PDF-Doku und oeffne sie dann hier.",
-            ),
-        ]
-        if extra_error:
-            lines.extend(["", f"Fehler: {extra_error}"])
-        text = "\n".join(lines).strip()
-    _set_text_widget_content(widget, text)
+        path, payload = app.linux_help_data_path, items
+    ok, error = safe_write_json(path, payload, indent=2, ensure_ascii=False)
+    if not ok:
+        raise OSError("Einträge konnten nicht gespeichert werden: " + str(error))
 
 
-def reload_linux_help_documents(app, select_id: str = ""):
-    listbox = getattr(app, "linux_help_documents_listbox", None)
+def save_entry_markdown(app, item, body, *, target=None):
+    """Link a fully published revision only after the entry JSON is saved."""
+    kind = "glossary" if _is_glossary_item(item) else "command"
+    attribute = "linux_help_glossary" if kind == "glossary" else "linux_help_data"
+    metadata = save_linux_help_markdown(format_entry_markdown(item, body), item)
+    saved = dict(item, markdown_id=metadata["id"])
+    current = list(_app_value(app, attribute, []) or [])
+    updated = [saved if row is target else row for row in current]
+    if target is None:
+        updated.append(saved)
     try:
-        documents = list_linux_help_documents()
-    except Exception as exc:
-        app.linux_help_documents = []
-        app.linux_help_document_ids = []
-        app.linux_help_document_selected_id = ""
-        if listbox is not None:
-            try:
-                listbox.delete(0, "end")
-            except Exception:
-                pass
-        update_linux_help_document_preview(app, None, extra_error=str(exc))
-        return []
+        _write_entry_list(app, kind, updated)
+    except Exception:
+        delete_linux_help_document(metadata["id"])
+        raise
+    setattr(app, attribute, updated)
+    rebuild_linux_help_indexes(app)
+    rebuild_linux_help_glossary_indexes(app)
+    if target and target.get("markdown_id"):
+        try:
+            delete_linux_help_document(target["markdown_id"])
+        except (OSError, ValueError):
+            pass  # An unlinked old revision cannot replace the saved entry.
+    return saved
 
-    app.linux_help_documents = documents
-    app.linux_help_document_ids = [
-        str(item.get("id") or "").strip() for item in documents
+
+def adopt_personal_markdown(app):
+    """Move existing personal Markdown into the same list; ignore PDF metadata."""
+    rows = [
+        *(_app_value(app, "linux_help_data", []) or []),
+        *(_app_value(app, "linux_help_glossary", []) or []),
     ]
-    if listbox is not None:
+    known = {row.get("markdown_id") for row in rows}
+    used = {row.get("id") for row in rows}
+    for metadata in list_linux_help_documents():
+        if metadata["id"] in known or "entry" in metadata:
+            continue
         try:
-            listbox.delete(0, "end")
-            for item in documents:
-                title = str(
-                    item.get("title") or item.get("command_name") or "PDF"
-                ).strip()
-                created = str(item.get("created_at") or "").strip().replace("T", " ")
-                listbox.insert("end", f"{title} [{created}]".strip())
-        except Exception:
-            pass
-
-    selected = ""
-    if select_id and _select_linux_help_document_in_listbox(app, select_id):
-        selected = select_id
-    elif app.linux_help_document_ids:
-        selected = app.linux_help_document_ids[0]
-        _select_linux_help_document_in_listbox(app, selected)
-    else:
-        app.linux_help_document_selected_id = ""
-
-    metadata = get_linux_help_document_by_id(selected) if selected else None
-    update_linux_help_document_preview(app, metadata)
-    return documents
-
-
-def on_linux_help_document_select(app, _event=None):
-    listbox = getattr(app, "linux_help_documents_listbox", None)
-    ids = list(getattr(app, "linux_help_document_ids", []) or [])
-    if listbox is None or not ids:
-        update_linux_help_document_preview(app, None)
-        return None
-    try:
-        selection = listbox.curselection()
-    except Exception:
-        selection = ()
-    if not selection:
-        update_linux_help_document_preview(app, None)
-        return None
-    index = int(selection[0])
-    if index < 0 or index >= len(ids):
-        update_linux_help_document_preview(app, None)
-        return None
-    document_id = ids[index]
-    app.linux_help_document_selected_id = document_id
-    metadata = get_linux_help_document_by_id(document_id)
-    update_linux_help_document_preview(app, metadata)
-    return metadata
-
-
-def show_linux_help_document_menu(app, event):
-    listbox = getattr(app, "linux_help_documents_listbox", None)
-    if listbox is None:
-        return
-    try:
-        index = listbox.nearest(event.y)
-        if index >= 0:
-            listbox.selection_clear(0, "end")
-            listbox.selection_set(index)
-            listbox.activate(index)
-            on_linux_help_document_select(app)
-    except Exception:
-        pass
-    if not _selected_linux_help_document(app):
-        return
-    menu = tk.Menu(app, tearoff=0)
-    menu.add_command(
-        label=_tr(app, "linux_help_btn_open_pdf", "PDF oeffnen"),
-        command=lambda: open_selected_linux_help_pdf(app),
-    )
-    menu.add_command(
-        label=_tr(app, "linux_help_menu_delete_pdf", "PDF loeschen"),
-        command=lambda: delete_selected_linux_help_document(app),
-    )
-    menu.add_separator()
-    menu.add_command(
-        label=_tr(app, "linux_help_btn_open_docs_folder", "Ordner oeffnen"),
-        command=lambda: open_linux_help_documents_folder(app),
-    )
-    show_fn = getattr(app, "_show_context_menu", None)
-    if callable(show_fn):
-        return show_fn(menu, event)
-    try:
-        menu.tk_popup(event.x_root, event.y_root)
-    finally:
-        try:
-            menu.grab_release()
-        except Exception:
-            pass
-    return "break"
-
-
-def _selected_linux_help_document(app):
-    document_id = str(getattr(app, "linux_help_document_selected_id", "") or "").strip()
-    if not document_id:
-        return None
-    return get_linux_help_document_by_id(document_id)
-
-
-def open_selected_linux_help_pdf(app):
-    metadata = _selected_linux_help_document(app)
-    if not metadata:
-        app.linux_help_status_var.set(
-            _tr(
-                app, "linux_help_status_no_pdf_selected", "Linux help: no PDF selected."
+            document = load_linux_help_markdown(metadata)
+            fields = document.metadata
+            raw = {
+                "id": "own_" + metadata["id"],
+                "name": fields["name"],
+                "category": fields["category"],
+                "cmd": fields.get("command", ""),
+                "tags": fields.get("tags", []),
+                "related": fields.get("related", []),
+                "markdown_id": metadata["id"],
+            }
+            normalizer = (
+                normalize_linux_help_glossary_entry
+                if fields.get("entry_type") == "glossary"
+                else normalize_linux_help_entry
             )
-        )
-        return False
-    path = str(metadata.get("pdf_path") or "").strip()
-    if not path:
-        app.linux_help_status_var.set(
-            _tr(app, "linux_help_status_pdf_missing", "Linux help: PDF file missing.")
-        )
-        return False
-    opened = app._open_path_with_xdg_open(path, label="Linux-Hilfe-PDF")
-    if opened:
-        app.linux_help_status_var.set(
-            _tr(app, "linux_help_status_pdf_opened", "Linux help: PDF opened.")
-        )
-    else:
-        app.linux_help_status_var.set(
-            _tr(
-                app,
-                "linux_help_status_pdf_open_failed",
-                "Linux help: PDF could not be opened.",
+            item = normalizer(app, raw, existing_ids=used)
+            kind = "glossary" if _is_glossary_item(item) else "command"
+            attribute = (
+                "linux_help_glossary" if kind == "glossary" else "linux_help_data"
             )
-        )
-    return bool(opened)
+            updated = [*(_app_value(app, attribute, []) or []), item]
+            _write_entry_list(app, kind, updated)
+            setattr(app, attribute, updated)
+            used.add(item["id"])
+            metadata["entry"] = dict(item)
+            safe_write_json(
+                metadata["json_path"], metadata, indent=2, ensure_ascii=False
+            )
+            legacy = {
+                "entry_type": "document",
+                "id": metadata["id"],
+                "name": metadata.get("title")
+                or metadata.get("command_name")
+                or "Dokumentation",
+                "cmd": metadata.get("command") or "",
+            }
+            state = _reading_state(app)
+            previous = state.get(legacy)
+            if previous.get("read") or previous.get("bookmark"):
+                state.change(item, **previous)
+        except (OSError, ValueError, RecursionError):
+            continue
+    rebuild_linux_help_indexes(app)
+    rebuild_linux_help_glossary_indexes(app)
 
 
-def copy_selected_linux_help_document_prompt(app):
-    metadata = _selected_linux_help_document(app)
-    if not metadata:
-        app.linux_help_status_var.set(
-            _tr(
-                app, "linux_help_status_no_pdf_selected", "Linux help: no PDF selected."
-            )
-        )
-        return False
-    prompt = str(metadata.get("source_prompt") or "").strip()
-    if not prompt:
-        prompt = _tr(
+def _show_saved_entry(app, item):
+    sync_linux_help_form_categories(app)
+    _app_var_set(app, "linux_help_category_var", _linux_help_all_categories_label(app))
+    _app_var_set(app, "linux_help_source_var", _linux_help_all_sources_label(app))
+    _app_var_set(app, "linux_help_risk_filter_var", _linux_help_all_risks_label(app))
+    _app_var_set(app, "linux_help_search_var", "")
+    _app_var_set(app, "linux_help_bookmarks_only_var", False)
+    refresh_linux_help_list(app)
+    tree = _app_value(app, "linux_help_tree")
+    if tree is not None and tree.exists(item["id"]):
+        tree.selection_set(item["id"])
+        tree.focus(item["id"])
+        tree.see(item["id"])
+    app.linux_help_selected_id = item["id"]
+    on_linux_help_select(app)
+    window = _app_value(app, "linux_help_reader_window")
+    if (
+        window is not None
+        and window.winfo_exists()
+        and window.entry.get("id") == item["id"]
+    ):
+        open_linux_help_reader(app, command_id=item["id"])
+
+
+def open_linux_help_prompt(app):
+    window = _app_value(app, "linux_help_prompt_window")
+    if window is not None and window.winfo_exists():
+        window.deiconify()
+        window.lift()
+        window.focus_force()
+        return window
+    try:
+        from netmon.ui.linux_help_prompt import MarkdownPromptWindow
+    except ModuleNotFoundError:
+        from ui.linux_help_prompt import MarkdownPromptWindow
+    tree = _app_value(app, "linux_help_tree")
+    parent = tree.winfo_toplevel() if tree is not None else app
+    window = MarkdownPromptWindow(parent, app)
+    app.linux_help_prompt_window = window
+    if _linux_help_source_value(app) == "glossary":
+        window.kind_var.set(window.kind_labels["glossary"])
+    category = _app_var_get(app, "linux_help_category_var", "")
+    if category and category != _linux_help_all_categories_label(app):
+        window.category_var.set(category)
+    return window
+
+
+def deliver_linux_help_markdown_prompt(app, title, prompt):
+    if not _set_chad_direct_prompt_safe(app, title, prompt):
+        app.chad_analysis_current_prompt = prompt
+        app.chad_online_result = ""
+        _app_var_set(app, "chad_analysis_source_var", title)
+        _app_var_set(
             app,
-            "linux_help_status_imported_pdf_no_prompt_text",
-            "Fuer diese PDF ist kein gespeicherter Prompt vorhanden.",
+            "chad_analysis_status_var",
+            _tr(app, "chad_status_analysis_prepared", "Analyse vorbereitet."),
         )
-    app.clipboard_clear()
-    app.clipboard_append(prompt)
-    app.linux_help_status_var.set(
-        _tr(
-            app,
-            "linux_help_status_document_prompt_copied",
-            "Linux help: document prompt copied to clipboard.",
-        )
-    )
-    return True
 
 
-def delete_selected_linux_help_document(app):
-    metadata = _selected_linux_help_document(app)
-    if not metadata:
-        app.linux_help_status_var.set(
-            _tr(
-                app, "linux_help_status_no_pdf_selected", "Linux help: no PDF selected."
-            )
-        )
-        return False
-    title = str(metadata.get("title") or metadata.get("command_name") or "PDF").strip()
-    if messagebox is not None:
-        confirmed = messagebox.askyesno(
-            _tr(app, "linux_help_delete_pdf_title", "PDF loeschen"),
-            _tr(
-                app,
-                "linux_help_delete_pdf_prompt",
-                "Diese PDF-Dokumentation wird aus der NetMon-Bibliothek entfernt.\n\nPDF loeschen?",
-            ),
-            parent=app,
-        )
-        if not confirmed:
-            app.linux_help_status_var.set(
-                _tr(
-                    app,
-                    "linux_help_status_pdf_delete_cancelled",
-                    "Linux help: PDF deletion canceled.",
-                )
-            )
-            return False
+def confirm_linux_help_import_category(app, raw):
     try:
-        delete_linux_help_document(metadata.get("id") or "")
-    except Exception as exc:
-        app.linux_help_status_var.set(
-            _tr(
-                app,
-                "linux_help_status_pdf_delete_failed",
-                "Linux help: PDF could not be deleted.",
-            )
-        )
-        update_linux_help_document_preview(app, metadata, extra_error=str(exc))
-        return False
-    reload_linux_help_documents(app)
-    app.linux_help_status_var.set(
-        _tr(
-            app,
-            "linux_help_status_pdf_deleted",
-            "Linux help: PDF deleted.",
-        ).format(title=title)
-    )
-    return True
+        from netmon.ui.linux_help_prompt import ImportCategoryDialog
+    except ModuleNotFoundError:
+        from ui.linux_help_prompt import ImportCategoryDialog
+    tree = _app_value(app, "linux_help_tree")
+    parent = tree.winfo_toplevel() if tree is not None else app
+    return ImportCategoryDialog(parent, app, raw).result
 
 
-def open_linux_help_documents_folder(app):
-    try:
-        path = linux_help_documents_dir()
-    except Exception:
-        path = ""
-    if not path:
-        app.linux_help_status_var.set(
-            _tr(
-                app,
-                "linux_help_status_folder_missing",
-                "Linux help: document folder is not available.",
-            )
-        )
-        return False
-    opened = app.open_path_in_file_manager(path, label="Linux-Hilfe-Dokumente")
-    if opened:
-        app.linux_help_status_var.set(
-            _tr(
-                app,
-                "linux_help_status_folder_opened",
-                "Linux help: document folder opened.",
-            )
-        )
-    return bool(opened)
-
-
-def import_linux_help_pdf_dialog(app):
+def import_linux_help_markdown_dialog(app):
     if filedialog is None:
         return None
     path = filedialog.askopenfilename(
         parent=app,
-        title=_tr(app, "linux_help_import_pdf_title", "Linux-Hilfe-PDF importieren"),
-        filetypes=[
-            (_tr(app, "filetype_pdf", "PDF files"), "*.pdf"),
-            (_tr(app, "filetype_all", "All files"), "*.*"),
-        ],
+        title=_tr(
+            app,
+            "linux_help_import_markdown_title",
+            "Markdown-Dokumentation importieren",
+        ),
+        filetypes=[("Markdown", "*.md *.markdown")],
     )
     if not path:
         return None
     try:
-        metadata = import_linux_help_pdf(path)
-    except Exception as exc:
-        app.linux_help_status_var.set(
+        text, raw = inspect_markdown_import(path)
+        raw = confirm_linux_help_import_category(app, raw)
+        if raw is None:
+            return None
+        try:
+            from netmon.services.linux_help_prompt_service import validate_category
+        except ModuleNotFoundError:
+            from services.linux_help_prompt_service import validate_category
+        raw["category"] = validate_category(raw.get("category"))
+        candidates = [
+            *(_app_value(app, "linux_help_data", []) or []),
+            *(_app_value(app, "linux_help_glossary", []) or []),
+        ]
+        kind = raw["entry_type"]
+        matches = [
+            row
+            for row in candidates
+            if row.get("entry_type", "command") == kind
+            and raw.get("id")
+            and row["id"] == raw["id"]
+        ]
+        if not matches:
+            matches = [
+                row
+                for row in candidates
+                if row.get("entry_type", "command") == kind
+                and row["name"].casefold() == raw["name"].casefold()
+            ]
+        target = None
+        if matches:
+            if len(matches) != 1:
+                raise ValueError(
+                    _tr(
+                        app,
+                        "linux_help_import_ambiguous",
+                        "Mehrere passende Einträge. Bitte einen eindeutigen Namen oder eine ID verwenden.",
+                    )
+                )
+            if messagebox is None:
+                return None
+            choice = messagebox.askyesnocancel(
+                _tr(
+                    app, "linux_help_import_existing_title", "Eintrag bereits vorhanden"
+                ),
+                _tr(
+                    app,
+                    "linux_help_import_existing_prompt",
+                    "„{name}“ ist bereits vorhanden.\n\nJa: vorhandenen Eintrag aktualisieren\nNein: als neuen Eintrag anlegen\nAbbrechen: nichts importieren",
+                ).format(name=matches[0]["name"]),
+                parent=app,
+            )
+            if choice is None:
+                return None
+            if choice:
+                target = matches[0]
+                raw = {**target, **raw, "id": target["id"]}
+        used = {row["id"] for row in candidates if row is not target}
+        normalizer = (
+            normalize_linux_help_glossary_entry
+            if kind == "glossary"
+            else normalize_linux_help_entry
+        )
+        item = normalizer(app, raw, existing_ids=used)
+        saved = save_entry_markdown(app, item, text, target=target)
+        _show_saved_entry(app, saved)
+    except (OSError, ValueError, UnicodeError, RuntimeError, RecursionError) as exc:
+        _app_var_set(
+            app,
+            "linux_help_status_var",
             _tr(
                 app,
-                "linux_help_status_pdf_import_failed",
-                "Linux help: PDF import failed.",
+                "linux_help_markdown_import_failed",
+                "Markdown-Import fehlgeschlagen.",
             )
+            + " "
+            + str(exc),
         )
-        update_linux_help_document_preview(app, None, extra_error=str(exc))
         return None
-    reload_linux_help_documents(app, select_id=metadata.get("id") or "")
-    app.linux_help_status_var.set(
-        _tr(app, "linux_help_status_pdf_imported", "Linux help: PDF imported.")
+    _app_var_set(
+        app,
+        "linux_help_status_var",
+        _tr(app, "linux_help_markdown_imported", "Markdown importiert."),
     )
-    return metadata
-
-
-def send_linux_help_command_to_terminal(app):
-    item = _resolve_linux_help_item(app, app.linux_help_selected_id)
-    if item is None:
-        app.linux_help_status_var.set(
-            app.tr(
-                "linux_help_status_no_command_selected",
-                "Linux help: no command selected.",
-            )
-        )
-        return False
-    if _is_glossary_item(item):
-        app.linux_help_status_var.set(
-            app.tr(
-                "linux_help_status_glossary_no_terminal",
-                "Linux help: glossary entries cannot be sent to the terminal.",
-            )
-        )
-        return False
-    if not item.get("enabled", True):
-        app.linux_help_status_var.set(
-            app.tr(
-                "linux_help_status_entry_disabled",
-                "Linux help: this entry is disabled and cannot be sent.",
-            )
-        )
-        return False
-
-    cmd = item.get("cmd", "")
-    ok, reason = app._validate_linux_help_command_for_terminal(cmd)
-    if not ok:
-        app.linux_help_status_var.set(
-            app.tr(
-                "linux_help_status_terminal_not_possible",
-                "Linux help: terminal send not possible ({reason})",
-            ).format(reason=reason)
-        )
-        return False
-
-    # Catalog metadata is descriptive, never authorization to execute shell text.
-    # Confirm every command, including legacy saved entries without provenance.
-    try:
-        if messagebox is None:
-            raise RuntimeError("Confirmation dialog unavailable")
-        confirmed = messagebox.askyesno(
-            app.tr("linux_help_confirm_send_title", "Send command to terminal"),
-            app.tr(
-                "linux_help_confirm_execute_prompt",
-                "The following command will run immediately in a shell with your "
-                "user permissions. Catalog safety labels are not a security check."
-                "\n\nRun this command?",
-            )
-            + "\n\n"
-            + cmd,
-            parent=app,
-            default="no",
-        )
-    except Exception:
-        app.linux_help_status_var.set(
-            app.tr(
-                "linux_help_status_confirmation_unavailable",
-                "Linux help: confirmation unavailable; command was not run.",
-            )
-        )
-        return False
-    if confirmed is not True:
-        app.linux_help_status_var.set(
-            app.tr(
-                "linux_help_status_terminal_cancelled",
-                "Linux help: terminal send canceled.",
-            )
-        )
-        return False
-
-    terminal_name = app._open_command_in_external_terminal(cmd)
-    if not terminal_name:
-        app.linux_help_status_var.set(
-            app.tr(
-                "linux_help_status_terminal_failed",
-                "Linux help: terminal could not be started.",
-            )
-        )
-        return False
-
-    app.linux_help_status_var.set(
-        app.tr(
-            "linux_help_status_sent_to_terminal",
-            "Linux help: command was sent to an external terminal.",
-        )
-    )
-    if hasattr(app, "log"):
-        try:
-            app.log(
-                app.tr(
-                    "linux_help_log_command_sent",
-                    "Linux help: command sent to terminal",
-                )
-            )
-        except Exception:
-            pass
-    if hasattr(app, "linux_help_text") and app.linux_help_text is not None:
-        if hasattr(app.linux_help_text, "configure"):
-            app.linux_help_text.configure(state="normal")
-        app.linux_help_text.delete("1.0", "end")
-        app.linux_help_text.insert(
-            "1.0",
-            "\n".join(
-                [
-                    f"{app.tr('linux_help_label_name', 'Name')}: {item.get('name') or '–'}",
-                    f"{app.tr('linux_help_label_command_name', 'Command name')}: {cmd}",
-                    f"Terminal: {terminal_name}",
-                    "",
-                    app.tr(
-                        "linux_help_terminal_note_sent",
-                        "Command was sent to an external terminal.",
-                    ),
-                ]
-            ),
-        )
-        if hasattr(app.linux_help_text, "configure"):
-            app.linux_help_text.configure(state="disabled")
-    return True
+    return saved

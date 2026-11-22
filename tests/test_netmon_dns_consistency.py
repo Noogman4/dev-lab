@@ -1,4 +1,6 @@
 import inspect
+import json
+from pathlib import Path
 import subprocess
 import sys
 
@@ -128,7 +130,10 @@ def test_passive_dns_status_preserves_unexpected_command_guard(
     child_test.write_text(
         "from tests.test_netmon_dns_consistency import passive_dns_status, passive_dns_service\n"
         "from tools import netmon\n\n"
-        "def test_expected_guard_block(passive_dns_status, passive_dns_service):\n"
+        "def test_expected_guard_block(passive_dns_status, passive_dns_service, monkeypatch):\n"
+        "    from netmon.core import trusted_sudo\n"
+        "    # Reach the subprocess guard independently of namespace ownership.\n"
+        "    monkeypatch.setattr(trusted_sudo, 'trusted_sudo_path', lambda: '/usr/bin/sudo')\n"
         "    app = netmon.App.__new__(netmon.App)\n"
         "    service = passive_dns_service(app)\n"
         "    try:\n"
@@ -373,7 +378,6 @@ def test_on_light_click_routes_to_matching_tabs():
         ("security", app.tab_security),
         ("security", app.tab_path_guard),
         ("system", app.tab_vpn_slots),
-        ("system", app.tab_system),
         ("select", app.tab_dns),
         ("dns_guard", None),
         ("startup", None),
@@ -409,12 +413,14 @@ def test_update_dns_header_falls_back_to_active_resolver_dns():
 
 def test_parse_dot_resolvectl_status_extracts_mode_and_servers():
     app = netmon.App.__new__(netmon.App)
-    parsed = app._parse_dot_resolvectl_status("""
+    parsed = app._parse_dot_resolvectl_status(
+        """
 Global
          Protocols: +LLMNR +mDNS +DNSOverTLS DNSSEC=no/unsupported
 Current DNS Server: 1.1.1.1#cloudflare-dns.com
        DNS Servers: 1.1.1.1#cloudflare-dns.com 1.0.0.1#cloudflare-dns.com
-""")
+"""
+    )
 
     assert parsed["mode"] == "yes"
     assert parsed["current_server"] == "1.1.1.1"
@@ -531,6 +537,9 @@ def test_detect_netmon_dot_dropin_conflict(tmp_path):
 
 def test_analyze_dns_health_reports_dot_vpn_conflict(monkeypatch, tmp_path):
     app = netmon.App.__new__(netmon.App)
+    app.lang = json.loads(
+        (Path(__file__).resolve().parents[1] / "netmon/lang/de.json").read_text()
+    )
     dropin = tmp_path / "netmon-dot.conf"
     dropin.write_text(
         "[Resolve]\nDNS=1.1.1.1#cloudflare-dns.com\nDNSOverTLS=yes\nDomains=~.\n",
@@ -540,17 +549,19 @@ def test_analyze_dns_health_reports_dot_vpn_conflict(monkeypatch, tmp_path):
 
     app._dns_control_service().get_wireguard_interfaces = lambda: set()
 
-    result = app.analyze_dns_health_output("""
+    result = app.analyze_dns_health_output(
+        """
 Link 7 (proton0)
     Protocols: +DNSOverTLS
     DNSSEC setting: allow-downgrade
     Current DNS Server: 10.2.0.1
     DNS Servers: 10.2.0.1
-""")
+"""
+    )
 
-    assert "✔ Aktiver DNS-Server: 10.2.0.1" in result
+    assert "✔ VPN-DNS: 10.2.0.1" in result
     assert "✔ DNS-over-TLS: aktiv" in result
-    assert "○ DNSSEC: aktiv (Fallback möglich)" in result
+    assert "○ DNSSEC: optional (allow-downgrade)" in result
     assert "✖ DNS-Konfiguration auffällig" in result
     assert "Protocols:" not in result
     assert "Link 7" not in result
@@ -1019,14 +1030,16 @@ def test_evaluate_dns_policy_flags_global_dns_with_vpn(monkeypatch, tmp_path):
 
     app._dns_control_service().get_wireguard_interfaces = lambda: set()
 
-    evaluation = app.evaluate_dns_policy("""
+    evaluation = app.evaluate_dns_policy(
+        """
 Link 2 (enp4s0)
     Current DNS Server: 1.1.1.1
     DNS Servers: 1.1.1.1
 Link 7 (proton0)
     Current DNS Server: 10.2.0.1
     DNS Servers: 10.2.0.1 2a07:b944::2:1
-""")
+"""
+    )
 
     assert evaluation["vpn_active"] is True
     assert evaluation["vpn_dns"] == ["10.2.0.1", "2a07:b944::2:1"]
@@ -1040,16 +1053,26 @@ def test_detect_vpn_active_ignores_non_link_text():
     app = netmon.App.__new__(netmon.App)
     app._dns_control_service().get_wireguard_interfaces = lambda: set()
 
-    assert app.detect_vpn_active("""
+    assert (
+        app.detect_vpn_active(
+            """
 Global
     DNS Domain: vpn.example.org
     Current DNS Server: 1.1.1.1
-""") is False
-    assert app.detect_vpn_active("""
+"""
+        )
+        is False
+    )
+    assert (
+        app.detect_vpn_active(
+            """
 Link 7 (proton0)
     Current DNS Server: 10.2.0.1
     DNS Servers: 10.2.0.1 2a07:b944::2:1
-""") is True
+"""
+        )
+        is True
+    )
 
 
 def test_detect_vpn_active_recognizes_custom_wireguard_interface():
@@ -1062,11 +1085,16 @@ def test_detect_vpn_active_recognizes_custom_wireguard_interface():
         dot_dropin_dir="/tmp",
     )
 
-    assert service.detect_vpn_active("""
+    assert (
+        service.detect_vpn_active(
+            """
 Link 7 (work0)
     Current DNS Server: 10.2.0.1
     DNS Servers: 10.2.0.1 2a07:b944::2:1
-""") is True
+"""
+        )
+        is True
+    )
 
 
 def test_find_vpn_dns_servers_recognizes_custom_wireguard_interface():
@@ -1079,14 +1107,16 @@ def test_find_vpn_dns_servers_recognizes_custom_wireguard_interface():
         dot_dropin_dir="/tmp",
     )
 
-    iface, servers = service.find_vpn_dns_servers("""
+    iface, servers = service.find_vpn_dns_servers(
+        """
 Link 7 (work0)
     Current DNS Server: 10.2.0.1
     DNS Servers: 10.2.0.1 2a07:b944::2:1
 Link 2 (enp4s0)
     Current DNS Server: 1.1.1.1
     DNS Servers: 1.1.1.1
-""")
+"""
+    )
 
     assert iface == "work0"
     assert servers == ["10.2.0.1", "2a07:b944::2:1"]
@@ -1100,12 +1130,14 @@ def test_parse_active_dns_servers_includes_continuation_lines():
         dot_dropin_dir="/tmp",
     )
 
-    servers = service.parse_active_dns_servers("""
+    servers = service.parse_active_dns_servers(
+        """
 Global
     DNS Servers: 1.1.1.1
                  8.8.8.8 2606:4700:4700::1111
     DNSSEC setting: no
-""")
+"""
+    )
 
     assert servers == ["1.1.1.1", "2606:4700:4700::1111", "8.8.8.8"]
 
@@ -1118,13 +1150,15 @@ def test_parse_link_sections_stops_dns_collection_on_non_dns_line():
         dot_dropin_dir="/tmp",
     )
 
-    sections = service.parse_link_sections("""
+    sections = service.parse_link_sections(
+        """
 Link 2 (enp4s0)
     DNS Servers: 192.168.1.1
                  1.1.1.1
     DNS Domain: lan
                  not-a-dns-token
-""")
+"""
+    )
 
     assert sections == [
         {
@@ -1152,6 +1186,9 @@ def test_dns_private_detection_normalizes_hostname_suffixes():
 
 def test_dns_leak_check_reports_low_risk_for_exclusive_vpn_dns(monkeypatch, tmp_path):
     app = netmon.App.__new__(netmon.App)
+    app.lang = json.loads(
+        (Path(__file__).resolve().parents[1] / "netmon/lang/de.json").read_text()
+    )
 
     dropin = tmp_path / "netmon-dot.conf"
     monkeypatch.setattr(netmon, "DOT_DROPIN_PATH", str(dropin))
@@ -1169,21 +1206,20 @@ Link 7 (proton0)
         public_ip="198.51.100.42",
     )
 
-    assert "Leak erkannt: NEIN" in result
-    assert "Status: OK / VPN-DNS exklusiv aktiv" in result
-    assert "Risiko: niedrig" in result
-    assert "- VPN-DNS aktiv, keine Aktion nötig" in result
+    assert "DNS-Routing-Konflikt: NEIN" in result
+    assert "Status: OK / VPN-DNS laut Routing-Konfiguration bevorzugt" in result
+    assert "Konfigurationsrisiko: niedrig" in result
+    assert "- VPN-DNS-Routing passt; keine Konfigurationsänderung empfohlen" in result
 
 
-def test_dns_analysis_prompt_mentions_low_risk_vpn_dns_rule():
+def test_dns_analysis_prompt_separates_configuration_from_measured_queries():
     service = netmon.AiAnalysisService()
 
     prompt = service.build_prompt("DNS Leak Analyse", "VPN erkannt: JA")
 
-    assert (
-        "ausschließlich VPN-DNS gelistet ist, bewerte das Risiko als niedrig" in prompt
-    )
-    assert '"mittel" ist nur korrekt' in prompt
+    assert "Trenne konfigurierte Resolver von gemessenen DNS-Anfragen" in prompt
+    assert "Keine Leak-Freiheit aus einer Liste ableiten" in prompt
+    assert "DoT und DNSSEC im konkreten VPN-/Resolverkontext beurteilen" in prompt
 
 
 def test_run_dns_health_check_stays_in_dns_tab_without_auto_chad(monkeypatch):
@@ -1230,6 +1266,10 @@ def test_run_dns_health_check_stays_in_dns_tab_without_auto_chad(monkeypatch):
 
 def test_resolved_status_async_shows_compact_dns_status_without_raw_dump(monkeypatch):
     app = netmon.App.__new__(netmon.App)
+    app.lang = json.loads(
+        (Path(__file__).resolve().parents[1] / "netmon/lang/de.json").read_text()
+    )
+    app._dns_control_service().get_wireguard_interfaces = lambda: set()
     outputs = []
     tab_calls = []
     logs = []
@@ -1269,7 +1309,7 @@ def test_resolved_status_async_shows_compact_dns_status_without_raw_dump(monkeyp
     assert logs == ["DNS-Status aktualisiert"]
     assert outputs == [
         (
-            "=== DNS Status ===\n\n"
+            "=== DNS-Status ===\n\n"
             "✔ systemd-resolved: aktiv\n"
             "✔ Aktiver DNS: 1.1.1.1\n"
             "✔ Weiterer DNS-Server: 1.0.0.1\n"
@@ -1297,6 +1337,9 @@ def test_resolved_status_plain_dns_is_neutral_only_for_matching_profile(
     monkeypatch, case, configured
 ):
     app = netmon.App.__new__(netmon.App)
+    app.lang = json.loads(
+        (Path(__file__).resolve().parents[1] / "netmon/lang/de.json").read_text()
+    )
     outputs = []
     app.log = lambda _: None
     app.after = lambda _delay, callback: callback()
@@ -1331,8 +1374,15 @@ def test_resolved_status_plain_dns_is_neutral_only_for_matching_profile(
 
     assert len(outputs) == 1
     assert ("DNS konfiguriert – DNS-over-TLS ausgeschaltet" in outputs[0]) is configured
-    assert ("DNS-System eingeschränkt" in outputs[0]) is (not configured)
-    assert "○ DNS-over-TLS: ausgeschaltet" in outputs[0]
+    assert ("DNS-System eingeschränkt" in outputs[0]) is (
+        not configured and case != "unknown_vpn"
+    )
+    if case == "unknown_vpn":
+        assert "VPN-/DNS-Status unklar" in outputs[0]
+    if case in {"missing", "unreadable"}:
+        assert "○ DNS-over-TLS: Status unklar" in outputs[0]
+    else:
+        assert "○ DNS-over-TLS: ausgeschaltet" in outputs[0]
     if case == "plain":
         assert "Weiterer DNS-Server: 8.8.4.4" in outputs[0]
         assert "DNSSEC: optional (allow-downgrade)" in outputs[0]
@@ -2467,6 +2517,7 @@ def test_update_ufw_logging_light_maps_levels(monkeypatch):
 
     app.l_ufw_log = object()
     app.ufw_logging_status_var = DummyVar()
+    app.firewall_tab_logging_menu_var = DummyVar()
     app.set_light = lambda _light, color: colors.append(color)
     app.security_events = []
     app._active_ufw_portscan_ip = lambda: None
@@ -2485,6 +2536,9 @@ def test_update_ufw_logging_light_maps_levels(monkeypatch):
 
     for _ in range(6):
         app.update_ufw_logging_light()
+        assert (
+            app.firewall_tab_logging_menu_var.get() == app.ufw_logging_status_var.get()
+        )
 
     assert colors == ["gray", "yellow", "green", "green", "yellow", "gray"]
     assert app.ufw_logging_status_var.get() == "UFW Logging: –"
@@ -2535,6 +2589,7 @@ def test_update_ufw_logging_light_marks_portscan_red(monkeypatch):
 
     app.l_ufw_log = object()
     app.ufw_logging_status_var = DummyVar()
+    app.firewall_tab_logging_menu_var = DummyVar()
     app.set_light = lambda _light, color: colors.append(color)
     app.security_events = [
         {
@@ -2553,6 +2608,7 @@ def test_update_ufw_logging_light_marks_portscan_red(monkeypatch):
     assert colors == ["red"]
     assert app.ufw_logging_status_var.get() == "Portscan von IP: 185.123.45.67"
     assert app.security_level_var.get() == "Logging: HIGH"
+    assert app.firewall_tab_logging_menu_var.get() == "UFW Logging: HIGH"
 
 
 def test_parse_ufw_logging_level_parses_on_high():
@@ -2626,28 +2682,60 @@ def test_security_set_ufw_logging_high_refreshes_light(monkeypatch):
     assert logs == ["Security: UFW Logging auf HIGH gesetzt."]
 
 
-def test_set_ufw_logging_refreshes_light(monkeypatch):
+@pytest.mark.parametrize("command_succeeds", [True, False])
+def test_set_ufw_logging_refreshes_both_displays_after_command(
+    monkeypatch, command_succeeds
+):
     app = netmon.App.__new__(netmon.App)
-    calls = []
+    scheduled = []
     logs = []
+    actual_level = "LOW"
 
+    app.tab_firewall = object()
+    app._select_security_tab = lambda _tab: None
     app.ensure_sudo_session = lambda _prompt: True
     app.log_safe = logs.append
-    app.update_ufw_logging_light = lambda: calls.append("ufw-light")
-    app.after = lambda delay, callback: (calls.append(("after", delay)), callback())
+    app.ufw_logging_status_var = DummyVar("UFW Logging: LOW")
+    app.firewall_tab_logging_menu_var = DummyVar("UFW Logging: LOW")
+    app.after = lambda delay, callback: scheduled.append((delay, callback))
+    app._collect_firewall_transparency_snapshot = lambda: {
+        "status_label": "active",
+        "default_in": "DENY",
+        "default_out": "ALLOW",
+        "logging": actual_level,
+        "rule_count": 0,
+        "external_open_count": 0,
+        "listener_count": 0,
+        "last_check": "–",
+    }
+
+    def run_ufw(args, **_kwargs):
+        nonlocal actual_level
+        assert args[-3:] == ["ufw", "logging", "high"]
+        if not command_succeeds:
+            return 1, "denied"
+        actual_level = "HIGH"
+        return 0, "ok"
 
     monkeypatch.setattr(netmon.threading, "Thread", ImmediateThread)
-    monkeypatch.setattr(
-        netmon,
-        "run_cmd",
-        lambda args, timeout=0, text=True: (0, "ok"),
-    )
+    monkeypatch.setattr(netmon, "run_cmd", run_ufw)
 
-    app.set_ufw_logging("low")
+    app.show_firewall_ufw_logging("high")
 
-    assert logs == ["Security: UFW Logging auf LOW gesetzt"]
-    assert ("after", 500) in calls
-    assert "ufw-light" in calls
+    assert app.ufw_logging_status_var.get() == "UFW Logging: LOW"
+    assert app.firewall_tab_logging_menu_var.get() == "UFW Logging: LOW"
+    assert scheduled == [(0, app.refresh_firewall_transparency_view)]
+    scheduled[0][1]()
+    expected_level = "HIGH" if command_succeeds else "LOW"
+    assert app.ufw_logging_status_var.get() == f"UFW Logging: {expected_level}"
+    assert app.firewall_tab_logging_menu_var.get() == f"UFW Logging: {expected_level}"
+    assert logs == [
+        (
+            "Security: UFW Logging auf HIGH gesetzt"
+            if command_succeeds
+            else "Security: Fehler beim Setzen von Logging: denied"
+        )
+    ]
 
 
 def test_set_dns_guard_enabled_updates_vars_and_indicator():

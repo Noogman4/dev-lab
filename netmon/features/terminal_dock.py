@@ -11,9 +11,11 @@ from tkinter import messagebox, ttk
 
 try:
     from netmon.features.terminal_workspace import TerminalWorkspace
+    from netmon.ui.button_sound import bind_menu_click_sound
     from netmon.ui.terminal_helper import TERMINAL_MENU_LABELS
 except ModuleNotFoundError:
     from features.terminal_workspace import TerminalWorkspace
+    from ui.button_sound import bind_menu_click_sound
     from ui.terminal_helper import TERMINAL_MENU_LABELS
 
 
@@ -584,7 +586,15 @@ def build_launcher(app, parent):
     button.pack(side="left")
     button.bind("<Button-3>", app.show_terminal_menu)
     choice = ttk.Menubutton(frame, text="▾", width=2, direction="below")
-    choice.configure(menu=_choice_menu(app, choice))
+    menu = _choice_menu(app, choice)
+    play_command = app.__dict__.get("_click_sound_command")
+    if play_command:
+        # On X11 the menubutton can post the same menu again on mouse release.
+        menu.configure(
+            postcommand=f"if {{![winfo ismapped {menu}]}} {{{play_command}}}"
+        )
+        bind_menu_click_sound(menu, play_command)
+    choice.configure(menu=menu)
     choice.pack(side="left")
     app.add_tooltip(
         button,

@@ -251,7 +251,11 @@ def _raster_dimensions(payload):
     raise ValueError("Unsupported icon signature")
 
 
-def sanitize_icon(payload, *, allow_svg=True):
+def sanitize_icon(payload, *, allow_svg=True, raster_size=None):
+    if raster_size is not None and (
+        type(raster_size) is not int or not 0 < raster_size <= MAX_DIMENSION
+    ):
+        raise ValueError("Invalid raster target size")
     if not payload or len(payload) > ICON_BYTES:
         raise ValueError("Invalid icon byte size")
     if payload.startswith(PNG_MAGIC):
@@ -301,7 +305,12 @@ def sanitize_icon(payload, *, allow_svg=True):
             raise ValueError("Unsupported or animated icon")
         image.load()
         output = io.BytesIO()
-        image.convert("RGBA").save(output, format="PNG")
+        normalized_image = image.convert("RGBA")
+        if raster_size is not None:
+            # Only the offline radio helper opts in. Input/animation checks above
+            # still apply before reducing an otherwise admissible raster image.
+            normalized_image.thumbnail((raster_size, raster_size))
+        normalized_image.save(output, format="PNG")
         normalized = output.getvalue()
         if len(normalized) > ICON_BYTES:
             raise ValueError("Converted icon exceeds byte budget")

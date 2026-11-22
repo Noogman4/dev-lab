@@ -118,11 +118,21 @@ class UfwSnapshotClient:
                     "UFW-Snapshothelfer fehlt oder ist inkompatibel; keine Änderung angefordert",
                     "incompatible",
                 )
-        rc, output = run_cmd_with_input(
-            ["sudo", "-n", "/usr/bin/python3", "-I", "-c", BOOTSTRAP, operation],
-            input_text=json.dumps(payload),
-            timeout=90,
-        )
+
+        def invoke():
+            return run_cmd_with_input(
+                ["sudo", "-n", "/usr/bin/python3", "-I", "-c", BOOTSTRAP, operation],
+                input_text=json.dumps(payload),
+                timeout=90,
+            )
+
+        from netmon.core import passive_sudo
+
+        observer = passive_sudo.current_app()
+        if operation == "state" and observer is not None:
+            rc, output = passive_sudo.read(observer, "ufw-snapshot-state", invoke)
+        else:
+            rc, output = invoke()
         if rc:
             code = None
             messages = {

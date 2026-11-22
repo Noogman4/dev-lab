@@ -11,11 +11,11 @@ from datetime import datetime
 try:
     from netmon.config.constants import NETMON_APP_VERSION
     from netmon.core.diagnostics import redact_sensitive_text
-    from netmon.core.state import get_netmon_state_dir
+    from netmon.core.state import get_netmon_documents_subdir
 except ModuleNotFoundError:
     from config.constants import NETMON_APP_VERSION
     from core.diagnostics import redact_sensitive_text
-    from core.state import get_netmon_state_dir
+    from core.state import get_netmon_documents_subdir
 
 _SENSITIVE_KEY_PARTS = (
     "api_key",
@@ -58,8 +58,7 @@ def performance_log_path() -> str:
     if override:
         return os.path.abspath(os.path.expanduser(override))
     return os.path.join(
-        get_netmon_state_dir(),
-        "logs",
+        get_netmon_documents_subdir("Logs"),
         "performance_measurements.jsonl",
     )
 

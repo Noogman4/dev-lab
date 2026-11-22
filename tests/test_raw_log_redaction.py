@@ -213,7 +213,12 @@ def test_runtime_gui_stdout_files_and_network_memory_are_redacted(tmp_path, caps
         assert SECRET not in path.read_text()
 
 
-def test_port_debug_records_remain_valid_json_with_sensitive_fields_redacted(tmp_path):
+def test_port_debug_records_remain_valid_json_with_sensitive_fields_redacted(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(
+        app_module, "get_netmon_documents_subdir", lambda *parts: str(tmp_path / "logs")
+    )
     app = SimpleNamespace(
         netmon_state_dir=str(tmp_path), log_debug_safe=lambda _text: None
     )
@@ -272,6 +277,7 @@ def test_direct_private_json_writes_apply_same_policy(tmp_path):
 
 def bootstrap_functions(tmp_path, monkeypatch):
     (tmp_path / "state").mkdir(mode=0o700)
+    (tmp_path / "state" / "netmon").mkdir(mode=0o700)
     tree = ast.parse(Path(app_module.__file__).read_text())
     block = next(
         node
@@ -283,7 +289,9 @@ def bootstrap_functions(tmp_path, monkeypatch):
     namespace = {
         "os": os,
         "_bootstrap_traceback": traceback,
-        "get_netmon_state_dir": lambda: str(tmp_path / "state" / "netmon"),
+        "get_netmon_documents_subdir": lambda *parts: str(
+            tmp_path / "state" / "netmon" / "Logs"
+        ),
         "open_private_log": private_logs.open_private_log,
     }
     exec(

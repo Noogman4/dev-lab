@@ -57,3 +57,22 @@ def test_active_handover_mode_rejects_other_native_modes_before_execution(other)
     )
     assert result.returncode == 2
     assert "error:" in result.stderr
+
+
+def test_gui_refuses_host_mount_namespace_before_commands(monkeypatch, tmp_path):
+    source = tmp_path / "source/netmon/core/radio_sandbox.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("# synthetic fixture\n")
+    output = tmp_path / "output"
+    output.mkdir()
+    monkeypatch.setattr(probe.os, "readlink", lambda _path: "namespace:current")
+    monkeypatch.setattr(probe.socket, "if_nameindex", lambda: [(1, "lo")])
+    monkeypatch.setenv("NETMON_PARENT_MOUNT_NS", "namespace:current")
+    monkeypatch.setattr(
+        probe.subprocess,
+        "run",
+        lambda *_a, **_k: pytest.fail("Command before mount isolation check"),
+    )
+    assert probe._worker(tmp_path / "source", output, "namespace:parent", gui=True) == 1
+    result = json.loads((output / "radio-stream-result.json").read_text())
+    assert "host mount namespace" in result["error"]

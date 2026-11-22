@@ -124,7 +124,13 @@ def _selected_process_guard_finding(app):
 def _selected_process_guard_finding_or_log(app):
     finding = _selected_process_guard_finding(app)
     if not finding:
-        app.log(_tr(app, "process_guard_no_finding_selected", "Process Guard: Kein Fund ausgewählt."))
+        app.log(
+            _tr(
+                app,
+                "process_guard_no_finding_selected",
+                "Process Guard: Kein Fund ausgewählt.",
+            )
+        )
         return None
     return finding
 
@@ -176,7 +182,9 @@ def _process_guard_filter_mode(app) -> str:
     )
 
 
-def _process_guard_monitoring_status_text(app_or_monitoring, monitoring: bool | None = None) -> str:
+def _process_guard_monitoring_status_text(
+    app_or_monitoring, monitoring: bool | None = None
+) -> str:
     app = app_or_monitoring if monitoring is not None else None
     monitoring = app_or_monitoring if monitoring is None else monitoring
     if monitoring:
@@ -224,16 +232,13 @@ def _process_guard_visible_count_text(app_or_findings, findings=None) -> str:
 def _process_guard_status_values(app) -> dict:
     return {
         "monitoring": _process_guard_monitoring_status_text(
-            app,
-            getattr(app, "process_guard_monitoring", False)
+            app, getattr(app, "process_guard_monitoring", False)
         ),
         "filter": _process_guard_filter_label(
-            app,
-            _process_guard_filter_mode(app), context="status"
+            app, _process_guard_filter_mode(app), context="status"
         ),
         "visible_count": _process_guard_visible_count_text(
-            app,
-            _app_list(app, "process_guard_visible_findings")
+            app, _app_list(app, "process_guard_visible_findings")
         ),
     }
 
@@ -397,9 +402,9 @@ def format_process_guard_result(result: dict, app=None) -> str:
     lines = [
         "=== Process Guard ===",
         "",
-        _tr(app, "process_guard_report_checked_processes", "Geprüfte Prozesse: {count}").format(
-            count=result.get("processes_count", 0)
-        ),
+        _tr(
+            app, "process_guard_report_checked_processes", "Geprüfte Prozesse: {count}"
+        ).format(count=result.get("processes_count", 0)),
         _tr(app, "process_guard_report_risk", "Risiko: {value}").format(
             value=result.get("risk", "-")
         ),
@@ -416,11 +421,15 @@ def format_process_guard_result(result: dict, app=None) -> str:
     ]
 
     if findings:
-        lines.append(_tr(app, "process_guard_report_conspicuous", "Auffällige Prozesse:"))
+        lines.append(
+            _tr(app, "process_guard_report_conspicuous", "Auffällige Prozesse:")
+        )
         for finding in findings[:12]:
             lines.append(
                 f"- [{finding.get('risk_level', '-').upper()}] "
-                + _tr(app, "process_guard_report_finding_header", "{name} (PID {pid})").format(
+                + _tr(
+                    app, "process_guard_report_finding_header", "{name} (PID {pid})"
+                ).format(
                     name=finding.get("name", "-"),
                     pid=finding.get("pid", "-"),
                 )
@@ -453,7 +462,9 @@ def format_process_guard_result(result: dict, app=None) -> str:
                 ).format(count=len(findings) - 12)
             )
     else:
-        lines.append(_tr(app, "process_guard_report_conspicuous", "Auffällige Prozesse:"))
+        lines.append(
+            _tr(app, "process_guard_report_conspicuous", "Auffällige Prozesse:")
+        )
         lines.append(
             _tr(
                 app,
@@ -462,7 +473,9 @@ def format_process_guard_result(result: dict, app=None) -> str:
             )
         )
 
-    lines.extend(["", _tr(app, "process_guard_report_result_header", "=== Ergebnis ===")])
+    lines.extend(
+        ["", _tr(app, "process_guard_report_result_header", "=== Ergebnis ===")]
+    )
     if counts.get("high", 0):
         lines.append(
             _tr(
@@ -689,7 +702,9 @@ def _process_guard_light_values(state: str, message: str = "") -> tuple[str, str
     return "gray", status_text or "Process Guard: noch nicht geprüft"
 
 
-def _process_guard_monitoring_status_message(app_or_state, state: str | None = None) -> str:
+def _process_guard_monitoring_status_message(
+    app_or_state, state: str | None = None
+) -> str:
     app = app_or_state if state is not None else None
     state = app_or_state if state is None else state
     return {
@@ -713,7 +728,9 @@ def _process_guard_monitoring_status_message(app_or_state, state: str | None = N
     )
 
 
-def _process_guard_monitoring_log_message(app_or_state, state: str | None = None) -> str:
+def _process_guard_monitoring_log_message(
+    app_or_state, state: str | None = None
+) -> str:
     app = app_or_state if state is not None else None
     state = app_or_state if state is None else state
     return {
@@ -791,15 +808,16 @@ def run_process_guard_check(app):
         app.process_guard_last_result = result
         text = format_process_guard_result(result, app)
         light_state, status_text = _process_guard_light_state_for_risk(
-            app,
-            result.get("risk")
+            app, result.get("risk")
         )
         set_process_guard_light(app, light_state, status_text)
 
         refresh_process_guard_tree(app)
         _append_process_guard_text(app, text)
         _scroll_process_guard_details_into_view(app)
-        app.log(f"Process Guard: Prüfung abgeschlossen (Risiko: {result.get('risk', '-')}).")
+        app.log(
+            f"Process Guard: Prüfung abgeschlossen (Risiko: {result.get('risk', '-')})."
+        )
     except Exception as exc:
         set_process_guard_light(app, "error", "Process Guard: error during check")
         app.log(f"Process Guard: error: {exc}")
@@ -832,14 +850,12 @@ def apply_process_guard_monitoring_snapshot(app, processes, findings):
         "available": True,
         "processes_count": len(list(processes or [])),
         "findings": local_findings,
-        "risk": (
-            "high" if counts["high"] else ("medium" if local_findings else "low")
-        ),
+        "risk": ("high" if counts["high"] else ("medium" if local_findings else "low")),
         "counts": counts,
     }
     text = format_process_guard_result(app.process_guard_last_result, app)
-    light_state, status_text, log_message = _process_guard_monitoring_state_for_findings(
-        app, local_findings
+    light_state, status_text, log_message = (
+        _process_guard_monitoring_state_for_findings(app, local_findings)
     )
     set_process_guard_light(app, light_state, status_text)
     if log_message:

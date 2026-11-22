@@ -249,7 +249,9 @@ def test_on_systemlink_app_select_keeps_manual_display_name():
 
 def test_remove_link_table_selection_uses_selected_slot():
     app = type("DummyApp", (), {})()
-    app.link_table = DummyLinkTable({"link-slot-7": ("7", "Docs", "Systemlink", "x")}, selection=("link-slot-7",))
+    app.link_table = DummyLinkTable(
+        {"link-slot-7": ("7", "Docs", "Systemlink", "x")}, selection=("link-slot-7",)
+    )
     app.link_slot_choice = DummyVar("1")
     logs = []
     app.log = logs.append

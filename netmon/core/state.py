@@ -65,39 +65,50 @@ def _xdg_dir(env_name: str, default_suffix: str, *, private: bool = False) -> st
 
 
 def get_netmon_config_dir() -> str:
-    return _xdg_dir("XDG_CONFIG_HOME", "~/.config")
+    return _ensure_private_dir(os.path.join(get_netmon_documents_dir(), "Config"))
 
 
 def get_netmon_state_dir() -> str:
     return _xdg_dir("XDG_STATE_HOME", "~/.local/state", private=True)
 
 
-def get_netmon_documents_dir() -> str:
-    env_value = (os.environ.get("XDG_DOCUMENTS_DIR") or "").strip()
-    if env_value:
-        path = os.path.join(os.path.expanduser(env_value), "NetMon")
-        return _ensure_private_dir(path)
-
-    candidates = [
-        os.path.expanduser("~/Documents"),
-        os.path.expanduser("~/Dokumente"),
-    ]
+def netmon_documents_path() -> str:
+    """Resolve the system document folder without creating or changing it."""
+    configured = _configured_documents_dir()
+    if configured:
+        return os.path.join(configured, "NetMon")
+    language = next(
+        (
+            os.environ[name]
+            for name in ("LC_ALL", "LC_MESSAGES", "LANG")
+            if os.environ.get(name)
+        ),
+        "",
+    )
+    if language.lower().startswith("de"):
+        return os.path.expanduser("~/Dokumente/NetMon")
+    candidates = [os.path.expanduser("~/Dokumente"), os.path.expanduser("~/Documents")]
     for base in candidates:
         if os.path.isdir(base):
             path = os.path.join(base, "NetMon")
-            return _ensure_private_dir(path)
+            return path
 
     fallback = os.path.join(os.path.expanduser("~/Documents"), "NetMon")
-    return _ensure_private_dir(fallback)
+    return fallback
+
+
+def get_netmon_documents_dir() -> str:
+    return _ensure_private_dir(netmon_documents_path())
 
 
 def get_netmon_wireguard_dir() -> str:
-    """Use the system profile folder without relocating existing settings/logs."""
-    configured = _configured_documents_dir()
-    base = (
-        os.path.join(configured, "NetMon") if configured else get_netmon_documents_dir()
+    return _ensure_private_dir(os.path.join(get_netmon_documents_dir(), "WireGuard"))
+
+
+def get_netmon_fun_dir() -> str:
+    return _ensure_private_dir(
+        os.path.join(get_netmon_documents_dir(), "Fun", "code_the_classics")
     )
-    return _ensure_dir(os.path.join(base, "WireGuard"), mode=0o700)
 
 
 def get_netmon_documents_subdir(*parts: str) -> str:
@@ -111,7 +122,9 @@ def get_netmon_documents_subdir(*parts: str) -> str:
 __all__ = [
     "get_netmon_config_dir",
     "get_netmon_documents_dir",
+    "netmon_documents_path",
     "get_netmon_documents_subdir",
+    "get_netmon_fun_dir",
     "get_netmon_wireguard_dir",
     "get_netmon_state_dir",
 ]

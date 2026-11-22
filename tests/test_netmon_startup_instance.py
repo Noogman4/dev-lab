@@ -63,7 +63,9 @@ def test_default_log_overlay_dir_uses_netmon_documents(tmp_path, monkeypatch):
         "get_netmon_documents_subdir",
         lambda *parts: str(netmon_docs.joinpath(*parts)),
     )
-    monkeypatch.setattr(netmon_app, "get_netmon_documents_dir", lambda: str(netmon_docs))
+    monkeypatch.setattr(
+        netmon_app, "get_netmon_documents_dir", lambda: str(netmon_docs)
+    )
 
     assert app._default_log_overlay_dir() == str(log_pics)
     assert log_pics.is_dir()

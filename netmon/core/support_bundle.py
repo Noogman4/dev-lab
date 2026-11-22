@@ -56,6 +56,8 @@ def _support_bundle_candidate_paths() -> list[str]:
         os.path.join(diagnostics_dir, "startup_error.log"),
         os.path.join(diagnostics_dir, "crash.log"),
         os.path.join(runtime_logs_dir, "runtime.log"),
+        os.path.join(runtime_logs_dir, "network_debug.log"),
+        os.path.join(runtime_logs_dir, "startup_error.log"),
         os.path.join(state_logs_dir, "runtime.log"),
         os.path.join(state_logs_dir, "network_debug.log"),
     ]
@@ -68,7 +70,8 @@ def _approved_input(path: str) -> bool:
             name in {"startup_error.log", "crash.log"}
             or (name.startswith("netmon-") and name.endswith(".json"))
         ),
-        os.path.abspath(get_netmon_documents_subdir("Logs")): name == "runtime.log",
+        os.path.abspath(get_netmon_documents_subdir("Logs")): name
+        in {"runtime.log", "network_debug.log", "startup_error.log"},
         os.path.abspath(os.path.join(get_netmon_state_dir(), "logs")): name
         in {"runtime.log", "network_debug.log"},
     }
