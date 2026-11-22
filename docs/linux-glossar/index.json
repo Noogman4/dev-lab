@@ -1,0 +1,266 @@
+{
+  "schema_version": 1,
+  "kind": "glossary",
+  "source_catalog": "tools/it_lexikon_linux_hilfe.json",
+  "source_sha256": "b3fb9bfe37d335ee6eaa89c89425f08c94e8efc6f698e7c520ffc81ed128fc24",
+  "total_records": 302,
+  "documented_records": 10,
+  "records": [
+    {
+      "source_record": 1,
+      "id": "it_0001",
+      "term": "Algorithmus",
+      "category": "Grundlagen",
+      "document": "it_0001.md",
+      "sha256": "d28ea745a0c28260dfbe2de2c64f18791283f4bca4dcddadfb0fe9a6130c2edd",
+      "source": {
+        "id": "it_0001",
+        "term": "Algorithmus",
+        "short": "Eine Schritt-für-Schritt-Anleitung zur Lösung eines Problems.",
+        "example": "Ein Sortieralgorithmus ordnet eine Liste von Zahlen.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/howto/sorting.html#key-functions",
+        "https://docs.python.org/3.13/tutorial/controlflow.html#for-statements"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 2,
+      "id": "it_0002",
+      "term": "Anweisung",
+      "category": "Grundlagen",
+      "document": "it_0002.md",
+      "sha256": "11029de1370d34b61b1f9f39e7821410cff48b62d40a81319c68fbafd062d69d",
+      "source": {
+        "id": "it_0002",
+        "term": "Anweisung",
+        "short": "Ein einzelner Befehl im Programmcode.",
+        "example": "print('Hallo') ist eine Anweisung in Python.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/reference/compound_stmts.html#the-if-statement",
+        "https://docs.python.org/3.13/reference/simple_stmts.html#expression-statements"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 3,
+      "id": "it_0003",
+      "term": "Ausdruck",
+      "category": "Grundlagen",
+      "document": "it_0003.md",
+      "sha256": "c68e63e41e9b9070fae98b418f79aadc71d515a037a80532605a93891d62cffb",
+      "source": {
+        "id": "it_0003",
+        "term": "Ausdruck",
+        "short": "Code, der zu einem Wert ausgewertet wird.",
+        "example": "2 + 3 ist ein Ausdruck mit dem Ergebnis 5.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/reference/expressions.html#boolean-operations",
+        "https://docs.python.org/3.13/reference/expressions.html#evaluation-order",
+        "https://docs.python.org/3.13/reference/simple_stmts.html#expression-statements"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 4,
+      "id": "it_0004",
+      "term": "Variable",
+      "category": "Grundlagen",
+      "document": "it_0004.md",
+      "sha256": "27efd85b5aa299b248d90230937bced022329813eeaed2e207a8c5f3a5f655dc",
+      "source": {
+        "id": "it_0004",
+        "term": "Variable",
+        "short": "Ein benannter Speicherplatz für einen Wert.",
+        "example": "name = 'Sven' speichert Text in der Variable name.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/reference/datamodel.html#objects-values-and-types",
+        "https://docs.python.org/3.13/reference/executionmodel.html#binding-of-names"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 5,
+      "id": "it_0005",
+      "term": "Konstante",
+      "category": "Grundlagen",
+      "document": "it_0005.md",
+      "sha256": "524bf31f6d0f635a14404337abe7016224e53951de31fe4e0fce8df510bbd9a7",
+      "source": {
+        "id": "it_0005",
+        "term": "Konstante",
+        "short": "Ein Wert, der während der Programmlaufzeit nicht geändert werden soll.",
+        "example": "MAX_USERS = 100 kann als Konstante dienen.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/typing.html#typing.Final",
+        "https://docs.python.org/3.13/reference/datamodel.html#objects-values-and-types",
+        "https://peps.python.org/pep-0008/#constants"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 6,
+      "id": "it_0006",
+      "term": "Datentyp",
+      "category": "Grundlagen",
+      "document": "it_0006.md",
+      "sha256": "ecc23989df073cd0b34fe1de0819d8ae0c641658b081f394f75e1945750ee02d",
+      "source": {
+        "id": "it_0006",
+        "term": "Datentyp",
+        "short": "Eine Kategorie von Werten, zum Beispiel Text, Zahl oder Wahr/Falsch.",
+        "example": "int, str, bool und float sind Datentypen in Python.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/functions.html#int",
+        "https://docs.python.org/3.13/library/functions.html#type",
+        "https://docs.python.org/3.13/reference/datamodel.html#objects-values-and-types"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 7,
+      "id": "it_0007",
+      "term": "String",
+      "category": "Grundlagen",
+      "document": "it_0007.md",
+      "sha256": "07d6398968523cc6628c8aed2f47fcacace87353f3da911f3b0f18cbb48759a7",
+      "source": {
+        "id": "it_0007",
+        "term": "String",
+        "short": "Eine Zeichenkette, also Text.",
+        "example": "'NetMon' ist ein String.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/howto/unicode.html#encodings",
+        "https://docs.python.org/3.13/library/stdtypes.html#text-sequence-type-str"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 8,
+      "id": "it_0008",
+      "term": "Integer",
+      "category": "Grundlagen",
+      "document": "it_0008.md",
+      "sha256": "f6b8b403178049fce12920e82264f70891326e806c0a432ed8c47b5e1d6dbe78",
+      "source": {
+        "id": "it_0008",
+        "term": "Integer",
+        "short": "Eine ganze Zahl ohne Nachkommastellen.",
+        "example": "42 ist ein Integer.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/functions.html#int",
+        "https://docs.python.org/3.13/library/stdtypes.html#numeric-types-int-float-complex"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 9,
+      "id": "it_0009",
+      "term": "Float",
+      "category": "Grundlagen",
+      "document": "it_0009.md",
+      "sha256": "61786aa52138d75e6576987add8213a34487fdfb6b3d4729964291dc05adb390",
+      "source": {
+        "id": "it_0009",
+        "term": "Float",
+        "short": "Eine Zahl mit Nachkommastellen.",
+        "example": "3.14 ist ein Float.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/math.html#math.isclose",
+        "https://docs.python.org/3.13/library/stdtypes.html#numeric-types-int-float-complex",
+        "https://docs.python.org/3.13/tutorial/floatingpoint.html#representation-error"
+      ],
+      "status": "review_pending"
+    },
+    {
+      "source_record": 10,
+      "id": "it_0010",
+      "term": "Boolean",
+      "category": "Grundlagen",
+      "document": "it_0010.md",
+      "sha256": "d480572ac7951f88f18590d2e987fdab69b90b82f738c927384b5b4c0fad6674",
+      "source": {
+        "id": "it_0010",
+        "term": "Boolean",
+        "short": "Ein Wahrheitswert: true/false beziehungsweise True/False.",
+        "example": "is_admin = False speichert einen Boolean.",
+        "tags": [
+          "grundlagen"
+        ],
+        "related": []
+      },
+      "source_urls": [
+        "https://docs.python.org/3.13/library/stdtypes.html#boolean-type-bool",
+        "https://docs.python.org/3.13/library/stdtypes.html#truth-value-testing",
+        "https://docs.python.org/3.13/reference/expressions.html#boolean-operations"
+      ],
+      "status": "review_pending"
+    }
+  ],
+  "source_urls": [
+    "https://docs.python.org/3.13/howto/sorting.html#key-functions",
+    "https://docs.python.org/3.13/howto/unicode.html#encodings",
+    "https://docs.python.org/3.13/library/functions.html#int",
+    "https://docs.python.org/3.13/library/functions.html#type",
+    "https://docs.python.org/3.13/library/math.html#math.isclose",
+    "https://docs.python.org/3.13/library/stdtypes.html#boolean-type-bool",
+    "https://docs.python.org/3.13/library/stdtypes.html#numeric-types-int-float-complex",
+    "https://docs.python.org/3.13/library/stdtypes.html#text-sequence-type-str",
+    "https://docs.python.org/3.13/library/stdtypes.html#truth-value-testing",
+    "https://docs.python.org/3.13/library/typing.html#typing.Final",
+    "https://docs.python.org/3.13/reference/compound_stmts.html#the-if-statement",
+    "https://docs.python.org/3.13/reference/datamodel.html#objects-values-and-types",
+    "https://docs.python.org/3.13/reference/executionmodel.html#binding-of-names",
+    "https://docs.python.org/3.13/reference/expressions.html#boolean-operations",
+    "https://docs.python.org/3.13/reference/expressions.html#evaluation-order",
+    "https://docs.python.org/3.13/reference/simple_stmts.html#expression-statements",
+    "https://docs.python.org/3.13/tutorial/controlflow.html#for-statements",
+    "https://docs.python.org/3.13/tutorial/floatingpoint.html#representation-error",
+    "https://peps.python.org/pep-0008/#constants"
+  ]
+}
