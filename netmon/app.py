@@ -16558,6 +16558,7 @@ class App(TkBase):
         from netmon.core import swap_resize
 
         try:
+            swap_resize.trusted_helper_path()
             swap_resize.precheck(swapfile)
         except (swap_resize.SwapResizeError, OSError) as exc:
             messagebox.showwarning(
@@ -16706,9 +16707,12 @@ class App(TkBase):
         def job():
             # One root process pins the swap file's verified parent directory
             # and never re-resolves the pathname between privileged steps.
-            rc, out = run_cmd(
-                swap_resize.root_command(swapfile, target_gib), timeout=300
-            )
+            try:
+                command = swap_resize.root_command(swapfile, target_gib)
+            except (swap_resize.SwapResizeError, OSError) as exc:
+                rc, out = 1, str(exc)
+            else:
+                rc, out = run_cmd(command, timeout=300)
             if rc != 0:
                 msg = (out or "").strip() or self.tr(
                     "system_swap_clear_error_unknown",
