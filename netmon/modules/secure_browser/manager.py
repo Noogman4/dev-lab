@@ -223,7 +223,7 @@ class SecureBrowserManager:
                 self.T("secure_browser_preflight_title", "Secure-Browser-Preflight"),
                 "",
                 f"- {self.T('secure_browser_preflight_mode_label', 'Modus')}: {self.T('secure_browser_preflight_mode_read_only', 'read-only')}",
-                f"- {self.T('secure_browser_preflight_dependencies_label', 'Abhängigkeiten')}: {self.T('secure_browser_preflight_dependencies_none', 'bei fehlender Firefox-Laufzeit oder Firefox-Basis den Setup-Assistenten verwenden')}",
+                f"- {self.T('secure_browser_preflight_dependencies_label', 'Abhängigkeiten')}: {self.T('secure_browser_preflight_dependencies_none', 'geschützter Start benötigt das Paket netmon-web-browser-runtime')}",
                 *lines,
             ]
         )

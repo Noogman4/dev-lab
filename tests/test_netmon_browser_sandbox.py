@@ -3,9 +3,12 @@ import json
 import os
 from pathlib import Path
 import select
+import socket
 import subprocess
 import sys
 import tarfile
+import tempfile
+from types import SimpleNamespace
 
 import pytest
 
@@ -55,7 +58,19 @@ def test_plan_uses_private_paths_and_starts_firefox_without_capabilities():
     ]
     assert mounts == [("4", "/home/browser/profile"), ("5", "/home/browser/Downloads")]
     assert command[command.index("--cap-drop") + 1] == "ALL"
-    assert not {"--cap-add", "--uid", "--gid"}.intersection(command)
+    assert not {
+        "--cap-add",
+        "--uid",
+        "--gid",
+        "DISPLAY",
+        "XAUTHORITY",
+        "/tmp/.X11-unix",
+    }.intersection(command)
+    assert command[command.index("/run/browser/wayland-0") - 2 :][:3] == [
+        "--ro-bind",
+        "/test/wayland",
+        "/run/browser/wayland-0",
+    ]
     assert command[-6:] == [
         "--",
         "/browser/firefox",
@@ -151,7 +166,11 @@ def test_secure_browser_tab_creates_a_sandboxed_browser_in_compatible_mode(
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setattr(session, "FIREFOX_DIR", runtime)
     monkeypatch.setattr(session, "_managed_runtime", lambda path: path)
-    monkeypatch.setattr(session, "_wayland_socket", lambda: tmp_path / "wayland-0")
+    monkeypatch.setenv("XDG_SESSION_TYPE", "x11")
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    monkeypatch.setenv("DISPLAY", ":42")
+    monkeypatch.setattr(session, "_WESTON", sys.executable)
     monkeypatch.setattr(sandbox, "_require_network_tools", lambda: None)
     service = SecureBrowserService()
     base = tmp_path / "containers"
@@ -210,7 +229,9 @@ def test_secure_browser_migration_backs_up_closed_profile_before_switching(
     monkeypatch.setattr(
         container_migration.session, "_managed_runtime", lambda _: runtime
     )
-    monkeypatch.setattr(container_migration.session, "_wayland_socket", lambda: None)
+    monkeypatch.setattr(
+        container_migration.session, "_check_display_requirements", lambda: None
+    )
     monkeypatch.setattr(sandbox, "_require_network_tools", lambda: None)
 
     with pytest.raises(sandbox.BrowserSandboxError, match="älter als das Profil"):
@@ -362,3 +383,143 @@ def test_missing_network_tool_fails_before_starting_any_process(monkeypatch):
             Path("/netmon/session/private-bus"),
             "https://example.test/",
         )
+
+
+@pytest.fixture
+def x11_runtime(monkeypatch):
+    monkeypatch.setenv("XDG_SESSION_TYPE", "x11")
+    monkeypatch.setenv("DISPLAY", ":42")
+    monkeypatch.setenv("XAUTHORITY", "/test/Xauthority")
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    monkeypatch.setattr(session, "_WESTON", sys.executable)
+    with tempfile.TemporaryDirectory(prefix="netmon-x11-") as directory:
+        monkeypatch.setenv("XDG_RUNTIME_DIR", directory)
+        yield Path(directory)
+
+
+def test_x11_display_socket_lifetime_and_environment(x11_runtime, monkeypatch):
+    monkeypatch.setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/test/desktop-bus")
+    process = SimpleNamespace(poll=lambda: None)
+
+    @contextmanager
+    def fake_weston(command, fds, *, env):
+        assert command[:6] == [
+            session._SETPRIV,
+            "--no-new-privs",
+            "--pdeathsig",
+            "TERM",
+            session._WESTON,
+            "--backend=x11-backend.so",
+        ]
+        assert set(command[6:-1]) == {
+            "--shell=kiosk-shell.so",
+            "--no-config",
+            "--use-pixman",
+            "--idle-time=0",
+            "--socket=wayland-0",
+        }
+        assert not fds
+        runtime = Path(env["XDG_RUNTIME_DIR"])
+        assert command[-1] == f"--log={runtime / 'weston.log'}"
+        assert runtime.parent == x11_runtime
+        assert runtime.stat().st_mode & 0o777 == 0o700
+        assert env == {
+            **sandbox._HOST_ENV,
+            "DISPLAY": ":42",
+            "XAUTHORITY": "/test/Xauthority",
+            "XDG_RUNTIME_DIR": str(runtime),
+        }
+        with socket.socket(socket.AF_UNIX) as server:
+            server.bind(str(runtime / "wayland-0"))
+            server.listen(1)
+            yield process
+
+    branded = []
+    monkeypatch.setattr(sandbox, "_process", fake_weston)
+    monkeypatch.setattr(
+        session,
+        "_brand_weston_window",
+        lambda log, title, _env: branded.append((log, title)),
+    )
+    with session._display_socket() as (path, display):
+        assert path.is_socket()
+        assert display is process
+        assert branded == [(path.with_name("weston.log"), "NetmonRoots Browser")]
+    assert not path.parent.exists()
+
+
+def test_native_wayland_wins_over_x11(x11_runtime, monkeypatch):
+    monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-native")
+    monkeypatch.setattr(
+        sandbox, "_process", lambda *_a, **_kw: pytest.fail("Started Weston")
+    )
+    expected = x11_runtime / "wayland-native"
+    with socket.socket(socket.AF_UNIX) as server:
+        server.bind(str(expected))
+        session._check_display_requirements()
+        with session._display_socket() as (path, display):
+            assert path == expected
+            assert display is None
+        assert path.is_socket()
+
+
+def test_x11_display_reports_missing_weston(x11_runtime, monkeypatch):
+    monkeypatch.setattr(session, "_WESTON", str(x11_runtime / "weston"))
+    with pytest.raises(session.X11DisplayError, match="fehlt weston"):
+        session._check_display_requirements()
+    with pytest.raises(session.X11DisplayError, match="fehlt weston"):
+        with session._display_socket():
+            pytest.fail("Started without Weston")
+    assert not list(x11_runtime.iterdir())
+
+
+@pytest.mark.parametrize(
+    ("status", "timeout", "match"),
+    [(1, 12, "Status 1"), (None, 0, "keinen Wayland-Socket")],
+)
+def test_failed_x11_display_cleans_up(x11_runtime, monkeypatch, status, timeout, match):
+    closed = []
+
+    @contextmanager
+    def fake_weston(_command, _fds, *, env):
+        try:
+            yield SimpleNamespace(poll=lambda: status)
+        finally:
+            closed.append(Path(env["XDG_RUNTIME_DIR"]))
+
+    monkeypatch.setattr(sandbox, "_process", fake_weston)
+    monkeypatch.setattr(sandbox, "_START_TIMEOUT", timeout)
+    with pytest.raises(session.X11DisplayError, match=match):
+        with session._display_socket():
+            pytest.fail("Started without a display")
+    assert len(closed) == 1 and not closed[0].exists()
+
+
+def test_x11_metadata_targets_only_the_window_reported_by_weston(tmp_path, monkeypatch):
+    log = tmp_path / "weston.log"
+    log.write_text("[10:00:00.000] x11 output 1024x600, window id 2097157\n")
+    calls = []
+
+    def runner(command, **kwargs):
+        assert kwargs["env"] == {"DISPLAY": ":42"}
+        calls.append(command)
+
+    monkeypatch.setattr(session.subprocess, "run", runner)
+    session._brand_weston_window(log, "NetmonRoots Browser", {"DISPLAY": ":42"})
+    [command] = calls
+    assert command[:3] == ["/usr/bin/python3", "-I", "-B"]
+    assert Path(command[3]).name == "x11_window.py"
+    assert command[4:] == [
+        "2097157",
+        "NetmonRoots Browser",
+        str(sandbox._BROWSER_ICON),
+    ]
+
+
+def test_x11_metadata_skips_a_log_without_a_window_id(tmp_path, monkeypatch):
+    log = tmp_path / "weston.log"
+    log.write_text("Unrelated compositor log entry\n")
+    monkeypatch.setattr(
+        session.subprocess, "run", lambda *_a, **_kw: pytest.fail("Changed a window")
+    )
+    session._brand_weston_window(log, "NetmonRoots Browser", {})

@@ -439,7 +439,7 @@ def test_secure_browser_manager_renders_preflight_text():
 
     assert "Secure-Browser-Preflight" in rendered
     assert "- Modus: read-only" in rendered
-    assert "Setup-Assistenten" in rendered
+    assert "netmon-web-browser-runtime" in rendered
     assert "- Builder-Skript: OK" in rendered
     assert "- Firefox-Quelle: OK" in rendered
 
@@ -4404,4 +4404,33 @@ def test_secure_browser_launcher_button_handles_inspection_errors(monkeypatch):
     assert (
         "Fehler bei Launcher-Prüfung: launcher kaputt"
         in frame.secure_browser_detail_text.text_content
+    )
+
+
+def test_secure_browser_preflight_reports_missing_managed_runtime_with_legacy_source(
+    monkeypatch, tmp_path
+):
+    from netmon.modules.secure_browser import session
+
+    service = SecureBrowserService()
+    legacy = tmp_path / "firefox-base" / "firefox"
+    legacy.mkdir(parents=True)
+    (legacy / "firefox").touch()
+    monkeypatch.setattr(service, "get_default_source_firefox_dir", lambda: legacy)
+    monkeypatch.setattr(service, "get_default_base_dir", lambda: tmp_path)
+    monkeypatch.setattr(session, "FIREFOX_DIR", Path("/missing-package/firefox"))
+    lstat = Path.lstat
+
+    def trusted_root(path):
+        if path == Path("/"):
+            return SimpleNamespace(st_mode=0o40755, st_uid=0)
+        return lstat(path)
+
+    monkeypatch.setattr(Path, "lstat", trusted_root)
+    lines = service.run_preflight_checks()
+    assert any("Firefox-Quelle" in line and "OK" in line for line in lines)
+    assert any(
+        "Geschützte Firefox-Laufzeit: Die eigene Firefox-Basis fehlt" in line
+        and "netmon-web-browser-runtime" in line
+        for line in lines
     )
