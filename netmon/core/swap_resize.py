@@ -5,7 +5,7 @@ The previous resize ran ``swapoff``/``rm``/``fallocate``/``dd of=``/``chmod``/
 directory of the swap file was writable by a non-root user, that pathname could
 be replaced by a symlink between two commands and root would write through it.
 
-This module runs as one root process (``sudo -n /usr/bin/python3 -I -c``) and:
+The protected installed copy runs as one isolated Python process under sudo and:
 
 * accepts only an active, canonical swap file path from ``/proc/swaps``,
 * opens every ancestor relative to its already verified parent with
@@ -16,8 +16,7 @@ This module runs as one root process (``sudo -n /usr/bin/python3 -I -c``) and:
   address the file through that descriptor or the file's own descriptor via
   ``/proc/self/fd`` and never re-resolve the pathname.
 
-It depends on the standard library only, because its source text is executed
-by an isolated root interpreter.
+The privileged entry point depends only on the standard library.
 """
 
 import ctypes
@@ -33,6 +32,7 @@ GIB_BYTES = 1024**3
 _ROOT_UID = 0
 PROC_SWAPS = "/proc/swaps"
 MKSWAP = "/usr/sbin/mkswap"
+HELPER = "/usr/lib/netmon/netmon/core/swap_resize.py"
 _FORBIDDEN_ROOTS = {"dev", "proc", "sys"}
 _ZERO_CHUNK = 1024 * 1024
 _DIR_FLAGS = os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
@@ -307,20 +307,46 @@ def main(argv):
     return 0
 
 
+def trusted_helper_path():
+    """Require a regular installed helper on a root-protected path."""
+    error = "Geschützter Swap-Helfer fehlt oder ist unsicher."
+    try:
+        directory_fd, name = open_trusted_parent(HELPER)
+        try:
+            info = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+        finally:
+            os.close(directory_fd)
+    except (SwapResizeError, OSError) as exc:
+        raise SwapResizeError(error) from exc
+    if (
+        not stat.S_ISREG(info.st_mode)
+        or info.st_uid != _ROOT_UID
+        or info.st_mode & 0o022
+        or info.st_nlink != 1
+    ):
+        raise SwapResizeError(error)
+    return HELPER
+
+
 def root_command(path, gib):
-    """sudo argv that runs this module's own source in an isolated interpreter."""
-    with open(__file__, "r", encoding="utf-8") as stream:
-        source = stream.read()
+    """Launch only the verified installed helper with validated arguments."""
+    from .privilege_launcher import trusted_system_executable
+    from .trusted_sudo import trusted_sudo_path
+
+    helper = trusted_helper_path()
+    path = str(path)
+    validate_path(path)
+    size = validate_gib(gib)
     return [
-        "sudo",
+        trusted_sudo_path(),
         "-n",
-        "/usr/bin/python3",
+        "--",
+        trusted_system_executable("python3"),
         "-I",
-        "-c",
-        source,
+        helper,
         "resize",
-        str(path),
-        str(int(gib)),
+        path,
+        str(size),
     ]
 
 

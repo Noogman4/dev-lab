@@ -11,7 +11,7 @@ import sys
 
 import pytest
 
-from netmon.core import swap_resize
+from netmon.core import privilege_launcher, swap_resize, trusted_sudo
 
 
 @pytest.fixture(autouse=True)
@@ -314,22 +314,144 @@ def test_proc_swaps_paths_are_unescaped(tmp_path):
     assert swap_resize.active_swap_files(str(table)) == {"/swap dir/swapfile"}
 
 
-def test_root_command_runs_self_contained_source_in_isolated_python():
+@pytest.fixture
+def installed_helper(tmp_path, monkeypatch):
+    helper = tmp_path / "swap_resize.py"
+    helper.write_text("# Installed file fixture\n", encoding="utf-8")
+    helper.chmod(0o644)
+
+    def trusted_parent(path):
+        assert path == "/usr/lib/netmon/netmon/core/swap_resize.py"
+        return os.open(tmp_path, swap_resize._DIR_FLAGS), helper.name
+
+    monkeypatch.setattr(swap_resize, "open_trusted_parent", trusted_parent)
+    monkeypatch.setattr(swap_resize, "_ROOT_UID", os.geteuid())
+    return helper
+
+
+@pytest.mark.parametrize("unsafe", ["missing", "owner", "mode", "symlink", "hardlink"])
+def test_installed_helper_refuses_unsafe_file(installed_helper, monkeypatch, unsafe):
+    if unsafe == "missing":
+        installed_helper.unlink()
+    elif unsafe == "owner":
+        monkeypatch.setattr(swap_resize, "_ROOT_UID", os.geteuid() + 1)
+    elif unsafe == "mode":
+        installed_helper.chmod(0o664)
+    elif unsafe == "symlink":
+        original = installed_helper.with_suffix(".original")
+        installed_helper.rename(original)
+        installed_helper.symlink_to(original)
+    elif unsafe == "hardlink":
+        os.link(installed_helper, installed_helper.with_suffix(".alias"))
+
+    with pytest.raises(swap_resize.SwapResizeError, match="Swap-Helfer"):
+        swap_resize.trusted_helper_path()
+
+
+def test_root_command_runs_only_the_installed_helper(installed_helper, monkeypatch):
+    monkeypatch.setattr(swap_resize, "__file__", "/unavailable-checkout/swap_resize.py")
+    monkeypatch.setattr(trusted_sudo, "trusted_sudo_path", lambda: "/usr/bin/sudo")
+    monkeypatch.setattr(
+        privilege_launcher, "trusted_system_executable", lambda name: "/usr/bin/" + name
+    )
+
     argv = swap_resize.root_command("/swapfile", 8)
-    assert argv[:5] == ["sudo", "-n", "/usr/bin/python3", "-I", "-c"]
-    assert argv[6:] == ["resize", "/swapfile", "8"]
-    # The source must run standalone (stdlib only) and refuse without root.
+    assert argv == [
+        "/usr/bin/sudo",
+        "-n",
+        "--",
+        "/usr/bin/python3",
+        "-I",
+        "/usr/lib/netmon/netmon/core/swap_resize.py",
+        "resize",
+        "/swapfile",
+        "8",
+    ]
+
+
+def test_helper_runs_standalone_and_refuses_without_root():
+    if os.geteuid() == 0:
+        pytest.skip("This probe intentionally runs unprivileged")
     result = subprocess.run(
-        [sys.executable, "-I", "-c", argv[5], *argv[6:]],
+        [sys.executable, "-I", swap_resize.__file__, "resize", "/swapfile", "8"],
         capture_output=True,
         text=True,
         timeout=20,
         cwd="/",
         env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"},
     )
-    if os.geteuid() != 0:
-        assert result.returncode == 2
-        assert "root" in result.stderr
+    assert result.returncode == 2
+    assert "root" in result.stderr
+
+
+def test_app_blocks_resize_without_trusted_helper_before_sudo(monkeypatch):
+    from netmon import app as app_module
+
+    app = app_module.App.__new__(app_module.App)
+    warnings = []
+    app._detect_supported_swapfile = lambda: "/swapfile"
+    app.log_safe = lambda _message: None
+    app.ensure_sudo_session = lambda *_args: pytest.fail("Unexpected sudo request")
+
+    def unsafe_parent(_path):
+        raise PermissionError("Writable ancestor")
+
+    monkeypatch.setattr(swap_resize, "open_trusted_parent", unsafe_parent)
+    monkeypatch.setattr(
+        app_module.simpledialog,
+        "askinteger",
+        lambda *_args, **_kwargs: pytest.fail("Unexpected size prompt"),
+    )
+    monkeypatch.setattr(
+        app_module.messagebox,
+        "showwarning",
+        lambda _title, message, **_kwargs: warnings.append(message),
+    )
+
+    app.resize_swap_async()
+
+    assert len(warnings) == 1 and "Swap-Helfer" in warnings[0]
+
+
+def test_app_restores_swap_controls_if_helper_is_later_unavailable(monkeypatch):
+    from netmon import app as app_module
+
+    app = app_module.App.__new__(app_module.App)
+    logs = []
+    buttons = []
+    app._detect_supported_swapfile = lambda: "/swapfile"
+    app._read_swapfile_size_bytes = lambda _path: 1024**3
+    app._read_swap_usage = lambda: (0, 0, 0)
+    app._read_ram_available_bytes = lambda: 0
+    app._confirm_danger_action = lambda *_args, **_kwargs: True
+    app.ensure_sudo_session = lambda _reason: True
+    app._set_swap_action_buttons_enabled = buttons.append
+    app.log_safe = logs.append
+    app.after = lambda _delay, callback: callback()
+
+    def helper_disappeared(_path, _gib):
+        raise swap_resize.SwapResizeError("Helper unavailable")
+
+    class ImmediateThread:
+        def __init__(self, *, target, daemon):
+            self.target = target
+
+        def start(self):
+            self.target()
+
+    monkeypatch.setattr(swap_resize, "trusted_helper_path", lambda: swap_resize.HELPER)
+    monkeypatch.setattr(swap_resize, "precheck", lambda _path: None)
+    monkeypatch.setattr(swap_resize, "root_command", helper_disappeared)
+    monkeypatch.setattr(app_module.simpledialog, "askinteger", lambda *_a, **_k: 2)
+    monkeypatch.setattr(app_module.threading, "Thread", ImmediateThread)
+    monkeypatch.setattr(
+        app_module, "run_cmd", lambda *_a, **_k: pytest.fail("Unexpected root command")
+    )
+
+    app.resize_swap_async()
+
+    assert buttons == [False, True]
+    assert logs[-1] == "Swap resize failed: Helper unavailable"
 
 
 def test_app_resize_job_uses_single_pinned_root_process():
