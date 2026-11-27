@@ -34,8 +34,8 @@ return [
             "target" => "/dist/docs/netmon_dokumentation_1.1.21.pdf",
         ],
         "audit-pdf" => [
-            "label" => "NetMon security audit PDF 2026, round 12",
-            "target" => "/netmon_security_audit_2026_r12.pdf",
+            "label" => "NetMon security audit PDF 2026, round 13",
+            "target" => "/netmon_security_audit_2026_r13.pdf",
         ],
         "verify-download-script" => [
             "label" => "Download verification script",

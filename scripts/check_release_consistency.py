@@ -66,7 +66,7 @@ def main() -> int:
             f"netmon_{version}_all.deb",
             f"netmon_dokumentation_{version}.html",
             f"netmon_dokumentation_{version}.pdf",
-            "netmon_security_audit_2026_r12.pdf",
+            "netmon_security_audit_2026_r13.pdf",
         ],
         "site/index.html": [f"<strong>{version}</strong>"],
         "site/en/index.html": [f"<strong>{version}</strong>"],
@@ -82,10 +82,13 @@ def main() -> int:
         ],
         "site/docs.html": [f"netmon_dokumentation_{version}.html"],
         "site/en/docs.html": [f"netmon_dokumentation_{version}.html"],
-        "site/security-audit.html": [f"NetMon Roots v{version}", "Runde&nbsp;12"],
+        "site/security-audit.html": [
+            "Runde&nbsp;13",
+            "netmon_security_audit_2026_r13.pdf",
+        ],
         "site/en/security-audit.html": [
-            f"NetMon Roots v{version}",
-            "Round 12",
+            "Round 13",
+            "netmon_security_audit_2026_r13.pdf",
         ],
     }
     package_paths = {
