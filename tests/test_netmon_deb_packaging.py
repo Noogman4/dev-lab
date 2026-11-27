@@ -145,17 +145,18 @@ def test_deb_builders_do_not_duplicate_code_the_classics_archive():
         assert '"$FUN_ASSETS_ROOT/Code-the-Classics.zip"' in source
 
 
-def test_site_bundle_publishes_current_r12_audit_and_keeps_archives():
+def test_site_bundle_publishes_current_r13_audit_and_keeps_archives():
     source = (PROJECT_ROOT / "scripts" / "build_netmon_site_bundle.sh").read_text(
         encoding="utf-8"
     )
 
-    assert 'CURRENT_AUDIT_VERSIONED_HTML="security-audit-r12.html"' in source
+    assert 'CURRENT_AUDIT_VERSIONED_HTML="security-audit-r13.html"' in source
     assert 'require_file "$ROOT_DIR/site/security-audit-r10.html"' in source
     assert 'require_file "$ROOT_DIR/site/netmon_security_audit_2026_r11.pdf"' in source
     assert 'require_file "$ROOT_DIR/site/netmon_security_audit_2026_r12.pdf"' in source
+    assert 'require_file "$ROOT_DIR/site/netmon_security_audit_2026_r13.pdf"' in source
     assert (
-        'copy_release_file "$ROOT_DIR/site/netmon_security_audit_2026_r12.pdf" '
+        'copy_release_file "$ROOT_DIR/site/netmon_security_audit_2026_r13.pdf" '
         '"$PUBLIC_DIR/netmon_security_audit_2026.pdf"'
     ) in source
     assert (
@@ -164,7 +165,7 @@ def test_site_bundle_publishes_current_r12_audit_and_keeps_archives():
     ) in source
 
 
-def test_release_update_bundle_includes_r12_html_pdf_and_r11_pdf_archive():
+def test_release_update_bundle_includes_r13_and_keeps_r12_r11_archives():
     source = (
         PROJECT_ROOT / "scripts" / "build_netmon_release_update_bundle.sh"
     ).read_text(encoding="utf-8")
@@ -173,12 +174,13 @@ def test_release_update_bundle_includes_r12_html_pdf_and_r11_pdf_archive():
     assert 'require_file "$ROOT_DIR/site/security-audit-r10.html"' in source
     assert 'require_file "$ROOT_DIR/site/netmon_security_audit_2026_r11.pdf"' in source
     assert 'require_file "$ROOT_DIR/site/netmon_security_audit_2026_r12.pdf"' in source
+    assert 'require_file "$ROOT_DIR/site/netmon_security_audit_2026_r13.pdf"' in source
     assert (
         'copy_release_file "$ROOT_DIR/site/security-audit.html" '
-        '"$PUBLIC_DIR/security-audit-r12.html"'
+        '"$PUBLIC_DIR/security-audit-r13.html"'
     ) in source
     assert (
-        'copy_release_file "$ROOT_DIR/site/netmon_security_audit_2026_r12.pdf" '
+        'copy_release_file "$ROOT_DIR/site/netmon_security_audit_2026_r13.pdf" '
         '"$PUBLIC_DIR/netmon_security_audit_2026.pdf"'
     ) in source
     assert (
@@ -186,6 +188,7 @@ def test_release_update_bundle_includes_r12_html_pdf_and_r11_pdf_archive():
         '"$PUBLIC_DIR/netmon_security_audit_2026_r11.pdf"'
     ) in source
     assert 'echo "  public_html/security-audit-r12.html"' in source
+    assert 'echo "  public_html/security-audit-r13.html"' in source
 
 
 def test_release_builders_derive_version_and_require_signatures():

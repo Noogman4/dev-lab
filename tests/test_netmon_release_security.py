@@ -95,7 +95,7 @@ def isolated_repo(root, sources=None):
         "${PKG_VERSION}": VERSION,
         "${DOCS_VERSION}": VERSION,
         "$CURRENT_AUDIT_HTML": "security-audit.html",
-        "$CURRENT_AUDIT_VERSIONED_HTML": "security-audit-r12.html",
+        "$CURRENT_AUDIT_VERSIONED_HTML": "security-audit-r13.html",
     }
     paths = set()
     for name, *_ in PROFILES:
@@ -118,6 +118,14 @@ def isolated_repo(root, sources=None):
         path.parent.mkdir(parents=True, exist_ok=True)
         if not path.exists():
             path.write_text("synthetic input\n")
+    # Distinct current/archive bytes catch accidental audit alias rotation.
+    for name in (
+        "security-audit.html",
+        "security-audit-r12.html",
+        "netmon_security_audit_2026_r12.pdf",
+        "netmon_security_audit_2026_r13.pdf",
+    ):
+        (root / "site" / name).write_text(f"SYNTHETIC AUDIT: {name}\n")
     (root / "site/latest-version.json").write_text('{"version":"1.1.21"}\n')
     # Locally generated docs for the unsigned test bundle; production builds
     # regenerate them from the commit instead.
@@ -426,6 +434,17 @@ def test_valid_signature_succeeds_and_old_environment_cannot_disable_verificatio
             archive.read("public_html/verify/verify_netmon_signature.sh")
             == (root / "scripts/verify_netmon_signature.sh").read_bytes()
         )
+        for published, original in {
+            "netmon_security_audit_2026.pdf": "netmon_security_audit_2026_r13.pdf",
+            "netmon_security_audit_2026_r13.pdf": "netmon_security_audit_2026_r13.pdf",
+            "netmon_security_audit_2026_r12.pdf": "netmon_security_audit_2026_r12.pdf",
+            "security-audit-r13.html": "security-audit.html",
+            "security-audit-r12.html": "security-audit-r12.html",
+        }.items():
+            assert (
+                archive.read(f"public_html/{published}")
+                == (root / "site" / original).read_bytes()
+            )
 
 
 @pytest.mark.parametrize("profile", PROFILES)
